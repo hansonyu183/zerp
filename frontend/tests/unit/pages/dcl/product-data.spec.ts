@@ -1,36 +1,49 @@
 import { describe, expect, it } from 'vitest'
 import {
-  comparableProductValue,
-  productFormFields,
-  productPayload,
+  dclProductFormFields,
+  dclProductInput,
   suggestBaseQuantity,
-  validateProductConfiguration,
-} from '@/pages/bob/shared/product-data'
-import { bobSaveData } from '@/pages/bob/shared/form-data'
-import { getBobEntityConfig } from '@/pages/bob/shared/config'
+  validateDclProductConfiguration,
+} from '@/pages/dcl/product/product-data'
+import { dclProductConfig } from '@/pages/dcl/product/config'
+import { dclProductSaveData } from '@/pages/dcl/product/data'
 
-describe('product target data model', () => {
+describe('DCL product target data model', () => {
   it('serializes unit references without client-authored snapshots', () => {
     expect(
-      productPayload({
-        behaviorProfile: 'RAW_MATERIAL',
-        unitConversions: [
-          {
-            unit: {
-              objectId: 'UNIT-KG',
-              approvalEntryId: 'VERSION-KG',
-              code: 'KG',
-              name: '千克',
-              symbol: 'kg',
+      dclProductInput(
+        {
+          behaviorProfile: 'RAW_MATERIAL',
+          unitConversions: [
+            {
+              unit: {
+                objectId: 'UNIT-KG',
+                approvalEntryId: 'VERSION-KG',
+                code: 'KG',
+                name: '千克',
+                symbol: 'kg',
+              },
+              factor: '1',
             },
-            factor: '1',
-          },
-        ],
-        formula: null,
-      }),
+          ],
+          formula: null,
+        },
+        'create',
+      ),
     ).toEqual({
+      name: '',
+      productTypeId: null,
+      defaultInputUnitId: null,
+      pricingUnitId: null,
       unitConversions: [{ unit: { objectId: 'UNIT-KG' }, factor: '1' }],
-      formula: undefined,
+      returnable: false,
+      categoryId: null,
+      specification: null,
+      model: null,
+      barcode: null,
+      remark: null,
+      defaultPackagingSpec: null,
+      formula: null,
     })
   })
 
@@ -50,12 +63,9 @@ describe('product target data model', () => {
       ],
       formula: null,
     }
-    expect(productFormFields(source).unitConversions).toEqual(
+    expect(dclProductFormFields(source).unitConversions).toEqual(
       source.unitConversions,
     )
-    expect(
-      comparableProductValue('unitConversions', source.unitConversions, true),
-    ).toEqual([{ unit: { objectId: 'UNIT-TON' }, factor: '1000' }])
   })
 
   it('suggests base quantity with decimal arithmetic', () => {
@@ -64,7 +74,7 @@ describe('product target data model', () => {
     expect(suggestBaseQuantity('', '3')).toBe('')
   })
 
-  it('omits an untouched formula so effective-version save can refresh its candidate', () => {
+  it('sends an untouched fixed formula in the complete DCL save snapshot', () => {
     const formula = {
       output: {
         enteredQuantity: '1',
@@ -90,11 +100,13 @@ describe('product target data model', () => {
         },
       ],
     }
-    const config = getBobEntityConfig('product')
-    const form = { ...config.emptyForm(), name: '成品', formula }
+    const form = {
+      ...dclProductConfig.emptyForm(),
+      name: '成品',
+      formula,
+    }
 
-    expect(bobSaveData(config, form)).not.toHaveProperty('formula')
-    expect(bobSaveData(config, { ...form, formulaDirty: true })).toHaveProperty(
+    expect(dclProductSaveData(form)).toHaveProperty(
       'formula.components.0.material.objectId',
       'MAT-1',
     )
@@ -102,7 +114,7 @@ describe('product target data model', () => {
 
   it('checks completeness only at lifecycle boundaries', () => {
     expect(
-      validateProductConfiguration({
+      validateDclProductConfiguration({
         productTypeId: '',
         behaviorProfile: '',
         unitConversions: [],
@@ -119,7 +131,7 @@ describe('product target data model', () => {
     ])
 
     expect(
-      validateProductConfiguration({
+      validateDclProductConfiguration({
         productTypeId: 'TYPE-PACKAGING',
         behaviorProfile: 'PACKAGING',
         unitConversions: [{ unit: { objectId: 'UNIT-PIECE' }, factor: '1' }],

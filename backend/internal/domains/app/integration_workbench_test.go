@@ -28,6 +28,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	declarations := dcldomain.NewOperatingEntityService(pool, bobService, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, bobService, authorizer, bus)
 	fundAccounts := dcldomain.NewFundAccountService(pool, bobService, authorizer, bus)
+	products := dcldomain.NewProductService(pool, bobService, authorizer, bus)
 	actor := func(id, requestID string) approval.Actor {
 		result, actorErr := approval.UserActor(authorization.Principal{ActorID: id}, requestID)
 		if actorErr != nil {
@@ -108,6 +109,37 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit DCL pending operating entity: %v", err)
 	}
+	productInput := func(name string) dcldomain.ProductInput {
+		const productTypeID = "01JPTP00000000000000000001"
+		const unitID = "01JAVX00000000000000000011"
+		return dcldomain.ProductInput{
+			Name: name, ProductTypeID: productTypeID,
+			DefaultInputUnitID: unitID, PricingUnitID: unitID,
+			UnitConversions: []bobdomain.ProductUnitConversion{{
+				Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: unitID}, Factor: "1",
+			}},
+			DefaultPackagingSpec: "1",
+		}
+	}
+	productDraft, err := products.Create(t.Context(), dcldomain.ProductCreateInput{
+		Data: productInput("工作台产品草稿-" + suffix),
+	}, actor(admin.ID, "workbench-create-product-draft"))
+	if err != nil {
+		t.Fatalf("create DCL draft product: %v", err)
+	}
+	productPending, err := products.Create(t.Context(), dcldomain.ProductCreateInput{
+		Data: productInput("工作台产品待审核-" + suffix),
+	}, actor(admin.ID, "workbench-create-product-pending"))
+	if err != nil {
+		t.Fatalf("create DCL pending product: %v", err)
+	}
+	productPending, err = products.Submit(t.Context(), dcldomain.ProductVersionInput{
+		ObjectID: productPending.ObjectID, ApprovalEntryID: productPending.Approval.ApprovalEntryID,
+		ApprovalRevision: productPending.Approval.Revision,
+	}, actor(admin.ID, "workbench-submit-product-pending"))
+	if err != nil {
+		t.Fatalf("submit DCL pending product: %v", err)
+	}
 
 	baseSequence := int(time.Now().UnixNano()%9000) + 1
 	documentPrefix := "OIN-20991231"
@@ -120,11 +152,15 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		fmt.Sprintf("%s-%04d", documentPrefix, baseSequence+1),
 		fmt.Sprintf("%s-%04d", documentPrefix, baseSequence+2),
 	}
-	allObjectIDs := []string{draft.ObjectID, pending.ObjectID, operating.ObjectID, fund.ObjectID, dclPending.ObjectID}
+	allObjectIDs := []string{
+		draft.ObjectID, pending.ObjectID, operating.ObjectID, fund.ObjectID, dclPending.ObjectID,
+		productDraft.ObjectID, productPending.ObjectID,
+	}
 	allApprovalEntryIDs := []string{
 		draft.Approval.ApprovalEntryID, pending.Approval.ApprovalEntryID,
 		operatingSubmitted.Approval.ApprovalEntryID, fundSubmitted.Approval.ApprovalEntryID,
-		dclPending.Approval.ApprovalEntryID,
+		dclPending.Approval.ApprovalEntryID, productDraft.Approval.ApprovalEntryID,
+		productPending.Approval.ApprovalEntryID,
 	}
 	t.Cleanup(func() {
 		_, _ = pool.Exec(t.Context(), `DELETE FROM vou_other_income_details WHERE document_id=ANY($1::text[])`, documentIDs)
@@ -141,6 +177,11 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_fund_accounts WHERE object_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_fund_account_identifier_claims WHERE object_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_fund_account_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_barcode_claims WHERE object_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_formula_lines WHERE formula_id IN (SELECT id FROM dcl_product_formulas WHERE approval_entry_id=ANY($1::text[]))`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_formulas WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_unit_conversions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_operating_entities WHERE object_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_warehouse_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_operating_entity_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
@@ -201,6 +242,8 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		"/dcl/operating-entity/query", "/dcl/operating-entity/get", "/dcl/operating-entity/save",
 		"/dcl/operating-entity/submit", "/dcl/operating-entity/approve", "/dcl/operating-entity/reject",
 		"/dcl/operating-entity/unsubmit",
+		"/dcl/product/query", "/dcl/product/get", "/dcl/product/save",
+		"/dcl/product/submit", "/dcl/product/approve", "/dcl/product/reject", "/dcl/product/unsubmit",
 	}}
 	bobPage, err := service.QueryWorkbench(t.Context(), bobPrincipal, WorkbenchQueryInput{
 		Category: WorkbenchCategoryBob, Keyword: "  工作台  ", Page: 1, PageSize: 20,
@@ -220,8 +263,17 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		!slices.Equal(dclItem.AvailableActions, []string{"view", "approve", "reject", "unsubmit"}) {
 		t.Fatalf("DCL operating entity workbench item = %+v", dclItem)
 	}
-	if bobPage.Total < 3 {
-		t.Fatalf("BOB total = %d, want at least 3", bobPage.Total)
+	if item := byID[productDraft.ObjectID]; item.Entity != bobdomain.EntityProduct ||
+		item.PendingStage != "SUBMIT" || !slices.Equal(item.AvailableActions, []string{"view", "edit", "submit"}) {
+		t.Fatalf("DCL draft product workbench item = %+v", item)
+	}
+	if item := byID[productPending.ObjectID]; item.Entity != bobdomain.EntityProduct ||
+		item.PendingStage != "APPROVE" ||
+		!slices.Equal(item.AvailableActions, []string{"view", "approve", "reject", "unsubmit"}) {
+		t.Fatalf("DCL pending product workbench item = %+v", item)
+	}
+	if bobPage.Total < 5 {
+		t.Fatalf("BOB total = %d, want at least 5", bobPage.Total)
 	}
 	if bobPage.Page != 1 || bobPage.PageSize != 20 {
 		t.Fatalf("BOB pagination = page %d size %d", bobPage.Page, bobPage.PageSize)

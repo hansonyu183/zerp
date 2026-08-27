@@ -85,7 +85,6 @@ var publicApprovalEntities = [...]string{
 	EntityOtherUnit,
 	EntityEmployee,
 	EntitySalesPartner,
-	EntityProduct,
 }
 
 type ErrorKind int
@@ -432,6 +431,9 @@ type HistoryInput struct {
 }
 
 type DetailView struct {
+	// Enabled belongs to declaration snapshots for DCL-owned Product and is not
+	// part of BOB's public product payload.
+	Enabled                         bool                    `json:"-"`
 	Name                            string                  `json:"name"`
 	SalesCapabilities               []string                `json:"salesCapabilities,omitempty"`
 	Unit                            string                  `json:"unit,omitempty"`
@@ -446,6 +448,8 @@ type DetailView struct {
 	ShortName                       string                  `json:"shortName,omitempty"`
 	CategoryID                      string                  `json:"categoryId,omitempty"`
 	CategoryApprovalEntryID         string                  `json:"-"`
+	CategoryCode                    string                  `json:"-"`
+	CategoryName                    string                  `json:"-"`
 	TaxNumber                       string                  `json:"taxNumber,omitempty"`
 	ContactName                     string                  `json:"contactName,omitempty"`
 	ContactPhone                    string                  `json:"contactPhone,omitempty"`

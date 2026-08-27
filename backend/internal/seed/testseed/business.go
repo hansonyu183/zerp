@@ -383,7 +383,7 @@ func (s *Seeder) ensureBusiness(
 	sample bobSample,
 ) (bobdomain.ObjectView, outcome, error) {
 	approvalDomain := "bob"
-	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle || sample.entity == bobdomain.EntityFundAccount {
+	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle || sample.entity == bobdomain.EntityFundAccount || sample.entity == bobdomain.EntityProduct {
 		approvalDomain = "dcl"
 	}
 	var objectID string
@@ -427,6 +427,15 @@ func (s *Seeder) ensureBusiness(
 				AccountNumber: data.AccountNumber, Remark: data.Remark,
 			}}, createActor)
 			result, createErr = dclFundAccountBusinessMutation(createdFundAccount), declarationErr
+		case bobdomain.EntityProduct:
+			createdProduct, declarationErr := s.products.Create(ctx, dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
+				Name: data.Name, CategoryID: data.CategoryID, Specification: data.Specification,
+				Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
+				ProductTypeID: data.ProductTypeID, DefaultInputUnitID: data.DefaultInputUnitID,
+				PricingUnitID: data.PricingUnitID, UnitConversions: data.UnitConversions,
+				Returnable: data.Returnable, DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
+			}}, createActor)
+			result, createErr = dclProductBusinessMutation(createdProduct), declarationErr
 		case bobdomain.EntityEmployee:
 			createdEmployment, relationshipErr := s.business.EmploymentCreate(ctx, bobdomain.EmploymentCreateInput{
 				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson,
@@ -575,8 +584,24 @@ func dclFundAccountBusinessView(view dcldomain.FundAccountView) bobdomain.Object
 			Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
 
+func dclProductBusinessMutation(result dcldomain.ProductMutation) bobdomain.MutationResult {
+	return bobdomain.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func dclProductBusinessView(view dcldomain.ProductView) bobdomain.ObjectView {
+	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityProduct,
+		Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		Approval: view.Approval, Data: bobdomain.DetailView{
+			Name: view.Data.Name, CategoryID: view.Data.CategoryID, Specification: view.Data.Specification,
+			Model: view.Data.Model, Barcode: view.Data.Barcode, Remark: view.Data.Remark,
+			ProductTypeID: view.Data.ProductTypeID, DefaultInputUnitID: view.Data.DefaultInputUnitID,
+			PricingUnitID: view.Data.PricingUnitID, UnitConversions: view.Data.UnitConversions,
+			Returnable: view.Data.Returnable, DefaultPackagingSpec: view.Data.DefaultPackagingSpec, Formula: view.Data.Formula,
+		}, UpdatedAt: view.UpdatedAt}
+}
+
 func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) (bobdomain.ObjectView, error) {
-	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse && entity != bobdomain.EntityVehicle && entity != bobdomain.EntityFundAccount {
+	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse && entity != bobdomain.EntityVehicle && entity != bobdomain.EntityFundAccount && entity != bobdomain.EntityProduct {
 		return s.business.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
 	}
 	actor, err := seedActor(actorID, requestID(key, "get"))
@@ -594,6 +619,10 @@ func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) 
 	if entity == bobdomain.EntityFundAccount {
 		view, getErr := s.fundAccounts.Get(ctx, dcldomain.FundAccountGetInput{ObjectID: objectID}, actor)
 		return dclFundAccountBusinessView(view), getErr
+	}
+	if entity == bobdomain.EntityProduct {
+		view, getErr := s.products.Get(ctx, dcldomain.ProductGetInput{ObjectID: objectID}, actor)
+		return dclProductBusinessView(view), getErr
 	}
 	view, getErr := s.operatingEntities.Get(ctx, dcldomain.OperatingEntityGetInput{ObjectID: objectID}, actor)
 	return dclBusinessView(view), getErr
@@ -622,6 +651,10 @@ func (s *Seeder) advanceBusiness(
 			var submitted dcldomain.FundAccountMutation
 			submitted, err = s.fundAccounts.Submit(ctx, dcldomain.FundAccountVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 			current = dclFundAccountBusinessMutation(submitted)
+		} else if sample.entity == bobdomain.EntityProduct {
+			var submitted dcldomain.ProductMutation
+			submitted, err = s.products.Submit(ctx, dcldomain.ProductVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+			current = dclProductBusinessMutation(submitted)
 		} else if sample.entity == bobdomain.EntityWarehouse {
 			var submitted dcldomain.WarehouseMutation
 			submitted, err = s.warehouses.Submit(ctx, dcldomain.WarehouseVersionInput{
@@ -658,6 +691,8 @@ func (s *Seeder) advanceBusiness(
 			_, err = s.vehicles.Approve(ctx, dcldomain.VehicleVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntityFundAccount {
 			_, err = s.fundAccounts.Approve(ctx, dcldomain.FundAccountVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+		} else if sample.entity == bobdomain.EntityProduct {
+			_, err = s.products.Approve(ctx, dcldomain.ProductVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntityWarehouse {
 			_, err = s.warehouses.Approve(ctx, dcldomain.WarehouseVersionInput{
 				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,

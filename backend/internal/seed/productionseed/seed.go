@@ -144,7 +144,7 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 func (s *Seeder) references(ctx context.Context) (references, error) {
 	resolve := func(entity, code string) (voudomain.ReferenceInput, error) {
 		domain := "bob"
-		if entity == bobdomain.EntityWarehouse {
+		if entity == bobdomain.EntityWarehouse || entity == bobdomain.EntityProduct {
 			domain = "dcl"
 		}
 		var objectID string

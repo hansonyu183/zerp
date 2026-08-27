@@ -146,6 +146,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 40,
     component: () => import('@/pages/dcl/fund-account/FundAccount.vue'),
   }),
+  registerPage('dcl', {
+    entity: 'product',
+    entityTitle: '产品申报',
+    icon: 'mdi-package-variant-closed',
+    order: 50,
+    component: () => import('@/pages/dcl/product/Product.vue'),
+  }),
   registerPage('rpt', {
     entity: 'definition',
     entityTitle: '报表定义管理',
@@ -232,7 +239,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
   }),
   registerPage('bob', {
     entity: 'product',
-    entityTitle: '产品',
+    entityTitle: '产品（当前档案）',
     icon: 'mdi-package-variant-closed',
     order: 40,
     component: () => import('@/pages/bob/product/Product.vue'),

@@ -50,23 +50,29 @@ func (s *Service) InventoryCountBookBalance(
 	}
 	items := make([]InventoryCountBalanceItem, 0, len(rows))
 	for _, row := range rows {
-		product, resolveErr := s.resolver.ResolveLatestApprovedReference(
-			ctx, tx, bobdomain.EntityProduct, row.ProductObjectID,
-		)
-		if resolveErr != nil {
-			return Page[InventoryCountBalanceItem]{}, domainError(
-				ErrorConflict, "inventory count product is not currently effective", nil, resolveErr,
-			)
+		product, loadErr := bobdomain.LoadProductSnapshot(ctx, q, row.ProductApprovalEntryID)
+		if loadErr != nil {
+			return Page[InventoryCountBalanceItem]{}, s.internal("load inventory count product snapshot", loadErr)
 		}
-		item := InventoryCountBalanceItem{
-			Product: referenceView(product), Quantity: formatQuantity(row.BaseQuantityMicros),
-		}
-		items = append(items, item)
+		items = append(items, inventoryCountBalanceItem(row, product))
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return Page[InventoryCountBalanceItem]{}, s.internal("commit inventory count balance transaction", err)
 	}
 	return Page[InventoryCountBalanceItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
+}
+
+func inventoryCountBalanceItem(row dbsqlc.ListVouInventoryCountBookBalancesRow, product bobdomain.DetailView) InventoryCountBalanceItem {
+	return InventoryCountBalanceItem{
+		Product: ReferenceView{
+			ObjectID: row.ProductObjectID, ApprovalEntryID: row.ProductApprovalEntryID,
+			Entity: "product", Code: row.ProductCode, Name: row.ProductName,
+			Unit: row.EnteredUnitSymbol, BehaviorProfile: product.BehaviorProfile,
+			DefaultInputUnitID: product.DefaultInputUnitID, PricingUnitID: product.PricingUnitID,
+			UnitConversions: product.UnitConversions,
+		},
+		Quantity: formatQuantity(row.BaseQuantityMicros),
+	}
 }
 
 func (s *Service) prepareInventoryCountFinalization(

@@ -15,7 +15,6 @@ export const fundAccountConfig = defineBobEntityConfig({
     accountNumber: '',
     remark: '',
   },
-  requiredKeys: ['name'],
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {

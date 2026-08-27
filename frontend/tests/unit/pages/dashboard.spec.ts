@@ -642,6 +642,23 @@ describe('Dashboard workbench', () => {
       approvalEntryId: 'version-1',
       approvalRevision: 5,
     })
+
+    const product = {
+      ...objectItem,
+      entity: 'product' as const,
+      code: 'PRD-0001',
+      name: '测试产品',
+    }
+    vi.clearAllMocks()
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+
+    expect(workbenchItemPath(product)).toBe('/dcl/product')
+    await expect(vm.runAction(product, 'submit')).resolves.toBe(true)
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/product/submit', {
+      objectId: 'object-1',
+      approvalEntryId: 'version-1',
+      approvalRevision: 5,
+    })
   })
 
   it('驳回资料时提交去除首尾空白的意见', async () => {

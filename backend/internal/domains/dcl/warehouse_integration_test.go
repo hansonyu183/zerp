@@ -247,13 +247,13 @@ func insertWarehouseInventoryBalance(t *testing.T, pool *pgxpool.Pool, warehouse
 		args []any
 	}{
 		{`INSERT INTO bob_objects(id,entity,code,enabled,revision,created_by,updated_by) VALUES($1,'product','PRD-0001',true,1,$2,$2)`, []any{productID, userID}},
-		{`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'bob','product',$2,1,'APPROVED',3,$3,now(),$4,now(),$3,now(),$4,now())`, []any{productEntryID, productID, userID, reviewerID}},
-		{`INSERT INTO bob_product_versions(approval_entry_id,name) VALUES($1,'库存产品')`, []any{productEntryID}},
+		{`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl','product',$2,1,'APPROVED',3,$3,now(),$4,now(),$3,now(),$4,now())`, []any{productEntryID, productID, userID, reviewerID}},
+		{`INSERT INTO dcl_product_versions(approval_entry_id,name) VALUES($1,'库存产品')`, []any{productEntryID}},
 		{`INSERT INTO acc_books(id,code,name,start_month,base_currency,control_book,created_by,updated_by) VALUES($1,'INV-FIXTURE','库存阻断账簿','2026-08-01','CNY',true,$2,$2)`, []any{bookID, userID}},
 		{`INSERT INTO acc_subjects(id,book_id,code,name,balance_direction,inventory_quantity,created_by,updated_by) VALUES($1,$2,'INV','库存','DEBIT',true,$3,$3)`, []any{subjectID, bookID, userID}},
 		{`INSERT INTO acc_vouchers(id,book_id,source_type,source_id,business_date,created_by) VALUES($1,$2,'OPENING','warehouse-inventory','2026-08-27',$3)`, []any{voucherID, bookID, userID}},
 		{`INSERT INTO acc_voucher_lines(id,book_id,voucher_id,subject_id,currency,debit_minor,credit_minor,quantity_micros,source_line_id,line_order) VALUES($1,$2,$3,$4,'CNY',0,0,1,'warehouse-inventory',1)`, []any{lineID, bookID, voucherID, subjectID}},
-		{`INSERT INTO acc_inventory_entries(id,book_id,voucher_id,voucher_line_id,subject_id,product_id,warehouse_id,business_date,quantity_delta_micros,source_line_id) VALUES($1,$2,$3,$4,$5,$6,$7,'2026-08-27',1,'warehouse-inventory')`, []any{entryID, bookID, voucherID, lineID, subjectID, productID, warehouseID}},
+		{`INSERT INTO acc_inventory_entries(id,book_id,voucher_id,voucher_line_id,subject_id,product_id,product_approval_entry_id,product_code,product_name,warehouse_id,business_date,quantity_delta_micros,source_line_id) VALUES($1,$2,$3,$4,$5,$6,$7,'PRD-0001','库存产品',$8,'2026-08-27',1,'warehouse-inventory')`, []any{entryID, bookID, voucherID, lineID, subjectID, productID, productEntryID, warehouseID}},
 	} {
 		if _, err := tx.Exec(t.Context(), statement.sql, statement.args...); err != nil {
 			t.Fatalf("insert inventory fixture: %v", err)

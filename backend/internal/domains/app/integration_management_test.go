@@ -221,7 +221,7 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	entitiesByDomain := map[string][]string{
 		"bob": {
 			"customer", "customer-account", "supplier", "other-unit", "employee",
-			"sales-partner", "product",
+			"sales-partner",
 		},
 		"aux": {
 			"product-category", "product-type", "department", "position", "settlement-method",
@@ -257,6 +257,15 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 			expected["/dcl/"+entity+"/"+action] = struct{}{}
 		}
 	}
+	for _, action := range []string{"query", "get"} {
+		expected["/bob/product/"+action] = struct{}{}
+	}
+	for _, action := range []string{
+		"query", "get", "create", "save", "submit", "unsubmit", "approve",
+		"reject", "unapprove", "delete", "versions", "audit-history",
+	} {
+		expected["/dcl/product/"+action] = struct{}{}
+	}
 
 	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain IN ('bob', 'aux', 'dcl')`)
 	if err != nil {
@@ -283,7 +292,7 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	}
 	var obsoleteBOBWrites int
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions
-		WHERE domain='bob' AND entity IN ('operating-entity','warehouse','vehicle') AND action NOT IN ('query','get')`).Scan(&obsoleteBOBWrites); err != nil {
+		WHERE domain='bob' AND entity IN ('operating-entity','warehouse','vehicle','product') AND action NOT IN ('query','get')`).Scan(&obsoleteBOBWrites); err != nil {
 		t.Fatalf("query obsolete BOB current-data write permissions: %v", err)
 	}
 	if obsoleteBOBWrites != 0 {

@@ -402,7 +402,7 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 		if _, err = pool.Exec(t.Context(), `INSERT INTO acc_voucher_lines(id,book_id,voucher_id,subject_id,currency,debit_minor,credit_minor,quantity_micros,dimensions,source_line_id,line_order) VALUES($1,$2,$3,$4,'CNY',$5,0,$6,$7,$8,1)`, lineID, bookID, voucherID, subjectID("1405"), lineAmount, quantityMicros, []byte(`{"WAREHOUSE":"`+warehouseID+`","PRODUCT":"`+productID+`"}`), documentID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = pool.Exec(t.Context(), `INSERT INTO acc_inventory_entries(id,book_id,voucher_id,voucher_line_id,subject_id,product_id,warehouse_id,business_date,quantity_delta_micros,source_line_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, entryID, bookID, voucherID, lineID, subjectID("1405"), productID, warehouseID, entry.date, entry.quantity, documentID); err != nil {
+		if _, err = pool.Exec(t.Context(), `INSERT INTO acc_inventory_entries(id,book_id,voucher_id,voucher_line_id,subject_id,product_id,product_approval_entry_id,product_code,product_name,warehouse_id,business_date,quantity_delta_micros,source_line_id) VALUES($1,$2,$3,$4,$5,$6,$7,'PRD-0001','报表测试产品',$8,$9,$10,$11)`, entryID, bookID, voucherID, lineID, subjectID("1405"), productID, newID(), warehouseID, entry.date, entry.quantity, documentID); err != nil {
 			t.Fatal(err)
 		}
 		if entry.quantity < 0 {

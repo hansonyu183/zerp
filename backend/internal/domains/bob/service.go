@@ -60,11 +60,11 @@ func bobApprovalPayload(objectID, entity, code string, enabled bool) bobapproval
 }
 
 func genericEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityOperatingEntity}, entity)
+	return slices.Contains([]string{EntityEmployee, EntityOperatingEntity}, entity)
 }
 
 func genericWriteEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityProduct}, entity)
+	return slices.Contains([]string{EntityEmployee}, entity)
 }
 
 func approvalEntity(entity string) bool {
@@ -205,6 +205,9 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	}
 	if entity == EntityFundAccount {
 		return s.getFundAccountCurrent(ctx, input)
+	}
+	if entity == EntityProduct {
+		return s.getProductCurrent(ctx, input)
 	}
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid get request", nil, nil)
@@ -640,6 +643,9 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntityFundAccount {
 		return s.validateFundAccountSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
+	if entity == EntityProduct {
+		return s.validateProductSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
@@ -670,6 +676,9 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	}
 	if entity == EntityFundAccount {
 		return s.resolveFundAccountCurrentReference(ctx, q, objectID)
+	}
+	if entity == EntityProduct {
+		return s.resolveProductCurrentReference(ctx, q, objectID)
 	}
 	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {

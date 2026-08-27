@@ -258,7 +258,7 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
 	expectedEntities := []string{
-		"customer", "supplier", "employee", "sales-partner", "product",
+		"customer", "supplier", "employee", "sales-partner",
 	}
 	expectedActions := []string{
 		"query", "get", "create", "save", "delete", "submit", "unsubmit",
@@ -308,6 +308,10 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 			route.Path != "/bob/fund-account/query" && route.Path != "/bob/fund-account/get" {
 			t.Fatalf("DCL-owned fund account lifecycle alias remains registered: %s", route.Path)
 		}
+		if strings.HasPrefix(route.Path, "/bob/product/") &&
+			route.Path != "/bob/product/query" && route.Path != "/bob/product/get" {
+			t.Fatalf("DCL-owned product lifecycle alias remains registered: %s", route.Path)
+		}
 		if strings.HasPrefix(route.Path, "/bob/service/") {
 			t.Fatalf("obsolete standalone service route remains registered: %s", route.Path)
 		}
@@ -323,7 +327,7 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	const entitySpecificRoutes = 10
+	const entitySpecificRoutes = 12
 	if len(routes) != len(wanted)+entitySpecificRoutes {
 		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+entitySpecificRoutes)
 	}

@@ -121,7 +121,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		}
 		var status string
 		approvalDomain := "bob"
-		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount {
+		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct {
 			approvalDomain = "dcl"
 		}
 		if err = pool.QueryRow(t.Context(), `
@@ -159,13 +159,13 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		bob.EntityCustomer: "bob_customer_relationship_versions", bob.EntityCustomerAccount: "bob_customer_versions",
 		bob.EntitySupplier: "bob_supplier_versions", bob.EntityOtherUnit: "bob_service_relationship_versions",
 		bob.EntityEmployee: "bob_employee_versions", bob.EntitySalesPartner: "bob_sales_partner_versions",
-		bob.EntityProduct: "bob_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",
+		bob.EntityProduct: "dcl_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",
 		bob.EntityVehicle: "dcl_vehicle_versions", bob.EntityFundAccount: "dcl_fund_account_versions",
 		bob.EntityOperatingEntity: "dcl_operating_entity_versions",
 	}
 	for _, entity := range allEntities {
 		approvalDomain := "bob"
-		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount {
+		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct {
 			approvalDomain = "dcl"
 		}
 		var objectCount, entryCount, payloadCount int
@@ -404,6 +404,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
 	bobService := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	productService := dcldomain.NewProductService(pool, bobService, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") || strings.Contains(label, "unapprove") {
@@ -439,21 +440,21 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 		return approved
 	}
 	approveProduct := func(created bob.MutationResult, label string) bob.MutationResult {
-		pending, submitErr := bobService.Submit(t.Context(), bob.EntityProduct, bob.VersionRevisionInput{
+		pending, submitErr := productService.Submit(t.Context(), dcldomain.ProductVersionInput{
 			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
 			ApprovalRevision: created.Approval.Revision,
 		}, actor(label+"-submit"))
 		if submitErr != nil {
 			t.Fatalf("submit %s: %v", label, submitErr)
 		}
-		approved, approveErr := bobService.Approve(t.Context(), bob.EntityProduct, bob.ReviewInput{
+		approved, approveErr := productService.Approve(t.Context(), dcldomain.ProductVersionInput{
 			ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
 			ApprovalRevision: pending.Approval.Revision,
 		}, actor(label+"-approve"))
 		if approveErr != nil {
 			t.Fatalf("approve %s: %v", label, approveErr)
 		}
-		return approved
+		return productMutation(approved)
 	}
 
 	suffix := ulid.Make().String()
@@ -465,7 +466,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 		t.Fatalf("resolve baseline kilogram unit: %v", err)
 	}
 	newProduct := func(categoryID, name string) bob.MutationResult {
-		created, createErr := bobService.Create(t.Context(), bob.EntityProduct, bob.CreateInput{Data: bob.CreateDetailInput{
+		created, createErr := productService.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
 			Name: name, CategoryID: categoryID, ProductTypeID: productType.ObjectID,
 			DefaultInputUnitID: unit.ObjectID, PricingUnitID: unit.ObjectID,
 			UnitConversions:      []bob.ProductUnitConversion{{Unit: bob.MeasurementUnitSnapshot{ObjectID: unit.ObjectID}, Factor: "1"}},
@@ -474,7 +475,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 		if createErr != nil {
 			t.Fatalf("create %s: %v", name, createErr)
 		}
-		return created
+		return productMutation(created)
 	}
 
 	// A pending BOB candidate is not a formal reference, so it must not block
@@ -484,7 +485,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 		"name": "PR3 候选分类-" + suffix,
 	}, "candidate-category-"+suffix)
 	candidateProduct := newProduct(candidateCategory.ObjectID, "PR3 候选产品-"+suffix)
-	candidatePending, err := bobService.Submit(t.Context(), bob.EntityProduct, bob.VersionRevisionInput{
+	candidatePending, err := productService.Submit(t.Context(), dcldomain.ProductVersionInput{
 		ObjectID: candidateProduct.ObjectID, ApprovalEntryID: candidateProduct.Approval.ApprovalEntryID,
 		ApprovalRevision: candidateProduct.Approval.Revision,
 	}, actor("candidate-product-submit-"+suffix))
@@ -500,7 +501,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 	}, actor("candidate-category-unapprove-"+suffix)); err != nil {
 		t.Fatalf("pending BOB candidate incorrectly blocked AUX unapprove: %v", err)
 	}
-	if _, err = bobService.Approve(t.Context(), bob.EntityProduct, bob.ReviewInput{
+	if _, err = productService.Approve(t.Context(), dcldomain.ProductVersionInput{
 		ObjectID: candidatePending.ObjectID, ApprovalEntryID: candidatePending.Approval.ApprovalEntryID,
 		ApprovalRevision: candidatePending.Approval.Revision,
 	}, actor("candidate-product-approve-"+suffix)); err == nil {

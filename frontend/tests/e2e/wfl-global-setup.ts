@@ -372,7 +372,6 @@ const bobReviewerActions = new Set([
     'supplier',
     'other-unit',
     'sales-partner',
-    'product',
     'fund-account',
   ].flatMap((entity) => [
     `/bob/${entity}/query`,
@@ -393,6 +392,9 @@ const bobReviewerActions = new Set([
   '/dcl/fund-account/query',
   '/dcl/fund-account/get',
   '/dcl/fund-account/approve',
+  '/dcl/product/query',
+  '/dcl/product/get',
+  '/dcl/product/approve',
 ])
 
 async function createEffectiveBob(
@@ -404,10 +406,25 @@ async function createEffectiveBob(
   if (
     entity === 'warehouse' ||
     entity === 'vehicle' ||
-    entity === 'fund-account'
+    entity === 'fund-account' ||
+    entity === 'product'
   ) {
+    const declarationData =
+      entity === 'product'
+        ? {
+            categoryId: null,
+            specification: null,
+            model: null,
+            barcode: null,
+            remark: null,
+            returnable: false,
+            defaultPackagingSpec: null,
+            formula: null,
+            ...data,
+          }
+        : data
     const created = await operator.post<BobMutation>(`dcl/${entity}/create`, {
-      data,
+      data: declarationData,
     })
     const submitted = await operator.post<BobMutation>(`dcl/${entity}/submit`, {
       objectId: created.objectId,

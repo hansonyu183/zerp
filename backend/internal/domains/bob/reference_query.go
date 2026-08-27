@@ -50,10 +50,20 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		}
 		return result, nil
 	}
-	rows, err := s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{
-		Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID,
-		BehaviorProfile: input.BehaviorProfile,
-	})
+	var rows []dbsqlc.QueryBobReferenceCandidatesRow
+	var err error
+	if input.Entity == EntityProduct {
+		productRows, err := s.queries.QueryBobProductReferenceCandidates(ctx, dbsqlc.QueryBobProductReferenceCandidatesParams{Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, BehaviorProfile: input.BehaviorProfile})
+		if err != nil {
+			return nil, s.internal("query product current reference candidates", err)
+		}
+		rows = make([]dbsqlc.QueryBobReferenceCandidatesRow, len(productRows))
+		for i, row := range productRows {
+			rows[i] = dbsqlc.QueryBobReferenceCandidatesRow(row)
+		}
+	} else {
+		rows, err = s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, BehaviorProfile: input.BehaviorProfile})
+	}
 	if err != nil {
 		return nil, s.internal("query BOB reference candidates", err)
 	}

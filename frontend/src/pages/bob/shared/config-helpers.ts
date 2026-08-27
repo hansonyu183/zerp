@@ -225,26 +225,11 @@ export interface BobEntityDefinition extends Omit<
   defaults: Record<string, unknown>
 }
 
-function assertConfigKeys(
-  entity: string,
-  label: string,
-  keys: readonly string[],
-  knownKeys: ReadonlySet<string>,
-): void {
-  const unknown = keys.filter((key) => !knownKeys.has(key))
-  if (unknown.length > 0) {
-    throw new Error(
-      `BOB ${entity} ${label} 包含未定义字段：${unknown.join(', ')}`,
-    )
-  }
-}
-
 export function defineBobEntityConfig(
   definition: BobEntityDefinition,
 ): BobEntityConfig {
   const { defaults, ...metadata } = definition
   const detailKeys = ['name', ...Object.keys(defaults)]
-  const formKeys = new Set(['code', ...detailKeys])
   const emptyContext: BobFieldContext = {
     mode: 'create',
     referenceOptions: {},
@@ -255,30 +240,14 @@ export function defineBobEntityConfig(
     metadata.fields(emptyContext).map((field) => String(field.key)),
   )
 
-  assertConfigKeys(
-    metadata.entity,
-    'requiredKeys',
-    metadata.requiredKeys,
-    formKeys,
+  const unknownReferences = Object.keys(metadata.references ?? {}).filter(
+    (key) => !fieldKeys.has(key),
   )
-  assertConfigKeys(
-    metadata.entity,
-    'uppercaseKeys',
-    metadata.uppercaseKeys ?? [],
-    formKeys,
-  )
-  assertConfigKeys(
-    metadata.entity,
-    'persistedKeys',
-    metadata.persistedKeys ?? [],
-    formKeys,
-  )
-  assertConfigKeys(
-    metadata.entity,
-    'references',
-    Object.keys(metadata.references ?? {}),
-    fieldKeys,
-  )
+  if (unknownReferences.length > 0) {
+    throw new Error(
+      `BOB ${metadata.entity} references 包含未定义字段：${unknownReferences.join(', ')}`,
+    )
+  }
 
   return {
     ...metadata,

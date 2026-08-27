@@ -18,7 +18,6 @@ export const vehicleConfig = defineBobEntityConfig({
     loadCapacityKg: '',
     remark: '',
   },
-  requiredKeys: ['name'],
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {

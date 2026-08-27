@@ -10,7 +10,6 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	scope := newWorkbenchPermissionScope([]string{
 		"/bob/customer/query", "/bob/customer/submit",
 		"/bob/supplier/query", "/bob/supplier/unsubmit",
-		"/bob/product/query", "/bob/product/reject",
 		"/vou/sale-order/query", "/vou/sale-order/submit",
 		"/vou/purchase-payment/query", "/vou/purchase-payment/unsubmit",
 	})
@@ -34,7 +33,7 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 		return scope.can("vou", entity, "approve") ||
 			scope.can("vou", entity, "unsubmit")
 	})
-	if !reflect.DeepEqual(pendingBob, []string{"product", "supplier"}) {
+	if !reflect.DeepEqual(pendingBob, []string{"supplier"}) {
 		t.Fatalf("pending BOB entities = %v", pendingBob)
 	}
 	if !reflect.DeepEqual(pendingVou, []string{"purchase-payment"}) {

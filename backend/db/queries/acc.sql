@@ -858,17 +858,27 @@ RETURNING id;
 
 -- name: InsertAccountingInventoryEntry :exec
 INSERT INTO acc_inventory_entries (
-  id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
-  warehouse_id, business_date, quantity_delta_micros, source_line_id,
+	id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
+	product_approval_entry_id, product_code, product_name,
+	warehouse_id, business_date, quantity_delta_micros, source_line_id,
   cost_counterpart_subject_id, cost_counterpart_dimensions,
   origin_source_document_id, origin_source_line_id
 ) VALUES (
   sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(voucher_id), sqlc.arg(voucher_line_id),
-  sqlc.arg(subject_id), sqlc.arg(product_id), sqlc.arg(warehouse_id),
+	sqlc.arg(subject_id), sqlc.arg(product_id), sqlc.arg(product_approval_entry_id),
+	sqlc.arg(product_code), sqlc.arg(product_name), sqlc.arg(warehouse_id),
   sqlc.arg(business_date), sqlc.arg(quantity_delta_micros), sqlc.arg(source_line_id),
   sqlc.narg(cost_counterpart_subject_id), sqlc.arg(cost_counterpart_dimensions),
   sqlc.narg(origin_source_document_id), sqlc.narg(origin_source_line_id)
 );
+
+-- name: GetAccountingProductCurrentSnapshot :one
+SELECT object.id AS product_id,current.source_approval_entry_id AS product_approval_entry_id,
+       object.code AS product_code,version.name AS product_name
+FROM bob_products current
+JOIN bob_objects object ON object.id=current.object_id AND object.entity='product'
+JOIN dcl_product_versions version ON version.approval_entry_id=current.source_approval_entry_id
+WHERE current.object_id=sqlc.arg(product_id) AND current.enabled;
 
 -- name: LockAccountingInventory :exec
 SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(lock_key), 0));

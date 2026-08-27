@@ -32,7 +32,9 @@ type automaticPostingLine struct {
 	debitMinor, creditMinor           int64
 	quantityMicros                    *int64
 	quantityDeltaMicros               int64
-	productID, warehouseID            string
+	productID, productApprovalEntryID string
+	productCode, productName          string
+	warehouseID                       string
 	dimensionsJSON                    []byte
 	costCounterpartSubjectID          *string
 	costCounterpartDimensionsJSON     []byte
@@ -202,6 +204,8 @@ func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Q
 			if err = q.InsertAccountingInventoryEntry(ctx, dbsqlc.InsertAccountingInventoryEntryParams{
 				ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, VoucherLineID: lineID,
 				SubjectID: line.subjectID, ProductID: line.productID, WarehouseID: line.warehouseID,
+				ProductApprovalEntryID: line.productApprovalEntryID,
+				ProductCode:            line.productCode, ProductName: line.productName,
 				BusinessDate: pgtype.Date{Time: businessDate, Valid: true}, QuantityDeltaMicros: line.quantityDeltaMicros, SourceLineID: line.sourceLineID,
 				CostCounterpartSubjectID: line.costCounterpartSubjectID, CostCounterpartDimensions: line.costCounterpartDimensionsJSON,
 				OriginSourceDocumentID: line.originSourceDocumentID, OriginSourceLineID: line.originSourceLineID,
@@ -408,6 +412,17 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 	line := automaticPostingLine{subjectID: subject.ID, currency: currency, sourceLineID: sourceLineID, quantityMicros: quantityMicros, dimensionsJSON: dimensionsJSON}
 	if quantityMicros != nil {
 		line.productID, line.warehouseID = dimensions[DimensionProduct], dimensions[DimensionWarehouse]
+		productField := template.Dimensions[DimensionProduct]
+		productPrefix := strings.TrimSuffix(productField, ".objectId")
+		if productPrefix == productField || productPrefix == "" {
+			return automaticPostingLine{}, false, domainError(ErrorValidation, "inventory product snapshot is unavailable", nil)
+		}
+		line.productApprovalEntryID = strings.TrimSpace(mappingValue(header, item, productPrefix+".approvalEntryId"))
+		line.productCode = strings.TrimSpace(mappingValue(header, item, productPrefix+".code"))
+		line.productName = strings.TrimSpace(mappingValue(header, item, productPrefix+".name"))
+		if line.productApprovalEntryID == "" || line.productCode == "" || line.productName == "" {
+			return automaticPostingLine{}, false, domainError(ErrorValidation, "inventory product snapshot is unavailable", nil)
+		}
 		line.quantityDeltaMicros = *quantityMicros
 		if template.Direction == BalanceDirectionCredit {
 			line.quantityDeltaMicros = -line.quantityDeltaMicros

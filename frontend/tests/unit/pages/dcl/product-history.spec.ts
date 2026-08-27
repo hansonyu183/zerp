@@ -1,8 +1,8 @@
 import { ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
-import { getBobEntityConfig } from '@/pages/bob/shared/config'
-import { useBobHistory } from '@/pages/bob/shared/history'
+import { dclProductHistoryPort } from '@/pages/dcl/product/data'
+import { useDclDeclarationHistory } from '@/pages/dcl/shared/declaration'
 import type { BobListItem } from '@/pages/bob/shared/types'
 
 vi.mock('@/api/client', () => ({
@@ -40,7 +40,7 @@ const row: BobListItem = {
   updatedAt: '2026-07-26T00:00:00Z',
 }
 
-describe('BOB history state', () => {
+describe('DCL product history state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -51,19 +51,21 @@ describe('BOB history state', () => {
         data: {
           items: [
             {
-              approvalEntryId: 'VERSION-1',
-              versionNo: 1,
-              status: 'DRAFT',
-              revision: 1,
-              createdBy: 'USER-1',
-              createdAt: '2026-07-26T00:00:00Z',
-              updatedBy: 'USER-1',
-              updatedAt: '2026-07-26T00:00:00Z',
-              submittedBy: null,
-              submittedAt: null,
-              approvedBy: null,
-              approvedAt: null,
-              summary: { name: '产品' },
+              approval: {
+                approvalEntryId: 'VERSION-1',
+                versionNo: 1,
+                status: 'DRAFT',
+                revision: 1,
+                createdBy: 'USER-1',
+                createdAt: '2026-07-26T00:00:00Z',
+                updatedBy: 'USER-1',
+                updatedAt: '2026-07-26T00:00:00Z',
+                submittedBy: null,
+                submittedAt: null,
+                approvedBy: null,
+                approvedAt: null,
+              },
+              data: { name: '产品' },
             },
           ],
           total: 2,
@@ -110,18 +112,18 @@ describe('BOB history state', () => {
         },
       })
     const errorMessage = ref<string | null>(null)
-    const history = useBobHistory(
-      getBobEntityConfig('product'),
+    const history = useDclDeclarationHistory(
       errorMessage,
       () => true,
       () => true,
+      dclProductHistoryPort,
     )
 
     await history.openVersions(row)
     expect(history.versionsOpen.value).toBe(true)
     expect(history.versions.value).toHaveLength(1)
     expect(history.versionsTotal.value).toBe(2)
-    expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/product/versions', {
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/product/versions', {
       objectId: row.objectId,
       page: 1,
       pageSize: 20,
@@ -135,7 +137,7 @@ describe('BOB history state', () => {
     await history.openAudit(row)
     expect(history.auditOpen.value).toBe(true)
     expect(history.auditEvents.value).toHaveLength(1)
-    expect(mockedPost).toHaveBeenNthCalledWith(3, 'bob/product/audit-history', {
+    expect(mockedPost).toHaveBeenNthCalledWith(3, 'dcl/product/audit-history', {
       objectId: row.objectId,
       page: 1,
       pageSize: 20,
@@ -150,11 +152,11 @@ describe('BOB history state', () => {
 
   it('honors permissions and reports request failures', async () => {
     const errorMessage = ref<string | null>(null)
-    const blocked = useBobHistory(
-      getBobEntityConfig('product'),
+    const blocked = useDclDeclarationHistory(
       errorMessage,
       () => false,
       () => false,
+      dclProductHistoryPort,
     )
     await blocked.openVersions(row)
     await blocked.openAudit(row)
@@ -163,11 +165,11 @@ describe('BOB history state', () => {
     mockedPost
       .mockRejectedValueOnce(new Error('versions unavailable'))
       .mockRejectedValueOnce(new Error('audit unavailable'))
-    const history = useBobHistory(
-      getBobEntityConfig('product'),
+    const history = useDclDeclarationHistory(
       errorMessage,
       () => true,
       () => true,
+      dclProductHistoryPort,
     )
     await history.openVersions(row)
     expect(history.versionsLoading.value).toBe(false)

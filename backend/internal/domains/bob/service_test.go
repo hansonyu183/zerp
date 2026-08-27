@@ -251,6 +251,34 @@ func TestValidateCompleteProductConfiguration(t *testing.T) {
 	}
 }
 
+func TestValidateProductDataDefaultsFormulaResolutionStatus(t *testing.T) {
+	t.Parallel()
+	unitID := "01JAVX00000000000000000011"
+	validated, err := ValidateProductData(DetailView{
+		Name:               "固定配方成品",
+		ProductTypeID:      "01JPTY00000000000000000003",
+		DefaultInputUnitID: unitID,
+		PricingUnitID:      unitID,
+		UnitConversions: []ProductUnitConversion{{
+			Unit: MeasurementUnitSnapshot{ObjectID: unitID}, Factor: "1",
+		}},
+		DefaultPackagingSpec: "10",
+		Formula: &ProductFormula{
+			Output: QuantitySnapshot{EnteredQuantity: "1", EnteredUnit: MeasurementUnitSnapshot{ObjectID: unitID}, BaseQuantity: "1"},
+			Components: []ProductFormulaComponent{{
+				Material: FormulaMaterialReference{ObjectID: "01J00000000000000000000031", ApprovalEntryID: "01J00000000000000000000032"},
+				Quantity: QuantitySnapshot{EnteredQuantity: "1", EnteredUnit: MeasurementUnitSnapshot{ObjectID: unitID}, BaseQuantity: "1"},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ValidateProductData() error = %v", err)
+	}
+	if got := validated.Formula.Components[0].ResolutionStatus; got != "CURRENT" {
+		t.Fatalf("resolution status = %q, want CURRENT", got)
+	}
+}
+
 func TestValidateDetailRejectsCrossEntityFields(t *testing.T) {
 	tests := []struct {
 		name   string

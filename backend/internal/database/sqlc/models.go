@@ -134,6 +134,9 @@ type AccInventoryEntry struct {
 	VoucherLineID             string      `db:"voucher_line_id" json:"voucher_line_id"`
 	SubjectID                 string      `db:"subject_id" json:"subject_id"`
 	ProductID                 string      `db:"product_id" json:"product_id"`
+	ProductApprovalEntryID    string      `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode               string      `db:"product_code" json:"product_code"`
+	ProductName               string      `db:"product_name" json:"product_name"`
 	WarehouseID               string      `db:"warehouse_id" json:"warehouse_id"`
 	BusinessDate              pgtype.Date `db:"business_date" json:"business_date"`
 	QuantityDeltaMicros       int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
@@ -806,65 +809,12 @@ type BobPartyRelationshipMergeEvent struct {
 	OccurredAt        pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 }
 
-type BobProductFormula struct {
-	ProductApprovalEntryID      string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
-	OutputBaseQuantityMicros    int64  `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
-	OutputEnteredQuantityMicros int64  `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
-	OutputUnitObjectID          string `db:"output_unit_object_id" json:"output_unit_object_id"`
-	OutputUnitApprovalEntryID   string `db:"output_unit_approval_entry_id" json:"output_unit_approval_entry_id"`
-	OutputUnitCode              string `db:"output_unit_code" json:"output_unit_code"`
-	OutputUnitName              string `db:"output_unit_name" json:"output_unit_name"`
-	OutputUnitSymbol            string `db:"output_unit_symbol" json:"output_unit_symbol"`
-}
-
-type BobProductFormulaLine struct {
-	ProductApprovalEntryID     string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
-	LineNo                     int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID           string `db:"material_object_id" json:"material_object_id"`
-	MaterialApprovalEntryID    string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
-	BaseQuantityMicros         int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
-	EnteredQuantityMicros      int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
-	EnteredUnitObjectID        string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitApprovalEntryID string `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
-	EnteredUnitCode            string `db:"entered_unit_code" json:"entered_unit_code"`
-	EnteredUnitName            string `db:"entered_unit_name" json:"entered_unit_name"`
-	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	ResolutionStatus           string `db:"resolution_status" json:"resolution_status"`
-	RequiresConfirmation       bool   `db:"requires_confirmation" json:"requires_confirmation"`
-}
-
-type BobProductUnitConversion struct {
-	ProductApprovalEntryID string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
-	UnitObjectID           string `db:"unit_object_id" json:"unit_object_id"`
-	UnitApprovalEntryID    string `db:"unit_approval_entry_id" json:"unit_approval_entry_id"`
-	UnitCode               string `db:"unit_code" json:"unit_code"`
-	UnitName               string `db:"unit_name" json:"unit_name"`
-	UnitSymbol             string `db:"unit_symbol" json:"unit_symbol"`
-	FactorMicros           int64  `db:"factor_micros" json:"factor_micros"`
-}
-
-type BobProductVersion struct {
-	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                          string  `db:"entity" json:"entity"`
-	Name                            string  `db:"name" json:"name"`
-	CategoryID                      *string `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID         *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity                  string  `db:"category_entity" json:"category_entity"`
-	Specification                   *string `db:"specification" json:"specification"`
-	Model                           *string `db:"model" json:"model"`
-	Barcode                         *string `db:"barcode" json:"barcode"`
-	Remark                          *string `db:"remark" json:"remark"`
-	PricingUnitID                   *string `db:"pricing_unit_id" json:"pricing_unit_id"`
-	PricingUnitApprovalEntryID      *string `db:"pricing_unit_approval_entry_id" json:"pricing_unit_approval_entry_id"`
-	Returnable                      bool    `db:"returnable" json:"returnable"`
-	DefaultPackagingSpecMicros      *int64  `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
-	ProductTypeID                   *string `db:"product_type_id" json:"product_type_id"`
-	ProductTypeApprovalEntryID      *string `db:"product_type_approval_entry_id" json:"product_type_approval_entry_id"`
-	ProductTypeCode                 *string `db:"product_type_code" json:"product_type_code"`
-	ProductTypeName                 *string `db:"product_type_name" json:"product_type_name"`
-	BehaviorProfile                 *string `db:"behavior_profile" json:"behavior_profile"`
-	DefaultInputUnitID              *string `db:"default_input_unit_id" json:"default_input_unit_id"`
-	DefaultInputUnitApprovalEntryID *string `db:"default_input_unit_approval_entry_id" json:"default_input_unit_approval_entry_id"`
+type BobProduct struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobSalesPartnerVersion struct {
@@ -1036,6 +986,77 @@ type DclOperatingEntityVersion struct {
 	Phone           *string `db:"phone" json:"phone"`
 	Remark          *string `db:"remark" json:"remark"`
 	Enabled         bool    `db:"enabled" json:"enabled"`
+}
+
+type DclProductBarcodeClaim struct {
+	NormalizedBarcode string  `db:"normalized_barcode" json:"normalized_barcode"`
+	ObjectID          string  `db:"object_id" json:"object_id"`
+	ApprovedEntryID   *string `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID       *string `db:"open_entry_id" json:"open_entry_id"`
+}
+
+type DclProductFormula struct {
+	ProductApprovalEntryID      string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	OutputBaseQuantityMicros    int64  `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
+	OutputEnteredQuantityMicros int64  `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputUnitObjectID          string `db:"output_unit_object_id" json:"output_unit_object_id"`
+	OutputUnitApprovalEntryID   string `db:"output_unit_approval_entry_id" json:"output_unit_approval_entry_id"`
+	OutputUnitCode              string `db:"output_unit_code" json:"output_unit_code"`
+	OutputUnitName              string `db:"output_unit_name" json:"output_unit_name"`
+	OutputUnitSymbol            string `db:"output_unit_symbol" json:"output_unit_symbol"`
+}
+
+type DclProductFormulaLine struct {
+	ProductApprovalEntryID     string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	LineNo                     int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID           string `db:"material_object_id" json:"material_object_id"`
+	MaterialApprovalEntryID    string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
+	BaseQuantityMicros         int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
+	EnteredQuantityMicros      int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID        string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitApprovalEntryID string `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
+	EnteredUnitCode            string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName            string `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	ResolutionStatus           string `db:"resolution_status" json:"resolution_status"`
+	RequiresConfirmation       bool   `db:"requires_confirmation" json:"requires_confirmation"`
+}
+
+type DclProductUnitConversion struct {
+	ProductApprovalEntryID string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	UnitObjectID           string `db:"unit_object_id" json:"unit_object_id"`
+	UnitApprovalEntryID    string `db:"unit_approval_entry_id" json:"unit_approval_entry_id"`
+	UnitCode               string `db:"unit_code" json:"unit_code"`
+	UnitName               string `db:"unit_name" json:"unit_name"`
+	UnitSymbol             string `db:"unit_symbol" json:"unit_symbol"`
+	FactorMicros           int64  `db:"factor_micros" json:"factor_micros"`
+}
+
+type DclProductVersion struct {
+	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Entity                          string  `db:"entity" json:"entity"`
+	Name                            string  `db:"name" json:"name"`
+	CategoryID                      *string `db:"category_id" json:"category_id"`
+	CategoryApprovalEntryID         *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode                    *string `db:"category_code" json:"category_code"`
+	CategoryName                    *string `db:"category_name" json:"category_name"`
+	CategoryEntity                  string  `db:"category_entity" json:"category_entity"`
+	Specification                   *string `db:"specification" json:"specification"`
+	Model                           *string `db:"model" json:"model"`
+	Barcode                         *string `db:"barcode" json:"barcode"`
+	Remark                          *string `db:"remark" json:"remark"`
+	PricingUnitID                   *string `db:"pricing_unit_id" json:"pricing_unit_id"`
+	PricingUnitApprovalEntryID      *string `db:"pricing_unit_approval_entry_id" json:"pricing_unit_approval_entry_id"`
+	Returnable                      bool    `db:"returnable" json:"returnable"`
+	DefaultPackagingSpecMicros      *int64  `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
+	ProductTypeID                   *string `db:"product_type_id" json:"product_type_id"`
+	ProductTypeApprovalEntryID      *string `db:"product_type_approval_entry_id" json:"product_type_approval_entry_id"`
+	ProductTypeCode                 *string `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName                 *string `db:"product_type_name" json:"product_type_name"`
+	BehaviorProfile                 *string `db:"behavior_profile" json:"behavior_profile"`
+	DefaultInputUnitID              *string `db:"default_input_unit_id" json:"default_input_unit_id"`
+	DefaultInputUnitApprovalEntryID *string `db:"default_input_unit_approval_entry_id" json:"default_input_unit_approval_entry_id"`
+	Enabled                         bool    `db:"enabled" json:"enabled"`
 }
 
 type DclSubject struct {

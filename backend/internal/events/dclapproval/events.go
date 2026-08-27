@@ -34,3 +34,10 @@ type FundAccountPayload struct {
 }
 
 var FundAccountTopic = approval.MustTopic[FundAccountPayload]("dcl.fund-account.approval")
+
+type ProductPayload struct {
+	SubjectID, Code, Name string
+	Enabled               bool
+}
+
+var ProductTopic = approval.MustTopic[ProductPayload]("dcl.product.approval")

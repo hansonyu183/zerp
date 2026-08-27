@@ -15,6 +15,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	seedUsers(t, pool)
 	service := defaultIntegrationACCService(pool)
 	productID, warehouseID := ulid.Make().String(), ulid.Make().String()
+	product := createAccountingProductSnapshot(t, pool, productID, "成本测试产品 V1")
 	book, err := service.CreateBook(t.Context(), CreateBookInput{Name: "成本账", StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +52,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 		t.Fatal(err)
 	}
 	approveIntegrationMapping(t, service, book.ID, voudomain.EntitySaleOrder, mapping)
-	event := inventoryApprovalEvent(productID, warehouseID, "2")
+	event := inventoryApprovalEvent(product, warehouseID, "2")
 	deliverApprovalEvent(t, pool, service, event, false)
 
 	locked, err := service.LockPeriod(t.Context(), PeriodActionInput{BookID: book.ID, Month: "2026-07", Revision: 0}, adminID)

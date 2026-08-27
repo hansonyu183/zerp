@@ -1305,6 +1305,34 @@ func (q *Queries) GetAccountingPartyBalance(ctx context.Context, arg GetAccounti
 	return column_1, err
 }
 
+const getAccountingProductCurrentSnapshot = `-- name: GetAccountingProductCurrentSnapshot :one
+SELECT object.id AS product_id,current.source_approval_entry_id AS product_approval_entry_id,
+       object.code AS product_code,version.name AS product_name
+FROM bob_products current
+JOIN bob_objects object ON object.id=current.object_id AND object.entity='product'
+JOIN dcl_product_versions version ON version.approval_entry_id=current.source_approval_entry_id
+WHERE current.object_id=$1 AND current.enabled
+`
+
+type GetAccountingProductCurrentSnapshotRow struct {
+	ProductID              string `db:"product_id" json:"product_id"`
+	ProductApprovalEntryID string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode            string `db:"product_code" json:"product_code"`
+	ProductName            string `db:"product_name" json:"product_name"`
+}
+
+func (q *Queries) GetAccountingProductCurrentSnapshot(ctx context.Context, productID string) (GetAccountingProductCurrentSnapshotRow, error) {
+	row := q.db.QueryRow(ctx, getAccountingProductCurrentSnapshot, productID)
+	var i GetAccountingProductCurrentSnapshotRow
+	err := row.Scan(
+		&i.ProductID,
+		&i.ProductApprovalEntryID,
+		&i.ProductCode,
+		&i.ProductName,
+	)
+	return i, err
+}
+
 const getAccountingSubject = `-- name: GetAccountingSubject :one
 SELECT s.id, s.book_id, s.code, s.name, s.parent_subject_id,
        s.balance_direction, s.enabled, s.inventory_quantity,
@@ -1749,16 +1777,18 @@ func (q *Queries) InsertAccountingInventoryCostAllocation(ctx context.Context, a
 
 const insertAccountingInventoryEntry = `-- name: InsertAccountingInventoryEntry :exec
 INSERT INTO acc_inventory_entries (
-  id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
-  warehouse_id, business_date, quantity_delta_micros, source_line_id,
+	id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
+	product_approval_entry_id, product_code, product_name,
+	warehouse_id, business_date, quantity_delta_micros, source_line_id,
   cost_counterpart_subject_id, cost_counterpart_dimensions,
   origin_source_document_id, origin_source_line_id
 ) VALUES (
   $1, $2, $3, $4,
-  $5, $6, $7,
-  $8, $9, $10,
-  $11, $12,
-  $13, $14
+	$5, $6, $7,
+	$8, $9, $10,
+  $11, $12, $13,
+  $14, $15,
+  $16, $17
 )
 `
 
@@ -1769,6 +1799,9 @@ type InsertAccountingInventoryEntryParams struct {
 	VoucherLineID             string      `db:"voucher_line_id" json:"voucher_line_id"`
 	SubjectID                 string      `db:"subject_id" json:"subject_id"`
 	ProductID                 string      `db:"product_id" json:"product_id"`
+	ProductApprovalEntryID    string      `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode               string      `db:"product_code" json:"product_code"`
+	ProductName               string      `db:"product_name" json:"product_name"`
 	WarehouseID               string      `db:"warehouse_id" json:"warehouse_id"`
 	BusinessDate              pgtype.Date `db:"business_date" json:"business_date"`
 	QuantityDeltaMicros       int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
@@ -1787,6 +1820,9 @@ func (q *Queries) InsertAccountingInventoryEntry(ctx context.Context, arg Insert
 		arg.VoucherLineID,
 		arg.SubjectID,
 		arg.ProductID,
+		arg.ProductApprovalEntryID,
+		arg.ProductCode,
+		arg.ProductName,
 		arg.WarehouseID,
 		arg.BusinessDate,
 		arg.QuantityDeltaMicros,

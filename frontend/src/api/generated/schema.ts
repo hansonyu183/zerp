@@ -582,6 +582,102 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
     };
   };
+  "/dcl/product/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclProductCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/product/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclProductSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclProductSaveResponse } } };
+    };
+  };
+  "/dcl/product/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/product/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/product/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/product/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/product/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/product/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/product/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclProductViewResponse } } };
+    };
+  };
+  "/dcl/product/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclProductQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclProductQueryResponse } } };
+    };
+  };
+  "/dcl/product/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclProductVersionPageResponse } } };
+    };
+  };
+  "/dcl/product/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
+    };
+  };
   "/dcl/operating-entity/create": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -2065,6 +2161,30 @@ export interface components {
       "DclVehicleQueryResponse": Models.DclVehicleQueryResponse;
       "DclVehicleVersionPage": Models.DclVehicleVersionPage;
       "DclVehicleVersionPageResponse": Models.DclVehicleVersionPageResponse;
+      "BobMeasurementUnitSnapshotInput": Models.BobMeasurementUnitSnapshotInput;
+      "BobProductUnitConversionInput": Models.BobProductUnitConversionInput;
+      "BobQuantitySnapshotInput": Models.BobQuantitySnapshotInput;
+      "BobProductFormulaComponentInput": Models.BobProductFormulaComponentInput;
+      "BobProductFormulaInput": Models.BobProductFormulaInput;
+      "DclProductInput": Models.DclProductInput;
+      "DclProductCreateRequest": Models.DclProductCreateRequest;
+      "DclProductSaveRequest": Models.DclProductSaveRequest;
+      "BobMeasurementUnitSnapshot": Models.BobMeasurementUnitSnapshot;
+      "BobProductUnitConversionSnapshot": Models.BobProductUnitConversionSnapshot;
+      "DclProductQuantitySnapshot": Models.DclProductQuantitySnapshot;
+      "DclProductFormulaComponentSnapshot": Models.DclProductFormulaComponentSnapshot;
+      "DclProductFormulaSnapshot": Models.DclProductFormulaSnapshot;
+      "DclProductData": Models.DclProductData;
+      "DclProductView": Models.DclProductView;
+      "DclProductSaveResponse": Models.DclProductSaveResponse;
+      "DclProductViewResponse": Models.DclProductViewResponse;
+      "DclProductQueryRequest": Models.DclProductQueryRequest;
+      "DclProductVersionView": Models.DclProductVersionView;
+      "DclProductListItem": Models.DclProductListItem;
+      "DclProductQueryPage": Models.DclProductQueryPage;
+      "DclProductQueryResponse": Models.DclProductQueryResponse;
+      "DclProductVersionPage": Models.DclProductVersionPage;
+      "DclProductVersionPageResponse": Models.DclProductVersionPageResponse;
       "DclOperatingEntityData": Models.DclOperatingEntityData;
       "DclOperatingEntityCreateRequest": Models.DclOperatingEntityCreateRequest;
       "DclOperatingEntityMutationResponse": Models.DclOperatingEntityMutationResponse;
@@ -2251,8 +2371,6 @@ export interface components {
       "SupplierCreateResponse": Models.SupplierCreateResponse;
       "SupplierSaveRequest": Models.SupplierSaveRequest;
       "BobReferenceQueryRequest": Models.BobReferenceQueryRequest;
-      "BobMeasurementUnitSnapshot": Models.BobMeasurementUnitSnapshot;
-      "BobProductUnitConversionSnapshot": Models.BobProductUnitConversionSnapshot;
       "ReferenceCandidate": Models.ReferenceCandidate;
       "ReferenceQueryResponse": Models.ReferenceQueryResponse;
       "AuxReferenceQueryRequest": Models.AuxReferenceQueryRequest;
@@ -2287,11 +2405,6 @@ export interface components {
       "BobListItem": Models.BobListItem;
       "BobListPage": Models.BobListPage;
       "BobQueryResponse": Models.BobQueryResponse;
-      "BobMeasurementUnitSnapshotInput": Models.BobMeasurementUnitSnapshotInput;
-      "BobProductUnitConversionInput": Models.BobProductUnitConversionInput;
-      "BobQuantitySnapshotInput": Models.BobQuantitySnapshotInput;
-      "BobProductFormulaComponentInput": Models.BobProductFormulaComponentInput;
-      "BobProductFormulaInput": Models.BobProductFormulaInput;
       "data": Models.data;
       "BobDetailView": Models.BobDetailView;
       "BobRelationshipIdentityView": Models.BobRelationshipIdentityView;

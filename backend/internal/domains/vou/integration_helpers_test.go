@@ -15,6 +15,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -139,6 +140,31 @@ func createApprovedBOB(
 	t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput,
 ) ReferenceInput {
 	t.Helper()
+	if entity == bobdomain.EntityOperatingEntity {
+		declarations := dcldomain.NewOperatingEntityService(vouIntegrationPool(t), service, authorization.Func(nil), txevent.NewBus())
+		created, err := declarations.Create(t.Context(), dcldomain.OperatingEntityCreateInput{Data: dcldomain.OperatingEntityData{
+			Name: data.Name, ShortName: data.ShortName, TaxNumber: data.TaxNumber,
+			Address: data.Address, Phone: data.Phone, Remark: data.Remark,
+		}}, trustedIntegrationActor(t, "vou-ref-create"))
+		if err != nil {
+			t.Fatalf("create operating entity reference: %v", err)
+		}
+		submitted, err := declarations.Submit(t.Context(), dcldomain.OperatingEntityVersionInput{
+			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+			ApprovalRevision: created.Approval.Revision,
+		}, trustedIntegrationActor(t, "vou-ref-submit"))
+		if err != nil {
+			t.Fatalf("submit operating entity reference: %v", err)
+		}
+		approved, err := declarations.Approve(t.Context(), dcldomain.OperatingEntityVersionInput{
+			ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID,
+			ApprovalRevision: submitted.Approval.Revision,
+		}, trustedIntegrationActor(t, "vou-ref-approve"))
+		if err != nil {
+			t.Fatalf("approve operating entity reference: %v", err)
+		}
+		return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	}
 	if entity == bobdomain.EntityProduct && data.ProductTypeID != "01JPTP00000000000000000007" && data.DefaultPackagingSpec == "" {
 		data.DefaultPackagingSpec = "1"
 	}

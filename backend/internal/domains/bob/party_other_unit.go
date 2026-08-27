@@ -478,7 +478,7 @@ func partyRelationshipCards(ctx context.Context, q partyQueryer, partyID string)
 		UNION ALL SELECT object_id,'sales-partner',operating_entity_id FROM bob_sales_relationships WHERE party_id=$1
 	) SELECT r.object_id,r.entity,o.code,r.operating_entity_id,oe.code,COALESCE(ov.legal_name,''),o.enabled,COALESCE(open_entry.status,approved.status,''),COALESCE(open_entry.version_no,approved.version_no,0)
 	FROM relationships r JOIN bob_objects o ON o.id=r.object_id JOIN bob_objects oe ON oe.id=r.operating_entity_id
-	LEFT JOIN LATERAL (SELECT legal_name FROM bob_operating_entity_versions p JOIN approval_entries e ON e.id=p.approval_entry_id WHERE e.domain='bob' AND e.entity='operating-entity' AND e.subject_id=oe.id AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1) ov ON true
+	LEFT JOIN bob_operating_entities ov ON ov.object_id=oe.id
 	LEFT JOIN LATERAL (SELECT status,version_no FROM approval_entries WHERE domain='bob' AND entity=r.entity AND subject_id=r.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) open_entry ON true
 	LEFT JOIN LATERAL (SELECT status,version_no FROM approval_entries WHERE domain='bob' AND entity=r.entity AND subject_id=r.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
 	ORDER BY o.code`, partyID)
@@ -498,19 +498,11 @@ func partyRelationshipCards(ctx context.Context, q partyQueryer, partyID string)
 }
 
 func (s *Service) relationshipOperatingEntity(ctx context.Context, objectID string) (string, string, error) {
-	object, err := s.queries.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: objectID, Entity: EntityOperatingEntity})
+	current, err := s.queries.GetBobOperatingEntityCurrentReference(ctx, objectID)
 	if err != nil {
 		return "", "", err
 	}
-	entry, err := s.queries.GetBobLatestApprovedEntry(ctx, dbsqlc.GetBobLatestApprovedEntryParams{Entity: EntityOperatingEntity, ObjectID: objectID})
-	if err != nil {
-		return "", "", err
-	}
-	data, err := loadDetail(ctx, s.queries, EntityOperatingEntity, entry.ID)
-	if err != nil {
-		return "", "", err
-	}
-	return object.Code, data.Name, nil
+	return current.Code, current.LegalName, nil
 }
 
 func insertPartyAudit(ctx context.Context, q *dbsqlc.Queries, partyID, event string, revision int64, actorID, requestID string, txs ...pgx.Tx) error {

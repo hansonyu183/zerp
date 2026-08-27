@@ -18,6 +18,7 @@ import (
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	rptdomain "github.com/hansonyu183/zerp/backend/internal/domains/rpt"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
@@ -43,6 +44,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	auxService := auxdomain.NewService(db, authorizer, eventBus)
 	auxiliaryResolver := auxiliaryrefs.New(auxService)
 	bobService := bobdomain.NewService(db, auxiliaryResolver, authorizer, eventBus)
+	dclOperatingEntityService := dcldomain.NewOperatingEntityService(db, bobService, authorizer, eventBus)
 	bobAttachmentService, err := bobdomain.NewCustomerAttachmentService(db, bobdomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, bobService)
@@ -71,6 +73,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		appdomain.NewHandler(appService, authorizer, cfg, logger).Register(router)
 		accdomain.NewHandler(accService, authorizer, logger).Register(router)
 		bobdomain.NewHandler(bobService, bobAttachmentService, authorizer, logger).Register(router)
+		dcldomain.NewHandler(dclOperatingEntityService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)

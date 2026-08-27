@@ -18,6 +18,7 @@
 | [ADR-0030](0030-party-and-typed-business-relationships.md)                            | 2026-08-23 | Party 与强类型业务关系                                          |
 | [ADR-0031](0031-pay-is-deferred-and-requires-a-new-design.md)                         | 2026-08-23 | PAY 暂缓，未来从新输入模型重建                                  |
 | [ADR-0032](0032-central-approval-persistence-and-lifecycle.md)                        | 2026-08-25 | 审批持久化、生命周期与版本头由中央 Approval 统一拥有            |
+| [ADR-0033](0033-dcl-operating-entity-declaration-and-bob-current-projection.md)       | 2026-08-27 | 经营主体由 DCL 申报并投影到 BOB 当前业务面                      |
 
 ## Superseded
 

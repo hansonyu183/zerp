@@ -769,6 +769,10 @@ const documentedDomains = new Set(
 // exposing their own page or HTTP route. Their consumers remain the routed
 // business domains.
 const platformCapabilityDomains = new Set(['approval'])
+// DCL owns an HTTP lifecycle but deliberately reuses the BOB operating-entity
+// page and navigation entry. It must have a contract and domain document, not
+// a second frontend domain registration.
+const crossRoutedContractDomains = new Set(['dcl'])
 const registrySource = fs.readFileSync(
   path.join(root, 'frontend', 'src', 'router', 'registry.ts'),
   'utf8',
@@ -838,6 +842,15 @@ for (const domain of [...documentedDomains].sort()) {
     }
     continue
   }
+  if (crossRoutedContractDomains.has(domain)) {
+    if (registeredDomains.has(domain)) {
+      failures.push(`跨域编排领域 ${domain} 不应注册重复前端领域`)
+    }
+    if (!contractDomains.has(domain)) {
+      failures.push(`跨域编排领域 ${domain} 缺少 OpenAPI 路径`)
+    }
+    continue
+  }
   if (!registeredDomains.has(domain)) {
     failures.push(`领域文档 ${domain} 缺少前端领域注册`)
   }
@@ -860,13 +873,22 @@ const bobCrudEntities = extractSchemaEnum(
   'BobCrudEntity',
   'contracts/openapi/schemas/bob.yaml',
 )
+const bobReadableEntities = extractSchemaEnum(
+  bobSchemaSource,
+  'BobReadableEntity',
+  'contracts/openapi/schemas/bob.yaml',
+)
 const explicitBobQueryEntities = [
   ...openapiSource.matchAll(/^\s+'\/bob\/([a-z][a-z0-9-]*)\/query':/gmu),
 ]
   .map((match) => match[1])
   .filter((entity) => openapiSource.includes(`'/bob/${entity}/get':`))
 compareSets('frontend BOB 页面注册', registeredEntities('bob'), [
-  ...new Set([...bobCrudEntities, ...explicitBobQueryEntities]),
+  ...new Set([
+    ...bobCrudEntities,
+    ...bobReadableEntities,
+    ...explicitBobQueryEntities,
+  ]),
 ])
 
 const auxSchemaSource = fs.readFileSync(

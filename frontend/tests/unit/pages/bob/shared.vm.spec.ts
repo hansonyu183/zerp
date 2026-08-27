@@ -297,6 +297,62 @@ describe('shared BOB entity configuration and view model', () => {
     )
   })
 
+  it('经营主体页面使用 DCL 候选接口并规范化类型化快照', async () => {
+    useSessionStore().permissions = [
+      '/dcl/operating-entity/query',
+      '/dcl/operating-entity/create',
+    ]
+    const approval = row('DRAFT').openVersion!.approval
+    mockedApiClient.postContract.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            objectId: 'OPE-OBJECT-1',
+            entity: 'operating-entity',
+            code: 'OPE-0001',
+            objectRevision: 1,
+            enabled: true,
+            latestApproved: null,
+            openVersion: {
+              approval,
+              data: {
+                name: '申报中的经营主体',
+                shortName: '申报主体',
+                taxNumber: '91310000DCL',
+                address: '',
+                phone: '',
+                remark: '',
+              },
+              enabled: true,
+            },
+            updatedAt: '2026-08-27T06:00:00Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+    const vm = useBobEntityViewModel(getBobEntityConfig('operating-entity'))
+
+    await vm.query()
+
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'dcl/operating-entity/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {},
+        sort: [{ field: 'code', order: 'asc' }],
+      },
+    )
+    expect(vm.rows.value[0]?.openVersion?.summary).toMatchObject({
+      name: '申报中的经营主体',
+      taxNumber: '91310000DCL',
+    })
+    expect(vm.canCreate.value).toBe(true)
+  })
+
   it('产品提交和批准入口要求详情读取权限', () => {
     grant('product', 'submit', 'approve')
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))

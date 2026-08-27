@@ -853,11 +853,11 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 }
 
 func validWriteInput(entity, objectID, versionID string, revision int64, actorID, requestID string) bool {
-	return validEntity(entity) && validID(objectID) && validID(versionID) && revision >= 1 && validActorAndRequest(actorID, requestID)
+	return approvalEntity(entity) && validID(objectID) && validID(versionID) && revision >= 1 && validActorAndRequest(actorID, requestID)
 }
 
 func validDeleteInput(entity string, input DeleteInput) bool {
-	return validEntity(entity) &&
+	return approvalEntity(entity) &&
 		validID(input.ObjectID) &&
 		validID(input.ApprovalEntryID) &&
 		input.ObjectRevision >= 1 &&
@@ -870,7 +870,7 @@ func validActorAndRequest(actorID, requestID string) bool {
 
 func validHistoryInput(entity string, input HistoryInput) bool {
 	_, validPage := pageOffset(input.Page, input.PageSize)
-	return validEntity(entity) && validID(input.ObjectID) && validPage
+	return approvalEntity(entity) && validID(input.ObjectID) && validPage
 }
 
 func pageOffset(page, pageSize int) (int32, bool) {

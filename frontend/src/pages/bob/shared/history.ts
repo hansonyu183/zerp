@@ -7,6 +7,7 @@ import type {
   BobListItem,
   BobVersionHistoryItem,
 } from './types'
+import { bobApprovalDomain, bobWriteEntity } from './types'
 
 export function useBobHistory(
   config: BobEntityConfig,
@@ -34,8 +35,26 @@ export function useBobHistory(
     if (!row) return
     versionsLoading.value = true
     try {
+      if (bobApprovalDomain(config) === 'dcl') {
+        const { data } = await apiClient.postContract(
+          'dcl/operating-entity/versions',
+          {
+            objectId: row.objectId,
+            page: versionsPage.value,
+            pageSize: versionsPageSize.value,
+          },
+        )
+        versions.value = (data.items ?? []).map((item) => ({
+          ...item.approval,
+          summary: item.data,
+        }))
+        versionsTotal.value = data.total
+        versionsPage.value = data.page
+        versionsPageSize.value = data.pageSize
+        return
+      }
       const { data } = await apiClient.postContract(
-        `bob/${config.entity}/versions`,
+        `bob/${bobWriteEntity(config)}/versions`,
         {
           objectId: row.objectId,
           page: versionsPage.value,
@@ -73,14 +92,21 @@ export function useBobHistory(
     if (!row) return
     auditLoading.value = true
     try {
-      const { data } = await apiClient.postContract(
-        `bob/${config.entity}/audit-history`,
-        {
-          objectId: row.objectId,
-          page: auditPage.value,
-          pageSize: auditPageSize.value,
-        },
-      )
+      const request = {
+        objectId: row.objectId,
+        page: auditPage.value,
+        pageSize: auditPageSize.value,
+      }
+      const { data } =
+        bobApprovalDomain(config) === 'dcl'
+          ? await apiClient.postContract(
+              'dcl/operating-entity/audit-history',
+              request,
+            )
+          : await apiClient.postContract(
+              `bob/${bobWriteEntity(config)}/audit-history`,
+              request,
+            )
       auditEvents.value = data.items ?? []
       auditTotal.value = data.total
       auditPage.value = data.page

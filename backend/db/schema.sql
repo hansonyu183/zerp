@@ -1178,6 +1178,32 @@ COMMENT ON INDEX public.approval_entries_open_version_unique IS
 COMMENT ON INDEX public.approval_entries_latest_approved_idx IS
     'Supports highest approved version lookup without a current-version pointer.';
 
+-- DCL owns stable versioned declaration subjects.  Each concrete entity keeps
+-- its own typed snapshot table; lifecycle and version numbers stay exclusively
+-- in approval_entries.
+CREATE TABLE public.dcl_subjects (
+    id character varying(26) NOT NULL,
+    entity character varying(64) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(26) NOT NULL,
+    CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
+    CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = 'operating-entity'::text))
+);
+
+CREATE TABLE public.dcl_operating_entity_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    legal_name character varying(200) NOT NULL,
+    short_name character varying(100),
+    tax_number character varying(100),
+    address character varying(500),
+    phone character varying(100),
+    remark character varying(1000),
+    enabled boolean NOT NULL,
+    CONSTRAINT dcl_operating_entity_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_operating_entity_versions_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
+);
+
 CREATE TABLE public.approval_events (
     id character varying(26) NOT NULL,
     entry_id character varying(26) NOT NULL,
@@ -1517,20 +1543,24 @@ CREATE TABLE public.bob_objects (
 
 
 --
--- Name: bob_operating_entity_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: bob_operating_entities; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_operating_entity_versions (
-    approval_entry_id character varying(26) NOT NULL,
-    entity character varying(32) DEFAULT 'operating-entity'::character varying NOT NULL,
+CREATE TABLE public.bob_operating_entities (
+    object_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
     legal_name character varying(200) NOT NULL,
     short_name character varying(100),
     tax_number character varying(100),
     address character varying(500),
     phone character varying(100),
     remark character varying(1000),
-    CONSTRAINT bob_operating_entity_versions_entity_check CHECK (((entity)::text = 'operating-entity'::text)),
-    CONSTRAINT bob_operating_entity_versions_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
+    enabled boolean NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT bob_operating_entities_pkey PRIMARY KEY (object_id),
+    CONSTRAINT bob_operating_entities_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
+    CONSTRAINT bob_operating_entities_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
 );
 
 
@@ -4436,20 +4466,20 @@ INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000918', '/aux/s
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000928', '/aux/payment-method/versions', 'aux', 'payment-method', 'versions', '查看版本收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000919', '/aux/settlement-method/audit-history', 'aux', 'settlement-method', 'audit-history', '查看变更记录结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000929', '/aux/payment-method/audit-history', 'aux', 'payment-method', 'audit-history', '查看变更记录收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000001', '/bob/operating-entity/approve', 'bob', 'operating-entity', 'approve', '审核经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000002', '/bob/operating-entity/audit-history', 'bob', 'operating-entity', 'audit-history', '查看经营主体审计', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000003', '/bob/operating-entity/create', 'bob', 'operating-entity', 'create', '创建经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000004', '/bob/operating-entity/delete', 'bob', 'operating-entity', 'delete', '删除经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000005', '/bob/operating-entity/disable', 'bob', 'operating-entity', 'disable', '停用经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000006', '/bob/operating-entity/enable', 'bob', 'operating-entity', 'enable', '启用经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000001', '/dcl/operating-entity/approve', 'dcl', 'operating-entity', 'approve', '审核经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000002', '/dcl/operating-entity/audit-history', 'dcl', 'operating-entity', 'audit-history', '查看经营主体审计', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000003', '/dcl/operating-entity/create', 'dcl', 'operating-entity', 'create', '创建经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000004', '/dcl/operating-entity/delete', 'dcl', 'operating-entity', 'delete', '删除经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000005', '/dcl/operating-entity/get', 'dcl', 'operating-entity', 'get', '查看经营主体申报版本', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000006', '/dcl/operating-entity/query', 'dcl', 'operating-entity', 'query', '查询经营主体申报', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000007', '/bob/operating-entity/get', 'bob', 'operating-entity', 'get', '查看经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000008', '/bob/operating-entity/query', 'bob', 'operating-entity', 'query', '查询经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000009', '/bob/operating-entity/reject', 'bob', 'operating-entity', 'reject', '驳回经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000010', '/bob/operating-entity/save', 'bob', 'operating-entity', 'save', '保存经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000011', '/bob/operating-entity/submit', 'bob', 'operating-entity', 'submit', '提交经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000012', '/bob/operating-entity/unapprove', 'bob', 'operating-entity', 'unapprove', '反审核经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000013', '/bob/operating-entity/unsubmit', 'bob', 'operating-entity', 'unsubmit', '撤回经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000014', '/bob/operating-entity/versions', 'bob', 'operating-entity', 'versions', '查看经营主体版本', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000009', '/dcl/operating-entity/reject', 'dcl', 'operating-entity', 'reject', '驳回经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000010', '/dcl/operating-entity/save', 'dcl', 'operating-entity', 'save', '保存经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000011', '/dcl/operating-entity/submit', 'dcl', 'operating-entity', 'submit', '提交经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000012', '/dcl/operating-entity/unapprove', 'dcl', 'operating-entity', 'unapprove', '反审核经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000013', '/dcl/operating-entity/unsubmit', 'dcl', 'operating-entity', 'unsubmit', '撤回经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000014', '/dcl/operating-entity/versions', 'dcl', 'operating-entity', 'versions', '查看经营主体版本', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000001', '/bob/customer/attachment-initiate', 'bob', 'customer', 'attachment-initiate', '上传客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000002', '/bob/customer/attachment-download', 'bob', 'customer', 'attachment-download', '下载客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000003', '/bob/customer/attachment-remove', 'bob', 'customer', 'attachment-remove', '移除客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
@@ -4784,7 +4814,7 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 -- Data for Name: bob_objects; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- Data for Name: bob_operating_entity_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: bob_operating_entities; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -6338,13 +6368,6 @@ ALTER TABLE ONLY public.bob_objects
 
 
 --
--- Name: bob_operating_entity_versions bob_operating_entity_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_operating_entity_versions
-    ADD CONSTRAINT bob_operating_entity_versions_pkey PRIMARY KEY (approval_entry_id);
-
-
 --
 -- Name: bob_parties bob_parties_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
@@ -7630,10 +7653,10 @@ CREATE INDEX bob_objects_entity_updated_idx ON public.bob_objects USING btree (e
 
 
 --
--- Name: bob_operating_entity_versions_tax_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: bob_operating_entities_tax_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_operating_entity_versions_tax_idx ON public.bob_operating_entity_versions USING btree (upper(btrim((tax_number)::text))) WHERE ((tax_number IS NOT NULL) AND (btrim((tax_number)::text) <> ''::text));
+CREATE INDEX bob_operating_entities_tax_idx ON public.bob_operating_entities USING btree (upper(btrim((tax_number)::text))) WHERE ((tax_number IS NOT NULL) AND (btrim((tax_number)::text) <> ''::text));
 
 
 --
@@ -8884,11 +8907,17 @@ ALTER TABLE ONLY public.bob_fund_account_versions
 
 
 --
--- Name: bob_operating_entity_versions bob_operating_entity_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_operating_entities bob_operating_entities_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_operating_entity_versions
-    ADD CONSTRAINT bob_operating_entity_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_operating_entities
+    ADD CONSTRAINT bob_operating_entities_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.bob_operating_entities
+    ADD CONSTRAINT bob_operating_entities_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_operating_entity_versions
+    ADD CONSTRAINT dcl_operating_entity_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --

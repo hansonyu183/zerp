@@ -138,6 +138,21 @@ func includesWorkbenchStage(selected []string, stage string) bool {
 	return len(selected) == 0 || slices.Contains(selected, stage)
 }
 
+func appendDCLWorkbenchOperatingEntity(scope workbenchPermissionScope, entities []string, matches func(string, string) bool) []string {
+	const entity = "operating-entity"
+	if scope.can("dcl", entity, "query") && matches("dcl", entity) {
+		return append(entities, entity)
+	}
+	return entities
+}
+
+func workbenchApprovalDomain(entity string) string {
+	if entity == "operating-entity" {
+		return "dcl"
+	}
+	return "bob"
+}
+
 func (s *Service) queryWorkbenchBob(
 	ctx context.Context,
 	actorID string,
@@ -148,12 +163,21 @@ func (s *Service) queryWorkbenchBob(
 	draftEntities := scope.entitiesWith("bob", func(entity string) bool {
 		return scope.can("bob", entity, "submit")
 	})
+	draftEntities = appendDCLWorkbenchOperatingEntity(scope, draftEntities, func(domain, entity string) bool {
+		return scope.can(domain, entity, "submit")
+	})
 	pendingEntities := scope.entitiesWith("bob", func(entity string) bool {
 		return scope.can("bob", entity, "approve") ||
 			scope.can("bob", entity, "reject")
 	})
+	pendingEntities = appendDCLWorkbenchOperatingEntity(scope, pendingEntities, func(domain, entity string) bool {
+		return scope.can(domain, entity, "approve") || scope.can(domain, entity, "reject")
+	})
 	unsubmitEntities := scope.entitiesWith("bob", func(entity string) bool {
 		return scope.can("bob", entity, "unsubmit")
+	})
+	unsubmitEntities = appendDCLWorkbenchOperatingEntity(scope, unsubmitEntities, func(domain, entity string) bool {
+		return scope.can(domain, entity, "unsubmit")
 	})
 	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
 	pendingEntities = filterWorkbenchEntities(pendingEntities, input.Entities)
@@ -190,27 +214,28 @@ func (s *Service) queryWorkbenchBob(
 	}
 	items := make([]WorkbenchItem, 0, len(rows))
 	for _, row := range rows {
+		domain := workbenchApprovalDomain(row.Entity)
 		actions := make([]string, 0, 4)
-		if scope.can("bob", row.Entity, "get") {
+		if scope.can(domain, row.Entity, "get") {
 			actions = append(actions, "view")
-			if row.Status == "DRAFT" && scope.can("bob", row.Entity, "save") {
+			if row.Status == "DRAFT" && scope.can(domain, row.Entity, "save") {
 				actions = append(actions, "edit")
 			}
 		}
 		pendingStage := "APPROVE"
 		if row.Status == "DRAFT" {
 			pendingStage = "SUBMIT"
-			if scope.can("bob", row.Entity, "submit") {
+			if scope.can(domain, row.Entity, "submit") {
 				actions = append(actions, "submit")
 			}
 		} else {
-			if !row.IsSubmittedByActor && scope.can("bob", row.Entity, "approve") {
+			if !row.IsSubmittedByActor && scope.can(domain, row.Entity, "approve") {
 				actions = append(actions, "approve")
 			}
-			if !row.IsSubmittedByActor && scope.can("bob", row.Entity, "reject") {
+			if !row.IsSubmittedByActor && scope.can(domain, row.Entity, "reject") {
 				actions = append(actions, "reject")
 			}
-			if scope.can("bob", row.Entity, "unsubmit") {
+			if scope.can(domain, row.Entity, "unsubmit") {
 				actions = append(actions, "unsubmit")
 			}
 		}

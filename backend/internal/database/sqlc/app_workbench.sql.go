@@ -27,11 +27,11 @@ CROSS JOIN LATERAL (
     WHEN 'warehouse' THEN (SELECT payload.name FROM bob_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'vehicle' THEN (SELECT payload.name FROM bob_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'fund-account' THEN (SELECT payload.name FROM bob_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM bob_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
     ELSE ''
   END AS name
 ) named
-WHERE entry.domain='bob'
+WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity='operating-entity'))
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($1::text[]))
     OR (
@@ -145,11 +145,11 @@ CROSS JOIN LATERAL (
     WHEN 'warehouse' THEN (SELECT payload.name FROM bob_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'vehicle' THEN (SELECT payload.name FROM bob_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'fund-account' THEN (SELECT payload.name FROM bob_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM bob_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
     ELSE ''
   END AS name
 ) named
-WHERE entry.domain='bob'
+WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity='operating-entity'))
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($2::text[]))
     OR (

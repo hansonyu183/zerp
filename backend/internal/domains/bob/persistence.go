@@ -46,8 +46,6 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 		})
 	case EntityFundAccount:
 		err = q.InsertBobFundAccountPayload(ctx, dbsqlc.InsertBobFundAccountPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name, Currency: data.Currency})
-	case EntityOperatingEntity:
-		err = q.InsertBobOperatingEntityPayload(ctx, dbsqlc.InsertBobOperatingEntityPayloadParams{ApprovalEntryID: approvalEntryID, LegalName: data.Name})
 	default:
 		return invalidPayloadEntity(entity)
 	}
@@ -133,12 +131,6 @@ func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID 
 			return DetailView{}, err
 		}
 		return DetailView{Name: r.Name, Currency: r.Currency, CategoryID: deref(r.CategoryID), CategoryApprovalEntryID: deref(r.CategoryApprovalEntryID), AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), AccountNumber: deref(r.AccountNumber), Remark: deref(r.Remark), OperatingEntityID: deref(r.OperatingEntityID), OperatingEntityApprovalEntryID: deref(r.OperatingEntityApprovalEntryID), OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: deref(r.OperatingEntityName)}, nil
-	case EntityOperatingEntity:
-		r, err := q.GetBobOpenOperatingEntityPayload(ctx, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		return DetailView{Name: r.LegalName, ShortName: deref(r.ShortName), TaxNumber: deref(r.TaxNumber), Address: deref(r.Address), Phone: deref(r.Phone), Remark: deref(r.Remark)}, nil
 	default:
 		return DetailView{}, invalidPayloadEntity(entity)
 	}
@@ -236,8 +228,6 @@ func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntry
 		return q.UpdateBobVehiclePayload(ctx, dbsqlc.UpdateBobVehiclePayloadParams{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), Vin: nilIfEmpty(d.VIN), EngineNumber: nilIfEmpty(d.EngineNumber), LoadCapacityKg: load, Remark: nilIfEmpty(d.Remark), CarrierAffiliationType: a.Type, CarrierOperatingEntityID: nilIfEmpty(a.OperatingEntityID), CarrierOperatingEntityApprovalEntryID: nilIfEmpty(a.OperatingApprovalEntryID), CarrierServiceRelationshipObjectID: nilIfEmpty(a.ServiceRelationshipObjectID), CarrierServiceRelationshipApprovalEntryID: nilIfEmpty(a.ServiceApprovalEntryID), BulkLiquidCapable: d.BulkLiquidCapable, ApprovalEntryID: approvalEntryID})
 	case EntityFundAccount:
 		return q.UpdateBobFundAccountPayload(ctx, dbsqlc.UpdateBobFundAccountPayloadParams{Name: d.Name, Currency: d.Currency, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), AccountName: nilIfEmpty(d.AccountName), BankName: nilIfEmpty(d.BankName), BankBranch: nilIfEmpty(d.BankBranch), AccountNumber: nilIfEmpty(d.AccountNumber), Remark: nilIfEmpty(d.Remark), OperatingEntityID: nilIfEmpty(d.OperatingEntityID), OperatingEntityApprovalEntryID: nilIfEmpty(d.OperatingEntityApprovalEntryID), OperatingEntityCode: nilIfEmpty(d.OperatingEntityCode), OperatingEntityName: nilIfEmpty(d.OperatingEntityName), ApprovalEntryID: approvalEntryID})
-	case EntityOperatingEntity:
-		return q.UpdateBobOperatingEntityPayload(ctx, dbsqlc.UpdateBobOperatingEntityPayloadParams{LegalName: d.Name, ShortName: nilIfEmpty(d.ShortName), TaxNumber: nilIfEmpty(d.TaxNumber), Address: nilIfEmpty(d.Address), Phone: nilIfEmpty(d.Phone), Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
 	default:
 		return 0, invalidPayloadEntity(entity)
 	}
@@ -282,8 +272,6 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntry
 		return q.CopyBobVehiclePayload(ctx, dbsqlc.CopyBobVehiclePayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	case EntityFundAccount:
 		return q.CopyBobFundAccountPayload(ctx, dbsqlc.CopyBobFundAccountPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
-	case EntityOperatingEntity:
-		return q.CopyBobOperatingEntityPayload(ctx, dbsqlc.CopyBobOperatingEntityPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	default:
 		return invalidPayloadEntity(entity)
 	}
@@ -323,8 +311,6 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 		return q.DeleteBobVehiclePayload(ctx, approvalEntryID)
 	case EntityFundAccount:
 		return q.DeleteBobFundAccountPayload(ctx, approvalEntryID)
-	case EntityOperatingEntity:
-		return q.DeleteBobOperatingEntityPayload(ctx, approvalEntryID)
 	default:
 		return 0, invalidPayloadEntity(entity)
 	}

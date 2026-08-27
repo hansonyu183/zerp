@@ -3,7 +3,6 @@
 package bobseed
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -120,14 +119,18 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 			continue
 		}
 		var status string
+		approvalDomain := "bob"
+		if item.entity == bob.EntityOperatingEntity {
+			approvalDomain = "dcl"
+		}
 		if err = pool.QueryRow(t.Context(), `
 			SELECT entry.status
 			FROM approval_entries entry
-			WHERE entry.domain='bob' AND entry.entity=$1 AND entry.subject_id=$2
+			WHERE entry.domain=$3 AND entry.entity=$1 AND entry.subject_id=$2
 			  AND entry.version_no IS NOT NULL
 			ORDER BY entry.version_no DESC
 			LIMIT 1
-		`, item.entity, objectID).Scan(&status); err != nil {
+		`, item.entity, objectID, approvalDomain).Scan(&status); err != nil {
 			t.Fatalf("query %s %s status: %v", item.entity, item.data.Code, err)
 		}
 		counts[status]++
@@ -157,19 +160,23 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		bob.EntityEmployee: "bob_employee_versions", bob.EntitySalesPartner: "bob_sales_partner_versions",
 		bob.EntityProduct: "bob_product_versions", bob.EntityWarehouse: "bob_warehouse_versions",
 		bob.EntityVehicle: "bob_vehicle_versions", bob.EntityFundAccount: "bob_fund_account_versions",
-		bob.EntityOperatingEntity: "bob_operating_entity_versions",
+		bob.EntityOperatingEntity: "dcl_operating_entity_versions",
 	}
 	for _, entity := range allEntities {
+		approvalDomain := "bob"
+		if entity == bob.EntityOperatingEntity {
+			approvalDomain = "dcl"
+		}
 		var objectCount, entryCount, payloadCount int
 		if err = pool.QueryRow(t.Context(), `
 			SELECT count(*),
-			       (SELECT count(*) FROM approval_entries entry WHERE entry.domain='bob' AND entry.entity=$1)
+			       (SELECT count(*) FROM approval_entries entry WHERE entry.domain=$2 AND entry.entity=$1)
 			FROM bob_objects object WHERE object.entity=$1
-		`, entity).Scan(&objectCount, &entryCount); err != nil {
+		`, entity, approvalDomain).Scan(&objectCount, &entryCount); err != nil {
 			t.Fatalf("query %s central coverage: %v", entity, err)
 		}
-		payloadQuery := fmt.Sprintf(`SELECT count(*) FROM %s payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id WHERE entry.domain='bob' AND entry.entity=$1`, payloadTables[entity])
-		if err = pool.QueryRow(t.Context(), payloadQuery, entity).Scan(&payloadCount); err != nil {
+		payloadQuery := fmt.Sprintf(`SELECT count(*) FROM %s payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id WHERE entry.domain=$2 AND entry.entity=$1`, payloadTables[entity])
+		if err = pool.QueryRow(t.Context(), payloadQuery, entity, approvalDomain).Scan(&payloadCount); err != nil {
 			t.Fatalf("query %s payload coverage: %v", entity, err)
 		}
 		if objectCount == 0 || entryCount == 0 || payloadCount == 0 {
@@ -371,142 +378,6 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	}
 	if err = tx.Rollback(t.Context()); err != nil {
 		t.Fatalf("rollback unavailable check: %v", err)
-	}
-}
-
-func TestBobUnapproveUsesExactSnapshotEntryAndDisableUsesStableObjectIntegration(t *testing.T) {
-	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
-	databaseName := strings.TrimSpace(os.Getenv("TEST_POSTGRES_DB"))
-	if databaseURL == "" || !strings.HasSuffix(databaseName, "_test") {
-		t.Fatal("safe TEST_DATABASE_URL and TEST_POSTGRES_DB ending in _test are required")
-	}
-	pool, err := pgxpool.New(t.Context(), databaseURL)
-	if err != nil {
-		t.Fatalf("connect integration database: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	service := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
-	actor := func(label string) approval.Actor {
-		actorID := "01J00000000000000000000000"
-		if strings.Contains(label, "approve") {
-			actorID = "01J00000000000000000000001"
-		}
-		result, actorErr := approval.UserActor(authorization.Principal{ActorID: actorID}, "approval-bob-correctness-"+label)
-		if actorErr != nil {
-			t.Fatalf("create %s actor: %v", label, actorErr)
-		}
-		return result
-	}
-	approve := func(entity string, created bob.MutationResult, label string) bob.MutationResult {
-		t.Helper()
-		pending, submitErr := service.Submit(t.Context(), entity, bob.VersionRevisionInput{
-			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
-			ApprovalRevision: created.Approval.Revision,
-		}, actor(label+"-submit"))
-		if submitErr != nil {
-			t.Fatalf("submit %s: %v", label, submitErr)
-		}
-		approved, approveErr := service.Approve(t.Context(), entity, bob.ReviewInput{
-			ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
-			ApprovalRevision: pending.Approval.Revision,
-		}, actor(label+"-approve"))
-		if approveErr != nil {
-			t.Fatalf("approve %s: %v", label, approveErr)
-		}
-		return approved
-	}
-	createFundAccount := func(operatingEntityID, label string) bob.MutationResult {
-		t.Helper()
-		created, createErr := service.Create(t.Context(), bob.EntityFundAccount, bob.CreateInput{Data: bob.CreateDetailInput{
-			Name: label, Currency: "CNY", OperatingEntityID: operatingEntityID,
-		}}, actor(label+"-create"))
-		if createErr != nil {
-			t.Fatalf("create %s: %v", label, createErr)
-		}
-		return approve(bob.EntityFundAccount, created, label)
-	}
-
-	suffix := ulid.Make().String()
-	created, err := service.Create(t.Context(), bob.EntityOperatingEntity, bob.CreateInput{Data: bob.CreateDetailInput{
-		Name: "exact-entry operating V1 " + suffix,
-	}}, actor("operating-create"))
-	if err != nil {
-		t.Fatalf("create operating entity V1: %v", err)
-	}
-	v1 := approve(bob.EntityOperatingEntity, created, "operating-v1")
-	_ = createFundAccount(v1.ObjectID, "fund-referencing-v1-"+suffix)
-
-	createV2 := func(label string) bob.MutationResult {
-		t.Helper()
-		v2, saveErr := service.Save(t.Context(), bob.EntityOperatingEntity, bob.SaveInput{
-			ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID,
-			ApprovalRevision: v1.Approval.Revision,
-			Data:             bob.DetailInput{Name: "exact-entry operating V2 " + suffix},
-		}, actor(label+"-save"))
-		if saveErr != nil {
-			t.Fatalf("create %s: %v", label, saveErr)
-		}
-		return approve(bob.EntityOperatingEntity, v2, label)
-	}
-
-	v2 := createV2("operating-v2-unreferenced")
-	v2Pending, err := service.Unapprove(t.Context(), bob.EntityOperatingEntity, bob.ReverseInput{
-		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
-		ApprovalRevision: v2.Approval.Revision, Reason: "V1 reference must not block V2",
-	}, actor("unapprove-unreferenced-v2"))
-	if err != nil {
-		t.Fatalf("unapprove unreferenced V2 while V1 remains referenced: %v", err)
-	}
-	if v2Pending.Approval.Status != approval.StatusPending {
-		t.Fatalf("unapproved V2 status = %s", v2Pending.Approval.Status)
-	}
-	tx, err := pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin latest fallback check: %v", err)
-	}
-	latest, latestErr := service.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityOperatingEntity, v1.ObjectID)
-	if latestErr != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
-		_ = tx.Rollback(t.Context())
-		t.Fatalf("latest after V2 unapprove = %+v err=%v, want V1", latest, latestErr)
-	}
-	if err = tx.Rollback(t.Context()); err != nil {
-		t.Fatalf("rollback latest fallback check: %v", err)
-	}
-
-	v2Draft, err := service.Unsubmit(t.Context(), bob.EntityOperatingEntity, bob.ReverseInput{
-		ObjectID: v2Pending.ObjectID, ApprovalEntryID: v2Pending.Approval.ApprovalEntryID,
-		ApprovalRevision: v2Pending.Approval.Revision, Reason: "replace V2 fixture",
-	}, actor("unsubmit-v2"))
-	if err != nil {
-		t.Fatalf("unsubmit V2: %v", err)
-	}
-	if err = service.Delete(t.Context(), bob.EntityOperatingEntity, bob.DeleteInput{
-		ObjectID: v2Draft.ObjectID, ObjectRevision: v2Draft.ObjectRevision,
-		ApprovalEntryID: v2Draft.Approval.ApprovalEntryID, ApprovalRevision: v2Draft.Approval.Revision,
-	}, actor("delete-v2")); err != nil {
-		t.Fatalf("delete V2 fixture: %v", err)
-	}
-
-	v2 = createV2("operating-v2-referenced")
-	_ = createFundAccount(v2.ObjectID, "fund-referencing-v2-"+suffix)
-	_, err = service.Unapprove(t.Context(), bob.EntityOperatingEntity, bob.ReverseInput{
-		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
-		ApprovalRevision: v2.Approval.Revision, Reason: "exact V2 snapshot must block",
-	}, actor("unapprove-referenced-v2"))
-	var unapproveErr *bob.DomainError
-	if !errors.As(err, &unapproveErr) || unapproveErr.ErrorKey != "bob_unapprove_blocked" {
-		t.Fatalf("referenced V2 unapprove error = %v", err)
-	}
-
-	_, err = service.Disable(t.Context(), bob.EntityOperatingEntity, bob.ObjectRevisionInput{
-		ObjectID: v2.ObjectID, ObjectRevision: v2.ObjectRevision,
-	}, actor("disable-referenced-object"))
-	var disableErr *bob.DomainError
-	if !errors.As(err, &disableErr) || disableErr.ErrorKey != "bob_disable_blocked" {
-		t.Fatalf("referenced stable object disable error = %v", err)
 	}
 }
 

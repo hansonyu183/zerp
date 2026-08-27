@@ -367,7 +367,7 @@ const resolveVouContractCounterparty = `-- name: ResolveVouContractCounterparty 
 SELECT object.id AS counterparty_object_id,object.entity AS counterparty_entity,
        version.id AS counterparty_approval_entry_id,object.code AS counterparty_code,
        party.id AS party_id,party.display_name AS party_name,
-       operating.id AS operating_entity_object_id,operating_version.id AS operating_entity_approval_entry_id,
+       operating.id AS operating_entity_object_id,operating_detail.source_approval_entry_id AS operating_entity_approval_entry_id,
        operating.code AS operating_entity_code,operating_detail.legal_name AS operating_entity_name,
        COALESCE(sales.capabilities,ARRAY[]::varchar(32)[]) AS capabilities,
        service_detail.settlement_method_id,service_detail.settlement_method_code,
@@ -387,12 +387,7 @@ LEFT JOIN bob_sales_relationships sales_rel ON sales_rel.object_id=object.id AND
 LEFT JOIN bob_sales_partner_versions sales ON sales.approval_entry_id=version.id AND object.entity='sales-partner'
 JOIN bob_parties party ON party.id=COALESCE(service_rel.party_id,sales_rel.party_id)
 JOIN bob_objects operating ON operating.id=COALESCE(service_rel.operating_entity_id,sales_rel.operating_entity_id)
-JOIN LATERAL (
-  SELECT id FROM approval_entries
-  WHERE domain='bob' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED'
-  ORDER BY version_no DESC LIMIT 1
-) operating_version ON true
-JOIN bob_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_version.id
+JOIN bob_operating_entities operating_detail ON operating_detail.object_id=operating.id AND operating_detail.enabled
 WHERE object.id=$1 AND object.entity=$2
   AND object.enabled
 FOR SHARE OF object,party,operating

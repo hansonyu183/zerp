@@ -606,38 +606,50 @@ async function createEnabledWorkflow(
     { script },
   )
   expect(created.approval.status).toBe('DRAFT')
-  const saved = await operator.ok<WflDefinition>('wfl/process-definition/save', {
-    definitionId: created.definitionId,
-    approvalEntryId: created.approval.approvalEntryId,
-    revision: created.approval.revision,
-    script: `${script}\n`,
+  const saved = await operator.ok<WflDefinition>(
+    'wfl/process-definition/save',
+    {
+      definitionId: created.definitionId,
+      approvalEntryId: created.approval.approvalEntryId,
+      revision: created.approval.revision,
+      script: `${script}\n`,
+    },
+  )
+  const trial = await operator.ok<{
+    matched: boolean
+    plannedActions: unknown[]
+  }>('wfl/process-definition/trial', {
+    definitionId: saved.definitionId,
+    approvalEntryId: saved.approval.approvalEntryId,
+    revision: saved.approval.revision,
+    source: { entity: 'sale-order', documentId: trialDocumentId },
   })
-  const trial = await operator.ok<{ matched: boolean; plannedActions: unknown[] }>(
-    'wfl/process-definition/trial',
+  expect(trial.matched).toBe(true)
+  expect(trial.plannedActions).toHaveLength(1)
+  const submitted = await operator.ok<WflDefinition>(
+    'wfl/process-definition/submit',
     {
       definitionId: saved.definitionId,
       approvalEntryId: saved.approval.approvalEntryId,
       revision: saved.approval.revision,
-      source: { entity: 'sale-order', documentId: trialDocumentId },
     },
   )
-  expect(trial.matched).toBe(true)
-  expect(trial.plannedActions).toHaveLength(1)
-  const submitted = await operator.ok<WflDefinition>('wfl/process-definition/submit', {
-    definitionId: saved.definitionId,
-    approvalEntryId: saved.approval.approvalEntryId,
-    revision: saved.approval.revision,
-  })
-  const approved = await reviewer.ok<WflDefinition>('wfl/process-definition/approve', {
-    definitionId: submitted.definitionId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    revision: submitted.approval.revision,
-  })
+  const approved = await reviewer.ok<WflDefinition>(
+    'wfl/process-definition/approve',
+    {
+      definitionId: submitted.definitionId,
+      approvalEntryId: submitted.approval.approvalEntryId,
+      revision: submitted.approval.revision,
+    },
+  )
   expect(approved.approval.status).toBe('APPROVED')
-  const enabled = await operator.ok<WflDefinition>('wfl/process-definition/enable', {
-    definitionId: approved.definitionId,
-    revision: approved.revision,
-  })
+  const enabled = await operator.ok<WflDefinition>(
+    'wfl/process-definition/enable',
+    {
+      definitionId: approved.definitionId,
+      revision: approved.revision,
+    },
+  )
   expect(enabled.enabled).toBe(true)
 }
 
@@ -760,7 +772,13 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
     "lines": [{"sourceLineId": line["lineId"], "signedBaseQuantity": line["baseQuantity"], "rejectedBaseQuantity": "0"} for line in source["data"]["productLines"]],
   })),
 ])`
-  await createEnabledWorkflow(operator, reviewer, processCode, script, order.documentId)
+  await createEnabledWorkflow(
+    operator,
+    reviewer,
+    processCode,
+    script,
+    order.documentId,
+  )
   await workerState.grantWorkflowPermissions([processCode])
   await approveVou(operator, reviewer, 'sale-order', order)
   const processPage = await operator.ok<{
@@ -823,6 +841,31 @@ async function createApprovedBob(
   entity: string,
   data: Record<string, unknown>,
 ): Promise<BobView> {
+  if (entity === 'operating-entity') {
+    const created = await operator.ok<Mutation>('dcl/operating-entity/create', {
+      data,
+    })
+    const submitted = await operator.ok<Mutation>(
+      'dcl/operating-entity/submit',
+      {
+        objectId: created.objectId,
+        approvalEntryId: created.approval.approvalEntryId,
+        approvalRevision: created.approval.revision,
+      },
+    )
+    const approved = await reviewer.ok<Mutation>(
+      'dcl/operating-entity/approve',
+      {
+        objectId: submitted.objectId,
+        approvalEntryId: submitted.approval.approvalEntryId,
+        approvalRevision: submitted.approval.revision,
+      },
+    )
+    return operator.ok<BobView>('dcl/operating-entity/get', {
+      objectId: approved.objectId,
+      approvalEntryId: approved.approval.approvalEntryId,
+    })
+  }
   const created = await operator.ok<Mutation>(`bob/${entity}/create`, { data })
   const approved = await approve(operator, reviewer, entity, created)
   return operator.ok<BobView>(`bob/${entity}/get`, {
@@ -996,7 +1039,13 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
     "businessDate": source["data"]["businessDate"],
   })),
 ])`
-  await createEnabledWorkflow(operator, reviewer, processCode, script, order.documentId)
+  await createEnabledWorkflow(
+    operator,
+    reviewer,
+    processCode,
+    script,
+    order.documentId,
+  )
   await workerState.grantWorkflowPermissions([processCode])
   await approveVou(operator, reviewer, 'sale-order', order)
   const processPage = await operator.ok<{

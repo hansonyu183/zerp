@@ -254,12 +254,12 @@ func newBOBTestRouter(service applicationService, authorizer authorization.Autho
 	return router
 }
 
-func TestHandlerRegistersEveryEntityAction(t *testing.T) {
+func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
 	expectedEntities := []string{
 		"customer", "supplier", "employee", "sales-partner", "product", "warehouse",
-		"vehicle", "fund-account", "operating-entity",
+		"vehicle", "fund-account",
 	}
 	expectedActions := []string{
 		"query", "get", "create", "save", "delete", "submit", "unsubmit",
@@ -271,6 +271,8 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 			wanted["/bob/"+entity+"/"+action] = false
 		}
 	}
+	wanted["/bob/operating-entity/query"] = false
+	wanted["/bob/operating-entity/get"] = false
 	for _, path := range []string{
 		"/bob/party/query", "/bob/party/get", "/bob/party/save",
 		"/bob/other-unit/query", "/bob/other-unit/get", "/bob/other-unit/create", "/bob/other-unit/save",
@@ -285,6 +287,10 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 		wanted[path] = false
 	}
 	for _, route := range routes {
+		if strings.HasPrefix(route.Path, "/bob/operating-entity/") &&
+			route.Path != "/bob/operating-entity/query" && route.Path != "/bob/operating-entity/get" {
+			t.Fatalf("DCL-owned operating entity lifecycle alias remains registered: %s", route.Path)
+		}
 		if strings.HasPrefix(route.Path, "/bob/service/") {
 			t.Fatalf("obsolete standalone service route remains registered: %s", route.Path)
 		}

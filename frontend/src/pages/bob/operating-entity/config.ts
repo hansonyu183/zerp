@@ -13,6 +13,7 @@ import { bobListActiveVersion } from '../shared/types'
 
 export const operatingEntityConfig = defineBobEntityConfig({
   entity: 'operating-entity',
+  approvalDomain: 'dcl',
   title: '经营主体',
   codeLabel: '经营主体编码',
   nameLabel: '法定公司名称',

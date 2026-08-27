@@ -3,6 +3,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -23,6 +25,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	authorizer := authorization.Func(nil)
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
 	bobService := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	declarations := dcldomain.NewOperatingEntityService(pool, bobService, authorizer, bus)
 	actor := func(id, requestID string) approval.Actor {
 		result, actorErr := approval.UserActor(authorization.Principal{ActorID: id}, requestID)
 		if actorErr != nil {
@@ -51,19 +54,19 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}, actor(admin.ID, "workbench-submit-pending")); err != nil {
 		t.Fatalf("submit pending object: %v", err)
 	}
-	operating, err := bobService.Create(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.CreateInput{
-		Data: bobdomain.CreateDetailInput{Name: "工作台经营主体-" + suffix},
+	operating, err := declarations.Create(t.Context(), dcldomain.OperatingEntityCreateInput{
+		Data: dcldomain.OperatingEntityData{Name: "工作台经营主体-" + suffix},
 	}, actor(admin.ID, "workbench-create-operating"))
 	if err != nil {
 		t.Fatalf("create operating entity: %v", err)
 	}
-	operatingSubmitted, err := bobService.Submit(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.VersionRevisionInput{
+	operatingSubmitted, err := declarations.Submit(t.Context(), dcldomain.OperatingEntityVersionInput{
 		ObjectID: operating.ObjectID, ApprovalEntryID: operating.Approval.ApprovalEntryID, ApprovalRevision: operating.Approval.Revision,
 	}, actor(admin.ID, "workbench-submit-operating"))
 	if err != nil {
 		t.Fatalf("submit operating entity: %v", err)
 	}
-	if _, err = bobService.Approve(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.ReviewInput{
+	if _, err = declarations.Approve(t.Context(), dcldomain.OperatingEntityVersionInput{
 		ObjectID: operating.ObjectID, ApprovalEntryID: operatingSubmitted.Approval.ApprovalEntryID, ApprovalRevision: operatingSubmitted.Approval.Revision,
 	}, actor(ulid.Make().String(), "workbench-approve-operating")); err != nil {
 		t.Fatalf("approve operating entity: %v", err)
@@ -90,6 +93,19 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get fund account: %v", err)
 	}
+	dclPending, err := declarations.Create(t.Context(), dcldomain.OperatingEntityCreateInput{
+		Data: dcldomain.OperatingEntityData{Name: "工作台经营主体待审核-" + suffix},
+	}, actor(admin.ID, "workbench-create-dcl-pending"))
+	if err != nil {
+		t.Fatalf("create DCL pending operating entity: %v", err)
+	}
+	dclPending, err = declarations.Submit(t.Context(), dcldomain.OperatingEntityVersionInput{
+		ObjectID: dclPending.ObjectID, ApprovalEntryID: dclPending.Approval.ApprovalEntryID,
+		ApprovalRevision: dclPending.Approval.Revision,
+	}, actor(admin.ID, "workbench-submit-dcl-pending"))
+	if err != nil {
+		t.Fatalf("submit DCL pending operating entity: %v", err)
+	}
 
 	baseSequence := int(time.Now().UnixNano()%9000) + 1
 	documentPrefix := "OIN-20991231"
@@ -102,10 +118,11 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		fmt.Sprintf("%s-%04d", documentPrefix, baseSequence+1),
 		fmt.Sprintf("%s-%04d", documentPrefix, baseSequence+2),
 	}
-	allObjectIDs := []string{draft.ObjectID, pending.ObjectID, operating.ObjectID, fund.ObjectID}
+	allObjectIDs := []string{draft.ObjectID, pending.ObjectID, operating.ObjectID, fund.ObjectID, dclPending.ObjectID}
 	allApprovalEntryIDs := []string{
 		draft.Approval.ApprovalEntryID, pending.Approval.ApprovalEntryID,
 		operatingSubmitted.Approval.ApprovalEntryID, fundSubmitted.Approval.ApprovalEntryID,
+		dclPending.Approval.ApprovalEntryID,
 	}
 	t.Cleanup(func() {
 		_, _ = pool.Exec(t.Context(), `DELETE FROM vou_other_income_details WHERE document_id=ANY($1::text[])`, documentIDs)
@@ -117,12 +134,14 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		}
 		defer tx.Rollback(t.Context()) //nolint:errcheck
 		_, _ = tx.Exec(t.Context(), `SET CONSTRAINTS ALL DEFERRED`)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_events WHERE domain='bob' AND subject_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_events WHERE domain IN ('bob','dcl') AND subject_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_warehouse_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_fund_account_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_operating_entity_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_operating_entities WHERE object_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_operating_entity_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_subjects WHERE id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_objects WHERE id=ANY($1::text[])`, allObjectIDs)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_entries WHERE domain='bob' AND subject_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_entries WHERE domain IN ('bob','dcl') AND subject_id=ANY($1::text[])`, allObjectIDs)
 		_ = tx.Commit(t.Context())
 	})
 
@@ -174,12 +193,15 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	bobPrincipal := Principal{User: UserSummary{ID: reviewerID}, Permissions: []string{
 		"/bob/warehouse/query", "/bob/warehouse/get", "/bob/warehouse/save",
 		"/bob/warehouse/submit", "/bob/warehouse/approve", "/bob/warehouse/reject", "/bob/warehouse/unsubmit",
+		"/dcl/operating-entity/query", "/dcl/operating-entity/get", "/dcl/operating-entity/save",
+		"/dcl/operating-entity/submit", "/dcl/operating-entity/approve", "/dcl/operating-entity/reject",
+		"/dcl/operating-entity/unsubmit",
 	}}
 	bobPage, err := service.QueryWorkbench(t.Context(), bobPrincipal, WorkbenchQueryInput{
 		Category: WorkbenchCategoryBob, Keyword: "  工作台  ", Page: 1, PageSize: 20,
 	})
 	if err != nil {
-		t.Fatalf("query BOB workbench: %v", err)
+		t.Fatalf("query BOB workbench: %v (cause: %v)", err, errors.Unwrap(err))
 	}
 	byID := make(map[string]WorkbenchItem, len(bobPage.Items))
 	for _, item := range bobPage.Items {
@@ -188,8 +210,13 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if byID[draft.ObjectID].PendingStage != "SUBMIT" || byID[pending.ObjectID].PendingStage != "APPROVE" {
 		t.Fatalf("unexpected BOB stages: %#v", byID)
 	}
-	if bobPage.Total < 2 {
-		t.Fatalf("BOB total = %d, want at least 2", bobPage.Total)
+	if dclItem := byID[dclPending.ObjectID]; dclItem.Category != WorkbenchCategoryBob ||
+		dclItem.Entity != bobdomain.EntityOperatingEntity || dclItem.PendingStage != "APPROVE" ||
+		!slices.Equal(dclItem.AvailableActions, []string{"view", "approve", "reject", "unsubmit"}) {
+		t.Fatalf("DCL operating entity workbench item = %+v", dclItem)
+	}
+	if bobPage.Total < 3 {
+		t.Fatalf("BOB total = %d, want at least 3", bobPage.Total)
 	}
 	if bobPage.Page != 1 || bobPage.PageSize != 20 {
 		t.Fatalf("BOB pagination = page %d size %d", bobPage.Page, bobPage.PageSize)

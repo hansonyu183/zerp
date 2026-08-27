@@ -7,7 +7,7 @@ import type { components } from '@/api/generated/schema'
 
 export type BobStatus = components['schemas']['ApprovalVersionMeta']['status']
 
-export type BobEntity = components['schemas']['BobCrudEntity']
+export type BobEntity = components['schemas']['BobReadableEntity']
 
 export type BobForm = {
   code: string
@@ -52,7 +52,7 @@ interface ReferenceConfigBase {
 export type BobReferenceConfig =
   | (ReferenceConfigBase & {
       domain?: 'bob'
-      entity: components['schemas']['BobCrudEntity'] | 'other-unit'
+      entity: components['schemas']['BobReadableEntity'] | 'other-unit'
     })
   | (ReferenceConfigBase & {
       domain: 'aux'
@@ -70,6 +70,7 @@ export interface BobFilterField {
 
 export interface BobEntityConfig {
   entity: BobEntity
+  approvalDomain?: 'bob' | 'dcl'
   title: string
   codeLabel: string
   nameLabel: string
@@ -82,6 +83,24 @@ export interface BobEntityConfig {
   columns: readonly BusinessObjectColumn<BobListItem>[]
   filters: readonly BobFilterField[]
   references?: Readonly<Record<string, BobReferenceConfig>>
+}
+
+export function bobApprovalDomain(
+  config: Pick<BobEntityConfig, 'approvalDomain'>,
+): 'bob' | 'dcl' {
+  return config.approvalDomain ?? 'bob'
+}
+
+export function bobWriteEntity(
+  config: Pick<BobEntityConfig, 'entity' | 'approvalDomain'>,
+): components['schemas']['BobCrudEntity'] {
+  if (
+    bobApprovalDomain(config) !== 'bob' ||
+    config.entity === 'operating-entity'
+  ) {
+    throw new Error('经营主体写入必须使用 DCL。')
+  }
+  return config.entity
 }
 
 export interface BobFieldContext {

@@ -17,7 +17,6 @@
     "aux/product-type",
     "aux/settlement-method",
     "bob/fund-account",
-    "bob/operating-entity",
     "rpt/definition",
     "rpt/report",
     "vou/asset-acquisition",

@@ -714,15 +714,18 @@ type BobObject struct {
 	Enabled   bool               `db:"enabled" json:"enabled"`
 }
 
-type BobOperatingEntityVersion struct {
-	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity          string  `db:"entity" json:"entity"`
-	LegalName       string  `db:"legal_name" json:"legal_name"`
-	ShortName       *string `db:"short_name" json:"short_name"`
-	TaxNumber       *string `db:"tax_number" json:"tax_number"`
-	Address         *string `db:"address" json:"address"`
-	Phone           *string `db:"phone" json:"phone"`
-	Remark          *string `db:"remark" json:"remark"`
+type BobOperatingEntity struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	LegalName             string             `db:"legal_name" json:"legal_name"`
+	ShortName             *string            `db:"short_name" json:"short_name"`
+	TaxNumber             *string            `db:"tax_number" json:"tax_number"`
+	Address               *string            `db:"address" json:"address"`
+	Phone                 *string            `db:"phone" json:"phone"`
+	Remark                *string            `db:"remark" json:"remark"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobParty struct {
@@ -996,6 +999,24 @@ type BobWarehouseVersion struct {
 	ManagerEmployeeApprovalEntryID *string `db:"manager_employee_approval_entry_id" json:"manager_employee_approval_entry_id"`
 	ManagerEmployeeEntity          string  `db:"manager_employee_entity" json:"manager_employee_entity"`
 	Remark                         *string `db:"remark" json:"remark"`
+}
+
+type DclOperatingEntityVersion struct {
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	LegalName       string  `db:"legal_name" json:"legal_name"`
+	ShortName       *string `db:"short_name" json:"short_name"`
+	TaxNumber       *string `db:"tax_number" json:"tax_number"`
+	Address         *string `db:"address" json:"address"`
+	Phone           *string `db:"phone" json:"phone"`
+	Remark          *string `db:"remark" json:"remark"`
+	Enabled         bool    `db:"enabled" json:"enabled"`
+}
+
+type DclSubject struct {
+	ID        string             `db:"id" json:"id"`
+	Entity    string             `db:"entity" json:"entity"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy string             `db:"created_by" json:"created_by"`
 }
 
 type ObjectNumberCounter struct {

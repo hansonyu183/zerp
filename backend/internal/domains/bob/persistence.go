@@ -31,17 +31,6 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 		err = q.InsertBobSalesPartnerPayload(ctx, approvalEntryID)
 	case EntityProduct:
 		err = q.InsertBobProductPayload(ctx, dbsqlc.InsertBobProductPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
-	case EntityVehicle:
-		affiliation := data.CarrierAffiliation
-		if affiliation == nil {
-			affiliation = &CarrierAffiliation{}
-		}
-		err = q.InsertBobVehiclePayload(ctx, dbsqlc.InsertBobVehiclePayloadParams{
-			ApprovalEntryID: approvalEntryID, Name: data.Name, PlateNumber: data.PlateNumber,
-			VehicleType: data.VehicleType, CarrierAffiliationType: affiliation.Type,
-			CarrierOperatingEntityID:           nilIfEmpty(affiliation.OperatingEntityID),
-			CarrierServiceRelationshipObjectID: nilIfEmpty(affiliation.ServiceRelationshipObjectID),
-		})
 	case EntityFundAccount:
 		err = q.InsertBobFundAccountPayload(ctx, dbsqlc.InsertBobFundAccountPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name, Currency: data.Currency})
 	default:
@@ -111,12 +100,6 @@ func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID 
 		}
 		data.Formula, err = loadProductFormula(ctx, q, approvalEntryID)
 		return data, err
-	case EntityVehicle:
-		r, err := q.GetBobOpenVehiclePayload(ctx, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		return DetailView{Name: r.Name, PlateNumber: r.PlateNumber, VehicleType: r.VehicleType, CategoryID: deref(r.CategoryID), CategoryApprovalEntryID: deref(r.CategoryApprovalEntryID), VIN: deref(r.Vin), EngineNumber: deref(r.EngineNumber), LoadCapacityKG: numericString(r.LoadCapacityKg), Remark: deref(r.Remark), CarrierAffiliation: &CarrierAffiliation{Type: r.CarrierAffiliationType, OperatingEntityID: deref(r.CarrierOperatingEntityID), OperatingApprovalEntryID: deref(r.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: deref(r.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: deref(r.CarrierServiceRelationshipApprovalEntryID)}, BulkLiquidCapable: r.BulkLiquidCapable}, nil
 	case EntityFundAccount:
 		r, err := q.GetBobOpenFundAccountPayload(ctx, approvalEntryID)
 		if err != nil {
@@ -206,16 +189,6 @@ func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntry
 			return 0, err
 		}
 		return q.UpdateBobProductPayload(ctx, dbsqlc.UpdateBobProductPayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), Specification: nilIfEmpty(d.Specification), Model: nilIfEmpty(d.Model), Barcode: nilIfEmpty(d.Barcode), Remark: nilIfEmpty(d.Remark), PricingUnitID: nilIfEmpty(d.PricingUnitID), PricingUnitApprovalEntryID: nilIfEmpty(d.PricingUnitApprovalEntryID), Returnable: d.Returnable, DefaultPackagingSpecMicros: packaging, ProductTypeID: nilIfEmpty(d.ProductTypeID), ProductTypeApprovalEntryID: nilIfEmpty(d.ProductTypeApprovalEntryID), ProductTypeCode: nilIfEmpty(d.ProductTypeCode), ProductTypeName: nilIfEmpty(d.ProductTypeName), BehaviorProfile: nilIfEmpty(d.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(d.DefaultInputUnitID), DefaultInputUnitApprovalEntryID: nilIfEmpty(d.DefaultInputUnitApprovalEntryID), ApprovalEntryID: approvalEntryID})
-	case EntityVehicle:
-		load, err := numericValue(d.LoadCapacityKG)
-		if err != nil {
-			return 0, err
-		}
-		a := d.CarrierAffiliation
-		if a == nil {
-			a = &CarrierAffiliation{}
-		}
-		return q.UpdateBobVehiclePayload(ctx, dbsqlc.UpdateBobVehiclePayloadParams{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), Vin: nilIfEmpty(d.VIN), EngineNumber: nilIfEmpty(d.EngineNumber), LoadCapacityKg: load, Remark: nilIfEmpty(d.Remark), CarrierAffiliationType: a.Type, CarrierOperatingEntityID: nilIfEmpty(a.OperatingEntityID), CarrierOperatingEntityApprovalEntryID: nilIfEmpty(a.OperatingApprovalEntryID), CarrierServiceRelationshipObjectID: nilIfEmpty(a.ServiceRelationshipObjectID), CarrierServiceRelationshipApprovalEntryID: nilIfEmpty(a.ServiceApprovalEntryID), BulkLiquidCapable: d.BulkLiquidCapable, ApprovalEntryID: approvalEntryID})
 	case EntityFundAccount:
 		return q.UpdateBobFundAccountPayload(ctx, dbsqlc.UpdateBobFundAccountPayloadParams{Name: d.Name, Currency: d.Currency, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), AccountName: nilIfEmpty(d.AccountName), BankName: nilIfEmpty(d.BankName), BankBranch: nilIfEmpty(d.BankBranch), AccountNumber: nilIfEmpty(d.AccountNumber), Remark: nilIfEmpty(d.Remark), OperatingEntityID: nilIfEmpty(d.OperatingEntityID), OperatingEntityApprovalEntryID: nilIfEmpty(d.OperatingEntityApprovalEntryID), OperatingEntityCode: nilIfEmpty(d.OperatingEntityCode), OperatingEntityName: nilIfEmpty(d.OperatingEntityName), ApprovalEntryID: approvalEntryID})
 	default:
@@ -256,8 +229,6 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntry
 			return err
 		}
 		return insertProductFormula(ctx, q, newApprovalEntryID, formula)
-	case EntityVehicle:
-		return q.CopyBobVehiclePayload(ctx, dbsqlc.CopyBobVehiclePayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	case EntityFundAccount:
 		return q.CopyBobFundAccountPayload(ctx, dbsqlc.CopyBobFundAccountPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	default:
@@ -293,8 +264,6 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 			return 0, err
 		}
 		return q.DeleteBobProductPayload(ctx, approvalEntryID)
-	case EntityVehicle:
-		return q.DeleteBobVehiclePayload(ctx, approvalEntryID)
 	case EntityFundAccount:
 		return q.DeleteBobFundAccountPayload(ctx, approvalEntryID)
 	default:

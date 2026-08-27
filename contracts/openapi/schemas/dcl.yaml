@@ -703,4 +703,240 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'DclVehicleData':
+    {
+      'type': 'object',
+      'additionalProperties': false,
+      'required':
+        [
+          'name',
+          'plateNumber',
+          'vehicleType',
+          'carrierAffiliation',
+          'bulkLiquidCapable',
+        ],
+      'properties':
+        {
+          'name': { 'type': 'string' },
+          'plateNumber': { 'type': 'string' },
+          'vehicleType': { 'type': 'string' },
+          'carrierAffiliation':
+            { '$ref': './bob.yaml#/VehicleCarrierAffiliation' },
+          'bulkLiquidCapable': { 'type': 'boolean' },
+          'vin': { 'type': 'string' },
+          'engineNumber': { 'type': 'string' },
+          'loadCapacityKg': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'DclVehicleCreateRequest':
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/DclVehicleData' } },
+    },
+  'DclVehicleSaveRequest':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'data': { '$ref': '#/DclVehicleData' },
+        },
+    },
+  'DclVehicleVersionRequest': { '$ref': '#/DclOperatingEntityVersionRequest' },
+  'DclVehicleReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
+  'DclVehicleGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
+  'DclVehicleQueryRequest': { '$ref': '#/DclOperatingEntityQueryRequest' },
+  'DclVehicleHistoryRequest': { '$ref': '#/DclOperatingEntityHistoryRequest' },
+  'DclVehicleMutation': { '$ref': '#/DclOperatingEntityMutation' },
+  'DclVehicleView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'approval',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['vehicle'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclVehicleData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclVehicleVersionView':
+    {
+      'type': 'object',
+      'required': ['approval', 'data', 'enabled'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclVehicleData' },
+          'enabled': { 'type': 'boolean' },
+        },
+    },
+  'DclVehicleListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['vehicle'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'latestApproved':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclVehicleVersionView' }],
+              'nullable': true,
+            },
+          'openVersion':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclVehicleVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclVehicleQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclVehicleListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclVehicleVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclVehicleVersionView' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclVehicleMutationResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclVehicleMutation' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclVehicleViewResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclVehicleView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclVehicleQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclVehicleQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclVehicleVersionPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclVehicleVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclVehicleAuditHistoryResponse':
+    { '$ref': '#/DclWarehouseAuditHistoryResponse' },
 }

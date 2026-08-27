@@ -962,27 +962,28 @@ type BobSupplierVersion struct {
 	SettlementDayOffset                     int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
 }
 
-type BobVehicleVersion struct {
-	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                                    string         `db:"entity" json:"entity"`
-	Name                                      string         `db:"name" json:"name"`
-	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
-	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
-	CategoryID                                *string        `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID                   *string        `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity                            string         `db:"category_entity" json:"category_entity"`
-	Vin                                       *string        `db:"vin" json:"vin"`
-	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string        `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierOperatingEntity                    string         `db:"carrier_operating_entity" json:"carrier_operating_entity"`
-	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	CarrierServiceRelationshipEntity          string         `db:"carrier_service_relationship_entity" json:"carrier_service_relationship_entity"`
-	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+type BobVehicle struct {
+	ObjectID                                  string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID                     string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Name                                      string             `db:"name" json:"name"`
+	PlateNumber                               string             `db:"plate_number" json:"plate_number"`
+	VehicleType                               string             `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                       string             `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeApprovalEntryID                string             `db:"vehicle_type_approval_entry_id" json:"vehicle_type_approval_entry_id"`
+	VehicleTypeName                           string             `db:"vehicle_type_name" json:"vehicle_type_name"`
+	Vin                                       *string            `db:"vin" json:"vin"`
+	EngineNumber                              *string            `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                            pgtype.Numeric     `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                    *string            `db:"remark" json:"remark"`
+	CarrierAffiliationType                    string             `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID                  *string            `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID     *string            `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierServiceRelationshipObjectID        *string            `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID *string            `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	BulkLiquidCapable                         bool               `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	Enabled                                   bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                                 string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobWarehouse struct {
@@ -1018,6 +1019,39 @@ type DclSubject struct {
 	Entity    string             `db:"entity" json:"entity"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy string             `db:"created_by" json:"created_by"`
+}
+
+type DclVehicleIdentifierClaim struct {
+	IdentifierKind  string  `db:"identifier_kind" json:"identifier_kind"`
+	NormalizedValue string  `db:"normalized_value" json:"normalized_value"`
+	ObjectID        string  `db:"object_id" json:"object_id"`
+	ApprovedEntryID *string `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID     *string `db:"open_entry_id" json:"open_entry_id"`
+}
+
+type DclVehicleVersion struct {
+	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
+	Entity                                    string         `db:"entity" json:"entity"`
+	Name                                      string         `db:"name" json:"name"`
+	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
+	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeApprovalEntryID                string         `db:"vehicle_type_approval_entry_id" json:"vehicle_type_approval_entry_id"`
+	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
+	VehicleTypeEntity                         string         `db:"vehicle_type_entity" json:"vehicle_type_entity"`
+	Vin                                       *string        `db:"vin" json:"vin"`
+	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                    *string        `db:"remark" json:"remark"`
+	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOperatingEntity                    string         `db:"carrier_operating_entity" json:"carrier_operating_entity"`
+	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	CarrierServiceRelationshipEntity          string         `db:"carrier_service_relationship_entity" json:"carrier_service_relationship_entity"`
+	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	Enabled                                   bool           `db:"enabled" json:"enabled"`
 }
 
 type DclWarehouseVersion struct {

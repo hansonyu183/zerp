@@ -67,6 +67,7 @@ type relationshipAwareLifecycleService struct {
 	pool                    *pgxpool.Pool
 	operatingEntities       *dcldomain.OperatingEntityService
 	warehouses              *dcldomain.WarehouseService
+	vehicles                *dcldomain.VehicleService
 }
 
 func (service relationshipAwareLifecycleService) Create(
@@ -83,6 +84,10 @@ func (service relationshipAwareLifecycleService) Create(
 			Data: warehouseData(input.Data),
 		}, actor)
 		return warehouseMutation(result), err
+	}
+	if entity == bob.EntityVehicle {
+		result, err := service.vehicles.Create(ctx, dcldomain.VehicleCreateInput{Data: vehicleData(input.Data)}, actor)
+		return vehicleMutation(result), err
 	}
 	partyKind := bob.PartyKindOrganization
 	if entity == bob.EntityEmployee {
@@ -244,6 +249,25 @@ func (service relationshipAwareLifecycleService) Save(
 		}, actor)
 		return warehouseMutation(result), err
 	}
+	if entity == bob.EntityVehicle {
+		view, err := service.vehicles.Get(ctx, dcldomain.VehicleGetInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+		}, mustSeedActor("seed-bob-vehicle-save-get"))
+		if err != nil {
+			return bob.MutationResult{}, err
+		}
+		result, err := service.vehicles.Save(ctx, dcldomain.VehicleSaveInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Enabled: view.Enabled,
+			Data: dcldomain.VehicleData{
+				Name: input.Data.Name, PlateNumber: input.Data.PlateNumber, VehicleType: input.Data.VehicleType,
+				CarrierAffiliation: input.Data.CarrierAffiliation, BulkLiquidCapable: input.Data.BulkLiquidCapable,
+				VIN: input.Data.VIN.Value, EngineNumber: input.Data.EngineNumber.Value,
+				LoadCapacityKG: input.Data.LoadCapacityKG.Value, Remark: input.Data.Remark.Value,
+			},
+		}, actor)
+		return vehicleMutation(result), err
+	}
 	if entity == bob.EntitySupplier {
 		return service.relationships.Save(ctx, entity, input, actor)
 	}
@@ -265,6 +289,12 @@ func (service relationshipAwareLifecycleService) Get(
 		}, mustSeedActor("seed-bob-warehouse-get"))
 		return warehouseView(view), err
 	}
+	if entity == bob.EntityVehicle {
+		view, err := service.vehicles.Get(ctx, dcldomain.VehicleGetInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+		}, mustSeedActor("seed-bob-vehicle-get"))
+		return vehicleView(view), err
+	}
 	if entity != bob.EntityOtherUnit {
 		return service.lifecycleService.Get(ctx, entity, input)
 	}
@@ -281,6 +311,10 @@ func (service relationshipAwareLifecycleService) Get(
 }
 
 func (service relationshipAwareLifecycleService) Submit(ctx context.Context, entity string, input bob.VersionRevisionInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityVehicle {
+		result, err := service.vehicles.Submit(ctx, dcldomain.VehicleVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return vehicleMutation(result), err
+	}
 	if entity == bob.EntityWarehouse {
 		result, err := service.warehouses.Submit(ctx, dcldomain.WarehouseVersionInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision,
@@ -297,6 +331,13 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 }
 
 func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityVehicle {
+		result, err := service.vehicles.Unsubmit(ctx, dcldomain.VehicleReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: input.Reason,
+		}, actor)
+		return vehicleMutation(result), err
+	}
 	if entity == bob.EntityWarehouse {
 		result, err := service.warehouses.Unsubmit(ctx, dcldomain.WarehouseReviewInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
@@ -315,6 +356,10 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 }
 
 func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityVehicle {
+		result, err := service.vehicles.Approve(ctx, dcldomain.VehicleVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return vehicleMutation(result), err
+	}
 	if entity == bob.EntityWarehouse {
 		result, err := service.warehouses.Approve(ctx, dcldomain.WarehouseVersionInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision,
@@ -331,6 +376,13 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 }
 
 func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityVehicle {
+		result, err := service.vehicles.Unapprove(ctx, dcldomain.VehicleReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: input.Reason,
+		}, actor)
+		return vehicleMutation(result), err
+	}
 	if entity == bob.EntityWarehouse {
 		result, err := service.warehouses.Unapprove(ctx, dcldomain.WarehouseReviewInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
@@ -349,6 +401,17 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 }
 
 func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityVehicle {
+		reason := ""
+		if input.Reason != nil {
+			reason = *input.Reason
+		}
+		result, err := service.vehicles.Reject(ctx, dcldomain.VehicleReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: reason,
+		}, actor)
+		return vehicleMutation(result), err
+	}
 	if entity == bob.EntityWarehouse {
 		reason := ""
 		if input.Reason != nil {
@@ -413,6 +476,31 @@ func warehouseMutation(result dcldomain.WarehouseMutation) bob.MutationResult {
 	}
 }
 
+func vehicleData(data bob.CreateDetailInput) dcldomain.VehicleData {
+	return dcldomain.VehicleData{
+		Name: data.Name, PlateNumber: data.PlateNumber, VehicleType: data.VehicleType,
+		CarrierAffiliation: data.CarrierAffiliation, BulkLiquidCapable: data.BulkLiquidCapable,
+		VIN: data.VIN, EngineNumber: data.EngineNumber, LoadCapacityKG: data.LoadCapacityKG, Remark: data.Remark,
+	}
+}
+
+func vehicleMutation(result dcldomain.VehicleMutation) bob.MutationResult {
+	return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func vehicleView(view dcldomain.VehicleView) bob.ObjectView {
+	return bob.ObjectView{
+		ObjectID: view.ObjectID, Entity: bob.EntityVehicle, Code: view.Code,
+		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		Data: bob.DetailView{
+			Name: view.Data.Name, PlateNumber: view.Data.PlateNumber, VehicleType: view.Data.VehicleType,
+			CarrierAffiliation: view.Data.CarrierAffiliation, BulkLiquidCapable: view.Data.BulkLiquidCapable,
+			VIN: view.Data.VIN, EngineNumber: view.Data.EngineNumber,
+			LoadCapacityKG: view.Data.LoadCapacityKG, Remark: view.Data.Remark,
+		}, UpdatedAt: view.UpdatedAt,
+	}
+}
+
 func warehouseView(view dcldomain.WarehouseView) bob.ObjectView {
 	return bob.ObjectView{
 		ObjectID: view.ObjectID, Entity: bob.EntityWarehouse, Code: view.Code,
@@ -435,7 +523,7 @@ type queryLookup struct {
 }
 
 func (l queryLookup) Find(ctx context.Context, entity, code string) (string, bool, error) {
-	if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse {
+	if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle {
 		var id string
 		err := l.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
 			WHERE domain='dcl' AND entity=$1 AND request_id=$2 AND action='CREATED'
@@ -495,10 +583,11 @@ func New(pool *pgxpool.Pool) *Seeder {
 	supplier := bob.NewService(pool, auxiliaryResolver, authorizer, bus)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, service, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, service, authorizer, bus)
+	vehicles := dcldomain.NewVehicleService(pool, service, authorizer, bus)
 	return &Seeder{
 		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: service,
 			settlementRelationships: supplier, auxiliary: auxiliary, pool: pool,
-			operatingEntities: operatingEntities, warehouses: warehouses},
+			operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles},
 		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,
 		auxiliary: auxiliary,
 	}

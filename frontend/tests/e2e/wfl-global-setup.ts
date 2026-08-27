@@ -373,7 +373,6 @@ const bobReviewerActions = new Set([
     'other-unit',
     'sales-partner',
     'product',
-    'vehicle',
     'fund-account',
   ].flatMap((entity) => [
     `/bob/${entity}/query`,
@@ -388,6 +387,9 @@ const bobReviewerActions = new Set([
   '/dcl/warehouse/query',
   '/dcl/warehouse/get',
   '/dcl/warehouse/approve',
+  '/dcl/vehicle/query',
+  '/dcl/vehicle/get',
+  '/dcl/vehicle/approve',
 ])
 
 async function createEffectiveBob(
@@ -396,21 +398,21 @@ async function createEffectiveBob(
   entity: string,
   data: Record<string, unknown>,
 ): Promise<BobMutation> {
-  if (entity === 'warehouse') {
-    const created = await operator.post<BobMutation>('dcl/warehouse/create', {
+  if (entity === 'warehouse' || entity === 'vehicle') {
+    const created = await operator.post<BobMutation>(`dcl/${entity}/create`, {
       data,
     })
-    const submitted = await operator.post<BobMutation>('dcl/warehouse/submit', {
+    const submitted = await operator.post<BobMutation>(`dcl/${entity}/submit`, {
       objectId: created.objectId,
       approvalEntryId: created.approval.approvalEntryId,
       approvalRevision: created.approval.revision,
     })
-    const approved = await reviewer.post<BobMutation>('dcl/warehouse/approve', {
+    const approved = await reviewer.post<BobMutation>(`dcl/${entity}/approve`, {
       objectId: submitted.objectId,
       approvalEntryId: submitted.approval.approvalEntryId,
       approvalRevision: submitted.approval.revision,
     })
-    const view = await operator.post<{ code: string }>('dcl/warehouse/get', {
+    const view = await operator.post<{ code: string }>(`dcl/${entity}/get`, {
       objectId: approved.objectId,
       approvalEntryId: approved.approval.approvalEntryId,
     })
@@ -1392,6 +1394,7 @@ export async function createWflWorkerState(options: {
           type: 'EXTERNAL',
           serviceRelationshipObjectId: carrier.objectId,
         },
+        bulkLiquidCapable: false,
       },
     )
     const warehouse = await createEffectiveBob(

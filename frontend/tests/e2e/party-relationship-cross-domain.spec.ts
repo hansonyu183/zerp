@@ -64,29 +64,6 @@ interface BobView {
   }
 }
 
-interface BobListItem {
-  objectId: string
-  code: string
-  objectRevision: number
-  enabled: boolean
-  latestApproved: {
-    approval: {
-      approvalEntryId: string
-      status: string
-      revision: number
-    }
-    summary: Record<string, unknown>
-  } | null
-  openVersion: {
-    approval: {
-      approvalEntryId: string
-      status: string
-      revision: number
-    }
-    summary: Record<string, unknown>
-  } | null
-}
-
 interface DclWarehouseListItem {
   objectId: string
   code: string
@@ -286,7 +263,7 @@ async function approve(
 async function approveDcl(
   operator: Api,
   reviewer: Api,
-  entity: 'operating-entity' | 'warehouse',
+  entity: 'operating-entity' | 'warehouse' | 'vehicle',
   mutation: Mutation,
 ): Promise<Mutation> {
   const submitted = await operator.ok<Mutation>(`dcl/${entity}/submit`, {
@@ -882,7 +859,11 @@ async function createApprovedBob(
   entity: string,
   data: Record<string, unknown>,
 ): Promise<BobView> {
-  if (entity === 'operating-entity' || entity === 'warehouse') {
+  if (
+    entity === 'operating-entity' ||
+    entity === 'warehouse' ||
+    entity === 'vehicle'
+  ) {
     const created = await operator.ok<Mutation>(`dcl/${entity}/create`, {
       data,
     })
@@ -1220,7 +1201,7 @@ test(
         suffix,
       )
 
-      // One real-backend journey now proves the final BOB/Warehouse/Vehicle
+      // One real-backend journey now proves the final BOB/DCL projection
       // model as a whole. No application request is mocked or intercepted.
       const product = await referenceByCode(
         session.api,
@@ -1523,11 +1504,12 @@ test(
       expect(externalDelivery.data.vehicle?.objectId).toBeTruthy()
 
       const vehicleCandidate = await session.api.ok<Mutation>(
-        'bob/vehicle/save',
+        'dcl/vehicle/save',
         {
           objectId: internalVehicle.objectId,
           approvalEntryId: internalVehicle.approval.approvalEntryId,
           approvalRevision: internalVehicle.approval.revision,
+          enabled: false,
           data: {
             name: `E2E 自有车辆候选 ${suffix}`,
             plateNumber: internalVehicle.data.plateNumber,
@@ -1537,30 +1519,31 @@ test(
           },
         },
       )
-      const vehicleDisabled = await session.api.ok<BobObjectMutation>(
-        'bob/vehicle/disable',
+      const vehicleEnabled = await session.api.ok<Mutation>(
+        'dcl/vehicle/save',
         {
           objectId: internalVehicle.objectId,
-          objectRevision: vehicleCandidate.objectRevision,
-        },
-      )
-      const vehicleEnabled = await session.api.ok<BobObjectMutation>(
-        'bob/vehicle/enable',
-        {
-          objectId: internalVehicle.objectId,
-          objectRevision: vehicleDisabled.objectRevision,
+          approvalEntryId: vehicleCandidate.approval.approvalEntryId,
+          approvalRevision: vehicleCandidate.approval.revision,
+          enabled: true,
+          data: {
+            name: `E2E 自有车辆候选 ${suffix}`,
+            plateNumber: internalVehicle.data.plateNumber,
+            vehicleType: internalVehicle.data.vehicleType,
+            carrierAffiliation: internalVehicle.data.carrierAffiliation,
+            bulkLiquidCapable: internalVehicle.data.bulkLiquidCapable,
+          },
         },
       )
       expect(vehicleEnabled.enabled).toBe(true)
-      const vehiclePage = await session.api.ok<{ items: BobListItem[] }>(
-        'bob/vehicle/query',
-        {
-          page: 1,
-          pageSize: 20,
-          filters: { keyword: internalVehicle.code },
-          sort: [{ field: 'code', order: 'asc' }],
-        },
-      )
+      const vehiclePage = await session.api.ok<{
+        items: DclWarehouseListItem[]
+      }>('dcl/vehicle/query', {
+        page: 1,
+        pageSize: 20,
+        filters: { keyword: internalVehicle.code },
+        sort: [{ field: 'code', order: 'asc' }],
+      })
       const vehicleRow = vehiclePage.items.find(
         (item) => item.objectId === internalVehicle.objectId,
       )
@@ -1569,13 +1552,13 @@ test(
         internalVehicle.approval.approvalEntryId,
       )
       expect(vehicleRow?.openVersion?.approval.approvalEntryId).toBe(
-        vehicleCandidate.approval.approvalEntryId,
+        vehicleEnabled.approval.approvalEntryId,
       )
-      await approve(
+      await approveDcl(
         session.api,
         reviewerSession.api,
         'vehicle',
-        vehicleCandidate,
+        vehicleEnabled,
       )
       const stableInternalDelivery = await session.api.ok<VoucherView>(
         'vou/sale-delivery/get',

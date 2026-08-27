@@ -229,3 +229,91 @@ SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='warehouse' A
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
 FROM approval_events WHERE domain='dcl' AND entity='warehouse' AND subject_id=sqlc.arg(object_id)
 ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: InsertDCLVehicleVersion :exec
+INSERT INTO dcl_vehicle_versions(approval_entry_id,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,bulk_liquid_capable,enabled)
+VALUES(sqlc.arg(approval_entry_id),sqlc.arg(name),sqlc.arg(plate_number),sqlc.arg(vehicle_type),sqlc.arg(vehicle_type_object_id),sqlc.arg(vehicle_type_approval_entry_id),sqlc.arg(vehicle_type_name),sqlc.narg(vin),sqlc.narg(engine_number),sqlc.narg(load_capacity_kg),sqlc.narg(remark),sqlc.arg(carrier_affiliation_type),sqlc.narg(carrier_operating_entity_id),sqlc.narg(carrier_operating_entity_approval_entry_id),sqlc.narg(carrier_service_relationship_object_id),sqlc.narg(carrier_service_relationship_approval_entry_id),sqlc.arg(bulk_liquid_capable),sqlc.arg(enabled));
+-- name: CopyDCLVehicleVersion :execrows
+INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name,vehicle_type_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable,enabled)
+SELECT sqlc.arg(new_approval_entry_id),source.entity,source.name,source.plate_number,source.vehicle_type,source.vehicle_type_object_id,source.vehicle_type_approval_entry_id,source.vehicle_type_name,source.vehicle_type_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_service_relationship_object_id,source.carrier_service_relationship_approval_entry_id,source.carrier_service_relationship_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+-- name: UpdateDCLVehicleVersion :execrows
+UPDATE dcl_vehicle_versions SET name=sqlc.arg(name),plate_number=sqlc.arg(plate_number),vehicle_type=sqlc.arg(vehicle_type),vehicle_type_object_id=sqlc.arg(vehicle_type_object_id),vehicle_type_approval_entry_id=sqlc.arg(vehicle_type_approval_entry_id),vehicle_type_name=sqlc.arg(vehicle_type_name),vin=sqlc.narg(vin),engine_number=sqlc.narg(engine_number),load_capacity_kg=sqlc.narg(load_capacity_kg),remark=sqlc.narg(remark),carrier_affiliation_type=sqlc.arg(carrier_affiliation_type),carrier_operating_entity_id=sqlc.narg(carrier_operating_entity_id),carrier_operating_entity_approval_entry_id=sqlc.narg(carrier_operating_entity_approval_entry_id),carrier_service_relationship_object_id=sqlc.narg(carrier_service_relationship_object_id),carrier_service_relationship_approval_entry_id=sqlc.narg(carrier_service_relationship_approval_entry_id),bulk_liquid_capable=sqlc.arg(bulk_liquid_capable),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+-- name: GetDCLVehicleVersion :one
+SELECT * FROM dcl_vehicle_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: LockDCLVehicleIdentifierClaims :exec
+SELECT pg_advisory_xact_lock(74155002);
+
+-- name: FindDCLVehicleIdentifierConflict :one
+WITH selected_entries AS (
+  SELECT id,status FROM approval_entries
+  WHERE domain='dcl' AND entity='vehicle' AND subject_id=sqlc.arg(object_id) AND status IN ('DRAFT','PENDING')
+  UNION ALL
+  (SELECT id,status FROM approval_entries
+   WHERE domain='dcl' AND entity='vehicle' AND subject_id=sqlc.arg(object_id) AND status='APPROVED'
+   ORDER BY version_no DESC LIMIT 1)
+), selected_versions AS (
+  SELECT version.* FROM selected_entries entry
+  JOIN dcl_vehicle_versions version ON version.approval_entry_id=entry.id
+), desired AS (
+  SELECT 'PLATE'::text AS identifier_kind,upper(btrim(plate_number)) AS normalized_value FROM selected_versions
+  UNION ALL
+  SELECT 'VIN'::text AS identifier_kind,upper(btrim(vin)) AS normalized_value FROM selected_versions WHERE vin IS NOT NULL
+)
+SELECT desired.identifier_kind,desired.normalized_value
+FROM desired JOIN dcl_vehicle_identifier_claims claim
+  ON claim.identifier_kind=desired.identifier_kind AND claim.normalized_value=desired.normalized_value
+WHERE claim.object_id<>sqlc.arg(object_id)
+ORDER BY desired.identifier_kind LIMIT 1;
+
+-- name: DeleteDCLVehicleIdentifierClaims :exec
+DELETE FROM dcl_vehicle_identifier_claims WHERE object_id=sqlc.arg(object_id);
+
+-- name: RebuildDCLVehicleIdentifierClaims :exec
+WITH selected_entries AS (
+  SELECT id,status FROM approval_entries
+  WHERE domain='dcl' AND entity='vehicle' AND subject_id=sqlc.arg(object_id) AND status IN ('DRAFT','PENDING')
+  UNION ALL
+  (SELECT id,status FROM approval_entries
+   WHERE domain='dcl' AND entity='vehicle' AND subject_id=sqlc.arg(object_id) AND status='APPROVED'
+   ORDER BY version_no DESC LIMIT 1)
+), selected_versions AS (
+  SELECT version.*,entry.id AS selected_entry_id,entry.status AS selected_status
+  FROM selected_entries entry
+  JOIN dcl_vehicle_versions version ON version.approval_entry_id=entry.id
+), identifiers AS (
+  SELECT 'PLATE'::text AS identifier_kind,upper(btrim(plate_number)) AS normalized_value,selected_entry_id,selected_status FROM selected_versions
+  UNION ALL
+  SELECT 'VIN'::text AS identifier_kind,upper(btrim(vin)) AS normalized_value,selected_entry_id,selected_status FROM selected_versions WHERE vin IS NOT NULL
+), desired AS (
+  SELECT identifier_kind,normalized_value,
+    max(selected_entry_id) FILTER (WHERE selected_status='APPROVED') AS approved_entry_id,
+    max(selected_entry_id) FILTER (WHERE selected_status IN ('DRAFT','PENDING')) AS open_entry_id
+  FROM identifiers GROUP BY identifier_kind,normalized_value
+)
+INSERT INTO dcl_vehicle_identifier_claims(identifier_kind,normalized_value,object_id,approved_entry_id,open_entry_id)
+SELECT identifier_kind,normalized_value,sqlc.arg(object_id),approved_entry_id,open_entry_id FROM desired;
+-- name: DeleteDCLVehicleVersion :execrows
+DELETE FROM dcl_vehicle_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+-- name: GetLatestApprovedDCLVehicleVersionExcluding :one
+SELECT id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=sqlc.arg(object_id) AND status='APPROVED' AND id<>sqlc.arg(excluded_approval_entry_id) ORDER BY version_no DESC LIMIT 1;
+-- name: CountDCLVehicles :one
+SELECT count(*) FROM dcl_subjects subject JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_vehicle_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='vehicle' AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.plate_number ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
+-- name: ListDCLVehicles :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_vehicle_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='vehicle' AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.plate_number ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY
+ CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
+ CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN object.code END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN object.code END DESC,
+ CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN display.name END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN display.name END DESC,
+ CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.status,approved.status) END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.status,approved.status) END DESC,
+ CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.version_no,approved.version_no) END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.version_no,approved.version_no) END DESC,
+ object.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+-- name: CountDCLVehicleApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='vehicle' AND subject_id=sqlc.arg(object_id);
+-- name: ListDCLVehicleApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='vehicle' AND subject_id=sqlc.arg(object_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);

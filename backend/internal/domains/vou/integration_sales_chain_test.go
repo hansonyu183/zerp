@@ -443,16 +443,8 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
 		Carrier: &refs.carrier, Vehicle: &recheckVehicle,
 	}, false)
-	vehicleView, err := bobService.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: recheckVehicle.ObjectID})
-	if err != nil {
-		t.Fatalf("get approval recheck vehicle: %v", err)
-	}
-	if _, err = bobService.Disable(t.Context(), bobdomain.EntityVehicle, bobdomain.ObjectRevisionInput{
-		ObjectID: recheckVehicle.ObjectID, ObjectRevision: vehicleView.ObjectRevision,
-	}, trustedIntegrationActor(t, "disable-before-delivery-approve")); err != nil {
-		t.Fatalf("disable approval recheck vehicle: %v", err)
-	}
-	if _, err = service.Approve(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
+	disableVehicleViaDCL(t, pool, bobService, recheckVehicle, "disable-before-delivery-approve")
+	if _, err := service.Approve(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
 		DocumentID: checkedDelivery.DocumentID, Revision: checkedDelivery.Approval.Revision,
 	}, integrationApprovalActor(t, integrationActorOne, "delivery-approve-after-vehicle-disable")); err == nil {
 		t.Fatal("delivery approval accepted a disabled vehicle")
@@ -469,15 +461,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	if err != nil {
 		t.Fatalf("create delivery before check revalidation: %v", err)
 	}
-	checkVehicleView, err := bobService.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: checkVehicle.ObjectID})
-	if err != nil {
-		t.Fatalf("get check revalidation vehicle: %v", err)
-	}
-	if _, err = bobService.Disable(t.Context(), bobdomain.EntityVehicle, bobdomain.ObjectRevisionInput{
-		ObjectID: checkVehicle.ObjectID, ObjectRevision: checkVehicleView.ObjectRevision,
-	}, trustedIntegrationActor(t, "disable-before-delivery-check")); err != nil {
-		t.Fatalf("disable check revalidation vehicle: %v", err)
-	}
+	disableVehicleViaDCL(t, pool, bobService, checkVehicle, "disable-before-delivery-check")
 	if _, err = service.Submit(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
 		DocumentID: draftDelivery.DocumentID, Revision: draftDelivery.Approval.Revision,
 	}, integrationApprovalActor(t, integrationActorOne, "delivery-check-after-vehicle-disable")); err == nil {
@@ -488,6 +472,76 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	if err != nil || stored.Data.CarrierType != "INTERNAL" || stored.Data.Vehicle == nil ||
 		stored.Data.Vehicle.ApprovalEntryID != internalVehicle.ApprovalEntryID {
 		t.Fatalf("historical internal delivery snapshot changed: %+v err=%v", stored.Data, err)
+	}
+}
+
+func TestSaleDeliveryExactVehicleSnapshotBlocksDCLUnapproveIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	vouService := newIntegrationService(t, pool)
+	bobService := newBOBIntegrationService(pool)
+	order, orderView := approvedSalesOrder(t, vouService, refs, "2")
+	outbound, _ := advanceSalesDocument(t, vouService, EntitySaleOutbound, DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: order.DocumentID, Warehouse: &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "2"}},
+	}, true)
+	delivery, deliveryView := advanceSalesDocument(t, vouService, EntitySaleDelivery, DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: outbound.DocumentID,
+		Carrier: &refs.carrier, Vehicle: &refs.vehicle,
+	}, true)
+	if deliveryView.Data.Vehicle == nil || deliveryView.Data.Vehicle.ApprovalEntryID != refs.vehicle.ApprovalEntryID {
+		t.Fatalf("sale delivery vehicle snapshot = %+v", deliveryView.Data.Vehicle)
+	}
+
+	declarations := dcldomain.NewVehicleService(pool, bobService, authorization.Func(nil), txevent.NewBus())
+	vehicle, err := declarations.Get(t.Context(), dcldomain.VehicleGetInput{
+		ObjectID: refs.vehicle.ObjectID, ApprovalEntryID: refs.vehicle.ApprovalEntryID,
+	}, integrationApprovalActor(t, integrationActorOne, "vehicle-blocker-get"))
+	if err != nil {
+		t.Fatalf("get DCL vehicle before unapprove: %v", err)
+	}
+	var currentEntryBefore string
+	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_vehicles WHERE object_id=$1`, refs.vehicle.ObjectID).Scan(&currentEntryBefore); err != nil {
+		t.Fatalf("read BOB vehicle current before blocked unapprove: %v", err)
+	}
+
+	_, err = declarations.Unapprove(t.Context(), dcldomain.VehicleReviewInput{
+		ObjectID: vehicle.ObjectID, ApprovalEntryID: vehicle.Approval.ApprovalEntryID,
+		ApprovalRevision: vehicle.Approval.Revision, Reason: "配送单已精确引用",
+	}, integrationApprovalActor(t, integrationActorTwo, "vehicle-blocker-unapprove"))
+	var domainErr *dcldomain.DomainError
+	if !errors.As(err, &domainErr) || domainErr.ErrorKey != "bob_unapprove_blocked" {
+		t.Fatalf("vehicle unapprove error = %v, want bob_unapprove_blocked", err)
+	}
+	blockers, ok := domainErr.Data.(bobdomain.ActiveReferenceBlockers)
+	if !ok || len(blockers.References) != 1 || blockers.References[0] != (bobdomain.ActiveReferenceCount{Entity: "vou_sale_delivery_details", Field: "snapshot", Count: 1}) {
+		t.Fatalf("vehicle unapprove blockers = %#v", domainErr.Data)
+	}
+
+	vehicleAfter, err := declarations.Get(t.Context(), dcldomain.VehicleGetInput{
+		ObjectID: vehicle.ObjectID, ApprovalEntryID: vehicle.Approval.ApprovalEntryID,
+	}, integrationApprovalActor(t, integrationActorOne, "vehicle-blocker-get-after"))
+	if err != nil {
+		t.Fatalf("get DCL vehicle after blocked unapprove: %v", err)
+	}
+	if vehicleAfter.Approval.Status != vehicle.Approval.Status || vehicleAfter.Approval.Revision != vehicle.Approval.Revision {
+		t.Fatalf("vehicle approval changed after blocked unapprove: before=%+v after=%+v", vehicle.Approval, vehicleAfter.Approval)
+	}
+	var currentEntryAfter string
+	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_vehicles WHERE object_id=$1`, refs.vehicle.ObjectID).Scan(&currentEntryAfter); err != nil {
+		t.Fatalf("read BOB vehicle current after blocked unapprove: %v", err)
+	}
+	if currentEntryAfter != currentEntryBefore || currentEntryAfter != vehicle.Approval.ApprovalEntryID {
+		t.Fatalf("BOB vehicle current changed after blocked unapprove: before=%s after=%s", currentEntryBefore, currentEntryAfter)
+	}
+	deliveryAfter, err := vouService.Get(t.Context(), EntitySaleDelivery, GetInput{DocumentID: delivery.DocumentID})
+	if err != nil {
+		t.Fatalf("get delivery after blocked vehicle unapprove: %v", err)
+	}
+	if deliveryAfter.Data.Vehicle == nil || deliveryAfter.Data.Vehicle.ApprovalEntryID != vehicle.Approval.ApprovalEntryID {
+		t.Fatalf("delivery vehicle snapshot changed after blocked unapprove: %+v", deliveryAfter.Data.Vehicle)
 	}
 }
 

@@ -25,6 +25,16 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
   candidate_exists: '该资料已有候选版本，请先处理现有候选版本。',
   approval_open_version_exists:
     '该资料已有草稿或待审核版本，请先处理现有版本后再撤销审核。',
+  approval_stale_revision:
+    '当前版本已被其他操作修改，请刷新后重试。',
+  vehicle_identifier_conflict:
+    '车牌号或 VIN 已被其他车辆占用，请修改后重试。',
+  vehicle_type_reference_unavailable:
+    '车型资料不存在、已失效或不属于车辆类型字典。',
+  vehicle_type_reference_stale:
+    '车型资料已更新，请重新选择并保存。',
+  vehicle_carrier_reference_stale:
+    '承运方资料已更新，请重新选择并保存。',
   invalid_reference: '所选业务资料不存在、已失效或不适用于当前操作。',
 }
 

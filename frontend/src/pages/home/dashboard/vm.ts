@@ -10,6 +10,7 @@ import {
 import { isDclDeclarationEntity } from '@/pages/dcl/shared/declaration'
 import { runDclOperatingEntityAction } from '@/pages/dcl/operating-entity/data'
 import { runDclWarehouseAction } from '@/pages/dcl/warehouse/data'
+import { runDclVehicleAction } from '@/pages/dcl/vehicle/data'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import { approveVoucher, submitVoucher, unsubmitVoucher } from '@/api/vou'
 
@@ -206,6 +207,8 @@ export function useDashboardViewModel() {
           await runDclOperatingEntityAction(action, request, comment.trim())
         } else if (item.entity === 'warehouse') {
           await runDclWarehouseAction(action, request, comment.trim())
+        } else if (item.entity === 'vehicle') {
+          await runDclVehicleAction(action, request, comment.trim())
         } else if (action === 'submit') {
           await submitBusinessObject(item.entity, request)
         } else if (action === 'unsubmit') {

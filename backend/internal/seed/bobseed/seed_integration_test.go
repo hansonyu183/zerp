@@ -121,7 +121,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		}
 		var status string
 		approvalDomain := "bob"
-		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse {
+		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle {
 			approvalDomain = "dcl"
 		}
 		if err = pool.QueryRow(t.Context(), `
@@ -160,12 +160,12 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		bob.EntitySupplier: "bob_supplier_versions", bob.EntityOtherUnit: "bob_service_relationship_versions",
 		bob.EntityEmployee: "bob_employee_versions", bob.EntitySalesPartner: "bob_sales_partner_versions",
 		bob.EntityProduct: "bob_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",
-		bob.EntityVehicle: "bob_vehicle_versions", bob.EntityFundAccount: "bob_fund_account_versions",
+		bob.EntityVehicle: "dcl_vehicle_versions", bob.EntityFundAccount: "bob_fund_account_versions",
 		bob.EntityOperatingEntity: "dcl_operating_entity_versions",
 	}
 	for _, entity := range allEntities {
 		approvalDomain := "bob"
-		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse {
+		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle {
 			approvalDomain = "dcl"
 		}
 		var objectCount, entryCount, payloadCount int

@@ -50,9 +50,6 @@ export function bobCreateData(config: BobEntityConfig, form: BobForm) {
     Object.assign(data, productPayload(normalized))
     delete data.behaviorProfile
   }
-  if (config.entity === 'vehicle') {
-    data.carrierAffiliation = vehicleCarrierAffiliation(normalized)
-  }
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined) delete data[key]
   }
@@ -71,9 +68,6 @@ export function bobSaveData(config: BobEntityConfig, form: BobForm) {
     Object.assign(data, productPayload(normalized))
     if (normalized.formulaDirty !== true) delete data.formula
     delete data.behaviorProfile
-  }
-  if (config.entity === 'vehicle') {
-    data.carrierAffiliation = vehicleCarrierAffiliation(normalized)
   }
   return data
 }
@@ -94,37 +88,5 @@ export function bobFormFromView(
     Object.assign(form, productFormFields(view.data))
     form.formulaDirty = false
   }
-  if (config.entity === 'vehicle') {
-    const affiliation = view.data.carrierAffiliation as
-      | {
-          type?: unknown
-          operatingEntityId?: unknown
-          serviceRelationshipObjectId?: unknown
-        }
-      | undefined
-    form.carrierType =
-      typeof affiliation?.type === 'string' ? affiliation.type : ''
-    form.carrierOperatingEntityId =
-      typeof affiliation?.operatingEntityId === 'string'
-        ? affiliation.operatingEntityId
-        : ''
-    form.carrierServiceRelationshipObjectId =
-      typeof affiliation?.serviceRelationshipObjectId === 'string'
-        ? affiliation.serviceRelationshipObjectId
-        : ''
-  }
   return form
-}
-
-function vehicleCarrierAffiliation(form: BobForm): Record<string, unknown> {
-  if (form.carrierType === 'INTERNAL') {
-    return {
-      type: 'INTERNAL',
-      operatingEntityId: form.carrierOperatingEntityId,
-    }
-  }
-  return {
-    type: 'EXTERNAL',
-    serviceRelationshipObjectId: form.carrierServiceRelationshipObjectId,
-  }
 }

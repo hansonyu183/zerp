@@ -258,8 +258,7 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
 	expectedEntities := []string{
-		"customer", "supplier", "employee", "sales-partner", "product",
-		"vehicle", "fund-account",
+		"customer", "supplier", "employee", "sales-partner", "product", "fund-account",
 	}
 	expectedActions := []string{
 		"query", "get", "create", "save", "delete", "submit", "unsubmit",
@@ -275,6 +274,8 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 	wanted["/bob/operating-entity/get"] = false
 	wanted["/bob/warehouse/query"] = false
 	wanted["/bob/warehouse/get"] = false
+	wanted["/bob/vehicle/query"] = false
+	wanted["/bob/vehicle/get"] = false
 	for _, path := range []string{
 		"/bob/party/query", "/bob/party/get", "/bob/party/save",
 		"/bob/other-unit/query", "/bob/other-unit/get", "/bob/other-unit/create", "/bob/other-unit/save",
@@ -296,6 +297,10 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 		if strings.HasPrefix(route.Path, "/bob/warehouse/") &&
 			route.Path != "/bob/warehouse/query" && route.Path != "/bob/warehouse/get" {
 			t.Fatalf("DCL-owned warehouse lifecycle alias remains registered: %s", route.Path)
+		}
+		if strings.HasPrefix(route.Path, "/bob/vehicle/") &&
+			route.Path != "/bob/vehicle/query" && route.Path != "/bob/vehicle/get" {
+			t.Fatalf("DCL-owned vehicle lifecycle alias remains registered: %s", route.Path)
 		}
 		if strings.HasPrefix(route.Path, "/bob/service/") {
 			t.Fatalf("obsolete standalone service route remains registered: %s", route.Path)
@@ -492,8 +497,8 @@ func TestHandlerUsesExactPermissionPathAndPrincipal(t *testing.T) {
 	router := newBOBTestRouter(service, authorizer)
 	request := httptest.NewRequest(
 		http.MethodPost,
-		"/bob/vehicle/delete",
-		strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"approvalEntryId":"01J00000000000000000000011","approvalRevision":1}`),
+		"/bob/vehicle/query",
+		strings.NewReader(`{"page":1,"pageSize":20,"filters":{},"sort":[]}`),
 	)
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
@@ -502,10 +507,10 @@ func TestHandlerUsesExactPermissionPathAndPrincipal(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
-	if permission != "/bob/vehicle/delete" {
+	if permission != "/bob/vehicle/query" {
 		t.Fatalf("permission = %q", permission)
 	}
-	if len(service.actions) != 1 || service.actions[0] != "delete" || service.entity != EntityVehicle {
+	if len(service.actions) != 1 || service.actions[0] != "query" || service.entity != EntityVehicle {
 		t.Fatalf("actions = %v, entity = %q", service.actions, service.entity)
 	}
 }

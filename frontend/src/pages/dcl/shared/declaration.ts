@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 
-export type DclDeclarationEntity = 'operating-entity' | 'warehouse'
+export type DclDeclarationEntity = 'operating-entity' | 'warehouse' | 'vehicle'
 export type DclDeclarationLifecycleAction =
   'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
 export type DclDeclarationWireAction =
@@ -68,7 +68,11 @@ export type DclDeclarationHistoryPort<TItem, TVersion, TAudit> = {
 export function isDclDeclarationEntity(
   entity: string,
 ): entity is DclDeclarationEntity {
-  return entity === 'operating-entity' || entity === 'warehouse'
+  return (
+    entity === 'operating-entity' ||
+    entity === 'warehouse' ||
+    entity === 'vehicle'
+  )
 }
 
 export function dclDeclarationPath(entity: DclDeclarationEntity): string {

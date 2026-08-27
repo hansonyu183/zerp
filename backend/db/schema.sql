@@ -1188,7 +1188,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -1605,6 +1605,32 @@ CREATE TABLE public.bob_warehouses (
     CONSTRAINT bob_warehouses_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
 );
 
+CREATE TABLE public.bob_vehicles (
+    object_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
+    name character varying(200) NOT NULL,
+    plate_number character varying(32) NOT NULL,
+    vehicle_type character varying(64) NOT NULL,
+    vehicle_type_object_id character varying(26) NOT NULL,
+    vehicle_type_approval_entry_id character varying(26) NOT NULL,
+    vehicle_type_name character varying(200) NOT NULL,
+    vin character varying(17),
+    engine_number character varying(200),
+    load_capacity_kg numeric(12,3),
+    remark character varying(1000),
+    carrier_affiliation_type character varying(16) NOT NULL,
+    carrier_operating_entity_id character varying(26),
+    carrier_operating_entity_approval_entry_id character varying(26),
+    carrier_service_relationship_object_id character varying(26),
+    carrier_service_relationship_approval_entry_id character varying(26),
+    bulk_liquid_capable boolean DEFAULT false NOT NULL,
+    enabled boolean NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT bob_vehicles_pkey PRIMARY KEY (object_id),
+    CONSTRAINT bob_vehicles_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
+);
+
 
 --
 -- Name: bob_parties; Type: TABLE; Schema: public; Owner: -
@@ -2004,18 +2030,19 @@ CREATE TABLE public.bob_supplier_versions (
 
 
 --
--- Name: bob_vehicle_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_vehicle_versions (
+CREATE TABLE public.dcl_vehicle_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'vehicle'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     plate_number character varying(32) NOT NULL,
     vehicle_type character varying(64) NOT NULL,
-    category_id character varying(26),
-    category_approval_entry_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
+    vehicle_type_object_id character varying(26) NOT NULL,
+    vehicle_type_approval_entry_id character varying(26) NOT NULL,
+    vehicle_type_name character varying(200) NOT NULL,
+    vehicle_type_entity character varying(32) DEFAULT 'dictionary-item'::character varying NOT NULL,
     vin character varying(17),
     engine_number character varying(64),
     load_capacity_kg numeric(12,3),
@@ -2026,19 +2053,31 @@ CREATE TABLE public.bob_vehicle_versions (
     carrier_operating_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
     carrier_service_relationship_object_id character varying(26),
     carrier_service_relationship_approval_entry_id character varying(26),
-    carrier_service_relationship_entity character varying(16) DEFAULT 'other-unit'::character varying CONSTRAINT bob_vehicle_versions_carrier_service_relationship_enti_not_null NOT NULL,
+    carrier_service_relationship_entity character varying(16) DEFAULT 'other-unit'::character varying CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_enti_not_null NOT NULL,
     bulk_liquid_capable boolean DEFAULT false NOT NULL,
-    CONSTRAINT bob_vehicle_versions_carrier_affiliation_shape_ck CHECK (((((carrier_affiliation_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_id IS NOT NULL) AND (carrier_service_relationship_object_id IS NULL)) OR (((carrier_affiliation_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_id IS NULL) AND (carrier_service_relationship_object_id IS NOT NULL)))),
-    CONSTRAINT bob_vehicle_versions_carrier_affiliation_type_ck CHECK (((carrier_affiliation_type)::text = ANY ((ARRAY['INTERNAL'::character varying, 'EXTERNAL'::character varying])::text[]))),
-    CONSTRAINT bob_vehicle_versions_carrier_operating_entity_check CHECK (((carrier_operating_entity)::text = 'operating-entity'::text)),
-    CONSTRAINT bob_vehicle_versions_carrier_service_relationship_entity_check CHECK (((carrier_service_relationship_entity)::text = 'other-unit'::text)),
-    CONSTRAINT bob_vehicle_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
-    CONSTRAINT bob_vehicle_versions_entity_check CHECK (((entity)::text = 'vehicle'::text)),
-    CONSTRAINT bob_vehicle_versions_load_capacity_kg_check CHECK (((load_capacity_kg IS NULL) OR (load_capacity_kg > (0)::numeric))),
-    CONSTRAINT bob_vehicle_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
-    CONSTRAINT bob_vehicle_versions_plate_number_check CHECK ((((length(btrim((plate_number)::text)) >= 1) AND (length(btrim((plate_number)::text)) <= 32)) AND ((plate_number)::text = upper(btrim((plate_number)::text))))),
-    CONSTRAINT bob_vehicle_versions_vehicle_type_check CHECK (((length(btrim((vehicle_type)::text)) >= 1) AND (length(btrim((vehicle_type)::text)) <= 64))),
-    CONSTRAINT bob_vehicle_versions_vin_check CHECK (((vin IS NULL) OR ((vin)::text ~ '^[A-HJ-NPR-Z0-9]{17}$'::text)))
+    enabled boolean NOT NULL,
+    CONSTRAINT dcl_vehicle_versions_carrier_affiliation_shape_ck CHECK (((((carrier_affiliation_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_id IS NOT NULL) AND (carrier_service_relationship_object_id IS NULL)) OR (((carrier_affiliation_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_id IS NULL) AND (carrier_service_relationship_object_id IS NOT NULL)))),
+    CONSTRAINT dcl_vehicle_versions_carrier_affiliation_type_ck CHECK (((carrier_affiliation_type)::text = ANY ((ARRAY['INTERNAL'::character varying, 'EXTERNAL'::character varying])::text[]))),
+    CONSTRAINT dcl_vehicle_versions_carrier_operating_entity_check CHECK (((carrier_operating_entity)::text = 'operating-entity'::text)),
+    CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_entity_check CHECK (((carrier_service_relationship_entity)::text = 'other-unit'::text)),
+    CONSTRAINT dcl_vehicle_versions_vehicle_type_entity_check CHECK (((vehicle_type_entity)::text = 'dictionary-item'::text)),
+    CONSTRAINT dcl_vehicle_versions_entity_check CHECK (((entity)::text = 'vehicle'::text)),
+    CONSTRAINT dcl_vehicle_versions_load_capacity_kg_check CHECK (((load_capacity_kg IS NULL) OR (load_capacity_kg > (0)::numeric))),
+    CONSTRAINT dcl_vehicle_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
+    CONSTRAINT dcl_vehicle_versions_plate_number_check CHECK ((((length(btrim((plate_number)::text)) >= 1) AND (length(btrim((plate_number)::text)) <= 32)) AND ((plate_number)::text = upper(btrim((plate_number)::text))))),
+    CONSTRAINT dcl_vehicle_versions_vehicle_type_check CHECK (((length(btrim((vehicle_type)::text)) >= 1) AND (length(btrim((vehicle_type)::text)) <= 64))),
+    CONSTRAINT dcl_vehicle_versions_vehicle_type_name_check CHECK (((length(btrim((vehicle_type_name)::text)) >= 1) AND (length(btrim((vehicle_type_name)::text)) <= 200))),
+    CONSTRAINT dcl_vehicle_versions_vin_check CHECK (((vin IS NULL) OR ((vin)::text ~ '^[A-HJ-NPR-Z0-9]{17}$'::text)))
+);
+
+CREATE TABLE public.dcl_vehicle_identifier_claims (
+    identifier_kind character varying(8) NOT NULL CHECK (((identifier_kind)::text = ANY ((ARRAY['PLATE'::character varying, 'VIN'::character varying])::text[]))),
+    normalized_value character varying(64) NOT NULL CHECK (length(btrim(normalized_value)) > 0),
+    object_id character varying(26) NOT NULL,
+    approved_entry_id character varying(26),
+    open_entry_id character varying(26),
+    CONSTRAINT dcl_vehicle_identifier_claims_pkey PRIMARY KEY (identifier_kind, normalized_value),
+    CONSTRAINT dcl_vehicle_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
 );
 
 
@@ -3816,14 +3855,14 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000067', '/dcl/w
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000068', '/dcl/warehouse/save', 'dcl', 'warehouse', 'save', '保存仓库声明草稿', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000069', '/dcl/warehouse/submit', 'dcl', 'warehouse', 'submit', '提交仓库声明审核', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000070', '/dcl/warehouse/versions', 'dcl', 'warehouse', 'versions', '查看仓库声明版本', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000071', '/bob/vehicle/approve', 'bob', 'vehicle', 'approve', '审核通过车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000072', '/bob/vehicle/audit-history', 'bob', 'vehicle', 'audit-history', '查看审核记录车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000073', '/bob/vehicle/create', 'bob', 'vehicle', 'create', '创建车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000071', '/dcl/vehicle/approve', 'dcl', 'vehicle', 'approve', '审核通过车辆声明', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000072', '/dcl/vehicle/audit-history', 'dcl', 'vehicle', 'audit-history', '查看车辆声明审核记录', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000073', '/dcl/vehicle/create', 'dcl', 'vehicle', 'create', '创建车辆声明', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000075', '/bob/vehicle/get', 'bob', 'vehicle', 'get', '查看车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000077', '/bob/vehicle/reject', 'bob', 'vehicle', 'reject', '审核驳回车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000078', '/bob/vehicle/save', 'bob', 'vehicle', 'save', '保存草稿车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000079', '/bob/vehicle/submit', 'bob', 'vehicle', 'submit', '提交审核车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000080', '/bob/vehicle/versions', 'bob', 'vehicle', 'versions', '查看版本车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000077', '/dcl/vehicle/reject', 'dcl', 'vehicle', 'reject', '审核驳回车辆声明', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000078', '/dcl/vehicle/save', 'dcl', 'vehicle', 'save', '保存车辆声明草稿', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000079', '/dcl/vehicle/submit', 'dcl', 'vehicle', 'submit', '提交车辆声明审核', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000080', '/dcl/vehicle/versions', 'dcl', 'vehicle', 'versions', '查看车辆声明版本', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000016', '/bob/supplier/query', 'bob', 'supplier', 'query', '查询供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 20);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000036', '/bob/product/query', 'bob', 'product', 'query', '查询产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 40);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000066', '/bob/warehouse/query', 'bob', 'warehouse', 'query', '查询仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, 60);
@@ -3833,7 +3872,7 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000082', '/bob/s
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000083', '/bob/employee/delete', 'bob', 'employee', 'delete', '删除首版草稿员工', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000084', '/bob/product/delete', 'bob', 'product', 'delete', '删除首版草稿产品', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000086', '/dcl/warehouse/delete', 'dcl', 'warehouse', 'delete', '删除首版仓库声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000087', '/bob/vehicle/delete', 'bob', 'vehicle', 'delete', '删除首版草稿车辆', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000087', '/dcl/vehicle/delete', 'dcl', 'vehicle', 'delete', '删除首版车辆声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000088', '/bob/fund-account/delete', 'bob', 'fund-account', 'delete', '删除首版草稿资金账户', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000101', '/vou/sale-outbound/get', 'vou', 'sale-outbound', 'get', '查看销售出库', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000116', '/vou/sale-delivery/get', 'vou', 'sale-delivery', 'get', '查看销售送货', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
@@ -4070,10 +4109,10 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000153', '/dcl/w
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000154', '/dcl/warehouse/unapprove', 'dcl', 'warehouse', 'unapprove', '反审核仓库声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000155', '/dcl/warehouse/get', 'dcl', 'warehouse', 'get', '查看仓库声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000156', '/dcl/warehouse/query', 'dcl', 'warehouse', 'query', '查询仓库声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000157', '/bob/vehicle/unsubmit', 'bob', 'vehicle', 'unsubmit', 'unsubmit vehicle', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000158', '/bob/vehicle/unapprove', 'bob', 'vehicle', 'unapprove', 'unapprove vehicle', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000159', '/bob/vehicle/enable', 'bob', 'vehicle', 'enable', 'enable vehicle', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000160', '/bob/vehicle/disable', 'bob', 'vehicle', 'disable', 'disable vehicle', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000157', '/dcl/vehicle/unsubmit', 'dcl', 'vehicle', 'unsubmit', '撤回车辆声明审核', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000158', '/dcl/vehicle/unapprove', 'dcl', 'vehicle', 'unapprove', '反审核车辆声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000159', '/dcl/vehicle/get', 'dcl', 'vehicle', 'get', '查看车辆声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000160', '/dcl/vehicle/query', 'dcl', 'vehicle', 'query', '查询车辆声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, 70);
 INSERT INTO public.app_permissions VALUES ('PDcfd012a8326be3c56244dddc', '/vou/self-production/query', 'vou', 'self-production', 'query', '查询生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, 56);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000161', '/bob/fund-account/unsubmit', 'bob', 'fund-account', 'unsubmit', 'unsubmit fund-account', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000162', '/bob/fund-account/unapprove', 'bob', 'fund-account', 'unapprove', 'unapprove fund-account', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
@@ -4927,7 +4966,7 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 
 
 --
--- Data for Name: bob_vehicle_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_vehicle_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -6538,11 +6577,11 @@ ALTER TABLE ONLY public.bob_supplier_versions
 
 
 --
--- Name: bob_vehicle_versions bob_vehicle_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions dcl_vehicle_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_vehicle_versions
-    ADD CONSTRAINT bob_vehicle_versions_pkey PRIMARY KEY (approval_entry_id);
+ALTER TABLE ONLY public.dcl_vehicle_versions
+    ADD CONSTRAINT dcl_vehicle_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -7744,24 +7783,24 @@ CREATE INDEX bob_supplier_versions_default_purchaser_idx ON public.bob_supplier_
 
 
 --
--- Name: bob_vehicle_versions_carrier_operating_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions_carrier_operating_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_vehicle_versions_carrier_operating_idx ON public.bob_vehicle_versions USING btree (carrier_operating_entity_id);
-
-
---
--- Name: bob_vehicle_versions_carrier_service_relationship_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_vehicle_versions_carrier_service_relationship_idx ON public.bob_vehicle_versions USING btree (carrier_service_relationship_object_id);
+CREATE INDEX dcl_vehicle_versions_carrier_operating_idx ON public.dcl_vehicle_versions USING btree (carrier_operating_entity_id);
 
 
 --
--- Name: bob_vehicle_versions_category_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions_carrier_service_relationship_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_vehicle_versions_category_idx ON public.bob_vehicle_versions USING btree (category_id);
+CREATE INDEX dcl_vehicle_versions_carrier_service_relationship_idx ON public.dcl_vehicle_versions USING btree (carrier_service_relationship_object_id);
+
+
+--
+-- Name: dcl_vehicle_versions_category_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX dcl_vehicle_versions_vehicle_type_idx ON public.dcl_vehicle_versions USING btree (vehicle_type_object_id);
 
 
 --
@@ -9223,35 +9262,35 @@ ALTER TABLE ONLY public.bob_supplier_versions
 
 
 --
--- Name: bob_vehicle_versions bob_vehicle_versions_carrier_operating_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions dcl_vehicle_versions_carrier_operating_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_vehicle_versions
-    ADD CONSTRAINT bob_vehicle_versions_carrier_operating_fk FOREIGN KEY (carrier_operating_entity_id, carrier_operating_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_vehicle_versions bob_vehicle_versions_carrier_service_relationship_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_vehicle_versions
-    ADD CONSTRAINT bob_vehicle_versions_carrier_service_relationship_fk FOREIGN KEY (carrier_service_relationship_object_id, carrier_service_relationship_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE ONLY public.dcl_vehicle_versions
+    ADD CONSTRAINT dcl_vehicle_versions_carrier_operating_fk FOREIGN KEY (carrier_operating_entity_id, carrier_operating_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_vehicle_versions bob_vehicle_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions dcl_vehicle_versions_carrier_service_relationship_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_vehicle_versions
-    ADD CONSTRAINT bob_vehicle_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE ONLY public.dcl_vehicle_versions
+    ADD CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_fk FOREIGN KEY (carrier_service_relationship_object_id, carrier_service_relationship_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_vehicle_versions bob_vehicle_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions dcl_vehicle_versions_vehicle_type_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_vehicle_versions
-    ADD CONSTRAINT bob_vehicle_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_vehicle_versions
+    ADD CONSTRAINT dcl_vehicle_versions_vehicle_type_fk FOREIGN KEY (vehicle_type_object_id, vehicle_type_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: dcl_vehicle_versions dcl_vehicle_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dcl_vehicle_versions
+    ADD CONSTRAINT dcl_vehicle_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9282,6 +9321,21 @@ ALTER TABLE ONLY public.bob_warehouses
 
 ALTER TABLE ONLY public.bob_warehouses
     ADD CONSTRAINT bob_warehouses_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.bob_vehicles
+    ADD CONSTRAINT bob_vehicles_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.bob_vehicles
+    ADD CONSTRAINT bob_vehicles_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
+    ADD CONSTRAINT dcl_vehicle_identifier_claims_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
+    ADD CONSTRAINT dcl_vehicle_identifier_claims_approved_entry_id_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
+    ADD CONSTRAINT dcl_vehicle_identifier_claims_open_entry_id_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --

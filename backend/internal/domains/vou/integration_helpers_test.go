@@ -190,6 +190,32 @@ func createApprovedBOB(
 		}
 		return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 	}
+	if entity == bobdomain.EntityVehicle {
+		declarations := dcldomain.NewVehicleService(vouIntegrationPool(t), service, authorization.Func(nil), txevent.NewBus())
+		created, err := declarations.Create(t.Context(), dcldomain.VehicleCreateInput{Data: dcldomain.VehicleData{
+			Name: data.Name, PlateNumber: data.PlateNumber, VehicleType: data.VehicleType,
+			CarrierAffiliation: data.CarrierAffiliation, BulkLiquidCapable: data.BulkLiquidCapable,
+			VIN: data.VIN, EngineNumber: data.EngineNumber, LoadCapacityKG: data.LoadCapacityKG, Remark: data.Remark,
+		}}, trustedIntegrationActor(t, "vou-ref-create"))
+		if err != nil {
+			t.Fatalf("create vehicle reference: %v", err)
+		}
+		submitted, err := declarations.Submit(t.Context(), dcldomain.VehicleVersionInput{
+			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+			ApprovalRevision: created.Approval.Revision,
+		}, trustedIntegrationActor(t, "vou-ref-submit"))
+		if err != nil {
+			t.Fatalf("submit vehicle reference: %v", err)
+		}
+		approved, err := declarations.Approve(t.Context(), dcldomain.VehicleVersionInput{
+			ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID,
+			ApprovalRevision: submitted.Approval.Revision,
+		}, trustedIntegrationActor(t, "vou-ref-approve"))
+		if err != nil {
+			t.Fatalf("approve vehicle reference: %v", err)
+		}
+		return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	}
 	if entity == bobdomain.EntityProduct && data.ProductTypeID != "01JPTP00000000000000000007" && data.DefaultPackagingSpec == "" {
 		data.DefaultPackagingSpec = "1"
 	}
@@ -246,6 +272,43 @@ func createApprovedBOB(
 		t.Fatalf("approve %s reference: %v", entity, err)
 	}
 	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+}
+
+func disableVehicleViaDCL(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	business *bobdomain.Service,
+	vehicle ReferenceInput,
+	requestID string,
+) {
+	t.Helper()
+	declarations := dcldomain.NewVehicleService(pool, business, authorization.Func(nil), txevent.NewBus())
+	view, err := declarations.Get(t.Context(), dcldomain.VehicleGetInput{
+		ObjectID: vehicle.ObjectID, ApprovalEntryID: vehicle.ApprovalEntryID,
+	}, integrationApprovalActor(t, integrationActorOne, requestID+"-get"))
+	if err != nil {
+		t.Fatalf("get vehicle declaration before disable: %v", err)
+	}
+	draft, err := declarations.Save(t.Context(), dcldomain.VehicleSaveInput{
+		ObjectID: view.ObjectID, ApprovalEntryID: view.Approval.ApprovalEntryID,
+		ApprovalRevision: view.Approval.Revision, Enabled: false, Data: view.Data,
+	}, integrationApprovalActor(t, integrationActorOne, requestID+"-save"))
+	if err != nil {
+		t.Fatalf("save vehicle disable declaration: %v", err)
+	}
+	pending, err := declarations.Submit(t.Context(), dcldomain.VehicleVersionInput{
+		ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID,
+		ApprovalRevision: draft.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, requestID+"-submit"))
+	if err != nil {
+		t.Fatalf("submit vehicle disable declaration: %v", err)
+	}
+	if _, err = declarations.Approve(t.Context(), dcldomain.VehicleVersionInput{
+		ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
+		ApprovalRevision: pending.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, requestID+"-approve")); err != nil {
+		t.Fatalf("approve vehicle disable declaration: %v", err)
+	}
 }
 
 func reverseApprovedBOBToDraft(

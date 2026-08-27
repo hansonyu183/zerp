@@ -1,15 +1,4 @@
-import {
-  baseColumns,
-  baseFilters,
-  commonFields,
-  decimalPattern,
-  defineBobEntityConfig,
-  patternRule,
-  reference,
-  text,
-  textarea,
-  vinPattern,
-} from '../shared/config-helpers'
+import { defineBobEntityConfig } from '../shared/config-helpers'
 import { bobListActiveVersion } from '../shared/types'
 
 export const vehicleConfig = defineBobEntityConfig({
@@ -18,11 +7,10 @@ export const vehicleConfig = defineBobEntityConfig({
   codeLabel: '车辆编码',
   nameLabel: '车辆名称',
   defaults: {
+    objectId: '',
+    approvalEntryId: '',
     plateNumber: '',
     vehicleType: '',
-    carrierType: 'INTERNAL',
-    carrierOperatingEntityId: '',
-    carrierServiceRelationshipObjectId: '',
     carrierAffiliation: null,
     bulkLiquidCapable: false,
     vin: '',
@@ -30,87 +18,43 @@ export const vehicleConfig = defineBobEntityConfig({
     loadCapacityKg: '',
     remark: '',
   },
-  requiredKeys: ['name', 'plateNumber', 'vehicleType', 'carrierType'],
-  persistedKeys: [
-    'name',
-    'plateNumber',
-    'vehicleType',
-    'carrierAffiliation',
-    'bulkLiquidCapable',
-    'vin',
-    'engineNumber',
-    'loadCapacityKg',
-    'remark',
-  ],
-  uppercaseKeys: ['plateNumber', 'vin'],
-  references: {
-    vehicleType: {
-      domain: 'aux',
-      entity: 'dictionary-item',
-      label: '车辆类型',
-      value: 'code',
-      filters: { dictionaryTypeCode: 'DCT-0002' },
-    },
-    carrierOperatingEntityId: {
-      entity: 'operating-entity',
-      label: '经营主体',
-    },
-    carrierServiceRelationshipObjectId: {
-      entity: 'other-unit',
-      label: '其他单位服务关系',
-    },
-  },
-  fields: (context) => [
-    ...commonFields(context, '车辆编码', '车辆名称'),
-    text('plateNumber', '车牌号', 32, { required: true }),
-    reference('vehicleType', '车辆类型', context, true),
+  requiredKeys: ['name'],
+  fields: () => [
+    { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'carrierType',
+      key: 'approvalEntryId',
+      label: '来源 Approval Entry ID',
+      type: 'readonly',
+    },
+    { key: 'code', label: '车辆编码', type: 'readonly' },
+    { key: 'name', label: '车辆名称', type: 'readonly' },
+    { key: 'plateNumber', label: '车牌号', type: 'readonly' },
+    { key: 'vehicleType', label: '车型', type: 'readonly' },
+    {
+      key: 'carrierAffiliation',
       label: '承运归属',
-      type: 'select',
-      required: true,
-      options: [
-        { title: '自有', value: 'INTERNAL' },
-        { title: '外部承运', value: 'EXTERNAL' },
-      ],
-      onChange: (value) =>
-        value === 'INTERNAL'
-          ? {
-              carrierOperatingEntityId: '',
-              carrierServiceRelationshipObjectId: '',
-            }
-          : {
-              carrierOperatingEntityId: '',
-              carrierServiceRelationshipObjectId: '',
-            },
+      type: 'readonly',
+      format: carrierAffiliationText,
     },
+    { key: 'vin', label: 'VIN', type: 'readonly' },
+    { key: 'engineNumber', label: '发动机号', type: 'readonly' },
+    { key: 'loadCapacityKg', label: '核定载重（kg）', type: 'readonly' },
     {
-      ...reference('carrierOperatingEntityId', '经营主体', context, true),
-      visible: (form) => form.carrierType === 'INTERNAL',
+      key: 'bulkLiquidCapable',
+      label: '支持散水承运',
+      type: 'readonly',
+      format: (value) => (value ? '是' : '否'),
     },
-    {
-      ...reference(
-        'carrierServiceRelationshipObjectId',
-        '其他单位服务关系',
-        context,
-        true,
-      ),
-      visible: (form) => form.carrierType === 'EXTERNAL',
-    },
-    { key: 'bulkLiquidCapable', label: '支持散水承运', type: 'switch' },
-    text('vin', 'VIN', 17, {
-      rules: [patternRule(vinPattern, 'VIN 必须是排除 I、O、Q 的 17 位编码。')],
-    }),
-    text('engineNumber', '发动机号', 64),
-    text('loadCapacityKg', '载重（kg）', undefined, {
-      rules: [
-        patternRule(decimalPattern, '载重必须是大于零且最多三位小数的数值。'),
-        (value) => value === '' || Number(value) > 0 || '载重必须大于零。',
-      ],
-    }),
-    textarea('remark', '备注'),
+    { key: 'remark', label: '备注', type: 'readonly' },
   ],
-  columns: baseColumns('编码', '名称', [
+  columns: [
+    { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
+    {
+      key: 'name',
+      label: '名称',
+      value: (row) => bobListActiveVersion(row).summary.name,
+      sizing: 'fluid',
+    },
     {
       key: 'plateNumber',
       label: '车牌',
@@ -118,9 +62,69 @@ export const vehicleConfig = defineBobEntityConfig({
     },
     {
       key: 'vehicleType',
-      label: '类型',
+      label: '车型',
       value: (row) => bobListActiveVersion(row).summary.vehicleType,
     },
-  ]),
-  filters: baseFilters(),
+    {
+      key: 'carrierAffiliation',
+      label: '承运归属',
+      value: (row) => bobListActiveVersion(row).summary.carrierAffiliation,
+      format: carrierAffiliationText,
+    },
+    {
+      key: 'vin',
+      label: 'VIN',
+      value: (row) => bobListActiveVersion(row).summary.vin ?? '',
+    },
+    {
+      key: 'loadCapacityKg',
+      label: '核定载重（kg）',
+      value: (row) => bobListActiveVersion(row).summary.loadCapacityKg ?? '',
+    },
+    {
+      key: 'bulkLiquidCapable',
+      label: '支持散水承运',
+      value: (row) => bobListActiveVersion(row).summary.bulkLiquidCapable,
+      format: (value) => (value ? '是' : '否'),
+    },
+    { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
+    {
+      key: 'approvalEntryId',
+      label: '来源 Approval Entry ID',
+      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+    },
+    {
+      key: 'enabled',
+      label: '启停状态',
+      value: (row) => (row.enabled ? '启用' : '禁用'),
+      sizing: 'compact',
+    },
+  ],
+  filters: [
+    {
+      key: 'enabled',
+      label: '启停状态',
+      type: 'select',
+      options: [
+        { title: '启用', value: true },
+        { title: '禁用', value: false },
+      ],
+    },
+  ],
 })
+
+function carrierAffiliationText(value: unknown): string {
+  if (!value || typeof value !== 'object') return '—'
+  const affiliation = value as {
+    type?: unknown
+    operatingEntityId?: unknown
+    serviceRelationshipObjectId?: unknown
+  }
+  if (affiliation.type === 'INTERNAL') {
+    return `自有：${String(affiliation.operatingEntityId ?? '—')}`
+  }
+  if (affiliation.type === 'EXTERNAL') {
+    return `外部承运：${String(affiliation.serviceRelationshipObjectId ?? '—')}`
+  }
+  return '—'
+}

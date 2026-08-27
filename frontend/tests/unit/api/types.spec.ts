@@ -37,6 +37,23 @@ describe('API user messages', () => {
     ).toBe('库存不足，无法完成本次操作，请先补充库存。')
   })
 
+  it.each([
+    ['vehicle_identifier_conflict', '车牌号或 VIN 已被其他车辆占用，请修改后重试。'],
+    ['vehicle_type_reference_unavailable', '车型资料不存在、已失效或不属于车辆类型字典。'],
+    ['vehicle_type_reference_stale', '车型资料已更新，请重新选择并保存。'],
+    ['vehicle_carrier_reference_stale', '承运方资料已更新，请重新选择并保存。'],
+    ['approval_stale_revision', '当前版本已被其他操作修改，请刷新后重试。'],
+  ])('映射车辆申报稳定错误 %s', (errorKey, message) => {
+    expect(
+      getErrorMessage(
+        new ApiError('business', 'unstable backend diagnostic', {
+          code: 3001,
+          errorKey,
+        }),
+      ),
+    ).toBe(message)
+  })
+
   it('未知 errorKey 使用清理请求标识后的后端可读说明', () => {
     expect(
       getErrorMessage(

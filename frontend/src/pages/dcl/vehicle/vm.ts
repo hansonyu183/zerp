@@ -217,7 +217,8 @@ export function useDclVehicleViewModel() {
             }
           : null
       editorModel.value = dclVehicleFormFromView(view)
-      references.preloadReferences(editorModel.value)
+      if (editorMode.value === 'edit')
+        references.preloadReferences(editorModel.value)
       editorResetKey.value += 1
       drawerOpen.value = true
     } catch (error) {
@@ -253,7 +254,8 @@ export function useDclVehicleViewModel() {
           }
         : null
       editorModel.value = dclVehicleFormFromView(view)
-      references.preloadReferences(editorModel.value)
+      if (editorMode.value === 'edit')
+        references.preloadReferences(editorModel.value)
       editorResetKey.value += 1
       drawerOpen.value = true
     } catch (error) {

@@ -229,6 +229,92 @@ func TestVehicleDeclarationIdentifierClaimsAndReferenceDriftIntegration(t *testi
 	}
 }
 
+func TestVehicleIdentifierClaimsAcrossApprovedAndOpenVersionsIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	seedVehicleTypeApproval(t, pool)
+	authorizer := authorization.Func(nil)
+	bus := txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	service := NewVehicleService(pool, business, authorizer, bus)
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
+	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
+	operating := NewOperatingEntityService(pool, business, authorizer, bus)
+	carrier, err := operating.Create(t.Context(), OperatingEntityCreateInput{Data: OperatingEntityData{Name: "标识回落承运主体"}}, creator("claim-fallback-carrier-create"))
+	if err != nil {
+		t.Fatalf("create claim fallback carrier: %v", err)
+	}
+	carrier = submitAndApproveOperatingEntity(t, operating, carrier, creator("claim-fallback-carrier-submit"), reviewer("claim-fallback-carrier-approve"))
+	affiliation := &bobdomain.CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: carrier.ObjectID}
+	v1Data := VehicleData{Name: "标识回落车辆 V1", PlateNumber: "浙A10001", VehicleType: "DIT-0003", VIN: "LDC613P23A0000101", CarrierAffiliation: affiliation}
+	v2Data := VehicleData{Name: "标识回落车辆 V2", PlateNumber: "浙A10002", VehicleType: "DIT-0003", VIN: "LDC613P23A0000102", CarrierAffiliation: affiliation}
+
+	v1, err := service.Create(t.Context(), VehicleCreateInput{Data: v1Data}, creator("claim-fallback-v1-create"))
+	if err != nil {
+		t.Fatalf("create claim fallback V1: %v", err)
+	}
+	v1 = submitAndApproveVehicle(t, service, v1, creator("claim-fallback-v1-submit"), reviewer("claim-fallback-v1-approve"))
+	v2, err := service.Save(t.Context(), VehicleSaveInput{
+		ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID,
+		ApprovalRevision: v1.Approval.Revision, Enabled: true, Data: v2Data,
+	}, creator("claim-fallback-v2-save"))
+	if err != nil {
+		t.Fatalf("save claim fallback V2: %v", err)
+	}
+
+	for name, data := range map[string]VehicleData{
+		"approved plate": {Name: "占用已批准车牌", PlateNumber: v1Data.PlateNumber, VehicleType: "DIT-0003", VIN: "LDC613P23A0000201", CarrierAffiliation: affiliation},
+		"approved vin":   {Name: "占用已批准 VIN", PlateNumber: "浙A10201", VehicleType: "DIT-0003", VIN: v1Data.VIN, CarrierAffiliation: affiliation},
+		"open plate":     {Name: "占用候选车牌", PlateNumber: v2Data.PlateNumber, VehicleType: "DIT-0003", VIN: "LDC613P23A0000202", CarrierAffiliation: affiliation},
+		"open vin":       {Name: "占用候选 VIN", PlateNumber: "浙A10202", VehicleType: "DIT-0003", VIN: v2Data.VIN, CarrierAffiliation: affiliation},
+	} {
+		_, createErr := service.Create(t.Context(), VehicleCreateInput{Data: data}, creator("claim-conflict-"+name))
+		assertDCLVehicleErrorKey(t, createErr, "vehicle_identifier_conflict")
+	}
+
+	v2 = submitAndApproveVehicle(t, service, v2, creator("claim-fallback-v2-submit"), reviewer("claim-fallback-v2-approve"))
+	reuser, err := service.Create(t.Context(), VehicleCreateInput{Data: VehicleData{
+		Name: "复用历史标识车辆", PlateNumber: v1Data.PlateNumber, VehicleType: "DIT-0003", VIN: v1Data.VIN, CarrierAffiliation: affiliation,
+	}}, creator("claim-history-reuse"))
+	if err != nil {
+		t.Fatalf("reuse released V1 identifiers: %v", err)
+	}
+
+	_, err = service.Unapprove(t.Context(), VehicleReviewInput{
+		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
+		ApprovalRevision: v2.Approval.Revision, Reason: "回落会重新占用历史标识",
+	}, reviewer("claim-fallback-v2-conflicted-unapprove"))
+	assertDCLVehicleErrorKey(t, err, "vehicle_identifier_conflict")
+	assertApprovalState(t, pool, v2.Approval.ApprovalEntryID, approval.StatusApproved, v2.Approval.Revision)
+	assertVehicleCurrent(t, business, v2.ObjectID, v2.Approval.ApprovalEntryID, v2Data.Name, true)
+	assertVehicleIdentifierClaim(t, pool, "PLATE", v1Data.PlateNumber, reuser.ObjectID, "", reuser.Approval.ApprovalEntryID)
+	assertVehicleIdentifierClaim(t, pool, "VIN", v1Data.VIN, reuser.ObjectID, "", reuser.Approval.ApprovalEntryID)
+	assertVehicleIdentifierClaim(t, pool, "PLATE", v2Data.PlateNumber, v2.ObjectID, v2.Approval.ApprovalEntryID, "")
+	assertVehicleIdentifierClaim(t, pool, "VIN", v2Data.VIN, v2.ObjectID, v2.Approval.ApprovalEntryID, "")
+
+	if err = service.Delete(t.Context(), VehicleDeleteInput{
+		ObjectID: reuser.ObjectID, ApprovalEntryID: reuser.Approval.ApprovalEntryID,
+		ApprovalRevision: reuser.Approval.Revision,
+	}, creator("claim-history-reuse-delete")); err != nil {
+		t.Fatalf("delete history identifier reuser: %v", err)
+	}
+
+	v2, err = service.Unapprove(t.Context(), VehicleReviewInput{
+		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
+		ApprovalRevision: v2.Approval.Revision, Reason: "无冲突时回落 V1",
+	}, reviewer("claim-fallback-v2-unapprove"))
+	if err != nil {
+		t.Fatalf("unapprove V2 after releasing historical identifiers: %v", err)
+	}
+	assertVehicleCurrent(t, business, v1.ObjectID, v1.Approval.ApprovalEntryID, v1Data.Name, true)
+	assertVehicleIdentifierClaim(t, pool, "PLATE", v1Data.PlateNumber, v1.ObjectID, v1.Approval.ApprovalEntryID, "")
+	assertVehicleIdentifierClaim(t, pool, "VIN", v1Data.VIN, v1.ObjectID, v1.Approval.ApprovalEntryID, "")
+	assertVehicleIdentifierClaim(t, pool, "PLATE", v2Data.PlateNumber, v2.ObjectID, "", v2.Approval.ApprovalEntryID)
+	assertVehicleIdentifierClaim(t, pool, "VIN", v2Data.VIN, v2.ObjectID, "", v2.Approval.ApprovalEntryID)
+}
+
 type failingVehicleCurrentWriter struct {
 	vehicleCurrentWriter
 	failure error
@@ -345,5 +431,24 @@ func assertVehicleCurrent(t *testing.T, business *bobdomain.Service, objectID, e
 	}
 	if view.Approval.ApprovalEntryID != entryID || view.Data.Name != name || view.Enabled != enabled {
 		t.Fatalf("BOB vehicle current = %+v", view)
+	}
+}
+
+func assertVehicleIdentifierClaim(t *testing.T, pool *pgxpool.Pool, kind, value, objectID, approvedEntryID, openEntryID string) {
+	t.Helper()
+	var actualObjectID string
+	var actualApprovedEntryID, actualOpenEntryID *string
+	if err := pool.QueryRow(t.Context(), `SELECT object_id,approved_entry_id,open_entry_id FROM dcl_vehicle_identifier_claims WHERE identifier_kind=$1 AND normalized_value=upper(btrim($2))`, kind, value).Scan(&actualObjectID, &actualApprovedEntryID, &actualOpenEntryID); err != nil {
+		t.Fatalf("read %s vehicle identifier claim %q: %v", kind, value, err)
+	}
+	actualApproved, actualOpen := "", ""
+	if actualApprovedEntryID != nil {
+		actualApproved = *actualApprovedEntryID
+	}
+	if actualOpenEntryID != nil {
+		actualOpen = *actualOpenEntryID
+	}
+	if actualObjectID != objectID || actualApproved != approvedEntryID || actualOpen != openEntryID {
+		t.Fatalf("%s vehicle identifier claim %q = object:%s approved:%s open:%s, want object:%s approved:%s open:%s", kind, value, actualObjectID, actualApproved, actualOpen, objectID, approvedEntryID, openEntryID)
 	}
 }

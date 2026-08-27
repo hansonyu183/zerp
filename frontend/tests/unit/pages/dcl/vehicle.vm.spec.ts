@@ -246,4 +246,19 @@ describe('DCL vehicle view model', () => {
       vi.useRealTimers()
     }
   })
+
+  it('opens a read-only detail without querying editor references', async () => {
+    useSessionStore().permissions = ['/dcl/vehicle/get']
+    mockedPost.mockResolvedValueOnce({ data: vehicleView })
+    const vm = useDclVehicleViewModel()
+
+    await vm.openById('VEH-1', 'view')
+
+    expect(vm.drawerOpen.value).toBe(true)
+    expect(vm.editorMode.value).toBe('view')
+    expect(mockedPost).toHaveBeenCalledTimes(1)
+    expect(mockedPost).toHaveBeenCalledWith('dcl/vehicle/get', {
+      objectId: 'VEH-1',
+    })
+  })
 })

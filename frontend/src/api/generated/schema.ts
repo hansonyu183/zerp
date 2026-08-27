@@ -390,6 +390,102 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
     };
   };
+  "/dcl/fund-account/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclFundAccountCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
+    };
+  };
+  "/dcl/fund-account/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclFundAccountSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
+    };
+  };
+  "/dcl/fund-account/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
+    };
+  };
+  "/dcl/fund-account/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
+    };
+  };
+  "/dcl/fund-account/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
+    };
+  };
+  "/dcl/fund-account/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
+    };
+  };
+  "/dcl/fund-account/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
+    };
+  };
+  "/dcl/fund-account/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': unknown } } };
+    };
+  };
+  "/dcl/fund-account/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountViewResponse } } };
+    };
+  };
+  "/dcl/fund-account/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountQueryResponse } } };
+    };
+  };
+  "/dcl/fund-account/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclFundAccountVersionPageResponse } } };
+    };
+  };
+  "/dcl/fund-account/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
+    };
+  };
   "/dcl/vehicle/create": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1942,6 +2038,18 @@ export interface components {
       "ApprovalEventView": Models.ApprovalEventView;
       "DclOperatingEntityAuditEventPage": Models.DclOperatingEntityAuditEventPage;
       "DclWarehouseAuditHistoryResponse": Models.DclWarehouseAuditHistoryResponse;
+      "DclFundAccountData": Models.DclFundAccountData;
+      "DclFundAccountCreateRequest": Models.DclFundAccountCreateRequest;
+      "DclFundAccountMutationResponse": Models.DclFundAccountMutationResponse;
+      "DclFundAccountSaveRequest": Models.DclFundAccountSaveRequest;
+      "DclFundAccountView": Models.DclFundAccountView;
+      "DclFundAccountViewResponse": Models.DclFundAccountViewResponse;
+      "DclFundAccountVersionView": Models.DclFundAccountVersionView;
+      "DclFundAccountListItem": Models.DclFundAccountListItem;
+      "DclFundAccountQueryPage": Models.DclFundAccountQueryPage;
+      "DclFundAccountQueryResponse": Models.DclFundAccountQueryResponse;
+      "DclFundAccountVersionPage": Models.DclFundAccountVersionPage;
+      "DclFundAccountVersionPageResponse": Models.DclFundAccountVersionPageResponse;
       "VehicleInternalCarrierAffiliation": Models.VehicleInternalCarrierAffiliation;
       "VehicleExternalCarrierAffiliation": Models.VehicleExternalCarrierAffiliation;
       "VehicleCarrierAffiliation": Models.VehicleCarrierAffiliation;

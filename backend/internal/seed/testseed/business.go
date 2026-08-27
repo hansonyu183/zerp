@@ -383,7 +383,7 @@ func (s *Seeder) ensureBusiness(
 	sample bobSample,
 ) (bobdomain.ObjectView, outcome, error) {
 	approvalDomain := "bob"
-	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle {
+	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle || sample.entity == bobdomain.EntityFundAccount {
 		approvalDomain = "dcl"
 	}
 	var objectID string
@@ -420,6 +420,13 @@ func (s *Seeder) ensureBusiness(
 		case bobdomain.EntityVehicle:
 			createdVehicle, declarationErr := s.vehicles.Create(ctx, dcldomain.VehicleCreateInput{Data: dcldomain.VehicleData{Name: data.Name, PlateNumber: data.PlateNumber, VehicleType: data.VehicleType, CarrierAffiliation: data.CarrierAffiliation, BulkLiquidCapable: data.BulkLiquidCapable, VIN: data.VIN, EngineNumber: data.EngineNumber, LoadCapacityKG: data.LoadCapacityKG, Remark: data.Remark}}, createActor)
 			result, createErr = dclVehicleBusinessMutation(createdVehicle), declarationErr
+		case bobdomain.EntityFundAccount:
+			createdFundAccount, declarationErr := s.fundAccounts.Create(ctx, dcldomain.FundAccountCreateInput{Data: dcldomain.FundAccountData{
+				Name: data.Name, Currency: data.Currency, OperatingEntityID: data.OperatingEntityID,
+				AccountName: data.AccountName, BankName: data.BankName, BankBranch: data.BankBranch,
+				AccountNumber: data.AccountNumber, Remark: data.Remark,
+			}}, createActor)
+			result, createErr = dclFundAccountBusinessMutation(createdFundAccount), declarationErr
 		case bobdomain.EntityEmployee:
 			createdEmployment, relationshipErr := s.business.EmploymentCreate(ctx, bobdomain.EmploymentCreateInput{
 				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson,
@@ -555,8 +562,21 @@ func dclVehicleBusinessView(view dcldomain.VehicleView) bobdomain.ObjectView {
 	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityVehicle, Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name, PlateNumber: view.Data.PlateNumber, VehicleType: view.Data.VehicleType, CarrierAffiliation: view.Data.CarrierAffiliation, BulkLiquidCapable: view.Data.BulkLiquidCapable, VIN: view.Data.VIN, EngineNumber: view.Data.EngineNumber, LoadCapacityKG: view.Data.LoadCapacityKG, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
 
+func dclFundAccountBusinessMutation(result dcldomain.FundAccountMutation) bobdomain.MutationResult {
+	return bobdomain.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func dclFundAccountBusinessView(view dcldomain.FundAccountView) bobdomain.ObjectView {
+	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityFundAccount,
+		Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name, Currency: view.Data.Currency,
+			OperatingEntityID: view.Data.OperatingEntityID, AccountName: view.Data.AccountName,
+			BankName: view.Data.BankName, BankBranch: view.Data.BankBranch, AccountNumber: view.Data.AccountNumber,
+			Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
+}
+
 func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) (bobdomain.ObjectView, error) {
-	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse && entity != bobdomain.EntityVehicle {
+	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse && entity != bobdomain.EntityVehicle && entity != bobdomain.EntityFundAccount {
 		return s.business.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
 	}
 	actor, err := seedActor(actorID, requestID(key, "get"))
@@ -570,6 +590,10 @@ func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) 
 	if entity == bobdomain.EntityVehicle {
 		view, getErr := s.vehicles.Get(ctx, dcldomain.VehicleGetInput{ObjectID: objectID}, actor)
 		return dclVehicleBusinessView(view), getErr
+	}
+	if entity == bobdomain.EntityFundAccount {
+		view, getErr := s.fundAccounts.Get(ctx, dcldomain.FundAccountGetInput{ObjectID: objectID}, actor)
+		return dclFundAccountBusinessView(view), getErr
 	}
 	view, getErr := s.operatingEntities.Get(ctx, dcldomain.OperatingEntityGetInput{ObjectID: objectID}, actor)
 	return dclBusinessView(view), getErr
@@ -594,6 +618,10 @@ func (s *Seeder) advanceBusiness(
 			var submitted dcldomain.VehicleMutation
 			submitted, err = s.vehicles.Submit(ctx, dcldomain.VehicleVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 			current = dclVehicleBusinessMutation(submitted)
+		} else if sample.entity == bobdomain.EntityFundAccount {
+			var submitted dcldomain.FundAccountMutation
+			submitted, err = s.fundAccounts.Submit(ctx, dcldomain.FundAccountVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+			current = dclFundAccountBusinessMutation(submitted)
 		} else if sample.entity == bobdomain.EntityWarehouse {
 			var submitted dcldomain.WarehouseMutation
 			submitted, err = s.warehouses.Submit(ctx, dcldomain.WarehouseVersionInput{
@@ -628,6 +656,8 @@ func (s *Seeder) advanceBusiness(
 		}
 		if sample.entity == bobdomain.EntityVehicle {
 			_, err = s.vehicles.Approve(ctx, dcldomain.VehicleVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+		} else if sample.entity == bobdomain.EntityFundAccount {
+			_, err = s.fundAccounts.Approve(ctx, dcldomain.FundAccountVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntityWarehouse {
 			_, err = s.warehouses.Approve(ctx, dcldomain.WarehouseVersionInput{
 				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,

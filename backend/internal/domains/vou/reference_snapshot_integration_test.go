@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 )
 
 func TestVOUReferenceSelectionSeparatesLatestFromSavedSnapshotIntegration(t *testing.T) {
@@ -15,7 +15,7 @@ func TestVOUReferenceSelectionSeparatesLatestFromSavedSnapshotIntegration(t *tes
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	vouchers := newIntegrationService(t, pool)
-	business := newBOBIntegrationService(pool)
+	fundAccounts := newFundAccountIntegrationService(t, pool)
 
 	draft := func(fund ReferenceInput) DraftInput {
 		return DraftInput{
@@ -42,32 +42,35 @@ func TestVOUReferenceSelectionSeparatesLatestFromSavedSnapshotIntegration(t *tes
 	}
 	assertFundSnapshot(versionOne)
 
-	versionOneView, err := business.Get(t.Context(), bobdomain.EntityFundAccount, bobdomain.GetInput{
+	versionOneView, err := fundAccounts.Get(t.Context(), dcldomain.FundAccountGetInput{
 		ObjectID: versionOne.ObjectID, ApprovalEntryID: versionOne.ApprovalEntryID,
-	})
+	}, trustedIntegrationActor(t, "snapshot-fund-v1-get"))
 	if err != nil {
 		t.Fatalf("get fund V1: %v", err)
 	}
-	versionTwoDraft, err := business.Save(t.Context(), bobdomain.EntityFundAccount, bobdomain.SaveInput{
+	versionTwoDraft, err := fundAccounts.Save(t.Context(), dcldomain.FundAccountSaveInput{
 		ObjectID: versionOne.ObjectID, ApprovalEntryID: versionOne.ApprovalEntryID,
 		ApprovalRevision: versionOneView.Approval.Revision,
-		Data: bobdomain.DetailInput{
+		Enabled:          versionOneView.Enabled,
+		Data: dcldomain.FundAccountData{
 			Name: versionOneView.Data.Name, Currency: versionOneView.Data.Currency,
-			OperatingEntityID: bobdomain.Optional(versionOneView.Data.OperatingEntityID),
-			Remark:            bobdomain.Optional("VOU 快照资金账户 V2"),
+			OperatingEntityID: versionOneView.Data.OperatingEntityID,
+			AccountName:       versionOneView.Data.AccountName, BankName: versionOneView.Data.BankName,
+			BankBranch: versionOneView.Data.BankBranch, AccountNumber: versionOneView.Data.AccountNumber,
+			Remark: "VOU 快照资金账户 V2",
 		},
 	}, trustedIntegrationActor(t, "snapshot-fund-v2-save"))
 	if err != nil {
 		t.Fatalf("create fund V2: %v", err)
 	}
-	versionTwoSubmitted, err := business.Submit(t.Context(), bobdomain.EntityFundAccount, bobdomain.VersionRevisionInput{
+	versionTwoSubmitted, err := fundAccounts.Submit(t.Context(), dcldomain.FundAccountVersionInput{
 		ObjectID: versionTwoDraft.ObjectID, ApprovalEntryID: versionTwoDraft.Approval.ApprovalEntryID,
 		ApprovalRevision: versionTwoDraft.Approval.Revision,
 	}, trustedIntegrationActor(t, "snapshot-fund-v2-submit"))
 	if err != nil {
 		t.Fatalf("submit fund V2: %v", err)
 	}
-	versionTwoApproved, err := business.Approve(t.Context(), bobdomain.EntityFundAccount, bobdomain.ReviewInput{
+	versionTwoApproved, err := fundAccounts.Approve(t.Context(), dcldomain.FundAccountVersionInput{
 		ObjectID: versionTwoSubmitted.ObjectID, ApprovalEntryID: versionTwoSubmitted.Approval.ApprovalEntryID,
 		ApprovalRevision: versionTwoSubmitted.Approval.Revision,
 	}, trustedIntegrationActor(t, "snapshot-fund-v2-approve"))
@@ -101,6 +104,25 @@ func TestVOUReferenceSelectionSeparatesLatestFromSavedSnapshotIntegration(t *tes
 	}
 	assertFundSnapshot(versionTwo)
 
+	if _, err = fundAccounts.Unapprove(t.Context(), dcldomain.FundAccountReviewInput{
+		ObjectID: versionTwoApproved.ObjectID, ApprovalEntryID: versionTwoApproved.Approval.ApprovalEntryID,
+		ApprovalRevision: versionTwoApproved.Approval.Revision, Reason: "VOU 精确快照仍在引用",
+	}, trustedIntegrationActor(t, "snapshot-fund-v2-unapprove")); err == nil {
+		t.Fatal("unapproved exact VOU-referenced fund account version")
+	} else {
+		var domainErr *dcldomain.DomainError
+		if !errors.As(err, &domainErr) || domainErr.Kind != dcldomain.ErrorConflict {
+			t.Fatalf("unapprove exact fund reference error = %#v, want DCL conflict", err)
+		}
+	}
+	assertFundSnapshot(versionTwo)
+	versionTwoAfterBlockedUnapprove, err := fundAccounts.Get(t.Context(), dcldomain.FundAccountGetInput{
+		ObjectID: versionTwo.ObjectID, ApprovalEntryID: versionTwo.ApprovalEntryID,
+	}, trustedIntegrationActor(t, "snapshot-fund-v2-get-after-block"))
+	if err != nil || versionTwoAfterBlockedUnapprove.Approval.Status != "APPROVED" {
+		t.Fatalf("fund V2 after blocked unapprove = %+v, err=%v", versionTwoAfterBlockedUnapprove.Approval, err)
+	}
+
 	assertRejectedReference := func(name string, reference ReferenceInput) {
 		t.Helper()
 		_, createErr := vouchers.Create(t.Context(), EntityOtherIncome, CreateInput{Data: draft(reference)},
@@ -117,13 +139,16 @@ func TestVOUReferenceSelectionSeparatesLatestFromSavedSnapshotIntegration(t *tes
 		ObjectID: versionTwo.ObjectID, ApprovalEntryID: newID(),
 	})
 
-	versionThreeDraft, err := business.Save(t.Context(), bobdomain.EntityFundAccount, bobdomain.SaveInput{
+	versionThreeDraft, err := fundAccounts.Save(t.Context(), dcldomain.FundAccountSaveInput{
 		ObjectID: versionTwo.ObjectID, ApprovalEntryID: versionTwo.ApprovalEntryID,
 		ApprovalRevision: versionTwoApproved.Approval.Revision,
-		Data: bobdomain.DetailInput{
+		Enabled:          versionTwoApproved.Enabled,
+		Data: dcldomain.FundAccountData{
 			Name: versionOneView.Data.Name, Currency: versionOneView.Data.Currency,
-			OperatingEntityID: bobdomain.Optional(versionOneView.Data.OperatingEntityID),
-			Remark:            bobdomain.Optional("VOU 快照资金账户 V3 草稿"),
+			OperatingEntityID: versionOneView.Data.OperatingEntityID,
+			AccountName:       versionOneView.Data.AccountName, BankName: versionOneView.Data.BankName,
+			BankBranch: versionOneView.Data.BankBranch, AccountNumber: versionOneView.Data.AccountNumber,
+			Remark: "VOU 快照资金账户 V3 草稿",
 		},
 	}, trustedIntegrationActor(t, "snapshot-fund-v3-save"))
 	if err != nil {

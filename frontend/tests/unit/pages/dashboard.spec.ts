@@ -625,6 +625,23 @@ describe('Dashboard workbench', () => {
       approvalEntryId: 'version-1',
       approvalRevision: 5,
     })
+
+    const fundAccount = {
+      ...objectItem,
+      entity: 'fund-account' as const,
+      code: 'FA-0001',
+      name: '测试资金账户',
+    }
+    vi.clearAllMocks()
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+
+    expect(workbenchItemPath(fundAccount)).toBe('/dcl/fund-account')
+    await expect(vm.runAction(fundAccount, 'submit')).resolves.toBe(true)
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/fund-account/submit', {
+      objectId: 'object-1',
+      approvalEntryId: 'version-1',
+      approvalRevision: 5,
+    })
   })
 
   it('驳回资料时提交去除首尾空白的意见', async () => {

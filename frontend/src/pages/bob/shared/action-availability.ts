@@ -21,7 +21,8 @@ export function useBobActionAvailability(
     if (
       config.entity === 'operating-entity' ||
       config.entity === 'warehouse' ||
-      config.entity === 'vehicle'
+      config.entity === 'vehicle' ||
+      config.entity === 'fund-account'
     ) {
       return {
         view: can(permission('get')),

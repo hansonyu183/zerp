@@ -683,23 +683,23 @@ type BobEmploymentRelationship struct {
 	CreatedBy             string             `db:"created_by" json:"created_by"`
 }
 
-type BobFundAccountVersion struct {
-	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                         string  `db:"entity" json:"entity"`
-	Name                           string  `db:"name" json:"name"`
-	Currency                       string  `db:"currency" json:"currency"`
-	CategoryID                     *string `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID        *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity                 string  `db:"category_entity" json:"category_entity"`
-	AccountName                    *string `db:"account_name" json:"account_name"`
-	BankName                       *string `db:"bank_name" json:"bank_name"`
-	BankBranch                     *string `db:"bank_branch" json:"bank_branch"`
-	AccountNumber                  *string `db:"account_number" json:"account_number"`
-	Remark                         *string `db:"remark" json:"remark"`
-	OperatingEntityID              *string `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityApprovalEntryID *string `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode            *string `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName            *string `db:"operating_entity_name" json:"operating_entity_name"`
+type BobFundAccount struct {
+	ObjectID                       string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Name                           string             `db:"name" json:"name"`
+	Currency                       string             `db:"currency" json:"currency"`
+	AccountName                    *string            `db:"account_name" json:"account_name"`
+	BankName                       *string            `db:"bank_name" json:"bank_name"`
+	BankBranch                     *string            `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                  *string            `db:"account_number" json:"account_number"`
+	Remark                         *string            `db:"remark" json:"remark"`
+	OperatingEntityID              string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string             `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string             `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled                        bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobObject struct {
@@ -1001,6 +1001,30 @@ type BobWarehouse struct {
 	Enabled                        bool               `db:"enabled" json:"enabled"`
 	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
+}
+
+type DclFundAccountIdentifierClaim struct {
+	NormalizedAccountNumber string  `db:"normalized_account_number" json:"normalized_account_number"`
+	ObjectID                string  `db:"object_id" json:"object_id"`
+	ApprovedEntryID         *string `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID             *string `db:"open_entry_id" json:"open_entry_id"`
+}
+
+type DclFundAccountVersion struct {
+	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Entity                         string  `db:"entity" json:"entity"`
+	Name                           string  `db:"name" json:"name"`
+	Currency                       string  `db:"currency" json:"currency"`
+	AccountName                    *string `db:"account_name" json:"account_name"`
+	BankName                       *string `db:"bank_name" json:"bank_name"`
+	BankBranch                     *string `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                  *string `db:"account_number" json:"account_number"`
+	Remark                         *string `db:"remark" json:"remark"`
+	OperatingEntityID              string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string  `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string  `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled                        bool    `db:"enabled" json:"enabled"`
 }
 
 type DclOperatingEntityVersion struct {

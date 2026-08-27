@@ -35,6 +35,9 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
     '车型资料已更新，请重新选择并保存。',
   vehicle_carrier_reference_stale:
     '承运方资料已更新，请重新选择并保存。',
+  fund_account_identifier_conflict: '资金账户标识已存在，请检查后重试。',
+  fund_account_operating_reference_stale:
+    '所选经营主体已发生变化，请刷新后重试。',
   invalid_reference: '所选业务资料不存在、已失效或不适用于当前操作。',
 }
 

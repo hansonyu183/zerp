@@ -216,7 +216,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.actionAvailability(row()).edit).toBe(true)
   })
 
-  it('经营主体、仓库和车辆使用当前档案只读列，其余通用对象保留完整状态筛选', () => {
+  it('经营主体、仓库、车辆和资金账户使用当前档案只读列，其余通用对象保留完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       product: ['编码', '名称', '产品类型', '默认录入单位', '型号', '状态'],
       warehouse: [
@@ -242,7 +242,16 @@ describe('shared BOB entity configuration and view model', () => {
         '来源 Approval Entry ID',
         '启停状态',
       ],
-      'fund-account': ['编码', '名称', '银行', '状态'],
+      'fund-account': [
+        '编码',
+        '名称',
+        '币种',
+        '银行',
+        '经营主体',
+        'Stable ID',
+        '来源 Approval Entry ID',
+        '启停状态',
+      ],
       'operating-entity': [
         '编码',
         '法定公司名称',
@@ -261,7 +270,8 @@ describe('shared BOB entity configuration and view model', () => {
       if (
         entity === 'operating-entity' ||
         entity === 'warehouse' ||
-        entity === 'vehicle'
+        entity === 'vehicle' ||
+        entity === 'fund-account'
       ) {
         expect(config.filters.map((filter) => filter.key)).toEqual(['enabled'])
       } else {
@@ -747,35 +757,74 @@ describe('shared BOB entity configuration and view model', () => {
     )
   })
 
-  it('保存接口成功后立即反馈，不等待列表刷新', async () => {
-    grant('fund-account', 'create', 'query')
-    let resolveQuery!: (value: ReturnType<typeof emptyPage>) => void
-    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>(
-      (resolve) => {
-        resolveQuery = resolve
-      },
-    )
-    mockedApiClient.postContract
-      .mockResolvedValueOnce({ data: mutation() })
-      .mockReturnValueOnce(pendingQuery)
-
+  it('资金账户当前档案不提供 BOB 写入或经营主体引用预载', async () => {
+    grant('fund-account', 'create', 'get', 'save', 'query')
     const config = getBobEntityConfig('fund-account')
     const vm = useBobEntityViewModel(config)
     vm.openCreate()
-    const saving = vm.save({
-      ...config.emptyForm(),
-      name: '测试资金账户',
-      operatingEntityId: 'OPE-1',
-    })
-
-    await vi.waitFor(() => {
-      expect(mockedApiClient.postContract).toHaveBeenCalledTimes(2)
-    })
-    expect(vm.successMessage.value).toBe('资金账户已保存。')
+    expect(vm.canCreate.value).toBe(false)
     expect(vm.drawerOpen.value).toBe(false)
+    expect(vm.actionAvailability({ ...row(), entity: 'fund-account' })).toEqual(
+      {
+        view: true,
+        edit: false,
+        delete: false,
+        submit: false,
+        unsubmit: false,
+        approve: false,
+        unapprove: false,
+        reject: false,
+        enable: false,
+        disable: false,
+        versions: false,
+        audit: false,
+      },
+    )
+    await expect(vm.save(config.emptyForm())).resolves.toBe(false)
+    expect(mockedApiClient.postContract).not.toHaveBeenCalled()
+  })
 
-    resolveQuery(emptyPage())
-    await expect(saving).resolves.toBe(true)
+  it('查看资金账户当前档案不会预载经营主体引用', async () => {
+    grant('fund-account', 'get')
+    const config = getBobEntityConfig('fund-account')
+    mockedApiClient.postContract.mockResolvedValueOnce({
+      data: {
+        objectId: 'FND-1',
+        entity: 'fund-account',
+        code: 'FA-0001',
+        objectRevision: 1,
+        enabled: true,
+        updatedAt: '2026-08-28T00:00:00Z',
+        approval: {
+          approvalEntryId: 'VER-1',
+          versionNo: 1,
+          status: 'APPROVED',
+          revision: 1,
+          createdBy: 'USER-1',
+          createdAt: '2026-08-28T00:00:00Z',
+          updatedBy: 'USER-1',
+          updatedAt: '2026-08-28T00:00:00Z',
+          submittedBy: 'USER-1',
+          submittedAt: '2026-08-28T00:00:00Z',
+          approvedBy: 'USER-2',
+          approvedAt: '2026-08-28T00:00:00Z',
+        },
+        data: {
+          name: '基本户',
+          currency: 'CNY',
+          operatingEntityId: 'OPE-1',
+        },
+      },
+    })
+    const vm = useBobEntityViewModel(config)
+
+    await vm.openView({ ...row(), entity: 'fund-account', objectId: 'FND-1' })
+
+    expect(mockedApiClient.postContract).toHaveBeenCalledTimes(1)
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/fund-account/get',
+      { objectId: 'FND-1' },
+    )
   })
 
   it('已批准产品直接进入候选版本编辑', async () => {

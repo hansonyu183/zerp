@@ -11,7 +11,78 @@ const (
 	EntityOperatingEntity = "operating-entity"
 	EntityWarehouse       = "warehouse"
 	EntityVehicle         = "vehicle"
+	EntityFundAccount     = "fund-account"
 )
+
+type FundAccountData struct {
+	Name              string `json:"name"`
+	Currency          string `json:"currency"`
+	AccountName       string `json:"accountName,omitempty"`
+	BankName          string `json:"bankName,omitempty"`
+	BankBranch        string `json:"bankBranch,omitempty"`
+	AccountNumber     string `json:"accountNumber,omitempty"`
+	Remark            string `json:"remark,omitempty"`
+	OperatingEntityID string `json:"operatingEntityId"`
+}
+type FundAccountCreateInput struct {
+	Data FundAccountData `json:"data"`
+}
+type FundAccountSaveInput struct {
+	ObjectID         string          `json:"objectId"`
+	ApprovalEntryID  string          `json:"approvalEntryId"`
+	ApprovalRevision int64           `json:"approvalRevision"`
+	Enabled          bool            `json:"enabled"`
+	Data             FundAccountData `json:"data"`
+}
+type FundAccountVersionInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+type FundAccountDeleteInput = FundAccountVersionInput
+type FundAccountReviewInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	Reason           string `json:"reason"`
+}
+type FundAccountGetInput struct {
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+}
+type FundAccountQueryInput struct {
+	Page     int                         `json:"page"`
+	PageSize int                         `json:"pageSize"`
+	Filters  OperatingEntityQueryFilters `json:"filters"`
+	Sort     []OperatingEntitySortItem   `json:"sort"`
+}
+type FundAccountHistoryInput = OperatingEntityHistoryInput
+type FundAccountMutation = OperatingEntityMutation
+type FundAccountView struct {
+	ObjectID       string               `json:"objectId"`
+	Entity         string               `json:"entity"`
+	Code           string               `json:"code"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	Approval       approval.VersionMeta `json:"approval"`
+	Data           FundAccountData      `json:"data"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
+}
+type FundAccountVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Data     FundAccountData      `json:"data"`
+	Enabled  bool                 `json:"enabled"`
+}
+type FundAccountQueryItem struct {
+	ObjectID       string                  `json:"objectId"`
+	Entity         string                  `json:"entity"`
+	Code           string                  `json:"code"`
+	ObjectRevision int64                   `json:"objectRevision"`
+	Enabled        bool                    `json:"enabled"`
+	LatestApproved *FundAccountVersionView `json:"latestApproved"`
+	OpenVersion    *FundAccountVersionView `json:"openVersion"`
+	UpdatedAt      time.Time               `json:"updatedAt"`
+}
 
 type VehicleData struct {
 	Name               string                        `json:"name"`

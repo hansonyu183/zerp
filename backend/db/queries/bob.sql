@@ -370,8 +370,8 @@ LEFT JOIN bob_product_versions approved_product ON approved_product.approval_ent
 LEFT JOIN bob_product_versions open_product ON open_product.approval_entry_id=open_entry.id
 LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
 LEFT JOIN dcl_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
-LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
-LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
+LEFT JOIN dcl_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
+LEFT JOIN dcl_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
 LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
 LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
@@ -460,8 +460,8 @@ LEFT JOIN bob_product_versions approved_product ON approved_product.approval_ent
 LEFT JOIN bob_product_versions open_product ON open_product.approval_entry_id=open_entry.id
 LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
 LEFT JOIN dcl_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
-LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
-LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
+LEFT JOIN dcl_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
+LEFT JOIN dcl_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
 LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
 LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
@@ -590,8 +590,7 @@ JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='cus
 JOIN bob_customer_versions p ON p.approval_entry_id=e.id WHERE p.operating_entity_id=sqlc.narg(source_object_id);
 -- name: ListFundOperatingReferences :many
 SELECT o.id AS object_id,o.entity,'fund-operating'::text AS role FROM bob_objects o
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='fund-account' AND subject_id=o.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
-JOIN bob_fund_account_versions p ON p.approval_entry_id=e.id WHERE p.operating_entity_id=sqlc.narg(source_object_id);
+JOIN bob_fund_accounts p ON p.object_id=o.id WHERE p.operating_entity_id=sqlc.narg(source_object_id);
 -- name: ListVehicleCarrierOperatingReferences :many
 SELECT o.id AS object_id,o.entity,'vehicle-carrier-operating'::text AS role FROM bob_objects o
 JOIN bob_vehicles current ON current.object_id=o.id WHERE current.carrier_operating_entity_id=sqlc.narg(source_object_id);
@@ -618,6 +617,21 @@ CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 -- name: CountBobVehicles :one
 SELECT count(*) FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id WHERE (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR current.name ILIKE '%'||sqlc.arg(keyword)::text||'%' OR current.plate_number ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1));
+
+-- name: UpsertBobFundAccountCurrent :exec
+INSERT INTO bob_fund_accounts(object_id,source_approval_entry_id,name,currency,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled,updated_by)
+VALUES(sqlc.arg(object_id),sqlc.arg(source_approval_entry_id),sqlc.arg(name),sqlc.arg(currency),sqlc.narg(account_name),sqlc.narg(bank_name),sqlc.narg(bank_branch),sqlc.narg(account_number),sqlc.narg(remark),sqlc.arg(operating_entity_id),sqlc.arg(operating_entity_approval_entry_id),sqlc.arg(operating_entity_code),sqlc.arg(operating_entity_name),sqlc.arg(enabled),sqlc.arg(actor_id))
+ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=excluded.source_approval_entry_id,name=excluded.name,currency=excluded.currency,account_name=excluded.account_name,bank_name=excluded.bank_name,bank_branch=excluded.bank_branch,account_number=excluded.account_number,remark=excluded.remark,operating_entity_id=excluded.operating_entity_id,operating_entity_approval_entry_id=excluded.operating_entity_approval_entry_id,operating_entity_code=excluded.operating_entity_code,operating_entity_name=excluded.operating_entity_name,enabled=excluded.enabled,updated_at=now(),updated_by=excluded.updated_by;
+-- name: DeleteBobFundAccountCurrent :execrows
+DELETE FROM bob_fund_accounts WHERE object_id=sqlc.arg(object_id);
+-- name: GetBobFundAccountCurrent :one
+SELECT o.id object_id,o.entity,o.code,o.revision object_revision,c.*,e.domain,e.version_no,e.status,e.revision approval_revision,e.created_by,e.created_at,e.updated_by approval_updated_by,e.updated_at approval_updated_at,e.submitted_by,e.submitted_at,e.approved_by,e.approved_at FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id JOIN approval_entries e ON e.id=c.source_approval_entry_id WHERE c.object_id=sqlc.arg(object_id);
+-- name: ListBobFundAccounts :many
+SELECT o.id object_id,o.entity,o.code,o.revision object_revision,c.enabled current_enabled,c.updated_at FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR c.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR c.enabled=(sqlc.arg(enabled_filter)::integer=1)) ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN c.updated_at END ASC, CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN c.updated_at END DESC, CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN o.code END ASC, CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN o.code END DESC, CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN c.name END ASC, CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN c.name END DESC,o.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+-- name: CountBobFundAccounts :one
+SELECT count(*) FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR c.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR c.enabled=(sqlc.arg(enabled_filter)::integer=1));
+-- name: GetBobFundAccountCurrentReference :one
+SELECT o.id object_id,o.entity,o.code,c.source_approval_entry_id approval_entry_id,c.name,c.currency,c.account_name,c.bank_name,c.bank_branch,c.account_number,c.remark,c.operating_entity_id,c.operating_entity_approval_entry_id,c.operating_entity_code,c.operating_entity_name FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE c.object_id=sqlc.arg(object_id) AND c.enabled;
 -- name: GetBobVehicleCurrentReference :one
 SELECT object.id AS object_id,object.entity,object.code,current.source_approval_entry_id AS approval_entry_id,current.name,current.plate_number,current.vehicle_type,current.vehicle_type_object_id,current.vehicle_type_approval_entry_id,current.vehicle_type_name,current.vin,current.engine_number,current.load_capacity_kg,current.remark,current.carrier_affiliation_type,current.carrier_operating_entity_id,current.carrier_operating_entity_approval_entry_id,current.carrier_service_relationship_object_id,current.carrier_service_relationship_approval_entry_id,current.bulk_liquid_capable FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id WHERE current.object_id=sqlc.arg(object_id) AND current.enabled;
 -- name: ListFormulaMaterialReferences :many
@@ -660,12 +674,6 @@ INSERT INTO bob_product_versions (approval_entry_id, name) VALUES (sqlc.arg(appr
 -- name: DeleteBobProductPayload :execrows
 DELETE FROM bob_product_versions WHERE approval_entry_id = sqlc.arg(approval_entry_id);
 
--- name: InsertBobFundAccountPayload :exec
-INSERT INTO bob_fund_account_versions (approval_entry_id, name, currency)
-VALUES (sqlc.arg(approval_entry_id), sqlc.arg(name), sqlc.arg(currency));
--- name: DeleteBobFundAccountPayload :execrows
-DELETE FROM bob_fund_account_versions WHERE approval_entry_id = sqlc.arg(approval_entry_id);
-
 -- Typed payload reads deliberately require the supplied entry to remain the
 -- latest approved version of its Approval subject. Candidate editing is
 -- mediated by the coordinator and uses the write queries below.
@@ -697,10 +705,6 @@ WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id) AND entry.domain='bo
 SELECT payload.* FROM bob_product_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
 WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id) AND entry.domain='bob' AND entry.status='APPROVED'
   AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1);
--- name: GetBobFundAccountPayload :one
-SELECT payload.* FROM bob_fund_account_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
-WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id) AND entry.domain='bob' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1);
 -- Payload readers receive an exact Approval entry selected by the service.
 -- Reference resolution separately proves latest-APPROVED before loading it.
 -- name: GetBobOpenCustomerRelationshipPayload :one
@@ -719,8 +723,6 @@ SELECT payload.* FROM bob_sales_partner_versions payload WHERE payload.approval_
 SELECT payload.* FROM bob_product_versions payload WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: GetBobOpenVehiclePayload :one
 SELECT payload.* FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id);
--- name: GetBobOpenFundAccountPayload :one
-SELECT payload.* FROM bob_fund_account_versions payload WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: CopyBobCustomerRelationshipPayload :exec
 INSERT INTO bob_customer_relationship_versions(approval_entry_id) SELECT sqlc.arg(new_approval_entry_id) FROM bob_customer_relationship_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- name: CopyBobCustomerPayload :exec
@@ -741,9 +743,6 @@ SELECT sqlc.arg(new_approval_entry_id),entity,capabilities,contact_name,contact_
 -- name: CopyBobProductPayload :exec
 INSERT INTO bob_product_versions(approval_entry_id,entity,name,category_id,category_approval_entry_id,category_entity,specification,model,barcode,remark,pricing_unit_id,pricing_unit_approval_entry_id,returnable,default_packaging_spec_micros,product_type_id,product_type_approval_entry_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,default_input_unit_approval_entry_id)
 SELECT sqlc.arg(new_approval_entry_id),entity,name,category_id,category_approval_entry_id,category_entity,specification,model,barcode,remark,pricing_unit_id,pricing_unit_approval_entry_id,returnable,default_packaging_spec_micros,product_type_id,product_type_approval_entry_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,default_input_unit_approval_entry_id FROM bob_product_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
--- name: CopyBobFundAccountPayload :exec
-INSERT INTO bob_fund_account_versions(approval_entry_id,entity,name,currency,category_id,category_approval_entry_id,category_entity,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name)
-SELECT sqlc.arg(new_approval_entry_id),entity,name,currency,category_id,category_approval_entry_id,category_entity,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name FROM bob_fund_account_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- Direct party rows remain BOB-owned identity relationships, independent of
 -- approval payload state.
 -- name: GetBobCustomerRelationship :one
@@ -923,5 +922,3 @@ UPDATE bob_employee_versions SET name=sqlc.arg(name),category_id=sqlc.narg(categ
 UPDATE bob_sales_partner_versions SET capabilities=sqlc.arg(capabilities),contact_name=sqlc.narg(contact_name),contact_phone=sqlc.narg(contact_phone),email=sqlc.narg(email),address=sqlc.narg(address),remark=sqlc.narg(remark) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: UpdateBobProductPayload :execrows
 UPDATE bob_product_versions SET name=sqlc.arg(name),category_id=sqlc.narg(category_id),category_approval_entry_id=sqlc.narg(category_approval_entry_id),specification=sqlc.narg(specification),model=sqlc.narg(model),barcode=sqlc.narg(barcode),remark=sqlc.narg(remark),pricing_unit_id=sqlc.narg(pricing_unit_id),pricing_unit_approval_entry_id=sqlc.narg(pricing_unit_approval_entry_id),returnable=sqlc.arg(returnable),default_packaging_spec_micros=sqlc.narg(default_packaging_spec_micros),product_type_id=sqlc.narg(product_type_id),product_type_approval_entry_id=sqlc.narg(product_type_approval_entry_id),product_type_code=sqlc.narg(product_type_code),product_type_name=sqlc.narg(product_type_name),behavior_profile=sqlc.narg(behavior_profile),default_input_unit_id=sqlc.narg(default_input_unit_id),default_input_unit_approval_entry_id=sqlc.narg(default_input_unit_approval_entry_id) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
--- name: UpdateBobFundAccountPayload :execrows
-UPDATE bob_fund_account_versions SET name=sqlc.arg(name),currency=sqlc.arg(currency),category_id=sqlc.narg(category_id),category_approval_entry_id=sqlc.narg(category_approval_entry_id),account_name=sqlc.narg(account_name),bank_name=sqlc.narg(bank_name),bank_branch=sqlc.narg(bank_branch),account_number=sqlc.narg(account_number),remark=sqlc.narg(remark),operating_entity_id=sqlc.narg(operating_entity_id),operating_entity_approval_entry_id=sqlc.narg(operating_entity_approval_entry_id),operating_entity_code=sqlc.narg(operating_entity_code),operating_entity_name=sqlc.narg(operating_entity_name) WHERE approval_entry_id=sqlc.arg(approval_entry_id);

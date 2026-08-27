@@ -341,7 +341,7 @@ describe('permission menu registry', () => {
       '产品',
       '仓库',
       '车辆',
-      '资金账户',
+      '资金账户（当前档案）',
       '经营主体',
     ]
     const router = createTestRouter()

@@ -86,7 +86,6 @@ var publicApprovalEntities = [...]string{
 	EntityEmployee,
 	EntitySalesPartner,
 	EntityProduct,
-	EntityFundAccount,
 }
 
 type ErrorKind int

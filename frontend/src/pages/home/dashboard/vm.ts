@@ -11,6 +11,7 @@ import { isDclDeclarationEntity } from '@/pages/dcl/shared/declaration'
 import { runDclOperatingEntityAction } from '@/pages/dcl/operating-entity/data'
 import { runDclWarehouseAction } from '@/pages/dcl/warehouse/data'
 import { runDclVehicleAction } from '@/pages/dcl/vehicle/data'
+import { runDclFundAccountAction } from '@/pages/dcl/fund-account/data'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import { approveVoucher, submitVoucher, unsubmitVoucher } from '@/api/vou'
 
@@ -209,6 +210,8 @@ export function useDashboardViewModel() {
           await runDclWarehouseAction(action, request, comment.trim())
         } else if (item.entity === 'vehicle') {
           await runDclVehicleAction(action, request, comment.trim())
+        } else if (item.entity === 'fund-account') {
+          await runDclFundAccountAction(action, request, comment.trim())
         } else if (action === 'submit') {
           await submitBusinessObject(item.entity, request)
         } else if (action === 'unsubmit') {

@@ -27,3 +27,10 @@ type VehiclePayload struct {
 }
 
 var VehicleTopic = approval.MustTopic[VehiclePayload]("dcl.vehicle.approval")
+
+type FundAccountPayload struct {
+	SubjectID, Code, Name string
+	Enabled               bool
+}
+
+var FundAccountTopic = approval.MustTopic[FundAccountPayload]("dcl.fund-account.approval")

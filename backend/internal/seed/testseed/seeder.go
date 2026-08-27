@@ -80,6 +80,7 @@ type Seeder struct {
 	operatingEntities *dcldomain.OperatingEntityService
 	warehouses        *dcldomain.WarehouseService
 	vehicles          *dcldomain.VehicleService
+	fundAccounts      *dcldomain.FundAccountService
 	vouchers          *voudomain.Service
 	accounting        *accdomain.Service
 	auxRefs           map[string]auxdomain.ObjectView
@@ -138,6 +139,7 @@ func New(
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, business, seedAuthorizer{}, events)
 	warehouses := dcldomain.NewWarehouseService(pool, business, seedAuthorizer{}, events)
 	vehicles := dcldomain.NewVehicleService(pool, business, seedAuthorizer{}, events)
+	fundAccounts := dcldomain.NewFundAccountService(pool, business, seedAuthorizer{}, events)
 	accounting := accdomain.NewService(pool, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(
 		pool,
@@ -161,7 +163,7 @@ func New(
 	}
 	return &Seeder{
 		pool: pool, queries: dbsqlc.New(pool), app: appdomain.NewService(pool, cfg, logger), accounts: accounts,
-		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles,
+		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts,
 		vouchers: vouchers, accounting: accounting,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]bobdomain.ObjectView),

@@ -27,6 +27,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	bobService := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
 	declarations := dcldomain.NewOperatingEntityService(pool, bobService, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, bobService, authorizer, bus)
+	fundAccounts := dcldomain.NewFundAccountService(pool, bobService, authorizer, bus)
 	actor := func(id, requestID string) approval.Actor {
 		result, actorErr := approval.UserActor(authorization.Principal{ActorID: id}, requestID)
 		if actorErr != nil {
@@ -72,20 +73,20 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}, actor(ulid.Make().String(), "workbench-approve-operating")); err != nil {
 		t.Fatalf("approve operating entity: %v", err)
 	}
-	fund, err := bobService.Create(t.Context(), bobdomain.EntityFundAccount, bobdomain.CreateInput{
-		Data: bobdomain.CreateDetailInput{Name: "工作台资金账户-" + suffix, Currency: "CNY", OperatingEntityID: operating.ObjectID},
+	fund, err := fundAccounts.Create(t.Context(), dcldomain.FundAccountCreateInput{
+		Data: dcldomain.FundAccountData{Name: "工作台资金账户-" + suffix, Currency: "CNY", OperatingEntityID: operating.ObjectID},
 	}, actor(admin.ID, "workbench-create-fund"))
 	if err != nil {
 		t.Fatalf("create fund account: %v", err)
 	}
-	fundSubmitted, err := bobService.Submit(t.Context(), bobdomain.EntityFundAccount, bobdomain.VersionRevisionInput{
+	fundSubmitted, err := fundAccounts.Submit(t.Context(), dcldomain.FundAccountVersionInput{
 		ObjectID: fund.ObjectID, ApprovalEntryID: fund.Approval.ApprovalEntryID, ApprovalRevision: fund.Approval.Revision,
 	}, actor(admin.ID, "workbench-submit-fund"))
 	if err != nil {
 		t.Fatalf("submit fund account: %v", err)
 	}
 	reviewerID := ulid.Make().String()
-	if _, err = bobService.Approve(t.Context(), bobdomain.EntityFundAccount, bobdomain.ReviewInput{
+	if _, err = fundAccounts.Approve(t.Context(), dcldomain.FundAccountVersionInput{
 		ObjectID: fund.ObjectID, ApprovalEntryID: fundSubmitted.Approval.ApprovalEntryID, ApprovalRevision: fundSubmitted.Approval.Revision,
 	}, actor(reviewerID, "workbench-approve-fund")); err != nil {
 		t.Fatalf("approve fund account: %v", err)
@@ -137,7 +138,9 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		_, _ = tx.Exec(t.Context(), `SET CONSTRAINTS ALL DEFERRED`)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_events WHERE domain IN ('bob','dcl') AND subject_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_warehouses WHERE object_id=ANY($1::text[])`, allObjectIDs)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_fund_account_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_fund_accounts WHERE object_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_fund_account_identifier_claims WHERE object_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_fund_account_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_operating_entities WHERE object_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_warehouse_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_operating_entity_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)

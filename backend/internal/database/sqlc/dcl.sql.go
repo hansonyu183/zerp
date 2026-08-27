@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const copyDCLFundAccountVersion = `-- name: CopyDCLFundAccountVersion :execrows
+INSERT INTO dcl_fund_account_versions(approval_entry_id,entity,name,currency,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled)
+SELECT $1,source.entity,source.name,source.currency,source.account_name,source.bank_name,source.bank_branch,source.account_number,source.remark,source.operating_entity_id,source.operating_entity_approval_entry_id,source.operating_entity_code,source.operating_entity_name,source.enabled FROM dcl_fund_account_versions source WHERE source.approval_entry_id=$2
+`
+
+type CopyDCLFundAccountVersionParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLFundAccountVersion(ctx context.Context, arg CopyDCLFundAccountVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, copyDCLFundAccountVersion, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const copyDCLOperatingEntityVersion = `-- name: CopyDCLOperatingEntityVersion :execrows
 INSERT INTO dcl_operating_entity_versions(
   approval_entry_id, legal_name, short_name, tax_number, address, phone, remark, enabled
@@ -74,6 +92,34 @@ func (q *Queries) CopyDCLWarehouseVersion(ctx context.Context, arg CopyDCLWareho
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const countDCLFundAccountApprovalEvents = `-- name: CountDCLFundAccountApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='fund-account' AND subject_id=$1
+`
+
+func (q *Queries) CountDCLFundAccountApprovalEvents(ctx context.Context, objectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLFundAccountApprovalEvents, objectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLFundAccounts = `-- name: CountDCLFundAccounts :one
+SELECT count(*) FROM dcl_subjects s JOIN bob_objects o ON o.id=s.id AND o.entity=s.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_fund_account_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='fund-account' AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[]))
+`
+
+type CountDCLFundAccountsParams struct {
+	Keyword       string   `db:"keyword" json:"keyword"`
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountDCLFundAccounts(ctx context.Context, arg CountDCLFundAccountsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLFundAccounts, arg.Keyword, arg.EnabledFilter, arg.StatusFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countDCLOperatingEntities = `-- name: CountDCLOperatingEntities :one
@@ -198,6 +244,27 @@ func (q *Queries) CountDCLWarehouses(ctx context.Context, arg CountDCLWarehouses
 	return count, err
 }
 
+const deleteDCLFundAccountIdentifierClaims = `-- name: DeleteDCLFundAccountIdentifierClaims :exec
+DELETE FROM dcl_fund_account_identifier_claims WHERE object_id=$1
+`
+
+func (q *Queries) DeleteDCLFundAccountIdentifierClaims(ctx context.Context, objectID string) error {
+	_, err := q.db.Exec(ctx, deleteDCLFundAccountIdentifierClaims, objectID)
+	return err
+}
+
+const deleteDCLFundAccountVersion = `-- name: DeleteDCLFundAccountVersion :execrows
+DELETE FROM dcl_fund_account_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLFundAccountVersion(ctx context.Context, approvalEntryID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLFundAccountVersion, approvalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteDCLOperatingEntityVersion = `-- name: DeleteDCLOperatingEntityVersion :execrows
 DELETE FROM dcl_operating_entity_versions
 WHERE approval_entry_id=$1
@@ -262,6 +329,17 @@ func (q *Queries) DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID
 	return result.RowsAffected(), nil
 }
 
+const findDCLFundAccountIdentifierConflict = `-- name: FindDCLFundAccountIdentifierConflict :one
+WITH selected AS (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=$1 AND status IN ('DRAFT','PENDING') UNION ALL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=$1 AND status='APPROVED' ORDER BY version_no DESC LIMIT 1)), desired AS (SELECT upper(replace(replace(btrim(account_number),' ',''),'-','')) value FROM dcl_fund_account_versions v JOIN selected e ON e.id=v.approval_entry_id WHERE account_number IS NOT NULL AND upper(replace(replace(btrim(account_number),' ',''),'-',''))<>'') SELECT desired.value AS normalized_account_number FROM desired JOIN dcl_fund_account_identifier_claims c ON c.normalized_account_number=desired.value WHERE c.object_id<>$1 LIMIT 1
+`
+
+func (q *Queries) FindDCLFundAccountIdentifierConflict(ctx context.Context, objectID string) (interface{}, error) {
+	row := q.db.QueryRow(ctx, findDCLFundAccountIdentifierConflict, objectID)
+	var normalized_account_number interface{}
+	err := row.Scan(&normalized_account_number)
+	return normalized_account_number, err
+}
+
 const findDCLVehicleIdentifierConflict = `-- name: FindDCLVehicleIdentifierConflict :one
 WITH selected_entries AS (
   SELECT id,status FROM approval_entries
@@ -294,6 +372,32 @@ func (q *Queries) FindDCLVehicleIdentifierConflict(ctx context.Context, objectID
 	row := q.db.QueryRow(ctx, findDCLVehicleIdentifierConflict, objectID)
 	var i FindDCLVehicleIdentifierConflictRow
 	err := row.Scan(&i.IdentifierKind, &i.NormalizedValue)
+	return i, err
+}
+
+const getDCLFundAccountVersion = `-- name: GetDCLFundAccountVersion :one
+SELECT approval_entry_id, entity, name, currency, account_name, bank_name, bank_branch, account_number, remark, operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, enabled FROM dcl_fund_account_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) GetDCLFundAccountVersion(ctx context.Context, approvalEntryID string) (DclFundAccountVersion, error) {
+	row := q.db.QueryRow(ctx, getDCLFundAccountVersion, approvalEntryID)
+	var i DclFundAccountVersion
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.Entity,
+		&i.Name,
+		&i.Currency,
+		&i.AccountName,
+		&i.BankName,
+		&i.BankBranch,
+		&i.AccountNumber,
+		&i.Remark,
+		&i.OperatingEntityID,
+		&i.OperatingEntityApprovalEntryID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
+		&i.Enabled,
+	)
 	return i, err
 }
 
@@ -471,6 +575,46 @@ func (q *Queries) GetLatestApprovedDCLWarehouseVersionExcluding(ctx context.Cont
 	return i, err
 }
 
+const insertDCLFundAccountVersion = `-- name: InsertDCLFundAccountVersion :exec
+INSERT INTO dcl_fund_account_versions(approval_entry_id,name,currency,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+`
+
+type InsertDCLFundAccountVersionParams struct {
+	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Name                           string  `db:"name" json:"name"`
+	Currency                       string  `db:"currency" json:"currency"`
+	AccountName                    *string `db:"account_name" json:"account_name"`
+	BankName                       *string `db:"bank_name" json:"bank_name"`
+	BankBranch                     *string `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                  *string `db:"account_number" json:"account_number"`
+	Remark                         *string `db:"remark" json:"remark"`
+	OperatingEntityID              string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string  `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string  `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled                        bool    `db:"enabled" json:"enabled"`
+}
+
+func (q *Queries) InsertDCLFundAccountVersion(ctx context.Context, arg InsertDCLFundAccountVersionParams) error {
+	_, err := q.db.Exec(ctx, insertDCLFundAccountVersion,
+		arg.ApprovalEntryID,
+		arg.Name,
+		arg.Currency,
+		arg.AccountName,
+		arg.BankName,
+		arg.BankBranch,
+		arg.AccountNumber,
+		arg.Remark,
+		arg.OperatingEntityID,
+		arg.OperatingEntityApprovalEntryID,
+		arg.OperatingEntityCode,
+		arg.OperatingEntityName,
+		arg.Enabled,
+	)
+	return err
+}
+
 const insertDCLOperatingEntityVersion = `-- name: InsertDCLOperatingEntityVersion :exec
 INSERT INTO dcl_operating_entity_versions(
   approval_entry_id, legal_name, short_name, tax_number, address, phone, remark, enabled
@@ -614,6 +758,112 @@ func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWa
 		arg.Enabled,
 	)
 	return err
+}
+
+const listDCLFundAccountApprovalEvents = `-- name: ListDCLFundAccountApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='fund-account' AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDCLFundAccountApprovalEventsParams struct {
+	ObjectID  string `db:"object_id" json:"object_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLFundAccountApprovalEvents(ctx context.Context, arg ListDCLFundAccountApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLFundAccountApprovalEvents, arg.ObjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLFundAccounts = `-- name: ListDCLFundAccounts :many
+SELECT o.id object_id,o.code,o.revision object_revision,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s JOIN bob_objects o ON o.id=s.id AND o.entity=s.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_fund_account_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='fund-account' AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) ORDER BY CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $4::text='code' AND $5::text='asc' THEN o.code END ASC, CASE WHEN $4::text='code' AND $5::text='desc' THEN o.code END DESC, CASE WHEN $4::text='name' AND $5::text='asc' THEN d.name END ASC, CASE WHEN $4::text='name' AND $5::text='desc' THEN d.name END DESC, CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, o.id DESC LIMIT $7 OFFSET $6
+`
+
+type ListDCLFundAccountsParams struct {
+	Keyword       string   `db:"keyword" json:"keyword"`
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	SortField     string   `db:"sort_field" json:"sort_field"`
+	SortOrder     string   `db:"sort_order" json:"sort_order"`
+	RowOffset     int32    `db:"row_offset" json:"row_offset"`
+	RowLimit      int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLFundAccountsRow struct {
+	ObjectID        string             `db:"object_id" json:"object_id"`
+	Code            string             `db:"code" json:"code"`
+	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`
+}
+
+func (q *Queries) ListDCLFundAccounts(ctx context.Context, arg ListDCLFundAccountsParams) ([]ListDCLFundAccountsRow, error) {
+	rows, err := q.db.Query(ctx, listDCLFundAccounts,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLFundAccountsRow{}
+	for rows.Next() {
+		var i ListDCLFundAccountsRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.ApprovedEntryID,
+			&i.OpenEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDCLOperatingEntities = `-- name: ListDCLOperatingEntities :many
@@ -1020,12 +1270,30 @@ func (q *Queries) ListDCLWarehouses(ctx context.Context, arg ListDCLWarehousesPa
 	return items, nil
 }
 
+const lockDCLFundAccountIdentifierClaims = `-- name: LockDCLFundAccountIdentifierClaims :exec
+SELECT pg_advisory_xact_lock(74155003)
+`
+
+func (q *Queries) LockDCLFundAccountIdentifierClaims(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockDCLFundAccountIdentifierClaims)
+	return err
+}
+
 const lockDCLVehicleIdentifierClaims = `-- name: LockDCLVehicleIdentifierClaims :exec
 SELECT pg_advisory_xact_lock(74155002)
 `
 
 func (q *Queries) LockDCLVehicleIdentifierClaims(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, lockDCLVehicleIdentifierClaims)
+	return err
+}
+
+const rebuildDCLFundAccountIdentifierClaims = `-- name: RebuildDCLFundAccountIdentifierClaims :exec
+WITH selected AS (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=$1 AND status IN ('DRAFT','PENDING') UNION ALL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=$1 AND status='APPROVED' ORDER BY version_no DESC LIMIT 1)), desired AS (SELECT upper(replace(replace(btrim(v.account_number),' ',''),'-','')) value,e.id,e.status FROM dcl_fund_account_versions v JOIN selected e ON e.id=v.approval_entry_id WHERE v.account_number IS NOT NULL AND upper(replace(replace(btrim(v.account_number),' ',''),'-',''))<>'') INSERT INTO dcl_fund_account_identifier_claims(normalized_account_number,object_id,approved_entry_id,open_entry_id) SELECT value,$1,max(id) FILTER (WHERE status='APPROVED'),max(id) FILTER (WHERE status IN ('DRAFT','PENDING')) FROM desired GROUP BY value
+`
+
+func (q *Queries) RebuildDCLFundAccountIdentifierClaims(ctx context.Context, objectID string) error {
+	_, err := q.db.Exec(ctx, rebuildDCLFundAccountIdentifierClaims, objectID)
 	return err
 }
 
@@ -1058,6 +1326,48 @@ SELECT identifier_kind,normalized_value,$1,approved_entry_id,open_entry_id FROM 
 func (q *Queries) RebuildDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error {
 	_, err := q.db.Exec(ctx, rebuildDCLVehicleIdentifierClaims, objectID)
 	return err
+}
+
+const updateDCLFundAccountVersion = `-- name: UpdateDCLFundAccountVersion :execrows
+UPDATE dcl_fund_account_versions SET name=$1,currency=$2,account_name=$3,bank_name=$4,bank_branch=$5,account_number=$6,remark=$7,operating_entity_id=$8,operating_entity_approval_entry_id=$9,operating_entity_code=$10,operating_entity_name=$11,enabled=$12 WHERE approval_entry_id=$13
+`
+
+type UpdateDCLFundAccountVersionParams struct {
+	Name                           string  `db:"name" json:"name"`
+	Currency                       string  `db:"currency" json:"currency"`
+	AccountName                    *string `db:"account_name" json:"account_name"`
+	BankName                       *string `db:"bank_name" json:"bank_name"`
+	BankBranch                     *string `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                  *string `db:"account_number" json:"account_number"`
+	Remark                         *string `db:"remark" json:"remark"`
+	OperatingEntityID              string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string  `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string  `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled                        bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) UpdateDCLFundAccountVersion(ctx context.Context, arg UpdateDCLFundAccountVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateDCLFundAccountVersion,
+		arg.Name,
+		arg.Currency,
+		arg.AccountName,
+		arg.BankName,
+		arg.BankBranch,
+		arg.AccountNumber,
+		arg.Remark,
+		arg.OperatingEntityID,
+		arg.OperatingEntityApprovalEntryID,
+		arg.OperatingEntityCode,
+		arg.OperatingEntityName,
+		arg.Enabled,
+		arg.ApprovalEntryID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateDCLOperatingEntityVersion = `-- name: UpdateDCLOperatingEntityVersion :execrows

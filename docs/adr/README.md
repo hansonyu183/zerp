@@ -21,6 +21,7 @@
 | [ADR-0033](0033-dcl-operating-entity-declaration-and-bob-current-projection.md)       | 2026-08-27 | 经营主体由 DCL 申报并投影到 BOB 当前业务面                      |
 | [ADR-0034](0034-warehouse-declarations-are-dcl-owned.md)                              | 2026-08-27 | 仓库由 DCL 申报并投影到 BOB 当前业务面                          |
 | [ADR-0035](0035-vehicle-declarations-are-dcl-owned.md)                                | 2026-08-28 | 车辆由 DCL 申报并投影到 BOB 当前业务面                          |
+| [ADR-0036](0036-fund-account-declarations-are-dcl-owned.md)                           | 2026-08-28 | 资金账户由 DCL 申报并投影到 BOB 当前业务面                      |
 
 ## Superseded
 

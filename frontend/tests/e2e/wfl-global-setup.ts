@@ -390,6 +390,9 @@ const bobReviewerActions = new Set([
   '/dcl/vehicle/query',
   '/dcl/vehicle/get',
   '/dcl/vehicle/approve',
+  '/dcl/fund-account/query',
+  '/dcl/fund-account/get',
+  '/dcl/fund-account/approve',
 ])
 
 async function createEffectiveBob(
@@ -398,7 +401,11 @@ async function createEffectiveBob(
   entity: string,
   data: Record<string, unknown>,
 ): Promise<BobMutation> {
-  if (entity === 'warehouse' || entity === 'vehicle') {
+  if (
+    entity === 'warehouse' ||
+    entity === 'vehicle' ||
+    entity === 'fund-account'
+  ) {
     const created = await operator.post<BobMutation>(`dcl/${entity}/create`, {
       data,
     })

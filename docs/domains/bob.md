@@ -271,7 +271,7 @@ BusinessObject (稳定身份)
 | 销售合作版本明细 | `bob_sales_partner_versions` | 销售能力等类型化字段，与版本一对一    |
 | 仓库当前投影     | `bob_warehouses`             | DCL 最新正式仓库申报的业务读取面      |
 | 车辆当前投影     | `bob_vehicles`               | DCL 最新正式车辆申报的业务读取面      |
-| 资金账户当前投影 | `bob_fund_accounts`          | DCL 最新正式资金账户的业务读取面 |
+| 资金账户当前投影 | `bob_fund_accounts`          | DCL 最新正式资金账户的业务读取面      |
 
 业务字段尚未确定前，不应仅为追求通用性把全部正式字段长期存入无约束 JSONB。客户 `pricingPolicy` 是因定价规则结构易变而明确限定的封闭值对象例外，不得扩展为通用客户属性包；共享表只承载所有实体一致的生命周期信息。
 

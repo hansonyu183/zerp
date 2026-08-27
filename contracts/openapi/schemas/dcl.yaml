@@ -941,47 +941,239 @@
     { '$ref': '#/DclWarehouseAuditHistoryResponse' },
   'DclFundAccountData':
     {
-      'type': 'object', 'additionalProperties': false,
+      'type': 'object',
+      'additionalProperties': false,
       'required': ['name', 'currency', 'operatingEntityId'],
       'properties':
         {
           'name': { 'type': 'string', 'minLength': 1 },
           'currency': { 'type': 'string', 'pattern': '^[A-Z]{3}$' },
-          'accountName': { 'type': 'string' }, 'bankName': { 'type': 'string' },
-          'bankBranch': { 'type': 'string' }, 'accountNumber': { 'type': 'string' },
-          'remark': { 'type': 'string' }, 'operatingEntityId': { 'type': 'string' },
+          'accountName': { 'type': 'string' },
+          'bankName': { 'type': 'string' },
+          'bankBranch': { 'type': 'string' },
+          'accountNumber': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
         },
     },
   'DclFundAccountCreateRequest':
-    { 'type': 'object', 'required': ['data'], 'additionalProperties': false, 'properties': { 'data': { '$ref': '#/DclFundAccountData' } } },
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/DclFundAccountData' } },
+    },
   'DclFundAccountSaveRequest':
     {
-      'type': 'object', 'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'], 'additionalProperties': false,
-      'properties': { 'objectId': { 'type': 'string' }, 'approvalEntryId': { 'type': 'string' }, 'approvalRevision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 }, 'enabled': { 'type': 'boolean' }, 'data': { '$ref': '#/DclFundAccountData' } },
+      'type': 'object',
+      'required':
+        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'enabled': { 'type': 'boolean' },
+          'data': { '$ref': '#/DclFundAccountData' },
+        },
     },
-  'DclFundAccountVersionRequest': { '$ref': '#/DclOperatingEntityVersionRequest' },
-  'DclFundAccountReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
+  'DclFundAccountVersionRequest':
+    { '$ref': '#/DclOperatingEntityVersionRequest' },
+  'DclFundAccountReviewRequest':
+    { '$ref': '#/DclOperatingEntityReviewRequest' },
   'DclFundAccountGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
   'DclFundAccountQueryRequest': { '$ref': '#/DclOperatingEntityQueryRequest' },
-  'DclFundAccountHistoryRequest': { '$ref': '#/DclOperatingEntityHistoryRequest' },
+  'DclFundAccountHistoryRequest':
+    { '$ref': '#/DclOperatingEntityHistoryRequest' },
   'DclFundAccountMutation': { '$ref': '#/DclOperatingEntityMutation' },
   'DclFundAccountView':
-    { 'type': 'object', 'required': ['objectId','entity','code','objectRevision','enabled','approval','data','updatedAt'], 'additionalProperties': false, 'properties': { 'objectId': { 'type': 'string' }, 'entity': { 'type': 'string', 'enum': ['fund-account'] }, 'code': { 'type': 'string' }, 'objectRevision': { 'type': 'integer', 'format': 'int64' }, 'enabled': { 'type': 'boolean' }, 'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' }, 'data': { '$ref': '#/DclFundAccountData' }, 'updatedAt': { 'type': 'string', 'format': 'date-time' } } },
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'approval',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['fund-account'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclFundAccountData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
   'DclFundAccountVersionView':
-    { 'type': 'object', 'required': ['approval','data','enabled'], 'additionalProperties': false, 'properties': { 'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' }, 'data': { '$ref': '#/DclFundAccountData' }, 'enabled': { 'type': 'boolean' } } },
+    {
+      'type': 'object',
+      'required': ['approval', 'data', 'enabled'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclFundAccountData' },
+          'enabled': { 'type': 'boolean' },
+        },
+    },
   'DclFundAccountListItem':
-    { 'type': 'object', 'required': ['objectId','entity','code','objectRevision','enabled','latestApproved','openVersion','updatedAt'], 'additionalProperties': false, 'properties': { 'objectId': { 'type': 'string' }, 'entity': { 'type': 'string', 'enum': ['fund-account'] }, 'code': { 'type': 'string' }, 'objectRevision': { 'type': 'integer', 'format': 'int64' }, 'enabled': { 'type': 'boolean' }, 'latestApproved': { 'type': 'object', 'allOf': [{ '$ref': '#/DclFundAccountVersionView' }], 'nullable': true }, 'openVersion': { 'type': 'object', 'allOf': [{ '$ref': '#/DclFundAccountVersionView' }], 'nullable': true }, 'updatedAt': { 'type': 'string', 'format': 'date-time' } } },
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['fund-account'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'latestApproved':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclFundAccountVersionView' }],
+              'nullable': true,
+            },
+          'openVersion':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclFundAccountVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
   'DclFundAccountQueryPage':
-    { 'type': 'object', 'required': ['items','total','page','pageSize'], 'additionalProperties': false, 'properties': { 'items': { 'type': 'array', 'items': { '$ref': '#/DclFundAccountListItem' } }, 'total': { 'type': 'integer', 'format': 'int64' }, 'page': { 'type': 'integer' }, 'pageSize': { 'type': 'integer' } } },
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclFundAccountListItem' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
   'DclFundAccountVersionPage':
-    { 'type': 'object', 'required': ['items','total','page','pageSize'], 'additionalProperties': false, 'properties': { 'items': { 'type': 'array', 'items': { '$ref': '#/DclFundAccountVersionView' } }, 'total': { 'type': 'integer', 'format': 'int64' }, 'page': { 'type': 'integer' }, 'pageSize': { 'type': 'integer' } } },
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclFundAccountVersionView' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
   'DclFundAccountMutationResponse':
-    { 'type': 'object', 'required': ['code','errorKey','message','data','requestId'], 'additionalProperties': false, 'properties': { 'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' }, 'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclFundAccountMutation' }], 'nullable': true }, 'requestId': { 'type': 'string' } } },
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclFundAccountMutation' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclFundAccountViewResponse':
-    { 'type': 'object', 'required': ['code','errorKey','message','data','requestId'], 'additionalProperties': false, 'properties': { 'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' }, 'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclFundAccountView' }], 'nullable': true }, 'requestId': { 'type': 'string' } } },
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclFundAccountView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclFundAccountQueryResponse':
-    { 'type': 'object', 'required': ['code','errorKey','message','data','requestId'], 'additionalProperties': false, 'properties': { 'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' }, 'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclFundAccountQueryPage' }], 'nullable': true }, 'requestId': { 'type': 'string' } } },
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclFundAccountQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclFundAccountVersionPageResponse':
-    { 'type': 'object', 'required': ['code','errorKey','message','data','requestId'], 'additionalProperties': false, 'properties': { 'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' }, 'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclFundAccountVersionPage' }], 'nullable': true }, 'requestId': { 'type': 'string' } } },
-  'DclFundAccountAuditHistoryResponse': { '$ref': '#/DclWarehouseAuditHistoryResponse' },
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclFundAccountVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclFundAccountAuditHistoryResponse':
+    { '$ref': '#/DclWarehouseAuditHistoryResponse' },
 }

@@ -23,16 +23,6 @@ export const operatingEntityConfig = defineBobEntityConfig({
     phone: '',
     remark: '',
   },
-  requiredKeys: ['name'],
-  uppercaseKeys: ['taxNumber'],
-  persistedKeys: [
-    'name',
-    'shortName',
-    'taxNumber',
-    'address',
-    'phone',
-    'remark',
-  ],
   fields: (context) => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
@@ -79,8 +69,7 @@ export const operatingEntityConfig = defineBobEntityConfig({
     {
       key: 'approvalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) =>
-        row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
     },
     {
       key: 'enabled',

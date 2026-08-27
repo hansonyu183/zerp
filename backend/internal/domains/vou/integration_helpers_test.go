@@ -216,6 +216,37 @@ func createApprovedBOB(
 		}
 		return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 	}
+	if entity == bobdomain.EntityProduct {
+		if data.ProductTypeID != "01JPTP00000000000000000007" && data.DefaultPackagingSpec == "" {
+			data.DefaultPackagingSpec = "1"
+		}
+		declarations := dcldomain.NewProductService(vouIntegrationPool(t), service, authorization.Func(nil), txevent.NewBus())
+		created, err := declarations.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
+			Name: data.Name, CategoryID: data.CategoryID,
+			Specification: data.Specification, Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
+			ProductTypeID: data.ProductTypeID, DefaultInputUnitID: data.DefaultInputUnitID,
+			PricingUnitID: data.PricingUnitID, UnitConversions: data.UnitConversions,
+			Returnable: data.Returnable, DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
+		}}, trustedIntegrationActor(t, "vou-ref-create"))
+		if err != nil {
+			t.Fatalf("create product reference: %v", err)
+		}
+		submitted, err := declarations.Submit(t.Context(), dcldomain.ProductVersionInput{
+			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+			ApprovalRevision: created.Approval.Revision,
+		}, trustedIntegrationActor(t, "vou-ref-submit"))
+		if err != nil {
+			t.Fatalf("submit product reference: %v", err)
+		}
+		approved, err := declarations.Approve(t.Context(), dcldomain.ProductVersionInput{
+			ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID,
+			ApprovalRevision: submitted.Approval.Revision,
+		}, trustedIntegrationActor(t, "vou-ref-approve"))
+		if err != nil {
+			t.Fatalf("approve product reference: %v", err)
+		}
+		return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	}
 	if entity == bobdomain.EntityProduct && data.ProductTypeID != "01JPTP00000000000000000007" && data.DefaultPackagingSpec == "" {
 		data.DefaultPackagingSpec = "1"
 	}

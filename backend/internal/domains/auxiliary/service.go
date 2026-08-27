@@ -1156,7 +1156,7 @@ func (s *Service) enabledObjectData(
 func productTypeReferenced(ctx context.Context, q dbtx, objectID string) (bool, error) {
 	var referenced bool
 	err := q.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM bob_product_versions WHERE product_type_id=$1
+		SELECT 1 FROM dcl_product_versions WHERE product_type_id=$1
 	)`, objectID).Scan(&referenced)
 	return referenced, err
 }

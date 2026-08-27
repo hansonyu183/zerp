@@ -21,15 +21,6 @@ export const warehouseConfig = defineBobEntityConfig({
     managerEmployeeId: '',
     remark: '',
   },
-  requiredKeys: ['name'],
-  persistedKeys: [
-    'name',
-    'managerEmployeeId',
-    'address',
-    'contactName',
-    'contactPhone',
-    'remark',
-  ],
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {

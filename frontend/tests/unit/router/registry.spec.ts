@@ -338,7 +338,7 @@ describe('permission menu registry', () => {
       '其他单位',
       '销售合作方',
       '员工',
-      '产品',
+      '产品（当前档案）',
       '仓库',
       '车辆',
       '资金账户（当前档案）',
@@ -363,7 +363,7 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
-  it('为 DCL 申报和 BOB 当前档案注册独立经营主体、仓库与车辆入口', () => {
+  it('为 DCL 申报和 BOB 当前档案注册独立产品、经营主体、仓库与车辆入口', () => {
     const router = createTestRouter()
     const menus = buildMenus([
       '/dcl/operating-entity/query',
@@ -372,12 +372,16 @@ describe('permission menu registry', () => {
       '/dcl/warehouse/create',
       '/dcl/vehicle/query',
       '/dcl/vehicle/create',
+      '/dcl/product/query',
+      '/dcl/product/create',
       '/bob/operating-entity/query',
       '/bob/operating-entity/get',
       '/bob/warehouse/query',
       '/bob/warehouse/get',
       '/bob/vehicle/query',
       '/bob/vehicle/get',
+      '/bob/product/query',
+      '/bob/product/get',
     ])
 
     expect(menus.map((domain) => domain.domain)).toEqual(['dcl', 'bob'])
@@ -399,11 +403,21 @@ describe('permission menu registry', () => {
           title: '车辆申报',
           actions: ['query', 'create'],
         },
+        {
+          entity: 'product',
+          title: '产品申报',
+          actions: ['query', 'create'],
+        },
       ],
     })
     expect(menus[1]).toMatchObject({
       title: '业务对象',
       children: [
+        {
+          entity: 'product',
+          title: '产品（当前档案）',
+          actions: ['query', 'get'],
+        },
         {
           entity: 'warehouse',
           title: '仓库',
@@ -422,7 +436,9 @@ describe('permission menu registry', () => {
       ],
     })
 
-    expect(registerMenuRoutes(router, menus)).toBe(6)
+    expect(registerMenuRoutes(router, menus)).toBe(8)
+    expect(hasRegisteredPage('dcl', 'product')).toBe(true)
+    expect(hasRegisteredPage('bob', 'product')).toBe(true)
     expect(hasRegisteredPage('dcl', 'operating-entity')).toBe(true)
     expect(hasRegisteredPage('bob', 'operating-entity')).toBe(true)
     expect(hasRegisteredPage('dcl', 'warehouse')).toBe(true)
@@ -457,6 +473,16 @@ describe('permission menu registry', () => {
     expect(router.resolve('/bob/vehicle').meta).toMatchObject({
       developing: false,
       title: '车辆',
+      actions: ['query', 'get'],
+    })
+    expect(router.resolve('/dcl/product').meta).toMatchObject({
+      developing: false,
+      title: '产品申报',
+      actions: ['query', 'create'],
+    })
+    expect(router.resolve('/bob/product').meta).toMatchObject({
+      developing: false,
+      title: '产品（当前档案）',
       actions: ['query', 'get'],
     })
 

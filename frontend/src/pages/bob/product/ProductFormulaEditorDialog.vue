@@ -7,7 +7,7 @@ import { formatReferenceLabel } from '@/utils/reference-label'
 import {
   suggestBaseQuantity,
   type ProductUnitConversionDraft,
-} from '../shared/product-data'
+} from '@/pages/dcl/product/product-data'
 import type {
   FormulaMaterialReference,
   FormulaQuantitySnapshotDraft,

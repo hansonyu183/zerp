@@ -115,8 +115,8 @@ function productRow(page: Page, name: string): Locator {
 }
 
 async function searchProduct(page: Page, name: string): Promise<Locator> {
-  await page.goto('/bob/product')
-  await page.getByRole('textbox', { name: '产品关键字' }).fill(name)
+  await page.goto('/dcl/product')
+  await page.getByRole('textbox', { name: '产品申报关键字' }).fill(name)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const row = productRow(page, name)
   await expect(row).toHaveCount(1)
@@ -203,7 +203,7 @@ interface ProductDraft {
 }
 
 async function openProductCreate(page: Page): Promise<Locator> {
-  await page.goto('/bob/product')
+  await page.goto('/dcl/product')
   const unitsLoaded = page.waitForResponse((response) =>
     response.url().endsWith('/aux/measurement-unit/query'),
   )
@@ -243,7 +243,7 @@ async function createProductDraft(
     await editor.getByLabel('可回收周转', { exact: true }).check()
   }
   const saved = page.waitForResponse((response) =>
-    response.url().endsWith('/bob/product/create'),
+    response.url().endsWith('/dcl/product/create'),
   )
   await editor.getByRole('button', { name: '保存', exact: true }).click()
   const response = await saved
@@ -261,7 +261,7 @@ async function createProductDraft(
 async function submitProduct(page: Page, name: string): Promise<void> {
   const row = await searchProduct(page, name)
   const submitted = page.waitForResponse((response) =>
-    response.url().endsWith('/bob/product/submit'),
+    response.url().endsWith('/dcl/product/submit'),
   )
   await selectRowAction(page, row, '提交审核')
   const envelope = (await (await submitted).json()) as {
@@ -275,7 +275,7 @@ async function submitProduct(page: Page, name: string): Promise<void> {
 async function approveProduct(page: Page, name: string): Promise<void> {
   const row = await searchProduct(page, name)
   const approved = page.waitForResponse((response) =>
-    response.url().endsWith('/bob/product/approve'),
+    response.url().endsWith('/dcl/product/approve'),
   )
   await selectRowAction(page, row, '审核通过')
   const envelope = (await (await approved).json()) as {
@@ -343,25 +343,17 @@ async function saveProductEditor(
   editor: Locator,
 ): Promise<Record<string, unknown>> {
   const saved = page.waitForResponse((response) =>
-    response.url().endsWith('/bob/product/save'),
-  )
-  const persisted = page.waitForResponse((response) =>
-    response.url().endsWith('/bob/product/get'),
+    response.url().endsWith('/dcl/product/save'),
   )
   await editor.getByRole('button', { name: '保存', exact: true }).click()
   const envelope = (await (await saved).json()) as {
     code: string | number
     message?: string
-  }
-  expect(String(envelope.code), envelope.message).toBe('0')
-  const persistedEnvelope = (await (await persisted).json()) as {
-    code: string | number
-    message?: string
     data: Record<string, unknown>
   }
-  expect(String(persistedEnvelope.code), persistedEnvelope.message).toBe('0')
+  expect(String(envelope.code), envelope.message).toBe('0')
   await expect(editor).not.toHaveClass(/v-navigation-drawer--active/)
-  return persistedEnvelope.data
+  return envelope.data
 }
 
 async function createPackagingCandidate(
@@ -486,6 +478,22 @@ async function readSaleOrderSnapshot(
   return productSnapshotFromDocument(envelope.data)
 }
 
+async function verifyBobProductCurrentReadOnly(
+  page: Page,
+  name: string,
+): Promise<void> {
+  await page.goto('/bob/product')
+  await page.getByRole('textbox', { name: '产品（当前档案）关键字' }).fill(name)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const row = productRow(page, name)
+  await expect(row).toHaveCount(1)
+  await expect(
+    page.getByRole('button', { name: '新增', exact: true }),
+  ).toHaveCount(0)
+  await expect(row.getByText('提交审核', { exact: true })).toHaveCount(0)
+  await expect(row.getByText('审核通过', { exact: true })).toHaveCount(0)
+}
+
 test('已批准产品类型驱动三类产品、固定配方及候选换版', async ({
   page,
   workerState,
@@ -558,6 +566,7 @@ test('已批准产品类型驱动三类产品、固定配方及候选换版', as
 
   await signOut(page)
   await signIn(page, workerState.operator)
+  await verifyBobProductCurrentReadOnly(page, rawProduct)
   const editor = await openProductCreate(page)
   await editor.getByLabel('产品名称', { exact: true }).fill(finishedProduct)
   await selectReference(page, editor, '产品类型', finishedType)
@@ -567,7 +576,7 @@ test('已批准产品类型驱动三类产品、固定配方及候选换版', as
   await editor.getByLabel('默认包装规格', { exact: true }).fill('20')
   await maintainFormula(page, editor, rawProduct)
   const created = page.waitForResponse((response) =>
-    response.url().endsWith('/bob/product/create'),
+    response.url().endsWith('/dcl/product/create'),
   )
   await editor.getByRole('button', { name: '保存', exact: true }).click()
   const envelope = (await (await created).json()) as {
@@ -776,9 +785,12 @@ test('已批准产品类型驱动三类产品、固定配方及候选换版', as
   const snapshotFormula = page
     .getByRole('dialog')
     .filter({ hasText: '固定配方' })
-  await snapshotFormula
-    .getByRole('button', { name: '确认刷新', exact: true })
-    .click()
+  await expect(
+    snapshotFormula.getByText('已解析', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    snapshotFormula.getByRole('button', { name: '确认刷新', exact: true }),
+  ).toHaveCount(0)
   await snapshotFormula
     .getByRole('button', { name: '保存配方', exact: true })
     .click()

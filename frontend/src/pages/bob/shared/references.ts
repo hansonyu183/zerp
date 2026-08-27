@@ -105,6 +105,25 @@ export function useBobReferences(
         const state = referenceState(`editor:${key}`)
         if (state.options.some((option) => option.value === value)) return
 
+        const snapshotCode = form[`${key}Code`]
+        const snapshotName = form[`${key}Name`]
+        if (
+          typeof snapshotCode === 'string' &&
+          typeof snapshotName === 'string'
+        ) {
+          state.options = [
+            ...state.options.filter((option) => option.value !== value),
+            {
+              title: formatReferenceLabel({
+                code: snapshotCode,
+                name: snapshotName,
+              }),
+              value,
+            },
+          ]
+          return
+        }
+
         const domain = reference.domain ?? 'bob'
         const action = reference.value === 'code' ? 'query' : 'get'
         if (!session.can(`/${domain}/${reference.entity}/${action}`)) {

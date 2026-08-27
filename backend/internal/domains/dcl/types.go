@@ -12,7 +12,121 @@ const (
 	EntityWarehouse       = "warehouse"
 	EntityVehicle         = "vehicle"
 	EntityFundAccount     = "fund-account"
+	EntityProduct         = "product"
 )
+
+// ProductInput is the complete, mutable product declaration. Snapshot fields
+// are resolved by the service and are deliberately absent from the wire input.
+type ProductInput struct {
+	Name                 string                            `json:"name"`
+	CategoryID           string                            `json:"categoryId"`
+	Specification        string                            `json:"specification"`
+	Model                string                            `json:"model"`
+	Barcode              string                            `json:"barcode"`
+	Remark               string                            `json:"remark"`
+	ProductTypeID        string                            `json:"productTypeId"`
+	DefaultInputUnitID   string                            `json:"defaultInputUnitId"`
+	PricingUnitID        string                            `json:"pricingUnitId"`
+	UnitConversions      []bobdomain.ProductUnitConversion `json:"unitConversions"`
+	Returnable           bool                              `json:"returnable"`
+	DefaultPackagingSpec string                            `json:"defaultPackagingSpec"`
+	Formula              *bobdomain.ProductFormula         `json:"formula"`
+}
+
+// ProductData is the DCL read snapshot. Keep it product-only: BOB owns the
+// stable identity/current projection, while DCL exposes no unrelated BOB
+// DetailView fields such as bulkLiquidCapable.
+type ProductData struct {
+	Name                            string                            `json:"name"`
+	CategoryID                      string                            `json:"categoryId"`
+	CategoryApprovalEntryID         string                            `json:"categoryApprovalEntryId"`
+	CategoryCode                    string                            `json:"categoryCode"`
+	CategoryName                    string                            `json:"categoryName"`
+	Specification                   string                            `json:"specification"`
+	Model                           string                            `json:"model"`
+	Barcode                         string                            `json:"barcode"`
+	Remark                          string                            `json:"remark"`
+	ProductTypeID                   string                            `json:"productTypeId"`
+	ProductTypeApprovalEntryID      string                            `json:"productTypeApprovalEntryId"`
+	ProductTypeCode                 string                            `json:"productTypeCode"`
+	ProductTypeName                 string                            `json:"productTypeName"`
+	BehaviorProfile                 string                            `json:"behaviorProfile"`
+	DefaultInputUnitID              string                            `json:"defaultInputUnitId"`
+	DefaultInputUnitApprovalEntryID string                            `json:"defaultInputUnitApprovalEntryId"`
+	PricingUnitID                   string                            `json:"pricingUnitId"`
+	PricingUnitApprovalEntryID      string                            `json:"pricingUnitApprovalEntryId"`
+	UnitConversions                 []bobdomain.ProductUnitConversion `json:"unitConversions"`
+	Returnable                      bool                              `json:"returnable"`
+	DefaultPackagingSpec            string                            `json:"defaultPackagingSpec"`
+	Formula                         *bobdomain.ProductFormula         `json:"formula"`
+}
+type ProductCreateInput struct {
+	Data ProductInput `json:"data"`
+}
+type ProductSaveInput struct {
+	ObjectID         string       `json:"objectId"`
+	ApprovalEntryID  string       `json:"approvalEntryId"`
+	ApprovalRevision int64        `json:"approvalRevision"`
+	Enabled          bool         `json:"enabled"`
+	Data             ProductInput `json:"data"`
+}
+type ProductVersionInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+type ProductReviewInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	Reason           string `json:"reason"`
+}
+type ProductDeleteInput = ProductVersionInput
+type ProductGetInput struct {
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+}
+type ProductQueryFilters struct {
+	Keyword       string            `json:"keyword,omitempty"`
+	Status        []approval.Status `json:"status,omitempty"`
+	Enabled       *bool             `json:"enabled,omitempty"`
+	ProductTypeID string            `json:"productTypeId,omitempty"`
+	CategoryID    string            `json:"categoryId,omitempty"`
+}
+
+type ProductQueryInput struct {
+	Page     int                       `json:"page"`
+	PageSize int                       `json:"pageSize"`
+	Filters  ProductQueryFilters       `json:"filters"`
+	Sort     []OperatingEntitySortItem `json:"sort"`
+}
+type ProductHistoryInput = OperatingEntityHistoryInput
+type ProductMutation = OperatingEntityMutation
+type ProductView struct {
+	ObjectID       string               `json:"objectId"`
+	Entity         string               `json:"entity"`
+	Code           string               `json:"code"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	Approval       approval.VersionMeta `json:"approval"`
+	Data           ProductData          `json:"data"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
+}
+type ProductVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Data     ProductData          `json:"data"`
+	Enabled  bool                 `json:"enabled"`
+}
+type ProductQueryItem struct {
+	ObjectID       string              `json:"objectId"`
+	Entity         string              `json:"entity"`
+	Code           string              `json:"code"`
+	ObjectRevision int64               `json:"objectRevision"`
+	Enabled        bool                `json:"enabled"`
+	LatestApproved *ProductVersionView `json:"latestApproved"`
+	OpenVersion    *ProductVersionView `json:"openVersion"`
+	UpdatedAt      time.Time           `json:"updatedAt"`
+}
 
 type FundAccountData struct {
 	Name              string `json:"name"`

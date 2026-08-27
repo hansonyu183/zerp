@@ -544,9 +544,12 @@ CREATE TABLE public.acc_inventory_entries (
     book_id character varying(26) NOT NULL,
     voucher_id character varying(26) NOT NULL,
     voucher_line_id character varying(26) NOT NULL,
-    subject_id character varying(26) NOT NULL,
-    product_id character varying(26) NOT NULL,
-    warehouse_id character varying(26) NOT NULL,
+	subject_id character varying(26) NOT NULL,
+	product_id character varying(26) NOT NULL,
+	product_approval_entry_id character varying(26) NOT NULL,
+	product_code character varying(64) NOT NULL,
+	product_name character varying(200) NOT NULL,
+	warehouse_id character varying(26) NOT NULL,
     business_date date NOT NULL,
     quantity_delta_micros bigint NOT NULL,
     source_line_id character varying(64) NOT NULL,
@@ -1188,7 +1191,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -1208,9 +1211,9 @@ CREATE TABLE public.dcl_warehouse_versions (
     approval_entry_id character varying(26) NOT NULL,
     -- Retained only for the #279 in-place cutover. Warehouse no longer
     -- exposes category as a writable declaration field.
-    category_id character varying(26),
-    category_approval_entry_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
+	category_id character varying(26),
+	category_approval_entry_id character varying(26),
+	category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     address character varying(500),
     contact_name character varying(100),
@@ -1561,7 +1564,6 @@ CREATE TABLE public.bob_fund_accounts (
     enabled boolean NOT NULL, updated_at timestamp with time zone DEFAULT now() NOT NULL, updated_by character varying(26) NOT NULL
 );
 
-
 --
 -- Name: bob_objects; Type: TABLE; Schema: public; Owner: -
 --
@@ -1580,7 +1582,6 @@ CREATE TABLE public.bob_objects (
     CONSTRAINT bob_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['customer'::character varying, 'customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying, 'product'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'operating-entity'::character varying])::text[]))),
     CONSTRAINT bob_objects_revision_check CHECK ((revision >= 1))
 );
-
 
 --
 -- Name: bob_operating_entities; Type: TABLE; Schema: public; Owner: -
@@ -1868,15 +1869,15 @@ CREATE TABLE public.bob_party_relationship_merge_events (
 
 
 --
--- Name: bob_product_formula_lines; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_product_formula_lines; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_product_formula_lines (
+CREATE TABLE public.dcl_product_formula_lines (
     product_approval_entry_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     material_object_id character varying(26) NOT NULL,
     material_approval_entry_id character varying(26) NOT NULL,
-    base_quantity_micros bigint CONSTRAINT bob_product_formula_lines_quantity_micros_not_null NOT NULL,
+    base_quantity_micros bigint CONSTRAINT dcl_product_formula_lines_quantity_micros_not_null NOT NULL,
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
     entered_unit_approval_entry_id character varying(26) NOT NULL,
@@ -1885,34 +1886,34 @@ CREATE TABLE public.bob_product_formula_lines (
     entered_unit_symbol character varying(32) NOT NULL,
     resolution_status character varying(16) DEFAULT 'CURRENT'::character varying NOT NULL,
     requires_confirmation boolean DEFAULT false NOT NULL,
-    CONSTRAINT bob_product_formula_lines_line_no_check CHECK ((line_no >= 1)),
-    CONSTRAINT bob_product_formula_lines_quantity_micros_check CHECK ((base_quantity_micros > 0)),
-    CONSTRAINT bob_product_formula_lines_resolution_status_check CHECK (((resolution_status)::text = ANY ((ARRAY['CURRENT'::character varying, 'UNRESOLVED'::character varying])::text[])))
+    CONSTRAINT dcl_product_formula_lines_line_no_check CHECK ((line_no >= 1)),
+    CONSTRAINT dcl_product_formula_lines_quantity_micros_check CHECK ((base_quantity_micros > 0)),
+    CONSTRAINT dcl_product_formula_lines_resolution_status_check CHECK (((resolution_status)::text = ANY ((ARRAY['CURRENT'::character varying, 'UNRESOLVED'::character varying])::text[])))
 );
 
 
 --
--- Name: bob_product_formulas; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_product_formulas; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_product_formulas (
+CREATE TABLE public.dcl_product_formulas (
     product_approval_entry_id character varying(26) NOT NULL,
-    output_base_quantity_micros bigint CONSTRAINT bob_product_formulas_base_output_quantity_micros_not_null NOT NULL,
+    output_base_quantity_micros bigint CONSTRAINT dcl_product_formulas_base_output_quantity_micros_not_null NOT NULL,
     output_entered_quantity_micros bigint NOT NULL,
     output_unit_object_id character varying(26) NOT NULL,
     output_unit_approval_entry_id character varying(26) NOT NULL,
     output_unit_code character varying(64) NOT NULL,
     output_unit_name character varying(200) NOT NULL,
     output_unit_symbol character varying(32) NOT NULL,
-    CONSTRAINT bob_product_formulas_base_output_quantity_micros_check CHECK ((output_base_quantity_micros > 0))
+    CONSTRAINT dcl_product_formulas_base_output_quantity_micros_check CHECK ((output_base_quantity_micros > 0))
 );
 
 
 --
--- Name: bob_product_unit_conversions; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_product_unit_conversions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_product_unit_conversions (
+CREATE TABLE public.dcl_product_unit_conversions (
     product_approval_entry_id character varying(26) NOT NULL,
     unit_object_id character varying(26) NOT NULL,
     unit_approval_entry_id character varying(26) NOT NULL,
@@ -1920,21 +1921,23 @@ CREATE TABLE public.bob_product_unit_conversions (
     unit_name character varying(200) NOT NULL,
     unit_symbol character varying(32) NOT NULL,
     factor_micros bigint NOT NULL,
-    CONSTRAINT bob_product_unit_conversions_factor_micros_check CHECK ((factor_micros > 0))
+    CONSTRAINT dcl_product_unit_conversions_factor_micros_check CHECK ((factor_micros > 0))
 );
 
 
 --
--- Name: bob_product_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_product_versions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_product_versions (
+CREATE TABLE public.dcl_product_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'product'::character varying NOT NULL,
     name character varying(200) NOT NULL,
-    category_id character varying(26),
-    category_approval_entry_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
+	category_id character varying(26),
+	category_approval_entry_id character varying(26),
+	category_code character varying(64),
+	category_name character varying(200),
+	category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     specification character varying(200),
     model character varying(200),
     barcode character varying(64),
@@ -1950,10 +1953,19 @@ CREATE TABLE public.bob_product_versions (
     behavior_profile character varying(32),
     default_input_unit_id character varying(26),
     default_input_unit_approval_entry_id character varying(26),
-    CONSTRAINT bob_product_default_packaging_spec_ck CHECK (((default_packaging_spec_micros IS NULL) OR (((behavior_profile)::text <> 'PACKAGING'::text) AND (default_packaging_spec_micros > 0)))),
-    CONSTRAINT bob_product_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
-    CONSTRAINT bob_product_versions_entity_check CHECK (((entity)::text = 'product'::text)),
-    CONSTRAINT bob_product_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
+    enabled boolean DEFAULT true NOT NULL,
+    CONSTRAINT dcl_product_default_packaging_spec_ck CHECK (((default_packaging_spec_micros IS NULL) OR (((behavior_profile)::text <> 'PACKAGING'::text) AND (default_packaging_spec_micros > 0)))),
+    CONSTRAINT dcl_product_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
+    CONSTRAINT dcl_product_versions_entity_check CHECK (((entity)::text = 'product'::text)),
+    CONSTRAINT dcl_product_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
+);
+
+CREATE TABLE public.dcl_product_barcode_claims (
+    normalized_barcode character varying(64) NOT NULL PRIMARY KEY,
+    object_id character varying(26) NOT NULL,
+    approved_entry_id character varying(26),
+    open_entry_id character varying(26),
+    CONSTRAINT dcl_product_barcode_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
 );
 
 
@@ -3849,14 +3861,14 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000060', '/dcl/f
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000006', '/bob/customer/query', 'bob', 'customer', 'query', '查询客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 10);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000026', '/bob/employee/query', 'bob', 'employee', 'query', '查询员工', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 30);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000056', '/bob/fund-account/query', 'bob', 'fund-account', 'query', '查询资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 80);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000031', '/bob/product/approve', 'bob', 'product', 'approve', '审核通过产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000032', '/bob/product/audit-history', 'bob', 'product', 'audit-history', '查看审核记录产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000033', '/bob/product/create', 'bob', 'product', 'create', '创建产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000031', '/dcl/product/approve', 'dcl', 'product', 'approve', '审核通过产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000032', '/dcl/product/audit-history', 'dcl', 'product', 'audit-history', '查看审核记录产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000033', '/dcl/product/create', 'dcl', 'product', 'create', '创建产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000035', '/bob/product/get', 'bob', 'product', 'get', '查看产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000037', '/bob/product/reject', 'bob', 'product', 'reject', '审核驳回产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000038', '/bob/product/save', 'bob', 'product', 'save', '保存草稿产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000039', '/bob/product/submit', 'bob', 'product', 'submit', '提交审核产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000040', '/bob/product/versions', 'bob', 'product', 'versions', '查看版本产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000037', '/dcl/product/reject', 'dcl', 'product', 'reject', '审核驳回产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000038', '/dcl/product/save', 'dcl', 'product', 'save', '保存草稿产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000039', '/dcl/product/submit', 'dcl', 'product', 'submit', '提交审核产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000040', '/dcl/product/versions', 'dcl', 'product', 'versions', '查看版本产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000011', '/bob/supplier/approve', 'bob', 'supplier', 'approve', '审核通过供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000012', '/bob/supplier/audit-history', 'bob', 'supplier', 'audit-history', '查看审核记录供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000013', '/bob/supplier/create', 'bob', 'supplier', 'create', '创建供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
@@ -3888,7 +3900,7 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000076', '/bob/v
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000081', '/bob/customer/delete', 'bob', 'customer', 'delete', '删除首版草稿客户', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000082', '/bob/supplier/delete', 'bob', 'supplier', 'delete', '删除首版草稿供应商', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000083', '/bob/employee/delete', 'bob', 'employee', 'delete', '删除首版草稿员工', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000084', '/bob/product/delete', 'bob', 'product', 'delete', '删除首版草稿产品', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000084', '/dcl/product/delete', 'dcl', 'product', 'delete', '删除首版草稿产品', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000086', '/dcl/warehouse/delete', 'dcl', 'warehouse', 'delete', '删除首版仓库声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000087', '/dcl/vehicle/delete', 'dcl', 'vehicle', 'delete', '删除首版车辆声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000088', '/dcl/fund-account/delete', 'dcl', 'fund-account', 'delete', '删除首版草稿资金账户', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
@@ -4119,10 +4131,10 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000141', '/bob/e
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000142', '/bob/employee/unapprove', 'bob', 'employee', 'unapprove', 'unapprove employee', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000143', '/bob/employee/enable', 'bob', 'employee', 'enable', 'enable employee', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000144', '/bob/employee/disable', 'bob', 'employee', 'disable', 'disable employee', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000145', '/bob/product/unsubmit', 'bob', 'product', 'unsubmit', 'unsubmit product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000146', '/bob/product/unapprove', 'bob', 'product', 'unapprove', 'unapprove product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000147', '/bob/product/enable', 'bob', 'product', 'enable', 'enable product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000148', '/bob/product/disable', 'bob', 'product', 'disable', 'disable product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000145', '/dcl/product/unsubmit', 'dcl', 'product', 'unsubmit', 'unsubmit product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000146', '/dcl/product/unapprove', 'dcl', 'product', 'unapprove', 'unapprove product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL28200000000000000001', '/dcl/product/get', 'dcl', 'product', 'get', '查看产品声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL28200000000000000002', '/dcl/product/query', 'dcl', 'product', 'query', '查询产品声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000153', '/dcl/warehouse/unsubmit', 'dcl', 'warehouse', 'unsubmit', '撤回仓库声明审核', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000154', '/dcl/warehouse/unapprove', 'dcl', 'warehouse', 'unapprove', '反审核仓库声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000155', '/dcl/warehouse/get', 'dcl', 'warehouse', 'get', '查看仓库声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
@@ -4930,25 +4942,25 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 
 
 --
--- Data for Name: bob_product_formula_lines; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_product_formula_lines; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_product_formulas; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_product_formulas; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_product_unit_conversions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_product_unit_conversions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_product_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_product_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -6507,43 +6519,43 @@ ALTER TABLE ONLY public.bob_party_relationship_merge_events
 
 
 --
--- Name: bob_product_formula_lines bob_product_formula_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_product_formula_lines dcl_product_formula_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_product_formula_lines_pkey PRIMARY KEY (product_approval_entry_id, line_no);
-
-
---
--- Name: bob_product_formula_lines bob_formula_lines_product_entry_material_object_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_formula_lines_product_entry_material_object_key UNIQUE (product_approval_entry_id, material_object_id);
+ALTER TABLE ONLY public.dcl_product_formula_lines
+    ADD CONSTRAINT dcl_product_formula_lines_pkey PRIMARY KEY (product_approval_entry_id, line_no);
 
 
 --
--- Name: bob_product_formulas bob_product_formulas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_product_formula_lines dcl_product_formula_lines_product_entry_material_object_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_product_formulas
-    ADD CONSTRAINT bob_product_formulas_pkey PRIMARY KEY (product_approval_entry_id);
-
-
---
--- Name: bob_product_unit_conversions bob_product_unit_conversions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_product_unit_conversions
-    ADD CONSTRAINT bob_product_unit_conversions_pkey PRIMARY KEY (product_approval_entry_id, unit_object_id);
+ALTER TABLE ONLY public.dcl_product_formula_lines
+    ADD CONSTRAINT dcl_product_formula_lines_product_entry_material_object_key UNIQUE (product_approval_entry_id, material_object_id);
 
 
 --
--- Name: bob_product_versions bob_product_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_product_formulas dcl_product_formulas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_product_versions
-    ADD CONSTRAINT bob_product_versions_pkey PRIMARY KEY (approval_entry_id);
+ALTER TABLE ONLY public.dcl_product_formulas
+    ADD CONSTRAINT dcl_product_formulas_pkey PRIMARY KEY (product_approval_entry_id);
+
+
+--
+-- Name: dcl_product_unit_conversions dcl_product_unit_conversions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dcl_product_unit_conversions
+    ADD CONSTRAINT dcl_product_unit_conversions_pkey PRIMARY KEY (product_approval_entry_id, unit_object_id);
+
+
+--
+-- Name: dcl_product_versions dcl_product_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dcl_product_versions
+    ADD CONSTRAINT dcl_product_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -7754,10 +7766,10 @@ CREATE INDEX bob_party_relationship_merge_events_source_idx ON public.bob_party_
 
 
 --
--- Name: bob_product_versions_category_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_product_versions_category_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_product_versions_category_idx ON public.bob_product_versions USING btree (category_id);
+CREATE INDEX dcl_product_versions_category_idx ON public.dcl_product_versions USING btree (category_id);
 
 
 --
@@ -8248,6 +8260,12 @@ CREATE CONSTRAINT TRIGGER vou_sale_return_detail_ck AFTER INSERT OR DELETE OR UP
 --
 
 CREATE CONSTRAINT TRIGGER vou_sale_signoff_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.vou_sale_signoff_details DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.vou_validate_document_detail();
+
+CREATE TABLE public.bob_products (
+    object_id character varying(26) NOT NULL PRIMARY KEY REFERENCES public.bob_objects(id) ON DELETE RESTRICT,
+    source_approval_entry_id character varying(26) NOT NULL UNIQUE REFERENCES public.approval_entries(id) ON DELETE RESTRICT,
+    enabled boolean NOT NULL, updated_at timestamp with time zone DEFAULT now() NOT NULL, updated_by character varying(26) NOT NULL
+);
 
 
 --
@@ -8971,6 +8989,12 @@ ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
     ADD CONSTRAINT dcl_fund_account_identifier_claims_approved_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
     ADD CONSTRAINT dcl_fund_account_identifier_claims_open_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_product_barcode_claims
+    ADD CONSTRAINT dcl_product_barcode_claims_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_product_barcode_claims
+    ADD CONSTRAINT dcl_product_barcode_claims_approved_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_product_barcode_claims
+    ADD CONSTRAINT dcl_product_barcode_claims_open_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.bob_fund_accounts
     ADD CONSTRAINT bob_fund_accounts_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.bob_fund_accounts
@@ -9092,59 +9116,59 @@ ALTER TABLE ONLY public.bob_party_relationship_merge_events
 
 
 --
--- Name: bob_product_formula_lines bob_product_formula_lines_material_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_product_formula_lines dcl_product_formula_lines_material_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_product_formula_lines_material_object_id_fkey FOREIGN KEY (material_object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_product_formula_lines bob_product_formula_lines_material_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_product_formula_lines_material_approval_entry_id_fkey FOREIGN KEY (material_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_product_formula_lines
+    ADD CONSTRAINT dcl_product_formula_lines_material_object_id_fkey FOREIGN KEY (material_object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_product_formula_lines bob_product_formula_lines_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_product_formula_lines dcl_product_formula_lines_material_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_product_formula_lines_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.bob_product_formulas(product_approval_entry_id) ON DELETE CASCADE;
-
-
---
--- Name: bob_product_formulas bob_product_formulas_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_product_formulas
-    ADD CONSTRAINT bob_product_formulas_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.bob_product_versions(approval_entry_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_product_formula_lines
+    ADD CONSTRAINT dcl_product_formula_lines_material_approval_entry_id_fkey FOREIGN KEY (material_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_product_unit_conversions bob_product_unit_conversions_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_product_formula_lines dcl_product_formula_lines_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_product_unit_conversions
-    ADD CONSTRAINT bob_product_unit_conversions_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.bob_product_versions(approval_entry_id) ON DELETE CASCADE;
-
-
---
--- Name: bob_product_unit_conversions bob_product_unit_conversions_unit_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_product_unit_conversions
-    ADD CONSTRAINT bob_product_unit_conversions_unit_object_id_fkey FOREIGN KEY (unit_object_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_product_formula_lines
+    ADD CONSTRAINT dcl_product_formula_lines_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.dcl_product_formulas(product_approval_entry_id) ON DELETE CASCADE;
 
 
 --
--- Name: bob_product_versions bob_product_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_product_formulas dcl_product_formulas_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_product_versions
-    ADD CONSTRAINT bob_product_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_product_formulas
+    ADD CONSTRAINT dcl_product_formulas_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.dcl_product_versions(approval_entry_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: dcl_product_unit_conversions dcl_product_unit_conversions_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dcl_product_unit_conversions
+    ADD CONSTRAINT dcl_product_unit_conversions_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.dcl_product_versions(approval_entry_id) ON DELETE CASCADE;
+
+
+--
+-- Name: dcl_product_unit_conversions dcl_product_unit_conversions_unit_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dcl_product_unit_conversions
+    ADD CONSTRAINT dcl_product_unit_conversions_unit_object_id_fkey FOREIGN KEY (unit_object_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: dcl_product_versions dcl_product_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dcl_product_versions
+    ADD CONSTRAINT dcl_product_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -10256,8 +10280,8 @@ ALTER TABLE ONLY public.aux_version_payloads
     ADD CONSTRAINT aux_version_payloads_object_id_entity_fkey
     FOREIGN KEY (object_id, entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.bob_product_unit_conversions
-    ADD CONSTRAINT bob_product_unit_conversions_unit_approval_entry_id_fkey
+ALTER TABLE ONLY public.dcl_product_unit_conversions
+    ADD CONSTRAINT dcl_product_unit_conversions_unit_approval_entry_id_fkey
     FOREIGN KEY (unit_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 

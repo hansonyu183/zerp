@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getBobEntityConfig } from '@/pages/bob/shared/config'
+import { dclProductConfig } from '@/pages/dcl/product/config'
 
 describe('product default packaging specification', () => {
   it('作为产品版本的单一正数维护', () => {
-    const config = getBobEntityConfig('product')
+    const config = dclProductConfig
     const form = config.emptyForm()
     const fields = config.fields({
       mode: 'create',

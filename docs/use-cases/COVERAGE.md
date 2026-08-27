@@ -4,9 +4,9 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：79
-- 已覆盖入口：27
-- 已登记用例：26
+- 页面入口：80
+- 已覆盖入口：28
+- 已登记用例：27
 - 缺少用例：52
 - 孤儿用例：0
 
@@ -31,6 +31,7 @@
 | 仓库申报     | `/dcl/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)        |
 | 车辆申报     | `/dcl/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)          |
 | 资金账户申报 | `/dcl/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)     |
+| 产品申报     | `/dcl/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)          |
 
 ## RPT
 
@@ -59,7 +60,7 @@
 | 其他单位             | `/bob/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/other-unit.md)       |
 | 销售合作方           | `/bob/sales-partner`    | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/sales-partner.md)    |
 | 员工                 | `/bob/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/employee.md)         |
-| 产品                 | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/product.md)          |
+| 产品（当前档案）     | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/product.md)          |
 | 仓库                 | `/bob/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/warehouse.md)        |
 | 车辆                 | `/bob/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/vehicle.md)          |
 | 资金账户（当前档案） | `/bob/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/fund-account.md)     |

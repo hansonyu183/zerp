@@ -2842,6 +2842,498 @@
                 },
             },
         },
+      '/dcl/product/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '新建产品声明草稿',
+              'operationId': 'dclProductCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存产品声明草稿',
+              'operationId': 'dclProductSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的产品候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductSaveResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交产品声明',
+              'operationId': 'dclProductSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回产品声明',
+              'operationId': 'dclProductUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回产品声明',
+              'operationId': 'dclProductReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '审核通过产品声明',
+              'operationId': 'dclProductApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反审核产品声明',
+              'operationId': 'dclProductUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除产品草稿',
+              'operationId': 'dclProductDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '删除后的产品候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询产品声明',
+              'operationId': 'dclProductGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品声明。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询产品声明列表',
+              'operationId': 'dclProductQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品声明列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询产品声明版本',
+              'operationId': 'dclProductVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品声明版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/product/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询产品声明审核历史',
+              'operationId': 'dclProductAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclProductHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '产品审核历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclProductAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/dcl/operating-entity/create':
         {
           'post':

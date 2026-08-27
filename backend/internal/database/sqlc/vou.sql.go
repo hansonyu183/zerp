@@ -3810,34 +3810,38 @@ func (q *Queries) ListVouExpenseLines(ctx context.Context, documentID string) ([
 
 const listVouInventoryCountBookBalances = `-- name: ListVouInventoryCountBookBalances :many
 SELECT entry.product_id AS product_object_id,
-       product_entry.id AS product_approval_entry_id,
-       object.code AS product_code,
-       version.name AS product_name,
+	   snapshot.product_approval_entry_id,
+	   snapshot.product_code,
+	   snapshot.product_name,
 	   conversion.unit_symbol AS entered_unit_symbol,
 	   sum(entry.quantity_delta_micros)::bigint AS base_quantity_micros
 FROM acc_inventory_entries entry
 JOIN acc_books book ON book.id=entry.book_id AND book.control_book
-JOIN bob_objects object ON object.id=entry.product_id AND object.entity='product'
 JOIN LATERAL (
-  SELECT id FROM approval_entries
-  WHERE domain='bob' AND entity='product' AND subject_id=object.id AND status='APPROVED'
-  ORDER BY version_no DESC LIMIT 1
-) product_entry ON true
-JOIN bob_product_versions version ON version.approval_entry_id=product_entry.id
-JOIN bob_product_unit_conversions conversion
-  ON conversion.product_approval_entry_id=version.approval_entry_id
+	SELECT source.product_approval_entry_id,source.product_code,source.product_name
+	FROM acc_inventory_entries source
+	WHERE source.product_id=entry.product_id
+	  AND source.warehouse_id=entry.warehouse_id
+	  AND source.book_id=entry.book_id
+	  AND source.business_date <= $1
+	ORDER BY source.business_date DESC,source.id DESC
+	LIMIT 1
+) snapshot ON true
+JOIN dcl_product_versions version ON version.approval_entry_id=snapshot.product_approval_entry_id
+JOIN dcl_product_unit_conversions conversion
+	ON conversion.product_approval_entry_id=version.approval_entry_id
  AND conversion.unit_object_id=version.default_input_unit_id
-WHERE entry.warehouse_id=$1
-  AND entry.business_date <= $2
-GROUP BY entry.product_id,product_entry.id,object.code,version.name,conversion.unit_symbol
+WHERE entry.warehouse_id=$2
+  AND entry.business_date <= $1
+GROUP BY entry.product_id,snapshot.product_approval_entry_id,snapshot.product_code,snapshot.product_name,conversion.unit_symbol
 HAVING sum(entry.quantity_delta_micros) <> 0
-ORDER BY object.code,entry.product_id
+ORDER BY snapshot.product_code,entry.product_id
 LIMIT $4 OFFSET $3
 `
 
 type ListVouInventoryCountBookBalancesParams struct {
-	WarehouseObjectID string      `db:"warehouse_object_id" json:"warehouse_object_id"`
 	AsOfDate          pgtype.Date `db:"as_of_date" json:"as_of_date"`
+	WarehouseObjectID string      `db:"warehouse_object_id" json:"warehouse_object_id"`
 	PageOffset        int32       `db:"page_offset" json:"page_offset"`
 	PageSize          int32       `db:"page_size" json:"page_size"`
 }
@@ -3853,8 +3857,8 @@ type ListVouInventoryCountBookBalancesRow struct {
 
 func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error) {
 	rows, err := q.db.Query(ctx, listVouInventoryCountBookBalances,
-		arg.WarehouseObjectID,
 		arg.AsOfDate,
+		arg.WarehouseObjectID,
 		arg.PageOffset,
 		arg.PageSize,
 	)

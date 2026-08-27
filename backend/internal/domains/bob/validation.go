@@ -291,6 +291,9 @@ func normalizeDetail(input *DetailView) {
 			component.Material.ObjectID = strings.TrimSpace(component.Material.ObjectID)
 			component.Material.ApprovalEntryID = strings.TrimSpace(component.Material.ApprovalEntryID)
 			component.ResolutionStatus = strings.ToUpper(strings.TrimSpace(component.ResolutionStatus))
+			if component.ResolutionStatus == "" {
+				component.ResolutionStatus = "CURRENT"
+			}
 			normalizeQuantitySnapshot(&component.Quantity)
 		}
 	}
@@ -559,6 +562,9 @@ func validateProductDraft(input DetailView) error {
 		for index, component := range input.Formula.Components {
 			if !validID(component.Material.ObjectID) || (component.Material.ApprovalEntryID != "" && !validID(component.Material.ApprovalEntryID)) {
 				return domainError(ErrorValidation, fmt.Sprintf("formula.components[%d].material is invalid", index), nil, nil)
+			}
+			if component.ResolutionStatus != "CURRENT" && component.ResolutionStatus != "UNRESOLVED" {
+				return domainError(ErrorValidation, fmt.Sprintf("formula.components[%d].resolutionStatus is invalid", index), nil, nil)
 			}
 			if seenMaterials[component.Material.ObjectID] {
 				return domainError(ErrorValidation, fmt.Sprintf("formula.components[%d].material is duplicated", index), nil, nil)

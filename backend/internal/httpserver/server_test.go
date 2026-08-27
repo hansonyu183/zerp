@@ -177,6 +177,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		dcldomain.NewWarehouseHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewVehicleHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewFundAccountHandler(nil, nil, testLogger()).Register(router)
+		dcldomain.NewProductHandler(nil, nil, testLogger()).Register(router)
 		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
 		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)
 		rptdomain.NewHandler(nil, nil, testLogger()).Register(router)
@@ -208,6 +209,14 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 	for contractPath, pathItem := range swagger.Paths.Map() {
 		for method := range pathItem.Operations() {
 			key := strings.ToUpper(method) + " " + contractPath
+			if strings.HasPrefix(contractPath, "/bob/{entity}/") {
+				for route := range registered {
+					if strings.HasPrefix(route, strings.ToUpper(method)+" /bob/") && strings.HasSuffix(route, strings.TrimPrefix(contractPath, "/bob/{entity}")) {
+						registered[key] = true
+						break
+					}
+				}
+			}
 			if !registered[key] {
 				t.Errorf("OpenAPI operation %s is not registered by Gin", key)
 			}

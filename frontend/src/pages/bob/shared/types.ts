@@ -28,18 +28,9 @@ export function bobListActiveVersion(item: BobListItem): BobVersionSummary {
 export type BobVersionMeta = components['schemas']['ApprovalVersionMeta']
 export type BobObjectView = components['schemas']['BobObjectView']
 export type BobMutationResult = components['schemas']['BobMutationResult']
-export type BobVersionRevisionRequest =
-  components['schemas']['BobVersionRevisionRequest']
 export type BobVersionHistoryItem =
   components['schemas']['BobVersionHistoryItem']
 export type BobAuditEvent = components['schemas']['ApprovalEventView']
-
-export interface BobEditContext {
-  objectId: string
-  objectRevision: number
-  approvalEntryId: string
-  approvalRevision: number
-}
 
 interface ReferenceConfigBase {
   value?: 'objectId' | 'code'
@@ -75,37 +66,10 @@ export interface BobEntityConfig {
   nameLabel: string
   emptyForm: () => BobForm
   detailKeys: readonly string[]
-  requiredKeys: readonly string[]
-  uppercaseKeys?: readonly string[]
-  persistedKeys?: readonly string[]
   fields: (context: BobFieldContext) => readonly BusinessObjectField<BobForm>[]
   columns: readonly BusinessObjectColumn<BobListItem>[]
   filters: readonly BobFilterField[]
   references?: Readonly<Record<string, BobReferenceConfig>>
-}
-
-export function bobWriteEntity(
-  config: Pick<BobEntityConfig, 'entity'>,
-): components['schemas']['BobCrudEntity'] {
-  if (
-    config.entity === 'operating-entity' ||
-    config.entity === 'warehouse' ||
-    config.entity === 'vehicle' ||
-    config.entity === 'fund-account'
-  ) {
-    throw new Error(
-      `${
-        config.entity === 'warehouse'
-          ? '仓库'
-          : config.entity === 'vehicle'
-            ? '车辆'
-            : config.entity === 'fund-account'
-              ? '资金账户'
-              : '经营主体'
-      }写入必须使用 DCL。`,
-    )
-  }
-  return config.entity
 }
 
 export interface BobFieldContext {
@@ -119,18 +83,3 @@ export interface BobFieldContext {
 
 export type AuxReferenceQueryItem = components['schemas']['AuxObjectView']
 export type AuxReferenceObject = components['schemas']['AuxObjectView']
-
-export interface BobActionAvailability {
-  view: boolean
-  edit: boolean
-  delete: boolean
-  submit: boolean
-  unsubmit: boolean
-  approve: boolean
-  unapprove: boolean
-  reject: boolean
-  enable: boolean
-  disable: boolean
-  versions: boolean
-  audit: boolean
-}

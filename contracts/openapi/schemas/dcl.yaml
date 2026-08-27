@@ -1176,4 +1176,430 @@
     },
   'DclFundAccountAuditHistoryResponse':
     { '$ref': '#/DclWarehouseAuditHistoryResponse' },
+  'DclProductInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'name',
+          'categoryId',
+          'specification',
+          'model',
+          'barcode',
+          'remark',
+          'productTypeId',
+          'defaultInputUnitId',
+          'pricingUnitId',
+          'unitConversions',
+          'returnable',
+          'defaultPackagingSpec',
+          'formula',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1 },
+          'categoryId': { 'type': 'string', 'nullable': true },
+          'specification': { 'type': 'string', 'nullable': true },
+          'model': { 'type': 'string', 'nullable': true },
+          'barcode': { 'type': 'string', 'nullable': true },
+          'remark': { 'type': 'string', 'nullable': true },
+          'productTypeId': { 'type': 'string', 'nullable': true },
+          'defaultInputUnitId': { 'type': 'string', 'nullable': true },
+          'pricingUnitId': { 'type': 'string', 'nullable': true },
+          'unitConversions':
+            {
+              'type': 'array',
+              'items': { '$ref': './bob.yaml#/BobProductUnitConversionInput' },
+            },
+          'returnable': { 'type': 'boolean' },
+          'defaultPackagingSpec': { 'type': 'string', 'nullable': true },
+          'formula':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': './bob.yaml#/BobProductFormulaInput' }],
+              'nullable': true,
+            },
+        },
+    },
+  'DclProductQuantitySnapshot':
+    {
+      'type': 'object',
+      'required': ['enteredQuantity', 'enteredUnit', 'baseQuantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': './bob.yaml#/BobMeasurementUnitSnapshot' },
+          'baseQuantity': { 'type': 'string' },
+        },
+    },
+  'DclProductFormulaComponentSnapshot':
+    {
+      'type': 'object',
+      'required':
+        ['material', 'quantity', 'resolutionStatus', 'requiresConfirmation'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'material':
+            {
+              'type': 'object',
+              'required':
+                [
+                  'objectId',
+                  'approvalEntryId',
+                  'code',
+                  'name',
+                  'behaviorProfile',
+                ],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
+                  'code': { 'type': 'string' },
+                  'name': { 'type': 'string' },
+                  'behaviorProfile':
+                    {
+                      'type': 'string',
+                      'enum':
+                        [
+                          'RAW_MATERIAL',
+                          'STANDARD_FINISHED',
+                          'CUSTOM_FINISHED',
+                          'PACKAGING',
+                        ],
+                    },
+                },
+            },
+          'quantity': { '$ref': '#/DclProductQuantitySnapshot' },
+          'resolutionStatus':
+            { 'type': 'string', 'enum': ['CURRENT', 'UNRESOLVED'] },
+          'requiresConfirmation': { 'type': 'boolean' },
+        },
+    },
+  'DclProductFormulaSnapshot':
+    {
+      'type': 'object',
+      'required': ['output', 'components'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'output': { '$ref': '#/DclProductQuantitySnapshot' },
+          'components':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclProductFormulaComponentSnapshot' },
+            },
+        },
+    },
+  'DclProductData':
+    {
+      'type': 'object',
+      'required': ['name', 'unitConversions', 'returnable'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string' },
+          'categoryId': { 'type': 'string', 'nullable': true },
+          'categoryApprovalEntryId': { 'type': 'string', 'nullable': true },
+          'categoryCode': { 'type': 'string', 'nullable': true },
+          'categoryName': { 'type': 'string', 'nullable': true },
+          'specification': { 'type': 'string', 'nullable': true },
+          'model': { 'type': 'string', 'nullable': true },
+          'barcode': { 'type': 'string', 'nullable': true },
+          'remark': { 'type': 'string', 'nullable': true },
+          'productTypeId': { 'type': 'string', 'nullable': true },
+          'productTypeApprovalEntryId': { 'type': 'string', 'nullable': true },
+          'productTypeCode': { 'type': 'string', 'nullable': true },
+          'productTypeName': { 'type': 'string', 'nullable': true },
+          'behaviorProfile':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'RAW_MATERIAL',
+                  'STANDARD_FINISHED',
+                  'CUSTOM_FINISHED',
+                  'PACKAGING',
+                ],
+              'nullable': true,
+            },
+          'defaultInputUnitId': { 'type': 'string', 'nullable': true },
+          'defaultInputUnitApprovalEntryId':
+            { 'type': 'string', 'nullable': true },
+          'pricingUnitId': { 'type': 'string', 'nullable': true },
+          'pricingUnitApprovalEntryId': { 'type': 'string', 'nullable': true },
+          'unitConversions':
+            {
+              'type': 'array',
+              'items':
+                { '$ref': './bob.yaml#/BobProductUnitConversionSnapshot' },
+            },
+          'returnable': { 'type': 'boolean' },
+          'defaultPackagingSpec': { 'type': 'string', 'nullable': true },
+          'formula':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclProductFormulaSnapshot' }],
+              'nullable': true,
+            },
+        },
+    },
+  'DclProductCreateRequest':
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/DclProductInput' } },
+    },
+  'DclProductSaveRequest':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'enabled': { 'type': 'boolean' },
+          'data': { '$ref': '#/DclProductInput' },
+        },
+    },
+  'DclProductVersionRequest': { '$ref': '#/DclOperatingEntityVersionRequest' },
+  'DclProductReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
+  'DclProductGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
+  'DclProductQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'nullable': true,
+              'properties':
+                {
+                  'keyword': { 'type': 'string' },
+                  'status':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': './common.yaml#/ApprovalStatus' },
+                    },
+                  'enabled': { 'type': 'boolean' },
+                  'productTypeId': { 'type': 'string', 'nullable': true },
+                  'categoryId': { 'type': 'string', 'nullable': true },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string' },
+                      'order': { 'type': 'string', 'enum': ['asc', 'desc'] },
+                    },
+                },
+            },
+        },
+    },
+  'DclProductHistoryRequest': { '$ref': '#/DclOperatingEntityHistoryRequest' },
+  'DclProductMutation': { '$ref': '#/DclOperatingEntityMutation' },
+  'DclProductView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'approval',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['product'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclProductData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclProductVersionView':
+    {
+      'type': 'object',
+      'required': ['approval', 'data', 'enabled'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclProductData' },
+          'enabled': { 'type': 'boolean' },
+        },
+    },
+  'DclProductListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['product'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'latestApproved':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclProductVersionView' }],
+              'nullable': true,
+            },
+          'openVersion':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclProductVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclProductQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclProductListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclProductVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclProductVersionView' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclProductMutationResponse': { '$ref': '#/DclWarehouseMutationResponse' },
+  'DclProductSaveResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclProductView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclProductViewResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclProductView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclProductQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclProductQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclProductVersionPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclProductVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclProductAuditHistoryResponse':
+    { '$ref': '#/DclWarehouseAuditHistoryResponse' },
 }

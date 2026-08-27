@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { BusinessObjectFieldOption } from '@/components/business-object'
-import type { ProductUnitConversionDraft } from '../shared/product-data'
+import type { ProductUnitConversionDraft } from '@/pages/dcl/product/product-data'
 
 defineOptions({ name: 'ProductUnitConversionsEditor' })
 

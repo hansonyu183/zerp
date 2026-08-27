@@ -18,6 +18,7 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 	seedUsers(t, pool)
 	service := defaultIntegrationACCService(pool)
 	productID, warehouseID := ulid.Make().String(), ulid.Make().String()
+	product := createAccountingProductSnapshot(t, pool, productID, "库存测试产品 V1")
 
 	createInventoryBook := func(name string, openingQuantity string) (BookView, SubjectView) {
 		book, err := service.CreateBook(t.Context(), CreateBookInput{Name: name, StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
@@ -64,9 +65,19 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 	}
 
 	controlBook, controlSubject := createInventoryBook("库存控制账", "5")
-	event := inventoryApprovalEvent(productID, warehouseID, "4")
+	event := inventoryApprovalEvent(product, warehouseID, "4")
 	deliverApprovalEvent(t, pool, service, event, false)
 	assertInventoryQuantity(t, pool, controlBook.ID, controlSubject.ID, productID, warehouseID, 1_000_000)
+	_ = createAccountingProductVersion(t, pool, product, "库存测试产品 V2")
+	var storedEntryID, storedName string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT product_approval_entry_id,product_name
+		FROM acc_inventory_entries
+		WHERE book_id=$1 AND product_id=$2
+		ORDER BY business_date,id LIMIT 1
+	`, controlBook.ID, productID).Scan(&storedEntryID, &storedName); err != nil || storedEntryID != product.ApprovalEntryID || storedName != product.Name {
+		t.Fatalf("inventory product snapshot=%s/%s want=%s/%s err=%v", storedEntryID, storedName, product.ApprovalEntryID, product.Name, err)
+	}
 	deliverApprovalEvent(t, pool, service, event, false)
 	assertInventoryQuantity(t, pool, controlBook.ID, controlSubject.ID, productID, warehouseID, 1_000_000)
 
@@ -86,12 +97,12 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 	}
 	assertInventoryQuantity(t, pool, controlBook.ID, controlSubject.ID, productID, warehouseID, 5_000_000)
 
-	event = inventoryApprovalEvent(productID, warehouseID, "6")
+	event = inventoryApprovalEvent(product, warehouseID, "6")
 	deliverApprovalEvent(t, pool, service, event, true)
 	assertInventoryQuantity(t, pool, controlBook.ID, controlSubject.ID, productID, warehouseID, 5_000_000)
 
 	nonControlBook, nonControlSubject := createInventoryBook("管理库存账", "0")
-	event = inventoryApprovalEvent(productID, warehouseID, "6")
+	event = inventoryApprovalEvent(product, warehouseID, "6")
 	// The control book would reject this source, so use a business date before its start month;
 	// only the non-control book is applicable and may temporarily become negative.
 	event.Payload.Data.BusinessDate = "2026-06-30"
@@ -105,12 +116,12 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 
 func stringPointer(value string) *string { return &value }
 
-func inventoryApprovalEvent(productID, warehouseID, quantity string) approval.Event[voudomain.ApprovalPayload] {
+func inventoryApprovalEvent(product accountingProductSnapshot, warehouseID, quantity string) approval.Event[voudomain.ApprovalPayload] {
 	documentID := ulid.Make().String()
 	snapshot := voudomain.DocumentView{
 		DocumentID: documentID, Entity: voudomain.EntitySaleOrder, DocumentNo: "SO-TEST",
 		Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3}, Amount: "0",
-		Data: voudomain.DocumentDataView{BusinessDate: "2026-07-25", Currency: "CNY", Warehouse: &voudomain.ReferenceView{ObjectID: warehouseID}, ProductLines: []voudomain.ProductLineView{{LineID: ulid.Make().String(), Product: voudomain.ReferenceView{ObjectID: productID}, BaseQuantity: quantity}}},
+		Data: voudomain.DocumentDataView{BusinessDate: "2026-07-25", Currency: "CNY", Warehouse: &voudomain.ReferenceView{ObjectID: warehouseID}, ProductLines: []voudomain.ProductLineView{{LineID: ulid.Make().String(), Product: voudomain.ReferenceView{ObjectID: product.ObjectID, ApprovalEntryID: product.ApprovalEntryID, Code: product.Code, Name: product.Name}, BaseQuantity: quantity}}},
 	}
 	return approvedVOUEvent(snapshot)
 }

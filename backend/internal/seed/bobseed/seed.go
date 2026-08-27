@@ -69,11 +69,16 @@ type relationshipAwareLifecycleService struct {
 	warehouses              *dcldomain.WarehouseService
 	vehicles                *dcldomain.VehicleService
 	fundAccounts            *dcldomain.FundAccountService
+	products                *dcldomain.ProductService
 }
 
 func (service relationshipAwareLifecycleService) Create(
 	ctx context.Context, entity string, input bob.CreateInput, actor approval.Actor,
 ) (bob.MutationResult, error) {
+	if entity == bob.EntityProduct {
+		result, err := service.products.Create(ctx, dcldomain.ProductCreateInput{Data: productData(input.Data)}, actor)
+		return productMutation(result), err
+	}
 	if entity == bob.EntityOperatingEntity {
 		result, err := service.operatingEntities.Create(ctx, dcldomain.OperatingEntityCreateInput{
 			Data: operatingEntityData(input.Data),
@@ -219,6 +224,57 @@ func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context
 func (service relationshipAwareLifecycleService) Save(
 	ctx context.Context, entity string, input bob.SaveInput, actor approval.Actor,
 ) (bob.MutationResult, error) {
+	if entity == bob.EntityProduct {
+		view, err := service.products.Get(ctx, dcldomain.ProductGetInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+		}, mustSeedActor("seed-bob-product-save-get"))
+		if err != nil {
+			return bob.MutationResult{}, err
+		}
+		data := productInputFromView(view.Data)
+		data.Name = input.Data.Name
+		if input.Data.CategoryID.Set {
+			data.CategoryID = input.Data.CategoryID.Value
+		}
+		if input.Data.Specification.Set {
+			data.Specification = input.Data.Specification.Value
+		}
+		if input.Data.Model.Set {
+			data.Model = input.Data.Model.Value
+		}
+		if input.Data.Barcode.Set {
+			data.Barcode = input.Data.Barcode.Value
+		}
+		if input.Data.Remark.Set {
+			data.Remark = input.Data.Remark.Value
+		}
+		if input.Data.ProductTypeID.Set {
+			data.ProductTypeID = input.Data.ProductTypeID.Value
+		}
+		if input.Data.DefaultInputUnitID.Set {
+			data.DefaultInputUnitID = input.Data.DefaultInputUnitID.Value
+		}
+		if input.Data.PricingUnitID.Set {
+			data.PricingUnitID = input.Data.PricingUnitID.Value
+		}
+		if input.Data.UnitConversions != nil {
+			data.UnitConversions = *input.Data.UnitConversions
+		}
+		if input.Data.Returnable != nil {
+			data.Returnable = *input.Data.Returnable
+		}
+		if input.Data.DefaultPackagingSpec.Set {
+			data.DefaultPackagingSpec = input.Data.DefaultPackagingSpec.Value
+		}
+		if input.Data.Formula != nil {
+			data.Formula = input.Data.Formula
+		}
+		result, err := service.products.Save(ctx, dcldomain.ProductSaveInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Enabled: view.Enabled, Data: data,
+		}, actor)
+		return productViewMutation(result), err
+	}
 	if entity == bob.EntityOperatingEntity {
 		view, err := service.operatingEntities.Get(ctx, dcldomain.OperatingEntityGetInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
@@ -302,6 +358,10 @@ func (service relationshipAwareLifecycleService) Save(
 func (service relationshipAwareLifecycleService) Get(
 	ctx context.Context, entity string, input bob.GetInput,
 ) (bob.ObjectView, error) {
+	if entity == bob.EntityProduct {
+		view, err := service.products.Get(ctx, dcldomain.ProductGetInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID}, mustSeedActor("seed-bob-product-get"))
+		return productView(view), err
+	}
 	if entity == bob.EntityOperatingEntity {
 		view, err := service.operatingEntities.Get(ctx, dcldomain.OperatingEntityGetInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
@@ -342,6 +402,10 @@ func (service relationshipAwareLifecycleService) Get(
 }
 
 func (service relationshipAwareLifecycleService) Submit(ctx context.Context, entity string, input bob.VersionRevisionInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityProduct {
+		result, err := service.products.Submit(ctx, dcldomain.ProductVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return productMutation(result), err
+	}
 	if entity == bob.EntityFundAccount {
 		result, err := service.fundAccounts.Submit(ctx, dcldomain.FundAccountVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return fundAccountMutation(result), err
@@ -366,6 +430,13 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 }
 
 func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityProduct {
+		result, err := service.products.Unsubmit(ctx, dcldomain.ProductReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: input.Reason,
+		}, actor)
+		return productMutation(result), err
+	}
 	if entity == bob.EntityFundAccount {
 		result, err := service.fundAccounts.Unsubmit(ctx, dcldomain.FundAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return fundAccountMutation(result), err
@@ -395,6 +466,10 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 }
 
 func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityProduct {
+		result, err := service.products.Approve(ctx, dcldomain.ProductVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return productMutation(result), err
+	}
 	if entity == bob.EntityFundAccount {
 		result, err := service.fundAccounts.Approve(ctx, dcldomain.FundAccountVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return fundAccountMutation(result), err
@@ -419,6 +494,13 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 }
 
 func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityProduct {
+		result, err := service.products.Unapprove(ctx, dcldomain.ProductReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: input.Reason,
+		}, actor)
+		return productMutation(result), err
+	}
 	if entity == bob.EntityFundAccount {
 		result, err := service.fundAccounts.Unapprove(ctx, dcldomain.FundAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return fundAccountMutation(result), err
@@ -448,6 +530,17 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 }
 
 func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityProduct {
+		reason := ""
+		if input.Reason != nil {
+			reason = *input.Reason
+		}
+		result, err := service.products.Reject(ctx, dcldomain.ProductReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: reason,
+		}, actor)
+		return productMutation(result), err
+	}
 	if entity == bob.EntityFundAccount {
 		reason := ""
 		if input.Reason != nil {
@@ -497,6 +590,49 @@ func operatingEntityData(data bob.CreateDetailInput) dcldomain.OperatingEntityDa
 		Name: data.Name, ShortName: data.ShortName, TaxNumber: data.TaxNumber,
 		Address: data.Address, Phone: data.Phone, Remark: data.Remark,
 	}
+}
+
+func productData(data bob.CreateDetailInput) dcldomain.ProductInput {
+	return dcldomain.ProductInput{
+		Name: data.Name, CategoryID: data.CategoryID,
+		Specification: data.Specification, Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
+		ProductTypeID: data.ProductTypeID, DefaultInputUnitID: data.DefaultInputUnitID,
+		PricingUnitID: data.PricingUnitID, UnitConversions: data.UnitConversions,
+		Returnable: data.Returnable, DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
+	}
+}
+
+func productInputFromView(data dcldomain.ProductData) dcldomain.ProductInput {
+	return dcldomain.ProductInput{
+		Name: data.Name, CategoryID: data.CategoryID,
+		Specification: data.Specification, Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
+		ProductTypeID: data.ProductTypeID, DefaultInputUnitID: data.DefaultInputUnitID,
+		PricingUnitID: data.PricingUnitID, UnitConversions: data.UnitConversions,
+		Returnable: data.Returnable, DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
+	}
+}
+
+func productMutation(result dcldomain.ProductMutation) bob.MutationResult {
+	return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func productViewMutation(result dcldomain.ProductView) bob.MutationResult {
+	return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func productView(view dcldomain.ProductView) bob.ObjectView {
+	return bob.ObjectView{ObjectID: view.ObjectID, Entity: bob.EntityProduct, Code: view.Code,
+		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		Data: bob.DetailView{
+			Name: view.Data.Name, CategoryID: view.Data.CategoryID,
+			Specification: view.Data.Specification, Model: view.Data.Model,
+			Barcode: view.Data.Barcode, Remark: view.Data.Remark,
+			ProductTypeID: view.Data.ProductTypeID, ProductTypeCode: view.Data.ProductTypeCode,
+			ProductTypeName: view.Data.ProductTypeName, BehaviorProfile: view.Data.BehaviorProfile,
+			DefaultInputUnitID: view.Data.DefaultInputUnitID, PricingUnitID: view.Data.PricingUnitID,
+			UnitConversions: view.Data.UnitConversions, Returnable: view.Data.Returnable,
+			DefaultPackagingSpec: view.Data.DefaultPackagingSpec, Formula: view.Data.Formula,
+		}, UpdatedAt: view.UpdatedAt}
 }
 
 func operatingEntityMutation(result dcldomain.OperatingEntityMutation) bob.MutationResult {
@@ -602,7 +738,7 @@ type queryLookup struct {
 }
 
 func (l queryLookup) Find(ctx context.Context, entity, code string) (string, bool, error) {
-	if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount {
+	if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct {
 		var id string
 		err := l.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
 			WHERE domain='dcl' AND entity=$1 AND request_id=$2 AND action='CREATED'
@@ -664,10 +800,11 @@ func New(pool *pgxpool.Pool) *Seeder {
 	warehouses := dcldomain.NewWarehouseService(pool, service, authorizer, bus)
 	vehicles := dcldomain.NewVehicleService(pool, service, authorizer, bus)
 	fundAccounts := dcldomain.NewFundAccountService(pool, service, authorizer, bus)
+	products := dcldomain.NewProductService(pool, service, authorizer, bus)
 	return &Seeder{
 		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: service,
 			settlementRelationships: supplier, auxiliary: auxiliary, pool: pool,
-			operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts},
+			operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products},
 		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,
 		auxiliary: auxiliary,
 	}

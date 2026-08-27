@@ -176,6 +176,42 @@ func (q *Queries) CountDCLOperatingEntityApprovalEvents(ctx context.Context, obj
 	return count, err
 }
 
+const countDCLProductApprovalEvents = `-- name: CountDCLProductApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='product' AND subject_id=$1
+`
+
+func (q *Queries) CountDCLProductApprovalEvents(ctx context.Context, objectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLProductApprovalEvents, objectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLProducts = `-- name: CountDCLProducts :one
+SELECT count(*) FROM dcl_subjects s JOIN bob_objects o ON o.id=s.id AND o.entity=s.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_product_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='product' AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) AND ($4::text='' OR d.product_type_id=$4::text) AND ($5::text='' OR d.category_id=$5::text)
+`
+
+type CountDCLProductsParams struct {
+	Keyword       string   `db:"keyword" json:"keyword"`
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	ProductTypeID string   `db:"product_type_id" json:"product_type_id"`
+	CategoryID    string   `db:"category_id" json:"category_id"`
+}
+
+func (q *Queries) CountDCLProducts(ctx context.Context, arg CountDCLProductsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLProducts,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.ProductTypeID,
+		arg.CategoryID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countDCLVehicleApprovalEvents = `-- name: CountDCLVehicleApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1
 `
@@ -278,6 +314,15 @@ func (q *Queries) DeleteDCLOperatingEntityVersion(ctx context.Context, approvalE
 	return result.RowsAffected(), nil
 }
 
+const deleteDCLProductBarcodeClaims = `-- name: DeleteDCLProductBarcodeClaims :exec
+DELETE FROM dcl_product_barcode_claims WHERE object_id=$1
+`
+
+func (q *Queries) DeleteDCLProductBarcodeClaims(ctx context.Context, objectID string) error {
+	_, err := q.db.Exec(ctx, deleteDCLProductBarcodeClaims, objectID)
+	return err
+}
+
 const deleteDCLSubject = `-- name: DeleteDCLSubject :execrows
 DELETE FROM dcl_subjects
 WHERE id=$1 AND entity=$2
@@ -338,6 +383,17 @@ func (q *Queries) FindDCLFundAccountIdentifierConflict(ctx context.Context, obje
 	var normalized_account_number interface{}
 	err := row.Scan(&normalized_account_number)
 	return normalized_account_number, err
+}
+
+const findDCLProductBarcodeConflict = `-- name: FindDCLProductBarcodeConflict :one
+WITH selected AS (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=$1 AND status IN ('DRAFT','PENDING') UNION ALL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=$1 AND status='APPROVED' ORDER BY version_no DESC LIMIT 1)), desired AS (SELECT upper(btrim(barcode)) value FROM dcl_product_versions v JOIN selected e ON e.id=v.approval_entry_id WHERE barcode IS NOT NULL AND upper(btrim(barcode))<>'') SELECT desired.value AS normalized_barcode FROM desired JOIN dcl_product_barcode_claims c ON c.normalized_barcode=desired.value WHERE c.object_id<>$1 LIMIT 1
+`
+
+func (q *Queries) FindDCLProductBarcodeConflict(ctx context.Context, objectID string) (interface{}, error) {
+	row := q.db.QueryRow(ctx, findDCLProductBarcodeConflict, objectID)
+	var normalized_barcode interface{}
+	err := row.Scan(&normalized_barcode)
+	return normalized_barcode, err
 }
 
 const findDCLVehicleIdentifierConflict = `-- name: FindDCLVehicleIdentifierConflict :one
@@ -1017,6 +1073,116 @@ func (q *Queries) ListDCLOperatingEntityApprovalEvents(ctx context.Context, arg 
 	return items, nil
 }
 
+const listDCLProductApprovalEvents = `-- name: ListDCLProductApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='product' AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDCLProductApprovalEventsParams struct {
+	ObjectID  string `db:"object_id" json:"object_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLProductApprovalEvents(ctx context.Context, arg ListDCLProductApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLProductApprovalEvents, arg.ObjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLProducts = `-- name: ListDCLProducts :many
+SELECT o.id object_id,o.code,o.revision object_revision,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s JOIN bob_objects o ON o.id=s.id AND o.entity=s.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_product_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='product' AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) AND ($4::text='' OR d.product_type_id=$4::text) AND ($5::text='' OR d.category_id=$5::text) ORDER BY CASE WHEN $6::text='updatedAt' AND $7::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $6::text='updatedAt' AND $7::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $6::text='code' AND $7::text='asc' THEN o.code END ASC, CASE WHEN $6::text='code' AND $7::text='desc' THEN o.code END DESC, CASE WHEN $6::text='name' AND $7::text='asc' THEN d.name END ASC, CASE WHEN $6::text='name' AND $7::text='desc' THEN d.name END DESC, CASE WHEN $6::text='status' AND $7::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $6::text='status' AND $7::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $6::text='version' AND $7::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $6::text='version' AND $7::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, o.id DESC LIMIT $9 OFFSET $8
+`
+
+type ListDCLProductsParams struct {
+	Keyword       string   `db:"keyword" json:"keyword"`
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	ProductTypeID string   `db:"product_type_id" json:"product_type_id"`
+	CategoryID    string   `db:"category_id" json:"category_id"`
+	SortField     string   `db:"sort_field" json:"sort_field"`
+	SortOrder     string   `db:"sort_order" json:"sort_order"`
+	RowOffset     int32    `db:"row_offset" json:"row_offset"`
+	RowLimit      int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLProductsRow struct {
+	ObjectID        string             `db:"object_id" json:"object_id"`
+	Code            string             `db:"code" json:"code"`
+	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`
+}
+
+func (q *Queries) ListDCLProducts(ctx context.Context, arg ListDCLProductsParams) ([]ListDCLProductsRow, error) {
+	rows, err := q.db.Query(ctx, listDCLProducts,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.ProductTypeID,
+		arg.CategoryID,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLProductsRow{}
+	for rows.Next() {
+		var i ListDCLProductsRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.ApprovedEntryID,
+			&i.OpenEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDCLVehicleApprovalEvents = `-- name: ListDCLVehicleApprovalEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
 `
@@ -1279,6 +1445,15 @@ func (q *Queries) LockDCLFundAccountIdentifierClaims(ctx context.Context) error 
 	return err
 }
 
+const lockDCLProductBarcodeClaims = `-- name: LockDCLProductBarcodeClaims :exec
+SELECT pg_advisory_xact_lock(74155004)
+`
+
+func (q *Queries) LockDCLProductBarcodeClaims(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockDCLProductBarcodeClaims)
+	return err
+}
+
 const lockDCLVehicleIdentifierClaims = `-- name: LockDCLVehicleIdentifierClaims :exec
 SELECT pg_advisory_xact_lock(74155002)
 `
@@ -1294,6 +1469,15 @@ WITH selected AS (SELECT id,status FROM approval_entries WHERE domain='dcl' AND 
 
 func (q *Queries) RebuildDCLFundAccountIdentifierClaims(ctx context.Context, objectID string) error {
 	_, err := q.db.Exec(ctx, rebuildDCLFundAccountIdentifierClaims, objectID)
+	return err
+}
+
+const rebuildDCLProductBarcodeClaims = `-- name: RebuildDCLProductBarcodeClaims :exec
+WITH selected AS (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=$1 AND status IN ('DRAFT','PENDING') UNION ALL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=$1 AND status='APPROVED' ORDER BY version_no DESC LIMIT 1)), desired AS (SELECT upper(btrim(v.barcode)) value,e.id,e.status FROM dcl_product_versions v JOIN selected e ON e.id=v.approval_entry_id WHERE v.barcode IS NOT NULL AND upper(btrim(v.barcode))<>'') INSERT INTO dcl_product_barcode_claims(normalized_barcode,object_id,approved_entry_id,open_entry_id) SELECT value,$1,max(id) FILTER (WHERE status='APPROVED'),max(id) FILTER (WHERE status IN ('DRAFT','PENDING')) FROM desired GROUP BY value
+`
+
+func (q *Queries) RebuildDCLProductBarcodeClaims(ctx context.Context, objectID string) error {
+	_, err := q.db.Exec(ctx, rebuildDCLProductBarcodeClaims, objectID)
 	return err
 }
 

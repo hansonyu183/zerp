@@ -19,9 +19,11 @@ interface ReferenceState {
 }
 
 type ReferenceEntity = components['schemas']['BobEntity']
-type BobCrudEntity = components['schemas']['BobCrudEntity']
+type BobReadableEntity = components['schemas']['BobReadableEntity']
 
-function isBobCrudEntity(entity: ReferenceEntity): entity is BobCrudEntity {
+function isBobReadableEntity(
+  entity: ReferenceEntity,
+): entity is BobReadableEntity {
   return [
     'employee',
     'product',
@@ -227,7 +229,7 @@ export function useVoucherReferences(
               name: item.name,
             }))
           }
-          if (!isBobCrudEntity(entity)) return []
+          if (!isBobReadableEntity(entity)) return []
           const { data } = await apiClient.postContract(
             `bob/${entity}/query`,
             {

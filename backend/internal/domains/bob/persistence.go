@@ -88,10 +88,7 @@ func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID 
 		if err != nil {
 			return DetailView{}, err
 		}
-		data := DetailView{Name: r.Name, CategoryID: deref(r.CategoryID), CategoryApprovalEntryID: deref(r.CategoryApprovalEntryID), Specification: deref(r.Specification), Model: deref(r.Model), Barcode: deref(r.Barcode), Remark: deref(r.Remark), PricingUnitID: deref(r.PricingUnitID), PricingUnitApprovalEntryID: deref(r.PricingUnitApprovalEntryID), Returnable: r.Returnable, ProductTypeID: deref(r.ProductTypeID), ProductTypeApprovalEntryID: deref(r.ProductTypeApprovalEntryID), ProductTypeCode: deref(r.ProductTypeCode), ProductTypeName: deref(r.ProductTypeName), BehaviorProfile: deref(r.BehaviorProfile), DefaultInputUnitID: deref(r.DefaultInputUnitID), DefaultInputUnitApprovalEntryID: deref(r.DefaultInputUnitApprovalEntryID)}
-		if r.DefaultPackagingSpecMicros != nil {
-			data.DefaultPackagingSpec = formatMicros(*r.DefaultPackagingSpecMicros)
-		}
+		data := productDetailFromRow(r)
 		data.UnitConversions, err = loadProductUnitConversions(ctx, q, approvalEntryID)
 		if err != nil {
 			return DetailView{}, err
@@ -101,6 +98,14 @@ func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID 
 	default:
 		return DetailView{}, invalidPayloadEntity(entity)
 	}
+}
+
+func productDetailFromRow(r dbsqlc.DclProductVersion) DetailView {
+	data := DetailView{Enabled: r.Enabled, Name: r.Name, CategoryID: deref(r.CategoryID), CategoryApprovalEntryID: deref(r.CategoryApprovalEntryID), CategoryCode: deref(r.CategoryCode), CategoryName: deref(r.CategoryName), Specification: deref(r.Specification), Model: deref(r.Model), Barcode: deref(r.Barcode), Remark: deref(r.Remark), PricingUnitID: deref(r.PricingUnitID), PricingUnitApprovalEntryID: deref(r.PricingUnitApprovalEntryID), Returnable: r.Returnable, ProductTypeID: deref(r.ProductTypeID), ProductTypeApprovalEntryID: deref(r.ProductTypeApprovalEntryID), ProductTypeCode: deref(r.ProductTypeCode), ProductTypeName: deref(r.ProductTypeName), BehaviorProfile: deref(r.BehaviorProfile), DefaultInputUnitID: deref(r.DefaultInputUnitID), DefaultInputUnitApprovalEntryID: deref(r.DefaultInputUnitApprovalEntryID)}
+	if r.DefaultPackagingSpecMicros != nil {
+		data.DefaultPackagingSpec = formatMicros(*r.DefaultPackagingSpecMicros)
+	}
+	return data
 }
 
 func relationshipPartyName(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (string, error) {
@@ -180,7 +185,7 @@ func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntry
 		if err != nil {
 			return 0, err
 		}
-		return q.UpdateBobProductPayload(ctx, dbsqlc.UpdateBobProductPayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), Specification: nilIfEmpty(d.Specification), Model: nilIfEmpty(d.Model), Barcode: nilIfEmpty(d.Barcode), Remark: nilIfEmpty(d.Remark), PricingUnitID: nilIfEmpty(d.PricingUnitID), PricingUnitApprovalEntryID: nilIfEmpty(d.PricingUnitApprovalEntryID), Returnable: d.Returnable, DefaultPackagingSpecMicros: packaging, ProductTypeID: nilIfEmpty(d.ProductTypeID), ProductTypeApprovalEntryID: nilIfEmpty(d.ProductTypeApprovalEntryID), ProductTypeCode: nilIfEmpty(d.ProductTypeCode), ProductTypeName: nilIfEmpty(d.ProductTypeName), BehaviorProfile: nilIfEmpty(d.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(d.DefaultInputUnitID), DefaultInputUnitApprovalEntryID: nilIfEmpty(d.DefaultInputUnitApprovalEntryID), ApprovalEntryID: approvalEntryID})
+		return q.UpdateBobProductPayload(ctx, dbsqlc.UpdateBobProductPayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), CategoryCode: nilIfEmpty(d.CategoryCode), CategoryName: nilIfEmpty(d.CategoryName), Specification: nilIfEmpty(d.Specification), Model: nilIfEmpty(d.Model), Barcode: nilIfEmpty(d.Barcode), Remark: nilIfEmpty(d.Remark), PricingUnitID: nilIfEmpty(d.PricingUnitID), PricingUnitApprovalEntryID: nilIfEmpty(d.PricingUnitApprovalEntryID), Returnable: d.Returnable, DefaultPackagingSpecMicros: packaging, ProductTypeID: nilIfEmpty(d.ProductTypeID), ProductTypeApprovalEntryID: nilIfEmpty(d.ProductTypeApprovalEntryID), ProductTypeCode: nilIfEmpty(d.ProductTypeCode), ProductTypeName: nilIfEmpty(d.ProductTypeName), BehaviorProfile: nilIfEmpty(d.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(d.DefaultInputUnitID), DefaultInputUnitApprovalEntryID: nilIfEmpty(d.DefaultInputUnitApprovalEntryID), Enabled: d.Enabled, ApprovalEntryID: approvalEntryID})
 	default:
 		return 0, invalidPayloadEntity(entity)
 	}

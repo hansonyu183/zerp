@@ -360,9 +360,15 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 			return OpeningView{}, databaseError("create accounting opening voucher line", err)
 		}
 		if line.quantityMicros != nil {
+			product, productErr := qtx.GetAccountingProductCurrentSnapshot(ctx, line.dimensions[DimensionProduct])
+			if productErr != nil {
+				return OpeningView{}, domainError(ErrorConflict, "opening product snapshot is unavailable", productErr)
+			}
 			if err = qtx.InsertAccountingInventoryEntry(ctx, dbsqlc.InsertAccountingInventoryEntryParams{
 				ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, VoucherLineID: lineID,
 				SubjectID: line.subjectID, ProductID: line.dimensions[DimensionProduct], WarehouseID: line.dimensions[DimensionWarehouse],
+				ProductApprovalEntryID: product.ProductApprovalEntryID,
+				ProductCode:            product.ProductCode, ProductName: product.ProductName,
 				BusinessDate: pgtype.Date{Time: startDate, Valid: true}, QuantityDeltaMicros: *line.quantityMicros, SourceLineID: line.id,
 				CostCounterpartDimensions: []byte(`{}`),
 			}); err != nil {

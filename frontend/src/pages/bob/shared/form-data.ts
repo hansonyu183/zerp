@@ -1,4 +1,3 @@
-import { productFormFields, productPayload } from './product-data'
 import type { BobEntityConfig, BobForm, BobObjectView } from './types'
 
 export function hasValue(value: unknown): boolean {
@@ -9,67 +8,6 @@ export function hasValue(value: unknown): boolean {
     value === false ||
     (Array.isArray(value) && value.length === 0)
   )
-}
-
-export function normalizeBobForm(
-  config: BobEntityConfig,
-  form: BobForm,
-): BobForm {
-  const uppercase = new Set(config.uppercaseKeys ?? [])
-  const normalized: BobForm = { ...form }
-  for (const [key, value] of Object.entries(normalized)) {
-    if (typeof value !== 'string') continue
-    const trimmed = value.trim()
-    normalized[key] = uppercase.has(key) ? trimmed.toUpperCase() : trimmed
-  }
-  if (config.entity === 'fund-account') {
-    const accountNumber = normalized.accountNumber
-    if (typeof accountNumber === 'string') {
-      normalized.accountNumber = accountNumber
-        .replace(/[\s-]+/g, '')
-        .toUpperCase()
-    }
-  }
-  return normalized
-}
-
-export function bobCreateData(config: BobEntityConfig, form: BobForm) {
-  const normalized = normalizeBobForm(config, form)
-  const data: Record<string, unknown> = {}
-  for (const key of config.persistedKeys ?? config.detailKeys) {
-    const value = normalized[key]
-    if (
-      !config.requiredKeys.includes(key) &&
-      (value === '' || value === null)
-    ) {
-      continue
-    }
-    data[key] = value
-  }
-  if (config.entity === 'product') {
-    Object.assign(data, productPayload(normalized))
-    delete data.behaviorProfile
-  }
-  for (const [key, value] of Object.entries(data)) {
-    if (value === undefined) delete data[key]
-  }
-  return { ...data, name: normalized.name }
-}
-
-export function bobSaveData(config: BobEntityConfig, form: BobForm) {
-  const normalized = normalizeBobForm(config, form)
-  const data = Object.fromEntries(
-    (config.persistedKeys ?? config.detailKeys).map((key) => [
-      key,
-      normalized[key],
-    ]),
-  )
-  if (config.entity === 'product') {
-    Object.assign(data, productPayload(normalized))
-    if (normalized.formulaDirty !== true) delete data.formula
-    delete data.behaviorProfile
-  }
-  return data
 }
 
 export function bobFormFromView(
@@ -83,10 +21,6 @@ export function bobFormFromView(
   const detail = Object.fromEntries(Object.entries(view.data))
   for (const key of config.detailKeys) {
     form[key] = detail[key] ?? form[key] ?? ''
-  }
-  if (config.entity === 'product') {
-    Object.assign(form, productFormFields(view.data))
-    form.formulaDirty = false
   }
   return form
 }

@@ -5,7 +5,6 @@ const bobPages = [
   { entity: 'customer', title: '客户', searchLabel: '账户编码或名称' },
   { entity: 'supplier', title: '供应商', searchLabel: '供应商关键字' },
   { entity: 'employee', title: '员工', searchLabel: '员工编码或主体名称' },
-  { entity: 'product', title: '产品', searchLabel: '产品关键字' },
   { entity: 'warehouse', title: '仓库', searchLabel: '仓库关键字' },
   { entity: 'vehicle', title: '车辆', searchLabel: '车辆关键字' },
   {

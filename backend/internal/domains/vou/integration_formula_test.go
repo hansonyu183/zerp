@@ -5,7 +5,10 @@ package vou
 import (
 	"testing"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 )
 
 func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
@@ -175,29 +178,28 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get raw material before edit: %v", err)
 	}
-	rawData := rawView.Data
-	editedRaw, err := bobService.Save(t.Context(), bobdomain.EntityProduct, bobdomain.SaveInput{
+	rawData := dcldomain.ProductInput{
+		Name: rawView.Data.Name, CategoryID: rawView.Data.CategoryID,
+		Specification: rawView.Data.Specification, Model: rawView.Data.Model,
+		Barcode: rawView.Data.Barcode, Remark: rawView.Data.Remark,
+		ProductTypeID: rawView.Data.ProductTypeID, DefaultInputUnitID: rawView.Data.DefaultInputUnitID,
+		PricingUnitID: rawView.Data.PricingUnitID, UnitConversions: rawView.Data.UnitConversions,
+		Returnable: rawView.Data.Returnable, DefaultPackagingSpec: rawView.Data.DefaultPackagingSpec,
+		Formula: rawView.Data.Formula,
+	}
+	productDeclarations := dcldomain.NewProductService(pool, bobService, authorization.Func(nil), txevent.NewBus())
+	editedRaw, err := productDeclarations.Save(t.Context(), dcldomain.ProductSaveInput{
 		ObjectID:         rawView.ObjectID,
 		ApprovalEntryID:  rawView.Approval.ApprovalEntryID,
 		ApprovalRevision: rawView.Approval.Revision,
-		Data: bobdomain.DetailInput{
-			Name:                 rawData.Name,
-			ProductTypeID:        bobdomain.Optional(rawData.ProductTypeID),
-			DefaultInputUnitID:   bobdomain.Optional(rawData.DefaultInputUnitID),
-			PricingUnitID:        bobdomain.Optional(rawData.PricingUnitID),
-			UnitConversions:      &rawData.UnitConversions,
-			Returnable:           &rawData.Returnable,
-			DefaultPackagingSpec: bobdomain.Optional(rawData.DefaultPackagingSpec),
-			Formula:              rawData.Formula,
-		},
+		Enabled:          rawView.Enabled, Data: rawData,
 	}, trustedIntegrationActor(t, "formula-raw-edit"))
 	if err != nil {
 		t.Fatalf("create raw material candidate: %v", err)
 	}
-	submittedRaw, err := bobService.Submit(
+	submittedRaw, err := productDeclarations.Submit(
 		t.Context(),
-		bobdomain.EntityProduct,
-		bobdomain.VersionRevisionInput{
+		dcldomain.ProductVersionInput{
 			ObjectID:         editedRaw.ObjectID,
 			ApprovalEntryID:  editedRaw.Approval.ApprovalEntryID,
 			ApprovalRevision: editedRaw.Approval.Revision,
@@ -207,10 +209,9 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit raw material: %v", err)
 	}
-	approvedRaw, err := bobService.Approve(
+	approvedRaw, err := productDeclarations.Approve(
 		t.Context(),
-		bobdomain.EntityProduct,
-		bobdomain.ReviewInput{
+		dcldomain.ProductVersionInput{
 			ObjectID:         submittedRaw.ObjectID,
 			ApprovalEntryID:  submittedRaw.Approval.ApprovalEntryID,
 			ApprovalRevision: submittedRaw.Approval.Revision,

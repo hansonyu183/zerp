@@ -1,23 +1,14 @@
-import type { BusinessObjectField } from '@/components/business-object'
-import type { BobForm } from '../shared/types'
-import {
-  baseColumns,
-  baseFilters,
-  commonFields,
-  defineBobEntityConfig,
-  quantityPattern,
-  reference,
-  text,
-  textarea,
-} from '../shared/config-helpers'
+import { defineBobEntityConfig } from '../shared/config-helpers'
 import { bobListActiveVersion } from '../shared/types'
 
 export const productConfig = defineBobEntityConfig({
   entity: 'product',
-  title: '产品',
+  title: '产品（当前档案）',
   codeLabel: '产品编码',
   nameLabel: '产品名称',
   defaults: {
+    objectId: '',
+    approvalEntryId: '',
     productTypeId: '',
     behaviorProfile: '',
     defaultInputUnitId: '',
@@ -32,129 +23,41 @@ export const productConfig = defineBobEntityConfig({
     barcode: '',
     remark: '',
   },
-  // Draft products may be incomplete. Lifecycle actions run the complete check.
-  requiredKeys: ['name'],
-  persistedKeys: [
-    'name',
-    'productTypeId',
-    'defaultInputUnitId',
-    'pricingUnitId',
-    'unitConversions',
-    'returnable',
-    'defaultPackagingSpec',
-    'formula',
-    'categoryId',
-    'specification',
-    'model',
-    'barcode',
-    'remark',
-  ],
-  uppercaseKeys: ['barcode'],
-  references: {
-    productTypeId: {
-      domain: 'aux',
-      entity: 'product-type',
-      label: '产品类型',
-    },
-    unitConversions: {
-      domain: 'aux',
-      entity: 'measurement-unit',
-      label: '计量单位',
-    },
-    categoryId: {
-      domain: 'aux',
-      entity: 'product-category',
-      label: '产品分类',
-    },
-  },
-  fields: (context) => [
-    ...commonFields(context, '产品编码', '产品名称'),
+  fields: () => [
+    { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      ...reference('productTypeId', '产品类型', context),
-      hint: '产品类型决定封闭的业务行为模板；草稿期间可以留空。',
-    } satisfies BusinessObjectField<BobForm>,
+      key: 'approvalEntryId',
+      label: '来源 Approval Entry ID',
+      type: 'readonly',
+    },
+    { key: 'code', label: '产品编码', type: 'readonly' },
+    { key: 'name', label: '产品名称', type: 'readonly' },
+    { key: 'productTypeId', label: '产品类型', type: 'readonly' },
     {
       key: 'behaviorProfile',
       label: '业务行为模板',
       type: 'readonly',
-      format: (value: unknown) =>
-        ({
-          RAW_MATERIAL: '原材料',
-          STANDARD_FINISHED: '自制成品',
-          CUSTOM_FINISHED: '定制成品',
-          PACKAGING: '包装物',
-        })[String(value)] ?? '待选择产品类型',
-    } satisfies BusinessObjectField<BobForm>,
-    {
-      key: 'unitConversions',
-      label: '单位换算',
-      type: 'text',
-      span: 2,
-      options: context.referenceOptions.unitConversions ?? [],
-      loading: context.referenceLoading.unitConversions,
-      disabled: Boolean(context.referenceErrors.unitConversions),
-      ...(context.referenceErrors.unitConversions
-        ? { hint: context.referenceErrors.unitConversions }
-        : {}),
-      format: (value: unknown) =>
-        `${Array.isArray(value) ? value.length : 0} 项换算`,
-    } satisfies BusinessObjectField<BobForm>,
-    {
-      key: 'defaultInputUnitId',
-      label: '默认录入单位',
-      type: 'readonly',
-      visible: () => false,
-    } satisfies BusinessObjectField<BobForm>,
-    {
-      key: 'pricingUnitId',
-      label: '计价单位',
-      type: 'readonly',
-      visible: () => false,
-    } satisfies BusinessObjectField<BobForm>,
-    {
-      key: 'formula',
-      label: '固定配方',
-      type: 'text',
-      visible: (record: Readonly<BobForm>) =>
-        record.behaviorProfile === 'STANDARD_FINISHED',
-      format: (value: unknown) => {
-        const formula = value as { components?: unknown[] } | null
-        return formula ? `${formula.components?.length ?? 0} 项原料` : '待维护'
-      },
-    } satisfies BusinessObjectField<BobForm>,
-    {
-      key: 'defaultPackagingSpec',
-      label: '默认包装规格',
-      type: 'text',
-      visible: (record: Readonly<BobForm>) =>
-        Boolean(record.behaviorProfile) &&
-        record.behaviorProfile !== 'PACKAGING',
-      rules: [
-        (value: unknown) => {
-          if (typeof value !== 'string' || value.trim() === '') return true
-          const normalized = value.trim()
-          return (
-            (quantityPattern.test(normalized) &&
-              !/^0(?:\.0+)?$/.test(normalized)) ||
-            '默认包装规格必须为大于零且最多六位小数的数量。'
-          )
-        },
-      ],
-    } satisfies BusinessObjectField<BobForm>,
-    {
-      key: 'returnable',
-      label: '可回收周转',
-      type: 'switch',
-      visible: (record: Readonly<BobForm>) =>
-        record.behaviorProfile === 'PACKAGING',
-    } satisfies BusinessObjectField<BobForm>,
-    reference('categoryId', '产品分类', context),
-    text('specification', '规格', 200),
-    text('model', '型号', 200),
-    text('barcode', '条码', 64),
-    textarea('remark', '备注'),
+      format: productBehaviorProfileText,
+    },
+    { key: 'defaultInputUnitId', label: '默认录入单位', type: 'readonly' },
+    { key: 'pricingUnitId', label: '计价单位', type: 'readonly' },
+    { key: 'unitConversions', label: '单位换算', type: 'readonly' },
+    { key: 'defaultPackagingSpec', label: '默认包装规格', type: 'readonly' },
+    { key: 'returnable', label: '可回收周转', type: 'readonly' },
+    { key: 'categoryId', label: '产品分类', type: 'readonly' },
+    { key: 'specification', label: '规格', type: 'readonly' },
+    { key: 'model', label: '型号', type: 'readonly' },
+    { key: 'barcode', label: '条码', type: 'readonly' },
+    { key: 'remark', label: '备注', type: 'readonly' },
   ],
-  columns: baseColumns('编码', '名称', [
+  columns: [
+    { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
+    {
+      key: 'name',
+      label: '名称',
+      value: (row) => bobListActiveVersion(row).summary.name,
+      sizing: 'fluid',
+    },
     {
       key: 'productTypeName',
       label: '产品类型',
@@ -170,27 +73,39 @@ export const productConfig = defineBobEntityConfig({
       label: '型号',
       value: (row) => bobListActiveVersion(row).summary.model,
     },
-  ]),
-  filters: baseFilters([
+    { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {
-      key: 'productTypeId',
-      label: '产品类型',
-      type: 'autocomplete',
-      reference: {
-        domain: 'aux',
-        entity: 'product-type',
-        label: '产品类型',
-      },
+      key: 'approvalEntryId',
+      label: '来源 Approval Entry ID',
+      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
     },
     {
-      key: 'categoryId',
-      label: '产品分类',
-      type: 'autocomplete',
-      reference: {
-        domain: 'aux',
-        entity: 'product-category',
-        label: '产品分类',
-      },
+      key: 'enabled',
+      label: '启停状态',
+      value: (row) => (row.enabled ? '启用' : '禁用'),
+      sizing: 'compact',
     },
-  ]),
+  ],
+  filters: [
+    {
+      key: 'enabled',
+      label: '启停状态',
+      type: 'select',
+      options: [
+        { title: '启用', value: true },
+        { title: '禁用', value: false },
+      ],
+    },
+  ],
 })
+
+function productBehaviorProfileText(value: unknown): string {
+  return (
+    {
+      RAW_MATERIAL: '原材料',
+      STANDARD_FINISHED: '自制成品',
+      CUSTOM_FINISHED: '定制成品',
+      PACKAGING: '包装物',
+    }[String(value)] ?? '—'
+  )
+}

@@ -41,3 +41,7 @@ type ProductPayload struct {
 }
 
 var ProductTopic = approval.MustTopic[ProductPayload]("dcl.product.approval")
+
+type PartyPayload struct{ SubjectID, Name string }
+
+var PartyTopic = approval.MustTopic[PartyPayload]("dcl.party.approval")

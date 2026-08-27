@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type PartyMergeResult = {
+export type DclPartyMergeResult = {
   mergeEventId: string;
   sourcePartyId: string;
   targetPartyId: string;

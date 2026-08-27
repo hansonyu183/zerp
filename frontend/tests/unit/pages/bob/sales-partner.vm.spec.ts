@@ -67,7 +67,7 @@ describe('销售合作关系 ViewModel', () => {
       '/bob/sales-partner/approve',
       '/bob/sales-partner/enable',
       '/bob/sales-partner/disable',
-      '/bob/party/create',
+      '/dcl/party/create',
       '/bob/party/get',
       '/bob/party/query',
       '/bob/operating-entity/query',
@@ -102,7 +102,7 @@ describe('销售合作关系 ViewModel', () => {
       '/bob/sales-partner/query',
       '/bob/sales-partner/create',
       '/bob/operating-entity/query',
-      '/bob/party/create',
+      '/dcl/party/create',
     ]
     const newPartyVm = useSalesPartnerViewModel()
     expect(newPartyVm.canCreateWithNewParty.value).toBe(true)

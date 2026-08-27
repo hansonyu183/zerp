@@ -91,7 +91,7 @@ export function useEmployeeViewModel() {
   const canCreateNewParty = computed(
     () =>
       session.can('/bob/employee/create') &&
-      session.can('/bob/party/create') &&
+      session.can('/dcl/party/create') &&
       canOperatingQuery.value &&
       canReferenceQuery.value,
   )

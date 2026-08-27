@@ -14,15 +14,16 @@ import (
 const countWorkbenchBobItems = `-- name: CountWorkbenchBobItems :one
 SELECT count(*)
 FROM approval_entries entry
-JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
-    WHEN 'customer' THEN (SELECT party.display_name FROM bob_customer_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'customer' THEN (SELECT current.display_name FROM bob_customer_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'supplier' THEN (SELECT payload.name FROM bob_supplier_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'other-unit' THEN (SELECT party.display_name FROM bob_service_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'other-unit' THEN (SELECT current.display_name FROM bob_service_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'employee' THEN (SELECT payload.name FROM bob_employee_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'sales-partner' THEN (SELECT party.display_name FROM bob_sales_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'sales-partner' THEN (SELECT current.display_name FROM bob_sales_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'product' THEN (SELECT payload.name FROM dcl_product_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'warehouse' THEN (SELECT payload.name FROM dcl_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'vehicle' THEN (SELECT payload.name FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -31,7 +32,7 @@ CROSS JOIN LATERAL (
     ELSE ''
   END AS name
 ) named
-WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product')))
+WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party')))
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($1::text[]))
     OR (
@@ -123,24 +124,25 @@ func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbench
 }
 
 const listWorkbenchBobItems = `-- name: ListWorkbenchBobItems :many
-SELECT entry.subject_id AS object_id, entry.entity, object.code,
+SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, '') AS code,
        named.name,
-       object.revision AS object_revision,
-       entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision, object.updated_at AS object_updated_at,
+       COALESCE(object.revision, 1) AS object_revision,
+       entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision, COALESCE(object.updated_at, entry.updated_at) AS object_updated_at,
        CASE
          WHEN entry.submitted_by = $1::text THEN true
          ELSE false
        END AS is_submitted_by_actor
 FROM approval_entries entry
-JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
-    WHEN 'customer' THEN (SELECT party.display_name FROM bob_customer_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'customer' THEN (SELECT current.display_name FROM bob_customer_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'supplier' THEN (SELECT payload.name FROM bob_supplier_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'other-unit' THEN (SELECT party.display_name FROM bob_service_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'other-unit' THEN (SELECT current.display_name FROM bob_service_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'employee' THEN (SELECT payload.name FROM bob_employee_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'sales-partner' THEN (SELECT party.display_name FROM bob_sales_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'sales-partner' THEN (SELECT current.display_name FROM bob_sales_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'product' THEN (SELECT payload.name FROM dcl_product_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'warehouse' THEN (SELECT payload.name FROM dcl_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'vehicle' THEN (SELECT payload.name FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -149,7 +151,7 @@ CROSS JOIN LATERAL (
     ELSE ''
   END AS name
 ) named
-WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product')))
+WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party')))
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($2::text[]))
     OR (

@@ -178,6 +178,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		dcldomain.NewVehicleHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewFundAccountHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewProductHandler(nil, nil, testLogger()).Register(router)
+		dcldomain.NewPartyHandler(nil, nil, testLogger()).Register(router)
 		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
 		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)
 		rptdomain.NewHandler(nil, nil, testLogger()).Register(router)
@@ -238,6 +239,7 @@ func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
 			!strings.HasPrefix(contractPath, "/acc/") &&
 			!strings.HasPrefix(contractPath, "/aux/") &&
 			!strings.HasPrefix(contractPath, "/bob/") &&
+			!strings.HasPrefix(contractPath, "/dcl/") &&
 			!strings.HasPrefix(contractPath, "/vou/") &&
 			!strings.HasPrefix(contractPath, "/wfl/") &&
 			!strings.HasPrefix(contractPath, "/rpt/") {

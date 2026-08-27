@@ -202,21 +202,6 @@ func (s *serviceStub) PartyGet(_ context.Context, _ PartyGetInput, _ PartyRelati
 	return PartyView{}, nil
 }
 
-func (s *serviceStub) PartySave(_ context.Context, _ PartySaveInput, _, _ string) (PartyView, error) {
-	s.record("save", "party")
-	return PartyView{}, nil
-}
-
-func (s *serviceStub) PartyMergePreflight(_ context.Context, _ PartyMergePreflightInput, _ PartyRelationshipVisibility, _, _ string) (PartyMergePreflightResult, error) {
-	s.record("merge-preflight", "party")
-	return PartyMergePreflightResult{}, nil
-}
-
-func (s *serviceStub) PartyMergeConfirm(_ context.Context, _ PartyMergeConfirmInput, _ PartyRelationshipVisibility, _, _ string) (PartyMergeResult, error) {
-	s.record("merge-confirm", "party")
-	return PartyMergeResult{}, nil
-}
-
 func (s *serviceStub) OtherUnitQuery(_ context.Context, input QueryInput) (Page[OtherUnitView], error) {
 	s.record("query", EntityOtherUnit)
 	return Page[OtherUnitView]{Items: []OtherUnitView{}, Page: input.Page, PageSize: input.PageSize}, nil
@@ -279,7 +264,7 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 	wanted["/bob/fund-account/query"] = false
 	wanted["/bob/fund-account/get"] = false
 	for _, path := range []string{
-		"/bob/party/query", "/bob/party/get", "/bob/party/save",
+		"/bob/party/query", "/bob/party/get",
 		"/bob/other-unit/query", "/bob/other-unit/get", "/bob/other-unit/create", "/bob/other-unit/save",
 		"/bob/other-unit/delete", "/bob/other-unit/submit", "/bob/other-unit/unsubmit",
 		"/bob/other-unit/approve", "/bob/other-unit/reject", "/bob/other-unit/unapprove", "/bob/other-unit/enable",
@@ -327,7 +312,7 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	const entitySpecificRoutes = 12
+	const entitySpecificRoutes = 10
 	if len(routes) != len(wanted)+entitySpecificRoutes {
 		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+entitySpecificRoutes)
 	}
@@ -351,7 +336,7 @@ func TestOtherUnitCreateRequiresMatchingPartyPermission(t *testing.T) {
 		{
 			name:          "new Party",
 			body:          `{"newParty":{"kind":"ORGANIZATION","legalName":"测试机构","strongIdentifiers":[]},"data":{"operatingEntityId":"01J00000000000000000000010"}}`,
-			partyPathWant: "/bob/party/create",
+			partyPathWant: "/dcl/party/create",
 		},
 		{
 			name:          "existing Party",

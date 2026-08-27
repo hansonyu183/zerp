@@ -28,6 +28,30 @@ func (q *Queries) ConsumePartyMergePreflight(ctx context.Context, arg ConsumePar
 	return result.RowsAffected(), nil
 }
 
+const deleteMergedPartyCurrent = `-- name: DeleteMergedPartyCurrent :execrows
+DELETE FROM bob_party_currents WHERE party_id=$1
+`
+
+func (q *Queries) DeleteMergedPartyCurrent(ctx context.Context, sourcePartyID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMergedPartyCurrent, sourcePartyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteMergedPartyCurrentIdentifiers = `-- name: DeleteMergedPartyCurrentIdentifiers :execrows
+DELETE FROM bob_party_identifiers WHERE party_id=$1
+`
+
+func (q *Queries) DeleteMergedPartyCurrentIdentifiers(ctx context.Context, sourcePartyID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMergedPartyCurrentIdentifiers, sourcePartyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const disableMergedPartyRelationshipObject = `-- name: DisableMergedPartyRelationshipObject :execrows
 UPDATE bob_objects SET enabled=false,revision=revision+1,updated_at=now(),updated_by=$1
 WHERE id=$2 AND entity=$3 AND revision=$4 AND enabled=true
@@ -85,22 +109,24 @@ func (q *Queries) InsertPartyMergeEvent(ctx context.Context, arg InsertPartyMerg
 
 const insertPartyMergePreflight = `-- name: InsertPartyMergePreflight :exec
 INSERT INTO bob_party_merge_preflights(
-    id,source_party_id,target_party_id,source_revision,target_revision,state_fingerprint,created_by,request_id
+    id,source_party_id,target_party_id,source_approval_entry_id,target_approval_entry_id,source_approval_revision,target_approval_revision,state_fingerprint,created_by,request_id
 ) VALUES (
-    $1,$2,$3,$4,
-    $5,$6,$7,$8
+    $1,$2,$3,$4,$5,$6,
+    $7,$8,$9,$10
 )
 `
 
 type InsertPartyMergePreflightParams struct {
-	ID               string `db:"id" json:"id"`
-	SourcePartyID    string `db:"source_party_id" json:"source_party_id"`
-	TargetPartyID    string `db:"target_party_id" json:"target_party_id"`
-	SourceRevision   int64  `db:"source_revision" json:"source_revision"`
-	TargetRevision   int64  `db:"target_revision" json:"target_revision"`
-	StateFingerprint string `db:"state_fingerprint" json:"state_fingerprint"`
-	ActorID          string `db:"actor_id" json:"actor_id"`
-	RequestID        string `db:"request_id" json:"request_id"`
+	ID                     string `db:"id" json:"id"`
+	SourcePartyID          string `db:"source_party_id" json:"source_party_id"`
+	TargetPartyID          string `db:"target_party_id" json:"target_party_id"`
+	SourceApprovalEntryID  string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	TargetApprovalEntryID  string `db:"target_approval_entry_id" json:"target_approval_entry_id"`
+	SourceApprovalRevision int64  `db:"source_approval_revision" json:"source_approval_revision"`
+	TargetApprovalRevision int64  `db:"target_approval_revision" json:"target_approval_revision"`
+	StateFingerprint       string `db:"state_fingerprint" json:"state_fingerprint"`
+	ActorID                string `db:"actor_id" json:"actor_id"`
+	RequestID              string `db:"request_id" json:"request_id"`
 }
 
 func (q *Queries) InsertPartyMergePreflight(ctx context.Context, arg InsertPartyMergePreflightParams) error {
@@ -108,8 +134,10 @@ func (q *Queries) InsertPartyMergePreflight(ctx context.Context, arg InsertParty
 		arg.ID,
 		arg.SourcePartyID,
 		arg.TargetPartyID,
-		arg.SourceRevision,
-		arg.TargetRevision,
+		arg.SourceApprovalEntryID,
+		arg.TargetApprovalEntryID,
+		arg.SourceApprovalRevision,
+		arg.TargetApprovalRevision,
 		arg.StateFingerprint,
 		arg.ActorID,
 		arg.RequestID,
@@ -264,17 +292,22 @@ func (q *Queries) LockPartyMergeObjects(ctx context.Context, objectIds []string)
 }
 
 const lockPartyMergeParty = `-- name: LockPartyMergeParty :one
-SELECT id,kind,revision,merged_into_party_id
-FROM bob_parties
-WHERE id=$1
+SELECT party.id,current.kind,current.source_approval_entry_id,approval.revision,party.merged_into_party_id,
+       EXISTS(SELECT 1 FROM approval_entries open_entry WHERE open_entry.domain='dcl' AND open_entry.entity='party' AND open_entry.subject_id=party.id AND open_entry.status IN ('DRAFT','PENDING')) AS has_open_candidate
+FROM bob_parties party
+JOIN bob_party_currents current ON current.party_id=party.id
+JOIN approval_entries approval ON approval.id=current.source_approval_entry_id AND approval.domain='dcl' AND approval.entity='party' AND approval.status='APPROVED'
+WHERE party.id=$1
 FOR UPDATE
 `
 
 type LockPartyMergePartyRow struct {
-	ID                string  `db:"id" json:"id"`
-	Kind              string  `db:"kind" json:"kind"`
-	Revision          int64   `db:"revision" json:"revision"`
-	MergedIntoPartyID *string `db:"merged_into_party_id" json:"merged_into_party_id"`
+	ID                    string  `db:"id" json:"id"`
+	Kind                  string  `db:"kind" json:"kind"`
+	SourceApprovalEntryID string  `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Revision              int64   `db:"revision" json:"revision"`
+	MergedIntoPartyID     *string `db:"merged_into_party_id" json:"merged_into_party_id"`
+	HasOpenCandidate      bool    `db:"has_open_candidate" json:"has_open_candidate"`
 }
 
 func (q *Queries) LockPartyMergeParty(ctx context.Context, partyID string) (LockPartyMergePartyRow, error) {
@@ -283,14 +316,16 @@ func (q *Queries) LockPartyMergeParty(ctx context.Context, partyID string) (Lock
 	err := row.Scan(
 		&i.ID,
 		&i.Kind,
+		&i.SourceApprovalEntryID,
 		&i.Revision,
 		&i.MergedIntoPartyID,
+		&i.HasOpenCandidate,
 	)
 	return i, err
 }
 
 const lockPartyMergePreflight = `-- name: LockPartyMergePreflight :one
-SELECT id,source_party_id,target_party_id,source_revision,target_revision,state_fingerprint,
+SELECT id,source_party_id,target_party_id,source_approval_entry_id,target_approval_entry_id,source_approval_revision,target_approval_revision,state_fingerprint,
        created_at,created_by,request_id,consumed_at,consumed_by
 FROM bob_party_merge_preflights
 WHERE id=$1
@@ -304,8 +339,10 @@ func (q *Queries) LockPartyMergePreflight(ctx context.Context, id string) (BobPa
 		&i.ID,
 		&i.SourcePartyID,
 		&i.TargetPartyID,
-		&i.SourceRevision,
-		&i.TargetRevision,
+		&i.SourceApprovalEntryID,
+		&i.TargetApprovalEntryID,
+		&i.SourceApprovalRevision,
+		&i.TargetApprovalRevision,
 		&i.StateFingerprint,
 		&i.CreatedAt,
 		&i.CreatedBy,
@@ -358,25 +395,17 @@ func (q *Queries) MarkEmploymentRelationshipMerged(ctx context.Context, arg Mark
 
 const markPartyMerged = `-- name: MarkPartyMerged :execrows
 UPDATE bob_parties
-SET merged_into_party_id=$1,merged_at=now(),revision=revision+1,
-    updated_at=now(),updated_by=$2
-WHERE id=$3 AND revision=$4 AND merged_into_party_id IS NULL
+SET merged_into_party_id=$1,merged_at=now()
+WHERE id=$2 AND merged_into_party_id IS NULL
 `
 
 type MarkPartyMergedParams struct {
 	TargetPartyID *string `db:"target_party_id" json:"target_party_id"`
-	ActorID       string  `db:"actor_id" json:"actor_id"`
 	SourcePartyID string  `db:"source_party_id" json:"source_party_id"`
-	Revision      int64   `db:"revision" json:"revision"`
 }
 
 func (q *Queries) MarkPartyMerged(ctx context.Context, arg MarkPartyMergedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markPartyMerged,
-		arg.TargetPartyID,
-		arg.ActorID,
-		arg.SourcePartyID,
-		arg.Revision,
-	)
+	result, err := q.db.Exec(ctx, markPartyMerged, arg.TargetPartyID, arg.SourcePartyID)
 	if err != nil {
 		return 0, err
 	}

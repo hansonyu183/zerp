@@ -72,7 +72,7 @@ describe('supplier workspace view model', () => {
       '/bob/supplier/save',
       '/bob/supplier/versions',
       '/bob/supplier/audit-history',
-      '/bob/party/create',
+      '/dcl/party/create',
       '/bob/party/get',
       '/bob/party/query',
       '/bob/employee/query',

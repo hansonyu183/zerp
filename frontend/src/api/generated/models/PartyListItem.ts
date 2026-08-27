@@ -8,8 +8,5 @@ export type PartyListItem = {
   kind: PartyKind;
   legalName: string;
   displayName: string;
-  revision: number;
-  mergedIntoPartyId?: string;
-  mergedAt?: string;
   updatedAt: string;
 };

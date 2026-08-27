@@ -386,8 +386,10 @@ func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string)
 
 func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
-	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	authorizer := authorization.Func(nil)
+	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus, parties)
 }
 
 type vouCustomerAuxiliaryResolver struct{}
@@ -437,7 +439,10 @@ func createApprovedCustomer(
 	t *testing.T, pool *pgxpool.Pool, data bobdomain.CreateDetailInput,
 ) ReferenceInput {
 	t.Helper()
-	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{}, authorization.Func(nil), txevent.NewBus())
+	bus := txevent.NewBus()
+	authorizer := authorization.Func(nil)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{}, authorizer, bus, parties)
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "VOU 客户经营主体", TaxNumber: "TAX" + newID()[3:],
 	})

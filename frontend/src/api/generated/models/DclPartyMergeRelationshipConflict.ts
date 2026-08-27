@@ -2,8 +2,12 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type PartyMergeConflictResolution = {
+export type DclPartyMergeRelationshipConflict = {
   relationshipType: 'customer' | 'supplier' | 'employee' | 'other-unit' | 'sales-partner';
   operatingEntityId: string;
-  retainObjectId: string;
+  operatingEntityName: string;
+  sourceObjectId: string;
+  sourceObjectCode: string;
+  targetObjectId: string;
+  targetObjectCode: string;
 };

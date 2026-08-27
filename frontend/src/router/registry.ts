@@ -119,6 +119,13 @@ function registerPage(
 
 export const pageRegistrations: readonly PageRegistration[] = [
   registerPage('dcl', {
+    entity: 'party',
+    entityTitle: '主体申报',
+    icon: 'mdi-account-box-multiple-outline',
+    order: 5,
+    component: () => import('@/pages/dcl/party/Party.vue'),
+  }),
+  registerPage('dcl', {
     entity: 'operating-entity',
     entityTitle: '经营主体申报',
     icon: 'mdi-office-building-edit-outline',

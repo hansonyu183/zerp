@@ -1158,11 +1158,13 @@ test(
         .locator('tbody tr')
         .filter({ hasText: `E2E 跨域主体 ${suffix}` })
       await partyRow
-        .getByRole('button', { name: '查看 / 编辑', exact: true })
+        .getByRole('button', {
+          name: new RegExp(`查看 E2E 跨域主体 ${suffix}`),
+        })
         .click()
       const partyDialog = page
         .getByRole('dialog')
-        .filter({ hasText: '主体共享身份' })
+        .filter({ hasText: '主体当前档案' })
       await expect(partyDialog).toContainText(
         `${facts.otherUnit.code} · 服务关系`,
       )
@@ -1890,29 +1892,35 @@ test(
           filters: { keyword: `E2E 合并保留 ${suffix}` },
         })
       ).items[0]!
+      const sourceParty = await session.api.ok<{
+        partyId: string
+        approval: { approvalEntryId: string; revision: number }
+      }>('dcl/party/get', { partyId: facts.party.partyId })
+      const targetPartyDeclaration = await session.api.ok<{
+        partyId: string
+        approval: { approvalEntryId: string; revision: number }
+      }>('dcl/party/get', { partyId: targetParty.partyId })
       const preflight = await session.api.ok<{
         preflightId: string
         relationshipConflicts: Array<{
           relationshipType: string
           operatingEntityId: string
         }>
-      }>('bob/party/merge-preflight', {
+      }>('dcl/party/merge-preflight', {
         sourcePartyId: facts.party.partyId,
         targetPartyId: targetParty.partyId,
-        sourceRevision: facts.party.revision,
-        targetRevision: targetParty.revision,
+        sourceApprovalEntryId: sourceParty.approval.approvalEntryId,
+        targetApprovalEntryId: targetPartyDeclaration.approval.approvalEntryId,
+        sourceApprovalRevision: sourceParty.approval.revision,
+        targetApprovalRevision: targetPartyDeclaration.approval.revision,
       })
       expect(
         preflight.relationshipConflicts.some(
           (item) => item.relationshipType === 'other-unit',
         ),
       ).toBe(true)
-      const merged = await session.api.ok('bob/party/merge-confirm', {
+      const merged = await session.api.ok('dcl/party/merge-confirm', {
         preflightId: preflight.preflightId,
-        sourcePartyId: facts.party.partyId,
-        targetPartyId: targetParty.partyId,
-        sourceRevision: facts.party.revision,
-        targetRevision: targetParty.revision,
         conflictResolutions: preflight.relationshipConflicts.map((item) => ({
           relationshipType: item.relationshipType,
           operatingEntityId: item.operatingEntityId,

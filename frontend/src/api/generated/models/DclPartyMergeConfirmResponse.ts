@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { PartyMergeResult } from './PartyMergeResult';
-export type PartyMergeConfirmResponse = {
+import type { DclPartyMergeResult } from './DclPartyMergeResult';
+export type DclPartyMergeConfirmResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: PartyMergeResult | null;
+  data: DclPartyMergeResult | null;
   requestId: string;
 };

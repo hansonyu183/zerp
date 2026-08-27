@@ -158,8 +158,10 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	submitterID := ulid.Make().String()
 	suffix := strings.ToLower(ulid.Make().String()[:10])
 	bus := txevent.NewBus()
-	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool, authorization.Func(nil), bus))
-	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.Func(nil), bus)
+	authorizer := authorization.Func(nil)
+	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool, authorizer, bus))
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorizer, bus, parties)
 	operating := approveWorkflowReference(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "流程经营主体", TaxNumber: "TAX" + suffix,
 	}, submitterID, actorID)

@@ -20,6 +20,11 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
+func newIntegrationBOBService(pool *pgxpool.Pool, resolver bob.AuxiliaryResolver, authorizer approval.Authorizer, bus *txevent.Bus) *bob.Service {
+	party := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorizer, bus)
+	return bob.NewService(pool, resolver, authorizer, bus, party)
+}
+
 func TestSeedDemoDataIntegration(t *testing.T) {
 	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
 	databaseName := strings.TrimSpace(os.Getenv("TEST_POSTGRES_DB"))
@@ -62,7 +67,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	service := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") || strings.Contains(label, "reject") {
@@ -205,7 +210,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	business := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	business := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	service := dcldomain.NewWarehouseService(pool, business, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
@@ -403,7 +408,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
-	bobService := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	bobService := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	productService := dcldomain.NewProductService(pool, bobService, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
@@ -594,7 +599,7 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	business := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	business := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	service := dcldomain.NewWarehouseService(pool, business, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"

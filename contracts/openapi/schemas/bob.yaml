@@ -1757,11 +1757,6 @@
                 {
                   'keyword': { 'type': 'string', 'maxLength': 200 },
                   'kind': { '$ref': '#/PartyKind' },
-                  'merged':
-                    {
-                      'type': 'boolean',
-                      'description': '省略或 false 仅查询可用主体；true 仅查询已合并审计主体。',
-                    },
                 },
             },
         },
@@ -1772,37 +1767,6 @@
       'required': ['partyId'],
       'additionalProperties': false,
       'properties': { 'partyId': { 'type': 'string' } },
-    },
-  'PartySaveRequest':
-    {
-      'type': 'object',
-      'required': ['partyId', 'revision', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'partyId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'data':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'kind': { '$ref': '#/PartyKind' },
-                  'legalName': { 'type': 'string', 'nullable': true },
-                  'displayName': { 'type': 'string', 'nullable': true },
-                  'taxNumber': { 'type': 'string', 'nullable': true },
-                  'strongIdentifiers':
-                    {
-                      'type': 'array',
-                      'items': { '$ref': '#/PartyIdentifier' },
-                    },
-                  'phone': { 'type': 'string', 'nullable': true },
-                  'email': { 'type': 'string', 'nullable': true },
-                  'address': { 'type': 'string', 'nullable': true },
-                },
-            },
-        },
     },
   'PartyRelationshipCard':
     {
@@ -1855,7 +1819,6 @@
           'legalName',
           'displayName',
           'strongIdentifiers',
-          'revision',
           'relationships',
           'updatedAt',
         ],
@@ -1872,9 +1835,6 @@
           'phone': { 'type': 'string' },
           'email': { 'type': 'string' },
           'address': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'mergedIntoPartyId': { 'type': 'string' },
-          'mergedAt': { 'type': 'string', 'format': 'date-time' },
           'relationships':
             { 'type': 'array', 'items': { '$ref': '#/PartyRelationshipCard' } },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
@@ -1889,7 +1849,6 @@
           'kind',
           'legalName',
           'displayName',
-          'revision',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -1899,9 +1858,6 @@
           'kind': { '$ref': '#/PartyKind' },
           'legalName': { 'type': 'string' },
           'displayName': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'mergedIntoPartyId': { 'type': 'string' },
-          'mergedAt': { 'type': 'string', 'format': 'date-time' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -2503,195 +2459,6 @@
               'allOf': [{ '$ref': '#/SalesPartnerMutationResult' }],
             },
           'requestId': { 'type': 'string' },
-        },
-    },
-  'PartyMergePreflightRequest':
-    {
-      'type': 'object',
-      'required':
-        ['sourcePartyId', 'targetPartyId', 'sourceRevision', 'targetRevision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'sourcePartyId': { 'type': 'string' },
-          'targetPartyId': { 'type': 'string' },
-          'sourceRevision': { 'type': 'integer', 'format': 'int64' },
-          'targetRevision': { 'type': 'integer', 'format': 'int64' },
-        },
-    },
-  'PartyMergeConflictResolution':
-    {
-      'type': 'object',
-      'required': ['relationshipType', 'operatingEntityId', 'retainObjectId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'relationshipType':
-            {
-              'type': 'string',
-              'enum':
-                [
-                  'customer',
-                  'supplier',
-                  'employee',
-                  'other-unit',
-                  'sales-partner',
-                ],
-            },
-          'operatingEntityId': { 'type': 'string' },
-          'retainObjectId': { 'type': 'string' },
-        },
-    },
-  'PartyMergeRelationshipConflict':
-    {
-      'type': 'object',
-      'required':
-        [
-          'relationshipType',
-          'operatingEntityId',
-          'operatingEntityName',
-          'sourceObjectId',
-          'sourceObjectCode',
-          'targetObjectId',
-          'targetObjectCode',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'relationshipType':
-            {
-              'type': 'string',
-              'enum':
-                [
-                  'customer',
-                  'supplier',
-                  'employee',
-                  'other-unit',
-                  'sales-partner',
-                ],
-            },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'sourceObjectId': { 'type': 'string' },
-          'sourceObjectCode': { 'type': 'string' },
-          'targetObjectId': { 'type': 'string' },
-          'targetObjectCode': { 'type': 'string' },
-        },
-    },
-  'PartyMergePreflightResult':
-    {
-      'type': 'object',
-      'required':
-        [
-          'canMerge',
-          'sourcePartyId',
-          'targetPartyId',
-          'sourceRevision',
-          'targetRevision',
-          'blockReasons',
-          'relationshipConflicts',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'preflightId': { 'type': 'string' },
-          'canMerge': { 'type': 'boolean' },
-          'sourcePartyId': { 'type': 'string' },
-          'targetPartyId': { 'type': 'string' },
-          'sourceRevision': { 'type': 'integer', 'format': 'int64' },
-          'targetRevision': { 'type': 'integer', 'format': 'int64' },
-          'blockReasons': { 'type': 'array', 'items': { 'type': 'string' } },
-          'relationshipConflicts':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/PartyMergeRelationshipConflict' },
-            },
-        },
-    },
-  'PartyMergeResult':
-    {
-      'type': 'object',
-      'required':
-        [
-          'mergeEventId',
-          'sourcePartyId',
-          'targetPartyId',
-          'transferredRelationships',
-          'mergedRelationships',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'mergeEventId': { 'type': 'string' },
-          'sourcePartyId': { 'type': 'string' },
-          'targetPartyId': { 'type': 'string' },
-          'transferredRelationships': { 'type': 'integer' },
-          'mergedRelationships': { 'type': 'integer' },
-        },
-    },
-  'PartyMergePreflightResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/PartyMergePreflightResult' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'PartyMergeConfirmResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/PartyMergeResult' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'PartyMergeConfirmRequest':
-    {
-      'type': 'object',
-      'required':
-        [
-          'preflightId',
-          'sourcePartyId',
-          'targetPartyId',
-          'sourceRevision',
-          'targetRevision',
-          'conflictResolutions',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'preflightId': { 'type': 'string' },
-          'sourcePartyId': { 'type': 'string' },
-          'targetPartyId': { 'type': 'string' },
-          'sourceRevision': { 'type': 'integer', 'format': 'int64' },
-          'targetRevision': { 'type': 'integer', 'format': 'int64' },
-          'conflictResolutions':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/PartyMergeConflictResolution' },
-            },
         },
     },
   'BobActiveReferenceCount':

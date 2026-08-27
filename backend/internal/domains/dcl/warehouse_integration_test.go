@@ -9,7 +9,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,7 +21,7 @@ func TestWarehouseDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewWarehouseService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -66,7 +65,7 @@ func TestWarehouseDeclarationPersistsManagerApprovalSnapshotIntegration(t *testi
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewWarehouseService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -103,7 +102,7 @@ func TestWarehouseUnapproveDisabledFallbackBlockerRollsBackIntegration(t *testin
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewWarehouseService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -144,7 +143,7 @@ func TestWarehouseUnapproveDisabledFallbackInventoryBlockerRollsBackIntegration(
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewWarehouseService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }

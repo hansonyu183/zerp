@@ -11,7 +11,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -24,7 +23,7 @@ func TestFundAccountDeclarationLifecycleAndReferencesIntegration(t *testing.T) {
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	service := NewFundAccountService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
@@ -113,7 +112,7 @@ func TestFundAccountIdentifierClaimsAndApprovalRollbackIntegration(t *testing.T)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	service := NewFundAccountService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()

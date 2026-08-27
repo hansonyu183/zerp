@@ -14,6 +14,150 @@ WHERE id=sqlc.arg(id) AND entity=sqlc.arg(entity);
 DELETE FROM dcl_subjects
 WHERE id=sqlc.arg(id) AND entity=sqlc.arg(entity);
 
+-- Party identity snapshots are DCL-owned. Strong identifiers are stored with
+-- every immutable version, while the claims table serializes approved/open
+-- ownership across all Party roots.
+-- name: InsertDCLPartyVersion :exec
+INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address)
+VALUES(sqlc.arg(approval_entry_id),sqlc.arg(party_id),sqlc.arg(kind),sqlc.arg(legal_name),sqlc.arg(display_name),sqlc.narg(tax_number),sqlc.narg(phone),sqlc.narg(email),sqlc.narg(address));
+
+-- name: CopyDCLPartyVersion :execrows
+INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address)
+SELECT sqlc.arg(new_approval_entry_id),source.party_id,source.kind,source.legal_name,source.display_name,source.tax_number,source.phone,source.email,source.address
+FROM dcl_party_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+
+-- name: UpdateDCLPartyVersion :execrows
+UPDATE dcl_party_versions SET kind=sqlc.arg(kind),legal_name=sqlc.arg(legal_name),display_name=sqlc.arg(display_name),tax_number=sqlc.narg(tax_number),phone=sqlc.narg(phone),email=sqlc.narg(email),address=sqlc.narg(address)
+WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: GetDCLPartyVersion :one
+SELECT approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address
+FROM dcl_party_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: DeleteDCLPartyVersion :execrows
+DELETE FROM dcl_party_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: InsertDCLPartyVersionIdentifier :exec
+INSERT INTO dcl_party_version_identifiers(approval_entry_id,identifier_type,value,normalized_value)
+VALUES(sqlc.arg(approval_entry_id),sqlc.arg(identifier_type),sqlc.arg(value),sqlc.arg(normalized_value));
+
+-- name: ListDCLPartyVersionIdentifiers :many
+SELECT identifier_type,value,normalized_value FROM dcl_party_version_identifiers
+WHERE approval_entry_id=sqlc.arg(approval_entry_id) ORDER BY identifier_type,normalized_value;
+
+-- name: CopyDCLPartyVersionIdentifiers :execrows
+INSERT INTO dcl_party_version_identifiers(approval_entry_id,identifier_type,value,normalized_value)
+SELECT sqlc.arg(new_approval_entry_id),source.identifier_type,source.value,source.normalized_value
+FROM dcl_party_version_identifiers source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+
+-- name: ReplaceDCLPartyVersionIdentifiers :execrows
+DELETE FROM dcl_party_version_identifiers WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- DCL Party list keeps the latest approved and the single open candidate as
+-- separate typed snapshots. Filter and sort use the candidate when present,
+-- otherwise the approved snapshot, so draft-only roots are discoverable and
+-- a page can be hydrated with a fixed number of batch reads.
+-- name: CountDCLParties :one
+WITH selected AS (
+  SELECT subject.id
+  FROM dcl_subjects subject
+  JOIN bob_parties party ON party.id=subject.id
+  LEFT JOIN LATERAL (
+    SELECT id FROM approval_entries
+    WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
+      AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+  ) open_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT id FROM approval_entries
+    WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
+      AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) approved_entry ON true
+  JOIN dcl_party_versions display ON display.approval_entry_id=COALESCE(open_entry.id,approved_entry.id)
+  WHERE subject.entity='party'
+    AND (sqlc.arg(kind)::text='' OR display.kind=sqlc.arg(kind)::text)
+    AND (sqlc.arg(keyword)::text='' OR display.legal_name ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+    AND ((sqlc.arg(merged)::boolean AND party.merged_into_party_id IS NOT NULL) OR (NOT sqlc.arg(merged)::boolean AND party.merged_into_party_id IS NULL))
+)
+SELECT count(*) FROM selected;
+
+-- name: ListDCLParties :many
+SELECT subject.id AS party_id,
+       COALESCE(approved_entry.id,'')::text AS latest_approved_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM dcl_subjects subject
+JOIN bob_parties party ON party.id=subject.id
+LEFT JOIN LATERAL (
+  SELECT id,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
+    AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+JOIN dcl_party_versions display ON display.approval_entry_id=COALESCE(open_entry.id,approved_entry.id)
+WHERE subject.entity='party'
+  AND (sqlc.arg(kind)::text='' OR display.kind=sqlc.arg(kind)::text)
+  AND (sqlc.arg(keyword)::text='' OR display.legal_name ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND ((sqlc.arg(merged)::boolean AND party.merged_into_party_id IS NOT NULL) OR (NOT sqlc.arg(merged)::boolean AND party.merged_into_party_id IS NULL))
+ORDER BY display.display_name ASC,subject.id ASC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: ListDCLPartyVersionsByEntryIDs :many
+SELECT entry.id AS approval_entry_id,entry.domain,entry.entity,entry.subject_id,entry.version_no,
+       entry.status,entry.revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at,
+       entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at,
+       version.party_id,version.kind,version.legal_name,version.display_name,version.tax_number,
+       version.phone,version.email,version.address
+FROM approval_entries entry
+JOIN dcl_party_versions version ON version.approval_entry_id=entry.id
+WHERE entry.id=ANY(sqlc.arg(approval_entry_ids)::text[])
+ORDER BY entry.id;
+
+-- name: ListDCLPartyVersionIdentifiersByEntryIDs :many
+SELECT approval_entry_id,identifier_type,value,normalized_value
+FROM dcl_party_version_identifiers
+WHERE approval_entry_id=ANY(sqlc.arg(approval_entry_ids)::text[])
+ORDER BY approval_entry_id,identifier_type,normalized_value;
+
+-- name: CountDCLPartyAuditEvents :one
+SELECT
+  (SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='party' AND subject_id=sqlc.arg(party_id))
+  +
+  (SELECT count(*) FROM bob_party_merge_events WHERE source_party_id=sqlc.arg(party_id) OR target_party_id=sqlc.arg(party_id));
+
+-- name: ListDCLPartyAuditEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
+       from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM (
+  SELECT event.id,event.entry_id,event.domain,event.entity,event.subject_id,event.version_no,
+         event.action,event.from_status,event.to_status,event.from_revision,event.to_revision,
+         event.actor_id,event.reason,event.request_id,event.created_at
+  FROM approval_events event
+  WHERE event.domain='dcl' AND event.entity='party' AND event.subject_id=sqlc.arg(party_id)
+  UNION ALL
+  SELECT merge_event.id,
+         CASE WHEN merge_event.source_party_id=sqlc.arg(party_id)
+              THEN preflight.source_approval_entry_id
+              ELSE preflight.target_approval_entry_id END AS entry_id,
+         'dcl'::character varying AS domain,'party'::character varying AS entity,
+         sqlc.arg(party_id)::character varying AS subject_id,NULL::integer AS version_no,
+         'MERGED'::character varying AS action,NULL::character varying AS from_status,
+         NULL::character varying AS to_status,NULL::bigint AS from_revision,
+         NULL::bigint AS to_revision,merge_event.actor_id,NULL::text AS reason,
+         merge_event.request_id,merge_event.occurred_at AS created_at
+  FROM bob_party_merge_events merge_event
+  JOIN bob_party_merge_preflights preflight ON preflight.id=merge_event.preflight_id
+  WHERE merge_event.source_party_id=sqlc.arg(party_id) OR merge_event.target_party_id=sqlc.arg(party_id)
+) audit
+ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
 -- name: InsertDCLOperatingEntityVersion :exec
 INSERT INTO dcl_operating_entity_versions(
   approval_entry_id, legal_name, short_name, tax_number, address, phone, remark, enabled

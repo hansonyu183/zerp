@@ -56,7 +56,7 @@ describe('customer relationship view model', () => {
       '/bob/customer-account/create',
       '/bob/customer-account/delete',
       '/bob/customer-account/submit',
-      '/bob/party/create',
+      '/dcl/party/create',
       '/bob/party/get',
       '/bob/party/query',
       '/bob/operating-entity/query',

@@ -249,6 +249,8 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	expected["/bob/vehicle/get"] = struct{}{}
 	expected["/bob/fund-account/query"] = struct{}{}
 	expected["/bob/fund-account/get"] = struct{}{}
+	expected["/bob/party/query"] = struct{}{}
+	expected["/bob/party/get"] = struct{}{}
 	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account"} {
 		for _, action := range []string{
 			"query", "get", "create", "save", "submit", "unsubmit", "approve",
@@ -265,6 +267,12 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 		"reject", "unapprove", "delete", "versions", "audit-history",
 	} {
 		expected["/dcl/product/"+action] = struct{}{}
+	}
+	for _, action := range []string{
+		"create", "save", "submit", "unsubmit", "reject", "approve", "unapprove",
+		"delete", "get", "query", "versions", "audit-history", "merge-preflight", "merge-confirm",
+	} {
+		expected["/dcl/party/"+action] = struct{}{}
 	}
 
 	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain IN ('bob', 'aux', 'dcl')`)
@@ -297,6 +305,14 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	}
 	if obsoleteBOBWrites != 0 {
 		t.Fatalf("obsolete BOB current-data write permissions = %d", obsoleteBOBWrites)
+	}
+	var obsoleteBOBPartyWrites int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions
+		WHERE domain='bob' AND entity='party' AND action NOT IN ('query','get')`).Scan(&obsoleteBOBPartyWrites); err != nil {
+		t.Fatalf("query obsolete BOB Party write permissions: %v", err)
+	}
+	if obsoleteBOBPartyWrites != 0 {
+		t.Fatalf("obsolete BOB Party write permissions = %d", obsoleteBOBPartyWrites)
 	}
 }
 

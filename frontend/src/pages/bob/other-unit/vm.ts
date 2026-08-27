@@ -105,7 +105,7 @@ export function useOtherUnitViewModel() {
       canSettlementQuery.value,
   )
   const canCreateWithNewParty = computed(
-    () => canCreateBase.value && session.can('/bob/party/create'),
+    () => canCreateBase.value && session.can('/dcl/party/create'),
   )
   const canCreateWithExistingParty = computed(
     () =>

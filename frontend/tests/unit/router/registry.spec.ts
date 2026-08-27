@@ -5,6 +5,7 @@ import {
   buildMenus,
   buildServerMenus,
   hasRegisteredPage,
+  pageRegistry,
   normalizePermissions,
   registerMenuRoutes,
   resolveFirstMenuPath,
@@ -31,6 +32,12 @@ function createTestRouter() {
 }
 
 describe('permission menu registry', () => {
+  it('registers Party maintenance under DCL while retaining the read-only BOB page', () => {
+    expect(pageRegistry['dcl/party']?.entityTitle).toBe('主体申报')
+    expect(pageRegistry['bob/party']?.entityTitle).toBe('主体')
+    expect(hasRegisteredPage('dcl', 'party')).toBe(true)
+  })
+
   it('不将 APP 管理页面作为动态菜单路由注册', () => {
     const router = createTestRouter()
 

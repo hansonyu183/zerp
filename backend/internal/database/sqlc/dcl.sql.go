@@ -51,6 +51,44 @@ func (q *Queries) CopyDCLOperatingEntityVersion(ctx context.Context, arg CopyDCL
 	return result.RowsAffected(), nil
 }
 
+const copyDCLPartyVersion = `-- name: CopyDCLPartyVersion :execrows
+INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address)
+SELECT $1,source.party_id,source.kind,source.legal_name,source.display_name,source.tax_number,source.phone,source.email,source.address
+FROM dcl_party_versions source WHERE source.approval_entry_id=$2
+`
+
+type CopyDCLPartyVersionParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLPartyVersion(ctx context.Context, arg CopyDCLPartyVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, copyDCLPartyVersion, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const copyDCLPartyVersionIdentifiers = `-- name: CopyDCLPartyVersionIdentifiers :execrows
+INSERT INTO dcl_party_version_identifiers(approval_entry_id,identifier_type,value,normalized_value)
+SELECT $1,source.identifier_type,source.value,source.normalized_value
+FROM dcl_party_version_identifiers source WHERE source.approval_entry_id=$2
+`
+
+type CopyDCLPartyVersionIdentifiersParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLPartyVersionIdentifiers(ctx context.Context, arg CopyDCLPartyVersionIdentifiersParams) (int64, error) {
+	result, err := q.db.Exec(ctx, copyDCLPartyVersionIdentifiers, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const copyDCLVehicleVersion = `-- name: CopyDCLVehicleVersion :execrows
 INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name,vehicle_type_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable,enabled)
 SELECT $1,source.entity,source.name,source.plate_number,source.vehicle_type,source.vehicle_type_object_id,source.vehicle_type_approval_entry_id,source.vehicle_type_name,source.vehicle_type_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_service_relationship_object_id,source.carrier_service_relationship_approval_entry_id,source.carrier_service_relationship_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=$2
@@ -174,6 +212,63 @@ func (q *Queries) CountDCLOperatingEntityApprovalEvents(ctx context.Context, obj
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countDCLParties = `-- name: CountDCLParties :one
+WITH selected AS (
+  SELECT subject.id
+  FROM dcl_subjects subject
+  JOIN bob_parties party ON party.id=subject.id
+  LEFT JOIN LATERAL (
+    SELECT id FROM approval_entries
+    WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
+      AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+  ) open_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT id FROM approval_entries
+    WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
+      AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) approved_entry ON true
+  JOIN dcl_party_versions display ON display.approval_entry_id=COALESCE(open_entry.id,approved_entry.id)
+  WHERE subject.entity='party'
+    AND ($1::text='' OR display.kind=$1::text)
+    AND ($2::text='' OR display.legal_name ILIKE '%'||$2::text||'%' OR display.display_name ILIKE '%'||$2::text||'%')
+    AND (($3::boolean AND party.merged_into_party_id IS NOT NULL) OR (NOT $3::boolean AND party.merged_into_party_id IS NULL))
+)
+SELECT count(*) FROM selected
+`
+
+type CountDCLPartiesParams struct {
+	Kind    string `db:"kind" json:"kind"`
+	Keyword string `db:"keyword" json:"keyword"`
+	Merged  bool   `db:"merged" json:"merged"`
+}
+
+// DCL Party list keeps the latest approved and the single open candidate as
+// separate typed snapshots. Filter and sort use the candidate when present,
+// otherwise the approved snapshot, so draft-only roots are discoverable and
+// a page can be hydrated with a fixed number of batch reads.
+func (q *Queries) CountDCLParties(ctx context.Context, arg CountDCLPartiesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLParties, arg.Kind, arg.Keyword, arg.Merged)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLPartyAuditEvents = `-- name: CountDCLPartyAuditEvents :one
+SELECT
+  (SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='party' AND subject_id=$1)
+  +
+  (SELECT count(*) FROM bob_party_merge_events WHERE source_party_id=$1 OR target_party_id=$1)
+`
+
+func (q *Queries) CountDCLPartyAuditEvents(ctx context.Context, partyID string) (int32, error) {
+	row := q.db.QueryRow(ctx, countDCLPartyAuditEvents, partyID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const countDCLProductApprovalEvents = `-- name: CountDCLProductApprovalEvents :one
@@ -308,6 +403,18 @@ WHERE approval_entry_id=$1
 
 func (q *Queries) DeleteDCLOperatingEntityVersion(ctx context.Context, approvalEntryID string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDCLOperatingEntityVersion, approvalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDCLPartyVersion = `-- name: DeleteDCLPartyVersion :execrows
+DELETE FROM dcl_party_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLPartyVersion(ctx context.Context, approvalEntryID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLPartyVersion, approvalEntryID)
 	if err != nil {
 		return 0, err
 	}
@@ -475,6 +582,28 @@ func (q *Queries) GetDCLOperatingEntityVersion(ctx context.Context, approvalEntr
 		&i.Phone,
 		&i.Remark,
 		&i.Enabled,
+	)
+	return i, err
+}
+
+const getDCLPartyVersion = `-- name: GetDCLPartyVersion :one
+SELECT approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address
+FROM dcl_party_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) GetDCLPartyVersion(ctx context.Context, approvalEntryID string) (DclPartyVersion, error) {
+	row := q.db.QueryRow(ctx, getDCLPartyVersion, approvalEntryID)
+	var i DclPartyVersion
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.PartyID,
+		&i.Kind,
+		&i.LegalName,
+		&i.DisplayName,
+		&i.TaxNumber,
+		&i.Phone,
+		&i.Email,
+		&i.Address,
 	)
 	return i, err
 }
@@ -702,6 +831,63 @@ func (q *Queries) InsertDCLOperatingEntityVersion(ctx context.Context, arg Inser
 		arg.Phone,
 		arg.Remark,
 		arg.Enabled,
+	)
+	return err
+}
+
+const insertDCLPartyVersion = `-- name: InsertDCLPartyVersion :exec
+INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+`
+
+type InsertDCLPartyVersionParams struct {
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	PartyID         string  `db:"party_id" json:"party_id"`
+	Kind            string  `db:"kind" json:"kind"`
+	LegalName       string  `db:"legal_name" json:"legal_name"`
+	DisplayName     string  `db:"display_name" json:"display_name"`
+	TaxNumber       *string `db:"tax_number" json:"tax_number"`
+	Phone           *string `db:"phone" json:"phone"`
+	Email           *string `db:"email" json:"email"`
+	Address         *string `db:"address" json:"address"`
+}
+
+// Party identity snapshots are DCL-owned. Strong identifiers are stored with
+// every immutable version, while the claims table serializes approved/open
+// ownership across all Party roots.
+func (q *Queries) InsertDCLPartyVersion(ctx context.Context, arg InsertDCLPartyVersionParams) error {
+	_, err := q.db.Exec(ctx, insertDCLPartyVersion,
+		arg.ApprovalEntryID,
+		arg.PartyID,
+		arg.Kind,
+		arg.LegalName,
+		arg.DisplayName,
+		arg.TaxNumber,
+		arg.Phone,
+		arg.Email,
+		arg.Address,
+	)
+	return err
+}
+
+const insertDCLPartyVersionIdentifier = `-- name: InsertDCLPartyVersionIdentifier :exec
+INSERT INTO dcl_party_version_identifiers(approval_entry_id,identifier_type,value,normalized_value)
+VALUES($1,$2,$3,$4)
+`
+
+type InsertDCLPartyVersionIdentifierParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+func (q *Queries) InsertDCLPartyVersionIdentifier(ctx context.Context, arg InsertDCLPartyVersionIdentifierParams) error {
+	_, err := q.db.Exec(ctx, insertDCLPartyVersionIdentifier,
+		arg.ApprovalEntryID,
+		arg.IdentifierType,
+		arg.Value,
+		arg.NormalizedValue,
 	)
 	return err
 }
@@ -1062,6 +1248,294 @@ func (q *Queries) ListDCLOperatingEntityApprovalEvents(ctx context.Context, arg 
 			&i.Reason,
 			&i.RequestID,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLParties = `-- name: ListDCLParties :many
+SELECT subject.id AS party_id,
+       COALESCE(approved_entry.id,'')::text AS latest_approved_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM dcl_subjects subject
+JOIN bob_parties party ON party.id=subject.id
+LEFT JOIN LATERAL (
+  SELECT id,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
+    AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+JOIN dcl_party_versions display ON display.approval_entry_id=COALESCE(open_entry.id,approved_entry.id)
+WHERE subject.entity='party'
+  AND ($1::text='' OR display.kind=$1::text)
+  AND ($2::text='' OR display.legal_name ILIKE '%'||$2::text||'%' OR display.display_name ILIKE '%'||$2::text||'%')
+  AND (($3::boolean AND party.merged_into_party_id IS NOT NULL) OR (NOT $3::boolean AND party.merged_into_party_id IS NULL))
+ORDER BY display.display_name ASC,subject.id ASC
+LIMIT $5 OFFSET $4
+`
+
+type ListDCLPartiesParams struct {
+	Kind      string `db:"kind" json:"kind"`
+	Keyword   string `db:"keyword" json:"keyword"`
+	Merged    bool   `db:"merged" json:"merged"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLPartiesRow struct {
+	PartyID               string             `db:"party_id" json:"party_id"`
+	LatestApprovedEntryID string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
+	OpenEntryID           string             `db:"open_entry_id" json:"open_entry_id"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListDCLParties(ctx context.Context, arg ListDCLPartiesParams) ([]ListDCLPartiesRow, error) {
+	rows, err := q.db.Query(ctx, listDCLParties,
+		arg.Kind,
+		arg.Keyword,
+		arg.Merged,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLPartiesRow{}
+	for rows.Next() {
+		var i ListDCLPartiesRow
+		if err := rows.Scan(
+			&i.PartyID,
+			&i.LatestApprovedEntryID,
+			&i.OpenEntryID,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLPartyAuditEvents = `-- name: ListDCLPartyAuditEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
+       from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM (
+  SELECT event.id,event.entry_id,event.domain,event.entity,event.subject_id,event.version_no,
+         event.action,event.from_status,event.to_status,event.from_revision,event.to_revision,
+         event.actor_id,event.reason,event.request_id,event.created_at
+  FROM approval_events event
+  WHERE event.domain='dcl' AND event.entity='party' AND event.subject_id=$1
+  UNION ALL
+  SELECT merge_event.id,
+         CASE WHEN merge_event.source_party_id=$1
+              THEN preflight.source_approval_entry_id
+              ELSE preflight.target_approval_entry_id END AS entry_id,
+         'dcl'::character varying AS domain,'party'::character varying AS entity,
+         $1::character varying AS subject_id,NULL::integer AS version_no,
+         'MERGED'::character varying AS action,NULL::character varying AS from_status,
+         NULL::character varying AS to_status,NULL::bigint AS from_revision,
+         NULL::bigint AS to_revision,merge_event.actor_id,NULL::text AS reason,
+         merge_event.request_id,merge_event.occurred_at AS created_at
+  FROM bob_party_merge_events merge_event
+  JOIN bob_party_merge_preflights preflight ON preflight.id=merge_event.preflight_id
+  WHERE merge_event.source_party_id=$1 OR merge_event.target_party_id=$1
+) audit
+ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDCLPartyAuditEventsParams struct {
+	PartyID   string `db:"party_id" json:"party_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLPartyAuditEvents(ctx context.Context, arg ListDCLPartyAuditEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLPartyAuditEvents, arg.PartyID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLPartyVersionIdentifiers = `-- name: ListDCLPartyVersionIdentifiers :many
+SELECT identifier_type,value,normalized_value FROM dcl_party_version_identifiers
+WHERE approval_entry_id=$1 ORDER BY identifier_type,normalized_value
+`
+
+type ListDCLPartyVersionIdentifiersRow struct {
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+func (q *Queries) ListDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) ([]ListDCLPartyVersionIdentifiersRow, error) {
+	rows, err := q.db.Query(ctx, listDCLPartyVersionIdentifiers, approvalEntryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLPartyVersionIdentifiersRow{}
+	for rows.Next() {
+		var i ListDCLPartyVersionIdentifiersRow
+		if err := rows.Scan(&i.IdentifierType, &i.Value, &i.NormalizedValue); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLPartyVersionIdentifiersByEntryIDs = `-- name: ListDCLPartyVersionIdentifiersByEntryIDs :many
+SELECT approval_entry_id,identifier_type,value,normalized_value
+FROM dcl_party_version_identifiers
+WHERE approval_entry_id=ANY($1::text[])
+ORDER BY approval_entry_id,identifier_type,normalized_value
+`
+
+func (q *Queries) ListDCLPartyVersionIdentifiersByEntryIDs(ctx context.Context, approvalEntryIds []string) ([]DclPartyVersionIdentifier, error) {
+	rows, err := q.db.Query(ctx, listDCLPartyVersionIdentifiersByEntryIDs, approvalEntryIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DclPartyVersionIdentifier{}
+	for rows.Next() {
+		var i DclPartyVersionIdentifier
+		if err := rows.Scan(
+			&i.ApprovalEntryID,
+			&i.IdentifierType,
+			&i.Value,
+			&i.NormalizedValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLPartyVersionsByEntryIDs = `-- name: ListDCLPartyVersionsByEntryIDs :many
+SELECT entry.id AS approval_entry_id,entry.domain,entry.entity,entry.subject_id,entry.version_no,
+       entry.status,entry.revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at,
+       entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at,
+       version.party_id,version.kind,version.legal_name,version.display_name,version.tax_number,
+       version.phone,version.email,version.address
+FROM approval_entries entry
+JOIN dcl_party_versions version ON version.approval_entry_id=entry.id
+WHERE entry.id=ANY($1::text[])
+ORDER BY entry.id
+`
+
+type ListDCLPartyVersionsByEntryIDsRow struct {
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	Domain          string             `db:"domain" json:"domain"`
+	Entity          string             `db:"entity" json:"entity"`
+	SubjectID       string             `db:"subject_id" json:"subject_id"`
+	VersionNo       *int32             `db:"version_no" json:"version_no"`
+	Status          string             `db:"status" json:"status"`
+	Revision        int64              `db:"revision" json:"revision"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	SubmittedBy     *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt     pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy      *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt      pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	PartyID         string             `db:"party_id" json:"party_id"`
+	Kind            string             `db:"kind" json:"kind"`
+	LegalName       string             `db:"legal_name" json:"legal_name"`
+	DisplayName     string             `db:"display_name" json:"display_name"`
+	TaxNumber       *string            `db:"tax_number" json:"tax_number"`
+	Phone           *string            `db:"phone" json:"phone"`
+	Email           *string            `db:"email" json:"email"`
+	Address         *string            `db:"address" json:"address"`
+}
+
+func (q *Queries) ListDCLPartyVersionsByEntryIDs(ctx context.Context, approvalEntryIds []string) ([]ListDCLPartyVersionsByEntryIDsRow, error) {
+	rows, err := q.db.Query(ctx, listDCLPartyVersionsByEntryIDs, approvalEntryIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLPartyVersionsByEntryIDsRow{}
+	for rows.Next() {
+		var i ListDCLPartyVersionsByEntryIDsRow
+		if err := rows.Scan(
+			&i.ApprovalEntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Status,
+			&i.Revision,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedBy,
+			&i.UpdatedAt,
+			&i.SubmittedBy,
+			&i.SubmittedAt,
+			&i.ApprovedBy,
+			&i.ApprovedAt,
+			&i.PartyID,
+			&i.Kind,
+			&i.LegalName,
+			&i.DisplayName,
+			&i.TaxNumber,
+			&i.Phone,
+			&i.Email,
+			&i.Address,
 		); err != nil {
 			return nil, err
 		}
@@ -1512,6 +1986,18 @@ func (q *Queries) RebuildDCLVehicleIdentifierClaims(ctx context.Context, objectI
 	return err
 }
 
+const replaceDCLPartyVersionIdentifiers = `-- name: ReplaceDCLPartyVersionIdentifiers :execrows
+DELETE FROM dcl_party_version_identifiers WHERE approval_entry_id=$1
+`
+
+func (q *Queries) ReplaceDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) (int64, error) {
+	result, err := q.db.Exec(ctx, replaceDCLPartyVersionIdentifiers, approvalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateDCLFundAccountVersion = `-- name: UpdateDCLFundAccountVersion :execrows
 UPDATE dcl_fund_account_versions SET name=$1,currency=$2,account_name=$3,bank_name=$4,bank_branch=$5,account_number=$6,remark=$7,operating_entity_id=$8,operating_entity_approval_entry_id=$9,operating_entity_code=$10,operating_entity_name=$11,enabled=$12 WHERE approval_entry_id=$13
 `
@@ -1582,6 +2068,39 @@ func (q *Queries) UpdateDCLOperatingEntityVersion(ctx context.Context, arg Updat
 		arg.Phone,
 		arg.Remark,
 		arg.Enabled,
+		arg.ApprovalEntryID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateDCLPartyVersion = `-- name: UpdateDCLPartyVersion :execrows
+UPDATE dcl_party_versions SET kind=$1,legal_name=$2,display_name=$3,tax_number=$4,phone=$5,email=$6,address=$7
+WHERE approval_entry_id=$8
+`
+
+type UpdateDCLPartyVersionParams struct {
+	Kind            string  `db:"kind" json:"kind"`
+	LegalName       string  `db:"legal_name" json:"legal_name"`
+	DisplayName     string  `db:"display_name" json:"display_name"`
+	TaxNumber       *string `db:"tax_number" json:"tax_number"`
+	Phone           *string `db:"phone" json:"phone"`
+	Email           *string `db:"email" json:"email"`
+	Address         *string `db:"address" json:"address"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) UpdateDCLPartyVersion(ctx context.Context, arg UpdateDCLPartyVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateDCLPartyVersion,
+		arg.Kind,
+		arg.LegalName,
+		arg.DisplayName,
+		arg.TaxNumber,
+		arg.Phone,
+		arg.Email,
+		arg.Address,
 		arg.ApprovalEntryID,
 	)
 	if err != nil {

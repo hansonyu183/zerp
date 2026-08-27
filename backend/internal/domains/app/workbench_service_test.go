@@ -44,6 +44,21 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	}
 }
 
+func TestWorkbenchIncludesDCLPartyLifecycle(t *testing.T) {
+	scope := newWorkbenchPermissionScope([]string{
+		"/dcl/party/query", "/dcl/party/submit", "/dcl/party/get", "/dcl/party/save",
+	})
+	entities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
+		return scope.can(domain, entity, "submit")
+	})
+	if !reflect.DeepEqual(entities, []string{"party"}) {
+		t.Fatalf("DCL submit entities = %v", entities)
+	}
+	if domain := workbenchApprovalDomain("party"); domain != "dcl" {
+		t.Fatalf("Party workbench domain = %q", domain)
+	}
+}
+
 func TestValidateWorkbenchQueryNormalizesAndRejectsInvalidInput(t *testing.T) {
 	input, spec, err := validateWorkbenchQuery(WorkbenchQueryInput{
 		Category: " bob ", Keyword: " 客户 ", Entities: []string{" Customer "},

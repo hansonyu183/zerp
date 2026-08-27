@@ -678,6 +678,110 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
     };
   };
+  "/dcl/party/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartySaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyMutationResponse } } };
+    };
+  };
+  "/dcl/party/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyMutationResponse } } };
+    };
+  };
+  "/dcl/party/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyMutationResponse } } };
+    };
+  };
+  "/dcl/party/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyMutationResponse } } };
+    };
+  };
+  "/dcl/party/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyMutationResponse } } };
+    };
+  };
+  "/dcl/party/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyMutationResponse } } };
+    };
+  };
+  "/dcl/party/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/party/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyViewResponse } } };
+    };
+  };
+  "/dcl/party/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyQueryResponse } } };
+    };
+  };
+  "/dcl/party/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyVersionPageResponse } } };
+    };
+  };
+  "/dcl/party/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
+    };
+  };
+  "/dcl/party/merge-preflight": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyMergePreflightRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyMergePreflightResponse } } };
+    };
+  };
+  "/dcl/party/merge-confirm": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclPartyMergeConfirmRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyMergeConfirmResponse } } };
+    };
+  };
   "/dcl/operating-entity/create": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1110,14 +1214,6 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.PartyGetResponse } } };
     };
   };
-  "/bob/party/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.PartySaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.PartyGetResponse } } };
-    };
-  };
   "/bob/other-unit/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1372,22 +1468,6 @@ export interface paths {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.SalesPartnerSaveRequest } };
       responses: { 200: { content: { 'application/json': Models.SalesPartnerMutationResponse } } };
-    };
-  };
-  "/bob/party/merge-preflight": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.PartyMergePreflightRequest } };
-      responses: { 200: { content: { 'application/json': Models.PartyMergePreflightResponse } } };
-    };
-  };
-  "/bob/party/merge-confirm": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.PartyMergeConfirmRequest } };
-      responses: { 200: { content: { 'application/json': Models.PartyMergeConfirmResponse } } };
     };
   };
   "/bob/employee/create": {
@@ -2185,6 +2265,36 @@ export interface components {
       "DclProductQueryResponse": Models.DclProductQueryResponse;
       "DclProductVersionPage": Models.DclProductVersionPage;
       "DclProductVersionPageResponse": Models.DclProductVersionPageResponse;
+      "PartyKind": Models.PartyKind;
+      "PartyIdentifierType": Models.PartyIdentifierType;
+      "PartyIdentifier": Models.PartyIdentifier;
+      "DclPartyData": Models.DclPartyData;
+      "DclPartySaveRequest": Models.DclPartySaveRequest;
+      "DclPartyMutation": Models.DclPartyMutation;
+      "DclPartyMutationResponse": Models.DclPartyMutationResponse;
+      "DclPartyVersionRequest": Models.DclPartyVersionRequest;
+      "DclPartyReviewRequest": Models.DclPartyReviewRequest;
+      "DclPartyGetRequest": Models.DclPartyGetRequest;
+      "PartyRelationshipCard": Models.PartyRelationshipCard;
+      "DclPartyView": Models.DclPartyView;
+      "DclPartyViewResponse": Models.DclPartyViewResponse;
+      "DclPartyQueryRequest": Models.DclPartyQueryRequest;
+      "DclPartyVersionView": Models.DclPartyVersionView;
+      "DclPartyListItem": Models.DclPartyListItem;
+      "DclPartyQueryPage": Models.DclPartyQueryPage;
+      "DclPartyQueryResponse": Models.DclPartyQueryResponse;
+      "DclPartyHistoryRequest": Models.DclPartyHistoryRequest;
+      "DclPartyVersionPage": Models.DclPartyVersionPage;
+      "DclPartyVersionPageResponse": Models.DclPartyVersionPageResponse;
+      "DclOperatingEntityAuditHistoryResponse": Models.DclOperatingEntityAuditHistoryResponse;
+      "DclPartyMergePreflightRequest": Models.DclPartyMergePreflightRequest;
+      "DclPartyMergeRelationshipConflict": Models.DclPartyMergeRelationshipConflict;
+      "DclPartyMergePreflightResult": Models.DclPartyMergePreflightResult;
+      "DclPartyMergePreflightResponse": Models.DclPartyMergePreflightResponse;
+      "DclPartyMergeConflictResolution": Models.DclPartyMergeConflictResolution;
+      "DclPartyMergeConfirmRequest": Models.DclPartyMergeConfirmRequest;
+      "DclPartyMergeResult": Models.DclPartyMergeResult;
+      "DclPartyMergeConfirmResponse": Models.DclPartyMergeConfirmResponse;
       "DclOperatingEntityData": Models.DclOperatingEntityData;
       "DclOperatingEntityCreateRequest": Models.DclOperatingEntityCreateRequest;
       "DclOperatingEntityMutationResponse": Models.DclOperatingEntityMutationResponse;
@@ -2197,7 +2307,6 @@ export interface components {
       "DclOperatingEntityQueryResponse": Models.DclOperatingEntityQueryResponse;
       "DclOperatingEntityVersionPage": Models.DclOperatingEntityVersionPage;
       "DclOperatingEntityVersionPageResponse": Models.DclOperatingEntityVersionPageResponse;
-      "DclOperatingEntityAuditHistoryResponse": Models.DclOperatingEntityAuditHistoryResponse;
       "WorkbenchCategory": Models.WorkbenchCategory;
       "WorkbenchPendingStage": Models.WorkbenchPendingStage;
       "WorkbenchQueryRequest": Models.WorkbenchQueryRequest;
@@ -2287,17 +2396,12 @@ export interface components {
       "AuxVersionPageResponse": Models.AuxVersionPageResponse;
       "AuxAuditEventPage": Models.AuxAuditEventPage;
       "AuxAuditEventPageResponse": Models.AuxAuditEventPageResponse;
-      "PartyKind": Models.PartyKind;
       "PartyQueryRequest": Models.PartyQueryRequest;
       "PartyListItem": Models.PartyListItem;
       "PartyQueryResponse": Models.PartyQueryResponse;
       "PartyGetRequest": Models.PartyGetRequest;
-      "PartyIdentifierType": Models.PartyIdentifierType;
-      "PartyIdentifier": Models.PartyIdentifier;
-      "PartyRelationshipCard": Models.PartyRelationshipCard;
       "PartyView": Models.PartyView;
       "PartyGetResponse": Models.PartyGetResponse;
-      "PartySaveRequest": Models.PartySaveRequest;
       "OtherUnitQueryRequest": Models.OtherUnitQueryRequest;
       "OtherUnitData": Models.OtherUnitData;
       "OtherUnitView": Models.OtherUnitView;
@@ -2389,14 +2493,6 @@ export interface components {
       "SalesPartnerMutationResult": Models.SalesPartnerMutationResult;
       "SalesPartnerMutationResponse": Models.SalesPartnerMutationResponse;
       "SalesPartnerSaveRequest": Models.SalesPartnerSaveRequest;
-      "PartyMergePreflightRequest": Models.PartyMergePreflightRequest;
-      "PartyMergeRelationshipConflict": Models.PartyMergeRelationshipConflict;
-      "PartyMergePreflightResult": Models.PartyMergePreflightResult;
-      "PartyMergePreflightResponse": Models.PartyMergePreflightResponse;
-      "PartyMergeConflictResolution": Models.PartyMergeConflictResolution;
-      "PartyMergeConfirmRequest": Models.PartyMergeConfirmRequest;
-      "PartyMergeResult": Models.PartyMergeResult;
-      "PartyMergeConfirmResponse": Models.PartyMergeConfirmResponse;
       "EmploymentData": Models.EmploymentData;
       "EmploymentCreateRequest": Models.EmploymentCreateRequest;
       "BobReadableEntity": Models.BobReadableEntity;

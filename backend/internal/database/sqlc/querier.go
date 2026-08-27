@@ -50,6 +50,8 @@ type Querier interface {
 	CopyCustomerVersionAttachments(ctx context.Context, arg CopyCustomerVersionAttachmentsParams) error
 	CopyDCLFundAccountVersion(ctx context.Context, arg CopyDCLFundAccountVersionParams) (int64, error)
 	CopyDCLOperatingEntityVersion(ctx context.Context, arg CopyDCLOperatingEntityVersionParams) (int64, error)
+	CopyDCLPartyVersion(ctx context.Context, arg CopyDCLPartyVersionParams) (int64, error)
+	CopyDCLPartyVersionIdentifiers(ctx context.Context, arg CopyDCLPartyVersionIdentifiersParams) (int64, error)
 	CopyDCLVehicleVersion(ctx context.Context, arg CopyDCLVehicleVersionParams) (int64, error)
 	CopyDCLWarehouseVersion(ctx context.Context, arg CopyDCLWarehouseVersionParams) (int64, error)
 	CountAppPermissions(ctx context.Context, arg CountAppPermissionsParams) (int64, error)
@@ -76,6 +78,12 @@ type Querier interface {
 	CountDCLFundAccounts(ctx context.Context, arg CountDCLFundAccountsParams) (int64, error)
 	CountDCLOperatingEntities(ctx context.Context, arg CountDCLOperatingEntitiesParams) (int64, error)
 	CountDCLOperatingEntityApprovalEvents(ctx context.Context, objectID string) (int64, error)
+	// DCL Party list keeps the latest approved and the single open candidate as
+	// separate typed snapshots. Filter and sort use the candidate when present,
+	// otherwise the approved snapshot, so draft-only roots are discoverable and
+	// a page can be hydrated with a fixed number of batch reads.
+	CountDCLParties(ctx context.Context, arg CountDCLPartiesParams) (int64, error)
+	CountDCLPartyAuditEvents(ctx context.Context, partyID string) (int32, error)
 	CountDCLProductApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLProducts(ctx context.Context, arg CountDCLProductsParams) (int64, error)
 	CountDCLVehicleApprovalEvents(ctx context.Context, objectID string) (int64, error)
@@ -181,12 +189,15 @@ type Querier interface {
 	DeleteDCLFundAccountIdentifierClaims(ctx context.Context, objectID string) error
 	DeleteDCLFundAccountVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLOperatingEntityVersion(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteDCLPartyVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLProductBarcodeClaims(ctx context.Context, objectID string) error
 	DeleteDCLSubject(ctx context.Context, arg DeleteDCLSubjectParams) (int64, error)
 	DeleteDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error
 	DeleteDCLVehicleVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
+	DeleteMergedPartyCurrent(ctx context.Context, sourcePartyID string) (int64, error)
+	DeleteMergedPartyCurrentIdentifiers(ctx context.Context, sourcePartyID string) (int64, error)
 	DeleteVouAssetAcquisitionLines(ctx context.Context, documentID string) error
 	DeleteVouAssetLiquidationLines(ctx context.Context, documentID string) error
 	DeleteVouAssetSaleLines(ctx context.Context, documentID string) error
@@ -306,7 +317,7 @@ type Querier interface {
 	GetBobOperatingEntityCurrentReference(ctx context.Context, objectID string) (GetBobOperatingEntityCurrentReferenceRow, error)
 	GetBobOtherUnitPayload(ctx context.Context, approvalEntryID string) (BobServiceRelationshipVersion, error)
 	GetBobOtherUnitRelationship(ctx context.Context, objectID string) (BobServiceRelationship, error)
-	GetBobParty(ctx context.Context, partyID string) (BobParty, error)
+	GetBobParty(ctx context.Context, partyID string) (GetBobPartyRow, error)
 	GetBobProductCurrent(ctx context.Context, objectID string) (GetBobProductCurrentRow, error)
 	GetBobProductCurrentReference(ctx context.Context, objectID string) (GetBobProductCurrentReferenceRow, error)
 	// Product sub-payloads are keyed by the product Approval entry. Copying only
@@ -325,6 +336,7 @@ type Querier interface {
 	GetCustomerFileStorageKey(ctx context.Context, fileID string) (string, error)
 	GetDCLFundAccountVersion(ctx context.Context, approvalEntryID string) (DclFundAccountVersion, error)
 	GetDCLOperatingEntityVersion(ctx context.Context, approvalEntryID string) (DclOperatingEntityVersion, error)
+	GetDCLPartyVersion(ctx context.Context, approvalEntryID string) (DclPartyVersion, error)
 	GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (DclSubject, error)
 	GetDCLVehicleVersion(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error)
 	GetDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (DclWarehouseVersion, error)
@@ -425,6 +437,11 @@ type Querier interface {
 	InsertCustomerVersionAttachment(ctx context.Context, arg InsertCustomerVersionAttachmentParams) error
 	InsertDCLFundAccountVersion(ctx context.Context, arg InsertDCLFundAccountVersionParams) error
 	InsertDCLOperatingEntityVersion(ctx context.Context, arg InsertDCLOperatingEntityVersionParams) error
+	// Party identity snapshots are DCL-owned. Strong identifiers are stored with
+	// every immutable version, while the claims table serializes approved/open
+	// ownership across all Party roots.
+	InsertDCLPartyVersion(ctx context.Context, arg InsertDCLPartyVersionParams) error
+	InsertDCLPartyVersionIdentifier(ctx context.Context, arg InsertDCLPartyVersionIdentifierParams) error
 	// DCL keeps one stable subject and one typed full snapshot per central
 	// Approval Version.  It deliberately stores no current/base/next pointer.
 	InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectParams) error
@@ -552,6 +569,11 @@ type Querier interface {
 	ListDCLFundAccounts(ctx context.Context, arg ListDCLFundAccountsParams) ([]ListDCLFundAccountsRow, error)
 	ListDCLOperatingEntities(ctx context.Context, arg ListDCLOperatingEntitiesParams) ([]ListDCLOperatingEntitiesRow, error)
 	ListDCLOperatingEntityApprovalEvents(ctx context.Context, arg ListDCLOperatingEntityApprovalEventsParams) ([]ApprovalEvent, error)
+	ListDCLParties(ctx context.Context, arg ListDCLPartiesParams) ([]ListDCLPartiesRow, error)
+	ListDCLPartyAuditEvents(ctx context.Context, arg ListDCLPartyAuditEventsParams) ([]ApprovalEvent, error)
+	ListDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) ([]ListDCLPartyVersionIdentifiersRow, error)
+	ListDCLPartyVersionIdentifiersByEntryIDs(ctx context.Context, approvalEntryIds []string) ([]DclPartyVersionIdentifier, error)
+	ListDCLPartyVersionsByEntryIDs(ctx context.Context, approvalEntryIds []string) ([]ListDCLPartyVersionsByEntryIDsRow, error)
 	ListDCLProductApprovalEvents(ctx context.Context, arg ListDCLProductApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLProducts(ctx context.Context, arg ListDCLProductsParams) ([]ListDCLProductsRow, error)
 	ListDCLVehicleApprovalEvents(ctx context.Context, arg ListDCLVehicleApprovalEventsParams) ([]ApprovalEvent, error)
@@ -692,6 +714,7 @@ type Querier interface {
 	RecordWorkflowTrialAudit(ctx context.Context, arg RecordWorkflowTrialAuditParams) error
 	RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error)
 	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
+	ReplaceDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) (int64, error)
 	ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error)
 	ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error)
 	ResetSigninFailures(ctx context.Context, id string) error
@@ -768,6 +791,7 @@ type Querier interface {
 	UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCurrentAppUserProfileParams) (AppUser, error)
 	UpdateDCLFundAccountVersion(ctx context.Context, arg UpdateDCLFundAccountVersionParams) (int64, error)
 	UpdateDCLOperatingEntityVersion(ctx context.Context, arg UpdateDCLOperatingEntityVersionParams) (int64, error)
+	UpdateDCLPartyVersion(ctx context.Context, arg UpdateDCLPartyVersionParams) (int64, error)
 	UpdateDCLVehicleVersion(ctx context.Context, arg UpdateDCLVehicleVersionParams) (int64, error)
 	UpdateDCLWarehouseVersion(ctx context.Context, arg UpdateDCLWarehouseVersionParams) (int64, error)
 	UpdateVouAssetAcquisitionDetail(ctx context.Context, arg UpdateVouAssetAcquisitionDetailParams) (int64, error)

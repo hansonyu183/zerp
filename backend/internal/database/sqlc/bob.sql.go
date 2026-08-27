@@ -265,7 +265,7 @@ LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.obje
 LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
 LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_parties relationship_party ON relationship_party.id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
+LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
 WHERE o.entity = $1
   AND ($2::text = ''
        OR o.code ILIKE '%' || $2::text || '%'
@@ -869,11 +869,12 @@ func (q *Queries) GetBobEmploymentRelationship(ctx context.Context, objectID str
 }
 
 const getBobEmploymentRelationshipIdentity = `-- name: GetBobEmploymentRelationshipIdentity :one
-SELECT relation.party_id,party.kind AS party_kind,party.display_name AS party_display_name,
+SELECT relation.party_id,current.kind AS party_kind,current.display_name AS party_display_name,
        relation.operating_entity_id,operating.code AS operating_entity_code,
        operating_payload.legal_name AS operating_entity_name
 FROM bob_employment_relationships relation
 JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_party_currents current ON current.party_id=party.id
 JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
 JOIN bob_operating_entities operating_payload ON operating_payload.object_id=operating.id
 WHERE relation.object_id=$1
@@ -1615,12 +1616,32 @@ func (q *Queries) GetBobOtherUnitRelationship(ctx context.Context, objectID stri
 }
 
 const getBobParty = `-- name: GetBobParty :one
-SELECT id, kind, legal_name, display_name, tax_number, phone, email, address, revision, created_at, created_by, updated_at, updated_by, merged_into_party_id, merged_at FROM bob_parties WHERE id=$1
+SELECT party.id,current.kind,current.legal_name,current.display_name,current.tax_number,current.phone,current.email,current.address,
+       party.created_at,party.created_by,current.updated_at,current.updated_by,party.merged_into_party_id,party.merged_at
+FROM bob_parties party JOIN bob_party_currents current ON current.party_id=party.id
+WHERE party.id=$1
 `
 
-func (q *Queries) GetBobParty(ctx context.Context, partyID string) (BobParty, error) {
+type GetBobPartyRow struct {
+	ID                string             `db:"id" json:"id"`
+	Kind              string             `db:"kind" json:"kind"`
+	LegalName         string             `db:"legal_name" json:"legal_name"`
+	DisplayName       string             `db:"display_name" json:"display_name"`
+	TaxNumber         *string            `db:"tax_number" json:"tax_number"`
+	Phone             *string            `db:"phone" json:"phone"`
+	Email             *string            `db:"email" json:"email"`
+	Address           *string            `db:"address" json:"address"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy         string             `db:"created_by" json:"created_by"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
+	MergedIntoPartyID *string            `db:"merged_into_party_id" json:"merged_into_party_id"`
+	MergedAt          pgtype.Timestamptz `db:"merged_at" json:"merged_at"`
+}
+
+func (q *Queries) GetBobParty(ctx context.Context, partyID string) (GetBobPartyRow, error) {
 	row := q.db.QueryRow(ctx, getBobParty, partyID)
-	var i BobParty
+	var i GetBobPartyRow
 	err := row.Scan(
 		&i.ID,
 		&i.Kind,
@@ -1630,7 +1651,6 @@ func (q *Queries) GetBobParty(ctx context.Context, partyID string) (BobParty, er
 		&i.Phone,
 		&i.Email,
 		&i.Address,
-		&i.Revision,
 		&i.CreatedAt,
 		&i.CreatedBy,
 		&i.UpdatedAt,
@@ -2819,7 +2839,7 @@ LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.obje
 LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
 LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_parties relationship_party ON relationship_party.id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
+LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
 WHERE o.entity = $1
   AND ($2::text = ''
        OR o.code ILIKE '%' || $2::text || '%'
@@ -4407,9 +4427,9 @@ LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id=latest.id
 LEFT JOIN bob_employee_versions employee ON employee.approval_entry_id=latest.id
 LEFT JOIN dcl_product_versions product ON product.approval_entry_id=latest.id
 LEFT JOIN bob_service_relationships other_relation ON other_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_parties other_party ON other_party.id=other_relation.party_id
+LEFT JOIN bob_party_currents other_party ON other_party.party_id=other_relation.party_id
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
-LEFT JOIN bob_parties sales_party ON sales_party.id=sales_relation.party_id
+LEFT JOIN bob_party_currents sales_party ON sales_party.party_id=sales_relation.party_id
 WHERE o.entity=$1 AND o.enabled
   AND ($2::text='' OR o.id<>$2::text)
   AND ($3::text='' OR o.code ILIKE '%'||$3::text||'%'

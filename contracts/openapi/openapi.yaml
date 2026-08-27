@@ -3334,6 +3334,524 @@
                 },
             },
         },
+      '/dcl/party/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存主体声明草稿',
+              'operationId': 'dclPartySave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartySaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交主体声明',
+              'operationId': 'dclPartySubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回主体声明',
+              'operationId': 'dclPartyUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回主体声明',
+              'operationId': 'dclPartyReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准主体声明',
+              'operationId': 'dclPartyApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批准主体声明',
+              'operationId': 'dclPartyUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除主体声明草稿',
+              'operationId': 'dclPartyDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/party/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取主体声明',
+              'operationId': 'dclPartyGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询主体声明',
+              'operationId': 'dclPartyQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取主体声明版本',
+              'operationId': 'dclPartyVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取主体声明审计',
+              'operationId': 'dclPartyAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体审计。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/merge-preflight':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '预检主体合并',
+              'operationId': 'dclPartyMergePreflight',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyMergePreflightRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体合并预检结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMergePreflightResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/merge-confirm':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '确认主体合并',
+              'operationId': 'dclPartyMergeConfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyMergeConfirmRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体合并执行结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMergeConfirmResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/dcl/operating-entity/create':
         {
           'post':
@@ -5475,45 +5993,6 @@
                 },
             },
         },
-      '/bob/party/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存主体共享身份资料',
-              'operationId': 'partySave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/PartySaveRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '保存后的主体资料。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/PartyGetResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
       '/bob/other-unit/query':
         {
           'post':
@@ -6635,88 +7114,6 @@
                               'schema':
                                 {
                                   '$ref': './schemas/bob.yaml#/SalesPartnerMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/party/merge-preflight':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '预检主体合并',
-              'operationId': 'partyMergePreflight',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/PartyMergePreflightRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '主体合并预检结果。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/PartyMergePreflightResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/party/merge-confirm':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '确认主体合并',
-              'operationId': 'partyMergeConfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/PartyMergeConfirmRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '主体合并执行结果。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/PartyMergeConfirmResponse',
                                 },
                             },
                         },

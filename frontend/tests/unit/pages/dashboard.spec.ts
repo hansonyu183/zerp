@@ -71,6 +71,11 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
+  it('routes Party workbench items to DCL declarations', () => {
+    const party = { ...objectItem, entity: 'party' } as WorkbenchItem
+    expect(workbenchItemPath(party)).toBe('/dcl/party')
+  })
+
   it('初始查询失败时不显示空状态', async () => {
     mockedPost.mockRejectedValueOnce(new Error('network unavailable'))
     const router = createTestRouter()

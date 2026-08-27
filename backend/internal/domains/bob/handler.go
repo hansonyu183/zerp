@@ -53,14 +53,11 @@ type applicationService interface {
 type partyOtherUnitApplicationService interface {
 	PartyQuery(context.Context, QueryInput) (Page[PartyListItem], error)
 	PartyGet(context.Context, PartyGetInput, PartyRelationshipVisibility) (PartyView, error)
-	PartySave(context.Context, PartySaveInput, string, string) (PartyView, error)
 	OtherUnitQuery(context.Context, QueryInput) (Page[OtherUnitView], error)
 	OtherUnitGet(context.Context, GetInput) (OtherUnitView, error)
 	OtherUnitCreate(context.Context, OtherUnitCreateInput, approval.Actor, bool) (OtherUnitCreateResult, error)
 	OtherUnitSave(context.Context, OtherUnitSaveInput, approval.Actor) (MutationResult, error)
 	OtherUnitVersions(context.Context, HistoryInput) (Page[VersionHistoryItem], error)
-	PartyMergePreflight(context.Context, PartyMergePreflightInput, PartyRelationshipVisibility, string, string) (PartyMergePreflightResult, error)
-	PartyMergeConfirm(context.Context, PartyMergeConfirmInput, PartyRelationshipVisibility, string, string) (PartyMergeResult, error)
 }
 
 type customerAttachmentApplicationService interface {
@@ -133,9 +130,6 @@ func (h *Handler) Register(router *gin.Engine) {
 	partyGroup := group.Group("/party")
 	partyGroup.POST("/query", h.authorize("/bob/party/query"), h.partyQuery)
 	partyGroup.POST("/get", h.authorize("/bob/party/get"), h.partyGet)
-	partyGroup.POST("/save", h.authorize("/bob/party/save"), h.partySave)
-	partyGroup.POST("/merge-preflight", h.authorize("/bob/party/merge-preflight"), h.partyMergePreflight)
-	partyGroup.POST("/merge-confirm", h.authorize("/bob/party/merge-confirm"), h.partyMergeConfirm)
 	otherUnitGroup := group.Group("/" + EntityOtherUnit)
 	otherUnitGroup.POST("/query", h.authorize("/bob/other-unit/query"), h.otherUnitQuery)
 	otherUnitGroup.POST("/get", h.authorize("/bob/other-unit/get"), h.otherUnitGet)
@@ -206,32 +200,6 @@ func (h *Handler) partyGet(c *gin.Context) {
 	h.result(c, result, err)
 }
 
-func (h *Handler) partySave(c *gin.Context) {
-	var input PartySaveInput
-	if h.bind(c, &input) {
-		result, err := h.service.PartySave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) partyMergePreflight(c *gin.Context) {
-	var input PartyMergePreflightInput
-	if h.bind(c, &input) {
-		result, err := h.service.PartyMergePreflight(c.Request.Context(), input,
-			h.partyRelationshipVisibility(c), h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) partyMergeConfirm(c *gin.Context) {
-	var input PartyMergeConfirmInput
-	if h.bind(c, &input) {
-		result, err := h.service.PartyMergeConfirm(c.Request.Context(), input,
-			h.partyRelationshipVisibility(c), h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
 func (h *Handler) partyRelationshipVisibility(c *gin.Context) PartyRelationshipVisibility {
 	principal := h.principal(c)
 	return PartyRelationshipVisibility{
@@ -264,7 +232,7 @@ func (h *Handler) otherUnitCreate(c *gin.Context) {
 	}
 	requiredPartyPath := "/bob/party/get"
 	if input.NewParty != nil {
-		requiredPartyPath = "/bob/party/create"
+		requiredPartyPath = "/dcl/party/create"
 	}
 	if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 		return
@@ -445,7 +413,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		}
 		requiredPartyPath := "/bob/party/get"
 		if input.NewParty != nil {
-			requiredPartyPath = "/bob/party/create"
+			requiredPartyPath = "/dcl/party/create"
 		}
 		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
@@ -465,7 +433,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		}
 		requiredPartyPath := "/bob/party/get"
 		if input.NewParty != nil {
-			requiredPartyPath = "/bob/party/create"
+			requiredPartyPath = "/dcl/party/create"
 		}
 		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
@@ -486,7 +454,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		}
 		requiredPartyPath := "/bob/party/get"
 		if input.NewParty != nil {
-			requiredPartyPath = "/bob/party/create"
+			requiredPartyPath = "/dcl/party/create"
 		}
 		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
@@ -507,7 +475,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		}
 		requiredPartyPath := "/bob/party/get"
 		if input.NewParty != nil {
-			requiredPartyPath = "/bob/party/create"
+			requiredPartyPath = "/dcl/party/create"
 		}
 		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return

@@ -733,31 +733,24 @@ type BobOperatingEntity struct {
 
 type BobParty struct {
 	ID                string             `db:"id" json:"id"`
-	Kind              string             `db:"kind" json:"kind"`
-	LegalName         string             `db:"legal_name" json:"legal_name"`
-	DisplayName       string             `db:"display_name" json:"display_name"`
-	TaxNumber         *string            `db:"tax_number" json:"tax_number"`
-	Phone             *string            `db:"phone" json:"phone"`
-	Email             *string            `db:"email" json:"email"`
-	Address           *string            `db:"address" json:"address"`
-	Revision          int64              `db:"revision" json:"revision"`
 	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy         string             `db:"created_by" json:"created_by"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
 	MergedIntoPartyID *string            `db:"merged_into_party_id" json:"merged_into_party_id"`
 	MergedAt          pgtype.Timestamptz `db:"merged_at" json:"merged_at"`
 }
 
-type BobPartyAuditEvent struct {
-	ID         string             `db:"id" json:"id"`
-	PartyID    string             `db:"party_id" json:"party_id"`
-	EventType  string             `db:"event_type" json:"event_type"`
-	Revision   int64              `db:"revision" json:"revision"`
-	ActorID    string             `db:"actor_id" json:"actor_id"`
-	OccurredAt pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	RequestID  string             `db:"request_id" json:"request_id"`
-	Summary    []byte             `db:"summary" json:"summary"`
+type BobPartyCurrent struct {
+	PartyID               string             `db:"party_id" json:"party_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Kind                  string             `db:"kind" json:"kind"`
+	LegalName             string             `db:"legal_name" json:"legal_name"`
+	DisplayName           string             `db:"display_name" json:"display_name"`
+	TaxNumber             *string            `db:"tax_number" json:"tax_number"`
+	Phone                 *string            `db:"phone" json:"phone"`
+	Email                 *string            `db:"email" json:"email"`
+	Address               *string            `db:"address" json:"address"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobPartyIdentifier struct {
@@ -778,17 +771,19 @@ type BobPartyMergeEvent struct {
 }
 
 type BobPartyMergePreflight struct {
-	ID               string             `db:"id" json:"id"`
-	SourcePartyID    string             `db:"source_party_id" json:"source_party_id"`
-	TargetPartyID    string             `db:"target_party_id" json:"target_party_id"`
-	SourceRevision   int64              `db:"source_revision" json:"source_revision"`
-	TargetRevision   int64              `db:"target_revision" json:"target_revision"`
-	StateFingerprint string             `db:"state_fingerprint" json:"state_fingerprint"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy        string             `db:"created_by" json:"created_by"`
-	RequestID        string             `db:"request_id" json:"request_id"`
-	ConsumedAt       pgtype.Timestamptz `db:"consumed_at" json:"consumed_at"`
-	ConsumedBy       *string            `db:"consumed_by" json:"consumed_by"`
+	ID                     string             `db:"id" json:"id"`
+	SourcePartyID          string             `db:"source_party_id" json:"source_party_id"`
+	TargetPartyID          string             `db:"target_party_id" json:"target_party_id"`
+	SourceApprovalEntryID  string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	TargetApprovalEntryID  string             `db:"target_approval_entry_id" json:"target_approval_entry_id"`
+	SourceApprovalRevision int64              `db:"source_approval_revision" json:"source_approval_revision"`
+	TargetApprovalRevision int64              `db:"target_approval_revision" json:"target_approval_revision"`
+	StateFingerprint       string             `db:"state_fingerprint" json:"state_fingerprint"`
+	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy              string             `db:"created_by" json:"created_by"`
+	RequestID              string             `db:"request_id" json:"request_id"`
+	ConsumedAt             pgtype.Timestamptz `db:"consumed_at" json:"consumed_at"`
+	ConsumedBy             *string            `db:"consumed_by" json:"consumed_by"`
 }
 
 type BobPartyRelationshipEndpoint struct {
@@ -986,6 +981,34 @@ type DclOperatingEntityVersion struct {
 	Phone           *string `db:"phone" json:"phone"`
 	Remark          *string `db:"remark" json:"remark"`
 	Enabled         bool    `db:"enabled" json:"enabled"`
+}
+
+type DclPartyIdentifierClaim struct {
+	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
+	ApprovedPartyID         *string `db:"approved_party_id" json:"approved_party_id"`
+	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenPartyID             *string `db:"open_party_id" json:"open_party_id"`
+	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
+type DclPartyVersion struct {
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	PartyID         string  `db:"party_id" json:"party_id"`
+	Kind            string  `db:"kind" json:"kind"`
+	LegalName       string  `db:"legal_name" json:"legal_name"`
+	DisplayName     string  `db:"display_name" json:"display_name"`
+	TaxNumber       *string `db:"tax_number" json:"tax_number"`
+	Phone           *string `db:"phone" json:"phone"`
+	Email           *string `db:"email" json:"email"`
+	Address         *string `db:"address" json:"address"`
+}
+
+type DclPartyVersionIdentifier struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
 }
 
 type DclProductBarcodeClaim struct {

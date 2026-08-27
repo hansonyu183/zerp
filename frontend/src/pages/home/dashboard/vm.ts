@@ -205,7 +205,25 @@ export function useDashboardViewModel() {
           approvalEntryId: item.versionId,
           approvalRevision: item.revision,
         }
-        if (item.entity === 'operating-entity') {
+        if ((item.entity as string) === 'party') {
+          const partyRequest = {
+            partyId: item.objectId,
+            approvalEntryId: item.versionId,
+            approvalRevision: item.revision,
+          }
+          if (action === 'submit') {
+            await apiClient.postContract('dcl/party/submit', partyRequest)
+          } else if (action === 'unsubmit') {
+            await apiClient.postContract('dcl/party/unsubmit', partyRequest)
+          } else if (action === 'approve') {
+            await apiClient.postContract('dcl/party/approve', partyRequest)
+          } else if (action === 'reject') {
+            await apiClient.postContract('dcl/party/reject', {
+              ...partyRequest,
+              reason: comment.trim(),
+            })
+          }
+        } else if (item.entity === 'operating-entity') {
           await runDclOperatingEntityAction(action, request, comment.trim())
         } else if (item.entity === 'warehouse') {
           await runDclWarehouseAction(action, request, comment.trim())

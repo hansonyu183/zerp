@@ -2,9 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type PartyMergePreflightRequest = {
+export type DclPartyMergePreflightRequest = {
   sourcePartyId: string;
   targetPartyId: string;
-  sourceRevision: number;
-  targetRevision: number;
+  sourceApprovalEntryId: string;
+  targetApprovalEntryId: string;
+  sourceApprovalRevision: number;
+  targetApprovalRevision: number;
 };

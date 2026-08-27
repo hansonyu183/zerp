@@ -1191,7 +1191,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -1205,6 +1205,49 @@ CREATE TABLE public.dcl_operating_entity_versions (
     enabled boolean NOT NULL,
     CONSTRAINT dcl_operating_entity_versions_pkey PRIMARY KEY (approval_entry_id),
     CONSTRAINT dcl_operating_entity_versions_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
+);
+
+-- Party keeps a stable BOB root because every relationship refers to it, but
+-- identity data is a DCL declaration snapshot and is visible to BOB only via
+-- bob_party_currents after approval.
+CREATE TABLE public.dcl_party_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    party_id character varying(26) NOT NULL,
+    kind character varying(16) NOT NULL,
+    legal_name character varying(200) NOT NULL,
+    display_name character varying(200) NOT NULL,
+    tax_number character varying(100),
+    phone character varying(32),
+    email character varying(254),
+    address character varying(500),
+    CONSTRAINT dcl_party_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_party_versions_kind_check CHECK ((kind)::text = ANY ((ARRAY['PERSON'::character varying, 'ORGANIZATION'::character varying])::text[])),
+    CONSTRAINT dcl_party_versions_legal_name_check CHECK ((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)),
+    CONSTRAINT dcl_party_versions_display_name_check CHECK ((length(btrim((display_name)::text)) >= 1) AND (length(btrim((display_name)::text)) <= 200))
+);
+
+CREATE TABLE public.dcl_party_version_identifiers (
+    approval_entry_id character varying(26) NOT NULL,
+    identifier_type character varying(40) NOT NULL,
+    value character varying(100) NOT NULL,
+    normalized_value character varying(100) NOT NULL,
+    CONSTRAINT dcl_party_version_identifiers_pkey PRIMARY KEY (approval_entry_id, identifier_type, normalized_value),
+    CONSTRAINT dcl_party_version_identifiers_type_check CHECK ((identifier_type)::text = ANY ((ARRAY['PERSON_ID'::character varying, 'UNIFIED_SOCIAL_CREDIT_CODE'::character varying, 'TAX_NUMBER'::character varying])::text[]))
+);
+
+-- A claim holds the latest approved value plus the sole open candidate. The
+-- unique key is deliberately shared by both states so no candidate can race a
+-- currently approved Party identity.
+CREATE TABLE public.dcl_party_identifier_claims (
+    identifier_type character varying(40) NOT NULL,
+    normalized_value character varying(100) NOT NULL,
+    approved_party_id character varying(26),
+    approved_approval_entry_id character varying(26),
+    open_party_id character varying(26),
+    open_approval_entry_id character varying(26),
+    CONSTRAINT dcl_party_identifier_claims_pkey PRIMARY KEY (identifier_type, normalized_value),
+    CONSTRAINT dcl_party_identifier_claims_approved_pair_check CHECK ((approved_party_id IS NULL) = (approved_approval_entry_id IS NULL)),
+    CONSTRAINT dcl_party_identifier_claims_open_pair_check CHECK ((open_party_id IS NULL) = (open_approval_entry_id IS NULL))
 );
 
 CREATE TABLE public.dcl_warehouse_versions (
@@ -1657,6 +1700,16 @@ CREATE TABLE public.bob_vehicles (
 
 CREATE TABLE public.bob_parties (
     id character varying(26) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(26) NOT NULL,
+    merged_into_party_id character varying(26),
+    merged_at timestamp with time zone,
+    CONSTRAINT bob_parties_merge_state_ck CHECK ((((merged_into_party_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_party_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_party_id)::text <> (id)::text))))
+);
+
+CREATE TABLE public.bob_party_currents (
+    party_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
     kind character varying(16) NOT NULL,
     legal_name character varying(200) NOT NULL,
     display_name character varying(200) NOT NULL,
@@ -1664,38 +1717,15 @@ CREATE TABLE public.bob_parties (
     phone character varying(32),
     email character varying(254),
     address character varying(500),
-    revision bigint DEFAULT 1 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    merged_into_party_id character varying(26),
-    merged_at timestamp with time zone,
-    CONSTRAINT bob_parties_display_name_check CHECK (((length(btrim((display_name)::text)) >= 1) AND (length(btrim((display_name)::text)) <= 200))),
-    CONSTRAINT bob_parties_kind_check CHECK (((kind)::text = ANY ((ARRAY['PERSON'::character varying, 'ORGANIZATION'::character varying])::text[]))),
-    CONSTRAINT bob_parties_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200))),
-    CONSTRAINT bob_parties_merge_state_ck CHECK ((((merged_into_party_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_party_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_party_id)::text <> (id)::text)))),
-    CONSTRAINT bob_parties_revision_check CHECK ((revision >= 1))
+    CONSTRAINT bob_party_currents_pkey PRIMARY KEY (party_id),
+    CONSTRAINT bob_party_currents_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
+    CONSTRAINT bob_party_currents_kind_check CHECK ((kind)::text = ANY ((ARRAY['PERSON'::character varying, 'ORGANIZATION'::character varying])::text[])),
+    CONSTRAINT bob_party_currents_legal_name_check CHECK ((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)),
+    CONSTRAINT bob_party_currents_display_name_check CHECK ((length(btrim((display_name)::text)) >= 1) AND (length(btrim((display_name)::text)) <= 200))
 );
 
-
---
--- Name: bob_party_audit_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_party_audit_events (
-    id character varying(26) NOT NULL,
-    party_id character varying(26) NOT NULL,
-    event_type character varying(16) NOT NULL,
-    revision bigint NOT NULL,
-    actor_id character varying(26) NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    request_id character varying(128) NOT NULL,
-    summary jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT bob_party_audit_events_event_type_check CHECK (((event_type)::text = ANY ((ARRAY['CREATED'::character varying, 'SAVED'::character varying, 'MERGED'::character varying])::text[]))),
-    CONSTRAINT bob_party_audit_events_revision_check CHECK ((revision >= 1)),
-    CONSTRAINT bob_party_audit_events_summary_check CHECK ((jsonb_typeof(summary) = 'object'::text))
-);
 
 
 --
@@ -1737,8 +1767,10 @@ CREATE TABLE public.bob_party_merge_preflights (
     id character varying(26) NOT NULL,
     source_party_id character varying(26) NOT NULL,
     target_party_id character varying(26) NOT NULL,
-    source_revision bigint NOT NULL,
-    target_revision bigint NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
+    target_approval_entry_id character varying(26) NOT NULL,
+    source_approval_revision bigint NOT NULL,
+    target_approval_revision bigint NOT NULL,
     state_fingerprint character(64) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
@@ -1747,9 +1779,9 @@ CREATE TABLE public.bob_party_merge_preflights (
     consumed_by character varying(26),
     CONSTRAINT bob_party_merge_preflights_check CHECK (((source_party_id)::text <> (target_party_id)::text)),
     CONSTRAINT bob_party_merge_preflights_check1 CHECK ((((consumed_at IS NULL) AND (consumed_by IS NULL)) OR ((consumed_at IS NOT NULL) AND (consumed_by IS NOT NULL)))),
-    CONSTRAINT bob_party_merge_preflights_source_revision_check CHECK ((source_revision >= 1)),
+    CONSTRAINT bob_party_merge_preflights_source_approval_revision_check CHECK ((source_approval_revision >= 1)),
     CONSTRAINT bob_party_merge_preflights_state_fingerprint_check CHECK ((state_fingerprint ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT bob_party_merge_preflights_target_revision_check CHECK ((target_revision >= 1))
+    CONSTRAINT bob_party_merge_preflights_target_approval_revision_check CHECK ((target_approval_revision >= 1))
 );
 
 
@@ -4572,9 +4604,20 @@ INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000003', '/bob/c
 INSERT INTO public.app_permissions VALUES ('01JBOB84SUPTAXMATCH0000001', '/bob/supplier/tax-match', 'bob', 'supplier', 'tax-match', '按税号匹配供应商建档资料', 'ENABLED', '2026-08-24 15:23:50.277983+00', NULL, '2026-08-24 15:23:50.277983+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000001', '/bob/party/query', 'bob', 'party', 'query', '查询主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000002', '/bob/party/get', 'bob', 'party', 'get', '查看主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000003', '/bob/party/create', 'bob', 'party', 'create', '随首条关系创建主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000004', '/bob/party/save', 'bob', 'party', 'save', '保存主体资料', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000005', '/bob/party/audit-history', 'bob', 'party', 'audit-history', '查看主体审计', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000003', '/dcl/party/create', 'dcl', 'party', 'create', '随首条关系创建主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000004', '/dcl/party/save', 'dcl', 'party', 'save', '保存主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000003', '/dcl/party/submit', 'dcl', 'party', 'submit', '提交主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000004', '/dcl/party/unsubmit', 'dcl', 'party', 'unsubmit', '撤回主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000005', '/dcl/party/reject', 'dcl', 'party', 'reject', '驳回主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000006', '/dcl/party/approve', 'dcl', 'party', 'approve', '审核主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000007', '/dcl/party/unapprove', 'dcl', 'party', 'unapprove', '反审核主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000008', '/dcl/party/delete', 'dcl', 'party', 'delete', '删除主体候选草稿', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000009', '/dcl/party/get', 'dcl', 'party', 'get', '查看主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000010', '/dcl/party/query', 'dcl', 'party', 'query', '查询主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, 90);
+INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000011', '/dcl/party/versions', 'dcl', 'party', 'versions', '查看主体声明版本', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000005', '/dcl/party/audit-history', 'dcl', 'party', 'audit-history', '查看主体声明审计', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB88MRG000000000000001', '/dcl/party/merge-preflight', 'dcl', 'party', 'merge-preflight', '预检主体合并', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB88MRG000000000000002', '/dcl/party/merge-confirm', 'dcl', 'party', 'merge-confirm', '确认主体合并', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000006', '/bob/other-unit/query', 'bob', 'other-unit', 'query', '查询其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000007', '/bob/other-unit/get', 'bob', 'other-unit', 'get', '查看其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000008', '/bob/other-unit/create', 'bob', 'other-unit', 'create', '创建其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
@@ -4621,8 +4664,6 @@ INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000017', '/vou/s
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000018', '/vou/service-acceptance/unapprove', 'vou', 'service-acceptance', 'unapprove', '反批准履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000019', '/vou/service-acceptance/delete', 'vou', 'service-acceptance', 'delete', '删除履约验收草稿', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000020', '/vou/service-acceptance/audit-history', 'vou', 'service-acceptance', 'audit-history', '查看履约验收审计', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB88MRG000000000000001', '/bob/party/merge-preflight', 'bob', 'party', 'merge-preflight', '预检主体合并', 'ENABLED', '2026-08-24 15:23:50.419508+00', NULL, '2026-08-24 15:23:50.419508+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB88MRG000000000000002', '/bob/party/merge-confirm', 'bob', 'party', 'merge-confirm', '确认主体合并', 'ENABLED', '2026-08-24 15:23:50.419508+00', NULL, '2026-08-24 15:23:50.419508+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000001', '/bob/customer-account/query', 'bob', 'customer-account', 'query', '查询客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000002', '/bob/customer-account/get', 'bob', 'customer-account', 'get', '查看客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000003', '/bob/customer-account/create', 'bob', 'customer-account', 'create', '创建客户关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
@@ -4910,10 +4951,6 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 --
 
 
-
---
--- Data for Name: bob_party_audit_events; Type: TABLE DATA; Schema: public; Owner: -
---
 
 
 
@@ -6462,13 +6499,6 @@ ALTER TABLE ONLY public.bob_parties
     ADD CONSTRAINT bob_parties_pkey PRIMARY KEY (id);
 
 
---
--- Name: bob_party_audit_events bob_party_audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_party_audit_events
-    ADD CONSTRAINT bob_party_audit_events_pkey PRIMARY KEY (id);
-
 
 --
 -- Name: bob_party_identifiers bob_party_identifiers_identifier_type_normalized_value_key; Type: CONSTRAINT; Schema: public; Owner: -
@@ -7741,14 +7771,13 @@ CREATE INDEX bob_operating_entities_tax_idx ON public.bob_operating_entities USI
 -- Name: bob_parties_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_parties_name_idx ON public.bob_parties USING btree (upper((display_name)::text), id);
+CREATE INDEX bob_party_currents_name_idx ON public.bob_party_currents USING btree (upper((display_name)::text), party_id);
 
+CREATE INDEX dcl_party_versions_party_idx ON public.dcl_party_versions USING btree (party_id, approval_entry_id);
 
---
--- Name: bob_party_audit_history_idx; Type: INDEX; Schema: public; Owner: -
---
+CREATE INDEX dcl_party_identifier_claims_approved_party_idx ON public.dcl_party_identifier_claims USING btree (approved_party_id) WHERE (approved_party_id IS NOT NULL);
 
-CREATE INDEX bob_party_audit_history_idx ON public.bob_party_audit_events USING btree (party_id, occurred_at DESC, id DESC);
+CREATE INDEX dcl_party_identifier_claims_open_party_idx ON public.dcl_party_identifier_claims USING btree (open_party_id) WHERE (open_party_id IS NOT NULL);
 
 
 --
@@ -9026,13 +9055,33 @@ ALTER TABLE ONLY public.dcl_operating_entity_versions
 ALTER TABLE ONLY public.bob_parties
     ADD CONSTRAINT bob_parties_merged_into_fk FOREIGN KEY (merged_into_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY public.dcl_party_versions
+    ADD CONSTRAINT dcl_party_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
---
--- Name: bob_party_audit_events bob_party_audit_events_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.dcl_party_versions
+    ADD CONSTRAINT dcl_party_versions_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.bob_party_audit_events
-    ADD CONSTRAINT bob_party_audit_events_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_version_identifiers
+    ADD CONSTRAINT dcl_party_version_identifiers_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_party_versions(approval_entry_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.dcl_party_identifier_claims
+    ADD CONSTRAINT dcl_party_identifier_claims_approved_party_id_fkey FOREIGN KEY (approved_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_party_identifier_claims
+    ADD CONSTRAINT dcl_party_identifier_claims_approved_approval_entry_id_fkey FOREIGN KEY (approved_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_party_identifier_claims
+    ADD CONSTRAINT dcl_party_identifier_claims_open_party_id_fkey FOREIGN KEY (open_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_party_identifier_claims
+    ADD CONSTRAINT dcl_party_identifier_claims_open_approval_entry_id_fkey FOREIGN KEY (open_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.bob_party_currents
+    ADD CONSTRAINT bob_party_currents_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.bob_party_currents
+    ADD CONSTRAINT bob_party_currents_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
 
 
 --
@@ -9076,11 +9125,27 @@ ALTER TABLE ONLY public.bob_party_merge_preflights
 
 
 --
+-- Name: bob_party_merge_preflights bob_party_merge_preflights_source_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bob_party_merge_preflights
+    ADD CONSTRAINT bob_party_merge_preflights_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: bob_party_merge_preflights bob_party_merge_preflights_target_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_party_merge_preflights
     ADD CONSTRAINT bob_party_merge_preflights_target_party_id_fkey FOREIGN KEY (target_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: bob_party_merge_preflights bob_party_merge_preflights_target_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bob_party_merge_preflights
+    ADD CONSTRAINT bob_party_merge_preflights_target_approval_entry_id_fkey FOREIGN KEY (target_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --

@@ -2,18 +2,18 @@ package bob
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const (
@@ -39,23 +39,6 @@ type PartyCreateData struct {
 	Phone             string                 `json:"phone,omitempty"`
 	Email             string                 `json:"email,omitempty"`
 	Address           string                 `json:"address,omitempty"`
-}
-
-type PartySaveData struct {
-	Kind              *string                 `json:"kind,omitempty"`
-	LegalName         OptionalString          `json:"legalName,omitempty"`
-	DisplayName       OptionalString          `json:"displayName,omitempty"`
-	TaxNumber         OptionalString          `json:"taxNumber,omitempty"`
-	StrongIdentifiers *[]PartyIdentifierInput `json:"strongIdentifiers,omitempty"`
-	Phone             OptionalString          `json:"phone,omitempty"`
-	Email             OptionalString          `json:"email,omitempty"`
-	Address           OptionalString          `json:"address,omitempty"`
-}
-
-type PartySaveInput struct {
-	PartyID  string        `json:"partyId"`
-	Revision int64         `json:"revision"`
-	Data     PartySaveData `json:"data"`
 }
 
 type PartyGetInput struct {
@@ -109,22 +92,16 @@ type PartyView struct {
 	Phone             string                  `json:"phone,omitempty"`
 	Email             string                  `json:"email,omitempty"`
 	Address           string                  `json:"address,omitempty"`
-	Revision          int64                   `json:"revision"`
-	MergedIntoPartyID string                  `json:"mergedIntoPartyId,omitempty"`
-	MergedAt          string                  `json:"mergedAt,omitempty"`
 	Relationships     []PartyRelationshipCard `json:"relationships"`
 	UpdatedAt         string                  `json:"updatedAt"`
 }
 
 type PartyListItem struct {
-	PartyID           string `json:"partyId"`
-	Kind              string `json:"kind"`
-	LegalName         string `json:"legalName"`
-	DisplayName       string `json:"displayName"`
-	Revision          int64  `json:"revision"`
-	MergedIntoPartyID string `json:"mergedIntoPartyId,omitempty"`
-	MergedAt          string `json:"mergedAt,omitempty"`
-	UpdatedAt         string `json:"updatedAt"`
+	PartyID     string `json:"partyId"`
+	Kind        string `json:"kind"`
+	LegalName   string `json:"legalName"`
+	DisplayName string `json:"displayName"`
+	UpdatedAt   string `json:"updatedAt"`
 }
 
 type OtherUnitData struct {
@@ -197,6 +174,8 @@ func normalizePartyIdentifier(value string) string {
 	}, strings.TrimSpace(value)))
 }
 
+func NormalizePartyIdentifier(value string) string { return normalizePartyIdentifier(value) }
+
 func validatePartyData(data PartyCreateData) (PartyCreateData, []PartyIdentifierInput, error) {
 	data.Kind = strings.TrimSpace(data.Kind)
 	data.LegalName = strings.TrimSpace(data.LegalName)
@@ -250,19 +229,25 @@ func validatePartyData(data PartyCreateData) (PartyCreateData, []PartyIdentifier
 	return data, identifiers, nil
 }
 
-func partyView(row dbsqlc.BobParty, identifiers []PartyIdentifierInput) PartyView {
+// ValidatePartyDeclaration exposes the shared Party identity invariant to DCL
+// without letting DCL reach into BOB persistence.
+func ValidatePartyDeclaration(data PartyCreateData) (PartyCreateData, []PartyIdentifierInput, error) {
+	return validatePartyData(data)
+}
+
+type partyCurrentRow struct {
+	ID, Kind, LegalName, DisplayName string
+	TaxNumber, Phone, Email, Address *string
+	UpdatedAt                        pgtype.Timestamptz
+}
+
+func partyView(row partyCurrentRow, identifiers []PartyIdentifierInput) PartyView {
 	result := PartyView{
 		PartyID: row.ID, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName,
 		TaxNumber: deref(row.TaxNumber), Phone: deref(row.Phone), Email: deref(row.Email),
-		Address: deref(row.Address), Revision: row.Revision,
+		Address:           deref(row.Address),
 		StrongIdentifiers: make([]PartyIdentifierInput, 0, len(identifiers)),
 		Relationships:     make([]PartyRelationshipCard, 0), UpdatedAt: row.UpdatedAt.Time.Format(time.RFC3339),
-	}
-	if row.MergedIntoPartyID != nil {
-		result.MergedIntoPartyID = *row.MergedIntoPartyID
-	}
-	if row.MergedAt.Valid {
-		result.MergedAt = row.MergedAt.Time.Format(time.RFC3339)
 	}
 	for _, identifier := range identifiers {
 		if identifier.Type != PartyIdentifierTaxNumber {
@@ -281,13 +266,15 @@ func (s *Service) PartyQuery(ctx context.Context, input QueryInput) (Page[PartyL
 	if err != nil {
 		return Page[PartyListItem]{}, err
 	}
-	merged := filters.Merged != nil && *filters.Merged
+	if filters.Merged != nil {
+		return Page[PartyListItem]{}, domainError(ErrorValidation, "invalid Party query", nil, nil)
+	}
 	var total int64
-	err = s.pool.QueryRow(ctx, `SELECT count(*) FROM bob_parties WHERE ($1 = '' OR kind = $1) AND ($2 = '' OR legal_name ILIKE '%' || $2 || '%' OR display_name ILIKE '%' || $2 || '%') AND (($3 AND merged_into_party_id IS NOT NULL) OR (NOT $3 AND merged_into_party_id IS NULL))`, filters.PartyKind, filters.Keyword, merged).Scan(&total)
+	err = s.pool.QueryRow(ctx, `SELECT count(*) FROM bob_party_currents current WHERE ($1 = '' OR current.kind = $1) AND ($2 = '' OR current.legal_name ILIKE '%' || $2 || '%' OR current.display_name ILIKE '%' || $2 || '%')`, filters.PartyKind, filters.Keyword).Scan(&total)
 	if err != nil {
 		return Page[PartyListItem]{}, s.internal("count Parties", err)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id,kind,legal_name,display_name,tax_number,phone,email,address,revision,created_at,created_by,updated_at,updated_by,merged_into_party_id,merged_at FROM bob_parties WHERE ($1 = '' OR kind = $1) AND ($2 = '' OR legal_name ILIKE '%' || $2 || '%' OR display_name ILIKE '%' || $2 || '%') AND (($3 AND merged_into_party_id IS NOT NULL) OR (NOT $3 AND merged_into_party_id IS NULL)) ORDER BY display_name,id LIMIT $4 OFFSET $5`, filters.PartyKind, filters.Keyword, merged, input.PageSize, offset)
+	rows, err := s.pool.Query(ctx, `SELECT party_id,kind,legal_name,display_name,tax_number,phone,email,address,updated_at FROM bob_party_currents WHERE ($1 = '' OR kind = $1) AND ($2 = '' OR legal_name ILIKE '%' || $2 || '%' OR display_name ILIKE '%' || $2 || '%') ORDER BY display_name,party_id LIMIT $3 OFFSET $4`, filters.PartyKind, filters.Keyword, input.PageSize, offset)
 	if err != nil {
 		return Page[PartyListItem]{}, s.internal("list Parties", err)
 	}
@@ -299,13 +286,7 @@ func (s *Service) PartyQuery(ctx context.Context, input QueryInput) (Page[PartyL
 			return Page[PartyListItem]{}, s.internal("scan Party", scanErr)
 		}
 		item := PartyListItem{PartyID: row.ID, Kind: row.Kind, LegalName: row.LegalName,
-			DisplayName: row.DisplayName, Revision: row.Revision, UpdatedAt: row.UpdatedAt.Time.Format(time.RFC3339)}
-		if row.MergedIntoPartyID != nil {
-			item.MergedIntoPartyID = *row.MergedIntoPartyID
-		}
-		if row.MergedAt.Valid {
-			item.MergedAt = row.MergedAt.Time.Format(time.RFC3339)
-		}
+			DisplayName: row.DisplayName, UpdatedAt: row.UpdatedAt.Time.Format(time.RFC3339)}
 		items = append(items, item)
 	}
 	if err = rows.Err(); err != nil {
@@ -330,101 +311,35 @@ func (s *Service) PartyGet(ctx context.Context, input PartyGetInput, visibility 
 		return PartyView{}, s.internal("list Party identifiers", err)
 	}
 	result := partyView(row, identifiers)
-	if visibility.Customer || visibility.Supplier || visibility.Employment || visibility.OtherUnit || visibility.SalesPartner {
-		cards, cardErr := partyRelationshipCards(ctx, s.pool, input.PartyID)
-		if cardErr != nil {
-			return PartyView{}, s.internal("list Party relationships", cardErr)
-		}
-		for _, card := range cards {
-			visible := (card.Entity == EntityCustomer && visibility.Customer) ||
-				(card.Entity == EntitySupplier && visibility.Supplier) ||
-				(card.Entity == EntityEmployee && visibility.Employment) ||
-				(card.Entity == EntityOtherUnit && visibility.OtherUnit) ||
-				(card.Entity == EntitySalesPartner && visibility.SalesPartner)
-			if !visible {
-				continue
-			}
-			result.Relationships = append(result.Relationships, PartyRelationshipCard{
-				ObjectID: card.ObjectID, Entity: card.Entity, Code: card.Code,
-				OperatingEntityID: card.OperatingEntityID, OperatingEntityCode: card.OperatingEntityCode,
-				OperatingEntityName: card.OperatingEntityName, Enabled: card.Enabled,
-				Status: card.Status, Version: card.Version,
-			})
-		}
+	cards, cardErr := visiblePartyRelationshipCards(ctx, s.pool, input.PartyID, visibility)
+	if cardErr != nil {
+		return PartyView{}, s.internal("list Party relationships", cardErr)
 	}
+	result.Relationships = cards
 	return result, nil
 }
 
-func (s *Service) PartySave(ctx context.Context, input PartySaveInput, actorID, requestID string) (PartyView, error) {
-	if !validID(input.PartyID) || input.Revision < 1 || !validActorAndRequest(actorID, requestID) {
-		return PartyView{}, domainError(ErrorValidation, "invalid Party save", nil, nil)
+func visiblePartyRelationshipCards(ctx context.Context, q partyQueryer, partyID string, visibility PartyRelationshipVisibility) ([]PartyRelationshipCard, error) {
+	if !(visibility.Customer || visibility.Supplier || visibility.Employment || visibility.OtherUnit || visibility.SalesPartner) {
+		return []PartyRelationshipCard{}, nil
 	}
-	tx, err := s.pool.Begin(ctx)
+	rows, err := partyRelationshipCards(ctx, q, partyID)
 	if err != nil {
-		return PartyView{}, s.internal("begin Party save", err)
+		return nil, err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	stored, err := partyByID(ctx, tx, input.PartyID, true)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return PartyView{}, domainError(ErrorValidation, "Party not found", nil, nil)
-	}
-	if err != nil {
-		return PartyView{}, s.internal("lock Party", err)
-	}
-	if stored.Revision != input.Revision {
-		return PartyView{}, domainError(ErrorConflict, "Party changed before save", map[string]any{"revision": stored.Revision}, nil)
-	}
-	if stored.MergedIntoPartyID != nil {
-		return PartyView{}, domainError(ErrorConflict, "已合并主体永久只读", map[string]any{"mergedIntoPartyId": *stored.MergedIntoPartyID}, nil)
-	}
-	data := PartyCreateData{Kind: stored.Kind, LegalName: stored.LegalName, DisplayName: stored.DisplayName,
-		TaxNumber: deref(stored.TaxNumber), Phone: deref(stored.Phone), Email: deref(stored.Email), Address: deref(stored.Address)}
-	identifierRows, err := partyIdentifiers(ctx, tx, input.PartyID)
-	if err != nil {
-		return PartyView{}, s.internal("read Party identifiers", err)
-	}
-	for _, row := range identifierRows {
-		if row.Type != PartyIdentifierTaxNumber {
-			data.StrongIdentifiers = append(data.StrongIdentifiers, row)
+	result := make([]PartyRelationshipCard, 0, len(rows))
+	for _, card := range rows {
+		if !visibility.allows(card.Entity) {
+			continue
 		}
+		result = append(result, PartyRelationshipCard{
+			ObjectID: card.ObjectID, Entity: card.Entity, Code: card.Code,
+			OperatingEntityID: card.OperatingEntityID, OperatingEntityCode: card.OperatingEntityCode,
+			OperatingEntityName: card.OperatingEntityName, Enabled: card.Enabled,
+			Status: card.Status, Version: card.Version,
+		})
 	}
-	if input.Data.Kind != nil {
-		data.Kind = *input.Data.Kind
-	}
-	mergePartyOptional(input.Data.LegalName, &data.LegalName)
-	mergePartyOptional(input.Data.DisplayName, &data.DisplayName)
-	mergePartyOptional(input.Data.TaxNumber, &data.TaxNumber)
-	mergePartyOptional(input.Data.Phone, &data.Phone)
-	mergePartyOptional(input.Data.Email, &data.Email)
-	mergePartyOptional(input.Data.Address, &data.Address)
-	if input.Data.StrongIdentifiers != nil {
-		data.StrongIdentifiers = append([]PartyIdentifierInput(nil), (*input.Data.StrongIdentifiers)...)
-	}
-	validated, identifiers, err := validatePartyData(data)
-	if err != nil {
-		return PartyView{}, err
-	}
-	result, err := tx.Exec(ctx, `UPDATE bob_parties SET kind=$1,legal_name=$2,display_name=$3,tax_number=$4,phone=$5,email=$6,address=$7,revision=revision+1,updated_at=now(),updated_by=$8 WHERE id=$9 AND revision=$10 AND merged_into_party_id IS NULL`, validated.Kind, validated.LegalName, validated.DisplayName, nilIfEmpty(validated.TaxNumber), nilIfEmpty(validated.Phone), nilIfEmpty(validated.Email), nilIfEmpty(validated.Address), actorID, input.PartyID, input.Revision)
-	if err != nil {
-		return PartyView{}, s.writeError("update Party", err)
-	}
-	if result.RowsAffected() != 1 {
-		return PartyView{}, domainError(ErrorConflict, "Party changed before save", nil, nil)
-	}
-	if _, err = tx.Exec(ctx, `DELETE FROM bob_party_identifiers WHERE party_id=$1`, input.PartyID); err != nil {
-		return PartyView{}, s.writeError("replace Party identifiers", err)
-	}
-	if err = insertPartyIdentifiers(ctx, tx, input.PartyID, identifiers); err != nil {
-		return PartyView{}, s.writeError("replace Party identifiers", err)
-	}
-	if err = insertPartyAudit(ctx, qtx, input.PartyID, "SAVED", input.Revision+1, actorID, requestID, tx); err != nil {
-		return PartyView{}, s.writeError("audit Party save", err)
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return PartyView{}, s.writeError("commit Party save", err)
-	}
-	return s.PartyGet(ctx, PartyGetInput{PartyID: input.PartyID}, PartyRelationshipVisibility{})
+	return result, nil
 }
 
 type partyQueryer interface {
@@ -438,14 +353,14 @@ type partyRelationshipCardRow struct {
 	Version                                                                                     int32
 }
 
-func scanParty(row interface{ Scan(...any) error }) (dbsqlc.BobParty, error) {
-	var result dbsqlc.BobParty
-	err := row.Scan(&result.ID, &result.Kind, &result.LegalName, &result.DisplayName, &result.TaxNumber, &result.Phone, &result.Email, &result.Address, &result.Revision, &result.CreatedAt, &result.CreatedBy, &result.UpdatedAt, &result.UpdatedBy, &result.MergedIntoPartyID, &result.MergedAt)
+func scanParty(row interface{ Scan(...any) error }) (partyCurrentRow, error) {
+	var result partyCurrentRow
+	err := row.Scan(&result.ID, &result.Kind, &result.LegalName, &result.DisplayName, &result.TaxNumber, &result.Phone, &result.Email, &result.Address, &result.UpdatedAt)
 	return result, err
 }
 
-func partyByID(ctx context.Context, q partyQueryer, partyID string, lock bool) (dbsqlc.BobParty, error) {
-	sql := `SELECT id,kind,legal_name,display_name,tax_number,phone,email,address,revision,created_at,created_by,updated_at,updated_by,merged_into_party_id,merged_at FROM bob_parties WHERE id=$1`
+func partyByID(ctx context.Context, q partyQueryer, partyID string, lock bool) (partyCurrentRow, error) {
+	sql := `SELECT party_id,kind,legal_name,display_name,tax_number,phone,email,address,updated_at FROM bob_party_currents WHERE party_id=$1`
 	if lock {
 		sql += ` FOR UPDATE`
 	}
@@ -505,65 +420,9 @@ func (s *Service) relationshipOperatingEntity(ctx context.Context, objectID stri
 	return current.Code, current.LegalName, nil
 }
 
-func insertPartyAudit(ctx context.Context, q *dbsqlc.Queries, partyID, event string, revision int64, actorID, requestID string, txs ...pgx.Tx) error {
-	if len(txs) == 0 {
-		return errors.New("party identity mutation requires transaction")
-	}
-	tx := txs[0]
-	summary, err := json.Marshal(map[string]any{"identityChanged": true})
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO bob_party_audit_events(id,party_id,event_type,revision,actor_id,request_id,summary) VALUES($1,$2,$3,$4,$5,$6,$7)`, newID(), partyID, event, revision, actorID, requestID, summary)
-	return err
-}
-
 func insertPartyIdentifiers(ctx context.Context, tx pgx.Tx, partyID string, identifiers []PartyIdentifierInput) error {
 	for _, identifier := range identifiers {
 		if _, err := tx.Exec(ctx, `INSERT INTO bob_party_identifiers(party_id,identifier_type,value,normalized_value) VALUES($1,$2,$3,$4)`, partyID, identifier.Type, identifier.Value, normalizePartyIdentifier(identifier.Value)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func findExactParty(ctx context.Context, tx pgx.Tx, identifiers []PartyIdentifierInput) (*dbsqlc.BobParty, error) {
-	var matched *dbsqlc.BobParty
-	for _, identifier := range identifiers {
-		row, err := partyByIdentifier(ctx, tx, identifier.Type, normalizePartyIdentifier(identifier.Value))
-		if errors.Is(err, pgx.ErrNoRows) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if matched != nil && matched.ID != row.ID {
-			return nil, domainError(ErrorConflict, "强标识分别属于不同主体", nil, nil)
-		}
-		copy := row
-		matched = &copy
-	}
-	return matched, nil
-}
-
-func partyByIdentifier(ctx context.Context, tx pgx.Tx, identifierType, normalizedValue string) (dbsqlc.BobParty, error) {
-	return scanParty(tx.QueryRow(ctx, `SELECT p.id,p.kind,p.legal_name,p.display_name,p.tax_number,p.phone,p.email,p.address,p.revision,p.created_at,p.created_by,p.updated_at,p.updated_by,p.merged_into_party_id,p.merged_at FROM bob_party_identifiers i JOIN bob_parties p ON p.id=i.party_id WHERE i.identifier_type=$1 AND i.normalized_value=$2`, identifierType, normalizedValue))
-}
-
-func lockPartyIdentifiers(ctx context.Context, tx pgx.Tx, identifiers []PartyIdentifierInput) error {
-	keys := make([]string, 0, len(identifiers))
-	seen := make(map[string]struct{}, len(identifiers))
-	for _, identifier := range identifiers {
-		key := "bob.party.identifier:" + identifier.Type + ":" + normalizePartyIdentifier(identifier.Value)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, key); err != nil {
 			return err
 		}
 	}
@@ -576,9 +435,11 @@ type relationshipParty struct {
 	DisplayName string
 }
 
+type PartyRelationshipResolved = relationshipParty
+
 func (s *Service) resolveOrCreateRelationshipParty(
 	ctx context.Context,
-	qtx *dbsqlc.Queries,
+	_ *dbsqlc.Queries,
 	partyID string,
 	newParty *PartyCreateData,
 	actorID string,
@@ -594,34 +455,11 @@ func (s *Service) resolveOrCreateRelationshipParty(
 		return relationshipParty{}, domainError(ErrorValidation, "invalid Party reference", nil, nil)
 	}
 	if newParty != nil {
-		validated, identifiers, err := validatePartyData(*newParty)
-		if err != nil {
-			return relationshipParty{}, err
+		actor, actorErr := approval.UserActor(authorization.Principal{ActorID: actorID}, requestID)
+		if actorErr != nil {
+			return relationshipParty{}, s.writeError("create Party declaration actor", actorErr)
 		}
-		if err = lockPartyIdentifiers(ctx, tx, identifiers); err != nil {
-			return relationshipParty{}, s.writeError("lock Party identifiers", err)
-		}
-		matched, err := findExactParty(ctx, tx, identifiers)
-		if err != nil {
-			return relationshipParty{}, s.writeError("match Party identifier", err)
-		}
-		if matched != nil {
-			if !canReadMatchedParty {
-				return relationshipParty{}, domainError(ErrorConflict, "主体已存在，请联系有权人员", nil, nil)
-			}
-			return relationshipParty{ID: matched.ID, Kind: matched.Kind, DisplayName: matched.DisplayName}, nil
-		}
-		partyID = newID()
-		if _, err = tx.Exec(ctx, `INSERT INTO bob_parties(id,kind,legal_name,display_name,tax_number,phone,email,address,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)`, partyID, validated.Kind, validated.LegalName, validated.DisplayName, nilIfEmpty(validated.TaxNumber), nilIfEmpty(validated.Phone), nilIfEmpty(validated.Email), nilIfEmpty(validated.Address), actorID); err != nil {
-			return relationshipParty{}, s.writeError("insert Party", err)
-		}
-		if err = insertPartyIdentifiers(ctx, tx, partyID, identifiers); err != nil {
-			return relationshipParty{}, s.writeError("insert Party identifiers", err)
-		}
-		if err = insertPartyAudit(ctx, qtx, partyID, "CREATED", 1, actorID, requestID, tx); err != nil {
-			return relationshipParty{}, s.writeError("audit Party create", err)
-		}
-		return relationshipParty{ID: partyID, Kind: validated.Kind, DisplayName: validated.DisplayName}, nil
+		return s.partyDeclarationCreator.CreateForRelationship(ctx, tx, *newParty, actor, canReadMatchedParty)
 	}
 	row, err := partyByID(ctx, tx, partyID, false)
 	if errors.Is(err, pgx.ErrNoRows) {

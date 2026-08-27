@@ -204,7 +204,7 @@ export function useCustomerViewModel() {
   const canCreateNewParty = computed(
     () =>
       session.can('/bob/customer/create') &&
-      session.can('/bob/party/create') &&
+      session.can('/dcl/party/create') &&
       requiredReferences.every((path) => session.can(path)),
   )
   const canCreateExistingParty = computed(

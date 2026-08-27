@@ -10,6 +10,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/database"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -29,8 +30,10 @@ func main() {
 	}
 	defer pool.Close()
 	events := txevent.NewBus()
-	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool, authorization.FailClosed{}, events))
-	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.FailClosed{}, events)
+	authorizer := authorization.FailClosed{}
+	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool, authorizer, events))
+	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, events)
+	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorizer, events, partyDeclarations)
 	service, err := voudomain.NewService(pool, bobService, auxiliaryResolver, events, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger)

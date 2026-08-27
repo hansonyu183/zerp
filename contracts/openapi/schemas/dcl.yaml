@@ -1602,4 +1602,323 @@
     },
   'DclProductAuditHistoryResponse':
     { '$ref': '#/DclWarehouseAuditHistoryResponse' },
+  'DclPartyData':
+    {
+      'type': 'object',
+      'required': ['kind', 'legalName', 'strongIdentifiers'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'kind': { '$ref': './bob.yaml#/PartyKind' },
+          'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'displayName': { 'type': 'string', 'maxLength': 200 },
+          'taxNumber': { 'type': 'string', 'maxLength': 100 },
+          'strongIdentifiers':
+            { 'type': 'array', 'items': { '$ref': './bob.yaml#/PartyIdentifier' } },
+          'phone': { 'type': 'string', 'maxLength': 32 },
+          'email': { 'type': 'string', 'maxLength': 254 },
+          'address': { 'type': 'string', 'maxLength': 500 },
+        },
+    },
+  'DclPartySaveRequest':
+    {
+      'type': 'object',
+      'required': ['partyId', 'approvalEntryId', 'approvalRevision', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'data': { '$ref': '#/DclPartyData' },
+        },
+    },
+  'DclPartyVersionRequest':
+    {
+      'type': 'object',
+      'required': ['partyId', 'approvalEntryId', 'approvalRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'DclPartyReviewRequest':
+    {
+      'type': 'object',
+      'required': ['partyId', 'approvalEntryId', 'approvalRevision', 'reason'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+        },
+    },
+  'DclPartyGetRequest':
+    {
+      'type': 'object',
+      'required': ['partyId'],
+      'additionalProperties': false,
+      'properties': { 'partyId': { 'type': 'string' }, 'approvalEntryId': { 'type': 'string' } },
+    },
+  'DclPartyQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string', 'maxLength': 200 },
+                  'kind': { '$ref': './bob.yaml#/PartyKind' },
+                  'merged':
+                    {
+                      'type': 'boolean',
+                      'description': '省略或 false 查询当前可用主体；true 查询已合并声明审计主体。',
+                    },
+                },
+            },
+        },
+    },
+  'DclPartyHistoryRequest':
+    {
+      'type': 'object',
+      'required': ['partyId', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+        },
+    },
+  'DclPartyMutation':
+    {
+      'type': 'object',
+      'required': ['partyId', 'approval'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+        },
+    },
+  'DclPartyView':
+    {
+      'type': 'object',
+      'required': ['partyId', 'entity', 'approval', 'data', 'impactRelationships', 'updatedAt'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['party'] },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclPartyData' },
+          'impactRelationships':
+            { 'type': 'array', 'items': { '$ref': './bob.yaml#/PartyRelationshipCard' } },
+          'mergedIntoPartyId': { 'type': 'string', 'nullable': true },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclPartyVersionView':
+    {
+      'type': 'object',
+      'required': ['approval', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclPartyData' },
+        },
+    },
+  'DclPartyListItem':
+    {
+      'type': 'object',
+      'required': ['partyId', 'entity', 'latestApproved', 'openVersion', 'updatedAt'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['party'] },
+          'latestApproved':
+            { 'type': 'object', 'allOf': [{ '$ref': '#/DclPartyVersionView' }], 'nullable': true },
+          'openVersion':
+            { 'type': 'object', 'allOf': [{ '$ref': '#/DclPartyVersionView' }], 'nullable': true },
+          'mergedIntoPartyId': { 'type': 'string', 'nullable': true },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclPartyQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/DclPartyListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclPartyVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/DclPartyVersionView' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclPartyMutationResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclPartyMutation' }], 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclPartyViewResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclPartyView' }], 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclPartyQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclPartyQueryPage' }], 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclPartyVersionPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclPartyVersionPage' }], 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclPartyAuditHistoryResponse': { '$ref': '#/DclOperatingEntityAuditHistoryResponse' },
+  'DclPartyMergePreflightRequest':
+    {
+      'type': 'object',
+      'required': ['sourcePartyId', 'targetPartyId', 'sourceApprovalEntryId', 'targetApprovalEntryId', 'sourceApprovalRevision', 'targetApprovalRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourcePartyId': { 'type': 'string' }, 'targetPartyId': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' }, 'targetApprovalEntryId': { 'type': 'string' },
+          'sourceApprovalRevision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'targetApprovalRevision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'DclPartyMergeConflictResolution':
+    {
+      'type': 'object', 'required': ['relationshipType', 'operatingEntityId', 'retainObjectId'], 'additionalProperties': false,
+      'properties':
+        {
+          'relationshipType': { 'type': 'string', 'enum': ['customer', 'supplier', 'employee', 'other-unit', 'sales-partner'] },
+          'operatingEntityId': { 'type': 'string' }, 'retainObjectId': { 'type': 'string' },
+        },
+    },
+  'DclPartyMergeRelationshipConflict':
+    {
+      'type': 'object',
+      'required': ['relationshipType', 'operatingEntityId', 'operatingEntityName', 'sourceObjectId', 'sourceObjectCode', 'targetObjectId', 'targetObjectCode'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'relationshipType': { 'type': 'string', 'enum': ['customer', 'supplier', 'employee', 'other-unit', 'sales-partner'] },
+          'operatingEntityId': { 'type': 'string' }, 'operatingEntityName': { 'type': 'string' },
+          'sourceObjectId': { 'type': 'string' }, 'sourceObjectCode': { 'type': 'string' },
+          'targetObjectId': { 'type': 'string' }, 'targetObjectCode': { 'type': 'string' },
+        },
+    },
+  'DclPartyMergePreflightResult':
+    {
+      'type': 'object',
+      'required': ['canMerge', 'sourcePartyId', 'targetPartyId', 'sourceApprovalEntryId', 'targetApprovalEntryId', 'sourceApprovalRevision', 'targetApprovalRevision', 'blockReasons', 'relationshipConflicts'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'preflightId': { 'type': 'string' }, 'canMerge': { 'type': 'boolean' },
+          'sourcePartyId': { 'type': 'string' }, 'targetPartyId': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' }, 'targetApprovalEntryId': { 'type': 'string' },
+          'sourceApprovalRevision': { 'type': 'integer', 'format': 'int64' },
+          'targetApprovalRevision': { 'type': 'integer', 'format': 'int64' },
+          'blockReasons': { 'type': 'array', 'items': { 'type': 'string' } },
+          'relationshipConflicts': { 'type': 'array', 'items': { '$ref': '#/DclPartyMergeRelationshipConflict' } },
+        },
+    },
+  'DclPartyMergeResult':
+    {
+      'type': 'object', 'required': ['mergeEventId', 'sourcePartyId', 'targetPartyId', 'transferredRelationships', 'mergedRelationships'], 'additionalProperties': false,
+      'properties':
+        {
+          'mergeEventId': { 'type': 'string' }, 'sourcePartyId': { 'type': 'string' }, 'targetPartyId': { 'type': 'string' },
+          'transferredRelationships': { 'type': 'integer' }, 'mergedRelationships': { 'type': 'integer' },
+        },
+    },
+  'DclPartyMergePreflightResponse':
+    {
+      'type': 'object', 'required': ['code', 'errorKey', 'message', 'data', 'requestId'], 'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclPartyMergePreflightResult' }], 'nullable': true }, 'requestId': { 'type': 'string' },
+        },
+    },
+  'DclPartyMergeConfirmRequest':
+    {
+      'type': 'object', 'required': ['preflightId', 'conflictResolutions'], 'additionalProperties': false,
+      'properties':
+        {
+          'preflightId': { 'type': 'string' },
+          'conflictResolutions': { 'type': 'array', 'items': { '$ref': '#/DclPartyMergeConflictResolution' } },
+        },
+    },
+  'DclPartyMergeConfirmResponse':
+    {
+      'type': 'object', 'required': ['code', 'errorKey', 'message', 'data', 'requestId'], 'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' }, 'errorKey': { 'type': 'string' }, 'message': { 'type': 'string' },
+          'data': { 'type': 'object', 'allOf': [{ '$ref': '#/DclPartyMergeResult' }], 'nullable': true }, 'requestId': { 'type': 'string' },
+        },
+    },
 }

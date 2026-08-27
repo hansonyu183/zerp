@@ -98,7 +98,7 @@ export function useSalesPartnerViewModel() {
       session.can('/bob/sales-partner/create'),
   )
   const canCreateWithNewParty = computed(
-    () => canCreateBase.value && session.can('/bob/party/create'),
+    () => canCreateBase.value && session.can('/dcl/party/create'),
   )
   const canCreateWithExistingParty = computed(
     () =>

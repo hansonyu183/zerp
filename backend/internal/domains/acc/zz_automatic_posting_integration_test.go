@@ -17,6 +17,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func trustedAccountingActor(t *testing.T, requestID string) approval.Actor {
@@ -30,6 +31,20 @@ func trustedAccountingActor(t *testing.T, requestID string) approval.Actor {
 		t.Fatalf("create accounting integration actor: %v", err)
 	}
 	return actor
+}
+
+func newAccountingIntegrationBOBService(pool *pgxpool.Pool, bus *txevent.Bus) *bobdomain.Service {
+	authorizer := authorization.Func(nil)
+	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	parties := dcldomain.NewPartyService(
+		pool,
+		bobdomain.NewPartyCurrentWriter(pool),
+		bobdomain.NewPartyCurrentReader(pool),
+		bobdomain.NewPartyMergeEngine(pool),
+		authorizer,
+		bus,
+	)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus, parties)
 }
 
 func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput) voudomain.ReferenceInput {
@@ -135,7 +150,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
 	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	business := newAccountingIntegrationBOBService(pool, bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "自动记账经营主体"})
 	employment, err := business.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "自动记账经办人"},
@@ -415,7 +430,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
 	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	business := newAccountingIntegrationBOBService(pool, bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "服务验收经营主体"})
 	employment, err := business.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "服务验收经办人"},

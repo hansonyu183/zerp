@@ -14,7 +14,7 @@ describe('employment relationship view model', () => {
     useSessionStore().permissions = [
       '/bob/employee/query',
       '/bob/employee/create',
-      '/bob/party/create',
+      '/dcl/party/create',
       '/bob/party/get',
       '/bob/party/query',
       '/bob/operating-entity/query',

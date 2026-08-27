@@ -188,7 +188,10 @@ ORDER BY object.code
 LIMIT 200;
 
 -- name: GetBobParty :one
-SELECT * FROM bob_parties WHERE id=sqlc.arg(party_id);
+SELECT party.id,current.kind,current.legal_name,current.display_name,current.tax_number,current.phone,current.email,current.address,
+       party.created_at,party.created_by,current.updated_at,current.updated_by,party.merged_into_party_id,party.merged_at
+FROM bob_parties party JOIN bob_party_currents current ON current.party_id=party.id
+WHERE party.id=sqlc.arg(party_id);
 
 -- name: ListBobCustomerAccountObjects :many
 SELECT o.id,o.entity,o.code,o.revision,o.enabled,o.created_at,o.created_by,o.updated_at,o.updated_by
@@ -267,11 +270,12 @@ FROM bob_employment_relationships
 WHERE object_id=sqlc.arg(object_id);
 
 -- name: GetBobEmploymentRelationshipIdentity :one
-SELECT relation.party_id,party.kind AS party_kind,party.display_name AS party_display_name,
+SELECT relation.party_id,current.kind AS party_kind,current.display_name AS party_display_name,
        relation.operating_entity_id,operating.code AS operating_entity_code,
        operating_payload.legal_name AS operating_entity_name
 FROM bob_employment_relationships relation
 JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_party_currents current ON current.party_id=party.id
 JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
 JOIN bob_operating_entities operating_payload ON operating_payload.object_id=operating.id
 WHERE relation.object_id=sqlc.arg(object_id);
@@ -380,7 +384,7 @@ LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.obje
 LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
 LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_parties relationship_party ON relationship_party.id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
+LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
 WHERE o.entity = sqlc.arg(entity)
   AND (sqlc.arg(keyword)::text = ''
        OR o.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
@@ -470,7 +474,7 @@ LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.obje
 LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
 LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_parties relationship_party ON relationship_party.id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
+LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
 WHERE o.entity = sqlc.arg(entity)
   AND (sqlc.arg(keyword)::text = ''
        OR o.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
@@ -551,9 +555,9 @@ LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id=latest.id
 LEFT JOIN bob_employee_versions employee ON employee.approval_entry_id=latest.id
 LEFT JOIN dcl_product_versions product ON product.approval_entry_id=latest.id
 LEFT JOIN bob_service_relationships other_relation ON other_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_parties other_party ON other_party.id=other_relation.party_id
+LEFT JOIN bob_party_currents other_party ON other_party.party_id=other_relation.party_id
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
-LEFT JOIN bob_parties sales_party ON sales_party.id=sales_relation.party_id
+LEFT JOIN bob_party_currents sales_party ON sales_party.party_id=sales_relation.party_id
 WHERE o.entity=sqlc.arg(entity) AND o.enabled
   AND (sqlc.arg(source_object_id)::text='' OR o.id<>sqlc.arg(source_object_id)::text)
   AND (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%'

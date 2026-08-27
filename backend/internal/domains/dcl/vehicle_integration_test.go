@@ -13,7 +13,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -28,7 +27,7 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -139,7 +138,7 @@ func TestVehicleDeclarationIdentifierClaimsAndReferenceDriftIntegration(t *testi
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -236,7 +235,7 @@ func TestVehicleIdentifierClaimsAcrossApprovedAndOpenVersionsIntegration(t *test
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -335,7 +334,7 @@ func TestVehicleCurrentApplyFailureRollsBackIntegration(t *testing.T) {
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
 	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }

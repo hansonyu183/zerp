@@ -392,9 +392,9 @@ func TestVehicleCurrentApplyFailureRollsBackIntegration(t *testing.T) {
 
 func seedVehicleTypeApproval(t *testing.T, pool *pgxpool.Pool) (string, string) {
 	t.Helper()
-	var objectID string
-	if err := pool.QueryRow(t.Context(), `SELECT id FROM aux_objects WHERE entity='dictionary-item' AND code='DIT-0003'`).Scan(&objectID); err != nil {
-		t.Fatalf("find seeded vehicle type: %v", err)
+	const objectID = "01JAVX00000000000000000009"
+	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,created_by,updated_by) VALUES($1,'dictionary-item','DIT-0003',$2,$2) ON CONFLICT (id) DO NOTHING`, objectID, "01J00000000000000000000000"); err != nil {
+		t.Fatalf("insert vehicle type object fixture: %v", err)
 	}
 	entryID, creatorID, reviewerID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
 	now := time.Now().UTC()

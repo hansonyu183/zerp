@@ -186,9 +186,20 @@ WHERE id IN (
   '01JBOB00000000000000000023','01JBOB00000000000000000027',
   '01JBOB00000000000000000028','01JBOB00000000000000000029',
   '01JBOB00000000000000000030','01JBOB00000000000000000083',
-  '01JBOB00000000000000000141','01JBOB00000000000000000142',
-  '01JBOB00000000000000000143','01JBOB00000000000000000144'
+  '01JBOB00000000000000000141','01JBOB00000000000000000142'
 );
+
+-- Employee enabled state is versioned through save; there are no standalone
+-- enable/disable routes. Reuse those retired permission identities for DCL's
+-- declaration query/get routes while BOB keeps its current-projection reads.
+UPDATE app_permissions
+SET path='/dcl/employee/query',domain='dcl',entity='employee',action='query',
+    description='查询员工声明',menu_order=30,updated_at=clock_timestamp(),revision=revision+1
+WHERE id='01JBOB00000000000000000143';
+UPDATE app_permissions
+SET path='/dcl/employee/get',domain='dcl',entity='employee',action='get',
+    description='查看员工声明',menu_order=NULL,updated_at=clock_timestamp(),revision=revision+1
+WHERE id='01JBOB00000000000000000144';
 
 DO $$
 DECLARE

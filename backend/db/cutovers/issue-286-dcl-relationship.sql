@@ -117,6 +117,14 @@ UPDATE app_permissions
 SET path=regexp_replace(path, '^/bob/(other-unit|sales-partner)/', '/dcl/\\1/'), domain='dcl', updated_at=clock_timestamp(), revision=revision+1
 WHERE path ~ '^/bob/(other-unit|sales-partner)/' AND action NOT IN ('query','get');
 
+-- BOB keeps current-projection query/get permissions. DCL needs distinct exact
+-- permissions for the declaration query/get endpoints.
+INSERT INTO app_permissions(id,path,domain,entity,action,description,status,menu_order) VALUES
+  ('01JBOB85000000000000000015','/dcl/other-unit/query','dcl','other-unit','query','查询其他单位声明','ENABLED',40),
+  ('01JBOB85000000000000000016','/dcl/other-unit/get','dcl','other-unit','get','查看其他单位声明','ENABLED',NULL),
+  ('01JBOB86SLP000000000000010','/dcl/sales-partner/query','dcl','sales-partner','query','查询销售合作方声明','ENABLED',50),
+  ('01JBOB86SLP000000000000011','/dcl/sales-partner/get','dcl','sales-partner','get','查看销售合作方声明','ENABLED',NULL);
+
 DO $$
 DECLARE legacy_other bigint; legacy_sales bigint; approved_other bigint; approved_sales bigint;
 BEGIN
@@ -131,6 +139,12 @@ BEGIN
   IF EXISTS (SELECT 1 FROM approval_entries WHERE domain='bob' AND entity IN ('other-unit','sales-partner'))
      OR EXISTS (SELECT 1 FROM approval_events WHERE domain='bob' AND entity IN ('other-unit','sales-partner')) THEN
     RAISE EXCEPTION 'issue #286 left BOB-owned relationship approval data';
+  END IF;
+  IF (SELECT count(*) FROM app_permissions
+      WHERE domain='dcl' AND entity IN ('other-unit','sales-partner'))<>24
+     OR (SELECT count(*) FROM app_permissions
+         WHERE domain='bob' AND entity IN ('other-unit','sales-partner') AND action IN ('query','get'))<>4 THEN
+    RAISE EXCEPTION 'issue #286 relationship permission cutover mismatch';
   END IF;
 END $$;
 

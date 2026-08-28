@@ -134,10 +134,7 @@ async function loadOptions(
       sort: [{ field: 'name', order: 'asc' }],
     })
     return data.items.map((item) => ({
-      title: formatReferenceLabel({
-        code: item.code,
-        name: item.data.name ?? '',
-      }),
+      title: formatReferenceLabel({ code: item.code, name: item.data.name ?? '' }),
       value: item.code,
     }))
   }
@@ -152,7 +149,10 @@ async function loadOptions(
       },
     )
     return data.items.map((item) => ({
-      title: formatReferenceLabel({ code: item.code, name: item.data.name ?? '' }),
+      title: formatReferenceLabel({
+        code: item.code,
+        name: item.data.name ?? '',
+      }),
       value: item.objectId,
     }))
   }
@@ -160,7 +160,6 @@ async function loadOptions(
     page: 1,
     pageSize: 20,
     filters: {
-      status: ['APPROVED'],
       enabled: true,
       ...(keyword ? { keyword } : {}),
     },
@@ -168,7 +167,7 @@ async function loadOptions(
   return data.items.map((item) => ({
     title: formatReferenceLabel({
       code: item.code,
-      name: item.partyDisplayName,
+      name: item.relationship?.partyDisplayName ?? '',
     }),
     value: item.objectId,
   }))

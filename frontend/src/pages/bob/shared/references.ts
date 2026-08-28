@@ -28,6 +28,12 @@ function referenceName(item: unknown): string {
   if (!item || typeof item !== 'object') return ''
   const record = item as Record<string, unknown>
   if (typeof record.partyDisplayName === 'string') return record.partyDisplayName
+  const relationship = record.relationship
+  if (relationship && typeof relationship === 'object') {
+    const partyDisplayName = (relationship as Record<string, unknown>)
+      .partyDisplayName
+    if (typeof partyDisplayName === 'string') return partyDisplayName
+  }
   const data = record.data
   if (!data || typeof data !== 'object') return ''
   const name = (data as Record<string, unknown>).name
@@ -185,7 +191,6 @@ export function useBobReferences(
                     filters: {
                       ...resolveReferenceFilters(reference, form),
                       keyword: value,
-                      status: ['APPROVED'],
                     },
                   })
                 : await apiClient.postContract(
@@ -214,10 +219,7 @@ export function useBobReferences(
               {
                 title: formatReferenceLabel({
                   code: item.code,
-                  name:
-                    'partyDisplayName' in item
-                      ? item.partyDisplayName
-                      : (item.data.name ?? ''),
+                  name: referenceName(item),
                 }),
                 value,
               },
@@ -257,10 +259,7 @@ export function useBobReferences(
             {
               title: formatReferenceLabel({
                 code: data.code,
-                name:
-                  'partyDisplayName' in data
-                    ? data.partyDisplayName
-                    : data.data.name,
+                name: referenceName(data),
               }),
               value,
             },
@@ -333,13 +332,12 @@ export function useBobReferences(
             filters: {
               ...resolveReferenceFilters(reference, form),
               ...(keywordFilter ? { keyword: keywordFilter } : {}),
-              status: ['APPROVED'],
             },
           })
         ).data.items.map((item) => ({
           title: formatReferenceLabel({
             code: item.code,
-            name: item.partyDisplayName,
+            name: referenceName(item),
           }),
           value: reference.value === 'code' ? item.code : item.objectId,
         }))
@@ -362,7 +360,7 @@ export function useBobReferences(
             name: referenceName(item),
           }),
           value: reference.value === 'code' ? item.code : item.objectId,
-      }))
+        }))
       }
       if (state.requestSequence !== sequence) return
       const selected = state.options.filter((option) =>

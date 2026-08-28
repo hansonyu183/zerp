@@ -623,13 +623,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           { signal },
         )
         return result.data.items
-          .filter((item) => item.approval.status === 'APPROVED' && item.enabled)
+          .filter((item) => item.enabled)
           .map((item) => ({
             objectId: item.objectId,
-            approvalEntryId: item.approval.approvalEntryId,
+            approvalEntryId: item.sourceApprovalEntryId,
             entity,
             code: item.code,
-            name: item.partyDisplayName,
+            name: item.relationship?.partyDisplayName ?? '',
           }))
       } catch {
         return []

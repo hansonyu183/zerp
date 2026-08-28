@@ -3,7 +3,7 @@
  * Do not make direct changes to the file.
  */
 
-export const contractMetaSourceHash = 'b1591533d79e37f37523d4eaffd88e66bdef92032a0f416959058beedceb1371'
+export const contractMetaSourceHash = '5f6c0f21c8623e680020dcf58d40b08601a8fc83a25bf2eda59b7fd7d353b1f6'
 
 export const nullSuccessContractPaths = [
   "/acc/book/delete",

@@ -152,7 +152,14 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 		if len(input.AssetAcquisitionLines) < 1 || len(input.AssetAcquisitionLines) > 200 {
 			return result, domainError(ErrorValidation, "asset acquisition requires 1-200 lines", nil, nil)
 		}
-		for lineIndex, line := range input.AssetAcquisitionLines {
+		savedLines := make(map[string]AssetAcquisitionLineView)
+		if saved != nil {
+			for _, line := range saved.AssetAcquisitionLines {
+				savedLines[line.LineID] = line
+			}
+		}
+		seenLineIDs := make(map[string]struct{})
+		for _, line := range input.AssetAcquisitionLines {
 			line.AssetName, err = validateAssetText(line.AssetName, "assetName", true, 200)
 			if err != nil {
 				return result, err
@@ -173,8 +180,18 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 			}
 			var savedCategory *bobdomain.AuxiliaryReference
 			var savedDepartment, savedCustodian *bobdomain.EffectiveReference
-			if saved != nil && lineIndex < len(saved.AssetAcquisitionLines) {
-				stored := saved.AssetAcquisitionLines[lineIndex]
+			if line.LineID != "" {
+				if !validID(line.LineID) {
+					return result, domainError(ErrorValidation, "invalid asset acquisition lineId", nil, nil)
+				}
+				if _, duplicate := seenLineIDs[line.LineID]; duplicate {
+					return result, domainError(ErrorValidation, "duplicate asset acquisition lineId", nil, nil)
+				}
+				seenLineIDs[line.LineID] = struct{}{}
+				stored, exists := savedLines[line.LineID]
+				if !exists {
+					return result, domainError(ErrorValidation, "unknown asset acquisition lineId", nil, nil)
+				}
 				savedCategory = &bobdomain.AuxiliaryReference{
 					ObjectID: stored.Category.ObjectID, Entity: auxdomain.EntityAssetCategory,
 					Code: stored.Category.Code, Data: map[string]any{
@@ -427,6 +444,10 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 			return err
 		}
 		for i, line := range draft.acquisitions {
+			lineID := line.input.LineID
+			if lineID == "" {
+				lineID = newID()
+			}
 			var custID, custVersion, custCode, custName *string
 			if line.custodian != nil {
 				custID = stringPtr(line.custodian.ObjectID)
@@ -434,7 +455,7 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 				custCode = stringPtr(line.custodian.Code)
 				custName = stringPtr(line.custodian.Data.Name)
 			}
-			if err := q.InsertVouAssetAcquisitionLine(ctx, dbsqlc.InsertVouAssetAcquisitionLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), AssetName: line.input.AssetName, Specification: line.input.Specification, CategoryObjectID: line.category.ObjectID, CategoryCode: line.category.Code, CategoryName: auxName(line.category), CategoryDefaultUsefulLifeMonths: line.categoryDefaultUsefulLifeMonths, CategoryDefaultResidualRateBps: line.categoryDefaultResidualRateBps, OriginalValueCents: line.originalValue, UsefulLifeMonths: line.input.UsefulLifeMonths, ResidualRateBps: line.residualRateBps, DepartmentObjectID: line.department.ObjectID, DepartmentCode: line.department.Code, DepartmentName: auxName(line.department), CustodianObjectID: custID, CustodianApprovalEntryID: custVersion, CustodianCode: custCode, CustodianName: custName, Location: line.input.Location, Remark: optionalText(line.input.Remark)}); err != nil {
+			if err := q.InsertVouAssetAcquisitionLine(ctx, dbsqlc.InsertVouAssetAcquisitionLineParams{ID: lineID, DocumentID: documentID, LineNo: int32(i + 1), AssetName: line.input.AssetName, Specification: line.input.Specification, CategoryObjectID: line.category.ObjectID, CategoryCode: line.category.Code, CategoryName: auxName(line.category), CategoryDefaultUsefulLifeMonths: line.categoryDefaultUsefulLifeMonths, CategoryDefaultResidualRateBps: line.categoryDefaultResidualRateBps, OriginalValueCents: line.originalValue, UsefulLifeMonths: line.input.UsefulLifeMonths, ResidualRateBps: line.residualRateBps, DepartmentObjectID: line.department.ObjectID, DepartmentCode: line.department.Code, DepartmentName: auxName(line.department), CustodianObjectID: custID, CustodianApprovalEntryID: custVersion, CustodianCode: custCode, CustodianName: custName, Location: line.input.Location, Remark: optionalText(line.input.Remark)}); err != nil {
 				return err
 			}
 		}

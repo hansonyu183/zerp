@@ -294,6 +294,7 @@ type ProductionOutputInput struct {
 }
 
 type AssetAcquisitionLineInput struct {
+	LineID           string                  `json:"lineId,omitempty"`
 	AssetName        string                  `json:"assetName"`
 	Specification    string                  `json:"specification,omitempty"`
 	Category         AuxiliaryReferenceInput `json:"category"`

@@ -2331,6 +2331,11 @@
       'additionalProperties': false,
       'properties':
         {
+          'lineId':
+            {
+              'type': 'string',
+              'description': 'Existing draft line ID; omit for a new line.',
+            },
           'assetName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'specification': { 'type': 'string', 'maxLength': 200 },
           'category': { '$ref': '#/VouAssetReferenceInput' },

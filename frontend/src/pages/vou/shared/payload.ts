@@ -204,6 +204,7 @@ export function buildVoucherDraftPayload(
   }
   if (config.lineKind === 'asset-acquisition') {
     payload.assetAcquisitionLines = value.assetLines.map((line) => ({
+      ...(line.lineId ? { lineId: line.lineId } : {}),
       assetName: line.assetName.trim(),
       ...(line.specification.trim()
         ? { specification: line.specification.trim() }

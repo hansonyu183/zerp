@@ -39,18 +39,19 @@ func (s *Service) querySuppliersCurrent(ctx context.Context, input QueryInput) (
 	if input.Page < 1 || input.PageSize != 20 || len(input.Sort) > 1 || (len(input.Sort) == 1 && (input.Sort[0].Field != "code" || strings.ToLower(input.Sort[0].Order) != "asc")) {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid Supplier query", nil, nil)
 	}
-	if input.Filters.DefaultPurchaserEmployeeID != "" && !validID(input.Filters.DefaultPurchaserEmployeeID) {
-		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid default purchaser", nil, nil)
+	filters, err := validateQueryFilters(EntitySupplier, input.Filters)
+	if err != nil {
+		return Page[QueryItem]{}, err
 	}
 	enabled := int32(-1)
-	if input.Filters.Enabled != nil {
-		if *input.Filters.Enabled {
+	if filters.Enabled != nil {
+		if *filters.Enabled {
 			enabled = 1
 		} else {
 			enabled = 0
 		}
 	}
-	p := dbsqlc.ListBobSuppliersCurrentParams{Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabled, DefaultPurchaserEmployeeID: input.Filters.DefaultPurchaserEmployeeID, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)}
+	p := dbsqlc.ListBobSuppliersCurrentParams{Keyword: filters.Keyword, EnabledFilter: enabled, DefaultPurchaserEmployeeID: filters.DefaultPurchaserEmployeeID, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)}
 	rows, err := s.queries.ListBobSuppliersCurrent(ctx, p)
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list Supplier current", err)

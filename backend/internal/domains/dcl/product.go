@@ -18,6 +18,7 @@ type productCurrentWriter interface {
 	ReserveProductIdentity(context.Context, pgx.Tx, string) (bobdomain.ProductIdentity, error)
 	GetProductIdentity(context.Context, pgx.Tx, string) (bobdomain.ProductIdentity, error)
 	ResolveProductDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bool, bool) (bobdomain.DetailView, error)
+	ResolveProductDraftDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bobdomain.DetailView) (bobdomain.DetailView, error)
 	EnsureProductDeclarationReferencesCurrent(context.Context, pgx.Tx, bobdomain.DetailView) error
 	ApplyProductCurrent(context.Context, pgx.Tx, string, string, bool, bobdomain.DetailView, string) (bobdomain.ProductCurrent, error)
 	RemoveProductCurrent(context.Context, pgx.Tx, string, string) (bobdomain.ProductIdentity, error)
@@ -100,54 +101,6 @@ func carryProductFormulaCandidateSources(next *bobdomain.DetailView, previous bo
 	}
 }
 
-// carryProductDraftSources preserves immutable source evidence when a user
-// saves unrelated fields on an existing draft. A changed stable ID has no
-// carried entry and is resolved to the current approved source by BOB.
-func carryProductDraftSources(next *bobdomain.DetailView, previous bobdomain.DetailView) {
-	if next.CategoryID == previous.CategoryID {
-		next.CategoryCode, next.CategoryName = previous.CategoryCode, previous.CategoryName
-	}
-	if next.ProductTypeID == previous.ProductTypeID {
-		next.ProductTypeCode, next.ProductTypeName = previous.ProductTypeCode, previous.ProductTypeName
-		next.BehaviorProfile = previous.BehaviorProfile
-	}
-	if next.DefaultInputUnitID == previous.DefaultInputUnitID {
-	}
-	if next.PricingUnitID == previous.PricingUnitID {
-	}
-	units := make(map[string]bobdomain.MeasurementUnitSnapshot, len(previous.UnitConversions))
-	for _, conversion := range previous.UnitConversions {
-		units[conversion.Unit.ObjectID] = conversion.Unit
-	}
-	for index := range next.UnitConversions {
-		if unit, ok := units[next.UnitConversions[index].Unit.ObjectID]; ok {
-			next.UnitConversions[index].Unit = unit
-		}
-	}
-	if next.Formula == nil || previous.Formula == nil {
-		return
-	}
-	if next.Formula.Output.EnteredUnit.ObjectID == previous.Formula.Output.EnteredUnit.ObjectID {
-		next.Formula.Output.EnteredUnit = previous.Formula.Output.EnteredUnit
-	}
-	components := make(map[string]bobdomain.ProductFormulaComponent, len(previous.Formula.Components))
-	for _, component := range previous.Formula.Components {
-		components[component.Material.ObjectID] = component
-	}
-	for index := range next.Formula.Components {
-		component := &next.Formula.Components[index]
-		old, ok := components[component.Material.ObjectID]
-		if !ok {
-			continue
-		}
-		component.Material = old.Material
-		component.ResolutionStatus = old.ResolutionStatus
-		if component.Quantity.EnteredUnit.ObjectID == old.Quantity.EnteredUnit.ObjectID {
-			component.Quantity.EnteredUnit = old.Quantity.EnteredUnit
-		}
-	}
-}
-
 func (s *ProductService) Create(ctx context.Context, input ProductCreateInput, actor approval.Actor) (ProductMutation, error) {
 	data, err := bobdomain.ValidateProductData(productDeclarationData(input.Data))
 	if err != nil || !validActor(actor) {
@@ -218,6 +171,7 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 		return ProductView{}, translateError(err)
 	}
 	var e approval.Entry
+	var draftPrevious *bobdomain.DetailView
 	if stored.Status == string(approval.StatusApproved) {
 		e, err = s.coordinator.CreateNextVersion(ctx, tx, input.ObjectID, actor, productPayload(id, input.Enabled, productDCLData(data)))
 		if err == nil {
@@ -237,7 +191,7 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 		if loadErr != nil {
 			err = loadErr
 		} else {
-			carryProductDraftSources(&data, previous)
+			draftPrevious = &previous
 		}
 	} else {
 		err = newError(ErrorConflict, "approval_invalid_transition", "only a draft or latest approved declaration can be saved", nil, nil)
@@ -245,7 +199,11 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
-	data, err = s.current.ResolveProductDeclaration(ctx, tx, data, false, stored.Status == string(approval.StatusDraft))
+	if draftPrevious != nil {
+		data, err = s.current.ResolveProductDraftDeclaration(ctx, tx, data, *draftPrevious)
+	} else {
+		data, err = s.current.ResolveProductDeclaration(ctx, tx, data, false, false)
+	}
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}

@@ -60,6 +60,17 @@ func (s *Service) ResolveProductDeclaration(ctx context.Context, tx pgx.Tx, d De
 	}
 	return s.resolveDetailReferenceSnapshots(ctx, tx, EntityProduct, "", r, false)
 }
+
+// ResolveProductDraftDeclaration preserves each persisted AUX snapshot whose
+// stable ID remains selected in an existing DCL draft. Changed IDs resolve
+// against enabled current AUX objects without refreshing unrelated snapshots.
+func (s *Service) ResolveProductDraftDeclaration(ctx context.Context, tx pgx.Tx, data, previous DetailView) (DetailView, error) {
+	validated, err := ValidateProductData(data)
+	if err != nil {
+		return DetailView{}, err
+	}
+	return s.resolveProductDraftReferences(ctx, tx, validated, previous)
+}
 func (s *Service) EnsureProductDeclarationReferencesCurrent(ctx context.Context, tx pgx.Tx, d DetailView) error {
 	if d.Formula != nil {
 		for _, c := range d.Formula.Components {

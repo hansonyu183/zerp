@@ -280,6 +280,56 @@ func (q *Queries) CountBobProductsCurrent(ctx context.Context, arg CountBobProdu
 	return count, err
 }
 
+const countBobRelationshipCurrents = `-- name: CountBobRelationshipCurrents :one
+WITH selected AS (
+  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+         party.display_name
+  FROM bob_objects object
+  JOIN bob_other_units current ON current.object_id=object.id
+  JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+  JOIN bob_party_currents party ON party.party_id=relationship.party_id
+  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+    AND approved.domain='dcl' AND approved.entity='other-unit'
+    AND approved.subject_id=object.id AND approved.status='APPROVED'
+  WHERE object.entity='other-unit' AND $1::text='other-unit'
+    AND ($2::text='' OR object.code ILIKE '%'||$2::text||'%' OR party.display_name ILIKE '%'||$2::text||'%')
+    AND ($3::integer=-1 OR current.enabled=($3::integer=1))
+  UNION ALL
+  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+         party.display_name
+  FROM bob_objects object
+  JOIN bob_sales_partners current ON current.object_id=object.id
+  JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+  JOIN bob_party_currents party ON party.party_id=relationship.party_id
+  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+    AND approved.domain='dcl' AND approved.entity='sales-partner'
+    AND approved.subject_id=object.id AND approved.status='APPROVED'
+  WHERE object.entity='sales-partner' AND $1::text='sales-partner'
+    AND ($2::text='' OR object.code ILIKE '%'||$2::text||'%' OR party.display_name ILIKE '%'||$2::text||'%')
+    AND ($3::integer=-1 OR current.enabled=($3::integer=1))
+)
+SELECT count(*)
+FROM selected
+`
+
+type CountBobRelationshipCurrentsParams struct {
+	Entity        string `db:"entity" json:"entity"`
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+}
+
+// BOB relationship lists read only their approved current projections. DCL
+// candidates are intentionally absent: they neither become query rows nor
+// affect the current row's filters, timestamp, ordering, or total.
+func (q *Queries) CountBobRelationshipCurrents(ctx context.Context, arg CountBobRelationshipCurrentsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobRelationshipCurrents, arg.Entity, arg.Keyword, arg.EnabledFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countBobSuppliersCurrent = `-- name: CountBobSuppliersCurrent :one
 SELECT count(*)
 FROM bob_suppliers p
@@ -3558,6 +3608,104 @@ func (q *Queries) ListBobProductsCurrent(ctx context.Context, arg ListBobProduct
 	items := []ListBobProductsCurrentRow{}
 	for rows.Next() {
 		var i ListBobProductsCurrentRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Entity,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.ApprovalEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobRelationshipCurrents = `-- name: ListBobRelationshipCurrents :many
+WITH selected AS (
+  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+         party.display_name
+  FROM bob_objects object
+  JOIN bob_other_units current ON current.object_id=object.id
+  JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+  JOIN bob_party_currents party ON party.party_id=relationship.party_id
+  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+    AND approved.domain='dcl' AND approved.entity='other-unit'
+    AND approved.subject_id=object.id AND approved.status='APPROVED'
+  WHERE object.entity='other-unit' AND $5::text='other-unit'
+    AND ($6::text='' OR object.code ILIKE '%'||$6::text||'%' OR party.display_name ILIKE '%'||$6::text||'%')
+    AND ($7::integer=-1 OR current.enabled=($7::integer=1))
+  UNION ALL
+  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+         party.display_name
+  FROM bob_objects object
+  JOIN bob_sales_partners current ON current.object_id=object.id
+  JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+  JOIN bob_party_currents party ON party.party_id=relationship.party_id
+  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+    AND approved.domain='dcl' AND approved.entity='sales-partner'
+    AND approved.subject_id=object.id AND approved.status='APPROVED'
+  WHERE object.entity='sales-partner' AND $5::text='sales-partner'
+    AND ($6::text='' OR object.code ILIKE '%'||$6::text||'%' OR party.display_name ILIKE '%'||$6::text||'%')
+    AND ($7::integer=-1 OR current.enabled=($7::integer=1))
+)
+SELECT object_id,entity,code,object_revision,enabled,updated_at,approval_entry_id
+FROM selected
+ORDER BY CASE WHEN $1::text='updatedAt' AND $2::text='asc' THEN updated_at END ASC,
+         CASE WHEN $1::text='updatedAt' AND $2::text='desc' THEN updated_at END DESC,
+         CASE WHEN $1::text='code' AND $2::text='asc' THEN code END ASC,
+         CASE WHEN $1::text='code' AND $2::text='desc' THEN code END DESC,
+         CASE WHEN $1::text='name' AND $2::text='asc' THEN display_name END ASC,
+         CASE WHEN $1::text='name' AND $2::text='desc' THEN display_name END DESC,
+         object_id DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListBobRelationshipCurrentsParams struct {
+	SortField     string `db:"sort_field" json:"sort_field"`
+	SortOrder     string `db:"sort_order" json:"sort_order"`
+	RowOffset     int32  `db:"row_offset" json:"row_offset"`
+	RowLimit      int32  `db:"row_limit" json:"row_limit"`
+	Entity        string `db:"entity" json:"entity"`
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+}
+
+type ListBobRelationshipCurrentsRow struct {
+	ObjectID        string             `db:"object_id" json:"object_id"`
+	Entity          string             `db:"entity" json:"entity"`
+	Code            string             `db:"code" json:"code"`
+	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) ListBobRelationshipCurrents(ctx context.Context, arg ListBobRelationshipCurrentsParams) ([]ListBobRelationshipCurrentsRow, error) {
+	rows, err := q.db.Query(ctx, listBobRelationshipCurrents,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+		arg.Entity,
+		arg.Keyword,
+		arg.EnabledFilter,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobRelationshipCurrentsRow{}
+	for rows.Next() {
+		var i ListBobRelationshipCurrentsRow
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Entity,

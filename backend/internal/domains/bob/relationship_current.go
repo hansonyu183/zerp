@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -629,6 +630,13 @@ func (s *Service) queryRelationshipCurrent(ctx context.Context, entity string, i
 	if err != nil {
 		return Page[QueryItem]{}, err
 	}
+	sortField, sortOrder := "updatedAt", "desc"
+	if len(input.Sort) == 1 {
+		sortField, sortOrder = input.Sort[0].Field, strings.ToLower(input.Sort[0].Order)
+		if (sortField != "updatedAt" && sortField != "code" && sortField != "name") || (sortOrder != "asc" && sortOrder != "desc") {
+			return Page[QueryItem]{}, domainError(ErrorValidation, "invalid relationship query sort", nil, nil)
+		}
+	}
 	enabled := int32(-1)
 	if filters.Enabled != nil {
 		if *filters.Enabled {
@@ -637,11 +645,11 @@ func (s *Service) queryRelationshipCurrent(ctx context.Context, entity string, i
 			enabled = 0
 		}
 	}
-	rows, err := s.queries.ListDCLRelationships(ctx, dbsqlc.ListDCLRelationshipsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled, StatusFilter: []string{}, RowOffset: offset, RowLimit: int32(input.PageSize)})
+	rows, err := s.queries.ListBobRelationshipCurrents(ctx, dbsqlc.ListBobRelationshipCurrentsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list relationship current", err)
 	}
-	total, err := s.queries.CountDCLRelationships(ctx, dbsqlc.CountDCLRelationshipsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled, StatusFilter: []string{}})
+	total, err := s.queries.CountBobRelationshipCurrents(ctx, dbsqlc.CountBobRelationshipCurrentsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("count relationship current", err)
 	}

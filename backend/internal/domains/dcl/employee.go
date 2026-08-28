@@ -20,6 +20,7 @@ type employeeCurrentWriter interface {
 	ReserveEmployeeIdentity(context.Context, pgx.Tx, string, string, string) (bobdomain.EmployeeIdentity, error)
 	GetEmployeeIdentity(context.Context, pgx.Tx, string) (bobdomain.EmployeeIdentity, error)
 	ResolveEmployeeAuxiliaryReferences(context.Context, pgx.Tx, bobdomain.EmployeeData, bool) (bobdomain.EmployeeData, error)
+	ResolveEmployeeDraftAuxiliaryReferences(context.Context, pgx.Tx, bobdomain.EmployeeData, bobdomain.EmployeeData) (bobdomain.EmployeeData, error)
 	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	ApplyEmployeeCurrent(context.Context, pgx.Tx, string, string, bool, string) (bobdomain.EmployeeCurrent, error)
 	RemoveEmployeeCurrent(context.Context, pgx.Tx, string, string) (bobdomain.EmployeeIdentity, error)
@@ -187,6 +188,7 @@ func (s *EmployeeService) Save(ctx context.Context, input EmployeeSaveInput, act
 		return EmployeeMutation{}, translateError(err)
 	}
 	var e approval.Entry
+	var draftPrevious *bobdomain.EmployeeData
 	if stored.Status == string(approval.StatusApproved) {
 		e, err = s.coordinator.CreateNextVersion(ctx, tx, input.ObjectID, actor, employeePayload(id, input.Enabled, employeeDCLData(data)))
 		if err == nil {
@@ -198,13 +200,24 @@ func (s *EmployeeService) Save(ctx context.Context, input EmployeeSaveInput, act
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
 		e = approvalEntry(stored)
+		previous, loadErr := q.GetDCLEmployeeVersion(ctx, stored.ID)
+		if loadErr != nil {
+			err = loadErr
+		} else {
+			resolvedPrevious := employeeStoredData(previous)
+			draftPrevious = &resolvedPrevious
+		}
 	} else {
 		err = newError(ErrorConflict, "approval_invalid_transition", "only a draft or latest approved declaration can be saved", nil, nil)
 	}
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
-	data, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, false)
+	if draftPrevious != nil {
+		data, err = s.current.ResolveEmployeeDraftAuxiliaryReferences(ctx, tx, data, *draftPrevious)
+	} else {
+		data, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, false)
+	}
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}

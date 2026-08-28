@@ -49,6 +49,7 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	if _, err = business.Get(t.Context(), bobdomain.EntityOtherUnit, bobdomain.GetInput{ObjectID: other.ObjectID}); err == nil {
 		t.Fatal("BOB exposed unapproved Other Unit")
 	}
+	assertRelationshipCurrentQueryAbsent(t, business, bobdomain.EntityOtherUnit)
 	approveRelationshipParty(t, parties, other.PartyID, creator("other-unit-party-submit"), reviewer("other-unit-party-approve"))
 	partyCurrent, err := business.PartyGet(t.Context(), bobdomain.PartyGetInput{PartyID: other.PartyID}, bobdomain.PartyRelationshipVisibility{})
 	if err != nil || partyCurrent.SourceApprovalEntryID == "" || partyCurrent.SourceVersionNo != 1 {
@@ -64,6 +65,7 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	}
 	other = submitAndApproveOtherUnit(t, relationships, other, creator("other-unit-submit"), reviewer("other-unit-approve"))
 	assertRelationshipCurrent(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID, "测试往来单位")
+	assertRelationshipCurrentQuery(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID)
 	cards, err = partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
 	if err != nil || len(cards) != 1 || cards[0].ObjectID != other.ObjectID || cards[0].SourceApprovalEntryID != other.Approval.ApprovalEntryID || cards[0].SourceVersionNo != 1 {
 		t.Fatalf("BOB Party current relationships = %+v, err=%v", cards, err)
@@ -73,6 +75,7 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save Other Unit V2: %v", err)
 	}
+	assertRelationshipCurrentQuery(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID)
 	otherV2 = submitAndApproveOtherUnit(t, relationships, otherV2, creator("other-unit-submit-v2"), reviewer("other-unit-approve-v2"))
 	if _, err = relationships.UnapproveOtherUnit(t.Context(), RelationshipReviewInput{ObjectID: otherV2.ObjectID, ApprovalEntryID: otherV2.Approval.ApprovalEntryID, ApprovalRevision: otherV2.Approval.Revision, Reason: "回落"}, reviewer("other-unit-unapprove")); err != nil {
 		t.Fatalf("unapprove Other Unit V2: %v", err)
@@ -96,11 +99,28 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit Sales Partner: %v", err)
 	}
+	assertRelationshipCurrentQueryAbsent(t, business, bobdomain.EntitySalesPartner)
 	sales, err = relationships.ApproveSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: pendingSales.ObjectID, ApprovalEntryID: pendingSales.Approval.ApprovalEntryID, ApprovalRevision: pendingSales.Approval.Revision}, reviewer("sales-partner-approve"))
 	if err != nil {
 		t.Fatalf("approve Sales Partner: %v", err)
 	}
 	assertRelationshipCurrent(t, business, bobdomain.EntitySalesPartner, sales.ObjectID, sales.Approval.ApprovalEntryID, "测试销售合作方")
+	assertRelationshipCurrentQuery(t, business, bobdomain.EntitySalesPartner, sales.ObjectID, sales.Approval.ApprovalEntryID)
+
+	salesV2, err := relationships.SaveSalesPartner(t.Context(), SalesPartnerSaveInput{
+		ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision,
+		Enabled: false, Data: SalesPartnerData{Capabilities: []string{"EXTERNAL_PART_TIME"}, ContactName: "孙八"},
+	}, creator("sales-partner-save-v2"))
+	if err != nil {
+		t.Fatalf("save Sales Partner V2: %v", err)
+	}
+	salesV2, err = relationships.SubmitSalesPartner(t.Context(), RelationshipVersionInput{
+		ObjectID: salesV2.ObjectID, ApprovalEntryID: salesV2.Approval.ApprovalEntryID, ApprovalRevision: salesV2.Approval.Revision,
+	}, creator("sales-partner-submit-v2"))
+	if err != nil {
+		t.Fatalf("submit Sales Partner V2: %v", err)
+	}
+	assertRelationshipCurrentQuery(t, business, bobdomain.EntitySalesPartner, sales.ObjectID, sales.Approval.ApprovalEntryID)
 }
 
 func approveRelationshipParty(t *testing.T, parties *PartyService, partyID string, creator, reviewer approval.Actor) {
@@ -139,5 +159,39 @@ func assertRelationshipCurrent(t *testing.T, business *bobdomain.Service, entity
 	}
 	if view.SourceApprovalEntryID != entryID || view.Relationship == nil || view.Relationship.PartyDisplayName != name {
 		t.Fatalf("BOB %s current = %+v", entity, view)
+	}
+}
+
+func assertRelationshipCurrentQueryAbsent(t *testing.T, business *bobdomain.Service, entity string) {
+	t.Helper()
+	page, err := business.Query(t.Context(), entity, bobdomain.QueryInput{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("query BOB %s current with only a candidate: %v", entity, err)
+	}
+	if page.Total != 0 || len(page.Items) != 0 {
+		t.Fatalf("BOB %s query exposed only-candidate relationship: %+v", entity, page)
+	}
+}
+
+func assertRelationshipCurrentQuery(t *testing.T, business *bobdomain.Service, entity, objectID, entryID string) {
+	t.Helper()
+	current, err := business.Get(t.Context(), entity, bobdomain.GetInput{ObjectID: objectID})
+	if err != nil {
+		t.Fatalf("get BOB %s current before query: %v", entity, err)
+	}
+	enabled := true
+	page, err := business.Query(t.Context(), entity, bobdomain.QueryInput{Page: 1, PageSize: 20, Filters: bobdomain.QueryFilters{Keyword: current.Relationship.PartyDisplayName, Enabled: &enabled}, Sort: []bobdomain.SortItem{{Field: "code", Order: "asc"}}})
+	if err != nil {
+		t.Fatalf("query BOB %s current: %v", entity, err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 {
+		t.Fatalf("BOB %s current query page = %+v", entity, page)
+	}
+	item := page.Items[0]
+	if item.ObjectID != objectID || item.SourceApprovalEntryID != entryID || !item.Enabled || !item.UpdatedAt.Equal(current.UpdatedAt) {
+		t.Fatalf("BOB %s current query item = %+v, current = %+v", entity, item, current)
+	}
+	if _, err = business.Query(t.Context(), entity, bobdomain.QueryInput{Page: 1, PageSize: 20, Sort: []bobdomain.SortItem{{Field: "lifecycle", Order: "asc"}}}); err == nil {
+		t.Fatalf("BOB %s current query accepted unsupported sort", entity)
 	}
 }

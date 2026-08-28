@@ -208,6 +208,83 @@ JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AN
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
 WHERE object.id=sqlc.arg(object_id) AND object.entity='sales-partner' AND current.enabled;
 
+-- BOB relationship lists read only their approved current projections. DCL
+-- candidates are intentionally absent: they neither become query rows nor
+-- affect the current row's filters, timestamp, ordering, or total.
+-- name: CountBobRelationshipCurrents :one
+WITH selected AS (
+  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+         party.display_name
+  FROM bob_objects object
+  JOIN bob_other_units current ON current.object_id=object.id
+  JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+  JOIN bob_party_currents party ON party.party_id=relationship.party_id
+  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+    AND approved.domain='dcl' AND approved.entity='other-unit'
+    AND approved.subject_id=object.id AND approved.status='APPROVED'
+  WHERE object.entity='other-unit' AND sqlc.arg(entity)::text='other-unit'
+    AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+    AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  UNION ALL
+  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+         party.display_name
+  FROM bob_objects object
+  JOIN bob_sales_partners current ON current.object_id=object.id
+  JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+  JOIN bob_party_currents party ON party.party_id=relationship.party_id
+  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+    AND approved.domain='dcl' AND approved.entity='sales-partner'
+    AND approved.subject_id=object.id AND approved.status='APPROVED'
+  WHERE object.entity='sales-partner' AND sqlc.arg(entity)::text='sales-partner'
+    AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+    AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
+)
+SELECT count(*)
+FROM selected;
+
+-- name: ListBobRelationshipCurrents :many
+WITH selected AS (
+  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+         party.display_name
+  FROM bob_objects object
+  JOIN bob_other_units current ON current.object_id=object.id
+  JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+  JOIN bob_party_currents party ON party.party_id=relationship.party_id
+  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+    AND approved.domain='dcl' AND approved.entity='other-unit'
+    AND approved.subject_id=object.id AND approved.status='APPROVED'
+  WHERE object.entity='other-unit' AND sqlc.arg(entity)::text='other-unit'
+    AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+    AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  UNION ALL
+  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+         party.display_name
+  FROM bob_objects object
+  JOIN bob_sales_partners current ON current.object_id=object.id
+  JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+  JOIN bob_party_currents party ON party.party_id=relationship.party_id
+  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+    AND approved.domain='dcl' AND approved.entity='sales-partner'
+    AND approved.subject_id=object.id AND approved.status='APPROVED'
+  WHERE object.entity='sales-partner' AND sqlc.arg(entity)::text='sales-partner'
+    AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+    AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
+)
+SELECT object_id,entity,code,object_revision,enabled,updated_at,approval_entry_id
+FROM selected
+ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN updated_at END ASC,
+         CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN updated_at END DESC,
+         CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN code END ASC,
+         CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN code END DESC,
+         CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN display_name END ASC,
+         CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN display_name END DESC,
+         object_id DESC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
 -- Operating Entity is the first DCL-owned BOB slice. bob_objects keeps only
 -- its stable ID/code allocation; this table is the current approved BOB data.
 -- name: UpsertBobOperatingEntityCurrent :exec

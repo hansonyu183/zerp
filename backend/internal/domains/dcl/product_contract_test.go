@@ -23,30 +23,3 @@ func TestProductDataJSONIsProductOnlySnapshot(t *testing.T) {
 		t.Fatalf("DCL product response omitted required snapshot field: %s", encoded)
 	}
 }
-
-func TestCarryProductDraftSourcesKeepsExplicitFormulaConfirmation(t *testing.T) {
-	previous := bobdomain.DetailView{Formula: &bobdomain.ProductFormula{
-		Components: []bobdomain.ProductFormulaComponent{{
-			Material: bobdomain.FormulaMaterialReference{
-				ObjectID: "01JPRODUCT00000000000000001", ApprovalEntryID: "01JPRODUCT00000000000000002",
-				Code: "PRD-0001", Name: "原料", BehaviorProfile: bobdomain.ProductBehaviorRawMaterial,
-			},
-			ResolutionStatus: "CURRENT", RequiresConfirmation: true,
-		}},
-	}}
-	next := bobdomain.DetailView{Formula: &bobdomain.ProductFormula{
-		Components: []bobdomain.ProductFormulaComponent{{
-			Material: bobdomain.FormulaMaterialReference{
-				ObjectID: "01JPRODUCT00000000000000001", ApprovalEntryID: "01JPRODUCT00000000000000002",
-			},
-			ResolutionStatus: "CURRENT", RequiresConfirmation: false,
-		}},
-	}}
-
-	carryProductDraftSources(&next, previous)
-
-	component := next.Formula.Components[0]
-	if component.Material.Name != "原料" || component.ResolutionStatus != "CURRENT" || component.RequiresConfirmation {
-		t.Fatalf("confirmed formula component = %+v", component)
-	}
-}

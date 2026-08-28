@@ -497,25 +497,30 @@ func TestQueryFilterValidation(t *testing.T) {
 	if _, err := validateQueryFilters(EntityOperatingEntity, QueryFilters{}); err != nil {
 		t.Fatalf("operating entity query rejected: %v", err)
 	}
-	if _, err := validateQueryFilters(EntityEmployee, QueryFilters{
-		DepartmentID: "01J00000000000000000000020",
-		PositionID:   "01J00000000000000000000021",
+	if _, err := validateQueryFilters(EntityProduct, QueryFilters{
+		CategoryID:    "01J00000000000000000000020",
+		ProductTypeID: "01J00000000000000000000021",
 	}); err != nil {
-		t.Fatalf("employee filters rejected: %v", err)
+		t.Fatalf("product filters rejected: %v", err)
 	}
-	if _, err := validateQueryFilters(EntityProduct, QueryFilters{CustomerType: CustomerTypeEndUser}); !errorIsKind(err, ErrorValidation) {
+	if _, err := validateQueryFilters(EntitySupplier, QueryFilters{CategoryID: "01J00000000000000000000020"}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("cross-entity filter error = %v", err)
 	}
 
-	var explicitEmpty QueryFilters
-	if err := json.Unmarshal([]byte(`{"rootOnly":false}`), &explicitEmpty); err != nil {
-		t.Fatalf("decode explicit empty filter: %v", err)
+	var filters QueryFilters
+	if err := json.Unmarshal([]byte(`{"capability":"CHANNEL_PARTNER"}`), &filters); err == nil {
+		t.Fatal("unsupported capability filter was accepted")
 	}
-	if _, err := validateQueryFilters(EntityCustomer, explicitEmpty); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("explicit cross-entity filter error = %v", err)
-	}
-	if err := json.Unmarshal([]byte(`{"unknown":true}`), &explicitEmpty); err == nil {
+	if err := json.Unmarshal([]byte(`{"unknown":true}`), &filters); err == nil {
 		t.Fatal("unknown nested filter was accepted")
+	}
+
+	service := &Service{}
+	if _, err := service.querySuppliersCurrent(t.Context(), QueryInput{
+		Page: 1, PageSize: 20,
+		Filters: QueryFilters{CategoryID: "01J00000000000000000000020"},
+	}); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("Supplier cross-entity filter error = %v", err)
 	}
 
 	var crossEntityClear DetailInput

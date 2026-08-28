@@ -393,10 +393,7 @@ func dclPartyQueryFilters(in bobdomain.QueryInput) (bobdomain.QueryFilters, erro
 	f.Keyword = strings.TrimSpace(f.Keyword)
 	f.PartyKind = strings.ToUpper(strings.TrimSpace(f.PartyKind))
 	if utf8.RuneCountInString(f.Keyword) > 128 || (f.PartyKind != "" && f.PartyKind != bobdomain.PartyKindPerson && f.PartyKind != bobdomain.PartyKindOrganization) ||
-		f.Enabled != nil || f.CustomerType != "" || f.OperatingEntityID != "" || f.Capability != "" ||
-		f.SalesAttributionType != "" || f.SalesAttributionSubjectID != "" || f.CategoryID != "" || f.DepartmentID != "" ||
-		f.PositionID != "" || f.SalespersonEmployeeID != "" || f.DefaultPurchaserEmployeeID != "" || f.Currency != "" ||
-		f.ProductTypeID != "" || f.TargetEntity != "" || f.ParentID != "" || f.RootOnly {
+		f.Enabled != nil || f.CategoryID != "" || f.DefaultPurchaserEmployeeID != "" || f.ProductTypeID != "" {
 		return bobdomain.QueryFilters{}, newError(ErrorValidation, "validation_failed", "invalid Party query filters", nil, nil)
 	}
 	return f, nil

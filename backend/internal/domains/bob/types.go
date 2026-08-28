@@ -313,21 +313,9 @@ type QueryFilters struct {
 	PartyKind                  string `json:"kind,omitempty"`
 	Merged                     *bool  `json:"merged,omitempty"`
 	Enabled                    *bool  `json:"enabled,omitempty"`
-	CustomerType               string `json:"customerType,omitempty"`
-	OperatingEntityID          string `json:"operatingEntityId,omitempty"`
-	Capability                 string `json:"capability,omitempty"`
-	SalesAttributionType       string `json:"salesAttributionType,omitempty"`
-	SalesAttributionSubjectID  string `json:"salesAttributionSubjectId,omitempty"`
 	CategoryID                 string `json:"categoryId,omitempty"`
-	DepartmentID               string `json:"departmentId,omitempty"`
-	PositionID                 string `json:"positionId,omitempty"`
-	SalespersonEmployeeID      string `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID string `json:"defaultPurchaserEmployeeId,omitempty"`
-	Currency                   string `json:"currency,omitempty"`
 	ProductTypeID              string `json:"productTypeId,omitempty"`
-	TargetEntity               string `json:"targetEntity,omitempty"`
-	ParentID                   string `json:"parentId,omitempty"`
-	RootOnly                   bool   `json:"rootOnly,omitempty"`
 	provided                   map[string]bool
 }
 

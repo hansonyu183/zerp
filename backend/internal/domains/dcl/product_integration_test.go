@@ -20,6 +20,7 @@ import (
 
 const (
 	productRawTypeID      = "01JPTP00000000000000000001"
+	productRawTypeV2ID    = "01JPTP00000000000000000002"
 	productFinishedTypeID = "01JPTP00000000000000000003"
 	productKGUnitID       = "01JAVX00000000000000000011"
 	productTonUnitID      = "01JAVX00000000000000000027"
@@ -177,6 +178,24 @@ func TestProductCandidateRebasesChangedFormulaMaterialIntegration(t *testing.T) 
 	if component.Material.ApprovalEntryID != rawV2.Approval.ApprovalEntryID || !component.RequiresConfirmation || component.Quantity.BaseQuantity != "25500" {
 		t.Fatalf("candidate did not retain quantity and flag material drift: %+v", component)
 	}
+	confirmed, err := service.Save(t.Context(), ProductSaveInput{
+		ObjectID: candidate.ObjectID, ApprovalEntryID: candidate.Approval.ApprovalEntryID, ApprovalRevision: candidate.Approval.Revision,
+		Enabled: true, Data: productData("漂移成品", productFinishedTypeID, &rawV2),
+	}, creator("finished-v2-confirm"))
+	if err != nil {
+		t.Fatalf("confirm rebased formula material: %v", err)
+	}
+	confirmedView, err := service.Get(t.Context(), ProductGetInput{ObjectID: confirmed.ObjectID, ApprovalEntryID: confirmed.Approval.ApprovalEntryID}, creator("confirmed-get"))
+	if err != nil || confirmedView.Data.Formula == nil || len(confirmedView.Data.Formula.Components) != 1 {
+		t.Fatalf("get confirmed candidate: %+v err=%v", confirmedView, err)
+	}
+	confirmedComponent := confirmedView.Data.Formula.Components[0]
+	if confirmedComponent.Material.ApprovalEntryID != rawV2.Approval.ApprovalEntryID || confirmedComponent.RequiresConfirmation || confirmedComponent.ResolutionStatus != "CURRENT" {
+		t.Fatalf("confirmed candidate did not preserve source and clear confirmation: %+v", confirmedComponent)
+	}
+	if _, err = service.Submit(t.Context(), ProductVersionInput{ObjectID: confirmed.ObjectID, ApprovalEntryID: confirmed.Approval.ApprovalEntryID, ApprovalRevision: confirmed.Approval.Revision}, creator("finished-v2-submit")); err != nil {
+		t.Fatalf("submit confirmed candidate: %v", err)
+	}
 }
 
 func TestProductSubmitRejectsFormulaMaterialSourceDriftIntegration(t *testing.T) {
@@ -201,7 +220,7 @@ func TestProductSubmitRejectsFormulaMaterialSourceDriftIntegration(t *testing.T)
 	assertApprovalState(t, pool, finishedDraft.Approval.ApprovalEntryID, approval.StatusDraft, finishedDraft.Approval.Revision)
 }
 
-func TestProductAuxiliaryStableIdentityAllowsRenameIntegration(t *testing.T) {
+func TestProductDraftSavePreservesDisabledAuxiliarySnapshotIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	ensureProductAuxiliaries(t, pool)
@@ -212,21 +231,35 @@ func TestProductAuxiliaryStableIdentityAllowsRenameIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	insertApprovedProductAuxiliaryV2(t, pool, productRawTypeID, "product-type", `{"name":"原材料 V2","behaviorProfile":"RAW_MATERIAL"}`)
+	if _, err = pool.Exec(t.Context(), `UPDATE aux_objects SET data='{"name":"吨 V2","symbol":"T","quantityScale":2}'::jsonb,enabled=false,revision=revision+1 WHERE id=$1 AND entity='measurement-unit'`, productTonUnitID); err != nil {
+		t.Fatalf("rename and disable unchanged AUX reference: %v", err)
+	}
 	savedDraft, err := service.Save(t.Context(), ProductSaveInput{
 		ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID,
 		ApprovalRevision: draft.Approval.Revision, Enabled: true,
-		Data: productData("待提交 AUX 漂移产品（已保存）", productRawTypeID, nil),
+		Data: productData("待提交 AUX 漂移产品（已保存）", productRawTypeV2ID, nil),
 	}, dclActor(t, creator.ID(), "aux-drift-save"))
 	if err != nil {
 		t.Fatalf("save draft with stale AUX source: %v", err)
 	}
 	saved, err := service.Get(t.Context(), ProductGetInput{ObjectID: savedDraft.ObjectID, ApprovalEntryID: savedDraft.Approval.ApprovalEntryID}, creator)
-	if err != nil || saved.Data.ProductTypeID != original.Data.ProductTypeID || saved.Data.ProductTypeName != "原材料 V2" {
-		t.Fatalf("stable AUX identity did not refresh current display snapshot: original=%+v saved=%+v err=%v", original.Data, saved.Data, err)
+	if err != nil || saved.Data.ProductTypeID != productRawTypeV2ID || saved.Data.ProductTypeName != "原材料二版" {
+		t.Fatalf("changed product type did not adopt current AUX snapshot: saved=%+v err=%v", saved.Data, err)
+	}
+	for _, conversion := range saved.Data.UnitConversions {
+		if conversion.Unit.ObjectID == productTonUnitID && (conversion.Unit.Name != "吨" || conversion.Unit.QuantityScale != 6) {
+			t.Fatalf("unchanged unit snapshot refreshed from AUX current: original=%+v saved=%+v", original.Data, saved.Data)
+		}
 	}
 	if _, err = pool.Exec(t.Context(), `UPDATE aux_objects SET enabled=false,revision=revision+1 WHERE id=$1 AND entity='product-type'`, productRawTypeID); err != nil {
-		t.Fatalf("disable saved AUX reference: %v", err)
+		t.Fatalf("disable newly selected product type: %v", err)
+	}
+	if _, err = service.Save(t.Context(), ProductSaveInput{
+		ObjectID: savedDraft.ObjectID, ApprovalEntryID: savedDraft.Approval.ApprovalEntryID,
+		ApprovalRevision: savedDraft.Approval.Revision, Enabled: true,
+		Data: productData("拒绝停用的新产品类型", productRawTypeID, nil),
+	}, dclActor(t, creator.ID(), "aux-disabled-selection")); err == nil {
+		t.Fatal("save accepted newly selected disabled product type")
 	}
 
 	submitted, err := service.Submit(t.Context(), ProductVersionInput{ObjectID: savedDraft.ObjectID, ApprovalEntryID: savedDraft.Approval.ApprovalEntryID, ApprovalRevision: savedDraft.Approval.Revision}, dclActor(t, creator.ID(), "aux-stable-submit"))
@@ -239,7 +272,7 @@ func TestProductAuxiliaryStableIdentityAllowsRenameIntegration(t *testing.T) {
 		t.Fatalf("approve saved AUX snapshot after source disable: %v", err)
 	}
 	view, err := service.Get(t.Context(), ProductGetInput{ObjectID: approved.ObjectID}, creator)
-	if err != nil || view.Data.ProductTypeID != productRawTypeID || view.Data.ProductTypeCode != "PTP-0001" || view.Data.ProductTypeName != "原材料 V2" {
+	if err != nil || view.Data.ProductTypeID != productRawTypeV2ID || view.Data.ProductTypeCode != "PTP-0003" || view.Data.ProductTypeName != "原材料二版" {
 		t.Fatalf("approved AUX snapshot changed after source disable: data=%+v err=%v", view.Data, err)
 	}
 }
@@ -292,6 +325,7 @@ func ensureProductAuxiliaries(t *testing.T, pool *pgxpool.Pool) {
 		objectID, entity, code, data string
 	}{
 		{productRawTypeID, "product-type", "PTP-0001", `{"name":"原材料","behaviorProfile":"RAW_MATERIAL"}`},
+		{productRawTypeV2ID, "product-type", "PTP-0003", `{"name":"原材料二版","behaviorProfile":"RAW_MATERIAL"}`},
 		{productFinishedTypeID, "product-type", "PTP-0002", `{"name":"标准成品","behaviorProfile":"STANDARD_FINISHED"}`},
 		{productKGUnitID, "measurement-unit", "UNT-0001", `{"name":"千克","symbol":"kg","quantityScale":6}`},
 		{productTonUnitID, "measurement-unit", "UNT-0006", `{"name":"吨","symbol":"t","quantityScale":6}`},

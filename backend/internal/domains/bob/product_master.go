@@ -245,3 +245,112 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 	}
 	return data, nil
 }
+
+func (s *Service) resolveProductDraftReferences(ctx context.Context, tx pgx.Tx, data, previous DetailView) (DetailView, error) {
+	resolveUnit := func(snapshot *MeasurementUnitSnapshot) error {
+		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", snapshot.ObjectID)
+		if err != nil {
+			return err
+		}
+		snapshot.Code = unit.Code
+		snapshot.Name, snapshot.Symbol = mapString(unit.Data, "name"), mapString(unit.Data, "symbol")
+		snapshot.QuantityScale = int32(mapInt(unit.Data, "quantityScale"))
+		if snapshot.QuantityScale < 0 || snapshot.QuantityScale > 6 {
+			return domainError(ErrorConflict, "measurement unit quantity scale is unavailable", nil, nil)
+		}
+		return nil
+	}
+	resolveUnitID := func(objectID string) error {
+		if objectID == "" {
+			return nil
+		}
+		_, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", objectID)
+		return err
+	}
+	if data.CategoryID == previous.CategoryID {
+		data.CategoryCode, data.CategoryName = previous.CategoryCode, previous.CategoryName
+	} else if data.CategoryID != "" {
+		category, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-category", data.CategoryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		data.CategoryCode, data.CategoryName = category.Code, mapString(category.Data, "name")
+	}
+	if data.ProductTypeID == previous.ProductTypeID {
+		data.ProductTypeCode, data.ProductTypeName, data.BehaviorProfile = previous.ProductTypeCode, previous.ProductTypeName, previous.BehaviorProfile
+	} else if data.ProductTypeID != "" {
+		typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		data.ProductTypeCode, data.ProductTypeName = typeRef.Code, mapString(typeRef.Data, "name")
+		data.BehaviorProfile = mapString(typeRef.Data, "behaviorProfile")
+	}
+	if !validProductBehavior(data.BehaviorProfile) {
+		return DetailView{}, domainError(ErrorConflict, "product type behavior profile is unavailable", nil, nil)
+	}
+	if data.DefaultInputUnitID != previous.DefaultInputUnitID {
+		if err := resolveUnitID(data.DefaultInputUnitID); err != nil {
+			return DetailView{}, err
+		}
+	}
+	if data.PricingUnitID != previous.PricingUnitID {
+		if err := resolveUnitID(data.PricingUnitID); err != nil {
+			return DetailView{}, err
+		}
+	}
+	previousUnits := make(map[string]MeasurementUnitSnapshot, len(previous.UnitConversions))
+	for _, conversion := range previous.UnitConversions {
+		previousUnits[conversion.Unit.ObjectID] = conversion.Unit
+	}
+	for index := range data.UnitConversions {
+		unit := &data.UnitConversions[index].Unit
+		if previousUnit, exists := previousUnits[unit.ObjectID]; exists {
+			*unit = previousUnit
+			continue
+		}
+		if err := resolveUnit(unit); err != nil {
+			return DetailView{}, err
+		}
+	}
+	if data.Formula == nil {
+		return data, nil
+	}
+	if previous.Formula != nil && data.Formula.Output.EnteredUnit.ObjectID == previous.Formula.Output.EnteredUnit.ObjectID {
+		data.Formula.Output.EnteredUnit = previous.Formula.Output.EnteredUnit
+	} else if err := resolveUnit(&data.Formula.Output.EnteredUnit); err != nil {
+		return DetailView{}, err
+	}
+	previousComponents := make(map[string]ProductFormulaComponent)
+	if previous.Formula != nil {
+		previousComponents = make(map[string]ProductFormulaComponent, len(previous.Formula.Components))
+		for _, component := range previous.Formula.Components {
+			previousComponents[component.Material.ObjectID] = component
+		}
+	}
+	for index := range data.Formula.Components {
+		component := &data.Formula.Components[index]
+		previousComponent, unchangedMaterial := previousComponents[component.Material.ObjectID]
+		if unchangedMaterial {
+			component.Material = previousComponent.Material
+		} else {
+			material, err := s.ResolveLatestApprovedReference(ctx, tx, EntityProduct, component.Material.ObjectID)
+			if err != nil {
+				return DetailView{}, err
+			}
+			component.Material.ApprovalEntryID, component.Material.Code = material.ApprovalEntryID, material.Code
+			component.Material.Name, component.Material.BehaviorProfile = material.Data.Name, material.Data.BehaviorProfile
+			if material.Data.BehaviorProfile != ProductBehaviorRawMaterial {
+				component.ResolutionStatus, component.RequiresConfirmation = "UNRESOLVED", false
+			} else {
+				component.ResolutionStatus = "CURRENT"
+			}
+		}
+		if unchangedMaterial && component.Quantity.EnteredUnit.ObjectID == previousComponent.Quantity.EnteredUnit.ObjectID {
+			component.Quantity.EnteredUnit = previousComponent.Quantity.EnteredUnit
+		} else if err := resolveUnit(&component.Quantity.EnteredUnit); err != nil {
+			return DetailView{}, err
+		}
+	}
+	return data, nil
+}

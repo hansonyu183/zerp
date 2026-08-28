@@ -110,6 +110,45 @@ func (s *Service) ResolveEmployeeAuxiliaryReferences(ctx context.Context, tx pgx
 	return validated, nil
 }
 
+// ResolveEmployeeDraftAuxiliaryReferences preserves typed snapshots for stable
+// AUX IDs already adopted by an existing DCL draft. A changed ID is a new
+// selection and must resolve from an enabled current AUX object.
+func (s *Service) ResolveEmployeeDraftAuxiliaryReferences(ctx context.Context, tx pgx.Tx, data, previous EmployeeData) (EmployeeData, error) {
+	validated, err := ValidateEmployeeData(data)
+	if err != nil {
+		return EmployeeData{}, err
+	}
+	targets := []struct {
+		entity   string
+		value    **EmployeeReferenceSnapshot
+		previous *EmployeeReferenceSnapshot
+	}{
+		{entity: "employee-category", value: &validated.EmployeeCategory, previous: previous.EmployeeCategory},
+		{entity: "department", value: &validated.Department, previous: previous.Department},
+		{entity: "position", value: &validated.Position, previous: previous.Position},
+	}
+	for _, target := range targets {
+		if *target.value == nil {
+			continue
+		}
+		if target.previous != nil && (*target.value).ObjectID == target.previous.ObjectID {
+			snapshot := *target.previous
+			*target.value = &snapshot
+			continue
+		}
+		reference, resolveErr := s.auxiliaryResolver.ResolveCurrentAuxiliaryReference(ctx, tx, target.entity, (*target.value).ObjectID)
+		if resolveErr != nil {
+			return EmployeeData{}, resolveErr
+		}
+		snapshot, snapshotErr := employeeAuxiliarySnapshot(reference)
+		if snapshotErr != nil {
+			return EmployeeData{}, snapshotErr
+		}
+		*target.value = &snapshot
+	}
+	return validated, nil
+}
+
 func (s *Service) ReserveEmployeeIdentity(ctx context.Context, tx pgx.Tx, partyID, operatingEntityID, actorID string) (EmployeeIdentity, error) {
 	if tx == nil || !validID(partyID) || !validID(operatingEntityID) || !validID(actorID) {
 		return EmployeeIdentity{}, domainError(ErrorValidation, "invalid Employee identity request", nil, nil)

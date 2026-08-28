@@ -9,7 +9,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -810,26 +809,9 @@ func pageOffset(page, pageSize int) (int32, bool) {
 
 func validEntity(entity string) bool { return slices.Contains(entities[:], entity) }
 
-func validStatus(status string) bool {
-	return slices.Contains([]string{string(approval.StatusDraft), string(approval.StatusPending), string(approval.StatusApproved)}, status)
-}
-
 func validID(id string) bool {
 	parsed, err := ulid.ParseStrict(id)
 	return err == nil && parsed.String() == id
-}
-
-func uniqueStrings(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if _, exists := seen[value]; exists {
-			continue
-		}
-		seen[value] = struct{}{}
-		result = append(result, value)
-	}
-	return result
 }
 
 func optionalComment(value *string) (*string, error) {

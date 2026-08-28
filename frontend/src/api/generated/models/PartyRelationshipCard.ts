@@ -10,6 +10,4 @@ export type PartyRelationshipCard = {
   operatingEntityCode: string;
   operatingEntityName: string;
   enabled: boolean;
-  status: 'DRAFT' | 'PENDING' | 'APPROVED';
-  version: number;
 };

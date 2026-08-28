@@ -28,7 +28,7 @@ func (q *Queries) GetAuxObjectData(ctx context.Context, arg GetAuxObjectDataPara
 
 const queryAuxReferenceCandidates = `-- name: QueryAuxReferenceCandidates :many
 
-SELECT id AS object_id, code, COALESCE(data->>'name','') AS name
+SELECT id AS object_id, code, CAST(COALESCE(data->>'name','') AS text) AS name
 FROM aux_objects
 WHERE entity=$1
   AND enabled
@@ -45,9 +45,9 @@ type QueryAuxReferenceCandidatesParams struct {
 }
 
 type QueryAuxReferenceCandidatesRow struct {
-	ObjectID string      `db:"object_id" json:"object_id"`
-	Code     string      `db:"code" json:"code"`
-	Name     interface{} `db:"name" json:"name"`
+	ObjectID string `db:"object_id" json:"object_id"`
+	Code     string `db:"code" json:"code"`
+	Name     string `db:"name" json:"name"`
 }
 
 // AUX is stable-ID current data. These queries intentionally expose no

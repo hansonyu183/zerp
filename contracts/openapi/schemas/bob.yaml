@@ -916,8 +916,6 @@
           'operatingEntityCode',
           'operatingEntityName',
           'enabled',
-          'status',
-          'version',
         ],
       'additionalProperties': false,
       'properties':
@@ -940,9 +938,6 @@
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
-          'status':
-            { 'type': 'string', 'enum': ['DRAFT', 'PENDING', 'APPROVED'] },
-          'version': { 'type': 'integer', 'format': 'int32' },
         },
     },
   'PartyView':

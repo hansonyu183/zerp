@@ -12,36 +12,21 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-// BOB payloads are keyed exclusively by the central approval entry.
-func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, data DetailView) error {
-	if entity != EntityProduct {
-		return invalidPayloadEntity(entity)
-	}
-	err := q.InsertBobProductPayload(ctx, dbsqlc.InsertBobProductPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
+// DCL owns Product snapshot writes. BOB only reconstructs the immutable DCL
+// snapshot selected by a current projection or an exact historical reference.
+func loadDCLProductSnapshot(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) (DetailView, error) {
+	r, err := q.GetDCLProductSnapshot(ctx, approvalEntryID)
 	if err != nil {
-		return err
+		return DetailView{}, err
 	}
-	return updateDetail(ctx, q, entity, approvalEntryID, data)
-}
-
-func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (DetailView, error) {
-	switch entity {
-	case EntityProduct:
-		r, err := q.GetBobOpenProductPayload(ctx, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		data := productDetailFromRow(r)
-		data.UnitConversions, err = loadProductUnitConversions(ctx, q, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		enrichDefaultInputUnit(&data)
-		data.Formula, err = loadProductFormula(ctx, q, approvalEntryID)
-		return data, err
-	default:
-		return DetailView{}, invalidPayloadEntity(entity)
+	data := productDetailFromRow(r)
+	data.UnitConversions, err = loadProductUnitConversions(ctx, q, approvalEntryID)
+	if err != nil {
+		return DetailView{}, err
 	}
+	enrichDefaultInputUnit(&data)
+	data.Formula, err = loadProductFormula(ctx, q, approvalEntryID)
+	return data, err
 }
 
 func enrichDefaultInputUnit(data *DetailView) {
@@ -62,129 +47,15 @@ func productDetailFromRow(r dbsqlc.DclProductVersion) DetailView {
 	return data
 }
 
-func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, data DetailView) error {
-	rows, err := updatePayload(ctx, q, entity, approvalEntryID, data)
-	if err != nil {
-		return err
-	}
-	if rows != 1 {
-		return domainError(ErrorConflict, "approval payload changed", nil, nil)
-	}
-	if entity != EntityProduct {
-		return nil
-	}
-	if err = q.DeleteBobProductUnitConversions(ctx, approvalEntryID); err != nil {
-		return err
-	}
-	if err = replaceProductUnitConversions(ctx, q, approvalEntryID, data.UnitConversions); err != nil {
-		return err
-	}
-	if err = q.DeleteBobProductFormula(ctx, approvalEntryID); err != nil {
-		return err
-	}
-	return insertProductFormula(ctx, q, approvalEntryID, data.Formula)
-}
-
-func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, d DetailView) (int64, error) {
-	switch entity {
-	case EntityProduct:
-		packaging, err := defaultPackagingSpecMicros(d)
-		if err != nil {
-			return 0, err
-		}
-		return q.UpdateBobProductPayload(ctx, dbsqlc.UpdateBobProductPayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), CategoryCode: nilIfEmpty(d.CategoryCode), CategoryName: nilIfEmpty(d.CategoryName), Specification: nilIfEmpty(d.Specification), Model: nilIfEmpty(d.Model), Barcode: nilIfEmpty(d.Barcode), Remark: nilIfEmpty(d.Remark), PricingUnitID: nilIfEmpty(d.PricingUnitID), DefaultPackagingSpecMicros: packaging, ProductTypeID: nilIfEmpty(d.ProductTypeID), ProductTypeCode: nilIfEmpty(d.ProductTypeCode), ProductTypeName: nilIfEmpty(d.ProductTypeName), BehaviorProfile: nilIfEmpty(d.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(d.DefaultInputUnitID), Enabled: d.Enabled, ApprovalEntryID: approvalEntryID})
-	default:
-		return 0, invalidPayloadEntity(entity)
-	}
-}
-
-func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntryID, sourceApprovalEntryID string) error {
-	switch entity {
-	case EntityProduct:
-		if err := q.CopyBobProductPayload(ctx, dbsqlc.CopyBobProductPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID}); err != nil {
-			return err
-		}
-		conversions, err := loadProductUnitConversions(ctx, q, sourceApprovalEntryID)
-		if err != nil {
-			return err
-		}
-		if err := replaceProductUnitConversions(ctx, q, newApprovalEntryID, conversions); err != nil {
-			return err
-		}
-		formula, err := loadProductFormula(ctx, q, sourceApprovalEntryID)
-		if err != nil {
-			return err
-		}
-		return insertProductFormula(ctx, q, newApprovalEntryID, formula)
-	default:
-		return invalidPayloadEntity(entity)
-	}
-}
-
-func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (int64, error) {
-	switch entity {
-	case EntityProduct:
-		if err := q.DeleteBobProductFormula(ctx, approvalEntryID); err != nil {
-			return 0, err
-		}
-		if err := q.DeleteBobProductUnitConversions(ctx, approvalEntryID); err != nil {
-			return 0, err
-		}
-		return q.DeleteBobProductPayload(ctx, approvalEntryID)
-	default:
-		return 0, invalidPayloadEntity(entity)
-	}
-}
-func defaultPackagingSpecMicros(data DetailView) (*int64, error) {
-	if data.BehaviorProfile == ProductBehaviorPackaging || data.DefaultPackagingSpec == "" {
-		return nil, nil
-	}
-	value, err := fixedMicros(data.DefaultPackagingSpec)
-	if err != nil {
-		return nil, err
-	}
-	return &value, nil
-}
-
-func insertProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string, formula *ProductFormula) error {
-	if formula == nil {
-		return nil
-	}
-	entered, err := fixedMicros(formula.Output.EnteredQuantity)
-	if err != nil {
-		return err
-	}
-	base, err := fixedMicros(formula.Output.BaseQuantity)
-	if err != nil {
-		return err
-	}
-	if err = q.InsertBobProductFormula(ctx, dbsqlc.InsertBobProductFormulaParams{ProductApprovalEntryID: approvalEntryID, OutputBaseQuantityMicros: base, OutputEnteredQuantityMicros: entered, OutputUnitObjectID: formula.Output.EnteredUnit.ObjectID, OutputUnitCode: formula.Output.EnteredUnit.Code, OutputUnitName: formula.Output.EnteredUnit.Name, OutputUnitSymbol: formula.Output.EnteredUnit.Symbol, OutputUnitQuantityScale: formula.Output.EnteredUnit.QuantityScale}); err != nil {
-		return err
-	}
-	for i, c := range formula.Components {
-		entered, err = fixedMicros(c.Quantity.EnteredQuantity)
-		if err != nil {
-			return err
-		}
-		base, err = fixedMicros(c.Quantity.BaseQuantity)
-		if err != nil {
-			return err
-		}
-		if err = q.InsertBobProductFormulaLine(ctx, dbsqlc.InsertBobProductFormulaLineParams{ProductApprovalEntryID: approvalEntryID, LineNo: int32(i + 1), MaterialObjectID: c.Material.ObjectID, MaterialApprovalEntryID: c.Material.ApprovalEntryID, BaseQuantityMicros: base, EnteredQuantityMicros: entered, EnteredUnitObjectID: c.Quantity.EnteredUnit.ObjectID, EnteredUnitCode: c.Quantity.EnteredUnit.Code, EnteredUnitName: c.Quantity.EnteredUnit.Name, EnteredUnitSymbol: c.Quantity.EnteredUnit.Symbol, EnteredUnitQuantityScale: c.Quantity.EnteredUnit.QuantityScale, ResolutionStatus: c.ResolutionStatus, RequiresConfirmation: c.RequiresConfirmation}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 func loadProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) (*ProductFormula, error) {
-	f, err := q.GetBobProductFormula(ctx, approvalEntryID)
+	f, err := q.GetDCLProductFormula(ctx, approvalEntryID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	rows, err := q.ListBobProductFormulaLines(ctx, approvalEntryID)
+	rows, err := q.ListDCLProductFormulaLines(ctx, approvalEntryID)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +66,7 @@ func loadProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryID 
 	return result, nil
 }
 func loadProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) ([]ProductUnitConversion, error) {
-	rows, err := q.ListBobProductUnitConversions(ctx, approvalEntryID)
+	rows, err := q.ListDCLProductUnitConversions(ctx, approvalEntryID)
 	if err != nil {
 		return nil, err
 	}
@@ -205,27 +76,11 @@ func loadProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, approval
 	}
 	return result, nil
 }
-func replaceProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string, conversions []ProductUnitConversion) error {
-	for _, conversion := range conversions {
-		factor, err := fixedMicros(conversion.Factor)
-		if err != nil {
-			return err
-		}
-		if err = q.InsertBobProductUnitConversion(ctx, dbsqlc.InsertBobProductUnitConversionParams{ProductApprovalEntryID: approvalEntryID, UnitObjectID: conversion.Unit.ObjectID, UnitCode: conversion.Unit.Code, UnitName: conversion.Unit.Name, UnitSymbol: conversion.Unit.Symbol, UnitQuantityScale: conversion.Unit.QuantityScale, FactorMicros: factor}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func nilIfEmpty(value string) *string {
 	if value == "" {
 		return nil
 	}
 	return &value
-}
-func invalidPayloadEntity(entity string) error {
-	return domainError(ErrorValidation, fmt.Sprintf("invalid BOB approval payload entity %q", entity), nil, nil)
 }
 func dateString(value pgtype.Date) string {
 	if !value.Valid {

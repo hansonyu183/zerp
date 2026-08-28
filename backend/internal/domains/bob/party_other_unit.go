@@ -73,8 +73,6 @@ type PartyRelationshipCard struct {
 	OperatingEntityCode string `json:"operatingEntityCode"`
 	OperatingEntityName string `json:"operatingEntityName"`
 	Enabled             bool   `json:"enabled"`
-	Status              string `json:"status"`
-	Version             int32  `json:"version"`
 }
 
 type PartyView struct {
@@ -266,12 +264,7 @@ func visiblePartyRelationshipCards(ctx context.Context, q partyQueryer, partyID 
 		if !visibility.allows(card.Entity) {
 			continue
 		}
-		result = append(result, PartyRelationshipCard{
-			ObjectID: card.ObjectID, Entity: card.Entity, Code: card.Code,
-			OperatingEntityID: card.OperatingEntityID, OperatingEntityCode: card.OperatingEntityCode,
-			OperatingEntityName: card.OperatingEntityName, Enabled: card.Enabled,
-			Status: card.Status, Version: card.Version,
-		})
+		result = append(result, PartyRelationshipCard(card))
 	}
 	return result, nil
 }
@@ -282,9 +275,8 @@ type partyQueryer interface {
 }
 
 type partyRelationshipCardRow struct {
-	ObjectID, Entity, Code, OperatingEntityID, OperatingEntityCode, OperatingEntityName, Status string
-	Enabled                                                                                     bool
-	Version                                                                                     int32
+	ObjectID, Entity, Code, OperatingEntityID, OperatingEntityCode, OperatingEntityName string
+	Enabled                                                                             bool
 }
 
 func scanParty(row interface{ Scan(...any) error }) (partyCurrentRow, error) {
@@ -320,16 +312,14 @@ func partyIdentifiers(ctx context.Context, q partyQueryer, partyID string) ([]Pa
 
 func partyRelationshipCards(ctx context.Context, q partyQueryer, partyID string) ([]partyRelationshipCardRow, error) {
 	rows, err := q.Query(ctx, `WITH relationships AS (
-		SELECT object_id,'customer'::text AS entity,operating_entity_id FROM bob_customer_relationships WHERE party_id=$1
-		UNION ALL SELECT object_id,'supplier',operating_entity_id FROM bob_supplier_relationships WHERE party_id=$1
-		UNION ALL SELECT object_id,'employee',operating_entity_id FROM bob_employment_relationships WHERE party_id=$1
-		UNION ALL SELECT object_id,'other-unit',operating_entity_id FROM bob_service_relationships WHERE party_id=$1
-		UNION ALL SELECT object_id,'sales-partner',operating_entity_id FROM bob_sales_relationships WHERE party_id=$1
-	) SELECT r.object_id,r.entity,o.code,r.operating_entity_id,oe.code,COALESCE(ov.legal_name,''),o.enabled,COALESCE(open_entry.status,approved.status,''),COALESCE(open_entry.version_no,approved.version_no,0)
+		SELECT relation.object_id,'customer'::text AS entity,relation.operating_entity_id,current.enabled FROM bob_customer_relationships relation JOIN bob_customers current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
+		UNION ALL SELECT relation.object_id,'supplier',relation.operating_entity_id,current.enabled FROM bob_supplier_relationships relation JOIN bob_suppliers current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
+		UNION ALL SELECT relation.object_id,'employee',relation.operating_entity_id,current.enabled FROM bob_employment_relationships relation JOIN bob_employees current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
+		UNION ALL SELECT relation.object_id,'other-unit',relation.operating_entity_id,current.enabled FROM bob_service_relationships relation JOIN bob_other_units current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
+		UNION ALL SELECT relation.object_id,'sales-partner',relation.operating_entity_id,current.enabled FROM bob_sales_relationships relation JOIN bob_sales_partners current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
+	) SELECT r.object_id,r.entity,o.code,r.operating_entity_id,oe.code,COALESCE(ov.legal_name,''),r.enabled
 	FROM relationships r JOIN bob_objects o ON o.id=r.object_id JOIN bob_objects oe ON oe.id=r.operating_entity_id
-	LEFT JOIN bob_operating_entities ov ON ov.object_id=oe.id
-	LEFT JOIN LATERAL (SELECT status,version_no FROM approval_entries WHERE domain='bob' AND entity=r.entity AND subject_id=r.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) open_entry ON true
-	LEFT JOIN LATERAL (SELECT status,version_no FROM approval_entries WHERE domain='bob' AND entity=r.entity AND subject_id=r.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+	JOIN bob_operating_entities ov ON ov.object_id=oe.id
 	ORDER BY o.code`, partyID)
 	if err != nil {
 		return nil, err
@@ -338,7 +328,7 @@ func partyRelationshipCards(ctx context.Context, q partyQueryer, partyID string)
 	items := make([]partyRelationshipCardRow, 0)
 	for rows.Next() {
 		var item partyRelationshipCardRow
-		if err = rows.Scan(&item.ObjectID, &item.Entity, &item.Code, &item.OperatingEntityID, &item.OperatingEntityCode, &item.OperatingEntityName, &item.Enabled, &item.Status, &item.Version); err != nil {
+		if err = rows.Scan(&item.ObjectID, &item.Entity, &item.Code, &item.OperatingEntityID, &item.OperatingEntityCode, &item.OperatingEntityName, &item.Enabled); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

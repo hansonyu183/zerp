@@ -145,7 +145,7 @@ func (s *Service) getProductCurrent(ctx context.Context, in GetInput) (ObjectVie
 	if err != nil {
 		return ObjectView{}, s.internal("get product source approval", err)
 	}
-	d, err := LoadProductSnapshot(ctx, s.queries, r.ApprovalEntryID)
+	d, err := LoadDCLProductSnapshot(ctx, s.queries, r.ApprovalEntryID)
 	if err != nil {
 		return ObjectView{}, s.internal("load product current snapshot", err)
 	}
@@ -167,7 +167,7 @@ func (s *Service) validateProductSnapshotReference(ctx context.Context, q *dbsql
 	if err != nil {
 		return EffectiveReference{}, s.internal("load product identity", err)
 	}
-	d, err := LoadProductSnapshot(ctx, q, entryID)
+	d, err := LoadDCLProductSnapshot(ctx, q, entryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL product snapshot", err)
 	}
@@ -181,21 +181,12 @@ func (s *Service) resolveProductCurrentReference(ctx context.Context, q *dbsqlc.
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve product current", err)
 	}
-	d, err := LoadProductSnapshot(ctx, q, r.ApprovalEntryID)
+	d, err := LoadDCLProductSnapshot(ctx, q, r.ApprovalEntryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("load product current snapshot", err)
 	}
 	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: d}, nil
 }
-func StoreProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string, d DetailView) error {
-	return insertDetail(ctx, q, EntityProduct, id, d)
-}
-func LoadProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string) (DetailView, error) {
-	return loadDetail(ctx, q, EntityProduct, id)
-}
-func CopyProductSnapshot(ctx context.Context, q *dbsqlc.Queries, newID, sourceID string) error {
-	return copyDetail(ctx, q, EntityProduct, newID, sourceID)
-}
-func DeleteProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string) (int64, error) {
-	return deleteDetail(ctx, q, EntityProduct, id)
+func LoadDCLProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string) (DetailView, error) {
+	return loadDCLProductSnapshot(ctx, q, id)
 }

@@ -27,6 +27,7 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	partyReader := bobdomain.NewPartyCurrentReader(pool)
 
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -49,8 +50,16 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 		t.Fatal("BOB exposed unapproved Other Unit")
 	}
 	approveRelationshipParty(t, parties, other.PartyID, creator("other-unit-party-submit"), reviewer("other-unit-party-approve"))
+	cards, err := partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
+	if err != nil || len(cards) != 0 {
+		t.Fatalf("BOB Party exposed candidate relationship: cards=%+v err=%v", cards, err)
+	}
 	other = submitAndApproveOtherUnit(t, relationships, other, creator("other-unit-submit"), reviewer("other-unit-approve"))
 	assertRelationshipCurrent(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID, "测试往来单位")
+	cards, err = partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
+	if err != nil || len(cards) != 1 || cards[0].ObjectID != other.ObjectID {
+		t.Fatalf("BOB Party current relationships = %+v, err=%v", cards, err)
+	}
 
 	otherV2, err := relationships.SaveOtherUnit(t.Context(), OtherUnitSaveInput{ObjectID: other.ObjectID, ApprovalEntryID: other.Approval.ApprovalEntryID, ApprovalRevision: other.Approval.Revision, Enabled: false, Data: OtherUnitData{ContactName: "赵六", ContactPhone: "13900139000", Remark: "二版"}}, creator("other-unit-save"))
 	if err != nil {

@@ -3,7 +3,6 @@ package bob
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
@@ -132,18 +131,7 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntityCustomerAccount {
 		return s.validateCustomerAccountSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
-	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
-	}
-	if err != nil {
-		return EffectiveReference{}, s.internal("validate BOB approval snapshot", err)
-	}
-	data, err := loadDetail(ctx, q, entity, row.ApprovalEntryID)
-	if err != nil {
-		return EffectiveReference{}, s.internal("load BOB approval snapshot payload", err)
-	}
-	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, Data: data}, nil
+	return EffectiveReference{}, domainError(ErrorValidation, "unsupported BOB snapshot reference entity", nil, nil)
 }
 
 func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx, entity, objectID string) (EffectiveReference, error) {
@@ -181,18 +169,7 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	if entity == EntityCustomerAccount {
 		return s.resolveCustomerAccountCurrentReference(ctx, q, objectID)
 	}
-	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return EffectiveReference{}, domainError(ErrorConflict, "BOB reference has no latest approved version", nil, nil)
-	}
-	if err != nil {
-		return EffectiveReference{}, s.internal("resolve latest approved BOB reference", err)
-	}
-	data, err := loadDetail(ctx, q, entity, row.ApprovalEntryID)
-	if err != nil {
-		return EffectiveReference{}, s.internal("load latest approved BOB reference payload", err)
-	}
-	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, Data: data}, nil
+	return EffectiveReference{}, domainError(ErrorValidation, "unsupported BOB current reference entity", nil, nil)
 }
 
 func (s *Service) ensureUnapproveAllowed(ctx context.Context, q *dbsqlc.Queries, entryID string) error {

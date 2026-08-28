@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -27,14 +28,15 @@ type dbtx interface {
 }
 
 type Service struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	queries *dbsqlc.Queries
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
 	if pool == nil {
 		panic("aux: database is required")
 	}
-	return &Service{pool: pool}
+	return &Service{pool: pool, queries: dbsqlc.New(pool)}
 }
 
 func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQueryInput, actor approval.Actor) ([]ReferenceCandidate, error) {
@@ -43,23 +45,15 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 	}
 	keyword := strings.TrimSpace(input.Keyword)
 	dictionaryTypeCode := strings.TrimSpace(input.DictionaryTypeCode)
-	rows, err := s.pool.Query(ctx, `SELECT id,code,COALESCE(data->>'name','') FROM aux_objects
-		WHERE entity=$1 AND enabled AND ($2='' OR code ILIKE '%'||$2||'%' OR COALESCE(data->>'name','') ILIKE '%'||$2||'%')
-		AND ($3='' OR data->>'dictionaryTypeCode'=$3) ORDER BY COALESCE((data->>'sortOrder')::integer,2147483647),code,id LIMIT 20`, input.Entity, keyword, dictionaryTypeCode)
+	rows, err := s.queries.QueryAuxReferenceCandidates(ctx, dbsqlc.QueryAuxReferenceCandidatesParams{
+		Entity: input.Entity, Keyword: keyword, DictionaryTypeCode: dictionaryTypeCode,
+	})
 	if err != nil {
 		return nil, s.internal("query AUX reference candidates", err)
 	}
-	defer rows.Close()
-	result := make([]ReferenceCandidate, 0)
-	for rows.Next() {
-		var row ReferenceCandidate
-		if err := rows.Scan(&row.ObjectID, &row.Code, &row.Name); err != nil {
-			return nil, s.internal("scan AUX reference candidates", err)
-		}
-		result = append(result, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, s.internal("query AUX reference candidates", err)
+	result := make([]ReferenceCandidate, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, ReferenceCandidate{ObjectID: row.ObjectID, Code: row.Code, Name: row.Name})
 	}
 	return result, nil
 }
@@ -315,7 +309,7 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 func objectPrefix(entity string) string {
 	return map[string]string{
 		EntityProductCategory: "PCT", EntityProductType: "PTP", EntityDepartment: "DEP", EntityPosition: "POS",
-		EntitySettlementMethod: "STM", EntityPaymentMethod: "PAY", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
+		EntitySettlementMethod: "STM", EntityPaymentMethod: "PMT", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
 		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAssetCategory: "ACT", EntityEmployeeCategory: "ECT",
 	}[entity]
 }

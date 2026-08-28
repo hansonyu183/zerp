@@ -382,23 +382,6 @@ SET revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
 RETURNING id, entity, code, revision, enabled, created_at, created_by, updated_at, updated_by;
 
--- name: GetBobLatestApprovedEntry :one
-SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at,
-       submitted_by, submitted_at, approved_by, approved_at
-FROM approval_entries
-WHERE domain = 'bob' AND entity = sqlc.arg(entity) AND subject_id = sqlc.arg(object_id) AND status = 'APPROVED'
-ORDER BY version_no DESC
-LIMIT 1;
-
--- name: GetBobOpenEntry :one
-SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at,
-       submitted_by, submitted_at, approved_by, approved_at
-FROM approval_entries
-WHERE domain = 'bob' AND entity = sqlc.arg(entity) AND subject_id = sqlc.arg(object_id)
-  AND status IN ('DRAFT', 'PENDING')
-ORDER BY version_no DESC
-LIMIT 1;
-
 -- name: GetDCLSupplierOpenEntry :one
 SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at,
        submitted_by, submitted_at, approved_by, approved_at
@@ -407,227 +390,6 @@ WHERE domain = 'dcl' AND entity = 'supplier' AND subject_id = sqlc.arg(object_id
   AND status IN ('DRAFT', 'PENDING')
 ORDER BY version_no DESC
 LIMIT 1;
-
--- name: GetBobLatestApprovedEntryByID :one
-SELECT entry.id, entry.domain, entry.entity, entry.subject_id, entry.version_no, entry.status, entry.revision,
-       entry.created_by, entry.created_at, entry.updated_by, entry.updated_at, entry.submitted_by, entry.submitted_at,
-       entry.approved_by, entry.approved_at
-FROM approval_entries entry
-WHERE entry.id = sqlc.arg(approval_entry_id)
-  AND entry.domain = 'bob'
-  AND entry.status = 'APPROVED'
-  AND entry.id = (
-      SELECT latest.id FROM approval_entries latest
-      WHERE latest.domain = entry.domain AND latest.entity = entry.entity AND latest.subject_id = entry.subject_id
-        AND latest.status = 'APPROVED'
-      ORDER BY latest.version_no DESC LIMIT 1
-  );
-
--- name: CountBobApprovalEvents :one
-SELECT count(*)
-FROM approval_events
-WHERE domain = 'bob' AND entity = sqlc.arg(entity) AND subject_id = sqlc.arg(object_id);
-
--- name: ListBobApprovalEvents :many
-SELECT id, entry_id, domain, entity, subject_id, version_no, action, from_status, to_status,
-       from_revision, to_revision, actor_id, reason, request_id, created_at
-FROM approval_events
-WHERE domain = 'bob' AND entity = sqlc.arg(entity) AND subject_id = sqlc.arg(object_id)
-ORDER BY created_at DESC, id DESC
-LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
-
--- name: ListBobObjects :many
-SELECT o.id AS object_id, o.entity, o.code, o.revision AS object_revision, o.enabled, o.updated_at,
-	   COALESCE(approved.id, '')::text AS approval_entry_id,
-	   COALESCE(approved.version_no, 0)::integer AS version_no,
-	   COALESCE(approved.revision, 0)::bigint AS approval_revision,
-	   COALESCE(open_entry.id, '')::text AS open_approval_entry_id,
-	   COALESCE(open_entry.version_no, 0)::integer AS open_version_no,
-	   COALESCE(open_entry.status, '')::text AS open_status,
-	   COALESCE(open_entry.revision, 0)::bigint AS open_revision
-FROM bob_objects o
-LEFT JOIN LATERAL (
-    SELECT id, version_no, status, revision
-    FROM approval_entries
-    WHERE domain = CASE WHEN o.entity IN ('customer','customer-account','product','employee','other-unit','sales-partner','supplier') THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
-    ORDER BY version_no DESC LIMIT 1
-) approved ON true
-LEFT JOIN LATERAL (
-    SELECT id, version_no, status, revision
-    FROM approval_entries
-    WHERE domain = CASE WHEN o.entity IN ('customer','customer-account','product','employee','other-unit','sales-partner','supplier') THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status IN ('DRAFT', 'PENDING')
-    ORDER BY version_no DESC LIMIT 1
-) open_entry ON true
-LEFT JOIN dcl_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
-LEFT JOIN dcl_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
-LEFT JOIN dcl_product_versions approved_product ON approved_product.approval_entry_id=approved.id
-LEFT JOIN dcl_product_versions open_product ON open_product.approval_entry_id=open_entry.id
-LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
-LEFT JOIN dcl_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
-LEFT JOIN dcl_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
-LEFT JOIN dcl_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
-LEFT JOIN dcl_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
-LEFT JOIN dcl_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
-LEFT JOIN dcl_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
-LEFT JOIN dcl_sales_partner_versions open_sales ON open_sales.approval_entry_id=open_entry.id
-LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.object_id=o.id AND o.entity='customer'
-LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
-LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
-LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_employment_relationships employee_relation ON employee_relation.object_id=o.id AND o.entity='employee' AND employee_relation.merged_into_object_id IS NULL
-LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id,employee_relation.party_id)
-WHERE o.entity = sqlc.arg(entity)
-  AND (sqlc.arg(keyword)::text = ''
-       OR o.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-       OR COALESCE(approved_product.name, open_product.name,
-                   approved_vehicle.name, open_vehicle.name,
-                   approved_fund.name, open_fund.name,
-                   relationship_party.display_name, '')
-          ILIKE '%' || sqlc.arg(keyword)::text || '%'
-       OR EXISTS (
-           SELECT 1
-           FROM bob_customer_accounts account
-           JOIN bob_objects account_object ON account_object.id=account.object_id AND account_object.entity='customer-account'
-           LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=account.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) account_approved_entry ON true
-           LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=account.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) account_open_entry ON true
-           LEFT JOIN dcl_customer_account_versions account_approved ON account_approved.approval_entry_id=account_approved_entry.id
-           LEFT JOIN dcl_customer_account_versions account_open ON account_open.approval_entry_id=account_open_entry.id
-           WHERE account.customer_relationship_id=o.id
-             AND (account_object.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                  OR COALESCE(account_approved.name,account_open.name,'') ILIKE '%' || sqlc.arg(keyword)::text || '%')
-       ))
-  AND (sqlc.arg(enabled_filter)::integer = -1 OR o.enabled = (sqlc.arg(enabled_filter)::integer = 1))
-  AND (cardinality(sqlc.arg(status_filter)::text[]) = 0
-       OR approved.status = ANY(sqlc.arg(status_filter)::text[])
-       OR open_entry.status = ANY(sqlc.arg(status_filter)::text[]))
-  AND (sqlc.arg(category_id)::text='' OR approved_product.category_id=sqlc.arg(category_id)::text OR open_product.category_id=sqlc.arg(category_id)::text)
-  AND (sqlc.arg(department_id)::text='' OR approved_employee.department_id=sqlc.arg(department_id)::text OR open_employee.department_id=sqlc.arg(department_id)::text)
-  AND (sqlc.arg(position_id)::text='' OR approved_employee.position_id=sqlc.arg(position_id)::text OR open_employee.position_id=sqlc.arg(position_id)::text)
-  AND (sqlc.arg(currency)::text='' OR approved_fund.currency=sqlc.arg(currency)::text OR open_fund.currency=sqlc.arg(currency)::text)
-  AND (sqlc.arg(product_type_id)::text='' OR approved_product.product_type_id=sqlc.arg(product_type_id)::text OR open_product.product_type_id=sqlc.arg(product_type_id)::text)
-  AND (sqlc.arg(operating_entity_id)::text='' OR customer_relation.operating_entity_id=sqlc.arg(operating_entity_id)::text OR sales_relation.operating_entity_id=sqlc.arg(operating_entity_id)::text OR service_relation.operating_entity_id=sqlc.arg(operating_entity_id)::text)
-  AND (sqlc.arg(default_purchaser_employee_id)::text='' OR approved_supplier.default_purchaser_employee_id=sqlc.arg(default_purchaser_employee_id)::text OR open_supplier.default_purchaser_employee_id=sqlc.arg(default_purchaser_employee_id)::text)
-  AND (sqlc.arg(capability)::text='' OR sqlc.arg(capability)::text=ANY(approved_sales.capabilities) OR sqlc.arg(capability)::text=ANY(open_sales.capabilities))
-  AND ((sqlc.arg(customer_type)::text='' AND sqlc.arg(sales_attribution_type)::text='' AND sqlc.arg(sales_attribution_subject_id)::text='') OR EXISTS (
-      SELECT 1
-      FROM bob_customer_accounts account
-      LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=account.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) account_approved_entry ON true
-      LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=account.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) account_open_entry ON true
-      LEFT JOIN dcl_customer_account_versions account_approved ON account_approved.approval_entry_id=account_approved_entry.id
-      LEFT JOIN dcl_customer_account_versions account_open ON account_open.approval_entry_id=account_open_entry.id
-      WHERE account.customer_relationship_id=o.id
-        AND (sqlc.arg(customer_type)::text='' OR account_approved.customer_type=sqlc.arg(customer_type)::text OR account_open.customer_type=sqlc.arg(customer_type)::text)
-        AND (sqlc.arg(sales_attribution_type)::text='' OR account_approved.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)::text OR account_open.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)::text)
-        AND (sqlc.arg(sales_attribution_subject_id)::text='' OR account_approved.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)::text OR account_open.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)::text)
-  ))
-ORDER BY
-  CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN o.updated_at END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN o.updated_at END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN o.code END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN o.code END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(open_product.name,approved_product.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,relationship_party.display_name,'') END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(open_product.name,approved_product.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,relationship_party.display_name,'') END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(open_entry.status,approved.status,'') END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(open_entry.status,approved.status,'') END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(open_entry.version_no,approved.version_no,0) END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(open_entry.version_no,approved.version_no,0) END DESC,
-  o.id DESC
-LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
-
--- name: CountBobObjects :one
-SELECT count(*)
-FROM bob_objects o
-LEFT JOIN LATERAL (
-    SELECT id, status
-    FROM approval_entries
-    WHERE domain=CASE WHEN o.entity IN ('customer','customer-account','product','employee','other-unit','sales-partner','supplier') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
-    ORDER BY version_no DESC LIMIT 1
-) approved ON true
-LEFT JOIN LATERAL (
-    SELECT id, status
-    FROM approval_entries
-    WHERE domain=CASE WHEN o.entity IN ('customer','customer-account','product','employee','other-unit','sales-partner','supplier') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status IN ('DRAFT','PENDING')
-    ORDER BY version_no DESC LIMIT 1
-) open_entry ON true
-LEFT JOIN dcl_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
-LEFT JOIN dcl_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
-LEFT JOIN dcl_product_versions approved_product ON approved_product.approval_entry_id=approved.id
-LEFT JOIN dcl_product_versions open_product ON open_product.approval_entry_id=open_entry.id
-LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
-LEFT JOIN dcl_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
-LEFT JOIN dcl_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
-LEFT JOIN dcl_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
-LEFT JOIN dcl_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
-LEFT JOIN dcl_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
-LEFT JOIN dcl_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
-LEFT JOIN dcl_sales_partner_versions open_sales ON open_sales.approval_entry_id=open_entry.id
-LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.object_id=o.id AND o.entity='customer'
-LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
-LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
-LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_employment_relationships employee_relation ON employee_relation.object_id=o.id AND o.entity='employee' AND employee_relation.merged_into_object_id IS NULL
-LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id,employee_relation.party_id)
-WHERE o.entity = sqlc.arg(entity)
-  AND (sqlc.arg(keyword)::text = ''
-       OR o.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-       OR COALESCE(approved_product.name, open_product.name,
-                   approved_vehicle.name, open_vehicle.name,
-                   approved_fund.name, open_fund.name,
-                   relationship_party.display_name, '')
-          ILIKE '%' || sqlc.arg(keyword)::text || '%'
-       OR EXISTS (
-           SELECT 1
-           FROM bob_customer_accounts account
-           JOIN bob_objects account_object ON account_object.id=account.object_id AND account_object.entity='customer-account'
-           LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=account.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) account_approved_entry ON true
-           LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=account.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) account_open_entry ON true
-           LEFT JOIN dcl_customer_account_versions account_approved ON account_approved.approval_entry_id=account_approved_entry.id
-           LEFT JOIN dcl_customer_account_versions account_open ON account_open.approval_entry_id=account_open_entry.id
-           WHERE account.customer_relationship_id=o.id
-             AND (account_object.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                  OR COALESCE(account_approved.name,account_open.name,'') ILIKE '%' || sqlc.arg(keyword)::text || '%')
-       ))
-  AND (sqlc.arg(enabled_filter)::integer = -1 OR o.enabled = (sqlc.arg(enabled_filter)::integer = 1))
-  AND (cardinality(sqlc.arg(status_filter)::text[]) = 0
-       OR approved.status = ANY(sqlc.arg(status_filter)::text[])
-       OR open_entry.status = ANY(sqlc.arg(status_filter)::text[]))
-  AND (sqlc.arg(category_id)::text='' OR approved_product.category_id=sqlc.arg(category_id)::text OR open_product.category_id=sqlc.arg(category_id)::text)
-  AND (sqlc.arg(department_id)::text='' OR approved_employee.department_id=sqlc.arg(department_id)::text OR open_employee.department_id=sqlc.arg(department_id)::text)
-  AND (sqlc.arg(position_id)::text='' OR approved_employee.position_id=sqlc.arg(position_id)::text OR open_employee.position_id=sqlc.arg(position_id)::text)
-  AND (sqlc.arg(currency)::text='' OR approved_fund.currency=sqlc.arg(currency)::text OR open_fund.currency=sqlc.arg(currency)::text)
-  AND (sqlc.arg(product_type_id)::text='' OR approved_product.product_type_id=sqlc.arg(product_type_id)::text OR open_product.product_type_id=sqlc.arg(product_type_id)::text)
-  AND (sqlc.arg(operating_entity_id)::text='' OR customer_relation.operating_entity_id=sqlc.arg(operating_entity_id)::text OR sales_relation.operating_entity_id=sqlc.arg(operating_entity_id)::text OR service_relation.operating_entity_id=sqlc.arg(operating_entity_id)::text)
-  AND (sqlc.arg(default_purchaser_employee_id)::text='' OR approved_supplier.default_purchaser_employee_id=sqlc.arg(default_purchaser_employee_id)::text OR open_supplier.default_purchaser_employee_id=sqlc.arg(default_purchaser_employee_id)::text)
-  AND (sqlc.arg(capability)::text='' OR sqlc.arg(capability)::text=ANY(approved_sales.capabilities) OR sqlc.arg(capability)::text=ANY(open_sales.capabilities))
-  AND ((sqlc.arg(customer_type)::text='' AND sqlc.arg(sales_attribution_type)::text='' AND sqlc.arg(sales_attribution_subject_id)::text='') OR EXISTS (
-      SELECT 1
-      FROM bob_customer_accounts account
-      LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=account.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) account_approved_entry ON true
-      LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=account.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) account_open_entry ON true
-      LEFT JOIN dcl_customer_account_versions account_approved ON account_approved.approval_entry_id=account_approved_entry.id
-      LEFT JOIN dcl_customer_account_versions account_open ON account_open.approval_entry_id=account_open_entry.id
-      WHERE account.customer_relationship_id=o.id
-        AND (sqlc.arg(customer_type)::text='' OR account_approved.customer_type=sqlc.arg(customer_type)::text OR account_open.customer_type=sqlc.arg(customer_type)::text)
-        AND (sqlc.arg(sales_attribution_type)::text='' OR account_approved.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)::text OR account_open.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)::text)
-        AND (sqlc.arg(sales_attribution_subject_id)::text='' OR account_approved.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)::text OR account_open.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)::text)
-  ));
-
--- name: ResolveBobLatestApprovedReference :one
-SELECT o.id AS object_id, o.entity, o.code, o.enabled, entry.id AS approval_entry_id, entry.version_no
-FROM bob_objects o
-JOIN LATERAL (
-    SELECT id, version_no FROM approval_entries
-    WHERE domain = 'bob' AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
-    ORDER BY version_no DESC LIMIT 1
-) entry ON true
-WHERE o.id = sqlc.arg(object_id) AND o.entity = sqlc.arg(entity) AND o.enabled;
-
--- name: ValidateBobApprovedSnapshotReference :one
-SELECT o.id AS object_id, o.entity, o.code, o.enabled, entry.id AS approval_entry_id, entry.version_no
-FROM bob_objects o
-JOIN approval_entries entry ON entry.id = sqlc.arg(approval_entry_id)
-WHERE entry.domain = 'bob' AND entry.entity = o.entity AND entry.subject_id = o.id
-  AND entry.status = 'APPROVED' AND o.id = sqlc.arg(object_id) AND o.entity = sqlc.arg(entity) AND o.enabled;
 
 -- name: QueryBobReferenceCandidates :many
 SELECT o.id AS object_id, latest.id AS approval_entry_id, o.code,
@@ -836,29 +598,25 @@ FROM dcl_customer_files file
 WHERE token.token_hash=sqlc.arg(token_hash) AND token.used_at IS NULL AND token.expires_at>now() AND file.id=token.file_id AND file.status='READY'
 RETURNING file.storage_key,file.original_name,file.content_type,file.declared_size;
 
--- name: InsertBobProductPayload :exec
+-- name: InsertDCLProductSnapshot :exec
 INSERT INTO dcl_product_versions (approval_entry_id, name) VALUES (sqlc.arg(approval_entry_id), sqlc.arg(name));
--- name: DeleteBobProductPayload :execrows
+-- name: DeleteDCLProductSnapshot :execrows
 DELETE FROM dcl_product_versions WHERE approval_entry_id = sqlc.arg(approval_entry_id);
 
--- name: GetBobProductPayload :one
-SELECT payload.* FROM dcl_product_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
-WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id) AND entry.domain='bob' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1);
--- name: GetBobOpenProductPayload :one
+-- name: GetDCLProductSnapshot :one
 SELECT payload.* FROM dcl_product_versions payload WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id);
--- name: ListBobProductPayloadsForVersions :many
+-- name: ListDCLProductSnapshotsByEntryIDs :many
 SELECT payload.* FROM dcl_product_versions payload
 WHERE payload.approval_entry_id=ANY(sqlc.arg(product_approval_entry_ids)::text[])
 ORDER BY payload.approval_entry_id;
--- name: ListBobProductApprovalEntriesForVersions :many
+-- name: ListDCLProductApprovalEntriesByEntryIDs :many
 SELECT entry.* FROM approval_entries entry
 WHERE entry.domain='dcl' AND entry.entity='product'
   AND entry.id=ANY(sqlc.arg(product_approval_entry_ids)::text[])
 ORDER BY entry.id;
 -- name: GetBobOpenVehiclePayload :one
 SELECT payload.* FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=sqlc.arg(approval_entry_id);
--- name: CopyBobProductPayload :exec
+-- name: CopyDCLProductSnapshot :exec
 INSERT INTO dcl_product_versions(approval_entry_id,entity,name,category_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,returnable,default_packaging_spec_micros,product_type_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,enabled)
 SELECT sqlc.arg(new_approval_entry_id),entity,name,category_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,returnable,default_packaging_spec_micros,product_type_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,enabled FROM dcl_product_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- Direct party rows remain BOB-owned identity relationships, independent of
@@ -902,16 +660,16 @@ SELECT * FROM bob_customer_accounts WHERE object_id=sqlc.arg(object_id);
 -- name: LockBobCustomerAccountRelationship :one
 SELECT * FROM bob_customer_accounts WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
 
--- Product sub-payloads are keyed by the product Approval entry. Copying only
--- accepts a source row the service has already resolved as latest approved.
--- name: GetBobProductFormula :one
+-- DCL Product snapshots are keyed by their DCL Approval entry. BOB only reads
+-- these rows through an explicit current projection; DCL owns every mutation.
+-- name: GetDCLProductFormula :one
 SELECT * FROM dcl_product_formulas WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
--- name: DeleteBobProductFormula :exec
+-- name: DeleteDCLProductFormula :exec
 DELETE FROM dcl_product_formulas WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
--- name: InsertBobProductFormula :exec
+-- name: InsertDCLProductFormula :exec
 INSERT INTO dcl_product_formulas(product_approval_entry_id,output_base_quantity_micros,output_entered_quantity_micros,output_unit_object_id,output_unit_code,output_unit_name,output_unit_symbol,output_unit_quantity_scale)
 VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(output_base_quantity_micros),sqlc.arg(output_entered_quantity_micros),sqlc.arg(output_unit_object_id),sqlc.arg(output_unit_code),sqlc.arg(output_unit_name),sqlc.arg(output_unit_symbol),sqlc.arg(output_unit_quantity_scale));
--- name: ListBobProductFormulaLines :many
+-- name: ListDCLProductFormulaLines :many
 SELECT line.*,material_object.code AS material_code,material.name AS material_name,
        material.behavior_profile AS material_behavior_profile
 FROM dcl_product_formula_lines line
@@ -923,22 +681,20 @@ JOIN bob_objects material_object ON material_object.id=line.material_object_id
 JOIN dcl_product_versions material ON material.approval_entry_id=material_entry.id
 WHERE line.product_approval_entry_id=sqlc.arg(product_approval_entry_id)
 ORDER BY line.line_no;
--- name: DeleteBobProductFormulaLines :exec
-DELETE FROM dcl_product_formula_lines WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
--- name: InsertBobProductFormulaLine :exec
+-- name: InsertDCLProductFormulaLine :exec
 INSERT INTO dcl_product_formula_lines(product_approval_entry_id,line_no,material_object_id,material_approval_entry_id,base_quantity_micros,entered_quantity_micros,entered_unit_object_id,entered_unit_code,entered_unit_name,entered_unit_symbol,entered_unit_quantity_scale,resolution_status,requires_confirmation)
 VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(line_no),sqlc.arg(material_object_id),sqlc.arg(material_approval_entry_id),sqlc.arg(base_quantity_micros),sqlc.arg(entered_quantity_micros),sqlc.arg(entered_unit_object_id),sqlc.arg(entered_unit_code),sqlc.arg(entered_unit_name),sqlc.arg(entered_unit_symbol),sqlc.arg(entered_unit_quantity_scale),sqlc.arg(resolution_status),sqlc.arg(requires_confirmation));
--- name: ListBobProductUnitConversions :many
+-- name: ListDCLProductUnitConversions :many
 SELECT * FROM dcl_product_unit_conversions WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id) ORDER BY unit_object_id;
--- name: ListBobProductUnitConversionsForVersions :many
+-- name: ListDCLProductUnitConversionsByEntryIDs :many
 SELECT * FROM dcl_product_unit_conversions
 WHERE product_approval_entry_id=ANY(sqlc.arg(product_approval_entry_ids)::text[])
 ORDER BY product_approval_entry_id,unit_object_id;
--- name: ListBobProductFormulasForVersions :many
+-- name: ListDCLProductFormulasByEntryIDs :many
 SELECT * FROM dcl_product_formulas
 WHERE product_approval_entry_id=ANY(sqlc.arg(product_approval_entry_ids)::text[])
 ORDER BY product_approval_entry_id;
--- name: ListBobProductFormulaLinesForVersions :many
+-- name: ListDCLProductFormulaLinesByEntryIDs :many
 SELECT line.*,material_object.code AS material_code,material.name AS material_name,
        material.behavior_profile AS material_behavior_profile
 FROM dcl_product_formula_lines line
@@ -950,9 +706,9 @@ JOIN bob_objects material_object ON material_object.id=line.material_object_id
 JOIN dcl_product_versions material ON material.approval_entry_id=material_entry.id
 WHERE line.product_approval_entry_id=ANY(sqlc.arg(product_approval_entry_ids)::text[])
 ORDER BY line.product_approval_entry_id,line.line_no;
--- name: DeleteBobProductUnitConversions :exec
+-- name: DeleteDCLProductUnitConversions :exec
 DELETE FROM dcl_product_unit_conversions WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
--- name: InsertBobProductUnitConversion :exec
+-- name: InsertDCLProductUnitConversion :exec
 INSERT INTO dcl_product_unit_conversions(product_approval_entry_id,unit_object_id,unit_code,unit_name,unit_symbol,unit_quantity_scale,factor_micros)
 VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(unit_object_id),sqlc.arg(unit_code),sqlc.arg(unit_name),sqlc.arg(unit_symbol),sqlc.arg(unit_quantity_scale),sqlc.arg(factor_micros));
 
@@ -1032,7 +788,7 @@ UNION ALL
 SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_inbound_details detail ON detail.document_id=document.id JOIN vou_purchase_inbound_lines line ON line.document_id=document.id JOIN approval_entries approval ON approval.id=document.approval_entry_id AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id WHERE approval.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id) GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_purchase_inbound_lines source_line WHERE source_line.document_id=document.id AND source_line.base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_purchase_return_lines return_line WHERE return_line.source_inbound_line_id=source_line.id),0))
 ORDER BY entity,document_no,document_id;
 
--- name: UpdateBobProductPayload :execrows
+-- name: UpdateDCLProductSnapshot :execrows
 UPDATE dcl_product_versions SET name=sqlc.arg(name),category_id=sqlc.narg(category_id),category_code=sqlc.narg(category_code),category_name=sqlc.narg(category_name),specification=sqlc.narg(specification),model=sqlc.narg(model),barcode=sqlc.narg(barcode),remark=sqlc.narg(remark),pricing_unit_id=sqlc.narg(pricing_unit_id),default_packaging_spec_micros=sqlc.narg(default_packaging_spec_micros),product_type_id=sqlc.narg(product_type_id),product_type_code=sqlc.narg(product_type_code),product_type_name=sqlc.narg(product_type_name),behavior_profile=sqlc.narg(behavior_profile),default_input_unit_id=sqlc.narg(default_input_unit_id),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
 -- name: UpsertBobProductCurrent :exec

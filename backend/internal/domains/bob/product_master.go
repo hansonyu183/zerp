@@ -46,11 +46,11 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 	if len(versionIDs) == 0 {
 		return page, nil
 	}
-	payloadRows, err := s.queries.ListBobProductPayloadsForVersions(ctx, versionIDs)
+	payloadRows, err := s.queries.ListDCLProductSnapshotsByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("load product current payloads", err)
 	}
-	entryRows, err := s.queries.ListBobProductApprovalEntriesForVersions(ctx, versionIDs)
+	entryRows, err := s.queries.ListDCLProductApprovalEntriesByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("load product current approvals", err)
 	}
@@ -90,7 +90,7 @@ func (s *Service) loadProductListEnrichments(
 	for _, versionID := range versionIDs {
 		unitConversions[versionID] = []ProductUnitConversion{}
 	}
-	conversionRows, err := s.queries.ListBobProductUnitConversionsForVersions(ctx, versionIDs)
+	conversionRows, err := s.queries.ListDCLProductUnitConversionsByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return nil, nil, s.internal("read product unit conversions", err)
 	}
@@ -105,7 +105,7 @@ func (s *Service) loadProductListEnrichments(
 		})
 	}
 	formulas := make(map[string]*ProductFormula, len(versionIDs))
-	formulaRows, err := s.queries.ListBobProductFormulasForVersions(ctx, versionIDs)
+	formulaRows, err := s.queries.ListDCLProductFormulasByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return nil, nil, s.internal("read product formulas", err)
 	}
@@ -123,7 +123,7 @@ func (s *Service) loadProductListEnrichments(
 			Components: []ProductFormulaComponent{},
 		}
 	}
-	lineRows, err := s.queries.ListBobProductFormulaLinesForVersions(ctx, versionIDs)
+	lineRows, err := s.queries.ListDCLProductFormulaLinesByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return nil, nil, s.internal("read product formula lines", err)
 	}

@@ -221,10 +221,10 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 	if stored.Status == string(approval.StatusApproved) {
 		e, err = s.coordinator.CreateNextVersion(ctx, tx, input.ObjectID, actor, productPayload(id, input.Enabled, productDCLData(data)))
 		if err == nil {
-			err = bobdomain.CopyProductSnapshot(ctx, q, e.ID, stored.ID)
+			err = copyProductSnapshot(ctx, q, e.ID, stored.ID)
 		}
 		if err == nil {
-			previous, loadErr := bobdomain.LoadProductSnapshot(ctx, q, stored.ID)
+			previous, loadErr := bobdomain.LoadDCLProductSnapshot(ctx, q, stored.ID)
 			if loadErr != nil {
 				err = loadErr
 			} else {
@@ -233,7 +233,7 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
 		e = approvalEntry(stored)
-		previous, loadErr := bobdomain.LoadProductSnapshot(ctx, q, stored.ID)
+		previous, loadErr := bobdomain.LoadDCLProductSnapshot(ctx, q, stored.ID)
 		if loadErr != nil {
 			err = loadErr
 		} else {
@@ -249,7 +249,7 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
-	n, err := bobdomain.DeleteProductSnapshot(ctx, q, e.ID)
+	n, err := deleteProductSnapshot(ctx, q, e.ID)
 	if err == nil && n == 1 {
 		err = insertProductVersion(ctx, q, e.ID, input.Enabled, data)
 	}
@@ -318,7 +318,7 @@ func (s *ProductService) transition(ctx context.Context, input ProductVersionInp
 		return ProductMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	stored, err := bobdomain.LoadProductSnapshot(ctx, q, input.ApprovalEntryID)
+	stored, err := bobdomain.LoadDCLProductSnapshot(ctx, q, input.ApprovalEntryID)
 	if err != nil {
 		return ProductMutation{}, translateError(err)
 	}
@@ -379,7 +379,7 @@ func (s *ProductService) restoreLatestApproved(ctx context.Context, tx pgx.Tx, i
 	if err != nil {
 		return bobdomain.ProductIdentity{}, false, translateError(err)
 	}
-	stored, err := bobdomain.LoadProductSnapshot(ctx, s.queries.WithTx(tx), latest.ID)
+	stored, err := bobdomain.LoadDCLProductSnapshot(ctx, s.queries.WithTx(tx), latest.ID)
 	if err != nil {
 		return bobdomain.ProductIdentity{}, false, translateError(err)
 	}
@@ -412,11 +412,11 @@ func (s *ProductService) Delete(ctx context.Context, input ProductDeleteInput, a
 	if err != nil || e.SubjectID != input.ObjectID {
 		return translateError(newError(ErrorValidation, "validation_failed", "declaration not found", nil, err))
 	}
-	stored, err := bobdomain.LoadProductSnapshot(ctx, q, e.ID)
+	stored, err := bobdomain.LoadDCLProductSnapshot(ctx, q, e.ID)
 	if err != nil {
 		return translateError(err)
 	}
-	if n, er := bobdomain.DeleteProductSnapshot(ctx, q, e.ID); er != nil || n != 1 {
+	if n, er := deleteProductSnapshot(ctx, q, e.ID); er != nil || n != 1 {
 		if er == nil {
 			er = errors.New("product declaration snapshot changed")
 		}
@@ -448,7 +448,7 @@ func (s *ProductService) Delete(ctx context.Context, input ProductDeleteInput, a
 
 func insertProductVersion(ctx context.Context, q *dbsqlc.Queries, id string, enabled bool, d bobdomain.DetailView) error {
 	d.Enabled = enabled
-	return bobdomain.StoreProductSnapshot(ctx, q, id, d)
+	return storeProductSnapshot(ctx, q, id, d)
 }
 
 func refreshProductBarcodeClaims(ctx context.Context, q *dbsqlc.Queries, objectID string) error {

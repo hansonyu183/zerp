@@ -11,7 +11,7 @@ func TestObjectPrefixes(t *testing.T) {
 		EntityDepartment:       "DEP",
 		EntityPosition:         "POS",
 		EntitySettlementMethod: "STM",
-		EntityPaymentMethod:    "PAY",
+		EntityPaymentMethod:    "PMT",
 		EntityDictionaryType:   "DCT",
 		EntityDictionaryItem:   "DIT",
 		EntityMeasurementUnit:  "UNT",

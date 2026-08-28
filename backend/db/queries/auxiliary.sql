@@ -2,7 +2,7 @@
 -- Approval entry, candidate, version, or historical payload identity.
 
 -- name: QueryAuxReferenceCandidates :many
-SELECT id AS object_id, code, COALESCE(data->>'name','') AS name
+SELECT id AS object_id, code, CAST(COALESCE(data->>'name','') AS text) AS name
 FROM aux_objects
 WHERE entity=sqlc.arg(entity)
   AND enabled

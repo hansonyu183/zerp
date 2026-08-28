@@ -106,6 +106,24 @@ function partyDeclarationRow(page: Page, partyName: string): Locator {
   return page.locator('tbody tr').filter({ hasText: partyName })
 }
 
+function relationshipDeclarationRow(page: Page, code: string): Locator {
+  return page.locator('tbody tr').filter({
+    has: page.locator('td[data-label="编码"]').filter({ hasText: code }),
+  })
+}
+
+async function openOtherUnitDeclaration(
+  page: Page,
+  code: string,
+): Promise<Locator> {
+  await page.goto('/dcl/other-unit')
+  await page.getByRole('textbox', { name: '其他单位编码或主体名称' }).fill(code)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const row = relationshipDeclarationRow(page, code)
+  await expect(row).toHaveCount(1)
+  return row
+}
+
 async function openPartyDeclarations(
   page: Page,
   partyName: string,
@@ -138,8 +156,26 @@ async function selectPartyLifecycleAction(
     .click()
 }
 
+async function selectRelationshipLifecycleAction(
+  page: Page,
+  row: Locator,
+  label: string,
+): Promise<void> {
+  const directAction = row.getByRole('button', { name: label, exact: true })
+  if (await directAction.count()) {
+    await directAction.click()
+    return
+  }
+  await row.getByRole('button', { name: /更多操作/ }).click()
+  await page
+    .locator('.v-overlay.v-menu.v-overlay--active')
+    .getByRole('listitem')
+    .filter({ hasText: label })
+    .click()
+}
+
 test(
-  '原子创建 Party 与其他单位并从主体页查看关系卡片',
+  '原子创建 Party 与其他单位，候选不泄漏且批准后显示当前关系卡片',
   { tag: '@mobile' },
   async ({ page, workerState }, testInfo) => {
     test.setTimeout(120_000)
@@ -167,11 +203,45 @@ test(
     )?.trim()
     expect(code).toMatch(/^OUT-\d{4}$/)
 
-    const partyRow = await openPartyDeclarations(page, partyName)
+    let partyRow = await openPartyDeclarations(page, partyName)
     await partyRow
       .getByRole('button', { name: new RegExp(`编辑 ${partyName}`) })
       .click()
     const partyDrawer = page.locator('.dcl-party-drawer')
+    await expect(partyDrawer).toContainText('没有当前权限可见的受影响关系。')
+    await expect(partyDrawer).not.toContainText(`${code} · 服务关系`)
+    await partyDrawer.getByRole('button', { name: '关闭', exact: true }).click()
+
+    await selectPartyLifecycleAction(page, partyRow, '提交审核')
+    await expect(partyDeclarationRow(page, partyName)).toContainText('待批准')
+    await signOut(page)
+
+    await signIn(page, workerState.reviewer)
+    partyRow = await openPartyDeclarations(page, partyName)
+    await selectPartyLifecycleAction(page, partyRow, '审核通过')
+    await expect(partyDeclarationRow(page, partyName)).toContainText('已批准')
+    await signOut(page)
+
+    await signIn(page, workerState.operator)
+    let relationshipRow = await openOtherUnitDeclaration(page, code!)
+    await selectRelationshipLifecycleAction(page, relationshipRow, '提交审核')
+    await dismissSupplierNotice(page, '已提交审核')
+    await signOut(page)
+
+    await signIn(page, workerState.reviewer)
+    relationshipRow = await openOtherUnitDeclaration(page, code!)
+    await selectRelationshipLifecycleAction(page, relationshipRow, '审核通过')
+    await dismissSupplierNotice(page, '已审核通过')
+    await expect(relationshipDeclarationRow(page, code!)).toContainText(
+      '已批准',
+    )
+    await signOut(page)
+
+    await signIn(page, workerState.operator)
+    partyRow = await openPartyDeclarations(page, partyName)
+    await partyRow
+      .getByRole('button', { name: new RegExp(`编辑 ${partyName}`) })
+      .click()
     await expect(partyDrawer).toContainText(`${code} · 服务关系`)
     await expect(partyDrawer).toContainText('上海示例')
   },

@@ -3334,6 +3334,3540 @@
                 },
             },
         },
+      '/dcl/employee/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建员工申报草稿',
+              'operationId': 'dclEmployeeCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存员工申报草稿',
+              'operationId': 'dclEmployeeSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交员工申报审核',
+              'operationId': 'dclEmployeeSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回员工申报审核',
+              'operationId': 'dclEmployeeUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回员工申报',
+              'operationId': 'dclEmployeeReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准员工申报',
+              'operationId': 'dclEmployeeApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批员工申报',
+              'operationId': 'dclEmployeeUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除员工申报草稿',
+              'operationId': 'dclEmployeeDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/employee/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取员工申报',
+              'operationId': 'dclEmployeeGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工申报。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询员工申报列表',
+              'operationId': 'dclEmployeeQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工申报列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询员工申报版本',
+              'operationId': 'dclEmployeeVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工申报版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询员工申报审核历史',
+              'operationId': 'dclEmployeeAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工申报审核历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建其他单位申报草稿',
+              'operationId': 'dclOtherUnitCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存其他单位申报草稿',
+              'operationId': 'dclOtherUnitSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交其他单位申报审核',
+              'operationId': 'dclOtherUnitSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回其他单位申报审核',
+              'operationId': 'dclOtherUnitUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回其他单位申报',
+              'operationId': 'dclOtherUnitReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准其他单位申报',
+              'operationId': 'dclOtherUnitApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批其他单位申报',
+              'operationId': 'dclOtherUnitUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除其他单位申报草稿',
+              'operationId': 'dclOtherUnitDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/other-unit/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取其他单位申报',
+              'operationId': 'dclOtherUnitGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位申报。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询其他单位申报列表',
+              'operationId': 'dclOtherUnitQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位申报列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询其他单位申报版本',
+              'operationId': 'dclOtherUnitVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位申报版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/other-unit/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询其他单位申报审核历史',
+              'operationId': 'dclOtherUnitAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOtherUnitHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位申报审核历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOtherUnitAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询客户申报',
+              'operationId': 'dclCustomerQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取客户申报',
+              'operationId': 'dclCustomerGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建客户申报',
+              'operationId': 'dclCustomerCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存客户申报',
+              'operationId': 'dclCustomerSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交客户申报',
+              'operationId': 'dclCustomerSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回客户申报',
+              'operationId': 'dclCustomerUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回客户申报',
+              'operationId': 'dclCustomerReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准客户申报',
+              'operationId': 'dclCustomerApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批客户申报',
+              'operationId': 'dclCustomerUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除客户申报',
+              'operationId': 'dclCustomerDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取版本客户申报',
+              'operationId': 'dclCustomerVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取审核历史客户申报',
+              'operationId': 'dclCustomerAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询客户结算子账户申报',
+              'operationId': 'dclCustomerAccountQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取客户结算子账户申报',
+              'operationId': 'dclCustomerAccountGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建客户结算子账户申报',
+              'operationId': 'dclCustomerAccountCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存客户结算子账户申报',
+              'operationId': 'dclCustomerAccountSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交客户结算子账户申报',
+              'operationId': 'dclCustomerAccountSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回客户结算子账户申报',
+              'operationId': 'dclCustomerAccountUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回客户结算子账户申报',
+              'operationId': 'dclCustomerAccountReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准客户结算子账户申报',
+              'operationId': 'dclCustomerAccountApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批客户结算子账户申报',
+              'operationId': 'dclCustomerAccountUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除客户结算子账户申报',
+              'operationId': 'dclCustomerAccountDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取版本客户结算子账户申报',
+              'operationId': 'dclCustomerAccountVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer-account/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取审核历史客户结算子账户申报',
+              'operationId': 'dclCustomerAccountAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAccountHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAccountAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': 'undefined客户申报',
+              'operationId': 'dclCustomerAttachmentInitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAttachmentInitiateResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/attachment-download':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': 'undefined客户申报',
+              'operationId': 'dclCustomerAttachmentDownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAttachmentDownloadResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/customer/attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': 'undefined客户申报',
+              'operationId': 'dclCustomerAttachmentRemove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户申报响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerAttachmentRemoveResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+      '/dcl/supplier/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询供应商申报列表',
+              'operationId': 'dclSupplierQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商申报列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取供应商申报',
+              'operationId': 'dclSupplierGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商申报。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建供应商申报草稿',
+              'operationId': 'dclSupplierCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存供应商申报草稿',
+              'operationId': 'dclSupplierSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交供应商申报审核',
+              'operationId': 'dclSupplierSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回供应商申报审核',
+              'operationId': 'dclSupplierUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回供应商申报',
+              'operationId': 'dclSupplierReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准供应商申报',
+              'operationId': 'dclSupplierApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批供应商申报',
+              'operationId': 'dclSupplierUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除供应商申报草稿',
+              'operationId': 'dclSupplierDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/supplier/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询供应商申报版本',
+              'operationId': 'dclSupplierVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商申报版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询供应商申报审核历史',
+              'operationId': 'dclSupplierAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商申报审核历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建销售合作方申报草稿',
+              'operationId': 'dclSalesPartnerCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存销售合作方申报草稿',
+              'operationId': 'dclSalesPartnerSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交销售合作方申报审核',
+              'operationId': 'dclSalesPartnerSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回销售合作方申报审核',
+              'operationId': 'dclSalesPartnerUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回销售合作方申报',
+              'operationId': 'dclSalesPartnerReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准销售合作方申报',
+              'operationId': 'dclSalesPartnerApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批销售合作方申报',
+              'operationId': 'dclSalesPartnerUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除销售合作方申报草稿',
+              'operationId': 'dclSalesPartnerDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/sales-partner/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取销售合作方申报',
+              'operationId': 'dclSalesPartnerGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方申报。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询销售合作方申报列表',
+              'operationId': 'dclSalesPartnerQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方申报列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询销售合作方申报版本',
+              'operationId': 'dclSalesPartnerVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方申报版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/sales-partner/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询销售合作方申报审核历史',
+              'operationId': 'dclSalesPartnerAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSalesPartnerHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作方申报审核历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSalesPartnerAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存主体声明草稿',
+              'operationId': 'dclPartySave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartySaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交主体声明',
+              'operationId': 'dclPartySubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回主体声明',
+              'operationId': 'dclPartyUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回主体声明',
+              'operationId': 'dclPartyReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准主体声明',
+              'operationId': 'dclPartyApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批准主体声明',
+              'operationId': 'dclPartyUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除主体声明草稿',
+              'operationId': 'dclPartyDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/party/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取主体声明',
+              'operationId': 'dclPartyGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询主体声明',
+              'operationId': 'dclPartyQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取主体声明版本',
+              'operationId': 'dclPartyVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取主体声明审计',
+              'operationId': 'dclPartyAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体审计。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/merge-preflight':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '预检主体合并',
+              'operationId': 'dclPartyMergePreflight',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyMergePreflightRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体合并预检结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMergePreflightResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/party/merge-confirm':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '确认主体合并',
+              'operationId': 'dclPartyMergeConfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclPartyMergeConfirmRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体合并执行结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclPartyMergeConfirmResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/dcl/operating-entity/create':
         {
           'post':
@@ -5475,45 +9009,6 @@
                 },
             },
         },
-      '/bob/party/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存主体共享身份资料',
-              'operationId': 'partySave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/PartySaveRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '保存后的主体资料。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/PartyGetResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
       '/bob/other-unit/query':
         {
           'post':
@@ -5594,335 +9089,13 @@
                 },
             },
         },
-      '/bob/other-unit/create':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '原子创建或复用主体并创建其他单位',
-              'operationId': 'otherUnitCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/OtherUnitCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '已创建的其他单位关系。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/OtherUnitMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/other-unit/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存其他单位关系草稿',
-              'operationId': 'otherUnitSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/OtherUnitSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '已保存的其他单位关系。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/OtherUnitMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/other-unit/delete':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '删除其他单位首版或候选草稿',
-              'operationId': 'otherUnitDelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobDeleteRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Empty' } },
-            },
-        },
-      '/bob/other-unit/submit':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '提交其他单位审核',
-              'operationId': 'otherUnitSubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
-                },
-            },
-        },
-      '/bob/other-unit/unsubmit':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '撤回其他单位提交',
-              'operationId': 'otherUnitUnsubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
-                },
-            },
-        },
-      '/bob/other-unit/approve':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '审核通过其他单位',
-              'operationId': 'otherUnitApprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
-                },
-            },
-        },
-      '/bob/other-unit/reject':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '驳回其他单位',
-              'operationId': 'otherUnitReject',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
-                },
-            },
-        },
-      '/bob/other-unit/enable':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '启用其他单位',
-              'operationId': 'otherUnitEnable',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobObjectRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
-                },
-            },
-        },
-      '/bob/other-unit/disable':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '停用其他单位',
-              'operationId': 'otherUnitDisable',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobObjectRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
-                },
-            },
-        },
-      '/bob/other-unit/versions':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '查询其他单位版本',
-              'operationId': 'otherUnitVersions',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/BobVersionHistory' },
-                },
-            },
-        },
-      '/bob/other-unit/audit-history':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '查询其他单位审核历史',
-              'operationId': 'otherUnitAuditHistory',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/BobAuditHistory' } },
-            },
-        },
       '/bob/customer/query':
         {
           'post':
             {
               'tags': ['bob'],
-              'summary': '查询客户结算子账户最小投影',
-              'operationId': 'customerQuery',
+              'summary': '查询客户当前正式投影',
+              'operationId': 'bobCustomerQuery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -5933,7 +9106,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/bob.yaml#/CustomerQueryRequest',
+                              '$ref': './schemas/bob.yaml#/BobCustomerQueryRequest',
                             },
                         },
                     },
@@ -5942,14 +9115,14 @@
                 {
                   '200':
                     {
-                      'description': '客户结算子账户分页响应。',
+                      'description': '当前正式资料。',
                       'content':
                         {
                           'application/json':
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/CustomerQueryResponse',
+                                  '$ref': './schemas/bob.yaml#/BobCustomerQueryResponse',
                                 },
                             },
                         },
@@ -5962,8 +9135,8 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '读取客户集团、已批准版本与候选版本',
-              'operationId': 'customerGet',
+              'summary': '读取客户当前正式投影',
+              'operationId': 'bobCustomerGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -5981,14 +9154,14 @@
                 {
                   '200':
                     {
-                      'description': '客户完整资料。',
+                      'description': '当前正式资料。',
                       'content':
                         {
                           'application/json':
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/CustomerGetResponse',
+                                  '$ref': './schemas/bob.yaml#/BobCustomerGetResponse',
                                 },
                             },
                         },
@@ -5996,13 +9169,13 @@
                 },
             },
         },
-      '/bob/customer/create':
+      '/bob/customer-account/query':
         {
           'post':
             {
               'tags': ['bob'],
-              'summary': '原子创建客户关系与首个结算子账户',
-              'operationId': 'customerCreate',
+              'summary': '查询客户结算子账户当前正式投影',
+              'operationId': 'bobCustomerAccountQuery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -6013,7 +9186,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/bob.yaml#/CustomerCreateRequest',
+                              '$ref': './schemas/bob.yaml#/BobCustomerAccountQueryRequest',
                             },
                         },
                     },
@@ -6022,14 +9195,14 @@
                 {
                   '200':
                     {
-                      'description': '已创建的客户关系与默认结算账户。',
+                      'description': '当前正式资料。',
                       'content':
                         {
                           'application/json':
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/CustomerCreateResponse',
+                                  '$ref': './schemas/bob.yaml#/BobCustomerAccountQueryResponse',
                                 },
                             },
                         },
@@ -6037,13 +9210,13 @@
                 },
             },
         },
-      '/bob/customer/account-add':
+      '/bob/customer-account/get':
         {
           'post':
             {
               'tags': ['bob'],
-              'summary': '向客户关系增加结算子账户',
-              'operationId': 'customerAccountAdd',
+              'summary': '读取客户结算子账户当前正式投影',
+              'operationId': 'bobCustomerAccountGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -6053,9 +9226,7 @@
                       'application/json':
                         {
                           'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/CustomerAccountAddRequest',
-                            },
+                            { '$ref': './schemas/bob.yaml#/BobGetRequest' },
                         },
                     },
                 },
@@ -6063,187 +9234,14 @@
                 {
                   '200':
                     {
-                      'description': '已创建的客户结算账户。',
+                      'description': '当前正式资料。',
                       'content':
                         {
                           'application/json':
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/CustomerAccountResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/customer/account-delete':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '删除客户关系下非最后一个草稿结算子账户',
-              'operationId': 'customerAccountDelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobDeleteRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Empty' } },
-            },
-        },
-      '/bob/customer/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存客户结算子账户候选版本',
-              'operationId': 'customerSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/CustomerSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/BobMutation' } },
-            },
-        },
-      '/bob/customer/attachment-initiate':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '初始化客户资料附件',
-              'operationId': 'customerAttachmentInitiate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/CustomerAttachmentInitiateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '附件上传令牌及新的所属资料 revision。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/CustomerAttachmentInitiateResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/customer/attachment-download':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '申请客户资料附件下载',
-              'operationId': 'customerAttachmentDownload',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/CustomerAttachmentDownloadRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '短时下载地址。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/CustomerAttachmentDownloadResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/customer/attachment-remove':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '移除客户资料附件',
-              'operationId': 'customerAttachmentRemove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/CustomerAttachmentRemoveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '新的所属资料 revision。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/CustomerAttachmentRemoveResponse',
+                                  '$ref': './schemas/bob.yaml#/BobCustomerAccountGetResponse',
                                 },
                             },
                         },
@@ -6329,73 +9327,6 @@
                         },
                     },
                 },
-            },
-        },
-      '/bob/supplier/create':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '创建供应商草稿',
-              'operationId': 'supplierCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SupplierCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '已创建的供应商关系。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/SupplierCreateResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/supplier/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存供应商草稿或候选版本',
-              'operationId': 'supplierSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SupplierSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/BobMutation' } },
             },
         },
       '/bob/reference/query':
@@ -6560,211 +9491,6 @@
                 },
             },
         },
-      '/bob/sales-partner/create':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '原子创建销售合作关系',
-              'operationId': 'salesPartnerCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SalesPartnerCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '销售合作关系变更结果。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/SalesPartnerMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/sales-partner/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存销售合作候选版本',
-              'operationId': 'salesPartnerSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SalesPartnerSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '销售合作关系变更结果。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/SalesPartnerMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/party/merge-preflight':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '预检主体合并',
-              'operationId': 'partyMergePreflight',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/PartyMergePreflightRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '主体合并预检结果。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/PartyMergePreflightResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/party/merge-confirm':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '确认主体合并',
-              'operationId': 'partyMergeConfirm',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/PartyMergeConfirmRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '主体合并执行结果。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/PartyMergeConfirmResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/employee/create':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '原子创建雇佣关系及其主体',
-              'operationId': 'employeeCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/EmploymentCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '已创建的员工版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
       '/bob/{entity}/query':
         {
           'post':
@@ -6840,493 +9566,6 @@
                               'schema':
                                 {
                                   '$ref': './schemas/bob.yaml#/BobObjectResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/create':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '创建业务对象草稿',
-              'operationId': 'bobcreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobCreateRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存业务对象草稿',
-              'operationId': 'bobsave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobSaveRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/delete':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '删除业务对象首版草稿',
-              'operationId': 'bobdelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobDeleteRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Empty' } },
-            },
-        },
-      '/bob/{entity}/submit':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '提交业务对象审核',
-              'operationId': 'bobsubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/unsubmit':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '撤回业务对象提交',
-              'operationId': 'bobunsubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/approve':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '批准业务对象',
-              'operationId': 'bobapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/reject':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '驳回业务对象',
-              'operationId': 'bobreject',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/unapprove':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '撤销批准业务对象',
-              'operationId': 'bobunapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应；存在当前正式引用时在 data.references 返回结构化阻断。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobUnapproveResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/enable':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '启用有效业务对象',
-              'operationId': 'bobenable',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobObjectRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/disable':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '禁用有效业务对象',
-              'operationId': 'bobdisable',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobObjectRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '停用结果；当前正式引用冲突在 data.references 返回结构化阻断。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobDisableResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/versions':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '查询业务对象版本',
-              'operationId': 'bobversions',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象版本分页响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobVersionHistoryResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/audit-history':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '查询业务对象审核历史',
-              'operationId': 'bobaudithistory',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象审计分页响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobAuditHistoryResponse',
                                 },
                             },
                         },
@@ -9811,26 +12050,12 @@
         },
       'parameters':
         {
-          'BobCrudEntity':
-            {
-              'name': 'entity',
-              'in': 'path',
-              'required': true,
-              'schema': { '$ref': './schemas/bob.yaml#/BobCrudEntity' },
-            },
           'BobReadableEntity':
             {
               'name': 'entity',
               'in': 'path',
               'required': true,
               'schema': { '$ref': './schemas/bob.yaml#/BobReadableEntity' },
-            },
-          'BobLifecycleEntity':
-            {
-              'name': 'entity',
-              'in': 'path',
-              'required': true,
-              'schema': { '$ref': './schemas/bob.yaml#/BobLifecycleEntity' },
             },
           'AuxEntity':
             {
@@ -9883,60 +12108,6 @@
                     {
                       'schema':
                         { '$ref': './schemas/common.yaml#/EmptyResponse' },
-                    },
-                },
-            },
-          'BobMutation':
-            {
-              'description': '精确 BOB 变更响应。',
-              'content':
-                {
-                  'application/json':
-                    {
-                      'schema':
-                        { '$ref': './schemas/bob.yaml#/BobMutationResponse' },
-                    },
-                },
-            },
-          'OtherUnitMutation':
-            {
-              'description': '精确其他单位变更响应。',
-              'content':
-                {
-                  'application/json':
-                    {
-                      'schema':
-                        {
-                          '$ref': './schemas/bob.yaml#/OtherUnitMutationResponse',
-                        },
-                    },
-                },
-            },
-          'BobVersionHistory':
-            {
-              'description': '精确 BOB 版本历史响应。',
-              'content':
-                {
-                  'application/json':
-                    {
-                      'schema':
-                        {
-                          '$ref': './schemas/bob.yaml#/BobVersionHistoryResponse',
-                        },
-                    },
-                },
-            },
-          'BobAuditHistory':
-            {
-              'description': '精确 BOB 审计历史响应。',
-              'content':
-                {
-                  'application/json':
-                    {
-                      'schema':
-                        {
-                          '$ref': './schemas/bob.yaml#/BobAuditHistoryResponse',
-                        },
                     },
                 },
             },

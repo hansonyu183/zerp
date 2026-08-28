@@ -456,7 +456,7 @@ func objectPrefix(entity string) string {
 	return map[string]string{
 		EntityProductCategory: "PCT", EntityProductType: "PTP", EntityDepartment: "DEP", EntityPosition: "POS",
 		EntitySettlementMethod: "STM", EntityPaymentMethod: "PAY", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
-		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAssetCategory: "ACT",
+		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAssetCategory: "ACT", EntityEmployeeCategory: "ECT",
 	}[entity]
 }
 
@@ -973,7 +973,7 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 			return nil, errors.New("behaviorProfile must be a supported product behavior profile")
 		}
 		data["behaviorProfile"] = profile
-	case EntityPosition, EntityDictionaryType:
+	case EntityEmployeeCategory, EntityPosition, EntityDictionaryType:
 		allow("description")
 	case EntityAssetCategory:
 		allow("defaultUsefulLifeMonths", "defaultResidualRate", "description")

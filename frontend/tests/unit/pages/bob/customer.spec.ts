@@ -8,13 +8,14 @@ vi.mock('@/api/client', () => ({
 }))
 
 describe('Customer', () => {
-  it('mounts the customer-specific workspace rather than the generic BOB page', () => {
+  it('mounts the read-only current projection rather than a customer editor', () => {
     const wrapper = mount(Customer, {
       global: { plugins: [createPinia()] },
     })
 
-    expect(wrapper.find('.customer-workspace').exists()).toBe(true)
+    expect(wrapper.find('.bob-customer-current').exists()).toBe(true)
+    expect(wrapper.find('.customer-workspace').exists()).toBe(false)
     expect(wrapper.find('.bob-entity-page').exists()).toBe(false)
-    expect(wrapper.text()).toContain('新增客户')
+    expect(wrapper.text()).not.toContain('新增客户')
   })
 })

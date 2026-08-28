@@ -2,11 +2,40 @@ import { ref, type Ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 
 export type DclDeclarationEntity =
-  'operating-entity' | 'warehouse' | 'vehicle' | 'fund-account' | 'product'
+  | 'party'
+  | 'operating-entity'
+  | 'warehouse'
+  | 'vehicle'
+  | 'fund-account'
+  | 'product'
+  | 'employee'
+  | 'customer'
+  | 'customer-account'
+  | 'supplier'
+  | 'other-unit'
+  | 'sales-partner'
 export type DclDeclarationLifecycleAction =
   'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
 export type DclDeclarationWireAction =
   Exclude<DclDeclarationLifecycleAction, 'enable' | 'disable'> | 'submit'
+
+export const dclApprovalStatusText = {
+  DRAFT: '草稿',
+  PENDING: '待审核',
+  APPROVED: '已批准',
+} as const
+
+export const dclApprovalEventActionText = {
+  CREATED: '创建',
+  SAVED: '保存',
+  SUBMITTED: '提交审核',
+  UNSUBMITTED: '撤回提交',
+  REJECTED: '审核驳回',
+  APPROVED: '审核通过',
+  UNAPPROVED: '撤销批准',
+  DELETED: '删除草稿',
+  MERGED: '主体合并',
+} as const
 
 export type DclDeclarationActionState = {
   status: 'DRAFT' | 'PENDING' | 'APPROVED'
@@ -33,6 +62,7 @@ export interface DclDeclarationActionAvailability {
 }
 
 export type DclDeclarationLifecyclePort<TItem> = {
+  unsubmitReasonRequired?: boolean
   run: (
     item: TItem,
     action: DclDeclarationWireAction,
@@ -70,11 +100,18 @@ export function isDclDeclarationEntity(
   entity: string,
 ): entity is DclDeclarationEntity {
   return (
+    entity === 'party' ||
     entity === 'operating-entity' ||
     entity === 'warehouse' ||
     entity === 'vehicle' ||
     entity === 'fund-account' ||
-    entity === 'product'
+    entity === 'product' ||
+    entity === 'employee' ||
+    entity === 'customer' ||
+    entity === 'customer-account' ||
+    entity === 'supplier' ||
+    entity === 'other-unit' ||
+    entity === 'sales-partner'
   )
 }
 
@@ -214,7 +251,10 @@ export function useDclDeclarationLifecycle<TItem>(
   ): Promise<boolean> {
     if (!actionAvailability(item)[action] || actionLoading.value) return false
     const normalizedReason = reason.trim()
-    if (!normalizedReason) {
+    if (
+      (action === 'unapprove' || port.unsubmitReasonRequired) &&
+      !normalizedReason
+    ) {
       errorMessage.value = '反向操作原因不能为空。'
       return false
     }

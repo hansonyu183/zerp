@@ -5,6 +5,6 @@
 import type { VouIntermediaryReference } from './VouIntermediaryReference';
 export type VouIntermediarySummary = {
   payee: VouIntermediaryReference;
-  category: 'COMMISSION' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' | 'INTERMEDIARY' | 'REBATE';
+  category: 'COMMISSION' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' | 'INTERMEDIARY';
   amount: string;
 };

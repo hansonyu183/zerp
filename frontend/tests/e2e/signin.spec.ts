@@ -2,9 +2,13 @@ import { expect, test, type Page, type WflWorkerState } from './fixtures'
 
 test.use({ storageState: { cookies: [], origins: [] } })
 const bobPages = [
-  { entity: 'customer', title: '客户', searchLabel: '账户编码或名称' },
+  { entity: 'customer', title: '客户', searchLabel: '客户关系编码或主体' },
   { entity: 'supplier', title: '供应商', searchLabel: '供应商关键字' },
-  { entity: 'employee', title: '员工', searchLabel: '员工编码或主体名称' },
+  {
+    entity: 'employee',
+    title: '员工',
+    searchLabel: '员工（当前档案）关键字',
+  },
   { entity: 'warehouse', title: '仓库', searchLabel: '仓库关键字' },
   { entity: 'vehicle', title: '车辆', searchLabel: '车辆关键字' },
   {
@@ -102,7 +106,7 @@ test('未登录访问完整深链后登录返回原路径', async ({ page, worke
 
   await expect(page).toHaveURL(/\/bob\/customer\?tab=history#version-2$/)
   await expect(
-    page.getByRole('textbox', { name: '账户编码或名称' }),
+    page.getByRole('textbox', { name: '客户关系编码或主体' }),
   ).toBeVisible()
 })
 

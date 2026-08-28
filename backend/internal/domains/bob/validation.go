@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -23,7 +22,6 @@ var (
 	vinPattern           = regexp.MustCompile(`^[A-HJ-NPR-Z0-9]{17}$`)
 	accountNumberPattern = regexp.MustCompile(`^[A-Z0-9]{1,64}$`)
 	loadCapacityPattern  = regexp.MustCompile(`^([0-9]{1,9})(?:\.([0-9]{1,3}))?$`)
-	moneyPattern         = regexp.MustCompile(`^(0|[0-9]{1,12})(?:\.([0-9]{1,2}))?$`)
 )
 
 func validateCreate(entity string, input CreateDetailInput) (DetailView, string, error) {
@@ -35,10 +33,6 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 	monthlyClosingDay := input.MonthlyClosingDay
 	if entity == EntityCustomer && monthlyClosingDay == 0 {
 		monthlyClosingDay = 31
-	}
-	rebateUnitPrice := input.RebateUnitPrice
-	if entity == EntityCustomer && rebateUnitPrice == "" {
-		rebateUnitPrice = "0"
 	}
 	data := DetailView{
 		Name: input.Name, Unit: input.Unit, InventoryUnitID: input.InventoryUnitID, Currency: input.Currency,
@@ -57,7 +51,6 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		SettlementMethodID: input.SettlementMethodID, MonthlyClosingDay: monthlyClosingDay,
 		SalespersonEmployeeID:      input.SalespersonEmployeeID,
 		DefaultPurchaserEmployeeID: input.DefaultPurchaserEmployeeID,
-		RebateUnitPrice:            rebateUnitPrice,
 		RuleType:                   input.RuleType,
 		MonthOffset:                input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
 		ProductTypeID: input.ProductTypeID, DefaultInputUnitID: input.DefaultInputUnitID,
@@ -132,9 +125,6 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	if input.MonthlyClosingDay != nil {
 		result.MonthlyClosingDay = *input.MonthlyClosingDay
 	}
-	if input.RebateUnitPrice != nil {
-		result.RebateUnitPrice = *input.RebateUnitPrice
-	}
 	if input.DefaultSalesSurcharge != nil {
 		result.DefaultSalesSurcharge = *input.DefaultSalesSurcharge
 	}
@@ -160,9 +150,6 @@ func validateDetail(entity string, input DetailInput) (DetailView, error) {
 		current.CustomerType = CustomerTypeEndUser
 		current.MonthlyClosingDay = 31
 	}
-	if entity == EntityCustomer {
-		current.RebateUnitPrice = "0"
-	}
 	return validateDetailData(entity, mergeDetailInput(current, input))
 }
 
@@ -175,11 +162,9 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	}
 	switch entity {
 	case EntityCustomer:
-		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice")
+		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId")
 	case EntityOtherUnit:
 		allow("contactName", "contactPhone", "email", "address", "remark", "settlementMethodId")
-	case EntitySupplier:
-		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId")
 	case EntityEmployee:
 		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
@@ -211,7 +196,6 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		"bankBranch": input.BankBranch.Set, "accountNumber": input.AccountNumber.Set,
 		"parentId": input.ParentID.Set, "settlementMethodId": input.SettlementMethodID.Set,
 		"monthlyClosingDay":          input.MonthlyClosingDay != nil,
-		"rebateUnitPrice":            input.RebateUnitPrice != nil,
 		"defaultSalesSurcharge":      input.DefaultSalesSurcharge != nil,
 		"salespersonEmployeeId":      input.SalespersonEmployeeID.Set,
 		"defaultPurchaserEmployeeId": input.DefaultPurchaserEmployeeID.Set,
@@ -256,7 +240,7 @@ func normalizeDetail(input *DetailView) {
 		&input.Specification, &input.Model, &input.Description, &input.EngineNumber,
 		&input.LoadCapacityKG, &input.AccountName, &input.BankName, &input.BankBranch,
 		&input.VehicleType, &input.ProductTypeID, &input.DefaultInputUnitID, &input.PricingUnitID,
-		&input.DefaultPackagingSpec, &input.DefaultSalesSurcharge, &input.RebateUnitPrice,
+		&input.DefaultPackagingSpec, &input.DefaultSalesSurcharge,
 	} {
 		trim(value)
 	}
@@ -392,7 +376,7 @@ func validateEntityFields(entity string, input DetailView) error {
 	}
 	switch entity {
 	case EntityCustomer:
-		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice")
+		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId")
 		if !objectCodePattern.MatchString(input.CustomerType) {
 			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
 		}
@@ -402,23 +386,12 @@ func validateEntityFields(entity string, input DetailView) error {
 		if input.SalespersonEmployeeID == "" {
 			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
 		}
-		if _, err := moneyCents(input.RebateUnitPrice); err != nil {
-			return domainError(ErrorValidation, "invalid rebate unit price", nil, nil)
-		}
 	case EntityOtherUnit:
 		allow("contactName", "contactPhone", "email", "address", "remark", "settlementMethodId",
 			"termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset")
 		if input.SettlementMethodID != "" {
 			if err := validateSettlementRule(input); err != nil {
 				return domainError(ErrorValidation, "invalid service settlement snapshot", nil, err)
-			}
-		}
-	case EntitySupplier:
-		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId",
-			"termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset")
-		if input.SettlementMethodID != "" {
-			if err := validateSettlementRule(input); err != nil {
-				return domainError(ErrorValidation, "invalid supplier settlement snapshot", nil, err)
 			}
 		}
 	case EntityEmployee:
@@ -485,7 +458,6 @@ func detailFieldValues(input DetailView) map[string]string {
 		"settlementMethodId":    input.SettlementMethodID,
 		"monthlyClosingDay":     numericField(input.MonthlyClosingDay),
 		"salespersonEmployeeId": input.SalespersonEmployeeID,
-		"rebateUnitPrice":       input.RebateUnitPrice,
 		"ruleType":              input.RuleType,
 		"termCode":              input.TermCode,
 		"defaultSalesSurcharge": input.DefaultSalesSurcharge,
@@ -685,42 +657,6 @@ func validateSettlementRule(input DetailView) error {
 	return nil
 }
 
-func validSettlementTerm(value string) bool {
-	return slices.Contains([]string{
-		SettlementTermPrepaid,
-		SettlementTermCashOnDelivery,
-		SettlementTermArrival3,
-		SettlementTermArrival5,
-		SettlementTermArrival7,
-		SettlementTermArrival15,
-		SettlementTermArrival30,
-		SettlementTermMonthlyCurrent,
-		SettlementTermMonthly30,
-		SettlementTermMonthly60,
-		SettlementTermMonthly90,
-	}, value)
-}
-
-func moneyCents(value string) (int64, error) {
-	if !moneyPattern.MatchString(value) {
-		return 0, domainError(ErrorValidation, "invalid amount", nil, nil)
-	}
-	parts := strings.SplitN(value, ".", 2)
-	whole, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		return 0, domainError(ErrorValidation, "invalid amount", nil, err)
-	}
-	fraction := "00"
-	if len(parts) == 2 {
-		fraction = parts[1] + strings.Repeat("0", 2-len(parts[1]))
-	}
-	cents, err := strconv.ParseInt(fraction, 10, 64)
-	if err != nil {
-		return 0, domainError(ErrorValidation, "invalid amount", nil, err)
-	}
-	return whole*100 + cents, nil
-}
-
 func numericField(value int32) string {
 	if value == 0 {
 		return ""
@@ -839,8 +775,6 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 		unexpected = hasUnexpected("operatingEntityId")
 	case "party":
 		unexpected = hasUnexpected("kind", "merged")
-	case EntitySupplier:
-		unexpected = hasUnexpected("defaultPurchaserEmployeeId")
 	case EntityEmployee:
 		unexpected = hasUnexpected("departmentId", "positionId")
 	case EntityProduct:

@@ -56,7 +56,7 @@ export type VouDocumentDataView = {
   settlementMethod?: VouSettlementMethodSnapshotView;
   customerSettlementMethod?: VouSettlementMethodSnapshotView;
   supplierSettlementMethod?: VouSettlementMethodSnapshotView;
-  otherCategory?: 'COMMISSION' | 'INTERMEDIARY' | 'REBATE';
+  otherCategory?: 'COMMISSION' | 'INTERMEDIARY';
   sourceName?: string;
   serviceContract?: VouServiceContractView;
   serviceAcceptance?: VouServiceAcceptanceView;

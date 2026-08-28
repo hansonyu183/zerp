@@ -18,7 +18,7 @@ INSERT INTO vou_service_contract_details(
 -- name: ResolveVouContractCounterparty :one
 SELECT object.id AS counterparty_object_id,object.entity AS counterparty_entity,
        version.id AS counterparty_approval_entry_id,object.code AS counterparty_code,
-       party.id AS party_id,party.display_name AS party_name,
+       party.id AS party_id,party_current.display_name AS party_name,
        operating.id AS operating_entity_object_id,operating_detail.source_approval_entry_id AS operating_entity_approval_entry_id,
        operating.code AS operating_entity_code,operating_detail.legal_name AS operating_entity_name,
        COALESCE(sales.capabilities,ARRAY[]::varchar(32)[]) AS capabilities,
@@ -30,14 +30,15 @@ SELECT object.id AS counterparty_object_id,object.entity AS counterparty_entity,
 FROM bob_objects object
 JOIN LATERAL (
   SELECT id FROM approval_entries
-  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
+  WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) version ON true
 LEFT JOIN bob_service_relationships service_rel ON service_rel.object_id=object.id AND object.entity='other-unit'
-LEFT JOIN bob_service_relationship_versions service_detail ON service_detail.approval_entry_id=version.id AND object.entity='other-unit'
+LEFT JOIN dcl_other_unit_versions service_detail ON service_detail.approval_entry_id=version.id AND object.entity='other-unit'
 LEFT JOIN bob_sales_relationships sales_rel ON sales_rel.object_id=object.id AND object.entity='sales-partner'
-LEFT JOIN bob_sales_partner_versions sales ON sales.approval_entry_id=version.id AND object.entity='sales-partner'
+LEFT JOIN dcl_sales_partner_versions sales ON sales.approval_entry_id=version.id AND object.entity='sales-partner'
 JOIN bob_parties party ON party.id=COALESCE(service_rel.party_id,sales_rel.party_id)
+JOIN bob_party_currents party_current ON party_current.party_id=party.id
 JOIN bob_objects operating ON operating.id=COALESCE(service_rel.operating_entity_id,sales_rel.operating_entity_id)
 JOIN bob_operating_entities operating_detail ON operating_detail.object_id=operating.id AND operating_detail.enabled
 WHERE object.id=sqlc.arg(counterparty_object_id) AND object.entity=sqlc.arg(counterparty_entity)

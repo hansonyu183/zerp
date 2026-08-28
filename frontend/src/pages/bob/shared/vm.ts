@@ -81,7 +81,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           sort: [{ ...sort.value }],
         },
       )
-      rows.value = Array.isArray(data.items) ? data.items : []
+      rows.value = (Array.isArray(data.items) ? data.items : []) as BobListItem[]
       total.value =
         typeof data.total === 'number' ? data.total : rows.value.length
       page.value = typeof data.page === 'number' ? data.page : page.value
@@ -130,7 +130,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     const { data } = await apiClient.postContract(`bob/${config.entity}/get`, {
       objectId: row.objectId,
     })
-    return data
+    return data as BobObjectView
   }
 
   async function openView(row: Pick<BobListItem, 'objectId'>): Promise<void> {

@@ -21,7 +21,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 	catalogPermissionIDs := permissionIDsByPath(
 		t, pool,
 		"/bob/customer/query", "/bob/customer/get",
-		"/bob/customer/unapprove", "/bob/customer/enable", "/bob/customer/disable",
+		"/dcl/customer/query", "/dcl/customer/get", "/dcl/customer/unapprove",
 		"/aux/department/query", "/aux/asset-category/query",
 		"/vou/sale-order/query", "/vou/sale-order/get",
 		"/wfl/process-instance/query", "/wfl/process-instance/get",
@@ -218,38 +218,35 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 
 func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	_, pool, _ := appIntegrationService(t)
-	entitiesByDomain := map[string][]string{
-		"bob": {
-			"customer", "customer-account", "supplier", "other-unit", "employee",
-			"sales-partner",
-		},
-		"aux": {
-			"product-category", "product-type", "department", "position", "settlement-method",
-			"payment-method", "dictionary-type", "dictionary-item", "measurement-unit",
-			"income-expense-type", "asset-category",
-		},
+	auxEntities := []string{
+		"product-category", "product-type", "department", "position", "settlement-method",
+		"payment-method", "dictionary-type", "dictionary-item", "measurement-unit",
+		"income-expense-type", "asset-category",
 	}
-	actions := []string{
+	auxActions := []string{
 		"query", "get", "create", "save", "submit", "unsubmit", "approve",
 		"reject", "unapprove", "enable", "disable", "delete", "versions", "audit-history",
 	}
-	expected := make(map[string]struct{}, len(entitiesByDomain)*len(actions)*11)
-	for domain, entities := range entitiesByDomain {
-		for _, entity := range entities {
-			for _, action := range actions {
-				expected["/"+domain+"/"+entity+"/"+action] = struct{}{}
-			}
+	expected := make(map[string]struct{}, len(auxEntities)*len(auxActions))
+	for _, entity := range auxEntities {
+		for _, action := range auxActions {
+			expected["/aux/"+entity+"/"+action] = struct{}{}
 		}
 	}
-	expected["/bob/operating-entity/query"] = struct{}{}
-	expected["/bob/operating-entity/get"] = struct{}{}
-	expected["/bob/warehouse/query"] = struct{}{}
-	expected["/bob/warehouse/get"] = struct{}{}
-	expected["/bob/vehicle/query"] = struct{}{}
-	expected["/bob/vehicle/get"] = struct{}{}
-	expected["/bob/fund-account/query"] = struct{}{}
-	expected["/bob/fund-account/get"] = struct{}{}
-	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account"} {
+	currentEntities := []string{
+		"operating-entity", "warehouse", "vehicle", "fund-account", "party", "product",
+		"customer", "customer-account", "supplier", "other-unit", "employee", "sales-partner",
+	}
+	for _, entity := range currentEntities {
+		for _, action := range []string{"query", "get"} {
+			expected["/bob/"+entity+"/"+action] = struct{}{}
+		}
+	}
+	declarationEntities := []string{
+		"operating-entity", "warehouse", "vehicle", "fund-account", "product",
+		"employee", "other-unit", "sales-partner", "supplier", "customer", "customer-account",
+	}
+	for _, entity := range declarationEntities {
 		for _, action := range []string{
 			"query", "get", "create", "save", "submit", "unsubmit", "approve",
 			"reject", "unapprove", "delete", "versions", "audit-history",
@@ -257,14 +254,14 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 			expected["/dcl/"+entity+"/"+action] = struct{}{}
 		}
 	}
-	for _, action := range []string{"query", "get"} {
-		expected["/bob/product/"+action] = struct{}{}
-	}
 	for _, action := range []string{
-		"query", "get", "create", "save", "submit", "unsubmit", "approve",
-		"reject", "unapprove", "delete", "versions", "audit-history",
+		"create", "save", "submit", "unsubmit", "reject", "approve", "unapprove",
+		"delete", "get", "query", "versions", "audit-history", "merge-preflight", "merge-confirm",
 	} {
-		expected["/dcl/product/"+action] = struct{}{}
+		expected["/dcl/party/"+action] = struct{}{}
+	}
+	for _, action := range []string{"attachment-initiate", "attachment-download", "attachment-remove"} {
+		expected["/dcl/customer/"+action] = struct{}{}
 	}
 
 	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain IN ('bob', 'aux', 'dcl')`)
@@ -292,7 +289,9 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	}
 	var obsoleteBOBWrites int
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions
-		WHERE domain='bob' AND entity IN ('operating-entity','warehouse','vehicle','product') AND action NOT IN ('query','get')`).Scan(&obsoleteBOBWrites); err != nil {
+		WHERE domain='bob'
+		  AND entity = ANY($1::text[])
+		  AND action NOT IN ('query','get')`, currentEntities).Scan(&obsoleteBOBWrites); err != nil {
 		t.Fatalf("query obsolete BOB current-data write permissions: %v", err)
 	}
 	if obsoleteBOBWrites != 0 {

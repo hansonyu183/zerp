@@ -174,6 +174,7 @@ export async function deleteDclFundAccount(
 
 export const dclFundAccountLifecyclePort: DclDeclarationLifecyclePort<DclFundAccountListItem> =
   {
+    unsubmitReasonRequired: true,
     run: runDclFundAccountLifecycle,
     async changeEnabled(item) {
       const view = await getDclFundAccount(

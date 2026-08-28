@@ -144,7 +144,8 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 func (s *Seeder) references(ctx context.Context) (references, error) {
 	resolve := func(entity, code string) (voudomain.ReferenceInput, error) {
 		domain := "bob"
-		if entity == bobdomain.EntityWarehouse || entity == bobdomain.EntityProduct {
+		if entity == bobdomain.EntityWarehouse || entity == bobdomain.EntityProduct || entity == bobdomain.EntityCustomerAccount ||
+			entity == bobdomain.EntitySupplier || entity == bobdomain.EntityEmployee {
 			domain = "dcl"
 		}
 		var objectID string
@@ -157,6 +158,13 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 		`, domain, entity, "seed-bob-"+code+"-create").Scan(&objectID)
 		if err != nil {
 			return voudomain.ReferenceInput{}, fmt.Errorf("find BOB demo object %s: %w", code, err)
+		}
+		if entity == bobdomain.EntityCustomerAccount {
+			view, currentErr := s.bob.CustomerAccountCurrentGet(ctx, objectID)
+			if currentErr != nil {
+				return voudomain.ReferenceInput{}, fmt.Errorf("get BOB demo object %s: %w", code, currentErr)
+			}
+			return voudomain.ReferenceInput{ObjectID: view.ObjectID, ApprovalEntryID: view.SourceApprovalEntryID}, nil
 		}
 		view, err := s.bob.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
 		if err != nil {

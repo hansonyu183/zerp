@@ -139,7 +139,7 @@ func includesWorkbenchStage(selected []string, stage string) bool {
 }
 
 func appendDCLWorkbenchEntities(scope workbenchPermissionScope, entities []string, matches func(string, string) bool) []string {
-	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account", "product"} {
+	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account", "product", "party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account"} {
 		if scope.can("dcl", entity, "query") && matches("dcl", entity) {
 			entities = append(entities, entity)
 		}
@@ -148,7 +148,7 @@ func appendDCLWorkbenchEntities(scope workbenchPermissionScope, entities []strin
 }
 
 func workbenchApprovalDomain(entity string) string {
-	if entity == "operating-entity" || entity == "warehouse" || entity == "vehicle" || entity == "fund-account" || entity == "product" {
+	if entity == "operating-entity" || entity == "warehouse" || entity == "vehicle" || entity == "fund-account" || entity == "product" || entity == "party" || entity == "employee" || entity == "supplier" || entity == "other-unit" || entity == "sales-partner" || entity == "customer" || entity == "customer-account" {
 		return "dcl"
 	}
 	return "bob"

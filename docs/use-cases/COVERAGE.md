@@ -4,9 +4,9 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：80
-- 已覆盖入口：28
-- 已登记用例：27
+- 页面入口：89
+- 已覆盖入口：37
+- 已登记用例：36
 - 缺少用例：52
 - 孤儿用例：0
 
@@ -25,13 +25,20 @@
 
 ## DCL
 
-| 页面         | 路由                    | 来源                                                | 状态                                |
-| ------------ | ----------------------- | --------------------------------------------------- | ----------------------------------- |
-| 经营主体申报 | `/dcl/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md) |
-| 仓库申报     | `/dcl/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)        |
-| 车辆申报     | `/dcl/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)          |
-| 资金账户申报 | `/dcl/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)     |
-| 产品申报     | `/dcl/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)          |
+| 页面               | 路由                    | 来源                                                | 状态                                |
+| ------------------ | ----------------------- | --------------------------------------------------- | ----------------------------------- |
+| 主体申报           | `/dcl/party`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/party.md)            |
+| 经营主体申报       | `/dcl/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md) |
+| 仓库申报           | `/dcl/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)        |
+| 车辆申报           | `/dcl/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)          |
+| 资金账户申报       | `/dcl/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)     |
+| 人员申报           | `/dcl/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/employee.md)         |
+| 其他单位申报       | `/dcl/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/other-unit.md)       |
+| 销售合作方申报     | `/dcl/sales-partner`    | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/sales-partner.md)    |
+| 客户申报           | `/dcl/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer.md)         |
+| 客户结算子账户申报 | `/dcl/customer-account` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer-account.md) |
+| 供应商申报         | `/dcl/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/supplier.md)         |
+| 产品申报           | `/dcl/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)          |
 
 ## RPT
 
@@ -55,6 +62,7 @@
 | 页面                 | 路由                    | 来源                                                | 状态                                |
 | -------------------- | ----------------------- | --------------------------------------------------- | ----------------------------------- |
 | 主体                 | `/bob/party`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/party.md)            |
+| 客户结算子账户       | `/bob/customer-account` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer-account.md) |
 | 客户                 | `/bob/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer.md)         |
 | 供应商               | `/bob/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/supplier.md)         |
 | 其他单位             | `/bob/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/other-unit.md)       |
@@ -68,19 +76,20 @@
 
 ## AUX
 
-| 页面     | 路由                       | 来源                                                | 状态     |
-| -------- | -------------------------- | --------------------------------------------------- | -------- |
-| 结算方式 | `/aux/settlement-method`   | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 收款方式 | `/aux/payment-method`      | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 资产类别 | `/aux/asset-category`      | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 产品分类 | `/aux/product-category`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 产品类型 | `/aux/product-type`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 部门     | `/aux/department`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 岗位     | `/aux/position`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 计量单位 | `/aux/measurement-unit`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 字典类型 | `/aux/dictionary-type`     | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 字典项   | `/aux/dictionary-item`     | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 收支类型 | `/aux/income-expense-type` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 页面     | 路由                       | 来源                                                | 状态                                 |
+| -------- | -------------------------- | --------------------------------------------------- | ------------------------------------ |
+| 结算方式 | `/aux/settlement-method`   | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 收款方式 | `/aux/payment-method`      | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 资产类别 | `/aux/asset-category`      | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 产品分类 | `/aux/product-category`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 产品类型 | `/aux/product-type`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 部门     | `/aux/department`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 人员类别 | `/aux/employee-category`   | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](aux/employee-category.md) |
+| 岗位     | `/aux/position`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 计量单位 | `/aux/measurement-unit`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 字典类型 | `/aux/dictionary-type`     | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 字典项   | `/aux/dictionary-item`     | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
+| 收支类型 | `/aux/income-expense-type` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                             |
 
 ## VOU
 

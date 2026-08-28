@@ -13,7 +13,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -28,7 +27,9 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -103,18 +104,34 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	if _, err = business.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: v1.ObjectID}); err == nil {
 		t.Fatal("BOB current still exposes first-version unapproved vehicle")
 	}
-	external, err := business.OtherUnitCreate(t.Context(), bobdomain.OtherUnitCreateInput{
-		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "外部承运服务商"},
-		Data:     bobdomain.OtherUnitData{OperatingEntityID: carrierID},
-	}, creator("external-carrier-create"), true)
+	external, err := relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{
+		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "外部承运服务商"},
+		OperatingEntityID: carrierID,
+	}, creator("external-carrier-create"))
 	if err != nil {
 		t.Fatalf("create external carrier: %v", err)
 	}
-	externalPending, err := business.Submit(t.Context(), bobdomain.EntityOtherUnit, bobdomain.VersionRevisionInput{ObjectID: external.ObjectID, ApprovalEntryID: external.Approval.ApprovalEntryID, ApprovalRevision: external.Approval.Revision}, creator("external-carrier-submit"))
+	party, err := parties.Get(t.Context(), PartyGetInput{PartyID: external.PartyID}, bobdomain.PartyRelationshipVisibility{}, creator("external-carrier-party-get"))
+	if err != nil {
+		t.Fatalf("get external carrier Party: %v", err)
+	}
+	if party.Approval.Status == approval.StatusDraft {
+		pending, submitErr := parties.Submit(t.Context(), PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, creator("external-carrier-party-submit"))
+		if submitErr != nil {
+			t.Fatalf("submit external carrier Party: %v", submitErr)
+		}
+		party.Approval = pending.Approval
+	}
+	if party.Approval.Status == approval.StatusPending {
+		if _, approveErr := parties.Approve(t.Context(), PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, reviewer("external-carrier-party-approve")); approveErr != nil {
+			t.Fatalf("approve external carrier Party: %v", approveErr)
+		}
+	}
+	externalPending, err := relationships.SubmitOtherUnit(t.Context(), RelationshipVersionInput{ObjectID: external.ObjectID, ApprovalEntryID: external.Approval.ApprovalEntryID, ApprovalRevision: external.Approval.Revision}, creator("external-carrier-submit"))
 	if err != nil {
 		t.Fatalf("submit external carrier: %v", err)
 	}
-	externalApproved, err := business.Approve(t.Context(), bobdomain.EntityOtherUnit, bobdomain.ReviewInput{ObjectID: externalPending.ObjectID, ApprovalEntryID: externalPending.Approval.ApprovalEntryID, ApprovalRevision: externalPending.Approval.Revision}, reviewer("external-carrier-approve"))
+	externalApproved, err := relationships.ApproveOtherUnit(t.Context(), RelationshipVersionInput{ObjectID: externalPending.ObjectID, ApprovalEntryID: externalPending.Approval.ApprovalEntryID, ApprovalRevision: externalPending.Approval.Revision}, reviewer("external-carrier-approve"))
 	if err != nil {
 		t.Fatalf("approve external carrier: %v", err)
 	}
@@ -139,7 +156,7 @@ func TestVehicleDeclarationIdentifierClaimsAndReferenceDriftIntegration(t *testi
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -236,7 +253,7 @@ func TestVehicleIdentifierClaimsAcrossApprovedAndOpenVersionsIntegration(t *test
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -335,7 +352,7 @@ func TestVehicleCurrentApplyFailureRollsBackIntegration(t *testing.T) {
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
 	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
@@ -375,9 +392,9 @@ func TestVehicleCurrentApplyFailureRollsBackIntegration(t *testing.T) {
 
 func seedVehicleTypeApproval(t *testing.T, pool *pgxpool.Pool) (string, string) {
 	t.Helper()
-	var objectID string
-	if err := pool.QueryRow(t.Context(), `SELECT id FROM aux_objects WHERE entity='dictionary-item' AND code='DIT-0003'`).Scan(&objectID); err != nil {
-		t.Fatalf("find seeded vehicle type: %v", err)
+	const objectID = "01JAVX00000000000000000009"
+	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,created_by,updated_by) VALUES($1,'dictionary-item','DIT-0003',$2,$2) ON CONFLICT (id) DO NOTHING`, objectID, "01J00000000000000000000000"); err != nil {
+		t.Fatalf("insert vehicle type object fixture: %v", err)
 	}
 	entryID, creatorID, reviewerID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
 	now := time.Now().UTC()

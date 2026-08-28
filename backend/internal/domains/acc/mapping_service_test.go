@@ -217,7 +217,7 @@ func TestIntermediaryPostingSnapshotFlattensSummaryPayee(t *testing.T) {
 		Data: voudomain.DocumentDataView{BusinessDate: "2026-08-31", Currency: "CNY", IntermediaryCalculation: &voudomain.IntermediaryCalculationInput{
 			Result: voudomain.IntermediaryCalculationResult{Summaries: []voudomain.IntermediarySummary{
 				{Category: "EXTERNAL_PART_TIME", Amount: "10.00", Payee: voudomain.IntermediaryReference{ObjectID: "01J00000000000000000000001", Entity: "sales-partner"}},
-				{Category: "REBATE", Amount: "5.00", Payee: voudomain.IntermediaryReference{ObjectID: "01J00000000000000000000002", Entity: "customer"}},
+				{Category: "UNSUPPORTED", Amount: "5.00", Payee: voudomain.IntermediaryReference{ObjectID: "01J00000000000000000000002", Entity: "customer"}},
 			}},
 		}},
 	}

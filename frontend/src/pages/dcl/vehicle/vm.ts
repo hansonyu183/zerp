@@ -368,6 +368,7 @@ export function useDclVehicleViewModel() {
     (row) => row.enabled,
     actionAvailability,
     {
+      unsubmitReasonRequired: true,
       run: runDclVehicleLifecycle,
       changeEnabled: async (row) => {
         const view = await getDclVehicle(

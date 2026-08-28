@@ -44,10 +44,14 @@ func dclIntegrationPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+func newDCLIntegrationBOBService(pool *pgxpool.Pool, auxiliary *auxdomain.Service, authorizer approval.Authorizer, bus *txevent.Bus) *bobdomain.Service {
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+}
+
 func resetDCLIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
-		TRUNCATE dcl_subjects, bob_objects, approval_events, approval_entries, object_number_counters CASCADE
+		TRUNCATE dcl_customer_download_tokens, dcl_customer_files, dcl_subjects, bob_parties, bob_objects, aux_objects, approval_events, approval_entries, object_number_counters CASCADE
 	`); err != nil {
 		t.Fatalf("reset DCL integration data: %v", err)
 	}
@@ -68,7 +72,7 @@ func TestOperatingEntityDeclarationControlsBOBCurrentDataIntegration(t *testing.
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewOperatingEntityService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -346,7 +350,7 @@ func newDCLIntegrationServices(
 	t.Helper()
 	authorizer := authorization.Func(nil)
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	if current == nil {
 		current = business
 	}

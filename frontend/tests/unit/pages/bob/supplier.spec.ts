@@ -1,25 +1,53 @@
-import { mount } from '@vue/test-utils'
-import { createPinia } from 'pinia'
-import { describe, expect, it, vi } from 'vitest'
-import Supplier from '@/pages/bob/supplier/Supplier.vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { apiClient } from '@/api/client'
+import {
+  supplierActiveVersion,
+  useSupplierViewModel,
+} from '@/pages/bob/supplier/vm'
+import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
   apiClient: { postContract: vi.fn() },
 }))
 
 describe('Supplier', () => {
-  it('mounts the supplier-specific workspace rather than the generic BOB page', () => {
-    const wrapper = mount(Supplier, { global: { plugins: [createPinia()] } })
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    useSessionStore().permissions = ['/bob/supplier/query', '/bob/supplier/get']
+    vi.mocked(apiClient.postContract).mockReset()
+  })
 
-    expect(wrapper.find('.supplier-workspace').exists()).toBe(true)
-    expect(wrapper.find('.bob-entity-page').exists()).toBe(false)
-    expect(wrapper.text()).toContain('新增供应商')
-    expect(wrapper.text()).toContain('默认采购员')
+  it('has only current query/get behavior and no declaration write path', async () => {
+    vi.mocked(apiClient.postContract)
+      .mockResolvedValueOnce({
+        data: { items: [], total: 0, page: 1, pageSize: 20 },
+      })
+      .mockResolvedValueOnce({ data: null })
+    const vm = useSupplierViewModel()
+    await vm.query()
+    await vm.openView({ objectId: 'SUP-1' })
+
     expect(
-      wrapper
-        .findAll('v-select')
-        .some((item) => item.attributes('label') === '生命周期状态'),
-    ).toBe(true)
-    expect(wrapper.text()).not.toContain('业务员')
+      vi
+        .mocked(apiClient.postContract)
+        .mock.calls.map(([path]) => String(path)),
+    ).toEqual(['bob/supplier/query', 'bob/supplier/get'])
+    expect('save' in vm).toBe(false)
+    expect('openCreate' in vm).toBe(false)
+  })
+
+  it('uses the approved snapshot even when an unexpected candidate is returned', () => {
+    const latestApproved = {
+      approval: { approvalEntryId: 'SUP-V1' },
+      defaultPurchaserName: '批准采购员',
+    }
+    const openVersion = {
+      approval: { approvalEntryId: 'SUP-V2' },
+      defaultPurchaserName: '候选采购员',
+    }
+    expect(
+      supplierActiveVersion({ latestApproved, openVersion } as never),
+    ).toBe(latestApproved)
   })
 })

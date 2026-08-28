@@ -11,7 +11,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -236,7 +235,7 @@ func newProductIntegrationServices(t *testing.T, pool *pgxpool.Pool, bus *txeven
 	t.Helper()
 	authorizer := authorization.Func(nil)
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	if current == nil {
 		current = business
 	}
@@ -246,18 +245,16 @@ func newProductIntegrationServices(t *testing.T, pool *pgxpool.Pool, bus *txeven
 func ensureProductAuxiliaries(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	for _, fixture := range []struct {
-		objectID, entity, data string
+		objectID, entity, code, data string
 	}{
-		{productRawTypeID, "product-type", `{"name":"原材料","behaviorProfile":"RAW_MATERIAL"}`},
-		{productFinishedTypeID, "product-type", `{"name":"标准成品","behaviorProfile":"STANDARD_FINISHED"}`},
-		{productKGUnitID, "measurement-unit", `{"name":"千克","symbol":"kg","quantityScale":6}`},
-		{productTonUnitID, "measurement-unit", `{"name":"吨","symbol":"t","quantityScale":6}`},
-		{productCategoryID, "product-category", `{"name":"测试分类"}`},
+		{productRawTypeID, "product-type", "PTP-0001", `{"name":"原材料","behaviorProfile":"RAW_MATERIAL"}`},
+		{productFinishedTypeID, "product-type", "PTP-0002", `{"name":"标准成品","behaviorProfile":"STANDARD_FINISHED"}`},
+		{productKGUnitID, "measurement-unit", "UNT-0001", `{"name":"千克","symbol":"kg","quantityScale":6}`},
+		{productTonUnitID, "measurement-unit", "UNT-0006", `{"name":"吨","symbol":"t","quantityScale":6}`},
+		{productCategoryID, "product-category", "CAT-0001", `{"name":"测试分类"}`},
 	} {
-		if fixture.entity == "product-category" {
-			if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,created_by,updated_by) VALUES($1,$2,'CAT-0001',$3,$3) ON CONFLICT (id) DO NOTHING`, fixture.objectID, fixture.entity, "01J00000000000000000000000"); err != nil {
-				t.Fatalf("insert %s object fixture: %v", fixture.entity, err)
-			}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,created_by,updated_by) VALUES($1,$2,$3,$4,$4) ON CONFLICT (id) DO NOTHING`, fixture.objectID, fixture.entity, fixture.code, "01J00000000000000000000000"); err != nil {
+			t.Fatalf("insert %s object fixture: %v", fixture.entity, err)
 		}
 		entryID := ulid.Make().String()
 		if _, err := pool.Exec(t.Context(), `

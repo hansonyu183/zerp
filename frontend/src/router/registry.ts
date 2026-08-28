@@ -119,6 +119,13 @@ function registerPage(
 
 export const pageRegistrations: readonly PageRegistration[] = [
   registerPage('dcl', {
+    entity: 'party',
+    entityTitle: '主体申报',
+    icon: 'mdi-account-box-multiple-outline',
+    order: 5,
+    component: () => import('@/pages/dcl/party/Party.vue'),
+  }),
+  registerPage('dcl', {
     entity: 'operating-entity',
     entityTitle: '经营主体申报',
     icon: 'mdi-office-building-edit-outline',
@@ -147,10 +154,52 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/dcl/fund-account/FundAccount.vue'),
   }),
   registerPage('dcl', {
+    entity: 'employee',
+    entityTitle: '人员申报',
+    icon: 'mdi-badge-account-horizontal-outline',
+    order: 45,
+    component: () => import('@/pages/dcl/employee/Employee.vue'),
+  }),
+  registerPage('dcl', {
+    entity: 'other-unit',
+    entityTitle: '其他单位申报',
+    icon: 'mdi-handshake-outline',
+    order: 46,
+    component: () => import('@/pages/dcl/other-unit/OtherUnit.vue'),
+  }),
+  registerPage('dcl', {
+    entity: 'sales-partner',
+    entityTitle: '销售合作方申报',
+    icon: 'mdi-account-tie-outline',
+    order: 47,
+    component: () => import('@/pages/dcl/sales-partner/SalesPartner.vue'),
+  }),
+  registerPage('dcl', {
+    entity: 'customer',
+    entityTitle: '客户申报',
+    icon: 'mdi-account-group',
+    order: 48,
+    component: () => import('@/pages/dcl/customer/Customer.vue'),
+  }),
+  registerPage('dcl', {
+    entity: 'customer-account',
+    entityTitle: '客户结算子账户申报',
+    icon: 'mdi-account-cash-outline',
+    order: 49,
+    component: () => import('@/pages/dcl/customer-account/CustomerAccount.vue'),
+  }),
+  registerPage('dcl', {
+    entity: 'supplier',
+    entityTitle: '供应商申报',
+    icon: 'mdi-truck-delivery-outline',
+    order: 50,
+    component: () => import('@/pages/dcl/supplier/Supplier.vue'),
+  }),
+  registerPage('dcl', {
     entity: 'product',
     entityTitle: '产品申报',
     icon: 'mdi-package-variant-closed',
-    order: 50,
+    order: 60,
     component: () => import('@/pages/dcl/product/Product.vue'),
   }),
   registerPage('rpt', {
@@ -201,6 +250,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-account-box-multiple-outline',
     order: 5,
     component: () => import('@/pages/bob/party/Party.vue'),
+  }),
+  registerPage('bob', {
+    entity: 'customer-account',
+    entityTitle: '客户结算子账户',
+    icon: 'mdi-account-cash-outline',
+    order: 11,
+    component: () => import('@/pages/bob/customer-account/CustomerAccount.vue'),
   }),
   registerPage('bob', {
     entity: 'customer',
@@ -314,6 +370,14 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-office-building-outline',
     order: 20,
     component: () => import('@/pages/aux/department/Department.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'employee-category',
+    entityTitle: '人员类别',
+    icon: 'mdi-account-tag-outline',
+    order: 25,
+    component: () =>
+      import('@/pages/aux/employee-category/EmployeeCategory.vue'),
   }),
   registerPage('aux', {
     entity: 'position',

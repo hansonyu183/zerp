@@ -74,6 +74,7 @@ interface AccountingMappingView {
 interface BobMutation {
   objectId: string
   objectRevision: number
+  partyId?: string
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -82,18 +83,23 @@ interface BobMutation {
   code: string
 }
 
-interface CustomerCreateMutation extends BobMutation {
-  defaultAccount: {
-    objectId: string
-    objectRevision: number
-    code: string
-    openVersion: {
-      approval: {
-        approvalEntryId: string
-        revision: number
-      }
-    } | null
+interface DclPartyView {
+  partyId: string
+  approval: {
+    approvalEntryId: string
+    revision: number
   }
+}
+
+interface DclCustomerAccountListItem {
+  objectId: string
+  code: string
+  openVersion: {
+    approval: {
+      approvalEntryId: string
+      revision: number
+    }
+  } | null
 }
 
 interface AuxQueryItem {
@@ -208,6 +214,7 @@ export interface WflFixtures {
   purchaseTrialDocumentId: string
   supplierObjectId: string
   warehouseObjectId: string
+  operatingEntityId: string
 }
 
 export interface WflWorkerState {
@@ -356,28 +363,28 @@ const bobReviewerActions = new Set([
   '/aux/payment-method/approve',
   '/bob/customer/query',
   '/bob/customer/get',
-  '/bob/customer/approve',
-  '/bob/customer/reject',
-  '/bob/customer/unapprove',
-  '/bob/customer/enable',
-  '/bob/customer/disable',
-  '/bob/customer/versions',
-  '/bob/customer/audit-history',
-  '/bob/customer-account/approve',
-  '/bob/customer-account/reject',
-  '/bob/customer-account/enable',
-  '/bob/customer-account/disable',
+  '/bob/customer-account/query',
+  '/bob/customer-account/get',
   ...[
+    'party',
     'employee',
     'supplier',
     'other-unit',
     'sales-partner',
-    'fund-account',
+    'customer',
+    'customer-account',
   ].flatMap((entity) => [
-    `/bob/${entity}/query`,
-    `/bob/${entity}/get`,
-    `/bob/${entity}/approve`,
+    `/dcl/${entity}/query`,
+    `/dcl/${entity}/get`,
+    `/dcl/${entity}/approve`,
+    `/dcl/${entity}/reject`,
+    `/dcl/${entity}/unapprove`,
+    `/dcl/${entity}/versions`,
+    `/dcl/${entity}/audit-history`,
   ]),
+  ...['employee', 'supplier', 'other-unit', 'sales-partner'].flatMap(
+    (entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`],
+  ),
   '/bob/operating-entity/query',
   '/bob/operating-entity/get',
   '/dcl/operating-entity/query',
@@ -396,6 +403,24 @@ const bobReviewerActions = new Set([
   '/dcl/product/get',
   '/dcl/product/approve',
 ])
+
+async function approveRelationshipParty(
+  operator: RealApi,
+  reviewer: RealApi,
+  partyId: string,
+): Promise<void> {
+  const party = await operator.post<DclPartyView>('dcl/party/get', { partyId })
+  const submitted = await operator.post<DclPartyView>('dcl/party/submit', {
+    partyId,
+    approvalEntryId: party.approval.approvalEntryId,
+    approvalRevision: party.approval.revision,
+  })
+  await reviewer.post<DclPartyView>('dcl/party/approve', {
+    partyId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+}
 
 async function createEffectiveBob(
   operator: RealApi,
@@ -454,11 +479,30 @@ async function createEffectiveEmployment(
   name: string,
   operatingEntityId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('bob/employee/create', {
+  const created = await operator.post<BobMutation>('dcl/employee/create', {
     newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
-    data: { operatingEntityId },
+    operatingEntityId,
+    data: {},
   })
-  return approveBob(operator, reviewer, 'employee', created)
+  const employee = await operator.post<DclPartyView>('dcl/employee/get', {
+    objectId: created.objectId,
+    approvalEntryId: created.approval.approvalEntryId,
+  })
+  await approveRelationshipParty(operator, reviewer, employee.partyId)
+  const submitted = await operator.post<BobMutation>('dcl/employee/submit', {
+    objectId: created.objectId,
+    approvalEntryId: created.approval.approvalEntryId,
+    approvalRevision: created.approval.revision,
+  })
+  const approved = await reviewer.post<BobMutation>('dcl/employee/approve', {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+  const view = await operator.post<{ code: string }>('bob/employee/get', {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
 }
 
 async function createEffectiveSupplier(
@@ -469,19 +513,34 @@ async function createEffectiveSupplier(
   settlementMethodId: string,
   purchaserObjectId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('bob/supplier/create', {
+  const created = await operator.post<BobMutation>('dcl/supplier/create', {
     newParty: {
       kind: 'ORGANIZATION',
       legalName: name,
       strongIdentifiers: [],
     },
+    operatingEntityId,
     data: {
-      operatingEntityId,
       settlementMethodId,
       defaultPurchaserEmployeeId: purchaserObjectId,
     },
   })
-  return approveBob(operator, reviewer, 'supplier', created)
+  if (!created.partyId) throw new Error('供应商预置未返回 Party ID。')
+  await approveRelationshipParty(operator, reviewer, created.partyId)
+  const submitted = await operator.post<BobMutation>('dcl/supplier/submit', {
+    objectId: created.objectId,
+    approvalEntryId: created.approval.approvalEntryId,
+    approvalRevision: created.approval.revision,
+  })
+  const approved = await reviewer.post<BobMutation>('dcl/supplier/approve', {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+  const view = await operator.post<{ code: string }>('bob/supplier/get', {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
 }
 
 async function createEffectiveOtherUnit(
@@ -491,15 +550,31 @@ async function createEffectiveOtherUnit(
   operatingEntityId: string,
   settlementMethodId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('bob/other-unit/create', {
+  const created = await operator.post<BobMutation>('dcl/other-unit/create', {
     newParty: {
       kind: 'ORGANIZATION',
       legalName: name,
       strongIdentifiers: [],
     },
-    data: { operatingEntityId, settlementMethodId },
+    operatingEntityId,
+    data: { settlementMethodId },
   })
-  return approveBob(operator, reviewer, 'other-unit', created)
+  if (!created.partyId) throw new Error('其他单位预置未返回 Party ID。')
+  await approveRelationshipParty(operator, reviewer, created.partyId)
+  const submitted = await operator.post<BobMutation>('dcl/other-unit/submit', {
+    objectId: created.objectId,
+    approvalEntryId: created.approval.approvalEntryId,
+    approvalRevision: created.approval.revision,
+  })
+  const approved = await reviewer.post<BobMutation>('dcl/other-unit/approve', {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+  const view = await operator.post<{ code: string }>('bob/other-unit/get', {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
 }
 
 async function approveBob(
@@ -606,44 +681,69 @@ async function createEffectiveCustomer(
   settlementMethodId: string,
   paymentMethodId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<CustomerCreateMutation>(
-    'bob/customer/create',
-    {
-      newParty: {
-        kind: 'ORGANIZATION',
-        legalName: name,
-        strongIdentifiers: [],
+  const created = await operator.post<BobMutation>('dcl/customer/create', {
+    newParty: {
+      kind: 'ORGANIZATION',
+      legalName: name,
+      strongIdentifiers: [],
+    },
+    operatingEntityId,
+    defaultAccount: {
+      name,
+      customerTypeCode: 'DIT-0001',
+      settlementMethodId,
+      paymentMethodId,
+      defaultTransportMethodCode: 'SELF_PICKUP',
+      defaultTransportMethodName: '客户自提',
+      transportSurcharge: '0.00',
+      pricingPolicy: {
+        defaultPremiumUnitPrice: '0.00',
+        defaultDiscountUnitPrice: '0.00',
+        costItems: [],
+        thirdPartyIntermediaryFixedUnitCost: '0.00',
+        thirdPartyIntermediaryVariableUnitCost: '0.00',
       },
-      data: {
-        name,
-        customerTypeCode: 'DIT-0001',
-        operatingEntityId,
-        settlementMethodId,
-        paymentMethodId,
-        defaultTransportMethodCode: 'SELF_PICKUP',
-        defaultTransportMethodName: '客户自提',
-        transportSurcharge: '0.00',
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.00',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [],
-        primarySalesAttribution: {
-          type: 'INTERNAL_EMPLOYEE',
-          subjectObjectId: employeeObjectId,
-        },
+      creditLimits: [],
+      primarySalesAttribution: {
+        type: 'INTERNAL_EMPLOYEE',
+        subjectObjectId: employeeObjectId,
       },
     },
+  })
+  if (!created.partyId) throw new Error('客户预置未返回 Party ID。')
+  await approveRelationshipParty(operator, reviewer, created.partyId)
+  const submittedCustomer = await operator.post<BobMutation>(
+    'dcl/customer/submit',
+    {
+      objectId: created.objectId,
+      approvalEntryId: created.approval.approvalEntryId,
+      approvalRevision: created.approval.revision,
+    },
   )
-  const account = created.defaultAccount
+  const approvedCustomer = await reviewer.post<BobMutation>(
+    'dcl/customer/approve',
+    {
+      objectId: submittedCustomer.objectId,
+      approvalEntryId: submittedCustomer.approval.approvalEntryId,
+      approvalRevision: submittedCustomer.approval.revision,
+    },
+  )
+  const accounts = await operator.post<Page<DclCustomerAccountListItem>>(
+    'dcl/customer-account/query',
+    {
+      page: 1,
+      pageSize: 20,
+      filters: { customerRelationshipId: approvedCustomer.objectId },
+      sort: [{ field: 'code', order: 'asc' }],
+    },
+  )
+  const account = accounts.items[0]
+  if (!account) throw new Error('客户创建未生成默认结算子账户。')
   if (!account.openVersion) {
     throw new Error('客户创建未返回待审核的默认账户版本。')
   }
   const submitted = await operator.post<BobMutation>(
-    'bob/customer-account/submit',
+    'dcl/customer-account/submit',
     {
       objectId: account.objectId,
       approvalEntryId: account.openVersion.approval.approvalEntryId,
@@ -651,7 +751,7 @@ async function createEffectiveCustomer(
     },
   )
   const approved = await reviewer.post<BobMutation>(
-    'bob/customer-account/approve',
+    'dcl/customer-account/approve',
     {
       objectId: submitted.objectId,
       approvalEntryId: submitted.approval.approvalEntryId,
@@ -1565,6 +1665,7 @@ export async function createWflWorkerState(options: {
         purchaseTrialDocumentId: purchaseTrial.documentId,
         supplierObjectId: supplier.objectId,
         warehouseObjectId: warehouse.objectId,
+        operatingEntityId,
       },
       storageState: await operatorSession.context.storageState(),
       grantWorkflowPermissions: (processCodes) =>

@@ -36,6 +36,14 @@ func trustedIntegrationActor(t *testing.T, requestID string) approval.Actor {
 	return actor
 }
 
+func integrationErrorChain(err error) string {
+	parts := make([]string, 0, 4)
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		parts = append(parts, current.Error())
+	}
+	return strings.Join(parts, " -> ")
+}
+
 func integrationApprovalActor(t *testing.T, actorID, requestID string) approval.Actor {
 	t.Helper()
 	if strings.HasSuffix(requestID, "-approve") || strings.HasSuffix(requestID, "-reject") {
@@ -257,36 +265,19 @@ func createApprovedBOB(
 		})
 		data.OperatingEntityID = operating.ObjectID
 	}
+	if entity == bobdomain.EntityEmployee {
+		return createApprovedEmployeeDeclaration(t, vouIntegrationPool(t), service, data)
+	}
+	if entity == bobdomain.EntitySupplier {
+		return createApprovedSupplierDeclaration(t, vouIntegrationPool(t), service, data)
+	}
+	if entity == bobdomain.EntityOtherUnit {
+		return createApprovedOtherUnitDeclaration(t, vouIntegrationPool(t), service, data)
+	}
 	var created bobdomain.MutationResult
 	var err error
-	switch entity {
-	case bobdomain.EntityEmployee:
-		result, createErr := service.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
-			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: data.Name},
-			Data:     data,
-		}, trustedIntegrationActor(t, "vou-ref-create"), true)
-		created, err = result.MutationResult, createErr
-	case bobdomain.EntitySupplier:
-		result, createErr := service.SupplierCreate(t.Context(), bobdomain.SupplierCreateInput{
-			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name},
-			Data: bobdomain.SupplierData{OperatingEntityID: data.OperatingEntityID,
-				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
-				SettlementMethodID:         data.SettlementMethodID,
-				DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
-		}, trustedIntegrationActor(t, "vou-ref-create"), true)
-		created, err = result.MutationResult, createErr
-	case bobdomain.EntityOtherUnit:
-		result, createErr := service.OtherUnitCreate(t.Context(), bobdomain.OtherUnitCreateInput{
-			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name},
-			Data: bobdomain.OtherUnitData{OperatingEntityID: data.OperatingEntityID,
-				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
-				SettlementMethodID: data.SettlementMethodID},
-		}, trustedIntegrationActor(t, "vou-ref-create"), true)
-		created, err = result.MutationResult, createErr
-	default:
-		created, err = service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
-			trustedIntegrationActor(t, "vou-ref-create"))
-	}
+	created, err = service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
+		trustedIntegrationActor(t, "vou-ref-create"))
 	if err != nil {
 		t.Fatalf("create %s reference: %v (cause: %v)", entity, err, errors.Unwrap(err))
 	}
@@ -301,6 +292,120 @@ func createApprovedBOB(
 	}, trustedIntegrationActor(t, "vou-ref-approve"))
 	if err != nil {
 		t.Fatalf("approve %s reference: %v", entity, err)
+	}
+	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+}
+
+func createApprovedSupplierDeclaration(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, data bobdomain.CreateDetailInput) ReferenceInput {
+	t.Helper()
+	bus := txevent.NewBus()
+	authorizer := authorization.Func(nil)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	suppliers := dcldomain.NewSupplierService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	created, err := suppliers.Create(t.Context(), dcldomain.SupplierCreateInput{
+		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name,
+			DisplayName: data.ShortName, TaxNumber: data.TaxNumber, Phone: data.ContactPhone,
+			Email: data.Email, Address: data.Address},
+		OperatingEntityID: data.OperatingEntityID,
+		Data: dcldomain.SupplierData{ShortName: data.ShortName, TaxNumber: data.TaxNumber,
+			ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email,
+			Address: data.Address, Remark: data.Remark, SettlementMethodID: data.SettlementMethodID,
+			DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
+	}, trustedIntegrationActor(t, "vou-supplier-create"))
+	if err != nil {
+		t.Fatalf("create supplier declaration: %v", err)
+	}
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: created.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-supplier-party-get"))
+	if err != nil {
+		t.Fatalf("get supplier Party: %v", err)
+	}
+	pendingParty, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedIntegrationActor(t, "vou-supplier-party-submit"))
+	if err != nil {
+		t.Fatalf("submit supplier Party: %v", err)
+	}
+	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: pendingParty.Approval.ApprovalEntryID, ApprovalRevision: pendingParty.Approval.Revision}, trustedIntegrationActor(t, "vou-supplier-party-approve")); err != nil {
+		t.Fatalf("approve supplier Party: %v", err)
+	}
+	submitted, err := suppliers.Submit(t.Context(), dcldomain.SupplierVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedIntegrationActor(t, "vou-supplier-submit"))
+	if err != nil {
+		t.Fatalf("submit supplier declaration: %v", err)
+	}
+	approved, err := suppliers.Approve(t.Context(), dcldomain.SupplierVersionInput{ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, trustedIntegrationActor(t, "vou-supplier-approve"))
+	if err != nil {
+		t.Fatalf("approve supplier declaration: %v", err)
+	}
+	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+}
+
+func createApprovedOtherUnitDeclaration(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, data bobdomain.CreateDetailInput) ReferenceInput {
+	t.Helper()
+	bus := txevent.NewBus()
+	authorizer := authorization.Func(nil)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	relationships := dcldomain.NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	created, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name}, OperatingEntityID: data.OperatingEntityID, Data: dcldomain.OtherUnitData{ContactName: data.ContactName, ContactPhone: data.ContactPhone, SettlementMethodID: data.SettlementMethodID}}, trustedIntegrationActor(t, "vou-other-unit-create"))
+	if err != nil {
+		t.Fatalf("create other-unit declaration: %v", err)
+	}
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: created.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-other-unit-party-get"))
+	if err != nil {
+		t.Fatalf("get other-unit Party: %v", err)
+	}
+	pendingParty, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-party-submit"))
+	if err != nil {
+		t.Fatalf("submit other-unit Party: %v", err)
+	}
+	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: pendingParty.Approval.ApprovalEntryID, ApprovalRevision: pendingParty.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-party-approve")); err != nil {
+		t.Fatalf("approve other-unit Party: %v", err)
+	}
+	submitted, err := relationships.SubmitOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-submit"))
+	if err != nil {
+		t.Fatalf("submit other-unit declaration: %v", err)
+	}
+	approved, err := relationships.ApproveOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-approve"))
+	if err != nil {
+		t.Fatalf("approve other-unit declaration: %v", err)
+	}
+	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+}
+
+func createApprovedEmployeeDeclaration(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, data bobdomain.CreateDetailInput) ReferenceInput {
+	t.Helper()
+	bus := txevent.NewBus()
+	authorizer := authorization.Func(nil)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	employees := dcldomain.NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
+		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: data.Name},
+		OperatingEntityID: data.OperatingEntityID,
+		Data: dcldomain.EmployeeInput{EmployeeCategoryID: data.CategoryID, DepartmentID: data.DepartmentID,
+			PositionID: data.PositionID, Phone: data.Phone, Email: data.Email, HireDate: data.HireDate, Remark: data.Remark},
+	}, trustedIntegrationActor(t, "vou-employee-create"))
+	if err != nil {
+		t.Fatalf("create employee declaration: %v", err)
+	}
+	var partyID string
+	if err = pool.QueryRow(t.Context(), `SELECT party_id FROM bob_employment_relationships WHERE object_id=$1`, created.ObjectID).Scan(&partyID); err != nil {
+		t.Fatalf("get employee Party identity: %v", err)
+	}
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: partyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-employee-party-get"))
+	if err != nil {
+		t.Fatalf("get employee party: %v", err)
+	}
+	partyPending, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedIntegrationActor(t, "vou-employee-party-submit"))
+	if err != nil {
+		t.Fatalf("submit employee party: %v", err)
+	}
+	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: partyPending.PartyID, ApprovalEntryID: partyPending.Approval.ApprovalEntryID, ApprovalRevision: partyPending.Approval.Revision}, trustedIntegrationActor(t, "vou-employee-party-approve")); err != nil {
+		t.Fatalf("approve employee party: %v", err)
+	}
+	pending, err := employees.Submit(t.Context(), dcldomain.EmployeeVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedIntegrationActor(t, "vou-employee-submit"))
+	if err != nil {
+		t.Fatalf("submit employee declaration: %v", err)
+	}
+	approved, err := employees.Approve(t.Context(), dcldomain.EmployeeVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, trustedIntegrationActor(t, "vou-employee-approve"))
+	if err != nil {
+		t.Fatalf("approve employee declaration: %v", err)
 	}
 	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }
@@ -386,8 +491,9 @@ func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string)
 
 func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
-	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	authorizer := authorization.Func(nil)
+	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
 }
 
 type vouCustomerAuxiliaryResolver struct{}
@@ -437,52 +543,81 @@ func createApprovedCustomer(
 	t *testing.T, pool *pgxpool.Pool, data bobdomain.CreateDetailInput,
 ) ReferenceInput {
 	t.Helper()
-	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{}, authorization.Func(nil), txevent.NewBus())
+	bus := txevent.NewBus()
+	authorizer := authorization.Func(nil)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{}, authorizer, bus)
+	accounts := dcldomain.NewCustomerAccountService(pool, service, authorizer, bus)
+	customers := dcldomain.NewCustomerService(pool, service, parties, bobdomain.NewPartyCurrentReader(pool), accounts, authorizer, bus)
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "VOU 客户经营主体", TaxNumber: "TAX" + newID()[3:],
 	})
 	if data.SettlementMethodID == "" {
 		data.SettlementMethodID = "01JSMT00000000000000000017"
 	}
-	created, err := service.CustomerCreate(t.Context(), bobdomain.CustomerCreateInput{
-		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name + "主体" + newID()[20:]},
-		Data: bobdomain.CustomerAccountData{
+	created, err := customers.Create(t.Context(), dcldomain.CustomerCreateInput{
+		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name + "主体" + newID()[20:]},
+		OperatingEntityID: operating.ObjectID,
+		DefaultAccount: dcldomain.CustomerAccountDataInput{
 			Name: data.Name, CustomerTypeCode: bobdomain.CustomerTypeEndUser,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
-			OperatingEntityID: operating.ObjectID, SettlementMethodID: data.SettlementMethodID,
-			PaymentMethodID:            "01J00000000000000000000082",
+			SettlementMethodID:         data.SettlementMethodID,
 			DefaultTransportMethodCode: "SELF_PICKUP", DefaultTransportMethodName: "客户自提",
-			TransportSurcharge: "0.00", PricingPolicy: bobdomain.PricingPolicy{
-				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00", CostItems: []bobdomain.PricingCostItem{},
+			TransportSurcharge: "0.00", PricingPolicy: dcldomain.CustomerPricingPolicy{
+				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00", CostItems: []dcldomain.CustomerPricingCostItem{},
 				ThirdPartyIntermediaryFixedUnitCost: "0.00", ThirdPartyIntermediaryVariableUnitCost: "0.00",
-			}, CreditLimits: []bobdomain.CustomerCreditLimit{}, PrimarySalesAttribution: bobdomain.CustomerSalesAttributionInput{
-				Type: bobdomain.SalesAttributionInternalEmployee, SubjectObjectID: data.SalespersonEmployeeID,
+			}, CreditLimits: []dcldomain.CustomerCreditLimit{}, PrimarySalesAttribution: dcldomain.CustomerSalesAttributionInput{
+				Type: dcldomain.CustomerSalesAttributionInternalEmployee, SubjectObjectID: data.SalespersonEmployeeID,
 			},
 		},
-	}, trustedIntegrationActor(t, "vou-customer-create"), true)
+	}, trustedIntegrationActor(t, "vou-customer-create"))
 	if err != nil {
-		t.Fatalf("create customer reference: %v", err)
+		t.Fatalf("create customer reference: %s", integrationErrorChain(err))
 	}
-	submitted, err := service.Submit(t.Context(), bobdomain.EntityCustomer, bobdomain.VersionRevisionInput{
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: created.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-customer-party-get"))
+	if err != nil {
+		t.Fatalf("get customer Party: %v", err)
+	}
+	partySubmitted, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{
+		PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-customer-party-submit"))
+	if err != nil {
+		t.Fatalf("submit customer Party: %v", err)
+	}
+	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{
+		PartyID: partySubmitted.PartyID, ApprovalEntryID: partySubmitted.Approval.ApprovalEntryID, ApprovalRevision: partySubmitted.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-customer-party-approve")); err != nil {
+		t.Fatalf("approve customer Party: %v", err)
+	}
+	submitted, err := customers.Submit(t.Context(), dcldomain.CustomerVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
 	}, trustedIntegrationActor(t, "vou-customer-submit"))
 	if err != nil {
 		t.Fatalf("submit customer reference: %v", err)
 	}
-	if _, err = service.Approve(t.Context(), bobdomain.EntityCustomer, bobdomain.ReviewInput{
+	if _, err = customers.Approve(t.Context(), dcldomain.CustomerVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
 	}, trustedIntegrationActor(t, "vou-customer-approve")); err != nil {
 		t.Fatalf("approve customer relationship: %v", err)
 	}
-	accountSubmitted, err := service.Submit(t.Context(), bobdomain.EntityCustomerAccount, bobdomain.VersionRevisionInput{
-		ObjectID: created.DefaultAccount.ObjectID, ApprovalEntryID: created.DefaultAccount.OpenVersion.Approval.ApprovalEntryID,
-		ApprovalRevision: created.DefaultAccount.OpenVersion.Approval.Revision,
+	accountsPage, err := accounts.Query(t.Context(), dcldomain.CustomerAccountQueryInput{
+		Page: 1, PageSize: 20,
+		Filters: dcldomain.CustomerAccountQueryFilters{CustomerRelationshipID: created.ObjectID},
+		Sort:    []dcldomain.CustomerAccountSortItem{{Field: "code", Order: "asc"}},
+	}, trustedIntegrationActor(t, "vou-customer-account-query"))
+	if err != nil || len(accountsPage.Items) != 1 || accountsPage.Items[0].OpenVersion == nil {
+		t.Fatalf("load default customer account: items=%d err=%v", len(accountsPage.Items), err)
+	}
+	account := accountsPage.Items[0]
+	accountSubmitted, err := accounts.Submit(t.Context(), dcldomain.CustomerAccountVersionInput{
+		ObjectID: account.ObjectID, ApprovalEntryID: account.OpenVersion.Approval.ApprovalEntryID,
+		ApprovalRevision: account.OpenVersion.Approval.Revision,
 	}, trustedIntegrationActor(t, "vou-customer-account-submit"))
 	if err != nil {
 		t.Fatalf("submit customer account: %v", err)
 	}
-	accountApproved, err := service.Approve(t.Context(), bobdomain.EntityCustomerAccount, bobdomain.ReviewInput{
-		ObjectID: created.DefaultAccount.ObjectID, ApprovalEntryID: accountSubmitted.Approval.ApprovalEntryID, ApprovalRevision: accountSubmitted.Approval.Revision,
+	accountApproved, err := accounts.Approve(t.Context(), dcldomain.CustomerAccountVersionInput{
+		ObjectID: account.ObjectID, ApprovalEntryID: accountSubmitted.Approval.ApprovalEntryID, ApprovalRevision: accountSubmitted.Approval.Revision,
 	}, trustedIntegrationActor(t, "vou-customer-account-approve"))
 	if err != nil {
 		t.Fatalf("approve customer account: %v", err)

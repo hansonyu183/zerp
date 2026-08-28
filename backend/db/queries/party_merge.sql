@@ -1,7 +1,10 @@
 -- name: LockPartyMergeParty :one
-SELECT id,kind,revision,merged_into_party_id
-FROM bob_parties
-WHERE id=sqlc.arg(party_id)
+SELECT party.id,current.kind,current.source_approval_entry_id,approval.revision,party.merged_into_party_id,
+       EXISTS(SELECT 1 FROM approval_entries open_entry WHERE open_entry.domain='dcl' AND open_entry.entity='party' AND open_entry.subject_id=party.id AND open_entry.status IN ('DRAFT','PENDING')) AS has_open_candidate
+FROM bob_parties party
+JOIN bob_party_currents current ON current.party_id=party.id
+JOIN approval_entries approval ON approval.id=current.source_approval_entry_id AND approval.domain='dcl' AND approval.entity='party' AND approval.status='APPROVED'
+WHERE party.id=sqlc.arg(party_id)
 FOR UPDATE;
 
 -- name: ListPartyMergeRelationships :many
@@ -17,12 +20,12 @@ FROM bob_party_relationship_endpoints relation
 JOIN bob_objects object ON object.id=relation.object_id
 JOIN LATERAL (
   SELECT id,status,revision FROM approval_entries
-  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
+  WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) approved ON true
 LEFT JOIN LATERAL (
   SELECT id,status,revision FROM approval_entries
-  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status IN ('DRAFT','PENDING')
+  WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status IN ('DRAFT','PENDING')
   ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
 JOIN bob_operating_entities operating_detail ON operating_detail.object_id=relation.operating_entity_id
@@ -38,14 +41,14 @@ FOR UPDATE;
 
 -- name: InsertPartyMergePreflight :exec
 INSERT INTO bob_party_merge_preflights(
-    id,source_party_id,target_party_id,source_revision,target_revision,state_fingerprint,created_by,request_id
+    id,source_party_id,target_party_id,source_approval_entry_id,target_approval_entry_id,source_approval_revision,target_approval_revision,state_fingerprint,created_by,request_id
 ) VALUES (
-    sqlc.arg(id),sqlc.arg(source_party_id),sqlc.arg(target_party_id),sqlc.arg(source_revision),
-    sqlc.arg(target_revision),sqlc.arg(state_fingerprint),sqlc.arg(actor_id),sqlc.arg(request_id)
+    sqlc.arg(id),sqlc.arg(source_party_id),sqlc.arg(target_party_id),sqlc.arg(source_approval_entry_id),sqlc.arg(target_approval_entry_id),sqlc.arg(source_approval_revision),
+    sqlc.arg(target_approval_revision),sqlc.arg(state_fingerprint),sqlc.arg(actor_id),sqlc.arg(request_id)
 );
 
 -- name: LockPartyMergePreflight :one
-SELECT id,source_party_id,target_party_id,source_revision,target_revision,state_fingerprint,
+SELECT id,source_party_id,target_party_id,source_approval_entry_id,target_approval_entry_id,source_approval_revision,target_approval_revision,state_fingerprint,
        created_at,created_by,request_id,consumed_at,consumed_by
 FROM bob_party_merge_preflights
 WHERE id=sqlc.arg(id)
@@ -58,9 +61,14 @@ WHERE id=sqlc.arg(id) AND consumed_at IS NULL;
 
 -- name: MarkPartyMerged :execrows
 UPDATE bob_parties
-SET merged_into_party_id=sqlc.arg(target_party_id),merged_at=now(),revision=revision+1,
-    updated_at=now(),updated_by=sqlc.arg(actor_id)
-WHERE id=sqlc.arg(source_party_id) AND revision=sqlc.arg(revision) AND merged_into_party_id IS NULL;
+SET merged_into_party_id=sqlc.arg(target_party_id),merged_at=now()
+WHERE id=sqlc.arg(source_party_id) AND merged_into_party_id IS NULL;
+
+-- name: DeleteMergedPartyCurrent :execrows
+DELETE FROM bob_party_currents WHERE party_id=sqlc.arg(source_party_id);
+
+-- name: DeleteMergedPartyCurrentIdentifiers :execrows
+DELETE FROM bob_party_identifiers WHERE party_id=sqlc.arg(source_party_id);
 
 -- name: MoveCustomerRelationshipParty :execrows
 UPDATE bob_customer_relationships SET party_id=sqlc.arg(target_party_id)

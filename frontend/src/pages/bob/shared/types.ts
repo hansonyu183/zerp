@@ -27,9 +27,9 @@ export function bobListActiveVersion(item: BobListItem): BobVersionSummary {
 
 export type BobVersionMeta = components['schemas']['ApprovalVersionMeta']
 export type BobObjectView = components['schemas']['BobObjectView']
-export type BobMutationResult = components['schemas']['BobMutationResult']
-export type BobVersionHistoryItem =
-  components['schemas']['BobVersionHistoryItem']
+export type BobVersionHistoryItem = BobVersionMeta & {
+  summary: Record<string, unknown>
+}
 export type BobAuditEvent = components['schemas']['ApprovalEventView']
 
 interface ReferenceConfigBase {

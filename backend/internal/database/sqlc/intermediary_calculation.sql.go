@@ -188,12 +188,11 @@ func (q *Queries) InsertVouIntermediaryCalculationDetail(ctx context.Context, ar
 const insertVouIntermediaryCalculationLine = `-- name: InsertVouIntermediaryCalculationLine :exec
 INSERT INTO vou_intermediary_calculation_lines(
     id,document_id,line_no,source_signoff_line_id,source_calculation_document_id,result,
-    employee_amount_cents,intermediary_amount_cents,rebate_amount_cents
+    employee_amount_cents,intermediary_amount_cents
 ) VALUES (
     $1,$2,$3,
     $4,$5,$6,
-    $7,$8,
-    $9
+    $7,$8
 )
 `
 
@@ -206,7 +205,6 @@ type InsertVouIntermediaryCalculationLineParams struct {
 	Result                      []byte  `db:"result" json:"result"`
 	EmployeeAmountCents         int64   `db:"employee_amount_cents" json:"employee_amount_cents"`
 	IntermediaryAmountCents     int64   `db:"intermediary_amount_cents" json:"intermediary_amount_cents"`
-	RebateAmountCents           int64   `db:"rebate_amount_cents" json:"rebate_amount_cents"`
 }
 
 func (q *Queries) InsertVouIntermediaryCalculationLine(ctx context.Context, arg InsertVouIntermediaryCalculationLineParams) error {
@@ -219,7 +217,6 @@ func (q *Queries) InsertVouIntermediaryCalculationLine(ctx context.Context, arg 
 		arg.Result,
 		arg.EmployeeAmountCents,
 		arg.IntermediaryAmountCents,
-		arg.RebateAmountCents,
 	)
 	return err
 }
@@ -578,8 +575,7 @@ JOIN LATERAL (
     WHERE calculation_line.source_signoff_line_id=return_line.source_signoff_line_id
       AND calculation_document.business_date < return_document.business_date
       AND (calculation_line.employee_amount_cents>0
-        OR calculation_line.intermediary_amount_cents>0
-        OR calculation_line.rebate_amount_cents>0)
+        OR calculation_line.intermediary_amount_cents>0)
     ORDER BY calculation_document.business_date,calculation_document.document_no
     LIMIT 1
 ) original ON true
@@ -791,7 +787,6 @@ SELECT
     line.unit_price_cents,
     order_line.reference_unit_price_cents,
     order_line.settlement_surcharge_cents,
-    customer_version.rebate_unit_price_cents,
     (line.line_amount_cents-COALESCE(round(
         line.line_amount_cents::numeric*returned.quantity_micros::numeric/
 		NULLIF(line.signed_base_quantity_micros,0)
@@ -807,7 +802,6 @@ JOIN vou_sale_signoff_lines line ON line.document_id=signoff.id
 JOIN vou_documents order_document ON order_document.id=detail.source_order_id
 JOIN vou_sale_order_details order_detail ON order_detail.document_id=order_document.id
 JOIN vou_product_lines order_line ON order_line.id=line.source_order_line_id
-JOIN bob_customer_versions customer_version ON customer_version.approval_entry_id=detail.customer_approval_entry_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
   AND signoff_approval.status = 'APPROVED'
@@ -851,7 +845,6 @@ type ListIntermediarySignoffSourceRowsRow struct {
 	UnitPriceCents                         int64       `db:"unit_price_cents" json:"unit_price_cents"`
 	ReferenceUnitPriceCents                int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
 	SettlementSurchargeCents               int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
-	RebateUnitPriceCents                   int64       `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
 	LineAmountCents                        int64       `db:"line_amount_cents" json:"line_amount_cents"`
 	SettlementTermCode                     string      `db:"settlement_term_code" json:"settlement_term_code"`
 	SpecialApproval                        bool        `db:"special_approval" json:"special_approval"`
@@ -896,7 +889,6 @@ func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg Lis
 			&i.UnitPriceCents,
 			&i.ReferenceUnitPriceCents,
 			&i.SettlementSurchargeCents,
-			&i.RebateUnitPriceCents,
 			&i.LineAmountCents,
 			&i.SettlementTermCode,
 			&i.SpecialApproval,
@@ -913,7 +905,7 @@ func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg Lis
 }
 
 const listVouIntermediaryCalculationLines = `-- name: ListVouIntermediaryCalculationLines :many
-SELECT id, document_id, line_no, source_signoff_line_id, source_calculation_document_id, result, employee_amount_cents, intermediary_amount_cents, rebate_amount_cents FROM vou_intermediary_calculation_lines
+SELECT id, document_id, line_no, source_signoff_line_id, source_calculation_document_id, result, employee_amount_cents, intermediary_amount_cents FROM vou_intermediary_calculation_lines
 WHERE document_id=$1 ORDER BY line_no
 `
 
@@ -935,7 +927,6 @@ func (q *Queries) ListVouIntermediaryCalculationLines(ctx context.Context, docum
 			&i.Result,
 			&i.EmployeeAmountCents,
 			&i.IntermediaryAmountCents,
-			&i.RebateAmountCents,
 		); err != nil {
 			return nil, err
 		}

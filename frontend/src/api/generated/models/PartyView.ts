@@ -15,9 +15,6 @@ export type PartyView = {
   phone?: string;
   email?: string;
   address?: string;
-  revision: number;
-  mergedIntoPartyId?: string;
-  mergedAt?: string;
   relationships: Array<PartyRelationshipCard>;
   updatedAt: string;
 };

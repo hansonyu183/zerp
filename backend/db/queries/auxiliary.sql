@@ -44,10 +44,10 @@ WHERE approval_entry_id = sqlc.arg(approval_entry_id)
 -- name: IsBobCustomerPaymentMethodReferenced :one
 SELECT EXISTS(
     SELECT 1
-FROM bob_customer_versions customer
+FROM dcl_customer_account_versions customer
     JOIN approval_entries entry
       ON entry.id = customer.approval_entry_id
-     AND entry.domain = 'bob'
+     AND entry.domain = 'dcl'
      AND entry.entity = 'customer-account'
      AND entry.status = 'APPROVED'
     WHERE customer.payment_method_id = sqlc.arg(object_id)::text
@@ -62,31 +62,71 @@ FROM bob_customer_versions customer
 );
 
 -- name: IsAuxApprovalEntryReferenced :one
-WITH current_bob_entries AS (
-    SELECT entry.id
-    FROM approval_entries entry
-    WHERE entry.domain='bob' AND entry.status='APPROVED'
-      AND NOT EXISTS (
-          SELECT 1 FROM approval_entries newer
-          WHERE newer.domain=entry.domain AND newer.entity=entry.entity
-            AND newer.subject_id=entry.subject_id AND newer.status='APPROVED'
-            AND newer.version_no>entry.version_no
-      )
-), current_dcl_product_entries AS (
+WITH current_dcl_product_entries AS (
     SELECT entry.id FROM approval_entries entry
     WHERE entry.domain='dcl' AND entry.entity='product' AND entry.status='APPROVED'
       AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='product' AND newer.subject_id=entry.subject_id AND newer.status='APPROVED' AND newer.version_no>entry.version_no)
+), current_dcl_employee_entries AS (
+    SELECT entry.id FROM approval_entries entry
+    WHERE entry.domain='dcl' AND entry.entity='employee' AND entry.status='APPROVED'
+      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='employee' AND newer.subject_id=entry.subject_id AND newer.status='APPROVED' AND newer.version_no>entry.version_no)
 ), bob_refs AS (
-    SELECT category_approval_entry_id AS entry_id FROM bob_customer_relationship_attachments
-    UNION ALL SELECT attachment.category_approval_entry_id FROM bob_customer_version_attachments attachment JOIN current_bob_entries current_entry ON current_entry.id=attachment.approval_entry_id
-    UNION ALL SELECT reference.entry_id FROM bob_customer_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.settlement_method_approval_entry_id,payload.payment_method_approval_entry_id]) reference(entry_id)
-    UNION ALL SELECT reference.entry_id FROM bob_employee_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.department_approval_entry_id,payload.position_approval_entry_id]) reference(entry_id)
+    SELECT attachment.category_approval_entry_id AS entry_id
+    FROM dcl_customer_attachments attachment
+    JOIN approval_entries current_entry
+      ON current_entry.id=attachment.approval_entry_id
+     AND current_entry.domain='dcl' AND current_entry.entity='customer'
+     AND current_entry.status='APPROVED'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM approval_entries newer
+      WHERE newer.domain='dcl' AND newer.entity='customer'
+        AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED'
+        AND newer.version_no>current_entry.version_no
+    )
+    UNION ALL SELECT attachment.category_approval_entry_id
+    FROM dcl_customer_account_attachments attachment
+    JOIN approval_entries current_entry
+      ON current_entry.id=attachment.approval_entry_id
+     AND current_entry.domain='dcl' AND current_entry.entity='customer-account'
+     AND current_entry.status='APPROVED'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM approval_entries newer
+      WHERE newer.domain='dcl' AND newer.entity='customer-account'
+        AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED'
+        AND newer.version_no>current_entry.version_no
+    )
+    UNION ALL SELECT reference.entry_id FROM dcl_customer_account_versions payload
+      JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
+        AND current_entry.domain='dcl' AND current_entry.entity='customer-account' AND current_entry.status='APPROVED'
+      CROSS JOIN LATERAL unnest(ARRAY[payload.settlement_method_approval_entry_id,payload.payment_method_approval_entry_id]) reference(entry_id)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM approval_entries newer
+        WHERE newer.domain='dcl' AND newer.entity='customer-account' AND newer.subject_id=current_entry.subject_id
+          AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no
+      )
+    UNION ALL SELECT reference.entry_id FROM dcl_employee_versions payload JOIN current_dcl_employee_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.employee_category_approval_entry_id,payload.department_approval_entry_id,payload.position_approval_entry_id]) reference(entry_id)
     UNION ALL SELECT payload.entered_unit_approval_entry_id FROM dcl_product_formula_lines payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
     UNION ALL SELECT payload.output_unit_approval_entry_id FROM dcl_product_formulas payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
     UNION ALL SELECT payload.unit_approval_entry_id FROM dcl_product_unit_conversions payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
     UNION ALL SELECT reference.entry_id FROM dcl_product_versions payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.pricing_unit_approval_entry_id,payload.product_type_approval_entry_id,payload.default_input_unit_approval_entry_id]) reference(entry_id)
-    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM bob_service_relationship_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
-    UNION ALL SELECT reference.entry_id FROM bob_supplier_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.settlement_method_approval_entry_id]) reference(entry_id)
+    UNION ALL SELECT payload.settlement_method_approval_entry_id
+    FROM dcl_other_unit_versions payload
+    JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
+      AND current_entry.domain='dcl' AND current_entry.entity='other-unit' AND current_entry.status='APPROVED'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM approval_entries newer
+      WHERE newer.domain='dcl' AND newer.entity='other-unit' AND newer.subject_id=current_entry.subject_id
+        AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no
+    )
+    UNION ALL SELECT payload.settlement_method_approval_entry_id
+    FROM dcl_supplier_versions payload
+    JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
+      AND current_entry.domain='dcl' AND current_entry.entity='supplier' AND current_entry.status='APPROVED'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM approval_entries newer
+      WHERE newer.domain='dcl' AND newer.entity='supplier' AND newer.subject_id=current_entry.subject_id
+        AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no
+    )
     UNION ALL SELECT payload.vehicle_type_approval_entry_id FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='vehicle' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
     UNION ALL SELECT payload.category_approval_entry_id FROM dcl_warehouse_versions payload
       JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id

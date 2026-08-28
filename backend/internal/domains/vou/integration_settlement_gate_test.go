@@ -278,7 +278,7 @@ func TestPrepaidApprovalExcludesCustomerOtherBalanceIntegration(t *testing.T) {
 	activateSettlementLedger(t, pool, customer, 0, "2026-08-04")
 	if err := insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
 		"OTHER", amount, "2026-08-04", newID()); err != nil {
-		t.Fatalf("insert customer rebate other balance: %v", err)
+		t.Fatalf("insert customer other balance: %v", err)
 	}
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
 		DocumentID: order.DocumentID, Revision: order.Approval.Revision,

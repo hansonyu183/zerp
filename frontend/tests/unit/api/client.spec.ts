@@ -64,7 +64,7 @@ describe('ApiClient', () => {
 
   it('接受精确 nullable 空删除响应', async () => {
     mockServer.use(
-      http.post('https://api.test/bob/supplier/delete', () =>
+      http.post('https://api.test/dcl/supplier/delete', () =>
         HttpResponse.json({
           code: 0,
           errorKey: '',
@@ -76,14 +76,13 @@ describe('ApiClient', () => {
     )
 
     const client = new ApiClient({ baseUrl: 'https://api.test/' })
-    const result = await client.postContract('bob/supplier/delete', {
+    const result = await client.postContract('dcl/supplier/delete', {
       objectId: '01J00000000000000000000010',
-      objectRevision: 2,
-      versionId: '01J00000000000000000000011',
-      revision: 1,
+      approvalEntryId: '01J00000000000000000000011',
+      approvalRevision: 1,
     })
 
-    expectTypeOf<ApiPostData<'bob/supplier/delete'>>().toEqualTypeOf<
+    expectTypeOf<ApiPostData<'dcl/supplier/delete'>>().toEqualTypeOf<
       components['schemas']['EmptyObject'] | null
     >()
     expect(result.data).toBeNull()

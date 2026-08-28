@@ -45,6 +45,17 @@ func TestPartyMergeAssessmentBlocksCandidateOrMergedParty(t *testing.T) {
 	}
 }
 
+func TestPartyMergeAssessmentReturnsStructuredBlockForOpenPartyCandidate(t *testing.T) {
+	source := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: PartyKindPerson, Revision: 1, HasOpenCandidate: true}
+	target := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: PartyKindPerson, Revision: 1}
+
+	assessment, _, _ := partyMergeAssessmentWithRelationships(source, target, nil, nil)
+
+	if len(assessment.BlockReasons) != 1 || assessment.BlockReasons[0] != "存在主体候选版本，不能合并" {
+		t.Fatalf("blocks = %#v", assessment.BlockReasons)
+	}
+}
+
 func TestPartyMergeResolutionAcceptsEitherRelationshipInConflict(t *testing.T) {
 	conflict := PartyMergeRelationshipConflict{
 		RelationshipType: EntityOtherUnit, OperatingEntityID: newID(), SourceObjectID: newID(), TargetObjectID: newID(),

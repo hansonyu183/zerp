@@ -1,0 +1,11 @@
+/* generated using openapi-typescript-codegen -- do not edit */
+/* istanbul ignore file */
+/* tslint:disable */
+/* eslint-disable */
+export type DclPartyMergeResult = {
+  mergeEventId: string;
+  sourcePartyId: string;
+  targetPartyId: string;
+  transferredRelationships: number;
+  mergedRelationships: number;
+};

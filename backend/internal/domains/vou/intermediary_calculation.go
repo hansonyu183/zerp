@@ -33,7 +33,6 @@ type preparedIntermediaryCalculation struct {
 	sourceJSON, resultJSON         []byte
 	lineJSON                       [][]byte
 	lineEmployee, lineIntermediary []int64
-	lineRebate                     []int64
 	lineBillIDs                    [][]string
 	lineSourceCalculations         []*string
 	summaryAmounts                 []int64
@@ -382,10 +381,10 @@ func (s *Service) intermediarySource(
 				BehaviorProfile: row.BehaviorProfile, SignedBaseQuantity: formatQuantity(row.SignedBaseQuantityMicros),
 				PricingQuantity: formatQuantity(pricingQuantity.Int64()), StandardPieceQuantity: formatQuantity(pricingQuantity.Int64()),
 				UnitPrice: formatMoney(row.UnitPriceCents), ReferenceUnitPrice: formatMoney(row.ReferenceUnitPriceCents),
-				SettlementSurcharge: formatMoney(row.SettlementSurchargeCents), RebateUnitPrice: formatMoney(row.RebateUnitPriceCents),
-				LineAmount: formatMoney(row.LineAmountCents), SettlementTermCode: row.SettlementTermCode,
+				SettlementSurcharge: formatMoney(row.SettlementSurchargeCents),
+				LineAmount:          formatMoney(row.LineAmountCents), SettlementTermCode: row.SettlementTermCode,
 				SpecialApproval: row.SpecialApproval, AdjustmentEmployeeAmount: "0.00",
-				AdjustmentIntermediaryAmount: "0.00", AdjustmentRebateAmount: "0.00",
+				AdjustmentIntermediaryAmount: "0.00",
 			}
 			source.Lines = append(source.Lines, line)
 		}
@@ -527,11 +526,10 @@ func (s *Service) appendIntermediaryReturnAdjustments(
 			return domainError(ErrorConflict, "intermediary return quantity exceeds its original calculation",
 				map[string]any{"lineId": group.source.SourceSignoffLineID}, nil)
 		}
-		adjustments := make([]int64, 0, 3)
+		adjustments := make([]int64, 0, 2)
 		for _, value := range []string{
 			group.originalResult.EmployeeAmount,
 			group.originalResult.IntermediaryAmount,
-			group.originalResult.RebateAmount,
 		} {
 			originalAmount, parseErr := parseFixed(value, 2, true)
 			if parseErr != nil {
@@ -567,7 +565,6 @@ func (s *Service) appendIntermediaryReturnAdjustments(
 		line.ReturnDocumentNos = group.returnDocumentNos
 		line.AdjustmentEmployeeAmount = formatMoney(adjustments[0])
 		line.AdjustmentIntermediaryAmount = formatMoney(adjustments[1])
-		line.AdjustmentRebateAmount = formatMoney(adjustments[2])
 		source.Lines = append(source.Lines, line)
 	}
 	return nil
@@ -688,7 +685,7 @@ func (s *Service) prepareIntermediaryCalculation(
 		seenLines[line.SourceSignoffLineID] = true
 		amountFields := []string{line.BaseCommission, line.PremiumCommission, line.LowPriceCommission,
 			line.MarketMaintenanceSubsidy, line.MarketDevelopmentSubsidy, line.BillCost,
-			line.EmployeeAmount, line.IntermediaryAmount, line.RebateAmount}
+			line.EmployeeAmount, line.IntermediaryAmount}
 		parsedAmounts := make([]int64, 0, len(amountFields))
 		for _, value := range amountFields {
 			var amount int64
@@ -721,7 +718,6 @@ func (s *Service) prepareIntermediaryCalculation(
 			for index, value := range []string{
 				sourceLine.AdjustmentEmployeeAmount,
 				sourceLine.AdjustmentIntermediaryAmount,
-				sourceLine.AdjustmentRebateAmount,
 			} {
 				expectedAmount, parseErr := parseFixed(value, 2, true)
 				if parseErr != nil {
@@ -747,7 +743,6 @@ func (s *Service) prepareIntermediaryCalculation(
 		}
 		employeeAmount := parsedAmounts[6]
 		intermediaryAmount := parsedAmounts[7]
-		rebateAmount := parsedAmounts[8]
 		if employeeAmount != 0 {
 			category := intermediarySalesSummaryCategory(sourceLine.SalesAttributionType)
 			key := summaryKey{category, sourceLine.Salesperson.Entity, sourceLine.Salesperson.ObjectID}
@@ -764,12 +759,6 @@ func (s *Service) prepareIntermediaryCalculation(
 				return prepared, err
 			}
 		}
-		if rebateAmount != 0 {
-			key := summaryKey{"REBATE", sourceLine.Customer.Entity, sourceLine.Customer.ObjectID}
-			if err := addExpected(key, sourceLine.Customer, rebateAmount); err != nil {
-				return prepared, err
-			}
-		}
 		encoded, marshalErr := json.Marshal(line)
 		if marshalErr != nil {
 			return prepared, domainError(ErrorValidation, "invalid calculation result", nil, marshalErr)
@@ -777,7 +766,6 @@ func (s *Service) prepareIntermediaryCalculation(
 		prepared.lineJSON = append(prepared.lineJSON, encoded)
 		prepared.lineEmployee = append(prepared.lineEmployee, employeeAmount)
 		prepared.lineIntermediary = append(prepared.lineIntermediary, intermediaryAmount)
-		prepared.lineRebate = append(prepared.lineRebate, rebateAmount)
 		var sourceCalculationDocumentID *string
 		if currentSourceLine.sourceCalculationDocumentID != "" {
 			sourceCalculationDocumentID = stringPtr(currentSourceLine.sourceCalculationDocumentID)
@@ -819,7 +807,7 @@ func (s *Service) prepareIntermediaryCalculation(
 	for _, summary := range calculation.Result.Summaries {
 		category := strings.TrimSpace(summary.Category)
 		if category != "COMMISSION" && category != "EXTERNAL_PART_TIME" && category != "CHANNEL_PARTNER" &&
-			category != "INTERMEDIARY" && category != "REBATE" {
+			category != "INTERMEDIARY" {
 			return prepared, domainError(ErrorValidation, "calculation summary category is invalid", nil, nil)
 		}
 		key := summaryKey{category, summary.Payee.Entity, summary.Payee.ObjectID}
@@ -973,7 +961,7 @@ func (s *Service) writeIntermediaryCalculation(
 			ID: newID(), DocumentID: documentID, LineNo: int32(index + 1), SourceSignoffLineID: line.SourceSignoffLineID,
 			SourceCalculationDocumentID: prepared.lineSourceCalculations[index],
 			Result:                      prepared.lineJSON[index], EmployeeAmountCents: prepared.lineEmployee[index],
-			IntermediaryAmountCents: prepared.lineIntermediary[index], RebateAmountCents: prepared.lineRebate[index],
+			IntermediaryAmountCents: prepared.lineIntermediary[index],
 		}); err != nil {
 			return err
 		}

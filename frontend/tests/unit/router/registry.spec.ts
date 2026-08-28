@@ -5,6 +5,7 @@ import {
   buildMenus,
   buildServerMenus,
   hasRegisteredPage,
+  pageRegistry,
   normalizePermissions,
   registerMenuRoutes,
   resolveFirstMenuPath,
@@ -31,6 +32,29 @@ function createTestRouter() {
 }
 
 describe('permission menu registry', () => {
+  it('registers Party maintenance under DCL while retaining the read-only BOB page', () => {
+    expect(pageRegistry['dcl/party']?.entityTitle).toBe('主体申报')
+    expect(pageRegistry['bob/party']?.entityTitle).toBe('主体')
+    expect(hasRegisteredPage('dcl', 'party')).toBe(true)
+  })
+
+  it('registers Supplier maintenance under DCL while retaining the current-only BOB page', () => {
+    expect(pageRegistry['dcl/supplier']?.entityTitle).toBe('供应商申报')
+    expect(pageRegistry['bob/supplier']?.entityTitle).toBe('供应商')
+    expect(hasRegisteredPage('dcl', 'supplier')).toBe(true)
+  })
+
+  it('registers Customer and Customer Account declarations separately from BOB current pages', () => {
+    expect(pageRegistry['dcl/customer']?.entityTitle).toBe('客户申报')
+    expect(pageRegistry['dcl/customer-account']?.entityTitle).toBe(
+      '客户结算子账户申报',
+    )
+    expect(pageRegistry['bob/customer']?.entityTitle).toBe('客户')
+    expect(pageRegistry['bob/customer-account']?.entityTitle).toBe(
+      '客户结算子账户',
+    )
+  })
+
   it('不将 APP 管理页面作为动态菜单路由注册', () => {
     const router = createTestRouter()
 
@@ -144,13 +168,13 @@ describe('permission menu registry', () => {
       normalizePermissions([
         '/bob/customer/query',
         '/bob/customer/query',
-        '/bob/customer/create',
+        '/dcl/customer/create',
         'bob/customer/update',
         '/BOB/customer/query',
         '/bob/customer',
         null,
       ]),
-    ).toEqual(['/bob/customer/query', '/bob/customer/create'])
+    ).toEqual(['/bob/customer/query', '/dcl/customer/create'])
     for (const invalidValue of [undefined, null, {}, 'permissions']) {
       expect(normalizePermissions(invalidValue)).toEqual([])
     }
@@ -160,15 +184,30 @@ describe('permission menu registry', () => {
     const menus = buildMenus(
       normalizePermissions([
         '/app/user/query',
-        '/bob/customer/create',
+        '/dcl/customer/create',
+        '/dcl/customer/query',
         '/bob/customer/query',
-        '/bob/customer/update',
         '/bob/supplier/query',
         '/inv/stock/create',
       ]),
     )
 
     expect(menus).toEqual([
+      {
+        domain: 'dcl',
+        title: '申报控制',
+        icon: 'mdi-file-sign',
+        order: 5,
+        children: [
+          {
+            entity: 'customer',
+            title: '客户申报',
+            icon: 'mdi-account-group',
+            order: 48,
+            actions: ['create', 'query'],
+          },
+        ],
+      },
       {
         domain: 'bob',
         title: '业务对象',
@@ -180,7 +219,7 @@ describe('permission menu registry', () => {
             title: '客户',
             icon: 'mdi-account-group',
             order: 10,
-            actions: ['create', 'query', 'update'],
+            actions: ['query'],
           },
           {
             entity: 'supplier',
@@ -206,7 +245,7 @@ describe('permission menu registry', () => {
       },
     ])
     expect(buildMenus(['/app/user/query'])).toEqual([])
-    expect(buildMenus(['/bob/customer/create'])).toHaveLength(1)
+    expect(buildMenus(['/dcl/customer/create'])).toHaveLength(1)
     expect(buildMenus(['/aux/unknown/query'])).toMatchObject([
       {
         domain: 'aux',
@@ -267,7 +306,7 @@ describe('permission menu registry', () => {
       [
         '/app/user/query',
         '/vou/saleorder/query',
-        '/bob/supplier/create',
+        '/bob/supplier/query',
         '/bob/customer/query',
       ],
       registrations,
@@ -286,31 +325,49 @@ describe('permission menu registry', () => {
   it('为全部授权菜单注册路由，未注册组件使用开发中占位页', () => {
     const router = createTestRouter()
     const menus = buildMenus([
+      '/dcl/customer/query',
+      '/dcl/customer/create',
+      '/dcl/customer-account/query',
       '/bob/customer/query',
-      '/bob/customer/create',
+      '/bob/customer-account/query',
       '/bob/supplier/query',
       '/aux/unknown/query',
     ])
 
+    expect(hasRegisteredPage('dcl', 'customer')).toBe(true)
+    expect(hasRegisteredPage('dcl', 'customer-account')).toBe(true)
     expect(hasRegisteredPage('bob', 'customer')).toBe(true)
+    expect(hasRegisteredPage('bob', 'customer-account')).toBe(true)
     expect(hasRegisteredPage('bob', 'supplier')).toBe(true)
-    expect(registerMenuRoutes(router, menus)).toBe(3)
+    expect(registerMenuRoutes(router, menus)).toBe(6)
+    expect(router.hasRoute('page:dcl/customer')).toBe(true)
+    expect(router.hasRoute('page:dcl/customer-account')).toBe(true)
     expect(router.hasRoute('page:bob/customer')).toBe(true)
     expect(router.hasRoute('page:bob/supplier')).toBe(true)
-    expect(router.resolve('/bob/customer').meta.actions).toEqual([
+    expect(router.resolve('/dcl/customer').meta.actions).toEqual([
       'query',
       'create',
     ])
-    expect(router.resolve('/bob/customer').meta.developing).toBe(false)
+    expect(router.resolve('/dcl/customer').meta.developing).toBe(false)
+    expect(router.resolve('/dcl/customer-account').meta.actions).toEqual([
+      'query',
+    ])
+    expect(router.resolve('/bob/customer').meta.actions).toEqual(['query'])
+    expect(router.resolve('/bob/customer-account').meta.actions).toEqual([
+      'query',
+    ])
     expect(router.resolve('/bob/supplier').meta.actions).toEqual(['query'])
     expect(router.resolve('/bob/supplier').meta.developing).toBe(false)
     expect(router.hasRoute('page:aux/unknown')).toBe(true)
     expect(router.resolve('/aux/unknown').meta.actions).toEqual(['query'])
     expect(router.resolve('/aux/unknown').meta.developing).toBe(true)
-    expect(resolveFirstMenuPath(menus)).toBe('/bob/customer')
+    expect(resolveFirstMenuPath(menus)).toBe('/dcl/customer')
 
     expect(registerMenuRoutes(router, [])).toBe(0)
+    expect(router.hasRoute('page:dcl/customer')).toBe(false)
+    expect(router.hasRoute('page:dcl/customer-account')).toBe(false)
     expect(router.hasRoute('page:bob/customer')).toBe(false)
+    expect(router.hasRoute('page:bob/customer-account')).toBe(false)
     expect(router.hasRoute('page:bob/supplier')).toBe(false)
     expect(router.hasRoute('page:aux/unknown')).toBe(false)
     expect(router.resolve('/bob/customer').name).toBe('not-found')
@@ -493,24 +550,24 @@ describe('permission menu registry', () => {
     const router = createTestRouter()
 
     expect(
-      registerMenuRoutes(router, buildMenus(['/bob/customer/query'])),
+      registerMenuRoutes(router, buildMenus(['/dcl/customer/query'])),
     ).toBe(1)
-    expect(router.resolve('/bob/customer').meta.actions).toEqual(['query'])
+    expect(router.resolve('/dcl/customer').meta.actions).toEqual(['query'])
 
     expect(
       registerMenuRoutes(
         router,
-        buildMenus(['/bob/customer/create', '/bob/customer/save']),
+        buildMenus(['/dcl/customer/create', '/dcl/customer/save']),
       ),
     ).toBe(1)
-    expect(router.resolve('/bob/customer').meta.actions).toEqual([
+    expect(router.resolve('/dcl/customer').meta.actions).toEqual([
       'create',
       'save',
     ])
     expect(
       registerMenuRoutes(
         router,
-        buildMenus(['/bob/customer/create', '/bob/customer/save']),
+        buildMenus(['/dcl/customer/create', '/dcl/customer/save']),
       ),
     ).toBe(0)
 

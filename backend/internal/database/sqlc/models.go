@@ -522,6 +522,14 @@ type AuxVersionPayload struct {
 	Data            []byte `db:"data" json:"data"`
 }
 
+type BobCustomer struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
+}
+
 type BobCustomerAccount struct {
 	ObjectID               string             `db:"object_id" json:"object_id"`
 	ObjectEntity           string             `db:"object_entity" json:"object_entity"`
@@ -530,34 +538,12 @@ type BobCustomerAccount struct {
 	CreatedBy              string             `db:"created_by" json:"created_by"`
 }
 
-type BobCustomerCreditLimit struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Currency        string `db:"currency" json:"currency"`
-	AmountCents     int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-type BobCustomerDownloadToken struct {
-	TokenHash string             `db:"token_hash" json:"token_hash"`
-	FileID    string             `db:"file_id" json:"file_id"`
-	ExpiresAt pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
-	UsedAt    pgtype.Timestamptz `db:"used_at" json:"used_at"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy string             `db:"created_by" json:"created_by"`
-}
-
-type BobCustomerFile struct {
-	ID              string             `db:"id" json:"id"`
-	StorageKey      string             `db:"storage_key" json:"storage_key"`
-	OriginalName    string             `db:"original_name" json:"original_name"`
-	ContentType     string             `db:"content_type" json:"content_type"`
-	DeclaredSize    int64              `db:"declared_size" json:"declared_size"`
-	Sha256Hex       string             `db:"sha256_hex" json:"sha256_hex"`
-	Status          string             `db:"status" json:"status"`
-	UploadTokenHash string             `db:"upload_token_hash" json:"upload_token_hash"`
-	UploadExpiresAt pgtype.Timestamptz `db:"upload_expires_at" json:"upload_expires_at"`
-	StoredAt        pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy       string             `db:"created_by" json:"created_by"`
+type BobCustomerAccountCurrent struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobCustomerRelationship struct {
@@ -572,106 +558,12 @@ type BobCustomerRelationship struct {
 	CreatedBy             string             `db:"created_by" json:"created_by"`
 }
 
-type BobCustomerRelationshipAttachment struct {
-	CustomerRelationshipID  string             `db:"customer_relationship_id" json:"customer_relationship_id"`
-	FileID                  string             `db:"file_id" json:"file_id"`
-	CategoryObjectID        string             `db:"category_object_id" json:"category_object_id"`
-	CategoryApprovalEntryID string             `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryCode            string             `db:"category_code" json:"category_code"`
-	CategoryName            string             `db:"category_name" json:"category_name"`
-	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy               string             `db:"created_by" json:"created_by"`
-}
-
-type BobCustomerRelationshipVersion struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity          string `db:"entity" json:"entity"`
-}
-
-type BobCustomerVersion struct {
-	ApprovalEntryID                    string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                             string  `db:"entity" json:"entity"`
-	Name                               string  `db:"name" json:"name"`
-	CustomerType                       string  `db:"customer_type" json:"customer_type"`
-	ShortName                          *string `db:"short_name" json:"short_name"`
-	CategoryID                         *string `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID            *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity                     string  `db:"category_entity" json:"category_entity"`
-	TaxNumber                          *string `db:"tax_number" json:"tax_number"`
-	ContactName                        *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                       *string `db:"contact_phone" json:"contact_phone"`
-	Email                              *string `db:"email" json:"email"`
-	Address                            *string `db:"address" json:"address"`
-	Remark                             *string `db:"remark" json:"remark"`
-	SettlementMethodID                 *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodApprovalEntryID    *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
-	SettlementMethodEntity             string  `db:"settlement_method_entity" json:"settlement_method_entity"`
-	SalespersonEmployeeID              *string `db:"salesperson_employee_id" json:"salesperson_employee_id"`
-	SalespersonEmployeeApprovalEntryID *string `db:"salesperson_employee_approval_entry_id" json:"salesperson_employee_approval_entry_id"`
-	SalespersonEmployeeEntity          string  `db:"salesperson_employee_entity" json:"salesperson_employee_entity"`
-	MonthlyClosingDay                  *int32  `db:"monthly_closing_day" json:"monthly_closing_day"`
-	RebateUnitPriceCents               int64   `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
-	OperatingEntityID                  *string `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityApprovalEntryID     *string `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode                *string `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName                *string `db:"operating_entity_name" json:"operating_entity_name"`
-	OperatingEntityTaxNumber           *string `db:"operating_entity_tax_number" json:"operating_entity_tax_number"`
-	OperatingEntityAddress             *string `db:"operating_entity_address" json:"operating_entity_address"`
-	OperatingEntityPhone               *string `db:"operating_entity_phone" json:"operating_entity_phone"`
-	SettlementMethodCode               *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName               *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode                 *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType                 *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementDueDays                  int32   `db:"settlement_due_days" json:"settlement_due_days"`
-	SettlementMonthOffset              int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementCutoffDay                int32   `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
-	SettlementSalesSurchargeCents      int64   `db:"settlement_sales_surcharge_cents" json:"settlement_sales_surcharge_cents"`
-	PaymentMethodID                    *string `db:"payment_method_id" json:"payment_method_id"`
-	PaymentMethodApprovalEntryID       *string `db:"payment_method_approval_entry_id" json:"payment_method_approval_entry_id"`
-	PaymentMethodCode                  *string `db:"payment_method_code" json:"payment_method_code"`
-	PaymentMethodName                  *string `db:"payment_method_name" json:"payment_method_name"`
-	PaymentSalesSurchargeCents         int64   `db:"payment_sales_surcharge_cents" json:"payment_sales_surcharge_cents"`
-	DefaultTransportMethodCode         *string `db:"default_transport_method_code" json:"default_transport_method_code"`
-	DefaultTransportMethodName         *string `db:"default_transport_method_name" json:"default_transport_method_name"`
-	TransportSurchargeCents            int64   `db:"transport_surcharge_cents" json:"transport_surcharge_cents"`
-	PricingPolicy                      []byte  `db:"pricing_policy" json:"pricing_policy"`
-	PrimarySalesAttributionType        *string `db:"primary_sales_attribution_type" json:"primary_sales_attribution_type"`
-	PrimarySalesSubjectID              *string `db:"primary_sales_subject_id" json:"primary_sales_subject_id"`
-	PrimarySalesSubjectApprovalEntryID *string `db:"primary_sales_subject_approval_entry_id" json:"primary_sales_subject_approval_entry_id"`
-	PrimarySalesSubjectCode            *string `db:"primary_sales_subject_code" json:"primary_sales_subject_code"`
-	PrimarySalesSubjectName            *string `db:"primary_sales_subject_name" json:"primary_sales_subject_name"`
-	InternalReminder                   *string `db:"internal_reminder" json:"internal_reminder"`
-	DefaultSalesOrderRemark            *string `db:"default_sales_order_remark" json:"default_sales_order_remark"`
-}
-
-type BobCustomerVersionAttachment struct {
-	ApprovalEntryID         string             `db:"approval_entry_id" json:"approval_entry_id"`
-	FileID                  string             `db:"file_id" json:"file_id"`
-	CategoryObjectID        string             `db:"category_object_id" json:"category_object_id"`
-	CategoryApprovalEntryID string             `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryCode            string             `db:"category_code" json:"category_code"`
-	CategoryName            string             `db:"category_name" json:"category_name"`
-	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy               string             `db:"created_by" json:"created_by"`
-}
-
-type BobEmployeeVersion struct {
-	ApprovalEntryID           string      `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                    string      `db:"entity" json:"entity"`
-	Name                      string      `db:"name" json:"name"`
-	CategoryID                *string     `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID   *string     `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity            string      `db:"category_entity" json:"category_entity"`
-	DepartmentID              *string     `db:"department_id" json:"department_id"`
-	DepartmentApprovalEntryID *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
-	DepartmentEntity          string      `db:"department_entity" json:"department_entity"`
-	PositionID                *string     `db:"position_id" json:"position_id"`
-	PositionApprovalEntryID   *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
-	PositionEntity            string      `db:"position_entity" json:"position_entity"`
-	Phone                     *string     `db:"phone" json:"phone"`
-	Email                     *string     `db:"email" json:"email"`
-	HireDate                  pgtype.Date `db:"hire_date" json:"hire_date"`
-	Remark                    *string     `db:"remark" json:"remark"`
+type BobEmployee struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobEmploymentRelationship struct {
@@ -731,33 +623,34 @@ type BobOperatingEntity struct {
 	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
+type BobOtherUnit struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
+}
+
 type BobParty struct {
 	ID                string             `db:"id" json:"id"`
-	Kind              string             `db:"kind" json:"kind"`
-	LegalName         string             `db:"legal_name" json:"legal_name"`
-	DisplayName       string             `db:"display_name" json:"display_name"`
-	TaxNumber         *string            `db:"tax_number" json:"tax_number"`
-	Phone             *string            `db:"phone" json:"phone"`
-	Email             *string            `db:"email" json:"email"`
-	Address           *string            `db:"address" json:"address"`
-	Revision          int64              `db:"revision" json:"revision"`
 	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy         string             `db:"created_by" json:"created_by"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
 	MergedIntoPartyID *string            `db:"merged_into_party_id" json:"merged_into_party_id"`
 	MergedAt          pgtype.Timestamptz `db:"merged_at" json:"merged_at"`
 }
 
-type BobPartyAuditEvent struct {
-	ID         string             `db:"id" json:"id"`
-	PartyID    string             `db:"party_id" json:"party_id"`
-	EventType  string             `db:"event_type" json:"event_type"`
-	Revision   int64              `db:"revision" json:"revision"`
-	ActorID    string             `db:"actor_id" json:"actor_id"`
-	OccurredAt pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	RequestID  string             `db:"request_id" json:"request_id"`
-	Summary    []byte             `db:"summary" json:"summary"`
+type BobPartyCurrent struct {
+	PartyID               string             `db:"party_id" json:"party_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Kind                  string             `db:"kind" json:"kind"`
+	LegalName             string             `db:"legal_name" json:"legal_name"`
+	DisplayName           string             `db:"display_name" json:"display_name"`
+	TaxNumber             *string            `db:"tax_number" json:"tax_number"`
+	Phone                 *string            `db:"phone" json:"phone"`
+	Email                 *string            `db:"email" json:"email"`
+	Address               *string            `db:"address" json:"address"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobPartyIdentifier struct {
@@ -778,17 +671,19 @@ type BobPartyMergeEvent struct {
 }
 
 type BobPartyMergePreflight struct {
-	ID               string             `db:"id" json:"id"`
-	SourcePartyID    string             `db:"source_party_id" json:"source_party_id"`
-	TargetPartyID    string             `db:"target_party_id" json:"target_party_id"`
-	SourceRevision   int64              `db:"source_revision" json:"source_revision"`
-	TargetRevision   int64              `db:"target_revision" json:"target_revision"`
-	StateFingerprint string             `db:"state_fingerprint" json:"state_fingerprint"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy        string             `db:"created_by" json:"created_by"`
-	RequestID        string             `db:"request_id" json:"request_id"`
-	ConsumedAt       pgtype.Timestamptz `db:"consumed_at" json:"consumed_at"`
-	ConsumedBy       *string            `db:"consumed_by" json:"consumed_by"`
+	ID                     string             `db:"id" json:"id"`
+	SourcePartyID          string             `db:"source_party_id" json:"source_party_id"`
+	TargetPartyID          string             `db:"target_party_id" json:"target_party_id"`
+	SourceApprovalEntryID  string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	TargetApprovalEntryID  string             `db:"target_approval_entry_id" json:"target_approval_entry_id"`
+	SourceApprovalRevision int64              `db:"source_approval_revision" json:"source_approval_revision"`
+	TargetApprovalRevision int64              `db:"target_approval_revision" json:"target_approval_revision"`
+	StateFingerprint       string             `db:"state_fingerprint" json:"state_fingerprint"`
+	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy              string             `db:"created_by" json:"created_by"`
+	RequestID              string             `db:"request_id" json:"request_id"`
+	ConsumedAt             pgtype.Timestamptz `db:"consumed_at" json:"consumed_at"`
+	ConsumedBy             *string            `db:"consumed_by" json:"consumed_by"`
 }
 
 type BobPartyRelationshipEndpoint struct {
@@ -817,15 +712,12 @@ type BobProduct struct {
 	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
-type BobSalesPartnerVersion struct {
-	ApprovalEntryID string   `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity          string   `db:"entity" json:"entity"`
-	Capabilities    []string `db:"capabilities" json:"capabilities"`
-	ContactName     *string  `db:"contact_name" json:"contact_name"`
-	ContactPhone    *string  `db:"contact_phone" json:"contact_phone"`
-	Email           *string  `db:"email" json:"email"`
-	Address         *string  `db:"address" json:"address"`
-	Remark          *string  `db:"remark" json:"remark"`
+type BobSalesPartner struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobSalesRelationship struct {
@@ -852,23 +744,12 @@ type BobServiceRelationship struct {
 	MergedAt              pgtype.Timestamptz `db:"merged_at" json:"merged_at"`
 }
 
-type BobServiceRelationshipVersion struct {
-	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                          string  `db:"entity" json:"entity"`
-	ContactName                     *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                    *string `db:"contact_phone" json:"contact_phone"`
-	Email                           *string `db:"email" json:"email"`
-	Address                         *string `db:"address" json:"address"`
-	SettlementMethodID              *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodApprovalEntryID *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
-	SettlementMethodCode            *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName            *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode              *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType              *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset           int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth            int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset             int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
-	Remark                          *string `db:"remark" json:"remark"`
+type BobSupplier struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobSupplierRelationship struct {
@@ -881,35 +762,6 @@ type BobSupplierRelationship struct {
 	MergedAt              pgtype.Timestamptz `db:"merged_at" json:"merged_at"`
 	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy             string             `db:"created_by" json:"created_by"`
-}
-
-type BobSupplierVersion struct {
-	ApprovalEntryID                         string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                                  string  `db:"entity" json:"entity"`
-	Name                                    string  `db:"name" json:"name"`
-	ShortName                               *string `db:"short_name" json:"short_name"`
-	CategoryID                              *string `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID                 *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity                          string  `db:"category_entity" json:"category_entity"`
-	TaxNumber                               *string `db:"tax_number" json:"tax_number"`
-	ContactName                             *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                            *string `db:"contact_phone" json:"contact_phone"`
-	Email                                   *string `db:"email" json:"email"`
-	Address                                 *string `db:"address" json:"address"`
-	Remark                                  *string `db:"remark" json:"remark"`
-	SettlementMethodID                      *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodApprovalEntryID         *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
-	SettlementMethodEntity                  string  `db:"settlement_method_entity" json:"settlement_method_entity"`
-	DefaultPurchaserEmployeeID              *string `db:"default_purchaser_employee_id" json:"default_purchaser_employee_id"`
-	DefaultPurchaserEmployeeApprovalEntryID *string `db:"default_purchaser_employee_approval_entry_id" json:"default_purchaser_employee_approval_entry_id"`
-	DefaultPurchaserEmployeeEntity          string  `db:"default_purchaser_employee_entity" json:"default_purchaser_employee_entity"`
-	SettlementMethodCode                    *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName                    *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode                      *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType                      *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset                   int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth                    int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset                     int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
 }
 
 type BobVehicle struct {
@@ -953,6 +805,136 @@ type BobWarehouse struct {
 	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
 }
 
+type DclCustomerAccountAttachment struct {
+	ApprovalEntryID         string             `db:"approval_entry_id" json:"approval_entry_id"`
+	FileID                  string             `db:"file_id" json:"file_id"`
+	CategoryObjectID        string             `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID string             `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode            string             `db:"category_code" json:"category_code"`
+	CategoryName            string             `db:"category_name" json:"category_name"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy               string             `db:"created_by" json:"created_by"`
+}
+
+type DclCustomerAccountCreditLimit struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	Currency        string `db:"currency" json:"currency"`
+	AmountCents     int64  `db:"amount_cents" json:"amount_cents"`
+}
+
+type DclCustomerAccountVersion struct {
+	ApprovalEntryID                    string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Entity                             string  `db:"entity" json:"entity"`
+	Name                               string  `db:"name" json:"name"`
+	CustomerType                       string  `db:"customer_type" json:"customer_type"`
+	ShortName                          *string `db:"short_name" json:"short_name"`
+	TaxNumber                          *string `db:"tax_number" json:"tax_number"`
+	ContactName                        *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                       *string `db:"contact_phone" json:"contact_phone"`
+	Email                              *string `db:"email" json:"email"`
+	Address                            *string `db:"address" json:"address"`
+	Remark                             *string `db:"remark" json:"remark"`
+	SettlementMethodID                 *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodApprovalEntryID    *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode               *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName               *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode                 *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType                 *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementDueDays                  int32   `db:"settlement_due_days" json:"settlement_due_days"`
+	SettlementMonthOffset              int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementCutoffDay                int32   `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
+	SettlementSalesSurchargeCents      int64   `db:"settlement_sales_surcharge_cents" json:"settlement_sales_surcharge_cents"`
+	PaymentMethodID                    *string `db:"payment_method_id" json:"payment_method_id"`
+	PaymentMethodApprovalEntryID       *string `db:"payment_method_approval_entry_id" json:"payment_method_approval_entry_id"`
+	PaymentMethodCode                  *string `db:"payment_method_code" json:"payment_method_code"`
+	PaymentMethodName                  *string `db:"payment_method_name" json:"payment_method_name"`
+	PaymentSalesSurchargeCents         int64   `db:"payment_sales_surcharge_cents" json:"payment_sales_surcharge_cents"`
+	OperatingEntityID                  string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID     string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode                string  `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName                string  `db:"operating_entity_name" json:"operating_entity_name"`
+	OperatingEntityTaxNumber           *string `db:"operating_entity_tax_number" json:"operating_entity_tax_number"`
+	OperatingEntityAddress             *string `db:"operating_entity_address" json:"operating_entity_address"`
+	OperatingEntityPhone               *string `db:"operating_entity_phone" json:"operating_entity_phone"`
+	DefaultTransportMethodCode         *string `db:"default_transport_method_code" json:"default_transport_method_code"`
+	DefaultTransportMethodName         *string `db:"default_transport_method_name" json:"default_transport_method_name"`
+	TransportSurchargeCents            int64   `db:"transport_surcharge_cents" json:"transport_surcharge_cents"`
+	PricingPolicy                      []byte  `db:"pricing_policy" json:"pricing_policy"`
+	PrimarySalesAttributionType        *string `db:"primary_sales_attribution_type" json:"primary_sales_attribution_type"`
+	PrimarySalesSubjectID              *string `db:"primary_sales_subject_id" json:"primary_sales_subject_id"`
+	PrimarySalesSubjectApprovalEntryID *string `db:"primary_sales_subject_approval_entry_id" json:"primary_sales_subject_approval_entry_id"`
+	PrimarySalesSubjectCode            *string `db:"primary_sales_subject_code" json:"primary_sales_subject_code"`
+	PrimarySalesSubjectName            *string `db:"primary_sales_subject_name" json:"primary_sales_subject_name"`
+	InternalReminder                   *string `db:"internal_reminder" json:"internal_reminder"`
+	DefaultSalesOrderRemark            *string `db:"default_sales_order_remark" json:"default_sales_order_remark"`
+	Enabled                            bool    `db:"enabled" json:"enabled"`
+}
+
+type DclCustomerAttachment struct {
+	ApprovalEntryID         string             `db:"approval_entry_id" json:"approval_entry_id"`
+	FileID                  string             `db:"file_id" json:"file_id"`
+	CategoryObjectID        string             `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID string             `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode            string             `db:"category_code" json:"category_code"`
+	CategoryName            string             `db:"category_name" json:"category_name"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy               string             `db:"created_by" json:"created_by"`
+}
+
+type DclCustomerDownloadToken struct {
+	TokenHash string             `db:"token_hash" json:"token_hash"`
+	FileID    string             `db:"file_id" json:"file_id"`
+	ExpiresAt pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	UsedAt    pgtype.Timestamptz `db:"used_at" json:"used_at"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy string             `db:"created_by" json:"created_by"`
+}
+
+type DclCustomerFile struct {
+	ID              string             `db:"id" json:"id"`
+	StorageKey      string             `db:"storage_key" json:"storage_key"`
+	OriginalName    string             `db:"original_name" json:"original_name"`
+	ContentType     string             `db:"content_type" json:"content_type"`
+	DeclaredSize    int64              `db:"declared_size" json:"declared_size"`
+	Sha256Hex       string             `db:"sha256_hex" json:"sha256_hex"`
+	Status          string             `db:"status" json:"status"`
+	UploadTokenHash string             `db:"upload_token_hash" json:"upload_token_hash"`
+	UploadExpiresAt pgtype.Timestamptz `db:"upload_expires_at" json:"upload_expires_at"`
+	StoredAt        pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+}
+
+type DclCustomerVersion struct {
+	ApprovalEntryID                string `db:"approval_entry_id" json:"approval_entry_id"`
+	Entity                         string `db:"entity" json:"entity"`
+	OperatingEntityApprovalEntryID string `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled                        bool   `db:"enabled" json:"enabled"`
+}
+
+type DclEmployeeVersion struct {
+	ApprovalEntryID                 string      `db:"approval_entry_id" json:"approval_entry_id"`
+	EmployeeCategoryID              *string     `db:"employee_category_id" json:"employee_category_id"`
+	EmployeeCategoryApprovalEntryID *string     `db:"employee_category_approval_entry_id" json:"employee_category_approval_entry_id"`
+	EmployeeCategoryCode            *string     `db:"employee_category_code" json:"employee_category_code"`
+	EmployeeCategoryName            *string     `db:"employee_category_name" json:"employee_category_name"`
+	DepartmentID                    *string     `db:"department_id" json:"department_id"`
+	DepartmentApprovalEntryID       *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode                  *string     `db:"department_code" json:"department_code"`
+	DepartmentName                  *string     `db:"department_name" json:"department_name"`
+	PositionID                      *string     `db:"position_id" json:"position_id"`
+	PositionApprovalEntryID         *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
+	PositionCode                    *string     `db:"position_code" json:"position_code"`
+	PositionName                    *string     `db:"position_name" json:"position_name"`
+	Phone                           *string     `db:"phone" json:"phone"`
+	Email                           *string     `db:"email" json:"email"`
+	HireDate                        pgtype.Date `db:"hire_date" json:"hire_date"`
+	Remark                          *string     `db:"remark" json:"remark"`
+	Enabled                         bool        `db:"enabled" json:"enabled"`
+}
+
 type DclFundAccountIdentifierClaim struct {
 	NormalizedAccountNumber string  `db:"normalized_account_number" json:"normalized_account_number"`
 	ObjectID                string  `db:"object_id" json:"object_id"`
@@ -986,6 +968,53 @@ type DclOperatingEntityVersion struct {
 	Phone           *string `db:"phone" json:"phone"`
 	Remark          *string `db:"remark" json:"remark"`
 	Enabled         bool    `db:"enabled" json:"enabled"`
+}
+
+type DclOtherUnitVersion struct {
+	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
+	ContactName                     *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                    *string `db:"contact_phone" json:"contact_phone"`
+	Email                           *string `db:"email" json:"email"`
+	Address                         *string `db:"address" json:"address"`
+	SettlementMethodID              *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodApprovalEntryID *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode            *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName            *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode              *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType              *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset           int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth            int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset             int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                          *string `db:"remark" json:"remark"`
+	Enabled                         bool    `db:"enabled" json:"enabled"`
+}
+
+type DclPartyIdentifierClaim struct {
+	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
+	ApprovedPartyID         *string `db:"approved_party_id" json:"approved_party_id"`
+	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenPartyID             *string `db:"open_party_id" json:"open_party_id"`
+	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
+type DclPartyVersion struct {
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	PartyID         string  `db:"party_id" json:"party_id"`
+	Kind            string  `db:"kind" json:"kind"`
+	LegalName       string  `db:"legal_name" json:"legal_name"`
+	DisplayName     string  `db:"display_name" json:"display_name"`
+	TaxNumber       *string `db:"tax_number" json:"tax_number"`
+	Phone           *string `db:"phone" json:"phone"`
+	Email           *string `db:"email" json:"email"`
+	Address         *string `db:"address" json:"address"`
+}
+
+type DclPartyVersionIdentifier struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
 }
 
 type DclProductBarcodeClaim struct {
@@ -1059,11 +1088,47 @@ type DclProductVersion struct {
 	Enabled                         bool    `db:"enabled" json:"enabled"`
 }
 
+type DclSalesPartnerVersion struct {
+	ApprovalEntryID string   `db:"approval_entry_id" json:"approval_entry_id"`
+	Capabilities    []string `db:"capabilities" json:"capabilities"`
+	ContactName     *string  `db:"contact_name" json:"contact_name"`
+	ContactPhone    *string  `db:"contact_phone" json:"contact_phone"`
+	Email           *string  `db:"email" json:"email"`
+	Address         *string  `db:"address" json:"address"`
+	Remark          *string  `db:"remark" json:"remark"`
+	Enabled         bool     `db:"enabled" json:"enabled"`
+}
+
 type DclSubject struct {
 	ID        string             `db:"id" json:"id"`
 	Entity    string             `db:"entity" json:"entity"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy string             `db:"created_by" json:"created_by"`
+}
+
+type DclSupplierVersion struct {
+	ApprovalEntryID                         string  `db:"approval_entry_id" json:"approval_entry_id"`
+	ShortName                               *string `db:"short_name" json:"short_name"`
+	TaxNumber                               *string `db:"tax_number" json:"tax_number"`
+	ContactName                             *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                            *string `db:"contact_phone" json:"contact_phone"`
+	Email                                   *string `db:"email" json:"email"`
+	Address                                 *string `db:"address" json:"address"`
+	Remark                                  *string `db:"remark" json:"remark"`
+	SettlementMethodID                      *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodApprovalEntryID         *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode                    *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                    *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode                      *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType                      *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                   int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                    int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                     int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	DefaultPurchaserEmployeeID              *string `db:"default_purchaser_employee_id" json:"default_purchaser_employee_id"`
+	DefaultPurchaserEmployeeApprovalEntryID *string `db:"default_purchaser_employee_approval_entry_id" json:"default_purchaser_employee_approval_entry_id"`
+	DefaultPurchaserEmployeeCode            *string `db:"default_purchaser_employee_code" json:"default_purchaser_employee_code"`
+	DefaultPurchaserEmployeeName            *string `db:"default_purchaser_employee_name" json:"default_purchaser_employee_name"`
+	Enabled                                 bool    `db:"enabled" json:"enabled"`
 }
 
 type DclVehicleIdentifierClaim struct {
@@ -1417,7 +1482,6 @@ type VouIntermediaryCalculationLine struct {
 	Result                      []byte  `db:"result" json:"result"`
 	EmployeeAmountCents         int64   `db:"employee_amount_cents" json:"employee_amount_cents"`
 	IntermediaryAmountCents     int64   `db:"intermediary_amount_cents" json:"intermediary_amount_cents"`
-	RebateAmountCents           int64   `db:"rebate_amount_cents" json:"rebate_amount_cents"`
 }
 
 type VouIntermediaryCalculationSummary struct {

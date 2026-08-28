@@ -70,14 +70,11 @@ func TestGenericSaveRejectsTypedRelationshipEntities(t *testing.T) {
 	}
 }
 
-func TestPartyAndOtherUnitQueriesRequireFixedPageSize(t *testing.T) {
+func TestPartyQueryRequiresFixedPageSize(t *testing.T) {
 	t.Parallel()
 	service := &Service{}
 	if _, err := service.PartyQuery(t.Context(), QueryInput{Page: 1, PageSize: 10}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("PartyQuery pageSize=10 error = %v, want validation", err)
-	}
-	if _, err := service.OtherUnitQuery(t.Context(), QueryInput{Page: 1, PageSize: 100}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("OtherUnitQuery pageSize=100 error = %v, want validation", err)
 	}
 }
 
@@ -121,9 +118,6 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 		{EntityCustomer, CreateDetailInput{
 			Code: " cus.01 ", Name: " Customer ", SalespersonEmployeeID: salespersonEmployeeID,
 		}},
-		{EntitySupplier, CreateDetailInput{
-			Code: "sup-01", Name: "Supplier", DefaultPurchaserEmployeeID: salespersonEmployeeID,
-		}},
 		{EntityEmployee, CreateDetailInput{Code: "emp_01", Name: "Employee"}},
 		{EntityProduct, CreateDetailInput{Code: "prd01", Name: "Product", DefaultPackagingSpec: "1"}},
 		{EntityWarehouse, CreateDetailInput{Code: "wh01", Name: "主仓"}},
@@ -159,14 +153,6 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 				t.Fatalf("vehicle data = %+v", data)
 			}
 		})
-	}
-}
-
-func TestSupplierRejectsRemovedTypeAndKeepsPurchaserVocabulary(t *testing.T) {
-	if _, err := validateDetail(EntitySupplier, DetailInput{
-		Name: "保存供应商", DefaultPurchaserEmployeeID: Optional("01J00000000000000000000021"),
-	}); err != nil {
-		t.Fatalf("supplier purchaser rejected: %v", err)
 	}
 }
 
@@ -410,7 +396,7 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 		t.Fatalf("validate customer: %v", err)
 	}
 	if customer.CustomerType != CustomerTypeEndUser || customer.TaxNumber != "AB-123" ||
-		customer.Email != "sales@example.com" || customer.RebateUnitPrice != "0" {
+		customer.Email != "sales@example.com" {
 		t.Fatalf("normalized customer = %+v", customer)
 	}
 
@@ -448,10 +434,6 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 		}},
 		{"invalid monthly closing day", EntityCustomer, CreateDetailInput{
 			Code: "CUSTOMER-6", Name: "客户", MonthlyClosingDay: 32,
-			SalespersonEmployeeID: "01J00000000000000000000021",
-		}},
-		{"invalid rebate unit price", EntityCustomer, CreateDetailInput{
-			Code: "CUSTOMER-7", Name: "客户", RebateUnitPrice: "-0.01",
 			SalespersonEmployeeID: "01J00000000000000000000021",
 		}},
 		{"invalid date", EntityEmployee, CreateDetailInput{
@@ -493,7 +475,6 @@ func TestCommonAttributeSaveOmissionAndExplicitClear(t *testing.T) {
 		TaxNumber: "TAX001", CategoryID: "01J00000000000000000000020",
 		SettlementMethodID:    "01J00000000000000000000021",
 		SalespersonEmployeeID: "01J00000000000000000000022",
-		RebateUnitPrice:       "0.35",
 	}
 	var omitted DetailInput
 	if err := json.Unmarshal([]byte(`{"name":"更新客户"}`), &omitted); err != nil {
@@ -501,21 +482,19 @@ func TestCommonAttributeSaveOmissionAndExplicitClear(t *testing.T) {
 	}
 	merged := mergeDetailInput(current, omitted)
 	if merged.ShortName != "简称" || merged.TaxNumber != "TAX001" || merged.CategoryID == "" ||
-		merged.SettlementMethodID == "" || merged.SalespersonEmployeeID == "" ||
-		merged.RebateUnitPrice != "0.35" {
+		merged.SettlementMethodID == "" || merged.SalespersonEmployeeID == "" {
 		t.Fatalf("omitted fields were not preserved: %+v", merged)
 	}
 
 	var cleared DetailInput
 	if err := json.Unmarshal([]byte(
-		`{"name":"更新客户","shortName":null,"taxNumber":"","settlementMethodId":null,"salespersonEmployeeId":"","rebateUnitPrice":"0.20"}`,
+		`{"name":"更新客户","shortName":null,"taxNumber":"","settlementMethodId":null,"salespersonEmployeeId":""}`,
 	), &cleared); err != nil {
 		t.Fatalf("decode clear input: %v", err)
 	}
 	merged = mergeDetailInput(current, cleared)
 	if merged.ShortName != "" || merged.TaxNumber != "" || merged.CategoryID == "" ||
-		merged.SettlementMethodID != "" || merged.SalespersonEmployeeID != "" ||
-		merged.RebateUnitPrice != "0.20" {
+		merged.SettlementMethodID != "" || merged.SalespersonEmployeeID != "" {
 		t.Fatalf("explicit clear failed: %+v", merged)
 	}
 	if _, err := validateDetailData(EntityCustomer, merged); !errorIsKind(err, ErrorValidation) {
@@ -532,11 +511,6 @@ func TestQueryFilterValidation(t *testing.T) {
 		PositionID:   "01J00000000000000000000021",
 	}); err != nil {
 		t.Fatalf("employee filters rejected: %v", err)
-	}
-	if _, err := validateQueryFilters(EntitySupplier, QueryFilters{
-		DefaultPurchaserEmployeeID: "01J00000000000000000000022",
-	}); err != nil {
-		t.Fatalf("supplier default purchaser filter rejected: %v", err)
 	}
 	if _, err := validateQueryFilters(EntityProduct, QueryFilters{CustomerType: CustomerTypeEndUser}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("cross-entity filter error = %v", err)

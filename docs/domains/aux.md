@@ -7,6 +7,7 @@ AUX（Auxiliary Object）管理会被业务规则或其他对象引用、但不�
 ```text
 product-category
 product-type
+employee-category
 department
 position
 settlement-method
@@ -45,6 +46,7 @@ asset-category
 ```text
 product-category PCT         department DEP
 position POS                 product-type PTP
+employee-category ECT
 dictionary-type DCT          dictionary-item DIT
 measurement-unit UNT         income-expense-type IET
 asset-category ACT
@@ -64,7 +66,9 @@ payment-method PMT
 
 产品类型一旦被任一正式 BOB 产品版本引用，`behaviorProfile` 永久不可修改；候选引用不构成正式占用。需要另一种行为时新建产品类型，再通过产品候选版本改选。名称和说明通过新的 AUX 候选版本修改，停用只阻止新选择和新的产品候选版本提交或批准，不追溯改变已经批准的产品或历史 VOU。产品类型不建立父子关系，也不允许一个产品同时选择多个类型。
 
-### 3.2 部门与岗位
+### 3.2 人员类别、部门与岗位
+
+`employee-category` 是扁平通用辅助对象，字段只有 `name`、`description`，供 DCL 员工申报选择。它不预置基线值，不保存等级、薪酬、权限、组织归属或任意业务规则；停用只阻止新的员工 candidate 选择，不改写已批准员工与历史 VOU/ACC 快照。
 
 `department` 是独立树形对象，字段为 `name`、`parentId`、`description`，为未来按部门配置业务规则保留稳定引用。`position` 字段为 `name`、`description`；本阶段只提供岗位身份，不在 AUX 中保存工资公式，工资计算规则由未来薪资领域拥有。
 

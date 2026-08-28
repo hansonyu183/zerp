@@ -82,10 +82,10 @@ describe('useSessionStore permissions', () => {
           passwordChangeRequired: false,
           permissions: [
             '/app/user/signout',
-            '/bob/customer/query',
-            '/bob/customer/create',
-            '/bob/customer/query',
-            'bob/customer/update',
+            '/dcl/customer/query',
+            '/dcl/customer/create',
+            '/dcl/customer/query',
+            'dcl/customer/update',
           ],
         },
       })
@@ -93,9 +93,9 @@ describe('useSessionStore permissions', () => {
         menuResponse([
           {
             id: 'customer',
-            routeKey: 'bob/customer',
-            routePath: '/bob/customer',
-            title: '客户',
+            routeKey: 'dcl/customer',
+            routePath: '/dcl/customer',
+            title: '客户申报',
           },
         ]),
       )
@@ -105,8 +105,8 @@ describe('useSessionStore permissions', () => {
 
     expect(session.permissions).toEqual([
       '/app/user/signout',
-      '/bob/customer/query',
-      '/bob/customer/create',
+      '/dcl/customer/query',
+      '/dcl/customer/create',
     ])
     expect(session.menus).toHaveLength(1)
     expect(session.menus[0]?.domain).toBe('group-1')
@@ -114,8 +114,8 @@ describe('useSessionStore permissions', () => {
       entity: 'customer',
       actions: ['query', 'create'],
     })
-    expect(session.can('/bob/customer/create')).toBe(true)
-    expect(session.can('/bob/customer/update')).toBe(false)
+    expect(session.can('/dcl/customer/create')).toBe(true)
+    expect(session.can('/dcl/customer/update')).toBe(false)
     expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith('csrf-1')
   })
 

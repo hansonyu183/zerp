@@ -60,7 +60,10 @@ function createTestRouter() {
     history: createMemoryHistory(),
     routes: [
       { path: '/home/dashboard', component: Dashboard },
+      { path: '/dcl/customer', component: { template: '<div />' } },
+      { path: '/dcl/customer-account', component: { template: '<div />' } },
       { path: '/bob/customer', component: { template: '<div />' } },
+      { path: '/bob/customer-account', component: { template: '<div />' } },
     ],
   })
 }
@@ -71,6 +74,34 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
+  it('routes Party workbench items to DCL declarations', () => {
+    const party = { ...objectItem, entity: 'party' } as WorkbenchItem
+    expect(workbenchItemPath(party)).toBe('/dcl/party')
+  })
+
+  it('routes Supplier workbench items to DCL declarations', () => {
+    const supplier = { ...objectItem, entity: 'supplier' } as WorkbenchItem
+    expect(workbenchItemPath(supplier)).toBe('/dcl/supplier')
+  })
+
+  it('routes Customer and Customer Account workbench items to their DCL declarations', () => {
+    expect(workbenchItemPath(objectItem)).toBe('/dcl/customer')
+    expect(
+      workbenchItemPath({
+        ...objectItem,
+        entity: 'customer-account',
+      } as WorkbenchItem),
+    ).toBe('/dcl/customer-account')
+  })
+
+  it('routes DCL relationship workbench items to declarations', () => {
+    for (const entity of ['other-unit', 'sales-partner']) {
+      expect(
+        workbenchItemPath({ ...objectItem, entity } as WorkbenchItem),
+      ).toBe(`/dcl/${entity}`)
+    }
+  })
+
   it('初始查询失败时不显示空状态', async () => {
     mockedPost.mockRejectedValueOnce(new Error('network unavailable'))
     const router = createTestRouter()
@@ -113,10 +144,12 @@ describe('Dashboard workbench', () => {
     const pinia = createPinia()
     const session = useSessionStore(pinia)
     session.permissions = [
-      '/bob/customer/query',
-      '/bob/customer/submit',
-      '/bob/supplier/query',
-      '/bob/supplier/unsubmit',
+      '/dcl/customer/query',
+      '/dcl/customer/submit',
+      '/dcl/customer-account/query',
+      '/dcl/customer-account/submit',
+      '/dcl/supplier/query',
+      '/dcl/supplier/unsubmit',
       '/vou/sale-order/query',
       '/vou/sale-order/submit',
       '/vou/developing-invoice/query',
@@ -147,9 +180,9 @@ describe('Dashboard workbench', () => {
           displayName: '客户',
           icon: null,
           enabled: true,
-          routeKey: 'bob/customer',
-          routePath: '/bob/customer',
-          permissionCode: '/bob/customer/query',
+          routeKey: 'dcl/customer',
+          routePath: '/dcl/customer',
+          permissionCode: '/dcl/customer/query',
         },
         {
           id: 'sale-order',
@@ -289,6 +322,7 @@ describe('Dashboard workbench', () => {
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
     ).toEqual([
       { title: '客户', value: 'customer' },
+      { title: '客户结算子账户', value: 'customer-account' },
       { title: '供应商', value: 'supplier' },
     ])
   })
@@ -469,7 +503,7 @@ describe('Dashboard workbench', () => {
     ).resolves.toBe(true)
     await expect(vm.runAction(pendingDocument, 'unsubmit')).resolves.toBe(true)
 
-    expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/customer/unsubmit', {
       objectId: 'object-1',
       approvalEntryId: 'version-1',
       approvalRevision: 5,
@@ -500,7 +534,7 @@ describe('Dashboard workbench', () => {
 
     await expect(vm.confirmAction()).resolves.toBe(true)
 
-    expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/customer/unsubmit', {
       objectId: 'object-1',
       approvalEntryId: 'version-1',
       approvalRevision: 5,
@@ -561,12 +595,33 @@ describe('Dashboard workbench', () => {
     const success = await vm.runAction(objectItem, 'submit')
 
     expect(success).toBe(true)
-    expect(mockedPost).toHaveBeenNthCalledWith(2, 'bob/customer/submit', {
+    expect(mockedPost).toHaveBeenNthCalledWith(2, 'dcl/customer/submit', {
       objectId: 'object-1',
       approvalEntryId: 'version-1',
       approvalRevision: 5,
     })
     expect(vm.states.BOB.rows).toEqual([])
+  })
+
+  it('客户结算子账户待办使用独立的 DCL 生命周期路径', async () => {
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+    const account = {
+      ...objectItem,
+      entity: 'customer-account',
+    } as WorkbenchItem
+
+    await expect(vm.runAction(account, 'submit')).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      1,
+      'dcl/customer-account/submit',
+      {
+        objectId: 'object-1',
+        approvalEntryId: 'version-1',
+        approvalRevision: 5,
+      },
+    )
   })
 
   it('DCL 申报待办深链和生命周期动作固定进入 DCL', async () => {
@@ -659,6 +714,27 @@ describe('Dashboard workbench', () => {
       approvalEntryId: 'version-1',
       approvalRevision: 5,
     })
+
+    for (const entity of [
+      'employee',
+      'supplier',
+      'other-unit',
+      'sales-partner',
+    ] as const) {
+      vi.clearAllMocks()
+      mockedPost
+        .mockResolvedValueOnce({ data: {} })
+        .mockResolvedValueOnce(page())
+      const declaration = { ...objectItem, entity }
+
+      expect(workbenchItemPath(declaration)).toBe(`/dcl/${entity}`)
+      await expect(vm.runAction(declaration, 'submit')).resolves.toBe(true)
+      expect(mockedPost).toHaveBeenNthCalledWith(1, `dcl/${entity}/submit`, {
+        objectId: 'object-1',
+        approvalEntryId: 'version-1',
+        approvalRevision: 5,
+      })
+    }
   })
 
   it('驳回资料时提交去除首尾空白的意见', async () => {
@@ -673,7 +749,7 @@ describe('Dashboard workbench', () => {
 
     await vm.runAction(pending, 'reject', '  信息不完整  ')
 
-    expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/reject', {
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/customer/reject', {
       objectId: 'object-1',
       approvalEntryId: 'version-1',
       approvalRevision: 5,

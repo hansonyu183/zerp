@@ -18,6 +18,7 @@ interface Envelope<T> {
 
 interface Mutation {
   objectId: string
+  partyId?: string
   objectRevision: number
   enabled: boolean
   approval: {
@@ -26,11 +27,6 @@ interface Mutation {
     status: string
   }
   code?: string
-}
-
-interface BobObjectMutation extends Mutation {
-  objectRevision: number
-  enabled: boolean
 }
 
 interface Party {
@@ -99,20 +95,21 @@ interface VoucherView extends VoucherMutation {
   }
 }
 
-interface CustomerCreateMutation {
-  defaultAccount: {
-    objectId: string
-    objectRevision: number
-    enabled: boolean
-    code: string
-    openVersion: {
-      approval: {
-        approvalEntryId: string
-        revision: number
-        status: string
-      }
-    } | null
-  }
+interface QueryPage<T> {
+  items: T[]
+  total: number
+}
+
+interface DclCustomerAccountListItem {
+  objectId: string
+  code: string
+  openVersion: {
+    approval: {
+      approvalEntryId: string
+      revision: number
+      status: string
+    }
+  } | null
 }
 
 interface ReferenceMutation {
@@ -263,7 +260,15 @@ async function approve(
 async function approveDcl(
   operator: Api,
   reviewer: Api,
-  entity: 'operating-entity' | 'warehouse' | 'vehicle',
+  entity:
+    | 'operating-entity'
+    | 'warehouse'
+    | 'vehicle'
+    | 'employee'
+    | 'customer'
+    | 'customer-account'
+    | 'other-unit'
+    | 'sales-partner',
   mutation: Mutation,
 ): Promise<Mutation> {
   const submitted = await operator.ok<Mutation>(`dcl/${entity}/submit`, {
@@ -273,6 +278,37 @@ async function approveDcl(
   })
   return reviewer.ok<Mutation>(`dcl/${entity}/approve`, {
     objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+}
+
+async function approveRelationshipParty(
+  operator: Api,
+  reviewer: Api,
+  entity: 'employee' | 'customer' | 'other-unit',
+  mutation: Mutation,
+): Promise<void> {
+  const partyId =
+    mutation.partyId ??
+    (
+      await operator.ok<{ partyId: string }>(`dcl/${entity}/get`, {
+        objectId: mutation.objectId,
+        approvalEntryId: mutation.approval.approvalEntryId,
+      })
+    ).partyId
+  const party = await operator.ok<{
+    approval: { approvalEntryId: string; revision: number }
+  }>('dcl/party/get', { partyId })
+  const submitted = await operator.ok<{
+    approval: { approvalEntryId: string; revision: number }
+  }>('dcl/party/submit', {
+    partyId,
+    approvalEntryId: party.approval.approvalEntryId,
+    approvalRevision: party.approval.revision,
+  })
+  await reviewer.ok('dcl/party/approve', {
+    partyId,
     approvalEntryId: submitted.approval.approvalEntryId,
     approvalRevision: submitted.approval.revision,
   })
@@ -333,7 +369,7 @@ async function createApprovedSharedRelationships(
   expect(settlementMethodId).toBeTruthy()
 
   const name = `E2E 跨域主体 ${suffix}`
-  const otherUnit = await operator.ok<Mutation>('bob/other-unit/create', {
+  const otherUnit = await operator.ok<Mutation>('dcl/other-unit/create', {
     newParty: {
       kind: 'ORGANIZATION',
       legalName: name,
@@ -342,9 +378,11 @@ async function createApprovedSharedRelationships(
         { type: 'UNIFIED_SOCIAL_CREDIT_CODE', value: `91310000${suffix}` },
       ],
     },
-    data: { operatingEntityId, settlementMethodId, contactName: 'E2E' },
+    operatingEntityId,
+    data: { settlementMethodId, contactName: 'E2E' },
   })
-  const approvedOtherUnit = await approve(
+  await approveRelationshipParty(operator, reviewer, 'other-unit', otherUnit)
+  const approvedOtherUnit = await approveDcl(
     operator,
     reviewer,
     'other-unit',
@@ -362,10 +400,10 @@ async function createApprovedSharedRelationships(
   const party = parties.items.find((item) => item.displayName === name)
   expect(party).toBeTruthy()
 
-  const salesPartner = await operator.ok<Mutation>('bob/sales-partner/create', {
+  const salesPartner = await operator.ok<Mutation>('dcl/sales-partner/create', {
     partyId: party!.partyId,
+    operatingEntityId,
     data: {
-      operatingEntityId,
       capabilities: ['CHANNEL_PARTNER'],
       contactName: 'E2E',
       contactPhone: '',
@@ -374,7 +412,7 @@ async function createApprovedSharedRelationships(
       remark: '',
     },
   })
-  const approvedSalesPartner = await approve(
+  const approvedSalesPartner = await approveDcl(
     operator,
     reviewer,
     'sales-partner',
@@ -537,6 +575,24 @@ async function referenceByCode(
   return candidate!
 }
 
+async function defaultCustomerAccount(
+  api: Api,
+  customerRelationshipId: string,
+): Promise<DclCustomerAccountListItem> {
+  const page = await api.ok<QueryPage<DclCustomerAccountListItem>>(
+    'dcl/customer-account/query',
+    {
+      page: 1,
+      pageSize: 20,
+      filters: { customerRelationshipId },
+      sort: [{ field: 'code', order: 'asc' }],
+    },
+  )
+  const account = page.items[0]
+  if (!account) throw new Error('客户创建未生成默认结算子账户。')
+  return account
+}
+
 async function createAttributedCustomer(
   operator: Api,
   reviewer: Api,
@@ -559,48 +615,55 @@ async function createAttributedCustomer(
     'payment-method',
     paymentMethodDraft,
   )
-  const created = await operator.ok<CustomerCreateMutation>(
-    'bob/customer/create',
-    {
-      newParty: {
-        kind: 'ORGANIZATION',
-        legalName: `E2E 渠道客户 ${suffix}`,
-        strongIdentifiers: [],
+  const created = await operator.ok<Mutation>('dcl/customer/create', {
+    newParty: {
+      kind: 'ORGANIZATION',
+      legalName: `E2E 渠道客户 ${suffix}`,
+      strongIdentifiers: [],
+    },
+    operatingEntityId: facts.operatingEntityId,
+    defaultAccount: {
+      name: `E2E 渠道客户 ${suffix}`,
+      customerTypeCode: 'DIT-0001',
+      settlementMethodId: facts.settlementMethodId,
+      paymentMethodId: paymentMethod.objectId,
+      defaultTransportMethodCode: 'SELF_PICKUP',
+      defaultTransportMethodName: '客户自提',
+      transportSurcharge: '0.00',
+      pricingPolicy: {
+        defaultPremiumUnitPrice: '0.00',
+        defaultDiscountUnitPrice: '0.00',
+        costItems: [],
+        thirdPartyIntermediaryFixedUnitCost: '0.00',
+        thirdPartyIntermediaryVariableUnitCost: '0.00',
       },
-      data: {
-        name: `E2E 渠道客户 ${suffix}`,
-        customerTypeCode: 'DIT-0001',
-        operatingEntityId: facts.operatingEntityId,
-        settlementMethodId: facts.settlementMethodId,
-        paymentMethodId: paymentMethod.objectId,
-        defaultTransportMethodCode: 'SELF_PICKUP',
-        defaultTransportMethodName: '客户自提',
-        transportSurcharge: '0.00',
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.00',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [],
-        primarySalesAttribution: {
-          type: 'CHANNEL_PARTNER',
-          subjectObjectId: facts.salesPartner.objectId,
-        },
+      creditLimits: [],
+      primarySalesAttribution: {
+        type: 'CHANNEL_PARTNER',
+        subjectObjectId: facts.salesPartner.objectId,
       },
     },
+  })
+  await approveRelationshipParty(operator, reviewer, 'customer', created)
+  const approvedCustomer = await approveDcl(
+    operator,
+    reviewer,
+    'customer',
+    created,
   )
-  if (!created.defaultAccount.openVersion) {
+  const account = await defaultCustomerAccount(
+    operator,
+    approvedCustomer.objectId,
+  )
+  if (!account.openVersion) {
     throw new Error('客户创建未返回待审核的默认账户版本。')
   }
-  const submitted = await operator.ok<Mutation>('bob/customer-account/submit', {
-    objectId: created.defaultAccount.objectId,
-    approvalEntryId:
-      created.defaultAccount.openVersion.approval.approvalEntryId,
-    approvalRevision: created.defaultAccount.openVersion.approval.revision,
+  const submitted = await operator.ok<Mutation>('dcl/customer-account/submit', {
+    objectId: account.objectId,
+    approvalEntryId: account.openVersion.approval.approvalEntryId,
+    approvalRevision: account.openVersion.approval.revision,
   })
-  const approved = await reviewer.ok<Mutation>('bob/customer-account/approve', {
+  const approved = await reviewer.ok<Mutation>('dcl/customer-account/approve', {
     objectId: submitted.objectId,
     approvalEntryId: submitted.approval.approvalEntryId,
     approvalRevision: submitted.approval.revision,
@@ -608,7 +671,7 @@ async function createAttributedCustomer(
   return {
     objectId: approved.objectId,
     approvalEntryId: approved.approval.approvalEntryId,
-    code: created.defaultAccount.code,
+    code: account.code,
   }
 }
 
@@ -886,11 +949,13 @@ async function createApprovedEmployee(
   name: string,
   operatingEntityId: string,
 ): Promise<BobView> {
-  const created = await operator.ok<Mutation>('bob/employee/create', {
+  const created = await operator.ok<Mutation>('dcl/employee/create', {
     newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
-    data: { operatingEntityId },
+    operatingEntityId,
+    data: {},
   })
-  const approved = await approve(operator, reviewer, 'employee', created)
+  await approveRelationshipParty(operator, reviewer, 'employee', created)
+  const approved = await approveDcl(operator, reviewer, 'employee', created)
   return operator.ok<BobView>('bob/employee/get', {
     objectId: approved.objectId,
   })
@@ -920,48 +985,55 @@ async function createEmployeeAttributedCustomer(
     'payment-method',
     paymentMethodDraft,
   )
-  const created = await operator.ok<CustomerCreateMutation>(
-    'bob/customer/create',
-    {
-      newParty: {
-        kind: 'ORGANIZATION',
-        legalName: name,
-        strongIdentifiers: [],
+  const created = await operator.ok<Mutation>('dcl/customer/create', {
+    newParty: {
+      kind: 'ORGANIZATION',
+      legalName: name,
+      strongIdentifiers: [],
+    },
+    operatingEntityId,
+    defaultAccount: {
+      name,
+      customerTypeCode: 'DIT-0001',
+      settlementMethodId,
+      paymentMethodId: paymentMethod.objectId,
+      defaultTransportMethodCode: 'SELF_PICKUP',
+      defaultTransportMethodName: '客户自提',
+      transportSurcharge: '0.00',
+      pricingPolicy: {
+        defaultPremiumUnitPrice: '0.00',
+        defaultDiscountUnitPrice: '0.00',
+        costItems: [],
+        thirdPartyIntermediaryFixedUnitCost: '0.00',
+        thirdPartyIntermediaryVariableUnitCost: '0.00',
       },
-      data: {
-        name,
-        customerTypeCode: 'DIT-0001',
-        operatingEntityId,
-        settlementMethodId,
-        paymentMethodId: paymentMethod.objectId,
-        defaultTransportMethodCode: 'SELF_PICKUP',
-        defaultTransportMethodName: '客户自提',
-        transportSurcharge: '0.00',
-        pricingPolicy: {
-          defaultPremiumUnitPrice: '0.00',
-          defaultDiscountUnitPrice: '0.00',
-          costItems: [],
-          thirdPartyIntermediaryFixedUnitCost: '0.00',
-          thirdPartyIntermediaryVariableUnitCost: '0.00',
-        },
-        creditLimits: [],
-        primarySalesAttribution: {
-          type: 'INTERNAL_EMPLOYEE',
-          subjectObjectId: employeeObjectId,
-        },
+      creditLimits: [],
+      primarySalesAttribution: {
+        type: 'INTERNAL_EMPLOYEE',
+        subjectObjectId: employeeObjectId,
       },
     },
+  })
+  await approveRelationshipParty(operator, reviewer, 'customer', created)
+  const approvedCustomer = await approveDcl(
+    operator,
+    reviewer,
+    'customer',
+    created,
   )
-  if (!created.defaultAccount.openVersion) {
+  const account = await defaultCustomerAccount(
+    operator,
+    approvedCustomer.objectId,
+  )
+  if (!account.openVersion) {
     throw new Error('客户创建未返回待审核的默认账户版本。')
   }
-  const submitted = await operator.ok<Mutation>('bob/customer-account/submit', {
-    objectId: created.defaultAccount.objectId,
-    approvalEntryId:
-      created.defaultAccount.openVersion.approval.approvalEntryId,
-    approvalRevision: created.defaultAccount.openVersion.approval.revision,
+  const submitted = await operator.ok<Mutation>('dcl/customer-account/submit', {
+    objectId: account.objectId,
+    approvalEntryId: account.openVersion.approval.approvalEntryId,
+    approvalRevision: account.openVersion.approval.revision,
   })
-  const approved = await reviewer.ok<Mutation>('bob/customer-account/approve', {
+  const approved = await reviewer.ok<Mutation>('dcl/customer-account/approve', {
     objectId: submitted.objectId,
     approvalEntryId: submitted.approval.approvalEntryId,
     approvalRevision: submitted.approval.revision,
@@ -969,7 +1041,7 @@ async function createEmployeeAttributedCustomer(
   return {
     objectId: approved.objectId,
     approvalEntryId: approved.approval.approvalEntryId,
-    code: created.defaultAccount.code,
+    code: account.code,
   }
 }
 
@@ -1158,11 +1230,14 @@ test(
         .locator('tbody tr')
         .filter({ hasText: `E2E 跨域主体 ${suffix}` })
       await partyRow
-        .getByRole('button', { name: '查看 / 编辑', exact: true })
+        .getByRole('button', {
+          name: new RegExp(`查看 E2E 跨域主体 ${suffix}`),
+          exact: true,
+        })
         .click()
       const partyDialog = page
         .getByRole('dialog')
-        .filter({ hasText: '主体共享身份' })
+        .filter({ hasText: '主体当前档案' })
       await expect(partyDialog).toContainText(
         `${facts.otherUnit.code} · 服务关系`,
       )
@@ -1271,11 +1346,35 @@ test(
         warehouseCandidate,
       )
 
-      const blockedManagerDisable = await session.api.post<{
+      const managerForDisable = await session.api.ok<BobView>(
+        'dcl/employee/get',
+        { objectId: manager.objectId },
+      )
+      const managerDisableCandidate = await session.api.ok<Mutation>(
+        'dcl/employee/save',
+        {
+          objectId: manager.objectId,
+          approvalEntryId: managerForDisable.approval.approvalEntryId,
+          approvalRevision: managerForDisable.approval.revision,
+          enabled: false,
+          data: managerForDisable.data,
+        },
+      )
+      const submittedManagerDisable = await session.api.ok<Mutation>(
+        'dcl/employee/submit',
+        {
+          objectId: managerDisableCandidate.objectId,
+          approvalEntryId:
+            managerDisableCandidate.approval.approvalEntryId,
+          approvalRevision: managerDisableCandidate.approval.revision,
+        },
+      )
+      const blockedManagerDisable = await reviewerSession.api.post<{
         references: Array<{ entity: string; field: string; count: number }>
-      }>('bob/employee/disable', {
-        objectId: manager.objectId,
-        objectRevision: manager.objectRevision,
+      }>('dcl/employee/approve', {
+        objectId: submittedManagerDisable.objectId,
+        approvalEntryId: submittedManagerDisable.approval.approvalEntryId,
+        approvalRevision: submittedManagerDisable.approval.revision,
       })
       expect(String(blockedManagerDisable.code)).not.toBe('0')
       expect(blockedManagerDisable.data.references).toEqual([
@@ -1310,14 +1409,15 @@ test(
         'warehouse',
         managerRemovalCandidate,
       )
-      const disabledManager = await session.api.ok<BobObjectMutation>(
-        'bob/employee/disable',
+      const approvedDisabledManager = await reviewerSession.api.ok<Mutation>(
+        'dcl/employee/approve',
         {
-          objectId: manager.objectId,
-          objectRevision: manager.objectRevision,
+          objectId: submittedManagerDisable.objectId,
+          approvalEntryId: submittedManagerDisable.approval.approvalEntryId,
+          approvalRevision: submittedManagerDisable.approval.revision,
         },
       )
-      expect(disabledManager.enabled).toBe(false)
+      expect(approvedDisabledManager.enabled).toBe(false)
       const updatedWarehouse = await session.api.ok<BobView>(
         'bob/warehouse/get',
         { objectId: managedWarehouse.objectId },
@@ -1832,13 +1932,13 @@ test(
       ).json()) as Envelope<unknown>
       expect(String(rejectedEnvelope.code)).not.toBe('0')
 
-      // The rule is enforced by the real Customer command, not client-side filtering.
-      const selfAttribution = await session.api.post('bob/customer/create', {
+      // The rule is enforced by the real DCL Customer command, not client-side filtering.
+      const selfAttribution = await session.api.post('dcl/customer/create', {
         partyId: facts.party.partyId,
-        data: {
+        operatingEntityId: facts.operatingEntityId,
+        defaultAccount: {
           name: `E2E 自归属客户 ${suffix}`,
           customerTypeCode: 'DIT-0001',
-          operatingEntityId: facts.operatingEntityId,
           pricingPolicy: {
             defaultPremiumUnitPrice: '0.00',
             defaultDiscountUnitPrice: '0.00',
@@ -1855,20 +1955,20 @@ test(
       })
       expect(String(selfAttribution.code)).not.toBe('0')
       expect(selfAttribution.message).toBe(
-        'customer cannot attribute sales to itself',
+        'customer cannot attribute sales to its own Party',
       )
 
       // A duplicate target creates a service-relationship conflict; the source
       // sales relationship moves while its approved contract keeps the same ID.
-      const target = await session.api.ok<Mutation>('bob/other-unit/create', {
+      const target = await session.api.ok<Mutation>('dcl/other-unit/create', {
         newParty: {
           kind: 'ORGANIZATION',
           legalName: `E2E 合并保留 ${suffix}`,
           displayName: `E2E 合并保留 ${suffix}`,
           strongIdentifiers: [],
         },
+        operatingEntityId: facts.operatingEntityId,
         data: {
-          operatingEntityId: facts.operatingEntityId,
           settlementMethodId: facts.settlementMethodId,
           contactName: '',
           contactPhone: '',
@@ -1877,7 +1977,13 @@ test(
           remark: '',
         },
       })
-      const approvedTarget = await approve(
+      await approveRelationshipParty(
+        session.api,
+        reviewerSession.api,
+        'other-unit',
+        target,
+      )
+      const approvedTarget = await approveDcl(
         session.api,
         reviewerSession.api,
         'other-unit',
@@ -1890,29 +1996,35 @@ test(
           filters: { keyword: `E2E 合并保留 ${suffix}` },
         })
       ).items[0]!
+      const sourceParty = await session.api.ok<{
+        partyId: string
+        approval: { approvalEntryId: string; revision: number }
+      }>('dcl/party/get', { partyId: facts.party.partyId })
+      const targetPartyDeclaration = await session.api.ok<{
+        partyId: string
+        approval: { approvalEntryId: string; revision: number }
+      }>('dcl/party/get', { partyId: targetParty.partyId })
       const preflight = await session.api.ok<{
         preflightId: string
         relationshipConflicts: Array<{
           relationshipType: string
           operatingEntityId: string
         }>
-      }>('bob/party/merge-preflight', {
+      }>('dcl/party/merge-preflight', {
         sourcePartyId: facts.party.partyId,
         targetPartyId: targetParty.partyId,
-        sourceRevision: facts.party.revision,
-        targetRevision: targetParty.revision,
+        sourceApprovalEntryId: sourceParty.approval.approvalEntryId,
+        targetApprovalEntryId: targetPartyDeclaration.approval.approvalEntryId,
+        sourceApprovalRevision: sourceParty.approval.revision,
+        targetApprovalRevision: targetPartyDeclaration.approval.revision,
       })
       expect(
         preflight.relationshipConflicts.some(
           (item) => item.relationshipType === 'other-unit',
         ),
       ).toBe(true)
-      const merged = await session.api.ok('bob/party/merge-confirm', {
+      const merged = await session.api.ok('dcl/party/merge-confirm', {
         preflightId: preflight.preflightId,
-        sourcePartyId: facts.party.partyId,
-        targetPartyId: targetParty.partyId,
-        sourceRevision: facts.party.revision,
-        targetRevision: targetParty.revision,
         conflictResolutions: preflight.relationshipConflicts.map((item) => ({
           relationshipType: item.relationshipType,
           operatingEntityId: item.operatingEntityId,

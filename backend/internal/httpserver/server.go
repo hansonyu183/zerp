@@ -43,15 +43,24 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	eventBus := txevent.NewBus()
 	auxService := auxdomain.NewService(db, authorizer, eventBus)
 	auxiliaryResolver := auxiliaryrefs.New(auxService)
+	partyCurrentWriter := bobdomain.NewPartyCurrentWriter(db)
+	partyCurrentReader := bobdomain.NewPartyCurrentReader(db)
+	partyMergeEngine := bobdomain.NewPartyMergeEngine(db)
+	dclPartyService := dcldomain.NewPartyService(db, partyCurrentWriter, partyCurrentReader, partyMergeEngine, authorizer, eventBus)
 	bobService := bobdomain.NewService(db, auxiliaryResolver, authorizer, eventBus)
 	dclOperatingEntityService := dcldomain.NewOperatingEntityService(db, bobService, authorizer, eventBus)
 	dclWarehouseService := dcldomain.NewWarehouseService(db, bobService, authorizer, eventBus)
 	dclVehicleService := dcldomain.NewVehicleService(db, bobService, authorizer, eventBus)
 	dclFundAccountService := dcldomain.NewFundAccountService(db, bobService, authorizer, eventBus)
 	dclProductService := dcldomain.NewProductService(db, bobService, authorizer, eventBus)
-	bobAttachmentService, err := bobdomain.NewCustomerAttachmentService(db, bobdomain.CustomerAttachmentOptions{
+	dclEmployeeService := dcldomain.NewEmployeeService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
+	dclSupplierService := dcldomain.NewSupplierService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
+	dclCustomerAccountService := dcldomain.NewCustomerAccountService(db, bobService, authorizer, eventBus)
+	dclCustomerService := dcldomain.NewCustomerService(db, bobService, dclPartyService, partyCurrentReader, dclCustomerAccountService, authorizer, eventBus)
+	dclRelationshipService := dcldomain.NewRelationshipService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
+	dclCustomerAttachmentService, err := dcldomain.NewCustomerAttachmentService(db, dcldomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	}, bobService)
+	}, authorizer, eventBus)
 	if err != nil {
 		return nil, err
 	}
@@ -76,12 +85,18 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	router := newRouter(cfg, db, logger, func(router *gin.Engine) {
 		appdomain.NewHandler(appService, authorizer, cfg, logger).Register(router)
 		accdomain.NewHandler(accService, authorizer, logger).Register(router)
-		bobdomain.NewHandler(bobService, bobAttachmentService, authorizer, logger).Register(router)
+		bobdomain.NewHandler(bobService, authorizer, logger).Register(router)
 		dcldomain.NewHandler(dclOperatingEntityService, authorizer, logger).Register(router)
 		dcldomain.NewWarehouseHandler(dclWarehouseService, authorizer, logger).Register(router)
 		dcldomain.NewVehicleHandler(dclVehicleService, authorizer, logger).Register(router)
 		dcldomain.NewFundAccountHandler(dclFundAccountService, authorizer, logger).Register(router)
 		dcldomain.NewProductHandler(dclProductService, authorizer, logger).Register(router)
+		dcldomain.NewPartyHandler(dclPartyService, authorizer, logger).Register(router)
+		dcldomain.NewEmployeeHandler(dclEmployeeService, authorizer, logger).Register(router)
+		dcldomain.NewSupplierHandler(dclSupplierService, authorizer, logger).Register(router)
+		dcldomain.NewCustomerHandler(dclCustomerService, dclCustomerAttachmentService, authorizer, logger).Register(router)
+		dcldomain.NewCustomerAccountHandler(dclCustomerAccountService, authorizer, logger).Register(router)
+		dcldomain.NewRelationshipHandler(dclRelationshipService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)

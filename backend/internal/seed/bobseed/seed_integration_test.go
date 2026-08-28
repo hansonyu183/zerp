@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
@@ -19,6 +18,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
+
+func newIntegrationBOBService(pool *pgxpool.Pool, resolver bob.AuxiliaryResolver, authorizer approval.Authorizer, bus *txevent.Bus) *bob.Service {
+	return bob.NewService(pool, resolver, authorizer, bus)
+}
 
 func TestSeedDemoDataIntegration(t *testing.T) {
 	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
@@ -62,7 +65,9 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	service := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
+	relationships := dcldomain.NewRelationshipService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") || strings.Contains(label, "reject") {
@@ -78,27 +83,43 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	if err = pool.QueryRow(t.Context(), `
 		SELECT relationship.party_id,relationship.operating_entity_id
 		FROM bob_customer_relationships relationship
-		JOIN bob_objects object ON object.id=relationship.object_id AND object.entity='customer'
-		ORDER BY object.created_at LIMIT 1
+		JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity='customer'
+		ORDER BY subject.created_at LIMIT 1
 	`).Scan(&partyID, &operatingEntityID); err != nil {
 		t.Fatalf("load seeded party identity: %v", err)
 	}
-	salesPartner, err := service.SalesPartnerCreate(t.Context(), bob.SalesPartnerCreateInput{
-		PartyID: partyID,
-		Data: bob.SalesPartnerData{OperatingEntityID: operatingEntityID,
-			Capabilities: []string{bob.SalesCapabilityChannelPartner}},
-	}, actor("sales-partner-create"), true)
+	party, err := partyDeclarations.Get(t.Context(), dcldomain.PartyGetInput{PartyID: partyID}, bob.PartyRelationshipVisibility{}, actor("sales-partner-party-get"))
+	if err != nil {
+		t.Fatalf("get seeded Party declaration: %v", err)
+	}
+	if party.Approval.Status == approval.StatusDraft {
+		pending, submitErr := partyDeclarations.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: partyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor("sales-partner-party-submit"))
+		if submitErr != nil {
+			t.Fatalf("submit seeded Party declaration: %v", submitErr)
+		}
+		party.Approval = pending.Approval
+	}
+	if party.Approval.Status == approval.StatusPending {
+		if _, err = partyDeclarations.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: partyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor("sales-partner-party-approve")); err != nil {
+			t.Fatalf("approve seeded Party declaration: %v", err)
+		}
+	}
+	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
+		PartyID:           partyID,
+		OperatingEntityID: operatingEntityID,
+		Data:              dcldomain.SalesPartnerData{Capabilities: []string{bob.SalesCapabilityChannelPartner}},
+	}, actor("sales-partner-create"))
 	if err != nil {
 		t.Fatalf("create sales partner: %v", err)
 	}
-	submittedPartner, err := service.Submit(t.Context(), bob.EntitySalesPartner, bob.VersionRevisionInput{
+	submittedPartner, err := relationships.SubmitSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID,
 		ApprovalRevision: salesPartner.Approval.Revision,
 	}, actor("sales-partner-submit"))
 	if err != nil {
 		t.Fatalf("submit sales partner: %v", err)
 	}
-	if _, err = service.Approve(t.Context(), bob.EntitySalesPartner, bob.ReviewInput{
+	if _, err = relationships.ApproveSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID,
 		ApprovalRevision: submittedPartner.Approval.Revision,
 	}, actor("sales-partner-approve")); err != nil {
@@ -106,9 +127,9 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 
 	counts := make(map[string]int)
-	lookup := queryLookup{queries: dbsqlc.New(pool), pool: pool}
+	seeded := New(pool)
 	for _, item := range samples {
-		objectID, found, findErr := lookup.Find(t.Context(), item.entity, item.data.Code)
+		objectID, found, findErr := seeded.findSeedObject(t.Context(), item)
 		if findErr != nil || !found {
 			t.Fatalf("find %s %s: found=%t err=%v", item.entity, item.data.Code, found, findErr)
 		}
@@ -121,7 +142,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		}
 		var status string
 		approvalDomain := "bob"
-		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct {
+		if item.entity == bob.EntityCustomer || item.entity == bob.EntityCustomerAccount || item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee || item.entity == bob.EntitySupplier || item.entity == bob.EntityOtherUnit || item.entity == bob.EntitySalesPartner {
 			approvalDomain = "dcl"
 		}
 		if err = pool.QueryRow(t.Context(), `
@@ -156,16 +177,16 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		bob.EntityVehicle, bob.EntityFundAccount, bob.EntityOperatingEntity,
 	}
 	payloadTables := map[string]string{
-		bob.EntityCustomer: "bob_customer_relationship_versions", bob.EntityCustomerAccount: "bob_customer_versions",
-		bob.EntitySupplier: "bob_supplier_versions", bob.EntityOtherUnit: "bob_service_relationship_versions",
-		bob.EntityEmployee: "bob_employee_versions", bob.EntitySalesPartner: "bob_sales_partner_versions",
+		bob.EntityCustomer: "dcl_customer_versions", bob.EntityCustomerAccount: "dcl_customer_account_versions",
+		bob.EntitySupplier: "dcl_supplier_versions", bob.EntityOtherUnit: "dcl_other_unit_versions",
+		bob.EntityEmployee: "dcl_employee_versions", bob.EntitySalesPartner: "dcl_sales_partner_versions",
 		bob.EntityProduct: "dcl_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",
 		bob.EntityVehicle: "dcl_vehicle_versions", bob.EntityFundAccount: "dcl_fund_account_versions",
 		bob.EntityOperatingEntity: "dcl_operating_entity_versions",
 	}
 	for _, entity := range allEntities {
 		approvalDomain := "bob"
-		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct {
+		if entity == bob.EntityCustomer || entity == bob.EntityCustomerAccount || entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntitySupplier || entity == bob.EntityOtherUnit || entity == bob.EntitySalesPartner {
 			approvalDomain = "dcl"
 		}
 		var objectCount, entryCount, payloadCount int
@@ -205,7 +226,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	business := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	business := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	service := dcldomain.NewWarehouseService(pool, business, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
@@ -403,7 +424,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
-	bobService := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	bobService := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	productService := dcldomain.NewProductService(pool, bobService, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
@@ -499,7 +520,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 			ApprovalRevision: candidateCategory.Approval.Revision,
 		}, Reason: &reason,
 	}, actor("candidate-category-unapprove-"+suffix)); err != nil {
-		t.Fatalf("pending BOB candidate incorrectly blocked AUX unapprove: %v", err)
+		t.Fatalf("pending BOB candidate incorrectly blocked AUX unapprove: %s", errorChain(err))
 	}
 	if _, err = productService.Approve(t.Context(), dcldomain.ProductVersionInput{
 		ObjectID: candidatePending.ObjectID, ApprovalEntryID: candidatePending.Approval.ApprovalEntryID,
@@ -594,7 +615,7 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	business := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	business := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	service := dcldomain.NewWarehouseService(pool, business, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"

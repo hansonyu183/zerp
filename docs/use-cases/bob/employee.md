@@ -1,18 +1,22 @@
-# 员工用例
+# BOB 员工当前档案页面用例
 
-## 范围
+权威业务规则见 [DCL 员工申报](../../domains/dcl.md#36-员工申报)、[BOB 对象与引用规则](../../domains/bob.md#2-领域职责与边界) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI BOB Schema](../../../contracts/openapi/schemas/bob.yaml)。
 
-- 路由：`/bob/employee`。
-- 任职关系规则以 [BOB 领域](../../domains/bob.md) 为准；线协议以 [OpenAPI](../../../contracts/openapi/openapi.yaml) 及 [BOB Schema](../../../contracts/openapi/schemas/bob.yaml) 为准。
+## 页面边界
 
-## 新建
+1. 页面入口为 `/bob/employee`，只调用 `POST /bob/employee/query`、`POST /bob/employee/get` 与 `POST /bob/reference/query` 的 `employee` 候选查询；它展示 DCL latest approved 投影。
+2. 列表与详情展示员工编码、Party 当前资料、经营主体、人员类别、部门、岗位、工作电话、工作邮箱、入职日期、备注、启停状态、Stable ID 与 `sourceApprovalEntryId`；不把候选资料当作当前事实。
+3. 页面没有新建、编辑、启停、删除、提交、撤回、审核、反批、驳回、版本或审计动作，不请求任何 BOB employee 写路径。维护深链统一进入 `/dcl/employee`。
 
-1. 用户在同一表单选择已有 Party，或填写新 Party 和首条 Employment Relationship；保存调用 `POST /bob/employee/create`，两者原子完成，不允许先创建裸 Party。
-2. Party 只保存身份事实：类型、法定名称、显示名称、税号和强标识。任职关系只提交经营主体、部门、岗位、工作电话、工作邮箱、入职日期和备注；不得把 Party 身份字段带入关系保存。
-3. 选择已有 Party 需要 Party 查询及读取权限；新建 Party 需要 Party 创建权限。经营主体、部门和岗位均为最小引用投影；引用加载失败时保留输入并阻止空经营主体提交。
+## 可见性与异常
 
-## 列表与验收
+1. 加载列表、详情与引用候选分别要求 BOB `employee/query`、`employee/get` 与 `employee/reference` 权限；DCL 权限不会隐式授予当前档案读取权限。
+2. DCL 候选待审、驳回或撤回期间，BOB 持续显示上一正式版本；批准后显示新 current，反批后显示上一 approved version 或移除 current。
+3. 页面不使用 Party 当前姓名、当前 AUX 名称或当前经营主体资料重写 employee current snapshot，也不在 BOB 内推断审批来源。
+4. 请求失败时显示稳定业务消息与 `requestId`，不回退到 DCL 写 API、旧 BOB lifecycle 或本地假数据。
 
-1. 初次查询及用户明确提交筛选后调用 employee query，固定每页 20 条，按编码升序。筛选可按部门和岗位，关键词不自动请求。
-2. 列表只显示编码、主体、部门、岗位和当前状态；身份详情不因任职列表权限外溢。
-3. 创建成功后关闭工作区并刷新列表。失败显示后端业务消息，保留当前输入；并发查询只接受最新请求结果。
+## 验收场景
+
+1. BOB employee 只开放 current `query/get/reference`，没有 create/save/enable/submit/unsubmit/reject/approve/unapprove/delete/versions/audit-history。
+2. DCL V1/V2 批准与反批切换或回落 current source；首版反批后 BOB employee 不再可读或引用。
+3. VOU/ACC 历史持续保留当时采用的 employee stable ID、精确 Approval Entry 与业务快照，不因 DCL 后续版本或 Party 资料变化而改变。

@@ -191,13 +191,11 @@
           'unitPrice',
           'referenceUnitPrice',
           'settlementSurcharge',
-          'rebateUnitPrice',
           'lineAmount',
           'settlementTermCode',
           'specialApproval',
           'adjustmentEmployeeAmount',
           'adjustmentIntermediaryAmount',
-          'adjustmentRebateAmount',
         ],
       'additionalProperties': false,
       'properties':
@@ -242,7 +240,6 @@
           'unitPrice': { 'type': 'string' },
           'referenceUnitPrice': { 'type': 'string' },
           'settlementSurcharge': { 'type': 'string' },
-          'rebateUnitPrice': { 'type': 'string' },
           'lineAmount': { 'type': 'string' },
           'settlementTermCode': { 'type': 'string' },
           'specialApproval': { 'type': 'boolean' },
@@ -254,7 +251,6 @@
             },
           'adjustmentEmployeeAmount': { 'type': 'string' },
           'adjustmentIntermediaryAmount': { 'type': 'string' },
-          'adjustmentRebateAmount': { 'type': 'string' },
         },
     },
   'VouIntermediarySourceBill':
@@ -332,7 +328,6 @@
           'billLineIds',
           'employeeAmount',
           'intermediaryAmount',
-          'rebateAmount',
         ],
       'additionalProperties': false,
       'properties':
@@ -354,7 +349,6 @@
             },
           'employeeAmount': { 'type': 'string' },
           'intermediaryAmount': { 'type': 'string' },
-          'rebateAmount': { 'type': 'string' },
           'note': { 'type': 'string', 'maxLength': 1000 },
         },
     },
@@ -375,7 +369,6 @@
                   'EXTERNAL_PART_TIME',
                   'CHANNEL_PARTNER',
                   'INTERMEDIARY',
-                  'REBATE',
                 ],
             },
           'amount': { 'type': 'string' },
@@ -1416,7 +1409,7 @@
                   'otherCategory':
                     {
                       'type': 'string',
-                      'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+                      'enum': ['COMMISSION', 'INTERMEDIARY'],
                     },
                   'counterparty':
                     {
@@ -1823,7 +1816,7 @@
                   'otherCategory':
                     {
                       'type': 'string',
-                      'enum': ['COMMISSION', 'INTERMEDIARY', 'REBATE'],
+                      'enum': ['COMMISSION', 'INTERMEDIARY'],
                     },
                   'counterparty':
                     {
@@ -3077,7 +3070,7 @@
           'supplierSettlementMethod':
             { '$ref': '#/VouSettlementMethodSnapshotView' },
           'otherCategory':
-            { 'type': 'string', 'enum': [COMMISSION, INTERMEDIARY, REBATE] },
+            { 'type': 'string', 'enum': [COMMISSION, INTERMEDIARY] },
           'sourceName': { 'type': 'string' },
           'serviceContract': { '$ref': '#/VouServiceContractView' },
           'serviceAcceptance': { '$ref': '#/VouServiceAcceptanceView' },

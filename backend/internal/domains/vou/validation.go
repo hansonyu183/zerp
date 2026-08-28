@@ -322,7 +322,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		result.TotalAmount, err = moneyCents(input.Amount)
 		result.OtherCategory = otherCategory
 		if result.OtherCategory != "" && result.OtherCategory != "COMMISSION" &&
-			result.OtherCategory != "INTERMEDIARY" && result.OtherCategory != "REBATE" {
+			result.OtherCategory != "INTERMEDIARY" {
 			return validatedDraft{}, domainError(ErrorValidation, "invalid otherCategory", nil, nil)
 		}
 	case EntityEmployeeLoanWriteoff:

@@ -526,9 +526,6 @@ async function confirmDelete(): Promise<void> {
                 <td class="text-end" data-label="数期加价">
                   {{ source.settlementSurcharge }}
                 </td>
-                <td class="text-end" data-label="返点价">
-                  {{ source.rebateUnitPrice }}
-                </td>
                 <td class="text-end" data-label="溢价">
                   {{
                     vm.lineResult(source.sourceSignoffLineId)?.premiumUnitPrice
@@ -575,9 +572,6 @@ async function confirmDelete(): Promise<void> {
                     vm.lineResult(source.sourceSignoffLineId)
                       ?.intermediaryAmount
                   }}
-                </td>
-                <td class="text-end" data-label="返点金额">
-                  {{ vm.lineResult(source.sourceSignoffLineId)?.rebateAmount }}
                 </td>
                 <td data-label="说明">
                   {{ vm.lineResult(source.sourceSignoffLineId)?.note ?? '—' }}

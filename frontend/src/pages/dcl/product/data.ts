@@ -160,6 +160,7 @@ export async function deleteDclProduct(
 
 export const dclProductLifecyclePort: DclDeclarationLifecyclePort<DclProductListItem> =
   {
+    unsubmitReasonRequired: true,
     run: runDclProductLifecycle,
     async changeEnabled(item) {
       const view = await getDclProduct(

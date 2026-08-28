@@ -19,24 +19,11 @@ async function signOut(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/signin/)
 }
 
-async function openCustomer(page: Page): Promise<void> {
-  await page.goto('/bob/customer')
-  await expect(
-    page.getByRole('textbox', { name: '账户编码或名称' }),
-  ).toBeVisible()
-}
-
 async function openSupplier(page: Page): Promise<void> {
-  await page.goto('/bob/supplier')
+  await page.goto('/dcl/supplier')
   await expect(
-    page.getByRole('textbox', { name: '供应商关键字' }),
+    page.getByRole('textbox', { name: '供应商编码或主体名称' }),
   ).toBeVisible()
-}
-
-function customerRow(page: Page, code: string) {
-  return page.locator('tbody tr').filter({
-    has: page.locator('td[data-label="账户编码"]').filter({ hasText: code }),
-  })
 }
 
 function supplierRow(page: Page, code: string) {
@@ -45,14 +32,8 @@ function supplierRow(page: Page, code: string) {
   })
 }
 
-async function searchCustomer(page: Page, code: string): Promise<void> {
-  await page.getByRole('textbox', { name: '账户编码或名称' }).fill(code)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(customerRow(page, code)).toBeVisible()
-}
-
 async function searchSupplier(page: Page, code: string): Promise<void> {
-  await page.getByRole('textbox', { name: '供应商关键字' }).fill(code)
+  await page.getByRole('textbox', { name: '供应商编码或主体名称' }).fill(code)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(supplierRow(page, code)).toBeVisible()
 }
@@ -109,30 +90,52 @@ async function selectAutocomplete(
   await option.click()
 }
 
-async function confirmReason(
-  page: Page,
-  title: string,
-  reason: string,
-): Promise<void> {
-  const dialog = page.getByRole('dialog').filter({ hasText: title })
-  await dialog.getByLabel('操作原因').fill(reason)
-  await dialog.getByRole('button', { name: '确认', exact: true }).click()
-}
-
-async function clickAndExpectBusinessSuccess(
-  page: Page,
-  path: string,
-  click: () => Promise<void>,
-): Promise<void> {
-  const pending = page.waitForResponse((response) =>
-    response.url().endsWith(path),
+async function openBobCurrentPage(page: Page, path: string): Promise<void> {
+  const currentRead = page.waitForResponse((response) =>
+    response.url().endsWith(`${path}/query`),
   )
-  await click()
-  const payload = (await (await pending).json()) as {
+  await page.goto(path)
+  const payload = (await (await currentRead).json()) as {
     code: number | string
     message: string
   }
   expect(String(payload.code), payload.message).toBe('0')
+}
+
+function partyDeclarationRow(page: Page, partyName: string): Locator {
+  return page.locator('tbody tr').filter({ hasText: partyName })
+}
+
+async function openPartyDeclarations(
+  page: Page,
+  partyName: string,
+): Promise<Locator> {
+  await page.goto('/dcl/party')
+  await page
+    .getByRole('textbox', { name: '名称、电话、邮箱或地址' })
+    .fill(partyName)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const row = partyDeclarationRow(page, partyName)
+  await expect(row).toHaveCount(1)
+  return row
+}
+
+async function selectPartyLifecycleAction(
+  page: Page,
+  row: Locator,
+  label: string,
+): Promise<void> {
+  const directAction = row.getByRole('button', { name: label, exact: true })
+  if (await directAction.count()) {
+    await directAction.click()
+    return
+  }
+  await row.getByRole('button', { name: '更多操作', exact: true }).click()
+  await page
+    .locator('.v-overlay.v-menu.v-overlay--active')
+    .getByRole('listitem')
+    .filter({ hasText: label })
+    .click()
 }
 
 test(
@@ -144,139 +147,56 @@ test(
     const partyName = `E2E 服务主体 ${suffix}`
 
     await signIn(page, workerState.operator)
-    await page.goto('/bob/other-unit')
+    await page.goto('/dcl/other-unit')
     await expect(
-      page.getByText('其他单位', { exact: true }).first(),
+      page.getByRole('textbox', { name: '其他单位编码或主体名称' }),
     ).toBeVisible()
     await page.getByRole('button', { name: '新增', exact: true }).click()
-    const editor = page.getByRole('dialog').filter({ hasText: '新增其他单位' })
+    const editor = page.locator('.dcl-relationship-drawer')
+    await editor.getByText('选择已有主体', { exact: true }).click()
+    await page.getByRole('option', { name: '新建主体', exact: true }).click()
     await editor.getByLabel('法定名称').fill(partyName)
-    await editor.getByLabel('显示名称').fill(`${partyName}简称`)
-    await editor
-      .getByLabel('强标识（精确命中会自动复用）')
-      .fill(`91310000E2E${suffix.replaceAll('-', '').toUpperCase()}`)
     await selectAutocomplete(page, editor, '经营主体', '上海示例')
-    await editor.getByLabel('业务联系人').fill('E2E 联系人')
-    await editor.getByRole('button', { name: '保存草稿' }).click()
+    await editor.getByLabel('联系人').fill('E2E 联系人')
+    await editor.getByRole('button', { name: '保存', exact: true }).click()
 
     const createdRow = page.locator('tbody tr').filter({ hasText: partyName })
     await expect(createdRow).toHaveCount(1)
-    const code = (await createdRow.locator('td').first().textContent())?.trim()
-    expect(code).toMatch(/^OTU-\d{4}$/)
-
-    await page.goto('/bob/party')
-    await page
-      .getByRole('textbox', { name: '名称、电话、邮箱或地址' })
-      .fill(partyName)
-    await page.getByRole('button', { name: '查询', exact: true }).click()
-    const partyRow = page.locator('tbody tr').filter({ hasText: partyName })
-    await expect(partyRow).toHaveCount(1)
-    await partyRow.getByRole('button', { name: '查看 / 编辑' }).click()
-    const partyDialog = page
-      .getByRole('dialog')
-      .filter({ hasText: '主体共享身份' })
-    await expect(partyDialog).toContainText(`${code} · 服务关系`)
-    await expect(partyDialog).toContainText('上海示例')
-  },
-)
-
-test(
-  '使用双账号完成客户创建、审核与启禁用',
-  { tag: '@mobile' },
-  async ({ page, workerState }, testInfo) => {
-    test.setTimeout(120_000)
-    const customerName = `E2E 生命周期客户 ${testInfo.project.name} ${testInfo.parallelIndex}`
-
-    await signIn(page, workerState.operator)
-    await openCustomer(page)
-    await page.getByRole('button', { name: '新增', exact: true }).click()
-    const editor = page.locator('.customer-workspace__drawer')
-    await editor.getByLabel('法定名称').fill(customerName)
-    await editor.getByLabel('显示名称').fill(`${customerName}简称`)
-    await editor.getByLabel('账户名称').fill(`${customerName}结算户`)
-    await selectAutocomplete(page, editor, '经营主体', '上海示例')
-    await selectAutocomplete(page, editor, '结算方式', '当月结')
-    await selectAutocomplete(page, editor, '收款方式', 'WFL 银行转账')
-    await selectAutocomplete(
-      page,
-      editor,
-      '主要业务归属主体',
-      workerState.fixtures.employee,
-    )
-    await editor.getByRole('button', { name: '保存', exact: true }).click()
-
-    const createdRow = page
-      .locator('tbody tr')
-      .filter({ hasText: customerName })
-    await expect(createdRow).toHaveCount(1)
     const code = (
-      await createdRow.locator('td[data-label="账户编码"]').textContent()
+      await createdRow.locator('td[data-label="编码"]').textContent()
     )?.trim()
-    expect(code).toMatch(/^CAC-\d{4}$/)
-    await searchCustomer(page, code!)
-    await expect(customerRow(page, code!)).toContainText('草稿')
+    expect(code).toMatch(/^OUT-\d{4}$/)
 
-    await clickAndExpectBusinessSuccess(
-      page,
-      '/bob/customer-account/submit',
-      () => customerRow(page, code!).getByLabel('提交审核').click(),
-    )
-    await expect(customerRow(page, code!)).toContainText('待批准')
-    await customerRow(page, code!).getByLabel('撤回提交').click()
-    await confirmReason(page, '客户账户生命周期操作', 'E2E 验证撤回提交')
-    await expect(customerRow(page, code!)).toContainText('草稿')
-    await clickAndExpectBusinessSuccess(
-      page,
-      '/bob/customer-account/submit',
-      () => customerRow(page, code!).getByLabel('提交审核').click(),
-    )
-    await expect(customerRow(page, code!)).toContainText('待批准')
-    await signOut(page)
-
-    await signIn(page, workerState.reviewer)
-    await openCustomer(page)
-    await searchCustomer(page, code!)
-    await customerRow(page, code!).getByLabel('审核驳回').click()
-    await confirmReason(page, '客户账户生命周期操作', 'E2E 验证驳回后重提')
-    await expect(customerRow(page, code!)).toContainText('草稿')
-    await signOut(page)
-
-    await signIn(page, workerState.operator)
-    await openCustomer(page)
-    await searchCustomer(page, code!)
-    await clickAndExpectBusinessSuccess(
-      page,
-      '/bob/customer-account/submit',
-      () => customerRow(page, code!).getByLabel('提交审核').click(),
-    )
-    await expect(customerRow(page, code!)).toContainText('待批准')
-    await signOut(page)
-
-    await signIn(page, workerState.reviewer)
-    await openCustomer(page)
-    await searchCustomer(page, code!)
-    await customerRow(page, code!).getByLabel('审核通过').click()
-    let dialog = page
-      .getByRole('dialog')
-      .filter({ hasText: '客户账户生命周期操作' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await expect(customerRow(page, code!)).toContainText('已批准')
-
-    await customerRow(page, code!).getByLabel('禁用').click()
-    dialog = page
-      .getByRole('dialog')
-      .filter({ hasText: '客户账户生命周期操作' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await expect(customerRow(page, code!).getByLabel('启用')).toBeVisible()
-    await customerRow(page, code!).getByLabel('启用').click()
-    await expect(customerRow(page, code!).getByLabel('禁用')).toBeVisible()
-
-    await expect(customerRow(page, code!).getByLabel('撤销批准')).toHaveCount(0)
+    const partyRow = await openPartyDeclarations(page, partyName)
+    await partyRow
+      .getByRole('button', { name: new RegExp(`编辑 ${partyName}`) })
+      .click()
+    const partyDrawer = page.locator('.dcl-party-drawer')
+    await expect(partyDrawer).toContainText(`${code} · 服务关系`)
+    await expect(partyDrawer).toContainText('上海示例')
   },
 )
 
 test(
-  '供应商已批准版本在候选启停与删除期间保持可用',
+  'BOB 客户与客户结算子账户只读取当前档案',
+  { tag: '@mobile' },
+  async ({ page, workerState }) => {
+    await signIn(page, workerState.operator)
+    const legacyLifecycleRequests: string[] = []
+    page.on('request', (request) => {
+      const pathname = new URL(request.url()).pathname
+      if (/^\/bob\/customer(?:-account)?\/(?!query$|get$)/.test(pathname)) {
+        legacyLifecycleRequests.push(pathname)
+      }
+    })
+    await openBobCurrentPage(page, '/bob/customer')
+    await openBobCurrentPage(page, '/bob/customer-account')
+    expect(legacyLifecycleRequests).toEqual([])
+  },
+)
+
+test(
+  '供应商申报经 DCL 批准后可创建候选版本',
   { tag: '@mobile' },
   async ({ page, workerState }, testInfo) => {
     test.setTimeout(120_000)
@@ -285,8 +205,10 @@ test(
     await signIn(page, workerState.operator)
     await openSupplier(page)
     await page.getByRole('button', { name: '新增', exact: true }).click()
-    const editor = page.locator('.supplier-workspace__drawer')
-    await editor.getByLabel('主体名称').fill(supplierName)
+    const editor = page.locator('.dcl-supplier-drawer')
+    await editor.getByText('选择已有主体', { exact: true }).click()
+    await page.getByRole('option', { name: '新建主体', exact: true }).click()
+    await editor.getByLabel('法定名称').fill(supplierName)
     await selectAutocomplete(page, editor, '经营主体', '上海示例')
     await selectAutocomplete(page, editor, '结算方式', '当月结')
     await selectAutocomplete(
@@ -306,7 +228,24 @@ test(
     )?.trim()
     expect(code).toMatch(/^SUP-\d{4}$/)
     await page.getByRole('button', { name: '关闭提示' }).click()
-    await editor.getByRole('button', { name: '取消', exact: true }).click()
+
+    let partyRow = await openPartyDeclarations(page, supplierName)
+    await selectPartyLifecycleAction(page, partyRow, '提交审核')
+    await expect(partyDeclarationRow(page, supplierName)).toContainText(
+      '待批准',
+    )
+    await signOut(page)
+
+    await signIn(page, workerState.reviewer)
+    partyRow = await openPartyDeclarations(page, supplierName)
+    await selectPartyLifecycleAction(page, partyRow, '审核通过')
+    await expect(partyDeclarationRow(page, supplierName)).toContainText(
+      '已批准',
+    )
+    await signOut(page)
+
+    await signIn(page, workerState.operator)
+    await openSupplier(page)
     await searchSupplier(page, code!)
     await selectSupplierLifecycleAction(page, code!, '提交审核')
     await dismissSupplierNotice(page, '已提交审核')
@@ -316,8 +255,6 @@ test(
     await openSupplier(page)
     await searchSupplier(page, code!)
     await selectSupplierLifecycleAction(page, code!, '审核通过')
-    let dialog = page.getByRole('dialog').filter({ hasText: '审核通过' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
     await dismissSupplierNotice(page, '已审核通过')
     await expect(supplierRow(page, code!)).toContainText('已批准')
     await signOut(page)
@@ -325,7 +262,7 @@ test(
     await signIn(page, workerState.operator)
     await openSupplier(page)
     await searchSupplier(page, code!)
-    await supplierRow(page, code!).getByLabel('查看 / 编辑').click()
+    await supplierRow(page, code!).getByRole('button', { name: /编辑/ }).click()
     await editor.getByLabel('联系人').fill('候选联系人')
     await editor.getByRole('button', { name: '保存', exact: true }).click()
     await page.getByRole('button', { name: '关闭提示' }).click()
@@ -333,22 +270,5 @@ test(
     await searchSupplier(page, code!)
     await expect(supplierRow(page, code!)).toContainText('草稿')
     await expect(supplierRow(page, code!)).toContainText('有')
-
-    await selectSupplierLifecycleAction(page, code!, '禁用')
-    dialog = page.getByRole('dialog').filter({ hasText: '确认禁用供应商' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await dismissSupplierNotice(page, '已禁用')
-    await selectSupplierLifecycleAction(page, code!, '启用')
-    await dismissSupplierNotice(page, '已启用')
-    await expect(supplierRow(page, code!)).toContainText('草稿')
-    await searchSupplier(page, code!)
-
-    await selectSupplierLifecycleAction(page, code!, '删除候选版本')
-    dialog = page.getByRole('dialog').filter({ hasText: '确认删除候选版本' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await dismissSupplierNotice(page, '候选版本已删除')
-    await expect(dialog).toHaveCount(0)
-    await expect(supplierRow(page, code!)).toContainText('已批准')
-    await expect(supplierRow(page, code!)).toContainText('—')
   },
 )

@@ -18,14 +18,12 @@ const resultMoneyFields: readonly (keyof IntermediaryResultLine)[] = [
   'billCost',
   'employeeAmount',
   'intermediaryAmount',
-  'rebateAmount',
 ]
 const categories = new Set([
   'COMMISSION',
   'EXTERNAL_PART_TIME',
   'CHANNEL_PARTNER',
   'INTERMEDIARY',
-  'REBATE',
 ])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -179,7 +177,6 @@ export function validateIntermediaryResult(
               [
                 sourceLine.adjustmentEmployeeAmount,
                 sourceLine.adjustmentIntermediaryAmount,
-                sourceLine.adjustmentRebateAmount,
               ][index],
             ),
         )
@@ -247,7 +244,6 @@ export function validateIntermediaryResult(
       'INTERMEDIARY',
       line.intermediaryAmount,
     )
-    addExpectedSummary(sourceLine.customer, 'REBATE', line.rebateAmount)
   }
   for (const [key, summary] of expectedSummaries) {
     if (summary.amountCents === 0) expectedSummaries.delete(key)

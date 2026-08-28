@@ -219,12 +219,22 @@ func (s *Seeder) seedIntermediaryCalculation(ctx context.Context, counts *Counts
 	if err != nil {
 		return fmt.Errorf("intermediary script: %w", err)
 	}
+	lines := make([]voudomain.IntermediaryResultLine, 0, len(source.Source.Lines))
+	for _, sourceLine := range source.Source.Lines {
+		lines = append(lines, voudomain.IntermediaryResultLine{
+			SourceSignoffLineID: sourceLine.SourceSignoffLineID,
+			PremiumUnitPrice:    "0.00", StandardPieceQuantity: sourceLine.StandardPieceQuantity,
+			BaseCommission: "0.00", PremiumCommission: "0.00", LowPriceCommission: "0.00",
+			MarketMaintenanceSubsidy: "0.00", MarketDevelopmentSubsidy: "0.00",
+			BillCost: "0.00", BillLineIDs: []string{}, EmployeeAmount: "0.00", IntermediaryAmount: "0.00",
+		})
+	}
 	_, _, result, err := s.ensureVoucher(ctx, "intermediary-calculation-draft", voudomain.EntityIntermediaryCalculation, voudomain.StatusDraft, func() (voudomain.MutationResult, error) {
 		return s.vouchers.CreateIntermediaryCalculation(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 			BusinessDate: "2026-06-30", Currency: "CNY", Remark: "测试可操作草稿：居间计算",
 			IntermediaryCalculation: &voudomain.IntermediaryCalculationInput{
 				Source: source.Source, SourceHash: source.SourceHash, Script: script,
-				Result: voudomain.IntermediaryCalculationResult{Lines: []voudomain.IntermediaryResultLine{}, Summaries: []voudomain.IntermediarySummary{}},
+				Result: voudomain.IntermediaryCalculationResult{Lines: lines, Summaries: []voudomain.IntermediarySummary{}},
 			},
 		}}, mustApprovalActor(requestID("intermediary-calculation-draft", "create")))
 	})

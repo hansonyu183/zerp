@@ -425,14 +425,12 @@ type IntermediarySourceLine struct {
 	UnitPrice                    string                             `json:"unitPrice"`
 	ReferenceUnitPrice           string                             `json:"referenceUnitPrice"`
 	SettlementSurcharge          string                             `json:"settlementSurcharge"`
-	RebateUnitPrice              string                             `json:"rebateUnitPrice"`
 	LineAmount                   string                             `json:"lineAmount"`
 	SettlementTermCode           string                             `json:"settlementTermCode"`
 	SpecialApproval              bool                               `json:"specialApproval"`
 	ReturnDocumentNos            []string                           `json:"returnDocumentNos,omitempty"`
 	AdjustmentEmployeeAmount     string                             `json:"adjustmentEmployeeAmount"`
 	AdjustmentIntermediaryAmount string                             `json:"adjustmentIntermediaryAmount"`
-	AdjustmentRebateAmount       string                             `json:"adjustmentRebateAmount"`
 }
 
 type IntermediarySourceBill struct {
@@ -469,7 +467,6 @@ type IntermediaryResultLine struct {
 	BillLineIDs              []string `json:"billLineIds"`
 	EmployeeAmount           string   `json:"employeeAmount"`
 	IntermediaryAmount       string   `json:"intermediaryAmount"`
-	RebateAmount             string   `json:"rebateAmount"`
 	Note                     *string  `json:"note,omitempty"`
 }
 

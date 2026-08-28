@@ -6,7 +6,7 @@ import type { ApprovalStatus } from './ApprovalStatus';
 export type ApprovalEventView = {
   id: string;
   approvalEntryId: string;
-  action: 'CREATED' | 'SAVED' | 'SUBMITTED' | 'UNSUBMITTED' | 'REJECTED' | 'APPROVED' | 'UNAPPROVED' | 'DELETED';
+  action: 'CREATED' | 'SAVED' | 'SUBMITTED' | 'UNSUBMITTED' | 'REJECTED' | 'APPROVED' | 'UNAPPROVED' | 'DELETED' | 'MERGED';
   fromStatus: ApprovalStatus | null;
   toStatus: ApprovalStatus | null;
   fromRevision: number | null;

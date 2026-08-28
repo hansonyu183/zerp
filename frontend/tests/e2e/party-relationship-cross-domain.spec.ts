@@ -331,7 +331,7 @@ async function createApprovedSharedRelationships(
   }>('bob/operating-entity/query', {
     page: 1,
     pageSize: 20,
-    filters: { status: ['APPROVED'], enabled: true },
+    filters: { enabled: true },
   })
   const operatingEntityId = operatingEntities.items[0]?.objectId
   expect(operatingEntityId).toBeTruthy()

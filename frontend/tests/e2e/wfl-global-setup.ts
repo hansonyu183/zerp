@@ -596,7 +596,6 @@ async function fixedOperatingEntity(operator: RealApi): Promise<string> {
       page: 1,
       pageSize: 20,
       filters: {
-        status: ['APPROVED'],
         enabled: true,
       },
       sort: [{ field: 'code', order: 'asc' }],

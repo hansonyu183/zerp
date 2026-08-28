@@ -1067,6 +1067,28 @@ type DclProductVersion struct {
 	Enabled                    bool    `db:"enabled" json:"enabled"`
 }
 
+type DclRptDefinitionCodeCounter struct {
+	CounterKey string `db:"counter_key" json:"counter_key"`
+	NextValue  int32  `db:"next_value" json:"next_value"`
+}
+
+type DclRptDefinitionVersion struct {
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string             `db:"definition_id" json:"definition_id"`
+	Name            string             `db:"name" json:"name"`
+	Description     string             `db:"description" json:"description"`
+	Validity        string             `db:"validity" json:"validity"`
+	SqlText         string             `db:"sql_text" json:"sql_text"`
+	Parameters      []byte             `db:"parameters" json:"parameters"`
+	Columns         []byte             `db:"columns" json:"columns"`
+	InvalidatedAt   pgtype.Timestamptz `db:"invalidated_at" json:"invalidated_at"`
+	InvalidReason   *string            `db:"invalid_reason" json:"invalid_reason"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
+}
+
 type DclSalesPartnerVersion struct {
 	ApprovalEntryID string   `db:"approval_entry_id" json:"approval_entry_id"`
 	Capabilities    []string `db:"capabilities" json:"capabilities"`
@@ -1183,23 +1205,6 @@ type RptRuntimeAuditEvent struct {
 	RequestID       string             `db:"request_id" json:"request_id"`
 	OccurredAt      pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 	Summary         []byte             `db:"summary" json:"summary"`
-}
-
-type RptVersion struct {
-	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
-	DefinitionID    string             `db:"definition_id" json:"definition_id"`
-	Name            string             `db:"name" json:"name"`
-	Description     string             `db:"description" json:"description"`
-	Validity        string             `db:"validity" json:"validity"`
-	SqlText         string             `db:"sql_text" json:"sql_text"`
-	Parameters      []byte             `db:"parameters" json:"parameters"`
-	Columns         []byte             `db:"columns" json:"columns"`
-	InvalidatedAt   pgtype.Timestamptz `db:"invalidated_at" json:"invalidated_at"`
-	InvalidReason   *string            `db:"invalid_reason" json:"invalid_reason"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy       string             `db:"created_by" json:"created_by"`
-	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
 }
 
 type VouAssetAcquisitionDetail struct {

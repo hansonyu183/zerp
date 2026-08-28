@@ -26,7 +26,7 @@ const {
   rows,
   selected,
   total,
-} = useReportViewModel('report')
+} = useReportViewModel()
 </script>
 
 <template>

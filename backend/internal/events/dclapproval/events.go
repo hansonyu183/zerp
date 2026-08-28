@@ -99,3 +99,10 @@ type AccMappingPayload struct {
 }
 
 var AccMappingTopic = approval.MustTopic[AccMappingPayload]("dcl.acc-mapping.approval")
+
+type RptDefinitionPayload struct {
+	DefinitionID string `json:"definitionId"`
+	Code         string `json:"code"`
+}
+
+var RptDefinitionTopic = approval.MustTopic[RptDefinitionPayload]("dcl.rpt-definition.approval")

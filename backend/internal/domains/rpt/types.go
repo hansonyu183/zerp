@@ -69,58 +69,9 @@ type VersionData struct {
 	Parameters []Parameter    `json:"parameters"`
 	SQL        string         `json:"sql"`
 }
-type DefinitionCreateInput struct {
-	Code        string
-	Name        string
-	Description *string
-	Data        VersionData
-}
-type DefinitionQueryInput struct {
-	IncludeDisabled bool
-	Keyword         string
-	Page            int
-	PageSize        int
-}
 type DirectoryQueryInput struct {
 	Page     int
 	PageSize int
-}
-type DefinitionGetInput struct {
-	Code            string
-	ApprovalEntryID string
-}
-type VersionCreateInput struct{ Code string }
-type VersionSaveInput struct {
-	Code            string
-	ApprovalEntryID string
-	Revision        int64
-	Name            *string
-	Description     *string
-	Data            VersionData
-}
-type VersionActionInput struct {
-	Code                 string
-	ApprovalEntryID      string
-	Revision             int64
-	ValidationParameters map[string]any
-}
-type VersionReasonActionInput struct {
-	VersionActionInput
-	Reason string
-}
-type VersionDeleteInput struct {
-	Code            string
-	ApprovalEntryID string
-	Revision        int64
-}
-type VersionListInput struct {
-	Code     string
-	Page     int
-	PageSize int
-}
-type DefinitionRevisionInput struct {
-	Code     string
-	Revision int64
 }
 type ExecuteInput struct {
 	Parameters map[string]any
@@ -159,12 +110,6 @@ type ReportMetadata struct {
 	Columns     []ResultColumn `json:"columns"`
 	CanQuery    bool           `json:"canQuery"`
 	CanExport   bool           `json:"canExport"`
-}
-type MutationResult struct {
-	DefinitionID   string               `json:"definitionId"`
-	ObjectRevision int64                `json:"revision"`
-	Enabled        bool                 `json:"enabled"`
-	Approval       approval.VersionMeta `json:"approval"`
 }
 type QueryResult struct {
 	Columns  []ResultColumn   `json:"columns"`

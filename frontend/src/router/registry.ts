@@ -209,12 +209,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 70,
     component: () => import('@/pages/dcl/acc-mapping/AccMapping.vue'),
   }),
-  registerPage('rpt', {
-    entity: 'definition',
-    entityTitle: '报表定义管理',
+  registerPage('dcl', {
+    entity: 'rpt-definition',
+    entityTitle: '报表定义申报',
     icon: 'mdi-file-cog-outline',
-    order: 10,
-    component: () => import('@/pages/rpt/Definition.vue'),
+    order: 80,
+    component: () =>
+      import('@/pages/dcl/rpt-definition/RptDefinition.vue'),
   }),
   registerPage('acc', {
     entity: 'book',
@@ -785,7 +786,9 @@ export function buildMenus(
     }
     const registration = registrationsByPage.get(key)
     const domainRegistration =
-      registration ?? registrationsByDomain.get(domainId)
+      registration ??
+      registrationsByDomain.get(domainId) ??
+      domainRegistrations[domainId as DomainId]
     const existingDomain = domains.get(domainId)
     const domain = existingDomain ?? {
       domain: domainId,

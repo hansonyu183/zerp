@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type RptVersionActionRequest = {
+export type DclRptDefinitionVersionRequest = {
   code: string;
   approvalEntryId: string;
-  revision: number;
+  approvalRevision: number;
   validationParameters?: Record<string, any>;
 };

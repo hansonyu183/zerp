@@ -1,7 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '@/api/client'
-import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import {
@@ -9,32 +8,22 @@ import {
   formatResultValue,
   initialParameters,
   reportActions,
-  reportDefinitionActions,
   reportPageCount,
   validateReportParameterValues,
   visibleColumns,
   vouDrilldown,
-  type ReportDefinitionAction,
   type RptParameter,
   type RptResultColumn,
 } from './shared/vm'
 
 type ResultRow = Record<string, unknown>
 type ReferenceItem = { title: string; value: string }
-type VersionData = components['schemas']['RptVersionData']
-
 export interface ReportDefinition {
   code: string
   name: string
   description: string
-  enabled: boolean
-  revision: number
-  approvalEntryId: string
-  approvalRevision: number
-  approvalStatus: string
   parameters: RptParameter[]
   columns: RptResultColumn[]
-  data?: VersionData
 }
 
 function contractError(): Error {
@@ -58,50 +47,6 @@ function number(value: unknown): number {
   return value
 }
 
-function boolean(value: unknown): boolean {
-  if (typeof value !== 'boolean') throw contractError()
-  return value
-}
-
-function isVersionData(value: unknown): value is VersionData {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return false
-  }
-  const data = value as Record<string, unknown>
-  return (
-    typeof data.sql === 'string' &&
-    Array.isArray(data.parameters) &&
-    Array.isArray(data.columns)
-  )
-}
-
-function versionData(value: unknown): VersionData {
-  if (!isVersionData(value)) throw contractError()
-  return value
-}
-
-export function parseDefinitionPage(value: unknown): ReportDefinition[] {
-  const page = object(value)
-  if (!Array.isArray(page.items)) throw contractError()
-  return page.items.map((item) => {
-    const source = object(item)
-    const data = versionData(source.data)
-    return {
-      code: string(source.code),
-      name: string(source.name),
-      description: string(source.description),
-      enabled: boolean(source.enabled),
-      revision: number(source.revision),
-      approvalEntryId: string(object(source.approval).approvalEntryId),
-      approvalRevision: number(object(source.approval).revision),
-      approvalStatus: string(object(source.approval).status),
-      parameters: data.parameters,
-      columns: data.columns,
-      data,
-    }
-  })
-}
-
 export function parseReportMetadata(value: unknown): ReportDefinition {
   const source = object(value)
   if (!Array.isArray(source.parameters) || !Array.isArray(source.columns)) {
@@ -111,11 +56,6 @@ export function parseReportMetadata(value: unknown): ReportDefinition {
     code: string(source.code),
     name: string(source.name),
     description: string(source.description),
-    enabled: true,
-    revision: 0,
-    approvalEntryId: '',
-    approvalRevision: 0,
-    approvalStatus: '',
     parameters: source.parameters as RptParameter[],
     columns: source.columns as RptResultColumn[],
   }
@@ -156,9 +96,7 @@ export function parseReferenceItems(value: unknown): ReferenceItem[] {
   })
 }
 
-export type RptPageMode = 'report' | 'definition'
-
-export function useReportViewModel(mode: RptPageMode) {
+export function useReportViewModel() {
   const route = useRoute()
   const router = useRouter()
   const session = useSessionStore()
@@ -185,11 +123,6 @@ export function useReportViewModel(mode: RptPageMode) {
   const referenceItemsById = ref<Record<string, Record<string, ReferenceItem>>>(
     {},
   )
-  const managementData = ref('')
-  const managementCode = ref('')
-  const managementVersionId = ref('')
-  const managementRevision = ref(0)
-  const managementReason = ref('')
   let disposed = false
   let queryGeneration = 0
 
@@ -204,20 +137,6 @@ export function useReportViewModel(mode: RptPageMode) {
     }),
   )
   const resultColumns = computed(() => visibleColumns(executedColumns.value))
-  const managementPermissions = computed(
-    () =>
-      Object.fromEntries(
-        reportDefinitionActions.map((action) => [
-          action,
-          session.can(`/rpt/definition/${action}`),
-        ]),
-      ) as Record<ReportDefinitionAction, boolean>,
-  )
-  const managementAllowed = computed(() =>
-    reportDefinitionActions.some(
-      (action) => managementPermissions.value[action],
-    ),
-  )
   const pageCount = computed(() => reportPageCount(total.value, pageSize))
   const definitionOptions = computed(() =>
     definitions.value.map((definition) => ({
@@ -251,26 +170,16 @@ export function useReportViewModel(mode: RptPageMode) {
     loading.value = true
     errorMessage.value = ''
     try {
-      if (mode === 'definition') {
-        if (!session.can('/rpt/definition/query')) return
-        const response = await apiClient.postContract('rpt/definition/query', {
-          page: 1,
-          pageSize: 200,
-          includeDisabled: true,
-        })
-        definitions.value = parseDefinitionPage(response.data)
-      } else {
-        const response = await apiClient.postContract('rpt/directory/query', {
-          page: 1,
-          pageSize: 200,
-        })
-        const directory = object(response.data)
-        if (!Array.isArray(directory.items)) throw contractError()
-        definitions.value = directory.items.map(parseReportMetadata)
-      }
+      const response = await apiClient.postContract('rpt/directory/query', {
+        page: 1,
+        pageSize: 200,
+      })
+      const directory = object(response.data)
+      if (!Array.isArray(directory.items)) throw contractError()
+      definitions.value = directory.items.map(parseReportMetadata)
       if (disposed) return
       const routeCode =
-        mode === 'report' && typeof route.meta.reportCode === 'string'
+        typeof route.meta.reportCode === 'string'
           ? route.meta.reportCode
           : ''
       setSelected(
@@ -455,84 +364,10 @@ export function useReportViewModel(mode: RptPageMode) {
     }
   }
 
-  function parseManagementData(): VersionData | null {
-    try {
-      return versionData(JSON.parse(managementData.value))
-    } catch {
-      errorMessage.value =
-        '版本数据必须是包含 sql、parameters、columns 的 JSON。'
-      return null
-    }
-  }
-
-  async function manage(action: ReportDefinitionAction): Promise<void> {
-    if (!managementPermissions.value[action]) return
-    const code = managementCode.value.trim()
-    if (!code) {
-      errorMessage.value = '请填写报表编码。'
-      return
-    }
-    const needsData = ['create', 'save'].includes(action)
-    const data = needsData ? parseManagementData() : null
-    if (needsData && !data) return
-    const versionBody = {
-      code,
-      approvalEntryId: managementVersionId.value,
-      revision: managementRevision.value,
-    }
-    const body =
-      action === 'create'
-        ? { code, name: code, data: data! }
-        : action === 'create-version'
-          ? { code }
-          : action === 'save'
-            ? { ...versionBody, data: data! }
-            : action === 'versions'
-              ? { code, page: 1, pageSize: 200 }
-            : action === 'delete-version'
-              ? versionBody
-              : action === 'reject' || action === 'unapprove'
-                ? { ...versionBody, reason: managementReason.value.trim() }
-            : action === 'enable' || action === 'disable' || action === 'delete'
-              ? { code, revision: managementRevision.value }
-              : versionBody
-    try {
-      await apiClient.postContract(`rpt/definition/${action}`, body)
-      notice.value = '管理操作已完成。'
-      await loadDefinitions(code)
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    }
-  }
-
-  function editDefinition(definition: ReportDefinition): void {
-    managementCode.value = definition.code
-    managementVersionId.value = definition.approvalEntryId
-    managementRevision.value = definition.approvalRevision || definition.revision
-    managementData.value = JSON.stringify(
-      definition.data ?? {
-        sql: '',
-        parameters: definition.parameters,
-        columns: definition.columns,
-      },
-      null,
-      2,
-    )
-  }
-
-  function selectManagementDefinition(code: string): void {
-    const definition = definitions.value.find((item) => item.code === code)
-    if (definition) editDefinition(definition)
-  }
-
-  watch(selected, (definition) => {
-    if (definition) editDefinition(definition)
-  })
   watch(
     () => route.meta.reportCode,
     (code) => {
       if (
-        mode === 'report' &&
         typeof code === 'string' &&
         definitions.value.some((definition) => definition.code === code)
       ) {
@@ -557,14 +392,6 @@ export function useReportViewModel(mode: RptPageMode) {
     loadDefinitions,
     loadReference,
     loading,
-    managementAllowed,
-    managementCode,
-    managementData,
-    managementPermissions,
-    managementRevision,
-    managementReason,
-    managementVersionId,
-    manage,
     notice,
     openDrilldown,
     page,
@@ -581,7 +408,6 @@ export function useReportViewModel(mode: RptPageMode) {
     rows,
     selected,
     selectedCode,
-    selectManagementDefinition,
     setSelected,
     total,
   }

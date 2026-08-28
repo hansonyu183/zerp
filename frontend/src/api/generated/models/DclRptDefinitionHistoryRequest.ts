@@ -2,9 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type RptDefinitionQueryRequest = {
+export type DclRptDefinitionHistoryRequest = {
+  code: string;
   page: number;
   pageSize: number;
-  keyword?: string;
-  includeDisabled?: boolean;
 };

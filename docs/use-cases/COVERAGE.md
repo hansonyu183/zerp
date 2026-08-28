@@ -5,9 +5,9 @@
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
 - 页面入口：90
-- 已覆盖入口：38
-- 已登记用例：37
-- 缺少用例：52
+- 已覆盖入口：39
+- 已登记用例：38
+- 缺少用例：51
 - 孤儿用例：0
 
 ## APP
@@ -40,13 +40,7 @@
 | 供应商申报         | `/dcl/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/supplier.md)         |
 | 产品申报           | `/dcl/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)          |
 | 会计映射申报       | `/dcl/acc-mapping`      | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/acc-mapping.md)      |
-
-## RPT
-
-| 页面         | 路由              | 来源                                                | 状态     |
-| ------------ | ----------------- | --------------------------------------------------- | -------- |
-| 报表定义管理 | `/rpt/definition` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 动态报表     | `/rpt/{code}`     | [动态路由](../../frontend/src/router/registry.ts)   | 缺少用例 |
+| 报表定义申报       | `/dcl/rpt-definition`   | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/rpt-definition.md)   |
 
 ## ACC
 
@@ -139,3 +133,9 @@
 | -------- | ------------------------- | --------------------------------------------------- | ------------------------------------- |
 | 流程定义 | `/wfl/process-definition` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](wfl/process-definition.md) |
 | 流程实例 | `/wfl/process-instance`   | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](wfl/process-instance.md)   |
+
+## RPT
+
+| 页面     | 路由          | 来源                                              | 状态     |
+| -------- | ------------- | ------------------------------------------------- | -------- |
+| 动态报表 | `/rpt/{code}` | [动态路由](../../frontend/src/router/registry.ts) | 缺少用例 |

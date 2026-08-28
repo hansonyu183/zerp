@@ -109,6 +109,8 @@ type Querier interface {
 	CountDCLVehicles(ctx context.Context, arg CountDCLVehiclesParams) (int64, error)
 	CountDCLWarehouseApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLWarehouses(ctx context.Context, arg CountDCLWarehousesParams) (int64, error)
+	CountDclRptDefinitionApprovalEvents(ctx context.Context, subjectID string) (int64, error)
+	CountDclRptDefinitions(ctx context.Context, arg CountDclRptDefinitionsParams) (int64, error)
 	CountDefinitionInstances(ctx context.Context, arg CountDefinitionInstancesParams) (int64, error)
 	CountEnabledAppPermissionsByIDs(ctx context.Context, ids []string) (int64, error)
 	CountEnabledAppRolesByIDs(ctx context.Context, ids []string) (int64, error)
@@ -152,6 +154,16 @@ type Querier interface {
 	CreateWorkflowRootNodeInstance(ctx context.Context, arg CreateWorkflowRootNodeInstanceParams) error
 	CreateWorkflowRuntimeAudit(ctx context.Context, arg CreateWorkflowRuntimeAuditParams) error
 	DCLAccMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error)
+	DclRptCopyVersionPayload(ctx context.Context, arg DclRptCopyVersionPayloadParams) error
+	DclRptDeleteDefinition(ctx context.Context, arg DclRptDeleteDefinitionParams) (int64, error)
+	DclRptDeleteVersionPayload(ctx context.Context, arg DclRptDeleteVersionPayloadParams) (int64, error)
+	// ── RPT Definition (DCL-owned) ──────────────────────────────────
+	DclRptGetLatestApprovedPayload(ctx context.Context, definitionID string) (DclRptGetLatestApprovedPayloadRow, error)
+	DclRptGetVersionPayload(ctx context.Context, arg DclRptGetVersionPayloadParams) (DclRptGetVersionPayloadRow, error)
+	DclRptInsertDefinition(ctx context.Context, arg DclRptInsertDefinitionParams) error
+	DclRptInsertVersionPayload(ctx context.Context, arg DclRptInsertVersionPayloadParams) error
+	DclRptSetDefinitionEnabled(ctx context.Context, arg DclRptSetDefinitionEnabledParams) (DclRptSetDefinitionEnabledRow, error)
+	DclRptUpdateDraftPayload(ctx context.Context, arg DclRptUpdateDraftPayloadParams) error
 	DeleteAccountingAssetBookValues(ctx context.Context, bookID string) error
 	DeleteAccountingBillBookValues(ctx context.Context, bookID string) error
 	DeleteAccountingBook(ctx context.Context, bookID string) error
@@ -370,6 +382,9 @@ type Querier interface {
 	GetDCLSupplierVersion(ctx context.Context, approvalEntryID string) (GetDCLSupplierVersionRow, error)
 	GetDCLVehicleVersion(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error)
 	GetDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (DclWarehouseVersion, error)
+	// The persisted query/export permissions are enabled iff the stable definition
+	// is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
+	GetDclRptDefinitionByCode(ctx context.Context, code string) (GetDclRptDefinitionByCodeRow, error)
 	GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error)
 	GetEnabledAuxCurrentReference(ctx context.Context, arg GetEnabledAuxCurrentReferenceParams) (GetEnabledAuxCurrentReferenceRow, error)
 	GetEnabledAuxObjectData(ctx context.Context, arg GetEnabledAuxObjectDataParams) ([]byte, error)
@@ -641,6 +656,8 @@ type Querier interface {
 	ListDCLVehicles(ctx context.Context, arg ListDCLVehiclesParams) ([]ListDCLVehiclesRow, error)
 	ListDCLWarehouseApprovalEvents(ctx context.Context, arg ListDCLWarehouseApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLWarehouses(ctx context.Context, arg ListDCLWarehousesParams) ([]ListDCLWarehousesRow, error)
+	ListDclRptDefinitionApprovalEvents(ctx context.Context, arg ListDclRptDefinitionApprovalEventsParams) ([]ApprovalEvent, error)
+	ListDclRptDefinitions(ctx context.Context, arg ListDclRptDefinitionsParams) ([]ListDclRptDefinitionsRow, error)
 	ListDefinitionInstances(ctx context.Context, arg ListDefinitionInstancesParams) ([]ListDefinitionInstancesRow, error)
 	ListEnabledAppPermissionIDsForUser(ctx context.Context, userID string) ([]string, error)
 	ListEnabledAppRolePermissionIDs(ctx context.Context, roleID string) ([]string, error)
@@ -759,6 +776,7 @@ type Querier interface {
 	MoveSupplierRelationshipParty(ctx context.Context, arg MoveSupplierRelationshipPartyParams) (int64, error)
 	NextAccountingBookNumber(ctx context.Context) (int32, error)
 	NextAppRoleCode(ctx context.Context) (string, error)
+	NextDclRptDefinitionCode(ctx context.Context) (string, error)
 	// BOB owns stable identities and typed approval payloads.  Version state is
 	// exclusively stored in approval_entries; every resolver below selects the
 	// latest APPROVED entry and never falls back to an open candidate.
@@ -792,33 +810,18 @@ type Querier interface {
 	RevokeAppSession(ctx context.Context, arg RevokeAppSessionParams) error
 	RevokeAppUserSessions(ctx context.Context, arg RevokeAppUserSessionsParams) error
 	RotateAppSessionCSRF(ctx context.Context, arg RotateAppSessionCSRFParams) (int64, error)
-	RptCopyVersionPayload(ctx context.Context, arg RptCopyVersionPayloadParams) error
-	RptDeleteDefinition(ctx context.Context, arg RptDeleteDefinitionParams) (int64, error)
-	RptDeleteVersionPayload(ctx context.Context, arg RptDeleteVersionPayloadParams) error
 	RptDisableUsePermissions(ctx context.Context, arg RptDisableUsePermissionsParams) error
 	RptGetActiveDefinition(ctx context.Context, code string) (RptGetActiveDefinitionRow, error)
-	RptGetDefinitionByEntry(ctx context.Context, arg RptGetDefinitionByEntryParams) (RptGetDefinitionByEntryRow, error)
-	RptGetDefinitionObject(ctx context.Context, code string) (RptGetDefinitionObjectRow, error)
-	RptGetLatestApprovedPayload(ctx context.Context, definitionID string) (RptGetLatestApprovedPayloadRow, error)
-	RptGetVersionPayload(ctx context.Context, arg RptGetVersionPayloadParams) (RptGetVersionPayloadRow, error)
-	RptInsertDefinition(ctx context.Context, arg RptInsertDefinitionParams) error
 	RptInsertRuntimeAuditEvent(ctx context.Context, arg RptInsertRuntimeAuditEventParams) error
-	RptInsertVersionPayload(ctx context.Context, arg RptInsertVersionPayloadParams) error
 	RptInvalidateVersion(ctx context.Context, arg RptInvalidateVersionParams) error
-	// The persisted query/export permissions are enabled iff the stable definition
-	// is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
+	// RPT owns only stable definition identity and version payload. Approval owns lifecycle.
 	RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error)
 	RptListAssetReferences(ctx context.Context, arg RptListAssetReferencesParams) ([]RptListAssetReferencesRow, error)
 	RptListBOBReferences(ctx context.Context, arg RptListBOBReferencesParams) ([]RptListBOBReferencesRow, error)
 	RptListBillReferences(ctx context.Context, arg RptListBillReferencesParams) ([]RptListBillReferencesRow, error)
 	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
-	RptLockDefinitionObject(ctx context.Context, code string) (RptLockDefinitionObjectRow, error)
-	// RPT owns only stable definition identity and version payload. Approval owns lifecycle.
-	RptQueryDefinitions(ctx context.Context, arg RptQueryDefinitionsParams) ([]RptQueryDefinitionsRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
-	RptSetDefinitionEnabled(ctx context.Context, arg RptSetDefinitionEnabledParams) (RptSetDefinitionEnabledRow, error)
-	RptUpdateDraftPayload(ctx context.Context, arg RptUpdateDraftPayloadParams) error
 	RptUpsertUsePermission(ctx context.Context, arg RptUpsertUsePermissionParams) error
 	SaveWorkflowDefinitionVersion(ctx context.Context, arg SaveWorkflowDefinitionVersionParams) (int64, error)
 	SetAccountingOpeningVoucher(ctx context.Context, arg SetAccountingOpeningVoucherParams) error

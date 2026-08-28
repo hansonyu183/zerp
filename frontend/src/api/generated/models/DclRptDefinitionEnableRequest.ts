@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type RptVersionCreateRequest = {
+export type DclRptDefinitionEnableRequest = {
   code: string;
+  revision: number;
 };

@@ -2,7 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type RptDefinitionRevisionRequest = {
+export type DclRptDefinitionDeleteRequest = {
   code: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
 };

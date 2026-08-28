@@ -1070,3 +1070,102 @@ SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='acc-mapping'
 -- name: ListDCLAccMappingApprovalEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='acc-mapping'
   AND subject_id=sqlc.arg(subject_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- ── RPT Definition (DCL-owned) ──────────────────────────────────
+
+-- name: DclRptGetLatestApprovedPayload :one
+SELECT v.approval_entry_id, v.definition_id, v.name, v.description, v.validity, v.sql_text, v.parameters, v.columns FROM approval_entries e JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+WHERE e.domain='dcl' AND e.entity='rpt-definition' AND e.subject_id=sqlc.arg(definition_id) AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1;
+-- name: DclRptGetVersionPayload :one
+SELECT approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns FROM dcl_rpt_definition_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND definition_id=sqlc.arg(definition_id);
+
+-- name: DclRptInsertDefinition :exec
+INSERT INTO rpt_definitions(id, code, created_by, updated_by) VALUES(sqlc.arg(id), sqlc.arg(code), sqlc.arg(actor_id), sqlc.arg(actor_id));
+-- name: NextDclRptDefinitionCode :one
+UPDATE dcl_rpt_definition_code_counters
+SET next_value=next_value+1
+WHERE counter_key='default' AND next_value<999999
+RETURNING ('rpt-'||lpad(next_value::text,6,'0'))::text;
+-- name: DclRptInsertVersionPayload :exec
+INSERT INTO dcl_rpt_definition_versions(approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES(sqlc.arg(approval_entry_id), sqlc.arg(definition_id), sqlc.arg(name), sqlc.arg(description), 'VALID', sqlc.arg(sql_text), sqlc.arg(parameters), sqlc.arg(columns), sqlc.arg(actor_id), sqlc.arg(actor_id));
+-- name: DclRptCopyVersionPayload :exec
+INSERT INTO dcl_rpt_definition_versions(approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by)
+SELECT sqlc.arg(new_approval_entry_id), source.definition_id, source.name, source.description, source.validity, source.sql_text,
+       source.parameters, source.columns, sqlc.arg(actor_id), sqlc.arg(actor_id)
+FROM dcl_rpt_definition_versions source
+WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id)
+  AND source.definition_id=sqlc.arg(target_definition_id);
+-- name: DclRptUpdateDraftPayload :exec
+UPDATE dcl_rpt_definition_versions SET name=coalesce(sqlc.narg(name), name), description=coalesce(sqlc.narg(description), description), sql_text=sqlc.arg(sql_text), parameters=sqlc.arg(parameters), columns=sqlc.arg(columns), validity='VALID', invalidated_at=NULL, invalid_reason=NULL, updated_at=now(), updated_by=sqlc.arg(actor_id) WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND definition_id=sqlc.arg(definition_id);
+-- name: DclRptDeleteVersionPayload :execrows
+DELETE FROM dcl_rpt_definition_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND definition_id=sqlc.arg(definition_id);
+-- name: DclRptDeleteDefinition :execrows
+DELETE FROM rpt_definitions WHERE id=sqlc.arg(definition_id) AND revision=sqlc.arg(revision);
+-- name: DclRptSetDefinitionEnabled :one
+UPDATE rpt_definitions SET enabled=sqlc.arg(enabled), revision=revision+1, updated_at=now(), updated_by=sqlc.arg(actor_id) WHERE id=sqlc.arg(definition_id) AND revision=sqlc.arg(revision) RETURNING id, code, enabled, revision;
+
+-- The persisted query/export permissions are enabled iff the stable definition
+-- is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
+
+-- name: GetDclRptDefinitionByCode :one
+SELECT id, code, enabled, revision
+FROM rpt_definitions
+WHERE code=sqlc.arg(code);
+
+-- name: CountDclRptDefinitions :one
+WITH selected AS (
+  SELECT d.id
+  FROM rpt_definitions d
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
+      AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+  ) open_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
+      AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) approved_entry ON true
+  LEFT JOIN dcl_rpt_definition_versions open_v ON open_v.approval_entry_id=open_entry.id
+  LEFT JOIN dcl_rpt_definition_versions approved_v ON approved_v.approval_entry_id=approved_entry.id
+  WHERE (sqlc.arg(include_disabled)::boolean OR d.enabled)
+    AND (sqlc.arg(keyword)::text='' OR d.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR COALESCE(open_v.name, approved_v.name,'') ILIKE '%'||sqlc.arg(keyword)::text||'%')
+    AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY(sqlc.arg(status_filter)::text[]))
+)
+SELECT count(*) FROM selected;
+
+-- name: ListDclRptDefinitions :many
+SELECT d.id AS definition_id, d.code, d.enabled, d.revision AS object_revision,
+       COALESCE(approved_entry.id,'')::text AS approved_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM rpt_definitions d
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
+    AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+LEFT JOIN dcl_rpt_definition_versions open_v ON open_v.approval_entry_id=open_entry.id
+LEFT JOIN dcl_rpt_definition_versions approved_v ON approved_v.approval_entry_id=approved_entry.id
+WHERE (sqlc.arg(include_disabled)::boolean OR d.enabled)
+  AND (sqlc.arg(keyword)::text='' OR d.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR COALESCE(open_v.name, approved_v.name,'') ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY d.code ASC
+OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
+
+-- name: CountDclRptDefinitionApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='rpt-definition'
+  AND subject_id=sqlc.arg(subject_id);
+
+-- name: ListDclRptDefinitionApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='rpt-definition'
+  AND subject_id=sqlc.arg(subject_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);

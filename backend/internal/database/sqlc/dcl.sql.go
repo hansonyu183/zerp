@@ -773,6 +773,56 @@ func (q *Queries) CountDCLWarehouses(ctx context.Context, arg CountDCLWarehouses
 	return count, err
 }
 
+const countDclRptDefinitionApprovalEvents = `-- name: CountDclRptDefinitionApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='rpt-definition'
+  AND subject_id=$1
+`
+
+func (q *Queries) CountDclRptDefinitionApprovalEvents(ctx context.Context, subjectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDclRptDefinitionApprovalEvents, subjectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDclRptDefinitions = `-- name: CountDclRptDefinitions :one
+WITH selected AS (
+  SELECT d.id
+  FROM rpt_definitions d
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
+      AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+  ) open_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
+      AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) approved_entry ON true
+  LEFT JOIN dcl_rpt_definition_versions open_v ON open_v.approval_entry_id=open_entry.id
+  LEFT JOIN dcl_rpt_definition_versions approved_v ON approved_v.approval_entry_id=approved_entry.id
+  WHERE ($1::boolean OR d.enabled)
+    AND ($2::text='' OR d.code ILIKE '%'||$2::text||'%' OR COALESCE(open_v.name, approved_v.name,'') ILIKE '%'||$2::text||'%')
+    AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
+)
+SELECT count(*) FROM selected
+`
+
+type CountDclRptDefinitionsParams struct {
+	IncludeDisabled bool     `db:"include_disabled" json:"include_disabled"`
+	Keyword         string   `db:"keyword" json:"keyword"`
+	StatusFilter    []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountDclRptDefinitions(ctx context.Context, arg CountDclRptDefinitionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDclRptDefinitions, arg.IncludeDisabled, arg.Keyword, arg.StatusFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const dCLAccMappingVersionReferenced = `-- name: DCLAccMappingVersionReferenced :one
 SELECT EXISTS(
   SELECT 1 FROM acc_vouchers voucher
@@ -785,6 +835,244 @@ func (q *Queries) DCLAccMappingVersionReferenced(ctx context.Context, approvalEn
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const dclRptCopyVersionPayload = `-- name: DclRptCopyVersionPayload :exec
+INSERT INTO dcl_rpt_definition_versions(approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by)
+SELECT $1, source.definition_id, source.name, source.description, source.validity, source.sql_text,
+       source.parameters, source.columns, $2, $2
+FROM dcl_rpt_definition_versions source
+WHERE source.approval_entry_id=$3
+  AND source.definition_id=$4
+`
+
+type DclRptCopyVersionPayloadParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	ActorID               string `db:"actor_id" json:"actor_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	TargetDefinitionID    string `db:"target_definition_id" json:"target_definition_id"`
+}
+
+func (q *Queries) DclRptCopyVersionPayload(ctx context.Context, arg DclRptCopyVersionPayloadParams) error {
+	_, err := q.db.Exec(ctx, dclRptCopyVersionPayload,
+		arg.NewApprovalEntryID,
+		arg.ActorID,
+		arg.SourceApprovalEntryID,
+		arg.TargetDefinitionID,
+	)
+	return err
+}
+
+const dclRptDeleteDefinition = `-- name: DclRptDeleteDefinition :execrows
+DELETE FROM rpt_definitions WHERE id=$1 AND revision=$2
+`
+
+type DclRptDeleteDefinitionParams struct {
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	Revision     int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) DclRptDeleteDefinition(ctx context.Context, arg DclRptDeleteDefinitionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, dclRptDeleteDefinition, arg.DefinitionID, arg.Revision)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const dclRptDeleteVersionPayload = `-- name: DclRptDeleteVersionPayload :execrows
+DELETE FROM dcl_rpt_definition_versions WHERE approval_entry_id=$1 AND definition_id=$2
+`
+
+type DclRptDeleteVersionPayloadParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+}
+
+func (q *Queries) DclRptDeleteVersionPayload(ctx context.Context, arg DclRptDeleteVersionPayloadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, dclRptDeleteVersionPayload, arg.ApprovalEntryID, arg.DefinitionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const dclRptGetLatestApprovedPayload = `-- name: DclRptGetLatestApprovedPayload :one
+
+SELECT v.approval_entry_id, v.definition_id, v.name, v.description, v.validity, v.sql_text, v.parameters, v.columns FROM approval_entries e JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+WHERE e.domain='dcl' AND e.entity='rpt-definition' AND e.subject_id=$1 AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1
+`
+
+type DclRptGetLatestApprovedPayloadRow struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+	Name            string `db:"name" json:"name"`
+	Description     string `db:"description" json:"description"`
+	Validity        string `db:"validity" json:"validity"`
+	SqlText         string `db:"sql_text" json:"sql_text"`
+	Parameters      []byte `db:"parameters" json:"parameters"`
+	Columns         []byte `db:"columns" json:"columns"`
+}
+
+// ── RPT Definition (DCL-owned) ──────────────────────────────────
+func (q *Queries) DclRptGetLatestApprovedPayload(ctx context.Context, definitionID string) (DclRptGetLatestApprovedPayloadRow, error) {
+	row := q.db.QueryRow(ctx, dclRptGetLatestApprovedPayload, definitionID)
+	var i DclRptGetLatestApprovedPayloadRow
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.DefinitionID,
+		&i.Name,
+		&i.Description,
+		&i.Validity,
+		&i.SqlText,
+		&i.Parameters,
+		&i.Columns,
+	)
+	return i, err
+}
+
+const dclRptGetVersionPayload = `-- name: DclRptGetVersionPayload :one
+SELECT approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns FROM dcl_rpt_definition_versions WHERE approval_entry_id=$1 AND definition_id=$2
+`
+
+type DclRptGetVersionPayloadParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+}
+
+type DclRptGetVersionPayloadRow struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+	Name            string `db:"name" json:"name"`
+	Description     string `db:"description" json:"description"`
+	Validity        string `db:"validity" json:"validity"`
+	SqlText         string `db:"sql_text" json:"sql_text"`
+	Parameters      []byte `db:"parameters" json:"parameters"`
+	Columns         []byte `db:"columns" json:"columns"`
+}
+
+func (q *Queries) DclRptGetVersionPayload(ctx context.Context, arg DclRptGetVersionPayloadParams) (DclRptGetVersionPayloadRow, error) {
+	row := q.db.QueryRow(ctx, dclRptGetVersionPayload, arg.ApprovalEntryID, arg.DefinitionID)
+	var i DclRptGetVersionPayloadRow
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.DefinitionID,
+		&i.Name,
+		&i.Description,
+		&i.Validity,
+		&i.SqlText,
+		&i.Parameters,
+		&i.Columns,
+	)
+	return i, err
+}
+
+const dclRptInsertDefinition = `-- name: DclRptInsertDefinition :exec
+INSERT INTO rpt_definitions(id, code, created_by, updated_by) VALUES($1, $2, $3, $3)
+`
+
+type DclRptInsertDefinitionParams struct {
+	ID      string `db:"id" json:"id"`
+	Code    string `db:"code" json:"code"`
+	ActorID string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) DclRptInsertDefinition(ctx context.Context, arg DclRptInsertDefinitionParams) error {
+	_, err := q.db.Exec(ctx, dclRptInsertDefinition, arg.ID, arg.Code, arg.ActorID)
+	return err
+}
+
+const dclRptInsertVersionPayload = `-- name: DclRptInsertVersionPayload :exec
+INSERT INTO dcl_rpt_definition_versions(approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES($1, $2, $3, $4, 'VALID', $5, $6, $7, $8, $8)
+`
+
+type DclRptInsertVersionPayloadParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+	Name            string `db:"name" json:"name"`
+	Description     string `db:"description" json:"description"`
+	SqlText         string `db:"sql_text" json:"sql_text"`
+	Parameters      []byte `db:"parameters" json:"parameters"`
+	Columns         []byte `db:"columns" json:"columns"`
+	ActorID         string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) DclRptInsertVersionPayload(ctx context.Context, arg DclRptInsertVersionPayloadParams) error {
+	_, err := q.db.Exec(ctx, dclRptInsertVersionPayload,
+		arg.ApprovalEntryID,
+		arg.DefinitionID,
+		arg.Name,
+		arg.Description,
+		arg.SqlText,
+		arg.Parameters,
+		arg.Columns,
+		arg.ActorID,
+	)
+	return err
+}
+
+const dclRptSetDefinitionEnabled = `-- name: DclRptSetDefinitionEnabled :one
+UPDATE rpt_definitions SET enabled=$1, revision=revision+1, updated_at=now(), updated_by=$2 WHERE id=$3 AND revision=$4 RETURNING id, code, enabled, revision
+`
+
+type DclRptSetDefinitionEnabledParams struct {
+	Enabled      bool   `db:"enabled" json:"enabled"`
+	ActorID      string `db:"actor_id" json:"actor_id"`
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	Revision     int64  `db:"revision" json:"revision"`
+}
+
+type DclRptSetDefinitionEnabledRow struct {
+	ID       string `db:"id" json:"id"`
+	Code     string `db:"code" json:"code"`
+	Enabled  bool   `db:"enabled" json:"enabled"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) DclRptSetDefinitionEnabled(ctx context.Context, arg DclRptSetDefinitionEnabledParams) (DclRptSetDefinitionEnabledRow, error) {
+	row := q.db.QueryRow(ctx, dclRptSetDefinitionEnabled,
+		arg.Enabled,
+		arg.ActorID,
+		arg.DefinitionID,
+		arg.Revision,
+	)
+	var i DclRptSetDefinitionEnabledRow
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Enabled,
+		&i.Revision,
+	)
+	return i, err
+}
+
+const dclRptUpdateDraftPayload = `-- name: DclRptUpdateDraftPayload :exec
+UPDATE dcl_rpt_definition_versions SET name=coalesce($1, name), description=coalesce($2, description), sql_text=$3, parameters=$4, columns=$5, validity='VALID', invalidated_at=NULL, invalid_reason=NULL, updated_at=now(), updated_by=$6 WHERE approval_entry_id=$7 AND definition_id=$8
+`
+
+type DclRptUpdateDraftPayloadParams struct {
+	Name            *string `db:"name" json:"name"`
+	Description     *string `db:"description" json:"description"`
+	SqlText         string  `db:"sql_text" json:"sql_text"`
+	Parameters      []byte  `db:"parameters" json:"parameters"`
+	Columns         []byte  `db:"columns" json:"columns"`
+	ActorID         string  `db:"actor_id" json:"actor_id"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string  `db:"definition_id" json:"definition_id"`
+}
+
+func (q *Queries) DclRptUpdateDraftPayload(ctx context.Context, arg DclRptUpdateDraftPayloadParams) error {
+	_, err := q.db.Exec(ctx, dclRptUpdateDraftPayload,
+		arg.Name,
+		arg.Description,
+		arg.SqlText,
+		arg.Parameters,
+		arg.Columns,
+		arg.ActorID,
+		arg.ApprovalEntryID,
+		arg.DefinitionID,
+	)
+	return err
 }
 
 const deleteDCLAccMappingSubjectIfEmpty = `-- name: DeleteDCLAccMappingSubjectIfEmpty :execrows
@@ -1518,6 +1806,34 @@ func (q *Queries) GetDCLWarehouseVersion(ctx context.Context, approvalEntryID st
 		&i.ManagerEmployeeEntity,
 		&i.Remark,
 		&i.Enabled,
+	)
+	return i, err
+}
+
+const getDclRptDefinitionByCode = `-- name: GetDclRptDefinitionByCode :one
+
+SELECT id, code, enabled, revision
+FROM rpt_definitions
+WHERE code=$1
+`
+
+type GetDclRptDefinitionByCodeRow struct {
+	ID       string `db:"id" json:"id"`
+	Code     string `db:"code" json:"code"`
+	Enabled  bool   `db:"enabled" json:"enabled"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+// The persisted query/export permissions are enabled iff the stable definition
+// is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
+func (q *Queries) GetDclRptDefinitionByCode(ctx context.Context, code string) (GetDclRptDefinitionByCodeRow, error) {
+	row := q.db.QueryRow(ctx, getDclRptDefinitionByCode, code)
+	var i GetDclRptDefinitionByCodeRow
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Enabled,
+		&i.Revision,
 	)
 	return i, err
 }
@@ -3776,6 +4092,132 @@ func (q *Queries) ListDCLWarehouses(ctx context.Context, arg ListDCLWarehousesPa
 	return items, nil
 }
 
+const listDclRptDefinitionApprovalEvents = `-- name: ListDclRptDefinitionApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='rpt-definition'
+  AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDclRptDefinitionApprovalEventsParams struct {
+	SubjectID string `db:"subject_id" json:"subject_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDclRptDefinitionApprovalEvents(ctx context.Context, arg ListDclRptDefinitionApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDclRptDefinitionApprovalEvents, arg.SubjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDclRptDefinitions = `-- name: ListDclRptDefinitions :many
+SELECT d.id AS definition_id, d.code, d.enabled, d.revision AS object_revision,
+       COALESCE(approved_entry.id,'')::text AS approved_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM rpt_definitions d
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
+    AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+LEFT JOIN dcl_rpt_definition_versions open_v ON open_v.approval_entry_id=open_entry.id
+LEFT JOIN dcl_rpt_definition_versions approved_v ON approved_v.approval_entry_id=approved_entry.id
+WHERE ($1::boolean OR d.enabled)
+  AND ($2::text='' OR d.code ILIKE '%'||$2::text||'%' OR COALESCE(open_v.name, approved_v.name,'') ILIKE '%'||$2::text||'%')
+  AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
+ORDER BY d.code ASC
+OFFSET $4 LIMIT $5
+`
+
+type ListDclRptDefinitionsParams struct {
+	IncludeDisabled bool     `db:"include_disabled" json:"include_disabled"`
+	Keyword         string   `db:"keyword" json:"keyword"`
+	StatusFilter    []string `db:"status_filter" json:"status_filter"`
+	RowOffset       int32    `db:"row_offset" json:"row_offset"`
+	RowLimit        int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDclRptDefinitionsRow struct {
+	DefinitionID    string             `db:"definition_id" json:"definition_id"`
+	Code            string             `db:"code" json:"code"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
+	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
+	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListDclRptDefinitions(ctx context.Context, arg ListDclRptDefinitionsParams) ([]ListDclRptDefinitionsRow, error) {
+	rows, err := q.db.Query(ctx, listDclRptDefinitions,
+		arg.IncludeDisabled,
+		arg.Keyword,
+		arg.StatusFilter,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDclRptDefinitionsRow{}
+	for rows.Next() {
+		var i ListDclRptDefinitionsRow
+		if err := rows.Scan(
+			&i.DefinitionID,
+			&i.Code,
+			&i.Enabled,
+			&i.ObjectRevision,
+			&i.ApprovedEntryID,
+			&i.OpenEntryID,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDCLFundAccountIdentifierClaims = `-- name: LockDCLFundAccountIdentifierClaims :exec
 SELECT pg_advisory_xact_lock(74155003)
 `
@@ -3801,6 +4243,20 @@ SELECT pg_advisory_xact_lock(74155002)
 func (q *Queries) LockDCLVehicleIdentifierClaims(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, lockDCLVehicleIdentifierClaims)
 	return err
+}
+
+const nextDclRptDefinitionCode = `-- name: NextDclRptDefinitionCode :one
+UPDATE dcl_rpt_definition_code_counters
+SET next_value=next_value+1
+WHERE counter_key='default' AND next_value<999999
+RETURNING ('rpt-'||lpad(next_value::text,6,'0'))::text
+`
+
+func (q *Queries) NextDclRptDefinitionCode(ctx context.Context) (string, error) {
+	row := q.db.QueryRow(ctx, nextDclRptDefinitionCode)
+	var column_1 string
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const rebuildDCLFundAccountIdentifierClaims = `-- name: RebuildDCLFundAccountIdentifierClaims :exec

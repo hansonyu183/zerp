@@ -17,6 +17,7 @@ FROM approval_entries entry
 LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
 LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
 LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
+LEFT JOIN rpt_definitions report_definition ON entry.entity='rpt-definition' AND report_definition.id=entry.subject_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -32,11 +33,12 @@ CROSS JOIN LATERAL (
     WHEN 'fund-account' THEN (SELECT payload.name FROM dcl_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
+    WHEN 'rpt-definition' THEN (SELECT payload.name FROM dcl_rpt_definition_versions payload WHERE payload.approval_entry_id=entry.id)
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($1::text[]))
     OR (
@@ -55,6 +57,7 @@ WHERE entry.domain='dcl'
     OR object.code ILIKE '%' || $5 || '%'
     OR mapping.vou_entity ILIKE '%' || $5 || '%'
     OR mapping_book.name ILIKE '%' || $5 || '%'
+    OR report_definition.code ILIKE '%' || $5 || '%'
     OR named.name ILIKE '%' || $5 || '%'
   )
 `
@@ -130,11 +133,12 @@ func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbench
 }
 
 const listWorkbenchBobItems = `-- name: ListWorkbenchBobItems :many
-SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, mapping.vou_entity, '') AS code,
+SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, mapping.vou_entity, report_definition.code, '') AS code,
        named.name,
        COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
-       COALESCE(object.revision, 1) AS object_revision,
-       entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision, COALESCE(object.updated_at, entry.updated_at) AS object_updated_at,
+       COALESCE(object.revision, report_definition.revision, 1) AS object_revision,
+       entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision,
+       COALESCE(object.updated_at, mapping.updated_at, report_definition.updated_at, entry.updated_at) AS object_updated_at,
        CASE
          WHEN entry.submitted_by = $1::text THEN true
          ELSE false
@@ -143,6 +147,7 @@ FROM approval_entries entry
 LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
 LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
 LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
+LEFT JOIN rpt_definitions report_definition ON entry.entity='rpt-definition' AND report_definition.id=entry.subject_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -158,11 +163,12 @@ CROSS JOIN LATERAL (
     WHEN 'fund-account' THEN (SELECT payload.name FROM dcl_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
+    WHEN 'rpt-definition' THEN (SELECT payload.name FROM dcl_rpt_definition_versions payload WHERE payload.approval_entry_id=entry.id)
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($2::text[]))
     OR (
@@ -181,9 +187,10 @@ WHERE entry.domain='dcl'
     OR object.code ILIKE '%' || $5 || '%'
     OR mapping.vou_entity ILIKE '%' || $5 || '%'
     OR mapping_book.name ILIKE '%' || $5 || '%'
+    OR report_definition.code ILIKE '%' || $5 || '%'
     OR named.name ILIKE '%' || $5 || '%'
   )
-ORDER BY COALESCE(object.updated_at,mapping.updated_at,entry.updated_at) DESC, entry.subject_id ASC
+ORDER BY COALESCE(object.updated_at,mapping.updated_at,report_definition.updated_at,entry.updated_at) DESC, entry.subject_id ASC
 LIMIT $7 OFFSET $6
 `
 

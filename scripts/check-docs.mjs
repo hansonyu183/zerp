@@ -787,6 +787,16 @@ const registeredDomains = new Set(['app'])
 for (const match of registrySource.matchAll(/registerPage\('([^']+)'/g)) {
   registeredDomains.add(match[1])
 }
+const domainRegistrationSource = registrySource.match(
+  /const domainRegistrations[\s\S]*?= \{([\s\S]*?)\n\}/u,
+)?.[1]
+if (domainRegistrationSource) {
+  for (const match of domainRegistrationSource.matchAll(
+    /^\s{2}([a-z][a-z0-9-]*):\s*\{/gm,
+  )) {
+    registeredDomains.add(match[1])
+  }
+}
 const routerIndexSource = fs.readFileSync(
   path.join(root, 'frontend', 'src', 'router', 'index.ts'),
   'utf8',

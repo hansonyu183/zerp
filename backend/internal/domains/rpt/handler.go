@@ -15,7 +15,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/generated"
 	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -36,79 +35,11 @@ func NewHandler(service *Service, authorizer authorization.Authorizer, logger *s
 	return &Handler{service: service, authorizer: authorizer, logger: logger}
 }
 
-func value(source *string) string {
-	if source == nil {
-		return ""
-	}
-	return *source
-}
-
-func versionDataFromAPI(source generated.RptVersionData) VersionData {
-	parameters := make([]Parameter, len(source.Parameters))
-	for index, parameter := range source.Parameters {
-		var referenceType *ReferenceType
-		if parameter.ReferenceType != nil {
-			converted := ReferenceType(*parameter.ReferenceType)
-			referenceType = &converted
-		}
-		parameters[index] = Parameter{
-			DefaultValue:  parameter.DefaultValue,
-			EnumValues:    parameter.EnumValues,
-			Key:           parameter.Key,
-			Name:          parameter.Name,
-			ReferenceType: referenceType,
-			Required:      parameter.Required,
-			Type:          ParameterType(parameter.Type),
-		}
-	}
-	columns := make([]ResultColumn, len(source.Columns))
-	for index, column := range source.Columns {
-		var drilldownEntity *string
-		if column.DrilldownEntity != nil {
-			converted := string(*column.DrilldownEntity)
-			drilldownEntity = &converted
-		}
-		columns[index] = ResultColumn{
-			Alias:           column.Alias,
-			DrilldownEntity: drilldownEntity,
-			Format:          column.Format,
-			Name:            column.Name,
-			Order:           column.Order,
-			Type:            ResultType(column.Type),
-			Visible:         column.Visible,
-			Width:           column.Width,
-		}
-	}
-	return VersionData{SQL: source.Sql, Parameters: parameters, Columns: columns}
-}
-
-func definitionQueryInput(source generated.RptDefinitionQueryRequest) DefinitionQueryInput {
-	return DefinitionQueryInput{
-		IncludeDisabled: source.IncludeDisabled != nil && *source.IncludeDisabled,
-		Keyword:         value(source.Keyword),
-		Page:            source.Page,
-		PageSize:        source.PageSize,
-	}
-}
-
-func versionActionInput(source generated.RptVersionActionRequest) VersionActionInput {
-	parameters := map[string]any{}
-	if source.ValidationParameters != nil {
-		parameters = *source.ValidationParameters
-	}
-	return VersionActionInput{Code: source.Code, ApprovalEntryID: source.ApprovalEntryId, Revision: source.Revision, ValidationParameters: parameters}
-}
-
 func executeInput(source generated.RptExecuteRequest) ExecuteInput {
 	return ExecuteInput{Parameters: source.Parameters, Page: source.Page, PageSize: source.PageSize}
 }
 
 func (h *Handler) Register(router *gin.Engine) {
-	management := map[string]gin.HandlerFunc{"query": h.definitionQuery, "get": h.definitionGet, "create": h.definitionCreate, "create-version": h.createVersion, "save": h.saveVersion, "versions": h.versions, "delete-version": h.deleteVersion, "submit": h.submit, "unsubmit": h.unsubmit, "reject": h.reject, "approve": h.approve, "unapprove": h.unapprove, "enable": h.enable, "disable": h.disable, "delete": h.delete}
-	for action, handle := range management {
-		path := "/rpt/definition/" + action
-		router.POST(path, authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError), handle)
-	}
 	directoryPath := "/rpt/directory/query"
 	router.POST(directoryPath, authmiddleware.RequirePermission(h.authorizer, directoryPath, h.writeAuthorizationError), h.directoryQuery)
 	for _, route := range []struct {
@@ -137,229 +68,6 @@ func (h *Handler) directoryQuery(c *gin.Context) {
 	h.result(c, result, err)
 }
 
-func (h *Handler) requireReportAccess(next gin.HandlerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var lastErr error
-		for _, action := range []string{"query", "export"} {
-			path := permissionPath(c.Param("report"), action)
-			err := h.authorizer.RequirePermission(c.Request.Context(), authmiddleware.Principal(c), path, response.RequestID(c))
-			if err == nil {
-				next(c)
-				return
-			}
-			lastErr = err
-			if !authorization.IsKind(err, authorization.ErrorForbidden) {
-				break
-			}
-		}
-		h.writeAuthorizationError(c, lastErr)
-		c.Abort()
-	}
-}
-func (h *Handler) principal(c *gin.Context) authorization.Principal {
-	return authmiddleware.Principal(c)
-}
-func (h *Handler) actor(c *gin.Context) (approval.Actor, error) {
-	return approval.UserActor(h.principal(c), response.RequestID(c))
-}
-func (h *Handler) bind(c *gin.Context, target any) bool {
-	if err := requestbody.DecodeJSON(c, target); err != nil {
-		h.writeError(c, domainError(ErrorValidation, "invalid request", nil, err))
-		return false
-	}
-	return true
-}
-func (h *Handler) result(c *gin.Context, data any, err error) {
-	if err != nil {
-		h.writeError(c, err)
-		return
-	}
-	response.OK(c, data)
-}
-func (h *Handler) definitionQuery(c *gin.Context) {
-	var in generated.RptDefinitionQueryRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.QueryDefinitions(c, definitionQueryInput(in), actor)
-	h.result(c, result, err)
-}
-func (h *Handler) definitionGet(c *gin.Context) {
-	var in generated.RptDefinitionGetRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.GetDefinition(c, DefinitionGetInput{Code: in.Code, ApprovalEntryID: value(in.ApprovalEntryId)}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) definitionCreate(c *gin.Context) {
-	var in generated.RptDefinitionCreateRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.CreateDefinition(c, DefinitionCreateInput{Code: in.Code, Name: in.Name, Description: in.Description, Data: versionDataFromAPI(in.Data)}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) createVersion(c *gin.Context) {
-	var in generated.RptVersionCreateRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.CreateVersion(c, VersionCreateInput{Code: in.Code}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) saveVersion(c *gin.Context) {
-	var in generated.RptVersionSaveRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.SaveVersion(c, VersionSaveInput{Code: in.Code, ApprovalEntryID: in.ApprovalEntryId, Revision: in.Revision, Name: in.Name, Description: in.Description, Data: versionDataFromAPI(in.Data)}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) approve(c *gin.Context) {
-	var in generated.RptVersionActionRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.Approve(c, versionActionInput(in), actor)
-	h.result(c, result, err)
-}
-func (h *Handler) unapprove(c *gin.Context) {
-	var in generated.RptVersionReasonActionRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.Unapprove(c, VersionReasonActionInput{VersionActionInput: VersionActionInput{Code: in.Code, ApprovalEntryID: in.ApprovalEntryId, Revision: in.Revision}, Reason: in.Reason}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) submit(c *gin.Context) {
-	var in generated.RptVersionActionRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.Submit(c, versionActionInput(in), actor)
-	h.result(c, result, err)
-}
-func (h *Handler) unsubmit(c *gin.Context) {
-	var in generated.RptVersionActionRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.Unsubmit(c, versionActionInput(in), actor)
-	h.result(c, result, err)
-}
-func (h *Handler) reject(c *gin.Context) {
-	var in generated.RptVersionReasonActionRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.Reject(c, VersionReasonActionInput{VersionActionInput: VersionActionInput{Code: in.Code, ApprovalEntryID: in.ApprovalEntryId, Revision: in.Revision}, Reason: in.Reason}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) versions(c *gin.Context) {
-	var in generated.RptVersionListRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.Versions(c, VersionListInput{Code: in.Code, Page: in.Page, PageSize: in.PageSize}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) deleteVersion(c *gin.Context) {
-	var in generated.RptVersionDeleteRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	err = h.service.DeleteVersion(c, VersionDeleteInput{Code: in.Code, ApprovalEntryID: in.ApprovalEntryId, Revision: in.Revision}, actor)
-	h.result(c, map[string]any{}, err)
-}
-func (h *Handler) definitionState(c *gin.Context, enabled bool) {
-	var in generated.RptDefinitionRevisionRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.SetEnabled(c, DefinitionRevisionInput{Code: in.Code, Revision: in.Revision}, enabled, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) enable(c *gin.Context)  { h.definitionState(c, true) }
-func (h *Handler) disable(c *gin.Context) { h.definitionState(c, false) }
-func (h *Handler) delete(c *gin.Context) {
-	var in generated.RptDefinitionRevisionRequest
-	if !h.bind(c, &in) {
-		return
-	}
-	actor, err := h.actor(c)
-	if err != nil {
-		h.result(c, nil, approvalError(err))
-		return
-	}
-	result, err := h.service.DeleteDefinition(c, DefinitionRevisionInput{Code: in.Code, Revision: in.Revision}, actor)
-	h.result(c, result, err)
-}
 func (h *Handler) reportQuery(c *gin.Context) {
 	var in generated.RptExecuteRequest
 	if !h.bind(c, &in) {
@@ -368,6 +76,7 @@ func (h *Handler) reportQuery(c *gin.Context) {
 	result, err := h.service.Execute(c, c.Param("report"), executeInput(in), h.principal(c).ActorID, response.RequestID(c))
 	h.result(c, result, err)
 }
+
 func (h *Handler) reportExport(c *gin.Context) {
 	var in generated.RptExecuteRequest
 	if !h.bind(c, &in) {
@@ -498,6 +207,34 @@ func (h *Handler) referenceQuery(c *gin.Context) {
 	result, err := h.service.QueryReferences(c, c.Param("report"), ReferenceQueryInput{ParameterKey: in.ParameterKey, Keyword: value(in.Keyword), SelectedID: value(in.SelectedId), Page: in.Page, PageSize: in.PageSize})
 	h.result(c, result, err)
 }
+
+func value(source *string) string {
+	if source == nil {
+		return ""
+	}
+	return *source
+}
+
+func (h *Handler) requireReportAccess(next gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var lastErr error
+		for _, action := range []string{"query", "export"} {
+			path := permissionPath(c.Param("report"), action)
+			err := h.authorizer.RequirePermission(c.Request.Context(), authmiddleware.Principal(c), path, response.RequestID(c))
+			if err == nil {
+				next(c)
+				return
+			}
+			lastErr = err
+			if !authorization.IsKind(err, authorization.ErrorForbidden) {
+				break
+			}
+		}
+		h.writeAuthorizationError(c, lastErr)
+		c.Abort()
+	}
+}
+
 func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {
 	code, message := response.CodeInternal, "internal server error"
 	if authorization.IsKind(err, authorization.ErrorUnauthenticated) {
@@ -509,6 +246,7 @@ func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {
 	}
 	response.BusinessError(c, code, response.ErrorKeyForCode(code), message, nil)
 }
+
 func (h *Handler) writeError(c *gin.Context, err error) {
 	var target *DomainError
 	if !errors.As(err, &target) {
@@ -531,4 +269,24 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 		errorKey = response.ErrorKeyForCode(code)
 	}
 	response.BusinessError(c, code, errorKey, target.Message, target.Data)
+}
+
+func (h *Handler) bind(c *gin.Context, target any) bool {
+	if err := requestbody.DecodeJSON(c, target); err != nil {
+		h.writeError(c, domainError(ErrorValidation, "invalid request", nil, err))
+		return false
+	}
+	return true
+}
+
+func (h *Handler) principal(c *gin.Context) authorization.Principal {
+	return authmiddleware.Principal(c)
+}
+
+func (h *Handler) result(c *gin.Context, data any, err error) {
+	if err != nil {
+		h.writeError(c, err)
+		return
+	}
+	response.OK(c, data)
 }

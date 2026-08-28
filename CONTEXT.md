@@ -289,7 +289,7 @@ _Authority_: [ACC 会计科目](docs/domains/acc.md#5-会计科目)
 **Report Definition（报表定义）**:
 具有稳定 code 的报表主体；每个不可变业务版本由一个 Approval Version entry 承载，最新 `APPROVED` entry 是唯一执行版本。
 _Avoid_: `currentVersionId`、历史版本回退、候选执行
-_Authority_: [RPT 报表定义与版本](docs/domains/rpt.md#3-报表定义与-approval-version)
+_Authority_: [DCL 报表定义申报](docs/domains/dcl.md#39-报表定义申报)、[RPT 当前执行规则](docs/domains/rpt.md#3-报表定义与-dcl)
 
 ## Workflow
 

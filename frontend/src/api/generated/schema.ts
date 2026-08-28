@@ -1502,6 +1502,126 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
     };
   };
+  "/dcl/rpt-definition/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/create-next": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/delete-version": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionDeleteRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/enable": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionEnableRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/disable": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionEnableRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionQueryResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionViewResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclRptDefinitionVersionPageResponse } } };
+    };
+  };
+  "/dcl/rpt-definition/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
+    };
+  };
   "/app/workbench/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -2238,126 +2358,6 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.WflInstanceHistoryResponse } } };
     };
   };
-  "/rpt/definition/query": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptDefinitionQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionPageResponse } } };
-    };
-  };
-  "/rpt/definition/get": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptDefinitionGetRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/create": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptDefinitionCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/create-version": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/versions": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionListRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionVersionPageResponse } } };
-    };
-  };
-  "/rpt/definition/delete-version": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
-    };
-  };
-  "/rpt/definition/submit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/unsubmit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/reject": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionReasonActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/approve": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/unapprove": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionReasonActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/enable": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/disable": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
-    };
-  };
-  "/rpt/definition/delete": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
-    };
-  };
   "/rpt/{report}/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -2722,6 +2722,32 @@ export interface components {
       "DclAccMappingHistoryRequest": Models.DclAccMappingHistoryRequest;
       "DclAccMappingVersionPage": Models.DclAccMappingVersionPage;
       "DclAccMappingVersionPageResponse": Models.DclAccMappingVersionPageResponse;
+      "RptParameterType": Models.RptParameterType;
+      "RptReferenceType": Models.RptReferenceType;
+      "RptParameter": Models.RptParameter;
+      "RptResultType": Models.RptResultType;
+      "RptResultColumn": Models.RptResultColumn;
+      "RptVersionData": Models.RptVersionData;
+      "DclRptDefinitionCreateRequest": Models.DclRptDefinitionCreateRequest;
+      "DclRptDefinitionMutation": Models.DclRptDefinitionMutation;
+      "DclRptDefinitionMutationResponse": Models.DclRptDefinitionMutationResponse;
+      "DclRptDefinitionVersionRequest": Models.DclRptDefinitionVersionRequest;
+      "DclRptDefinitionSaveRequest": Models.DclRptDefinitionSaveRequest;
+      "DclRptDefinitionReviewRequest": Models.DclRptDefinitionReviewRequest;
+      "DclRptDefinitionDeleteRequest": Models.DclRptDefinitionDeleteRequest;
+      "DclRptDefinitionEnableRequest": Models.DclRptDefinitionEnableRequest;
+      "DclRptDefinitionQueryRequest": Models.DclRptDefinitionQueryRequest;
+      "DclRptDefinitionVersionSummary": Models.DclRptDefinitionVersionSummary;
+      "DclRptDefinitionListItem": Models.DclRptDefinitionListItem;
+      "DclRptDefinitionQueryPageData": Models.DclRptDefinitionQueryPageData;
+      "DclRptDefinitionQueryResponse": Models.DclRptDefinitionQueryResponse;
+      "DclRptDefinitionGetRequest": Models.DclRptDefinitionGetRequest;
+      "DclRptDefinitionView": Models.DclRptDefinitionView;
+      "DclRptDefinitionViewResponse": Models.DclRptDefinitionViewResponse;
+      "DclRptDefinitionHistoryRequest": Models.DclRptDefinitionHistoryRequest;
+      "DclRptDefinitionVersionView": Models.DclRptDefinitionVersionView;
+      "DclRptDefinitionVersionPageData": Models.DclRptDefinitionVersionPageData;
+      "DclRptDefinitionVersionPageResponse": Models.DclRptDefinitionVersionPageResponse;
       "WorkbenchCategory": Models.WorkbenchCategory;
       "WorkbenchPendingStage": Models.WorkbenchPendingStage;
       "WorkbenchQueryRequest": Models.WorkbenchQueryRequest;
@@ -2975,28 +3001,6 @@ export interface components {
       "WflInstanceHistoryResponse": Models.WflInstanceHistoryResponse;
       "WflCreateChildRequest": Models.WflCreateChildRequest;
       "WflCreateChildResponse": Models.WflCreateChildResponse;
-      "RptDefinitionQueryRequest": Models.RptDefinitionQueryRequest;
-      "RptParameterType": Models.RptParameterType;
-      "RptReferenceType": Models.RptReferenceType;
-      "RptParameter": Models.RptParameter;
-      "RptResultType": Models.RptResultType;
-      "RptResultColumn": Models.RptResultColumn;
-      "RptVersionData": Models.RptVersionData;
-      "RptDefinitionViewData": Models.RptDefinitionViewData;
-      "RptDefinitionPageData": Models.RptDefinitionPageData;
-      "RptDefinitionPageResponse": Models.RptDefinitionPageResponse;
-      "RptDefinitionGetRequest": Models.RptDefinitionGetRequest;
-      "RptDefinitionViewResponse": Models.RptDefinitionViewResponse;
-      "RptDefinitionCreateRequest": Models.RptDefinitionCreateRequest;
-      "RptVersionCreateRequest": Models.RptVersionCreateRequest;
-      "RptVersionSaveRequest": Models.RptVersionSaveRequest;
-      "RptVersionListRequest": Models.RptVersionListRequest;
-      "RptDefinitionVersionPageData": Models.RptDefinitionVersionPageData;
-      "RptDefinitionVersionPageResponse": Models.RptDefinitionVersionPageResponse;
-      "RptVersionDeleteRequest": Models.RptVersionDeleteRequest;
-      "RptVersionActionRequest": Models.RptVersionActionRequest;
-      "RptVersionReasonActionRequest": Models.RptVersionReasonActionRequest;
-      "RptDefinitionRevisionRequest": Models.RptDefinitionRevisionRequest;
       "RptExecuteRequest": Models.RptExecuteRequest;
       "RptQueryResult": Models.RptQueryResult;
       "RptQueryResponse": Models.RptQueryResponse;

@@ -4,7 +4,7 @@
 
 RPT（Reporting）定义、验证、执行和导出面向用户的查询报表。它读取其他领域已形成的事实，不拥有或改写客户、供应商、单据、会计分录、库存数量或核算对象。
 
-RPT 拥有稳定的报表定义、每个不可变版本的 SQL/参数/结果列 payload、版本校验、技术有效性、按报表授权的查询与导出，以及首次批准时与 APP 原子注册精确权限的协作。它不拥有 ACC 查询投影、第二套角色权限、用户账簿分配或执行层账簿过滤，也不提供未授权报表菜单或集中报表中心。
+RPT 拥有技术有效性（VALID/INVALID）、按报表授权的查询与导出，以及运行时审计。报表定义的创建、候选编辑、提交、撤回、驳回、批准、反批、草稿删除、版本历史和审计读取由 DCL 统一拥有；RPT 只保留当前有效定义的查询、执行和独立 VALID/INVALID 规则。它不拥有 ACC 查询投影、第二套角色权限、用户账簿分配或执行层账簿过滤，也不提供未授权报表菜单或集中报表中心。
 
 公开动作、路径和数据结构以 [OpenAPI RPT Schema](../../contracts/openapi/schemas/rpt.yaml) 为唯一线协议来源。
 
@@ -38,16 +38,11 @@ RPT 拥有稳定的报表定义、每个不可变版本的 SQL/参数/结果列 
 
 员工借款报表按账簿、员工、币种和截止日展示借款、还款、费用核销、余额及先进先出账龄。余额为负时必须明确标识为应付员工，而不是继续显示为员工借款。
 
-## 3. 报表定义与 Approval Version
+## 3. 报表定义与 DCL
 
-报表定义是拥有稳定 `definitionId` 和 code 的 stable subject。code 创建后永久冻结；stable definition 只保存 identity、enabled 和 stable revision。每个 Approval Version entry 的不可变 payload 同时保存 name、description、SQL、参数和结果列：`approvalEntryId`、正数 `versionNo`、`DRAFT | PENDING | APPROVED`、approval revision 和审批元数据由 `ApprovalVersionMeta` 表达，不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
+报表定义的生命周期完全由 [DCL 报表定义申报](dcl.md#39-报表定义申报) 拥有。`/dcl/rpt-definition` 是唯一维护入口，覆盖创建、保存、提交、撤回、驳回、批准、反批、删除、版本和审计。RPT 不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
 
-- 创建定义会原子建立 stable definition、V1 `DRAFT` entry 和 payload；定义、entry、payload 或事件任一失败均回滚。
-- 保存只允许 DRAFT；修改已批准内容必须 create-version。每个 subject 最多一个 DRAFT/PENDING 候选；create-version 从 latest APPROVED 复制完整 payload，delete-version 只删除 DRAFT，删除后号码可复用。草稿保存不会修改正式目录、执行文本或已登记权限说明；删除候选后管理读取自然回到 latest APPROVED payload，候选批准后才一次切换。
-- `submit`、`unsubmit`、`reject`、`approve`、`unapprove` 使用中央 Approval 生命周期；reject 与 unapprove 必须提交非空 reason，批准人与提交人必须不同，且只能反批最新 APPROVED entry。
-- `get` 可用精确 `approvalEntryId` 读取任一历史 entry；未指定时优先返回唯一开放候选，没有候选时返回 latest APPROVED。`versions` 返回完整历史。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`，不在 RPT 另建状态映射。
-
-最新 `APPROVED` entry 是唯一执行版本。不存在 APPROVED entry 时定义不能执行；开放候选和非最新批准 entry 不能执行，也不能替代正式版本。
+最新 `APPROVED` entry 是唯一执行版本。不存在 APPROVED entry 时定义不能执行；开放候选和非最新批准 entry 不能执行，也不能替代正式版本。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`，不在 RPT 另建状态映射。
 
 ## 4. 查询 SQL 安全与版本契约
 
@@ -63,9 +58,9 @@ approve 前必须验证：单条允许的只读 SQL、参数占位符与类型�
 
 ## 6. 权限、菜单与定义启停
 
-定义及其版本的 query/get/create/save/create-version/delete-version/versions、完整 Approval 生命周期、enable/disable/delete 是独立高权限管理动作；普通使用者的 query 与 export 按报表 stable code 分别授权。首次批准时，RPT 与 APP 在同一事务注册该 code 的精确 `query`、`export` 权限；草稿不创建使用权限。enabled 为 false、没有 latest APPROVED 或 latest APPROVED 为 INVALID 时，查询与导出不可用，但既有角色关联和审批/运行审计保留。
+DCL 定义及其版本的 `query|get|create|save|create-next|delete-version|versions|audit-history`、完整 Approval 生命周期和 `enable|disable` 是独立高权限管理动作；普通使用者的 query 与 export 按报表 stable code 分别授权。首次批准时，RPT 与 APP 在同一事务注册该 code 的精确 `query`、`export` 权限；草稿不创建使用权限。enabled 为 false、没有 latest APPROVED 或 latest APPROVED 为 INVALID 时，查询与导出不可用，但既有角色关联和审批/运行审计保留。
 
-获得某报表的 query 或 export 权限即可读取该定义 SQL 返回的全部数据，包括跨账簿数据；RPT 执行层不追加 ACC 账簿过滤。APP 对每个有权限的 code 生成独立 `/rpt/{code}` 菜单项；普通页面只加载该 code，不显示报表中心。定义管理页为 `/rpt/definition`，不与普通报表页混合。
+获得某报表的 query 或 export 权限即可读取该定义 SQL 返回的全部数据，包括跨账簿数据；RPT 执行层不追加 ACC 账簿过滤。APP 对每个有权限的 code 生成独立 `/rpt/{code}` 菜单项；普通页面只加载该 code，不显示报表中心。定义管理页已迁入 `/dcl/rpt-definition`，不与普通报表页混合。
 
 ## 7. 发布门禁与验收边界
 

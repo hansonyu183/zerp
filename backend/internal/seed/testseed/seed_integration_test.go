@@ -250,7 +250,7 @@ func assertAccountingAndReportFacts(t *testing.T, pool *pgxpool.Pool) {
 	var reports, reportRows int
 	if err := pool.QueryRow(t.Context(), `
 		SELECT
-			(SELECT count(*) FROM rpt_definitions definition WHERE definition.enabled AND EXISTS(SELECT 1 FROM approval_entries approval WHERE approval.domain='rpt' AND approval.entity='definition' AND approval.subject_id=definition.id AND approval.status='APPROVED')),
+			(SELECT count(*) FROM rpt_definitions definition WHERE definition.enabled AND EXISTS(SELECT 1 FROM approval_entries approval WHERE approval.domain='dcl' AND approval.entity='rpt-definition' AND approval.subject_id=definition.id AND approval.status='APPROVED')),
 			(SELECT count(*) FROM acc_voucher_lines)
 	`).Scan(&reports, &reportRows); err != nil {
 		t.Fatalf("read test report facts: %v", err)

@@ -49,6 +49,13 @@ export function workbenchItemQuery(
       mode,
     }
   }
+  if (item.entity === 'rpt-definition') {
+    return {
+      code: item.code,
+      approvalEntryId: item.versionId,
+      mode,
+    }
+  }
   return { objectId: item.objectId, mode }
 }
 

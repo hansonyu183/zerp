@@ -107,7 +107,7 @@ func validateAssetText(value, field string, required bool, max int) (string, err
 func (s *Service) resolveSelectedAssetCategoryReference(
 	ctx context.Context,
 	tx pgx.Tx,
-	input *ReferenceInput,
+	input *AuxiliaryReferenceInput,
 	preserved *bobdomain.AuxiliaryReference,
 	newDocument bool,
 ) (bobdomain.AuxiliaryReference, error) {
@@ -487,7 +487,7 @@ func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document
 		}
 		data.AssetAcquisitionLines = make([]AssetAcquisitionLineView, 0, len(rows))
 		for _, row := range rows {
-			item := AssetAcquisitionLineView{LineID: row.ID, LineNo: row.LineNo, AssetName: row.AssetName, Specification: row.Specification, Category: *reference(row.CategoryObjectID, "", auxdomain.EntityAssetCategory, row.CategoryCode, row.CategoryName, "", "", ""), CategoryDefaultUsefulLifeMonths: row.CategoryDefaultUsefulLifeMonths, CategoryDefaultResidualRate: formatFixed(int64(row.CategoryDefaultResidualRateBps), 2), OriginalValue: formatMoney(row.OriginalValueCents), UsefulLifeMonths: row.UsefulLifeMonths, ResidualRate: formatFixed(int64(row.ResidualRateBps), 2), Department: *reference(row.DepartmentObjectID, "", auxdomain.EntityDepartment, row.DepartmentCode, row.DepartmentName, "", "", ""), Location: row.Location, Remark: deref(row.Remark)}
+			item := AssetAcquisitionLineView{LineID: row.ID, LineNo: row.LineNo, AssetName: row.AssetName, Specification: row.Specification, Category: auxiliaryReference(row.CategoryObjectID, auxdomain.EntityAssetCategory, row.CategoryCode, row.CategoryName), CategoryDefaultUsefulLifeMonths: row.CategoryDefaultUsefulLifeMonths, CategoryDefaultResidualRate: formatFixed(int64(row.CategoryDefaultResidualRateBps), 2), OriginalValue: formatMoney(row.OriginalValueCents), UsefulLifeMonths: row.UsefulLifeMonths, ResidualRate: formatFixed(int64(row.ResidualRateBps), 2), Department: auxiliaryReference(row.DepartmentObjectID, auxdomain.EntityDepartment, row.DepartmentCode, row.DepartmentName), Location: row.Location, Remark: deref(row.Remark)}
 			if row.CustodianObjectID != nil {
 				item.Custodian = reference(deref(row.CustodianObjectID), deref(row.CustodianApprovalEntryID), bobdomain.EntityEmployee, deref(row.CustodianCode), deref(row.CustodianName), "", "", "")
 			}

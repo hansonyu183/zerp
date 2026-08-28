@@ -87,7 +87,7 @@ func (s *Service) resolveSelectedAuxiliaryReference(
 	ctx context.Context,
 	tx pgx.Tx,
 	entity string,
-	input *ReferenceInput,
+	input *AuxiliaryReferenceInput,
 	preserved *bobdomain.EffectiveReference,
 	newDocument bool,
 ) (*bobdomain.EffectiveReference, error) {

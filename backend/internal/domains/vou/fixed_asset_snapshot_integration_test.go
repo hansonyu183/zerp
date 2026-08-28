@@ -12,7 +12,7 @@ import (
 
 func createApprovedAuxiliaryReference(
 	t *testing.T, pool *pgxpool.Pool, entity string, data map[string]any, label string,
-) (ReferenceInput, *auxdomain.Service, auxdomain.MutationResult) {
+) (AuxiliaryReferenceInput, *auxdomain.Service, auxdomain.MutationResult) {
 	t.Helper()
 	service := auxdomain.NewService(pool)
 	created, err := service.Create(t.Context(), entity, auxdomain.CreateInput{
@@ -21,7 +21,7 @@ func createApprovedAuxiliaryReference(
 	if err != nil {
 		t.Fatalf("create %s: %v", label, err)
 	}
-	return ReferenceInput{ObjectID: created.ObjectID}, service, created
+	return AuxiliaryReferenceInput{ObjectID: created.ObjectID}, service, created
 }
 
 func TestAssetCategoryDefaultsAreAdoptedIntoImmutableAssetSnapshotsIntegration(t *testing.T) {
@@ -37,7 +37,7 @@ func TestAssetCategoryDefaultsAreAdoptedIntoImmutableAssetSnapshotsIntegration(t
 	department, departments, departmentCreated := createApprovedAuxiliaryReference(t, pool, auxdomain.EntityDepartment, map[string]any{
 		"name": "资产使用部门",
 	}, "asset-department")
-	draft := func(category ReferenceInput) DraftInput {
+	draft := func(category AuxiliaryReferenceInput) DraftInput {
 		return DraftInput{
 			BusinessDate: "2026-08-28", Currency: "CNY", Supplier: &refs.supplier,
 			AssetAcquisitionLines: []AssetAcquisitionLineInput{{
@@ -119,7 +119,7 @@ func TestAssetCategoryDefaultsAreAdoptedIntoImmutableAssetSnapshotsIntegration(t
 	}
 	assertV1Snapshot()
 
-	_, err = vouchers.Create(t.Context(), EntityAssetAcquisition, CreateInput{Data: draft(ReferenceInput{
+	_, err = vouchers.Create(t.Context(), EntityAssetAcquisition, CreateInput{Data: draft(AuxiliaryReferenceInput{
 		ObjectID: categoryV2.ObjectID,
 	})}, integrationApprovalActor(t, integrationActorOne, "asset-snapshot-reject-disabled"))
 	var domainErr *DomainError

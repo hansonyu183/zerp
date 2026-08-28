@@ -38,7 +38,7 @@ func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *test
 		DocumentID: documentID, Entity: voudomain.EntityAssetAcquisition, DocumentNo: "FAA-20260720-0001",
 		Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3},
 		Data: voudomain.DocumentDataView{BusinessDate: "2026-07-20", Currency: "CNY", AssetAcquisitionLines: []voudomain.AssetAcquisitionLineView{{
-			LineID: lineID, AssetName: "反应釜", Category: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, Department: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, OriginalValue: "12000.00", UsefulLifeMonths: 60, ResidualRate: "5.00",
+			LineID: lineID, AssetName: "反应釜", Category: voudomain.AuxiliaryReferenceView{ObjectID: ulid.Make().String()}, Department: voudomain.AuxiliaryReferenceView{ObjectID: ulid.Make().String()}, OriginalValue: "12000.00", UsefulLifeMonths: 60, ResidualRate: "5.00",
 		}}},
 	}
 	event := approvedVOUEvent(snapshot)

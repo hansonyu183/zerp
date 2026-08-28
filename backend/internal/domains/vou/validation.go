@@ -102,7 +102,7 @@ type validatedDraft struct {
 	InterestParty                                           *ReferenceInput
 	WithRecourse                                            bool
 	SpecialApproval                                         bool
-	SettlementMethod                                        *ReferenceInput
+	SettlementMethod                                        *AuxiliaryReferenceInput
 	ServiceContract                                         *validatedServiceContract
 	ServiceAcceptance                                       *validatedServiceAcceptance
 	TotalAmount                                             int64
@@ -169,7 +169,7 @@ func validateReference(ref *ReferenceInput, field string, required bool) error {
 	return nil
 }
 
-func validateAuxiliaryReference(ref *ReferenceInput, field string, required bool) error {
+func validateAuxiliaryReference(ref *AuxiliaryReferenceInput, field string, required bool) error {
 	if ref == nil {
 		if required {
 			return domainError(ErrorValidation, field+" is required", nil, nil)

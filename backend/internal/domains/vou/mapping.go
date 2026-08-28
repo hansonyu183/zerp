@@ -449,6 +449,10 @@ func reference(objectID, versionID, entity, code, name, unit, currency, plate st
 	}
 }
 
+func auxiliaryReference(objectID, entity, code, name string) AuxiliaryReferenceView {
+	return AuxiliaryReferenceView{ObjectID: objectID, Entity: entity, Code: code, Name: name}
+}
+
 func optionalReference(
 	objectID, versionID *string,
 	entity string,

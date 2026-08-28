@@ -104,8 +104,8 @@ func (s *Seeder) seedAssetDocuments(ctx context.Context, counts *Counts, supplie
 			BusinessDate: "2026-07-02", Currency: "CNY", Supplier: &supplier,
 			Remark: "测试固定资产来源",
 			AssetAcquisitionLines: []voudomain.AssetAcquisitionLineInput{
-				{AssetName: "测试叉车", Specification: "FD-30", Category: voudomain.ReferenceInput{ObjectID: category.ObjectID}, OriginalValue: "50000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.ReferenceInput{ObjectID: department.ObjectID}, Custodian: &employee, Location: "一号仓"},
-				{AssetName: "测试包装机", Specification: "PK-01", Category: voudomain.ReferenceInput{ObjectID: category.ObjectID}, OriginalValue: "30000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.ReferenceInput{ObjectID: department.ObjectID}, Custodian: &employee, Location: "包装区"},
+				{AssetName: "测试叉车", Specification: "FD-30", Category: voudomain.AuxiliaryReferenceInput{ObjectID: category.ObjectID}, OriginalValue: "50000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.AuxiliaryReferenceInput{ObjectID: department.ObjectID}, Custodian: &employee, Location: "一号仓"},
+				{AssetName: "测试包装机", Specification: "PK-01", Category: voudomain.AuxiliaryReferenceInput{ObjectID: category.ObjectID}, OriginalValue: "30000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.AuxiliaryReferenceInput{ObjectID: department.ObjectID}, Custodian: &employee, Location: "包装区"},
 			},
 		}}, mustApprovalActor(requestID("asset-acquisition-approved", "create")))
 	})

@@ -31,7 +31,7 @@ func TestServiceContractSavePreservesDisabledSettlementSnapshotIntegration(t *te
 		t.Fatalf("get settlement method: %v", err)
 	}
 	settlementName := auxiliaryString(settlement.Data, "name")
-	settlementRef := ReferenceInput{ObjectID: settlement.ObjectID}
+	settlementRef := AuxiliaryReferenceInput{ObjectID: settlement.ObjectID}
 	draft := DraftInput{
 		BusinessDate: "2026-08-01", Currency: "CNY", CounterpartyType: bobdomain.EntityOtherUnit,
 		Counterparty: &refs.carrier, Handler: &refs.employee, SettlementMethod: &settlementRef,

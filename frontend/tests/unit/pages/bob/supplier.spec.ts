@@ -1,10 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
-import {
-  supplierActiveVersion,
-  useSupplierViewModel,
-} from '@/pages/bob/supplier/vm'
+import { useSupplierViewModel } from '@/pages/bob/supplier/vm'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
@@ -37,17 +34,16 @@ describe('Supplier', () => {
     expect('openCreate' in vm).toBe(false)
   })
 
-  it('uses the approved snapshot even when an unexpected candidate is returned', () => {
-    const latestApproved = {
-      approval: { approvalEntryId: 'SUP-V1' },
-      defaultPurchaserName: '批准采购员',
+  it('keeps the current projection returned by BOB without lifecycle adaptation', async () => {
+    const current = {
+      objectId: 'SUP-1',
+      data: { name: '当前供应商', defaultPurchaserName: '当前采购员' },
     }
-    const openVersion = {
-      approval: { approvalEntryId: 'SUP-V2' },
-      defaultPurchaserName: '候选采购员',
-    }
-    expect(
-      supplierActiveVersion({ latestApproved, openVersion } as never),
-    ).toBe(latestApproved)
+    vi.mocked(apiClient.postContract).mockResolvedValueOnce({
+      data: { items: [current], total: 1, page: 1, pageSize: 20 },
+    })
+    const vm = useSupplierViewModel()
+    await vm.query()
+    expect(vm.rows.value[0]).toEqual(current)
   })
 })

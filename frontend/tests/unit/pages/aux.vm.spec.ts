@@ -90,22 +90,11 @@ describe('AUX entity view model', () => {
     expect(vm.canDelete.value).toBe(true)
   })
 
-  it('按公共 Approval 状态执行生命周期并读取版本与审批历史', async () => {
-    const session = useSessionStore()
-    session.user = {
-      id: 'USER-REVIEWER',
-      username: 'reviewer',
-      displayName: '审核人',
-    }
-    session.permissions = [
+  it('按对象 revision 直接保存和停用，不提交 Approval 字段', async () => {
+    useSessionStore().permissions = [
       '/aux/position/query',
-      '/aux/position/submit',
-      '/aux/position/unsubmit',
-      '/aux/position/approve',
-      '/aux/position/reject',
-      '/aux/position/unapprove',
-      '/aux/position/versions',
-      '/aux/position/audit-history',
+      '/aux/position/save',
+      '/aux/position/disable',
     ]
     const row: AuxListItem = {
       objectId: 'OBJECT-1',
@@ -113,58 +102,30 @@ describe('AUX entity view model', () => {
       code: 'POS-0001',
       enabled: true,
       objectRevision: 2,
-      latestApproved: null,
-      openVersion: {
-        approval: {
-          approvalEntryId: 'ENTRY-1',
-          versionNo: 1,
-          status: 'DRAFT',
-          revision: 3,
-          createdBy: 'USER-OPERATOR',
-          createdAt: '2026-08-25T00:00:00Z',
-          updatedBy: 'USER-OPERATOR',
-          updatedAt: '2026-08-25T00:00:00Z',
-          submittedBy: null,
-          submittedAt: null,
-          approvedBy: null,
-          approvedAt: null,
-        },
-        data: { name: '仓储主管' },
-      },
+      data: { name: '仓储主管' },
       updatedAt: '2026-08-25T00:00:00Z',
       updatedBy: 'USER-OPERATOR',
     }
     const vm = createAuxEntityViewModel(auxConfigs.position)
+    vm.openEdit(row)
 
-    expect(vm.approvalActions(row)).toEqual(['submit'])
     mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce({
       data: { items: [], total: 0, page: 1, pageSize: 20 },
     })
-    await expect(vm.runApprovalAction(row, 'submit')).resolves.toBe(true)
-    expect(mockedPost).toHaveBeenNthCalledWith(1, 'aux/position/submit', {
+    await vm.save({ code: row.code, name: '仓储经理', description: '' })
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'aux/position/save', {
       objectId: 'OBJECT-1',
-      approvalEntryId: 'ENTRY-1',
-      approvalRevision: 3,
+      objectRevision: 2,
+      data: { name: '仓储经理', description: '' },
     })
 
-    mockedPost.mockResolvedValueOnce({
-      data: { items: [row.openVersion], total: 1, page: 1, pageSize: 20 },
-    })
-    await vm.openVersions(row)
-    expect(mockedPost).toHaveBeenLastCalledWith('aux/position/versions', {
-      objectId: 'OBJECT-1',
-      page: 1,
-      pageSize: 20,
-    })
-
-    mockedPost.mockResolvedValueOnce({
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce({
       data: { items: [], total: 0, page: 1, pageSize: 20 },
     })
-    await vm.openAuditHistory(row)
-    expect(mockedPost).toHaveBeenLastCalledWith('aux/position/audit-history', {
+    await vm.changeEnabled(row)
+    expect(mockedPost).toHaveBeenNthCalledWith(3, 'aux/position/disable', {
       objectId: 'OBJECT-1',
-      page: 1,
-      pageSize: 20,
+      objectRevision: 2,
     })
   })
 

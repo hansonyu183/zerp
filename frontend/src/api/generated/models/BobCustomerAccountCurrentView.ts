@@ -11,6 +11,7 @@ export type BobCustomerAccountCurrentView = {
   customerRelationshipCode: string;
   enabled: boolean;
   sourceApprovalEntryId: string;
+  sourceVersionNo: number;
   data: DclCustomerAccountData;
   attachments: Array<BobCustomerAttachmentView>;
   updatedAt: string;

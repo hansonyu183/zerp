@@ -7,7 +7,6 @@ import {
   text,
   textarea,
 } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const operatingEntityConfig = defineBobEntityConfig({
   entity: 'operating-entity',
@@ -16,7 +15,7 @@ export const operatingEntityConfig = defineBobEntityConfig({
   nameLabel: '法定公司名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     shortName: '',
     taxNumber: '',
     address: '',
@@ -26,7 +25,7 @@ export const operatingEntityConfig = defineBobEntityConfig({
   fields: (context) => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -53,13 +52,13 @@ export const operatingEntityConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '法定公司名称',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'taxNumber',
       label: '税号',
-      value: (row) => bobListActiveVersion(row).summary.taxNumber,
+      value: (row) => row.data.taxNumber,
     },
     {
       key: 'objectId',
@@ -67,9 +66,9 @@ export const operatingEntityConfig = defineBobEntityConfig({
       value: (row) => row.objectId,
     },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

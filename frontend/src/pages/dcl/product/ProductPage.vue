@@ -10,13 +10,10 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
-import { getStatusText } from '@/pages/bob/shared/config'
-import { bobFormFromView } from '@/pages/bob/shared/form-data'
+import { approvalStatusPresentation } from '@/shared/approval'
+import { dclProductFormFromView } from './data'
 import type { DclProductViewModel } from './vm'
-import {
-  bobListActiveVersion,
-  type BobListItem,
-} from '@/pages/bob/shared/types'
+import { dclProductActiveVersion, type DclProductListItem } from './types'
 import ProductUnitConversionsEditor from '@/pages/bob/product/ProductUnitConversionsEditor.vue'
 import ProductFormulaEditorDialog from '@/pages/bob/product/ProductFormulaEditorDialog.vue'
 import {
@@ -35,15 +32,21 @@ type ProductUnitConversionDraft = {
   factor: string
 }
 
+function getApprovalStatusText(
+  status?: keyof typeof approvalStatusPresentation,
+): string {
+  return status ? approvalStatusPresentation[status].label : '未标记'
+}
+
 const props = defineProps<{ model: DclProductViewModel }>()
 const vm = reactive(props.model)
 const route = useRoute()
 const router = useRouter()
 
-const deleteTarget = ref<BobListItem | null>(null)
-const reviewTarget = ref<BobListItem | null>(null)
+const deleteTarget = ref<DclProductListItem | null>(null)
+const reviewTarget = ref<DclProductListItem | null>(null)
 const reviewComment = ref('')
-const reverseTarget = ref<BobListItem | null>(null)
+const reverseTarget = ref<DclProductListItem | null>(null)
 const reverseAction = ref<'unsubmit' | 'unapprove'>('unsubmit')
 const reverseReason = ref('')
 const formulaOpen = ref(false)
@@ -73,7 +76,7 @@ const effectiveProductUnitConversions = computed(() => {
 })
 const effectiveEditorModel = computed(() =>
   vm.effectiveView
-    ? bobFormFromView(vm.config, vm.effectiveView)
+    ? dclProductFormFromView(vm.effectiveView)
     : vm.config.emptyForm(),
 )
 
@@ -97,7 +100,7 @@ watch(
   },
 )
 
-function requestEdit(row: BobListItem): void {
+function requestEdit(row: DclProductListItem): void {
   void vm.openEdit(row)
 }
 
@@ -106,13 +109,13 @@ async function confirmDelete(): Promise<void> {
   if (row && (await vm.deleteObject(row))) deleteTarget.value = null
 }
 
-function requestReject(row: BobListItem): void {
+function requestReject(row: DclProductListItem): void {
   reviewTarget.value = row
   reviewComment.value = ''
 }
 
 function requestReverse(
-  row: BobListItem,
+  row: DclProductListItem,
   action: 'unsubmit' | 'unapprove',
 ): void {
   reverseTarget.value = row
@@ -120,7 +123,7 @@ function requestReverse(
   reverseReason.value = ''
 }
 
-function rowActions(row: BobListItem): ListRowAction[] {
+function rowActions(row: DclProductListItem): ListRowAction[] {
   const availability = vm.actionAvailability(row)
   return [
     ...(availability.edit
@@ -260,7 +263,7 @@ function rowActions(row: BobListItem): ListRowAction[] {
   ]
 }
 
-function selectRowAction(action: string, row: BobListItem): void {
+function selectRowAction(action: string, row: DclProductListItem): void {
   if (action === 'edit') requestEdit(row)
   else if (action === 'view') void vm.openView(row)
   else if (action === 'submit') void vm.submitObject(row)
@@ -497,7 +500,11 @@ function saveFormula(value: ProductFormulaDraft): void {
       <template #cell-status="{ row }">
         <div class="bob-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
-            {{ getStatusText(bobListActiveVersion(row).approval.status) }}
+            {{
+              getApprovalStatusText(
+                dclProductActiveVersion(row).approval.status,
+              )
+            }}
           </v-chip>
           <v-chip
             v-if="row.latestApproved !== null"
@@ -900,7 +907,9 @@ function saveFormula(value: ProductFormulaDraft): void {
           <tbody>
             <tr v-for="item in vm.versions" :key="item.approvalEntryId">
               <td data-label="版本">V{{ item.versionNo }}</td>
-              <td data-label="状态">{{ getStatusText(item.status) }}</td>
+              <td data-label="状态">
+                {{ getApprovalStatusText(item.status) }}
+              </td>
               <td data-label="名称">{{ item.summary.name }}</td>
               <td data-label="更新">
                 {{ formatLocalDateTime(item.updatedAt) }}
@@ -961,9 +970,15 @@ function saveFormula(value: ProductFormulaDraft): void {
             <tr v-for="event in vm.auditEvents" :key="event.id">
               <td data-label="事件">{{ event.action }}</td>
               <td data-label="变化">
-                {{ event.fromStatus ? getStatusText(event.fromStatus) : '—' }}
+                {{
+                  event.fromStatus
+                    ? getApprovalStatusText(event.fromStatus)
+                    : '—'
+                }}
                 →
-                {{ event.toStatus ? getStatusText(event.toStatus) : '—' }}
+                {{
+                  event.toStatus ? getApprovalStatusText(event.toStatus) : '—'
+                }}
               </td>
               <td data-label="操作人">{{ event.actorId }}</td>
               <td data-label="时间">

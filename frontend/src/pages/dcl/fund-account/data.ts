@@ -124,25 +124,15 @@ export async function queryDclFundAccountOperatingEntities(
     page: 1,
     pageSize: 20,
     filters: {
-      status: ['APPROVED'],
       enabled: true,
       ...(keyword ? { keyword } : {}),
     },
     sort: [{ field: 'name', order: 'asc' }],
   })
-  return data.items.flatMap((item) => {
-    const version = item.latestApproved
-    if (!version) return []
-    return [
-      {
-        title: formatReferenceLabel({
-          code: item.code,
-          name: String(version.summary.name ?? ''),
-        }),
-        value: item.objectId,
-      },
-    ]
-  })
+  return data.items.map((item) => ({
+    title: formatReferenceLabel({ code: item.code, name: String(item.data.name ?? '') }),
+    value: item.objectId,
+  }))
 }
 
 export async function createDclFundAccount(

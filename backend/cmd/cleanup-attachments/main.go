@@ -31,8 +31,8 @@ func main() {
 	defer pool.Close()
 	events := txevent.NewBus()
 	authorizer := authorization.FailClosed{}
-	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool, authorizer, events))
-	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorizer, events)
+	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool))
+	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	service, err := voudomain.NewService(pool, bobService, auxiliaryResolver, events, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger)

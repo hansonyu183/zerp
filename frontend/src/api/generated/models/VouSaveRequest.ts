@@ -42,7 +42,6 @@ export type VouSaveRequest = {
     };
     settlementMethod?: {
       objectId: string;
-      approvalEntryId: string;
     };
     employee?: {
       objectId: string;

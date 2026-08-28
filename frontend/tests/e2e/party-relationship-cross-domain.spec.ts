@@ -29,6 +29,12 @@ interface Mutation {
   code?: string
 }
 
+interface AuxMutation {
+  objectId: string
+  objectRevision: number
+  enabled: boolean
+}
+
 interface Party {
   partyId: string
   revision: number
@@ -54,6 +60,19 @@ interface BobView {
     revision: number
     status: string
   }
+  data: Record<string, unknown> & {
+    name?: string
+    managerEmployeeId?: string
+  }
+}
+
+interface BobCurrentView {
+  objectId: string
+  code: string
+  objectRevision: number
+  enabled: boolean
+  sourceApprovalEntryId: string
+  sourceVersionNo: number
   data: Record<string, unknown> & {
     name?: string
     managerEmployeeId?: string
@@ -239,24 +258,6 @@ async function selectValue(
   await page.getByRole('option', { name: text, exact: true }).click()
 }
 
-async function approve(
-  operator: Api,
-  reviewer: Api,
-  entity: string,
-  mutation: Mutation,
-): Promise<Mutation> {
-  const submitted = await operator.ok<Mutation>(`bob/${entity}/submit`, {
-    objectId: mutation.objectId,
-    approvalEntryId: mutation.approval.approvalEntryId,
-    approvalRevision: mutation.approval.revision,
-  })
-  return reviewer.ok<Mutation>(`bob/${entity}/approve`, {
-    objectId: submitted.objectId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
-}
-
 async function approveDcl(
   operator: Api,
   reviewer: Api,
@@ -314,24 +315,6 @@ async function approveRelationshipParty(
   })
 }
 
-async function approveAux(
-  operator: Api,
-  reviewer: Api,
-  entity: string,
-  mutation: Mutation,
-): Promise<Mutation> {
-  const submitted = await operator.ok<Mutation>(`aux/${entity}/submit`, {
-    objectId: mutation.objectId,
-    approvalEntryId: mutation.approval.approvalEntryId,
-    approvalRevision: mutation.approval.revision,
-  })
-  return reviewer.ok<Mutation>(`aux/${entity}/approve`, {
-    objectId: submitted.objectId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
-}
-
 async function createApprovedSharedRelationships(
   operator: Api,
   reviewer: Api,
@@ -348,14 +331,14 @@ async function createApprovedSharedRelationships(
   }>('bob/operating-entity/query', {
     page: 1,
     pageSize: 20,
-    filters: { status: ['APPROVED'], enabled: true },
+    filters: { enabled: true },
   })
   const operatingEntityId = operatingEntities.items[0]?.objectId
   expect(operatingEntityId).toBeTruthy()
   const settlementMethods = await operator.ok<{
     items: Array<{
       objectId: string
-      latestApproved: { data: { termCode?: string } }
+      data: { termCode?: string }
     }>
   }>('aux/settlement-method/query', {
     page: 1,
@@ -364,7 +347,7 @@ async function createApprovedSharedRelationships(
     sort: [{ field: 'code', order: 'asc' }],
   })
   const settlementMethodId = settlementMethods.items.find(
-    (item) => item.latestApproved.data.termCode === 'MONTHLY_CURRENT',
+    (item) => item.data.termCode === 'MONTHLY_CURRENT',
   )?.objectId
   expect(settlementMethodId).toBeTruthy()
 
@@ -544,25 +527,22 @@ async function referenceByCode(
       items: Array<{
         objectId: string
         code: string
-        latestApproved: {
-          approval: { approvalEntryId: string; status: string }
-        } | null
+        sourceApprovalEntryId: string
+        enabled: boolean
       }>
     }>(`bob/${entity}/query`, {
       page: 1,
       pageSize: 20,
-      filters: { status: ['APPROVED'], keyword: code },
+      filters: { enabled: true, keyword: code },
       sort: [{ field: 'name', order: 'asc' }],
     })
     const item = page.items.find(
-      (candidate) =>
-        candidate.code === code &&
-        candidate.latestApproved?.approval.status === 'APPROVED',
+      (candidate) => candidate.code === code && candidate.enabled,
     )
     expect(item, `${entity} ${code} reference`).toBeTruthy()
     return {
       objectId: item!.objectId,
-      approvalEntryId: item!.latestApproved!.approval.approvalEntryId,
+      approvalEntryId: item!.sourceApprovalEntryId,
       code: item!.code,
     }
   }
@@ -599,7 +579,7 @@ async function createAttributedCustomer(
   facts: Awaited<ReturnType<typeof createApprovedSharedRelationships>>,
   suffix: string,
 ): Promise<ReferenceMutation> {
-  const paymentMethodDraft = await operator.ok<Mutation>(
+  const paymentMethod = await operator.ok<AuxMutation>(
     'aux/payment-method/create',
     {
       data: {
@@ -608,12 +588,6 @@ async function createAttributedCustomer(
         description: '跨域居间 E2E',
       },
     },
-  )
-  const paymentMethod = await approveAux(
-    operator,
-    reviewer,
-    'payment-method',
-    paymentMethodDraft,
   )
   const created = await operator.ok<Mutation>('dcl/customer/create', {
     newParty: {
@@ -624,7 +598,7 @@ async function createAttributedCustomer(
     operatingEntityId: facts.operatingEntityId,
     defaultAccount: {
       name: `E2E 渠道客户 ${suffix}`,
-      customerTypeCode: 'DIT-0001',
+      customerTypeId: '01JAVX00000000000000000005',
       settlementMethodId: facts.settlementMethodId,
       paymentMethodId: paymentMethod.objectId,
       defaultTransportMethodCode: 'SELF_PICKUP',
@@ -936,11 +910,7 @@ async function createApprovedBob(
       approvalEntryId: approved.approval.approvalEntryId,
     })
   }
-  const created = await operator.ok<Mutation>(`bob/${entity}/create`, { data })
-  const approved = await approve(operator, reviewer, entity, created)
-  return operator.ok<BobView>(`bob/${entity}/get`, {
-    objectId: approved.objectId,
-  })
+  throw new Error(`Unsupported DCL test entity: ${entity}`)
 }
 
 async function createApprovedEmployee(
@@ -948,7 +918,7 @@ async function createApprovedEmployee(
   reviewer: Api,
   name: string,
   operatingEntityId: string,
-): Promise<BobView> {
+): Promise<BobCurrentView> {
   const created = await operator.ok<Mutation>('dcl/employee/create', {
     newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
     operatingEntityId,
@@ -956,7 +926,7 @@ async function createApprovedEmployee(
   })
   await approveRelationshipParty(operator, reviewer, 'employee', created)
   const approved = await approveDcl(operator, reviewer, 'employee', created)
-  return operator.ok<BobView>('bob/employee/get', {
+  return operator.ok<BobCurrentView>('bob/employee/get', {
     objectId: approved.objectId,
   })
 }
@@ -969,7 +939,7 @@ async function createEmployeeAttributedCustomer(
   settlementMethodId: string,
   employeeObjectId: string,
 ): Promise<ReferenceMutation> {
-  const paymentMethodDraft = await operator.ok<Mutation>(
+  const paymentMethod = await operator.ok<AuxMutation>(
     'aux/payment-method/create',
     {
       data: {
@@ -978,12 +948,6 @@ async function createEmployeeAttributedCustomer(
         description: '连续生效跨主体 E2E',
       },
     },
-  )
-  const paymentMethod = await approveAux(
-    operator,
-    reviewer,
-    'payment-method',
-    paymentMethodDraft,
   )
   const created = await operator.ok<Mutation>('dcl/customer/create', {
     newParty: {
@@ -994,7 +958,7 @@ async function createEmployeeAttributedCustomer(
     operatingEntityId,
     defaultAccount: {
       name,
-      customerTypeCode: 'DIT-0001',
+      customerTypeId: '01JAVX00000000000000000005',
       settlementMethodId,
       paymentMethodId: paymentMethod.objectId,
       defaultTransportMethodCode: 'SELF_PICKUP',
@@ -1380,11 +1344,11 @@ test(
       expect(blockedManagerDisable.data.references).toEqual([
         { entity: 'warehouse', field: 'warehouse-manager', count: 1 },
       ])
-      const warehouseAfterBlockedManagerDisable = await session.api.ok<BobView>(
-        'bob/warehouse/get',
-        { objectId: managedWarehouse.objectId },
-      )
-      expect(warehouseAfterBlockedManagerDisable.approval.approvalEntryId).toBe(
+      const warehouseAfterBlockedManagerDisable =
+        await session.api.ok<BobCurrentView>('bob/warehouse/get', {
+          objectId: managedWarehouse.objectId,
+        })
+      expect(warehouseAfterBlockedManagerDisable.sourceApprovalEntryId).toBe(
         approvedWarehouseCandidate.approval.approvalEntryId,
       )
       expect(warehouseAfterBlockedManagerDisable.data.managerEmployeeId).toBe(
@@ -1403,7 +1367,7 @@ test(
           },
         },
       )
-      await approveDcl(
+      const warehouseWithoutManager = await approveDcl(
         session.api,
         reviewerSession.api,
         'warehouse',
@@ -1418,7 +1382,7 @@ test(
         },
       )
       expect(approvedDisabledManager.enabled).toBe(false)
-      const updatedWarehouse = await session.api.ok<BobView>(
+      const updatedWarehouse = await session.api.ok<BobCurrentView>(
         'bob/warehouse/get',
         { objectId: managedWarehouse.objectId },
       )
@@ -1449,7 +1413,7 @@ test(
       )
       const sharedWarehouse = {
         objectId: updatedWarehouse.objectId,
-        approvalEntryId: updatedWarehouse.approval.approvalEntryId,
+        approvalEntryId: updatedWarehouse.sourceApprovalEntryId,
         code: updatedWarehouse.code,
       }
       const firstEntityDraft = await createSaleOrderDraft(
@@ -1471,8 +1435,8 @@ test(
         'dcl/warehouse/save',
         {
           objectId: managedWarehouse.objectId,
-          approvalEntryId: updatedWarehouse.approval.approvalEntryId,
-          approvalRevision: updatedWarehouse.approval.revision,
+          approvalEntryId: warehouseWithoutManager.approval.approvalEntryId,
+          approvalRevision: warehouseWithoutManager.approval.revision,
           enabled: false,
           data: { name: updatedWarehouse.data.name },
         },
@@ -1516,7 +1480,7 @@ test(
         approvalEntryId: submittedDisabledWarehouse.approval.approvalEntryId,
         approvalRevision: submittedDisabledWarehouse.approval.revision,
       })
-      const disabledWarehouse = await session.api.ok<BobView>(
+      const disabledWarehouse = await session.api.ok<BobCurrentView>(
         'bob/warehouse/get',
         { objectId: managedWarehouse.objectId },
       )
@@ -1938,7 +1902,7 @@ test(
         operatingEntityId: facts.operatingEntityId,
         defaultAccount: {
           name: `E2E 自归属客户 ${suffix}`,
-          customerTypeCode: 'DIT-0001',
+          customerTypeId: '01JAVX00000000000000000005',
           pricingPolicy: {
             defaultPremiumUnitPrice: '0.00',
             defaultDiscountUnitPrice: '0.00',

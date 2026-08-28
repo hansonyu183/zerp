@@ -20,7 +20,7 @@ func TestWarehouseDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	resetDCLIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewWarehouseService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
@@ -64,7 +64,7 @@ func TestWarehouseDeclarationPersistsManagerApprovalSnapshotIntegration(t *testi
 	resetDCLIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewWarehouseService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
@@ -101,7 +101,7 @@ func TestWarehouseUnapproveDisabledFallbackBlockerRollsBackIntegration(t *testin
 	resetDCLIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewWarehouseService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
@@ -142,7 +142,7 @@ func TestWarehouseUnapproveDisabledFallbackInventoryBlockerRollsBackIntegration(
 	resetDCLIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewWarehouseService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
@@ -330,7 +330,7 @@ func assertWarehouseCurrent(t *testing.T, business *bobdomain.Service, objectID,
 	if err != nil {
 		t.Fatalf("get BOB warehouse: %v", err)
 	}
-	if view.Approval.ApprovalEntryID != entryID || view.Data.Name != name || view.Enabled != enabled {
+	if view.SourceApprovalEntryID != entryID || view.Data.Name != name || view.Enabled != enabled {
 		t.Fatalf("BOB warehouse current = %+v", view)
 	}
 }

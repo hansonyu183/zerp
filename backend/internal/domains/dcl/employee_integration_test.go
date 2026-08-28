@@ -21,10 +21,10 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	resetDCLIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	partyReader := bobdomain.NewPartyCurrentReader(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), partyReader, bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	employees := NewEmployeeService(pool, business, parties, partyReader, authorizer, bus)
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 
@@ -37,9 +37,9 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 		t.Fatalf("create operating entity: %v", err)
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), reviewer("owner-approve"))
-	categoryID, categoryEntryID := approveEmployeeAuxiliary(t, auxiliary, auxdomain.EntityEmployeeCategory, "正式员工", creator("category-create"), reviewer("category-approve"))
-	departmentID, departmentEntryID := approveEmployeeAuxiliary(t, auxiliary, auxdomain.EntityDepartment, "销售部", creator("department-create"), reviewer("department-approve"))
-	positionID, positionEntryID := approveEmployeeAuxiliary(t, auxiliary, auxdomain.EntityPosition, "销售经理", creator("position-create"), reviewer("position-approve"))
+	categoryID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityEmployeeCategory, "正式员工", creator("category-create"))
+	departmentID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityDepartment, "销售部", creator("department-create"))
+	positionID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityPosition, "销售经理", creator("position-create"))
 
 	v1, err := employees.Create(t.Context(), EmployeeCreateInput{
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "张三", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierPersonID, Value: "110101199001010011"}}},
@@ -60,7 +60,7 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	if view.PartyDisplayName != "张三" || view.OperatingEntityID != owner.ObjectID {
 		t.Fatalf("Employee identity view = %+v", view)
 	}
-	if view.Data.EmployeeCategoryApprovalEntryID != categoryEntryID || view.Data.DepartmentApprovalEntryID != departmentEntryID || view.Data.PositionApprovalEntryID != positionEntryID {
+	if view.Data.EmployeeCategoryID != categoryID || view.Data.DepartmentID != departmentID || view.Data.PositionID != positionID {
 		t.Fatalf("Employee AUX snapshots = %+v", view.Data)
 	}
 
@@ -107,21 +107,75 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	assertEmployeeCurrent(t, business, v1.ObjectID, v1.Approval.ApprovalEntryID, "张三", "13800138000", true)
 }
 
-func approveEmployeeAuxiliary(t *testing.T, service *auxdomain.Service, entity, name string, creator, reviewer approval.Actor) (string, string) {
+func TestEmployeeDraftSavePreservesDisabledAuxiliarySnapshotIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	authorizer := authorization.Func(nil)
+	bus := txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool)
+	partyReader := bobdomain.NewPartyCurrentReader(pool)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), partyReader, bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
+	employees := NewEmployeeService(pool, business, parties, partyReader, authorizer, bus)
+	operating := NewOperatingEntityService(pool, business, authorizer, bus)
+
+	creatorID := ulid.Make().String()
+	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
+	owner, err := operating.Create(t.Context(), OperatingEntityCreateInput{Data: bobdomain.OperatingEntityData{Name: "员工快照所属主体"}}, creator("owner-create"))
+	if err != nil {
+		t.Fatalf("create operating entity: %v", err)
+	}
+	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), dclActor(t, ulid.Make().String(), "owner-approve"))
+	categoryID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityEmployeeCategory, "正式员工", creator("category-create"))
+	departmentID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityDepartment, "销售部", creator("department-create"))
+	departmentV2ID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityDepartment, "销售二部", creator("department-v2-create"))
+	positionID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityPosition, "销售经理", creator("position-create"))
+	draft, err := employees.Create(t.Context(), EmployeeCreateInput{
+		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "李四", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierPersonID, Value: "110101199001010022"}}},
+		OperatingEntityID: owner.ObjectID,
+		Data:              EmployeeInput{EmployeeCategoryID: categoryID, DepartmentID: departmentID, PositionID: positionID, Phone: "13800138001", Email: "lisi@example.com", HireDate: "2026-08-01", Remark: "首版"},
+	}, creator("employee-create"))
+	if err != nil {
+		t.Fatalf("create employee draft: %v", err)
+	}
+	original, err := employees.Get(t.Context(), EmployeeGetInput{ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID}, creator("employee-get"))
+	if err != nil {
+		t.Fatalf("get employee draft: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE aux_objects SET data='{"name":"正式员工 V2","description":"Employee snapshot test"}'::jsonb,enabled=false,revision=revision+1 WHERE id=$1 AND entity='employee-category'`, categoryID); err != nil {
+		t.Fatalf("rename and disable unchanged employee category: %v", err)
+	}
+	saved, err := employees.Save(t.Context(), EmployeeSaveInput{
+		ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID, ApprovalRevision: draft.Approval.Revision,
+		Enabled: true,
+		Data:    EmployeeInput{EmployeeCategoryID: categoryID, DepartmentID: departmentV2ID, PositionID: positionID, Phone: "13800138001", Email: "lisi@example.com", HireDate: "2026-08-01", Remark: "仅修改备注"},
+	}, creator("employee-save"))
+	if err != nil {
+		t.Fatalf("save employee draft with disabled AUX source: %v", err)
+	}
+	view, err := employees.Get(t.Context(), EmployeeGetInput{ObjectID: saved.ObjectID, ApprovalEntryID: saved.Approval.ApprovalEntryID}, creator("employee-get-saved"))
+	if err != nil || view.Data.EmployeeCategoryID != categoryID || view.Data.EmployeeCategoryName != original.Data.EmployeeCategoryName || view.Data.DepartmentID != departmentV2ID || view.Data.DepartmentName != "销售二部" {
+		t.Fatalf("employee draft snapshots = original=%+v saved=%+v err=%v", original.Data, view.Data, err)
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE aux_objects SET enabled=false,revision=revision+1 WHERE id=$1 AND entity='department'`, departmentID); err != nil {
+		t.Fatalf("disable newly selected department: %v", err)
+	}
+	if _, err = employees.Save(t.Context(), EmployeeSaveInput{
+		ObjectID: saved.ObjectID, ApprovalEntryID: saved.Approval.ApprovalEntryID, ApprovalRevision: saved.Approval.Revision,
+		Enabled: true,
+		Data:    EmployeeInput{EmployeeCategoryID: categoryID, DepartmentID: departmentID, PositionID: positionID, Phone: "13800138001", Email: "lisi@example.com", HireDate: "2026-08-01", Remark: "拒绝停用新部门"},
+	}, creator("employee-disabled-selection")); err == nil {
+		t.Fatal("save accepted newly selected disabled department")
+	}
+}
+
+func createEmployeeAuxiliary(t *testing.T, service *auxdomain.Service, entity, name string, creator approval.Actor) string {
 	t.Helper()
 	created, err := service.Create(t.Context(), entity, auxdomain.CreateInput{Data: auxdomain.CreateData{Data: map[string]any{"name": name, "description": "Employee snapshot test"}}}, creator)
 	if err != nil {
 		t.Fatalf("create %s: %v", entity, err)
 	}
-	pending, err := service.Submit(t.Context(), entity, auxdomain.ApprovalRevisionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, creator)
-	if err != nil {
-		t.Fatalf("submit %s: %v", entity, err)
-	}
-	approved, err := service.Approve(t.Context(), entity, auxdomain.ApprovalRevisionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer)
-	if err != nil {
-		t.Fatalf("approve %s: %v", entity, err)
-	}
-	return approved.ObjectID, approved.Approval.ApprovalEntryID
+	return created.ObjectID
 }
 
 func submitAndApproveEmployee(t *testing.T, service *EmployeeService, mutation EmployeeMutation, submitter, reviewer approval.Actor) EmployeeMutation {
@@ -150,7 +204,7 @@ func assertEmployeeCurrent(t *testing.T, business *bobdomain.Service, objectID, 
 	if err != nil {
 		t.Fatalf("get BOB Employee current: %v", err)
 	}
-	if view.Approval.ApprovalEntryID != entryID || view.Data.Name != name || view.Data.Phone != phone || view.Enabled != enabled {
+	if view.SourceApprovalEntryID != entryID || view.Data.Name != name || view.Data.Phone != phone || view.Enabled != enabled {
 		t.Fatalf("BOB Employee current = %+v", view)
 	}
 }

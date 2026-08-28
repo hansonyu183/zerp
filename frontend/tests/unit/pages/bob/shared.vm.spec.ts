@@ -1,13 +1,9 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
-import { getBobEntityConfig, statusOptions } from '@/pages/bob/shared/config'
+import { getBobEntityConfig } from '@/pages/bob/shared/config'
 import { useBobEntityViewModel } from '@/pages/bob/shared/vm'
-import type {
-  BobListItem,
-  BobObjectView,
-  BobStatus,
-} from '@/pages/bob/shared/types'
+import type { BobListItem, BobObjectView } from '@/pages/bob/shared/types'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
@@ -19,24 +15,16 @@ vi.mock('@/api/client', () => ({
 
 const mockedApiClient = vi.mocked(apiClient)
 
-function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
-  const approval = {
-    approvalEntryId: 'VER-1',
-    versionNo: status === 'APPROVED' ? 2 : 1,
-    status,
-    revision: 5,
-    createdBy: 'USER-0',
-    createdAt: '2026-07-24T09:00:00Z',
-    updatedBy: 'USER-0',
-    updatedAt: '2026-07-24T10:00:00Z',
-    submittedBy: status === 'PENDING' ? 'USER-2' : null,
-    submittedAt: status === 'PENDING' ? '2026-07-24T09:30:00Z' : null,
-    approvedBy: status === 'APPROVED' ? 'USER-2' : null,
-    approvedAt: status === 'APPROVED' ? '2026-07-24T09:45:00Z' : null,
-  }
-  const version = {
-    approval,
-    summary: {
+function row(enabled = true): BobListItem {
+  return {
+    objectId: 'OBJ-1',
+    entity: 'product',
+    code: 'PRD-1',
+    objectRevision: 3,
+    enabled,
+    sourceApprovalEntryId: 'VER-2',
+    sourceVersionNo: 2,
+    data: {
       name: '标准产品',
       productTypeId: 'TYPE-RAW',
       behaviorProfile: 'RAW_MATERIAL',
@@ -54,15 +42,6 @@ function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
       barcode: '',
       remark: '',
     },
-  } satisfies NonNullable<BobListItem['openVersion']>
-  return {
-    objectId: 'OBJ-1',
-    entity: 'product',
-    code: 'PRD-1',
-    objectRevision: 3,
-    enabled,
-    latestApproved: status === 'APPROVED' ? version : null,
-    openVersion: status === 'APPROVED' ? null : version,
     updatedAt: '2026-07-24T10:00:00Z',
   }
 }
@@ -74,21 +53,9 @@ function objectView(approvalEntryId = 'VER-1'): BobObjectView {
     code: 'PRD-1',
     objectRevision: 4,
     enabled: true,
+    sourceApprovalEntryId: approvalEntryId,
+    sourceVersionNo: 2,
     updatedAt: '2026-07-24T10:00:00Z',
-    approval: {
-      approvalEntryId: approvalEntryId,
-      versionNo: 2,
-      status: 'DRAFT',
-      revision: 1,
-      createdBy: 'USER-0',
-      createdAt: '2026-07-24T09:00:00Z',
-      updatedBy: 'USER-0',
-      updatedAt: '2026-07-24T10:00:00Z',
-      submittedBy: null,
-      submittedAt: null,
-      approvedBy: null,
-      approvedAt: null,
-    },
     data: {
       name: '标准产品',
       productTypeId: 'TYPE-RAW',
@@ -146,7 +113,8 @@ describe('shared BOB entity configuration and view model', () => {
     )
     expect(vm.drawerOpen.value).toBe(true)
     expect(vm.editorMode.value).toBe('view')
-    expect(vm.currentView.value?.approval.revision).toBe(1)
+    expect(vm.currentView.value?.sourceVersionNo).toBe(2)
+    expect('approval' in (vm.currentView.value ?? {})).toBe(false)
 
     vm.closeEditor()
     expect(vm.drawerOpen.value).toBe(false)
@@ -235,14 +203,8 @@ describe('shared BOB entity configuration and view model', () => {
         entity === 'product'
       ) {
         expect(config.filters.map((filter) => filter.key)).toEqual(['enabled'])
-      } else {
-        expect(config.filters[0]).toMatchObject({
-          key: 'status',
-          multiple: true,
-        })
       }
     }
-    expect(statusOptions).toHaveLength(3)
   })
 
   it('专用工作区、迁出的辅助对象和员工不再注册为通用 BOB 页面', () => {
@@ -269,7 +231,6 @@ describe('shared BOB entity configuration and view model', () => {
       '/dcl/operating-entity/create',
       '/dcl/operating-entity/approve',
     ]
-    const approval = row('APPROVED').latestApproved!.approval
     mockedApiClient.postContract.mockResolvedValueOnce({
       data: {
         items: [
@@ -279,18 +240,16 @@ describe('shared BOB entity configuration and view model', () => {
             code: 'OPE-0001',
             objectRevision: 1,
             enabled: true,
-            latestApproved: {
-              approval,
-              summary: {
-                name: '当前经营主体',
-                shortName: '当前主体',
-                taxNumber: '91310000DCL',
-                address: '',
-                phone: '',
-                remark: '',
-              },
+            sourceApprovalEntryId: 'OPE-VERSION-1',
+            sourceVersionNo: 1,
+            data: {
+              name: '当前经营主体',
+              shortName: '当前主体',
+              taxNumber: '91310000DCL',
+              address: '',
+              phone: '',
+              remark: '',
             },
-            openVersion: null,
             updatedAt: '2026-08-27T06:00:00Z',
           },
         ],
@@ -312,10 +271,12 @@ describe('shared BOB entity configuration and view model', () => {
         sort: [{ field: 'code', order: 'asc' }],
       },
     )
-    expect(vm.rows.value[0]?.latestApproved?.summary).toMatchObject({
+    expect(vm.rows.value[0]?.data).toMatchObject({
       name: '当前经营主体',
       taxNumber: '91310000DCL',
     })
+    expect('latestApproved' in (vm.rows.value[0] ?? {})).toBe(false)
+    expect('openVersion' in (vm.rows.value[0] ?? {})).toBe(false)
     expect(vm.canView()).toBe(true)
     expect('save' in vm).toBe(false)
   })
@@ -327,7 +288,6 @@ describe('shared BOB entity configuration and view model', () => {
       '/dcl/warehouse/create',
       '/dcl/warehouse/approve',
     ]
-    const approval = row('APPROVED').latestApproved!.approval
     mockedApiClient.postContract.mockResolvedValueOnce({
       data: {
         items: [
@@ -337,18 +297,16 @@ describe('shared BOB entity configuration and view model', () => {
             code: 'WHS-0001',
             objectRevision: 1,
             enabled: true,
-            latestApproved: {
-              approval,
-              summary: {
-                name: '当前仓库',
-                address: '上海',
-                contactName: '仓管员',
-                contactPhone: '12345',
-                managerEmployeeId: 'EMP-1',
-                remark: '',
-              },
+            sourceApprovalEntryId: 'WHS-VERSION-1',
+            sourceVersionNo: 1,
+            data: {
+              name: '当前仓库',
+              address: '上海',
+              contactName: '仓管员',
+              contactPhone: '12345',
+              managerEmployeeId: 'EMP-1',
+              remark: '',
             },
-            openVersion: null,
             updatedAt: '2026-08-27T06:00:00Z',
           },
         ],
@@ -370,7 +328,7 @@ describe('shared BOB entity configuration and view model', () => {
         sort: [{ field: 'code', order: 'asc' }],
       },
     )
-    expect(vm.rows.value[0]?.latestApproved?.summary.name).toBe('当前仓库')
+    expect(vm.rows.value[0]?.data.name).toBe('当前仓库')
     expect(vm.canView()).toBe(true)
     expect('submitObject' in vm).toBe(false)
   })
@@ -387,7 +345,6 @@ describe('shared BOB entity configuration and view model', () => {
       '/dcl/vehicle/create',
       '/dcl/vehicle/approve',
     ]
-    const approval = row('APPROVED').latestApproved!.approval
     mockedApiClient.postContract.mockResolvedValueOnce({
       data: {
         items: [
@@ -397,22 +354,20 @@ describe('shared BOB entity configuration and view model', () => {
             code: 'VEH-0001',
             objectRevision: 1,
             enabled: true,
-            latestApproved: {
-              approval,
-              summary: {
-                name: '当前车辆',
-                plateNumber: '沪A12345',
-                vehicleType: 'DIT-0003',
-                carrierAffiliation: {
-                  type: 'INTERNAL',
-                  operatingEntityId: 'OPE-1',
-                },
-                vin: 'LDC613P23A1305189',
-                loadCapacityKg: '5000.000',
-                bulkLiquidCapable: true,
+            sourceApprovalEntryId: 'VEH-VERSION-1',
+            sourceVersionNo: 1,
+            data: {
+              name: '当前车辆',
+              plateNumber: '沪A12345',
+              vehicleType: 'DIT-0003',
+              carrierAffiliation: {
+                type: 'INTERNAL',
+                operatingEntityId: 'OPE-1',
               },
+              vin: 'LDC613P23A1305189',
+              loadCapacityKg: '5000.000',
+              bulkLiquidCapable: true,
             },
-            openVersion: null,
             updatedAt: '2026-08-28T00:00:00Z',
           },
         ],
@@ -434,7 +389,7 @@ describe('shared BOB entity configuration and view model', () => {
         sort: [{ field: 'code', order: 'asc' }],
       },
     )
-    expect(vm.rows.value[0]?.latestApproved?.summary.name).toBe('当前车辆')
+    expect(vm.rows.value[0]?.data.name).toBe('当前车辆')
     expect(vm.canView()).toBe(true)
     expect('changeEnabled' in vm).toBe(false)
   })
@@ -513,21 +468,9 @@ describe('shared BOB entity configuration and view model', () => {
         code: 'FA-0001',
         objectRevision: 1,
         enabled: true,
+        sourceApprovalEntryId: 'VER-1',
+        sourceVersionNo: 1,
         updatedAt: '2026-08-28T00:00:00Z',
-        approval: {
-          approvalEntryId: 'VER-1',
-          versionNo: 1,
-          status: 'APPROVED',
-          revision: 1,
-          createdBy: 'USER-1',
-          createdAt: '2026-08-28T00:00:00Z',
-          updatedBy: 'USER-1',
-          updatedAt: '2026-08-28T00:00:00Z',
-          submittedBy: 'USER-1',
-          submittedAt: '2026-08-28T00:00:00Z',
-          approvedBy: 'USER-2',
-          approvedAt: '2026-08-28T00:00:00Z',
-        },
         data: {
           name: '基本户',
           currency: 'CNY',

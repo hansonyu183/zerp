@@ -2,6 +2,7 @@ package vou
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,12 +13,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/middleware"
+	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type handlerServiceStub struct {
-	queryCalls int
-	entity     string
+	queryCalls  int
+	createCalls int
+	entity      string
+	getResult   DocumentView
 }
 
 func (s *handlerServiceStub) Query(_ context.Context, entity string, input QueryInput) (Page[ListItem], error) {
@@ -25,8 +29,8 @@ func (s *handlerServiceStub) Query(_ context.Context, entity string, input Query
 	s.entity = entity
 	return Page[ListItem]{Items: []ListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
-func (*handlerServiceStub) Get(context.Context, string, GetInput) (DocumentView, error) {
-	return DocumentView{}, nil
+func (s *handlerServiceStub) Get(context.Context, string, GetInput) (DocumentView, error) {
+	return s.getResult, nil
 }
 func (*handlerServiceStub) FormulaDefault(context.Context, FormulaDefaultInput) (FormulaDefaultView, error) {
 	return FormulaDefaultView{}, nil
@@ -34,7 +38,8 @@ func (*handlerServiceStub) FormulaDefault(context.Context, FormulaDefaultInput) 
 func (*handlerServiceStub) PriceReference(context.Context, string, PriceReferenceInput) (PriceReferenceView, error) {
 	return PriceReferenceView{}, nil
 }
-func (*handlerServiceStub) Create(context.Context, string, CreateInput, approval.Actor) (MutationResult, error) {
+func (s *handlerServiceStub) Create(context.Context, string, CreateInput, approval.Actor) (MutationResult, error) {
+	s.createCalls++
 	return MutationResult{}, nil
 }
 func (*handlerServiceStub) Save(context.Context, string, SaveInput, approval.Actor) (MutationResult, error) {
@@ -174,5 +179,71 @@ func TestHandlerUsesExactVOUPermissionPath(t *testing.T) {
 	}
 	if service.queryCalls != 1 || service.entity != EntityPurchaseInbound {
 		t.Fatalf("query calls=%d entity=%q", service.queryCalls, service.entity)
+	}
+}
+
+func TestHandlerRejectsRetiredAuxiliaryApprovalEntryIDs(t *testing.T) {
+	authorizer := authorization.Func(func(_ context.Context, _ *http.Request, _, _ string) (authorization.Principal, error) {
+		return authorization.Principal{ActorID: testObjectID}, nil
+	})
+	for _, test := range []struct {
+		name, entity, body string
+	}{
+		{name: "settlement method", entity: EntityServiceContract, body: `{"data":{"settlementMethod":{"objectId":"01J00000000000000000000001","approvalEntryId":"01J00000000000000000000002"}}}`},
+		{name: "asset category", entity: EntityAssetAcquisition, body: `{"data":{"assetAcquisitionLines":[{"category":{"objectId":"01J00000000000000000000001","approvalEntryId":"01J00000000000000000000002"}}]}}`},
+		{name: "asset department", entity: EntityAssetAcquisition, body: `{"data":{"assetAcquisitionLines":[{"department":{"objectId":"01J00000000000000000000001","approvalEntryId":"01J00000000000000000000002"}}]}}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service := &handlerServiceStub{}
+			request := httptest.NewRequest(http.MethodPost, "/vou/"+test.entity+"/create", strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			newVOUTestRouter(service, authorizer).ServeHTTP(recorder, request)
+			var envelope response.Envelope
+			if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if envelope.Code != response.CodeValidation || service.createCalls != 0 {
+				t.Fatalf("response = %s, create calls = %d", recorder.Body.String(), service.createCalls)
+			}
+		})
+	}
+}
+
+func TestHandlerSerializesAssetAuxiliarySnapshotsWithoutApprovalEntryID(t *testing.T) {
+	service := &handlerServiceStub{getResult: DocumentView{Data: DocumentDataView{AssetAcquisitionLines: []AssetAcquisitionLineView{{
+		LineID:     "line-1",
+		Category:   AuxiliaryReferenceView{ObjectID: testObjectID, Entity: "asset-category", Code: "AC-1", Name: "设备"},
+		Department: AuxiliaryReferenceView{ObjectID: testApprovalEntryID, Entity: "department", Code: "DEP-1", Name: "生产部"},
+	}}}}}
+	authorizer := authorization.Func(func(_ context.Context, _ *http.Request, _, _ string) (authorization.Principal, error) {
+		return authorization.Principal{ActorID: testObjectID}, nil
+	})
+	request := httptest.NewRequest(http.MethodPost, "/vou/asset-acquisition/get", strings.NewReader(`{"documentId":"01J00000000000000000000003"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	newVOUTestRouter(service, authorizer).ServeHTTP(recorder, request)
+	var envelope struct {
+		Code int `json:"code"`
+		Data struct {
+			Data struct {
+				Lines []struct {
+					Category   map[string]any `json:"category"`
+					Department map[string]any `json:"department"`
+				} `json:"assetAcquisitionLines"`
+			} `json:"data"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Code != response.CodeOK || len(envelope.Data.Data.Lines) != 1 {
+		t.Fatalf("response = %s", recorder.Body.String())
+	}
+	line := envelope.Data.Data.Lines[0]
+	for field, snapshot := range map[string]map[string]any{"category": line.Category, "department": line.Department} {
+		if _, exists := snapshot["approvalEntryId"]; exists || len(snapshot) != 4 {
+			t.Fatalf("%s snapshot = %#v", field, snapshot)
+		}
 	}
 }

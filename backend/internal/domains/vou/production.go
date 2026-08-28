@@ -530,7 +530,7 @@ func (s *Service) loadOrderProductionFormula(
 	var sourceUnit bobdomain.MeasurementUnitSnapshot
 	err := tx.QueryRow(ctx, `SELECT line.product_object_id,line.product_approval_entry_id,
 		line.product_code,line.product_name,line.entered_unit_symbol,line.behavior_profile,
-		line.entered_unit_object_id,line.entered_unit_approval_entry_id,line.entered_unit_code,line.entered_unit_name,
+		line.entered_unit_object_id,line.entered_unit_code,line.entered_unit_name,
 		formula.output_base_quantity_micros
 		FROM vou_product_lines line
 		JOIN vou_sale_order_formulas formula ON formula.product_line_id=line.id
@@ -538,7 +538,7 @@ func (s *Service) loadOrderProductionFormula(
 		sourceLineID, orderID).Scan(
 		&product.ObjectID, &product.ApprovalEntryID, &product.Code,
 		&product.Data.Name, &sourceUnit.Symbol, &behaviorProfile,
-		&sourceUnit.ObjectID, &sourceUnit.ApprovalEntryID, &sourceUnit.Code, &sourceUnit.Name, &base,
+		&sourceUnit.ObjectID, &sourceUnit.Code, &sourceUnit.Name, &base,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return product, productionFormula{}, domainError(
@@ -713,14 +713,14 @@ func (s *Service) insertProductionLines(
 			id,document_id,line_no,source_order_line_id,
 			product_object_id,product_approval_entry_id,product_code,product_name,
 			entered_unit_symbol,behavior_profile,entered_quantity_micros,
-			entered_unit_object_id,entered_unit_approval_entry_id,entered_unit_code,entered_unit_name,
+			entered_unit_object_id,entered_unit_code,entered_unit_name,
 			base_quantity_micros,loss_rate_micros,formula_base_quantity_micros,remark
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 			outputID, documentID, outputIndex+1, output.SourceOrderLineID,
 			output.Product.ObjectID, output.Product.ApprovalEntryID, output.Product.Code,
 			output.Product.Data.Name, output.EnteredUnit.Symbol, output.Product.Data.BehaviorProfile,
-			output.EnteredQuantity, output.EnteredUnit.ObjectID, output.EnteredUnit.ApprovalEntryID,
-			output.EnteredUnit.Code, output.EnteredUnit.Name, output.OutputQuantity,
+			output.EnteredQuantity, output.EnteredUnit.ObjectID, output.EnteredUnit.Code,
+			output.EnteredUnit.Name, output.OutputQuantity,
 			output.LossRate, output.FormulaBaseOutputQuantity, output.Remark,
 		)
 		if err != nil {
@@ -734,10 +734,10 @@ func (s *Service) insertProductionLines(
 				formula_base_quantity_micros,suggested_base_quantity_micros,
 				actual_material_object_id,actual_material_approval_entry_id,
 				actual_material_code,actual_material_name,actual_entered_unit_symbol,
-				actual_entered_quantity_micros,actual_entered_unit_object_id,
-				actual_entered_unit_approval_entry_id,actual_entered_unit_code,actual_entered_unit_name,
-				actual_base_quantity_micros,adjustment_reason
-			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+			actual_entered_quantity_micros,actual_entered_unit_object_id,
+			actual_entered_unit_code,actual_entered_unit_name,
+			actual_base_quantity_micros,adjustment_reason
+			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
 				newID(), outputID, materialIndex+1,
 				material.FormulaMaterial.ObjectID, material.FormulaMaterial.ApprovalEntryID,
 				material.FormulaMaterial.Code, material.FormulaMaterial.Name,
@@ -745,8 +745,8 @@ func (s *Service) insertProductionLines(
 				material.ActualMaterial.ObjectID, material.ActualMaterial.ApprovalEntryID,
 				material.ActualMaterial.Code, material.ActualMaterial.Data.Name,
 				material.ActualEnteredUnit.Symbol, material.ActualEnteredQuantity,
-				material.ActualEnteredUnit.ObjectID, material.ActualEnteredUnit.ApprovalEntryID,
-				material.ActualEnteredUnit.Code, material.ActualEnteredUnit.Name,
+				material.ActualEnteredUnit.ObjectID, material.ActualEnteredUnit.Code,
+				material.ActualEnteredUnit.Name,
 				material.ActualQuantity, material.AdjustmentReason,
 			)
 			if err != nil {
@@ -781,8 +781,8 @@ func (s *Service) loadProductionData(
 	data.FinishedWarehouse = &finished
 	rows, err := s.pool.Query(ctx, `SELECT id,line_no,source_order_line_id,
 		product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
-		behavior_profile,entered_quantity_micros,entered_unit_object_id,entered_unit_approval_entry_id,
-		entered_unit_code,entered_unit_name,base_quantity_micros,loss_rate_micros,
+		behavior_profile,entered_quantity_micros,entered_unit_object_id,entered_unit_code,
+		entered_unit_name,base_quantity_micros,loss_rate_micros,
 		formula_base_quantity_micros,remark
 		FROM vou_production_output_lines WHERE document_id=$1 ORDER BY line_no`, document.ID)
 	if err != nil {
@@ -800,7 +800,7 @@ func (s *Service) loadProductionData(
 			&item.Product.ObjectID, &item.Product.ApprovalEntryID,
 			&item.Product.Code, &item.Product.Name, &item.Product.Unit,
 			&behaviorProfile, &enteredQuantity, &item.EnteredUnit.ObjectID,
-			&item.EnteredUnit.ApprovalEntryID, &item.EnteredUnit.Code, &item.EnteredUnit.Name,
+			&item.EnteredUnit.Code, &item.EnteredUnit.Name,
 			&quantity, &lossRate, &base, &remark,
 		); err != nil {
 			return data, err
@@ -821,7 +821,7 @@ func (s *Service) loadProductionData(
 			actual_material_object_id,actual_material_approval_entry_id,
 			actual_material_code,actual_material_name,actual_entered_unit_symbol,
 			actual_entered_quantity_micros,actual_entered_unit_object_id,
-			actual_entered_unit_approval_entry_id,actual_entered_unit_code,actual_entered_unit_name,
+			actual_entered_unit_code,actual_entered_unit_name,
 			actual_base_quantity_micros,adjustment_reason
 			FROM vou_production_material_lines
 			WHERE output_line_id=$1 ORDER BY line_no`, item.LineID)
@@ -840,8 +840,8 @@ func (s *Service) loadProductionData(
 				&line.ActualMaterial.ObjectID, &line.ActualMaterial.ApprovalEntryID,
 				&line.ActualMaterial.Code, &line.ActualMaterial.Name,
 				&line.ActualMaterial.Unit, &actualEnteredQuantity,
-				&line.ActualEnteredUnit.ObjectID, &line.ActualEnteredUnit.ApprovalEntryID,
-				&line.ActualEnteredUnit.Code, &line.ActualEnteredUnit.Name,
+				&line.ActualEnteredUnit.ObjectID, &line.ActualEnteredUnit.Code,
+				&line.ActualEnteredUnit.Name,
 				&actualQuantity, &adjustment,
 			); materialErr != nil {
 				materialRows.Close()

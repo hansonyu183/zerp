@@ -4,7 +4,6 @@
 /* eslint-disable */
 export type VouUnitSnapshotView = {
   objectId: string;
-  approvalEntryId: string;
   code: string;
   name: string;
   symbol: string;

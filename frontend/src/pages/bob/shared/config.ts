@@ -5,8 +5,6 @@ import { vehicleConfig } from '../vehicle/config'
 import { fundAccountConfig } from '../fund-account/config'
 import { operatingEntityConfig } from '../operating-entity/config'
 
-export { getStatusText, statusOptions } from './config-helpers'
-
 export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
   product: productConfig,
   warehouse: warehouseConfig,

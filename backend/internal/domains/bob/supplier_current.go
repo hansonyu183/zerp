@@ -13,7 +13,7 @@ import (
 // BOB exposes Suppliers strictly through the approved current projection. DCL
 // owns Supplier candidates and their historical snapshots.
 func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Supplier get request", nil, nil)
 	}
 	r, err := s.queries.GetBobSupplierCurrent(ctx, input.ObjectID)
@@ -23,31 +23,35 @@ func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (Objec
 	if err != nil {
 		return ObjectView{}, s.internal("get Supplier current", err)
 	}
-	e := dbsqlc.ApprovalEntry{ID: r.ApprovalEntryID, Domain: r.Domain, Entity: EntitySupplier, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.UpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	d := DetailView{Name: r.DisplayName, ShortName: stringValue(r.ShortName), TaxNumber: stringValue(r.TaxNumber), ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), Remark: stringValue(r.Remark), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodApprovalEntryID: stringValue(r.SettlementMethodApprovalEntryID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), TermCode: stringValue(r.SettlementTermCode), RuleType: stringValue(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset, DefaultPurchaserEmployeeID: stringValue(r.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: stringValue(r.DefaultPurchaserEmployeeApprovalEntryID)}
+	e := struct {
+		ID        string
+		VersionNo int32
+	}{ID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo)}
+	d := DetailView{Name: r.DisplayName, ShortName: stringValue(r.ShortName), TaxNumber: stringValue(r.TaxNumber), ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), Remark: stringValue(r.Remark), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), TermCode: stringValue(r.SettlementTermCode), RuleType: stringValue(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset, DefaultPurchaserEmployeeID: stringValue(r.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: stringValue(r.DefaultPurchaserEmployeeApprovalEntryID), DefaultPurchaserCode: stringValue(r.DefaultPurchaserEmployeeCode), DefaultPurchaserName: stringValue(r.DefaultPurchaserEmployeeName)}
 	if r.SettlementDayOfMonth != 0 {
 		day := r.SettlementDayOfMonth
 		d.DayOfMonth = &day
 	}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, Approval: approvalMeta(e), Data: d, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID}}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, Data: d, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID}}, nil
 }
 
 func (s *Service) querySuppliersCurrent(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
 	if input.Page < 1 || input.PageSize != 20 || len(input.Sort) > 1 || (len(input.Sort) == 1 && (input.Sort[0].Field != "code" || strings.ToLower(input.Sort[0].Order) != "asc")) {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid Supplier query", nil, nil)
 	}
-	if input.Filters.DefaultPurchaserEmployeeID != "" && !validID(input.Filters.DefaultPurchaserEmployeeID) {
-		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid default purchaser", nil, nil)
+	filters, err := validateQueryFilters(EntitySupplier, input.Filters)
+	if err != nil {
+		return Page[QueryItem]{}, err
 	}
 	enabled := int32(-1)
-	if input.Filters.Enabled != nil {
-		if *input.Filters.Enabled {
+	if filters.Enabled != nil {
+		if *filters.Enabled {
 			enabled = 1
 		} else {
 			enabled = 0
 		}
 	}
-	p := dbsqlc.ListBobSuppliersCurrentParams{Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabled, DefaultPurchaserEmployeeID: input.Filters.DefaultPurchaserEmployeeID, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)}
+	p := dbsqlc.ListBobSuppliersCurrentParams{Keyword: filters.Keyword, EnabledFilter: enabled, DefaultPurchaserEmployeeID: filters.DefaultPurchaserEmployeeID, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)}
 	rows, err := s.queries.ListBobSuppliersCurrent(ctx, p)
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list Supplier current", err)
@@ -62,7 +66,7 @@ func (s *Service) querySuppliersCurrent(ctx context.Context, input QueryInput) (
 		if err != nil {
 			return Page[QueryItem]{}, err
 		}
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time, LatestApproved: &VersionSummary{Approval: view.Approval, Summary: view.Data}})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: r.UpdatedAt.Time, Relationship: view.Relationship})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -106,7 +110,7 @@ func (s *Service) validateSupplierSnapshotReference(ctx context.Context, q *dbsq
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Supplier party", err)
 	}
-	d := DetailView{Name: party.DisplayName, ShortName: stringValue(payload.ShortName), TaxNumber: stringValue(payload.TaxNumber), ContactName: stringValue(payload.ContactName), ContactPhone: stringValue(payload.ContactPhone), Email: stringValue(payload.Email), Address: stringValue(payload.Address), Remark: stringValue(payload.Remark), SettlementMethodID: stringValue(payload.SettlementMethodID), SettlementMethodApprovalEntryID: stringValue(payload.SettlementMethodApprovalEntryID), SettlementMethodCode: stringValue(payload.SettlementMethodCode), SettlementMethodName: stringValue(payload.SettlementMethodName), TermCode: stringValue(payload.SettlementTermCode), RuleType: stringValue(payload.SettlementRuleType), MonthOffset: payload.SettlementMonthOffset, DayOffset: payload.SettlementDayOffset, DefaultPurchaserEmployeeID: stringValue(payload.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: stringValue(payload.DefaultPurchaserEmployeeApprovalEntryID)}
+	d := DetailView{Name: party.DisplayName, ShortName: stringValue(payload.ShortName), TaxNumber: stringValue(payload.TaxNumber), ContactName: stringValue(payload.ContactName), ContactPhone: stringValue(payload.ContactPhone), Email: stringValue(payload.Email), Address: stringValue(payload.Address), Remark: stringValue(payload.Remark), SettlementMethodID: stringValue(payload.SettlementMethodID), SettlementMethodCode: stringValue(payload.SettlementMethodCode), SettlementMethodName: stringValue(payload.SettlementMethodName), TermCode: stringValue(payload.SettlementTermCode), RuleType: stringValue(payload.SettlementRuleType), MonthOffset: payload.SettlementMonthOffset, DayOffset: payload.SettlementDayOffset, DefaultPurchaserEmployeeID: stringValue(payload.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: stringValue(payload.DefaultPurchaserEmployeeApprovalEntryID)}
 	if payload.SettlementDayOfMonth != 0 {
 		day := payload.SettlementDayOfMonth
 		d.DayOfMonth = &day

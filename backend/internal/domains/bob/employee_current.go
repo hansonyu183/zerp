@@ -11,10 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// EmployeeReferenceSnapshot freezes both the stable AUX identity and the exact
-// approved AUX version used by an Employee declaration.
+// EmployeeReferenceSnapshot freezes the stable AUX identity and its adopted data.
 type EmployeeReferenceSnapshot struct {
-	ObjectID, ApprovalEntryID, Code, Name string
+	ObjectID, Code, Name string
 }
 
 // EmployeeData is the Employee-owned declaration payload. Party identity and
@@ -52,10 +51,9 @@ func ValidateEmployeeData(input EmployeeData) (EmployeeData, error) {
 			continue
 		}
 		reference.ObjectID = strings.TrimSpace(reference.ObjectID)
-		reference.ApprovalEntryID = strings.TrimSpace(reference.ApprovalEntryID)
 		reference.Code = strings.TrimSpace(reference.Code)
 		reference.Name = strings.TrimSpace(reference.Name)
-		if !validID(reference.ObjectID) || (reference.ApprovalEntryID != "" && !validID(reference.ApprovalEntryID)) {
+		if !validID(reference.ObjectID) {
 			return EmployeeData{}, domainError(ErrorValidation, "invalid Employee auxiliary reference", nil, nil)
 		}
 	}
@@ -65,10 +63,10 @@ func ValidateEmployeeData(input EmployeeData) (EmployeeData, error) {
 func employeeAuxiliarySnapshot(reference AuxiliaryReference) (EmployeeReferenceSnapshot, error) {
 	name, _ := reference.Data["name"].(string)
 	snapshot := EmployeeReferenceSnapshot{
-		ObjectID: reference.ObjectID, ApprovalEntryID: reference.ApprovalEntryID,
-		Code: strings.TrimSpace(reference.Code), Name: strings.TrimSpace(name),
+		ObjectID: reference.ObjectID,
+		Code:     strings.TrimSpace(reference.Code), Name: strings.TrimSpace(name),
 	}
-	if !validID(snapshot.ObjectID) || !validID(snapshot.ApprovalEntryID) || snapshot.Code == "" || snapshot.Name == "" {
+	if !validID(snapshot.ObjectID) || snapshot.Code == "" || snapshot.Name == "" {
 		return EmployeeReferenceSnapshot{}, domainError(ErrorConflict, "Employee auxiliary snapshot is incomplete", nil, nil)
 	}
 	return snapshot, nil
@@ -92,17 +90,55 @@ func (s *Service) ResolveEmployeeAuxiliaryReferences(ctx context.Context, tx pgx
 			continue
 		}
 		input := **target.value
-		var reference AuxiliaryReference
 		if exact {
-			if input.ApprovalEntryID == "" {
-				return EmployeeData{}, domainError(ErrorConflict, "Employee auxiliary approval snapshot is missing", nil, nil)
+			if input.Code == "" || input.Name == "" {
+				return EmployeeData{}, domainError(ErrorConflict, "Employee auxiliary snapshot is incomplete", nil, nil)
 			}
-			reference, err = s.auxiliaryResolver.ValidateApprovedAuxiliarySnapshotReference(ctx, tx, target.entity, input.ObjectID, input.ApprovalEntryID)
-		} else {
-			reference, err = s.auxiliaryResolver.ResolveLatestApprovedAuxiliaryReference(ctx, tx, target.entity, input.ObjectID)
+			continue
 		}
+		var reference AuxiliaryReference
+		reference, err = s.auxiliaryResolver.ResolveCurrentAuxiliaryReference(ctx, tx, target.entity, input.ObjectID)
 		if err != nil {
 			return EmployeeData{}, err
+		}
+		snapshot, snapshotErr := employeeAuxiliarySnapshot(reference)
+		if snapshotErr != nil {
+			return EmployeeData{}, snapshotErr
+		}
+		*target.value = &snapshot
+	}
+	return validated, nil
+}
+
+// ResolveEmployeeDraftAuxiliaryReferences preserves typed snapshots for stable
+// AUX IDs already adopted by an existing DCL draft. A changed ID is a new
+// selection and must resolve from an enabled current AUX object.
+func (s *Service) ResolveEmployeeDraftAuxiliaryReferences(ctx context.Context, tx pgx.Tx, data, previous EmployeeData) (EmployeeData, error) {
+	validated, err := ValidateEmployeeData(data)
+	if err != nil {
+		return EmployeeData{}, err
+	}
+	targets := []struct {
+		entity   string
+		value    **EmployeeReferenceSnapshot
+		previous *EmployeeReferenceSnapshot
+	}{
+		{entity: "employee-category", value: &validated.EmployeeCategory, previous: previous.EmployeeCategory},
+		{entity: "department", value: &validated.Department, previous: previous.Department},
+		{entity: "position", value: &validated.Position, previous: previous.Position},
+	}
+	for _, target := range targets {
+		if *target.value == nil {
+			continue
+		}
+		if target.previous != nil && (*target.value).ObjectID == target.previous.ObjectID {
+			snapshot := *target.previous
+			*target.value = &snapshot
+			continue
+		}
+		reference, resolveErr := s.auxiliaryResolver.ResolveCurrentAuxiliaryReference(ctx, tx, target.entity, (*target.value).ObjectID)
+		if resolveErr != nil {
+			return EmployeeData{}, resolveErr
 		}
 		snapshot, snapshotErr := employeeAuxiliarySnapshot(reference)
 		if snapshotErr != nil {
@@ -243,16 +279,16 @@ func (s *Service) EnsureEmployeeDisableAllowed(ctx context.Context, tx pgx.Tx, o
 
 func employeeDetailFromCurrent(row dbsqlc.GetBobEmployeeCurrentRow) DetailView {
 	return DetailView{
-		Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryApprovalEntryID: deref(row.EmployeeCategoryApprovalEntryID),
+		Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID),
 		CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName),
-		DepartmentID: deref(row.DepartmentID), DepartmentApprovalEntryID: deref(row.DepartmentApprovalEntryID),
-		PositionID: deref(row.PositionID), PositionApprovalEntryID: deref(row.PositionApprovalEntryID),
+		DepartmentID: deref(row.DepartmentID), DepartmentCode: deref(row.DepartmentCode), DepartmentName: deref(row.DepartmentName),
+		PositionID: deref(row.PositionID), PositionCode: deref(row.PositionCode), PositionName: deref(row.PositionName),
 		Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark),
 	}
 }
 
 func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Employee get request", nil, nil)
 	}
 	row, err := s.queries.GetBobEmployeeCurrent(ctx, input.ObjectID)
@@ -265,7 +301,7 @@ func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (Objec
 	entry := dbsqlc.ApprovalEntry{ID: row.ApprovalEntryID, Domain: row.Domain, Entity: EntityEmployee, SubjectID: row.ObjectID, VersionNo: row.VersionNo, Status: row.Status, Revision: row.ApprovalRevision, CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedBy: row.UpdatedBy, UpdatedAt: row.ApprovalUpdatedAt, SubmittedBy: row.SubmittedBy, SubmittedAt: row.SubmittedAt, ApprovedBy: row.ApprovedBy, ApprovedAt: row.ApprovedAt}
 	return ObjectView{
 		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision,
-		Enabled: row.Enabled, Approval: approvalMeta(entry), Data: employeeDetailFromCurrent(row), UpdatedAt: row.UpdatedAt.Time,
+		Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: employeeDetailFromCurrent(row), UpdatedAt: row.UpdatedAt.Time,
 		Relationship: &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName},
 	}, nil
 }
@@ -309,7 +345,7 @@ func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryI
 		if getErr != nil {
 			return Page[QueryItem]{}, getErr
 		}
-		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time, LatestApproved: &VersionSummary{Approval: view.Approval, Summary: view.Data}})
+		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -330,7 +366,7 @@ func (s *Service) validateEmployeeSnapshotReference(ctx context.Context, q *dbsq
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Employee identity", err)
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: object.Code, ApprovalEntryID: entry.ID, Data: DetailView{Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryApprovalEntryID: deref(row.EmployeeCategoryApprovalEntryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), DepartmentApprovalEntryID: deref(row.DepartmentApprovalEntryID), PositionID: deref(row.PositionID), PositionApprovalEntryID: deref(row.PositionApprovalEntryID), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}}, nil
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: object.Code, ApprovalEntryID: entry.ID, Data: DetailView{Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), PositionID: deref(row.PositionID), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}}, nil
 }
 
 func (s *Service) resolveEmployeeCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {

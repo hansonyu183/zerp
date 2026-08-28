@@ -104,7 +104,7 @@ func (s *Service) loadData(
 		data.ContactPhone = deref(detail.ContactPhone)
 		data.DeliveryAddress = deref(detail.DeliveryAddress)
 		data.SettlementMethod = settlementView(
-			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
+			detail.SettlementMethodObjectID,
 			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDueDays,
@@ -144,7 +144,7 @@ func (s *Service) loadData(
 		data.ContactName = deref(detail.ContactName)
 		data.ContactPhone = deref(detail.ContactPhone)
 		data.SettlementMethod = settlementView(
-			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
+			detail.SettlementMethodObjectID,
 			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDueDays,
@@ -220,7 +220,7 @@ func (s *Service) loadData(
 				Product: *reference(row.ProductObjectID, row.ProductApprovalEntryID, "product",
 					row.ProductCode, row.ProductName, row.EnteredUnitSymbol, "", ""),
 				EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
-				EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
+				EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID,
 					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol},
 				BaseQuantity: formatQuantity(row.ActualBaseQuantityMicros), Remark: deref(row.Remark),
 			}
@@ -340,7 +340,7 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 			Product: *reference(row.ProductObjectID, row.ProductApprovalEntryID, "product",
 				row.ProductCode, row.ProductName, row.EnteredUnitSymbol, "", ""),
 			EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
-			EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
+			EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID,
 				Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol},
 			BaseQuantity:              formatQuantity(row.BaseQuantityMicros),
 			UnitPrice:                 formatMoney(row.UnitPriceCents),
@@ -356,7 +356,6 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 		}
 		item.Product.BehaviorProfile = row.BehaviorProfile
 		item.Product.ProductTypeObjectID = row.ProductTypeObjectID
-		item.Product.ProductTypeApprovalEntryID = row.ProductTypeApprovalEntryID
 		item.Product.ProductTypeCode = row.ProductTypeCode
 		item.Product.ProductTypeName = row.ProductTypeName
 		if row.PurchaseUnitPriceCents != nil {
@@ -387,7 +386,6 @@ func loadPriceLines(ctx context.Context, q *dbsqlc.Queries, documentID string) (
 			row.ProductCode, row.ProductName, row.DefaultInputUnitSymbol, "", "")
 		product.BehaviorProfile = row.BehaviorProfile
 		product.ProductTypeObjectID = row.ProductTypeObjectID
-		product.ProductTypeApprovalEntryID = row.ProductTypeApprovalEntryID
 		product.ProductTypeCode = row.ProductTypeCode
 		product.ProductTypeName = row.ProductTypeName
 		items = append(items, PriceLineView{LineID: row.ID, LineNo: row.LineNo, Product: product,
@@ -414,8 +412,8 @@ func loadSaleOrderFormula(
 		Output: QuantitySnapshotView{
 			EnteredQuantity: formatQuantity(header.OutputEnteredQuantityMicros),
 			EnteredUnit: UnitSnapshotView{
-				ObjectID: header.OutputEnteredUnitObjectID, ApprovalEntryID: header.OutputEnteredUnitApprovalEntryID,
-				Code: header.OutputEnteredUnitCode, Name: header.OutputEnteredUnitName, Symbol: header.OutputEnteredUnitSymbol,
+				ObjectID: header.OutputEnteredUnitObjectID,
+				Code:     header.OutputEnteredUnitCode, Name: header.OutputEnteredUnitName, Symbol: header.OutputEnteredUnitSymbol,
 			},
 			BaseQuantity: formatQuantity(header.OutputBaseQuantityMicros),
 		},
@@ -434,8 +432,8 @@ func loadSaleOrderFormula(
 			Quantity: QuantitySnapshotView{
 				EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
 				EnteredUnit: UnitSnapshotView{
-					ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
-					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
+					ObjectID: row.EnteredUnitObjectID,
+					Code:     row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
 				},
 				BaseQuantity: formatQuantity(row.BaseQuantityMicros),
 			},
@@ -449,6 +447,10 @@ func reference(objectID, versionID, entity, code, name, unit, currency, plate st
 		ObjectID: objectID, ApprovalEntryID: versionID, Entity: entity, Code: code, Name: name,
 		Unit: unit, Currency: currency, PlateNumber: plate,
 	}
+}
+
+func auxiliaryReference(objectID, entity, code, name string) AuxiliaryReferenceView {
+	return AuxiliaryReferenceView{ObjectID: objectID, Entity: entity, Code: code, Name: name}
 }
 
 func optionalReference(
@@ -465,7 +467,7 @@ func optionalReference(
 }
 
 func settlementView(
-	objectID, versionID, code, name, ruleType *string,
+	objectID, code, name, ruleType *string,
 	monthOffset, dayOfMonth, dayOffset, dueDays, cutoffDay *int32,
 	defaultSalesSurchargeCents int64,
 	description *string,
@@ -475,7 +477,7 @@ func settlementView(
 		return nil
 	}
 	result := &SettlementMethodSnapshotView{
-		ObjectID: deref(objectID), ApprovalEntryID: deref(versionID), Code: deref(code), Name: deref(name),
+		ObjectID: deref(objectID), Code: deref(code), Name: deref(name),
 		RuleType: deref(ruleType), MonthOffset: derefInt32(monthOffset),
 		DayOfMonth: dayOfMonth, DayOffset: derefInt32(dayOffset), Description: deref(description),
 		DueDays: derefInt32(dueDays), CutoffDay: derefInt32(cutoffDay),

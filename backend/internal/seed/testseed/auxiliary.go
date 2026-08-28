@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	"github.com/jackc/pgx/v5"
 )
@@ -60,12 +61,12 @@ func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 		}), true},
 		{"dictionary-test-active", auxdomain.EntityDictionaryItem, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
-				"name": "正常", "dictionaryTypeCode": refs["dictionary-test"].Code, "sortOrder": 10,
+				"name": "正常", "dictionaryTypeId": refs["dictionary-test"].ObjectID, "sortOrder": 10,
 			}
 		}, true},
 		{"dictionary-test-disabled", auxdomain.EntityDictionaryItem, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
-				"name": "停用选项", "dictionaryTypeCode": refs["dictionary-test"].Code, "sortOrder": 20,
+				"name": "停用选项", "dictionaryTypeId": refs["dictionary-test"].ObjectID, "sortOrder": 20,
 			}
 		}, false},
 		{"unit-test-disabled", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{
@@ -126,13 +127,10 @@ func (s *Seeder) ensureAuxiliary(
 	sample auxSample,
 ) (auxdomain.ObjectView, outcome, error) {
 	var objectID string
-	err := s.pool.QueryRow(ctx, `
-		SELECT subject_id
-		FROM approval_events
-		WHERE domain='aux' AND request_id=$1 AND action='CREATED'
-		ORDER BY created_at,id
-		LIMIT 1
-	`, requestID(sample.key, "create")).Scan(&objectID)
+	data := sample.data(s.auxRefs)
+	objectID, err := s.queries.FindAuxObjectByName(ctx, dbsqlc.FindAuxObjectByNameParams{
+		Entity: sample.entity, Name: fmt.Sprint(data["name"]),
+	})
 	created := false
 	if errors.Is(err, pgx.ErrNoRows) {
 		createActor, actorErr := seedActor(actorID, requestID(sample.key, "create"))
@@ -142,35 +140,12 @@ func (s *Seeder) ensureAuxiliary(
 		result, createErr := s.auxiliary.Create(
 			ctx,
 			sample.entity,
-			auxdomain.CreateInput{Data: auxdomain.CreateData{Data: sample.data(s.auxRefs)}},
+			auxdomain.CreateInput{Data: auxdomain.CreateData{Data: data}},
 			createActor,
 		)
 		if createErr != nil {
 			return auxdomain.ObjectView{}, 0, createErr
 		}
-		submitter, submitErr := seedActor(actorID, requestID(sample.key, "submit"))
-		if submitErr != nil {
-			return auxdomain.ObjectView{}, 0, submitErr
-		}
-		pending, submitErr := s.auxiliary.Submit(ctx, sample.entity, auxdomain.ApprovalRevisionInput{
-			ObjectID: result.ObjectID, ApprovalEntryID: result.Approval.ApprovalEntryID,
-			ApprovalRevision: result.Approval.Revision,
-		}, submitter)
-		if submitErr != nil {
-			return auxdomain.ObjectView{}, 0, submitErr
-		}
-		reviewer, reviewErr := seedActor(reviewerID, requestID(sample.key, "approve"))
-		if reviewErr != nil {
-			return auxdomain.ObjectView{}, 0, reviewErr
-		}
-		approved, reviewErr := s.auxiliary.Approve(ctx, sample.entity, auxdomain.ApprovalRevisionInput{
-			ObjectID: result.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
-			ApprovalRevision: pending.Approval.Revision,
-		}, reviewer)
-		if reviewErr != nil {
-			return auxdomain.ObjectView{}, 0, reviewErr
-		}
-		_ = approved
 		objectID = result.ObjectID
 		created = true
 	} else if err != nil {
@@ -190,15 +165,7 @@ func (s *Seeder) ensureAuxiliary(
 		return auxdomain.ObjectView{}, 0, err
 	}
 	if view.Enabled != sample.enabled {
-		var external int
-		if err = s.pool.QueryRow(ctx, `
-			SELECT count(*)
-			FROM approval_events
-			WHERE domain='aux' AND subject_id=$1 AND request_id NOT LIKE $2
-		`, objectID, seedPrefix+"%").Scan(&external); err != nil {
-			return auxdomain.ObjectView{}, 0, err
-		}
-		if external == 0 {
+		{
 			input := auxdomain.ObjectRevisionInput{ObjectID: objectID, ObjectRevision: view.ObjectRevision}
 			stateActor, stateErr := seedActor(actorID, requestID(sample.key, "state"))
 			if stateErr != nil {

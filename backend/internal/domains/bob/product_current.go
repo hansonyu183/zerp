@@ -60,38 +60,23 @@ func (s *Service) ResolveProductDeclaration(ctx context.Context, tx pgx.Tx, d De
 	}
 	return s.resolveDetailReferenceSnapshots(ctx, tx, EntityProduct, "", r, false)
 }
+
+// ResolveProductDraftDeclaration preserves each persisted AUX snapshot whose
+// stable ID remains selected in an existing DCL draft. Changed IDs resolve
+// against enabled current AUX objects without refreshing unrelated snapshots.
+func (s *Service) ResolveProductDraftDeclaration(ctx context.Context, tx pgx.Tx, data, previous DetailView) (DetailView, error) {
+	validated, err := ValidateProductData(data)
+	if err != nil {
+		return DetailView{}, err
+	}
+	return s.resolveProductDraftReferences(ctx, tx, validated, previous)
+}
 func (s *Service) EnsureProductDeclarationReferencesCurrent(ctx context.Context, tx pgx.Tx, d DetailView) error {
-	checkAux := func(entity, objectID, entryID string) error {
-		if objectID == "" {
-			return nil
-		}
-		latest, err := s.resolveNamedAuxiliaryReference(ctx, tx, entity, objectID, "")
-		if err != nil || latest.ApprovalEntryID != entryID {
-			return domainError(ErrorConflict, "product reference drift", nil, err)
-		}
-		return nil
-	}
-	for _, r := range [][3]string{{"product-category", d.CategoryID, d.CategoryApprovalEntryID}, {"product-type", d.ProductTypeID, d.ProductTypeApprovalEntryID}, {"measurement-unit", d.DefaultInputUnitID, d.DefaultInputUnitApprovalEntryID}, {"measurement-unit", d.PricingUnitID, d.PricingUnitApprovalEntryID}} {
-		if err := checkAux(r[0], r[1], r[2]); err != nil {
-			return err
-		}
-	}
-	for _, c := range d.UnitConversions {
-		if err := checkAux("measurement-unit", c.Unit.ObjectID, c.Unit.ApprovalEntryID); err != nil {
-			return err
-		}
-	}
 	if d.Formula != nil {
-		if err := checkAux("measurement-unit", d.Formula.Output.EnteredUnit.ObjectID, d.Formula.Output.EnteredUnit.ApprovalEntryID); err != nil {
-			return err
-		}
 		for _, c := range d.Formula.Components {
 			latest, err := s.ResolveLatestApprovedReference(ctx, tx, EntityProduct, c.Material.ObjectID)
 			if err != nil || latest.ApprovalEntryID != c.Material.ApprovalEntryID {
 				return domainError(ErrorConflict, "product reference drift", nil, err)
-			}
-			if err = checkAux("measurement-unit", c.Quantity.EnteredUnit.ObjectID, c.Quantity.EnteredUnit.ApprovalEntryID); err != nil {
-				return err
 			}
 		}
 	}
@@ -131,7 +116,7 @@ func (s *Service) EnsureProductUnapproveAllowed(ctx context.Context, tx pgx.Tx, 
 	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entry)
 }
 func (s *Service) getProductCurrent(ctx context.Context, in GetInput) (ObjectView, error) {
-	if !validID(in.ObjectID) || in.ApprovalEntryID != "" {
+	if !validID(in.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid product get request", nil, nil)
 	}
 	r, err := s.queries.GetBobProductCurrent(ctx, in.ObjectID)
@@ -145,7 +130,7 @@ func (s *Service) getProductCurrent(ctx context.Context, in GetInput) (ObjectVie
 	if err != nil {
 		return ObjectView{}, s.internal("get product source approval", err)
 	}
-	d, err := LoadProductSnapshot(ctx, s.queries, r.ApprovalEntryID)
+	d, err := LoadDCLProductSnapshot(ctx, s.queries, r.ApprovalEntryID)
 	if err != nil {
 		return ObjectView{}, s.internal("load product current snapshot", err)
 	}
@@ -153,7 +138,7 @@ func (s *Service) getProductCurrent(ctx context.Context, in GetInput) (ObjectVie
 	if err != nil {
 		return ObjectView{}, s.internal("get product identity", err)
 	}
-	return ObjectView{ObjectID: r.ObjectID, Entity: EntityProduct, Code: r.Code, ObjectRevision: o.Revision, Enabled: d.Enabled, Approval: approvalMeta(e), Data: d, UpdatedAt: o.UpdatedAt.Time}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: EntityProduct, Code: r.Code, ObjectRevision: o.Revision, Enabled: d.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: versionNumber(e.VersionNo), Data: d, UpdatedAt: o.UpdatedAt.Time}, nil
 }
 func (s *Service) validateProductSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	e, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityProduct})
@@ -167,7 +152,7 @@ func (s *Service) validateProductSnapshotReference(ctx context.Context, q *dbsql
 	if err != nil {
 		return EffectiveReference{}, s.internal("load product identity", err)
 	}
-	d, err := LoadProductSnapshot(ctx, q, entryID)
+	d, err := LoadDCLProductSnapshot(ctx, q, entryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL product snapshot", err)
 	}
@@ -181,21 +166,12 @@ func (s *Service) resolveProductCurrentReference(ctx context.Context, q *dbsqlc.
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve product current", err)
 	}
-	d, err := LoadProductSnapshot(ctx, q, r.ApprovalEntryID)
+	d, err := LoadDCLProductSnapshot(ctx, q, r.ApprovalEntryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("load product current snapshot", err)
 	}
 	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: d}, nil
 }
-func StoreProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string, d DetailView) error {
-	return insertDetail(ctx, q, EntityProduct, id, d)
-}
-func LoadProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string) (DetailView, error) {
-	return loadDetail(ctx, q, EntityProduct, id)
-}
-func CopyProductSnapshot(ctx context.Context, q *dbsqlc.Queries, newID, sourceID string) error {
-	return copyDetail(ctx, q, EntityProduct, newID, sourceID)
-}
-func DeleteProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string) (int64, error) {
-	return deleteDetail(ctx, q, EntityProduct, id)
+func LoadDCLProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string) (DetailView, error) {
+	return loadDCLProductSnapshot(ctx, q, id)
 }

@@ -1,5 +1,4 @@
 import { defineBobEntityConfig } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const vehicleConfig = defineBobEntityConfig({
   entity: 'vehicle',
@@ -8,7 +7,7 @@ export const vehicleConfig = defineBobEntityConfig({
   nameLabel: '车辆名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     plateNumber: '',
     vehicleType: '',
     carrierAffiliation: null,
@@ -21,7 +20,7 @@ export const vehicleConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -51,46 +50,46 @@ export const vehicleConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '名称',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'plateNumber',
       label: '车牌',
-      value: (row) => bobListActiveVersion(row).summary.plateNumber,
+      value: (row) => row.data.plateNumber,
     },
     {
       key: 'vehicleType',
       label: '车型',
-      value: (row) => bobListActiveVersion(row).summary.vehicleType,
+      value: (row) => row.data.vehicleTypeName ?? row.data.vehicleType,
     },
     {
       key: 'carrierAffiliation',
       label: '承运归属',
-      value: (row) => bobListActiveVersion(row).summary.carrierAffiliation,
+      value: (row) => row.data.carrierAffiliation,
       format: carrierAffiliationText,
     },
     {
       key: 'vin',
       label: 'VIN',
-      value: (row) => bobListActiveVersion(row).summary.vin ?? '',
+      value: (row) => row.data.vin ?? '',
     },
     {
       key: 'loadCapacityKg',
       label: '核定载重（kg）',
-      value: (row) => bobListActiveVersion(row).summary.loadCapacityKg ?? '',
+      value: (row) => row.data.loadCapacityKg ?? '',
     },
     {
       key: 'bulkLiquidCapable',
       label: '支持散水承运',
-      value: (row) => bobListActiveVersion(row).summary.bulkLiquidCapable,
+      value: (row) => row.data.bulkLiquidCapable,
       format: (value) => (value ? '是' : '否'),
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

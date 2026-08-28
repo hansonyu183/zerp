@@ -17,12 +17,6 @@
           'operating-entity',
         ],
     },
-  'BobCrudEntity':
-    {
-      'type': 'string',
-      'enum': [],
-      'description': '没有仍暴露通用 CRUD HTTP 路径的 BOB 实体。',
-    },
   'BobReadableEntity':
     {
       'type': 'string',
@@ -51,8 +45,15 @@
           'filters':
             {
               'type': 'object',
-              'additionalProperties': true,
-              'properties': {},
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string' },
+                  'enabled': { 'type': 'boolean' },
+                  'categoryId': { 'type': 'string' },
+                  'defaultPurchaserEmployeeId': { 'type': 'string' },
+                  'productTypeId': { 'type': 'string' },
+                },
             },
           'sort':
             {
@@ -69,17 +70,6 @@
                     },
                 },
             },
-        },
-    },
-  'BobVersionSummary':
-    {
-      'type': 'object',
-      'required': ['approval', 'summary'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'summary': { 'type': 'object', 'additionalProperties': true },
         },
     },
   'VehicleCarrierAffiliation':
@@ -131,8 +121,9 @@
           'code',
           'objectRevision',
           'enabled',
-          'latestApproved',
-          'openVersion',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'data',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -143,18 +134,11 @@
           'code': { 'type': 'string' },
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
-          'latestApproved':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/BobVersionSummary' }],
-              'nullable': true,
-            },
-          'openVersion':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/BobVersionSummary' }],
-              'nullable': true,
-            },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'data': { '$ref': '#/BobDetailView' },
+          'relationship': { '$ref': '#/BobRelationshipIdentityView' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -195,184 +179,90 @@
       'type': 'object',
       'required': ['objectId'],
       'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-        },
+      'properties': { 'objectId': { 'type': 'string' } },
     },
-  'BobCreateRequest':
+  'BobDetailData':
     {
       'type': 'object',
-      'required': ['data'],
       'additionalProperties': false,
       'properties':
         {
-          'data':
+          'name': { 'type': 'string', 'nullable': true },
+          'unit': { 'type': 'string', 'nullable': true },
+          'currency': { 'type': 'string', 'nullable': true },
+          'customerType': { 'type': 'string', 'nullable': true },
+          'plateNumber': { 'type': 'string', 'nullable': true },
+          'vehicleType': { 'type': 'string', 'nullable': true },
+          'carrierAffiliation':
+            { '$ref': '#/VehicleCarrierAffiliation', 'nullable': true },
+          'bulkLiquidCapable': { 'type': 'boolean', 'nullable': true },
+          'shortName': { 'type': 'string', 'nullable': true },
+          'categoryId': { 'type': 'string', 'nullable': true },
+          'categoryCode': { 'type': 'string', 'nullable': true },
+          'categoryName': { 'type': 'string', 'nullable': true },
+          'taxNumber': { 'type': 'string', 'nullable': true },
+          'contactName': { 'type': 'string', 'nullable': true },
+          'contactPhone': { 'type': 'string', 'nullable': true },
+          'email': { 'type': 'string', 'nullable': true },
+          'address': { 'type': 'string', 'nullable': true },
+          'remark': { 'type': 'string', 'nullable': true },
+          'departmentId': { 'type': 'string', 'nullable': true },
+          'departmentCode': { 'type': 'string', 'nullable': true },
+          'departmentName': { 'type': 'string', 'nullable': true },
+          'positionId': { 'type': 'string', 'nullable': true },
+          'positionCode': { 'type': 'string', 'nullable': true },
+          'positionName': { 'type': 'string', 'nullable': true },
+          'phone': { 'type': 'string', 'nullable': true },
+          'hireDate': { 'type': 'string', 'nullable': true },
+          'specification': { 'type': 'string', 'nullable': true },
+          'model': { 'type': 'string', 'nullable': true },
+          'barcode': { 'type': 'string', 'nullable': true },
+          'description': { 'type': 'string', 'nullable': true },
+          'managerEmployeeId': { 'type': 'string', 'nullable': true },
+          'vin': { 'type': 'string', 'nullable': true },
+          'engineNumber': { 'type': 'string', 'nullable': true },
+          'loadCapacityKg': { 'type': 'string', 'nullable': true },
+          'accountName': { 'type': 'string', 'nullable': true },
+          'bankName': { 'type': 'string', 'nullable': true },
+          'bankBranch': { 'type': 'string', 'nullable': true },
+          'accountNumber': { 'type': 'string', 'nullable': true },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string', 'nullable': true },
+          'operatingEntityName': { 'type': 'string', 'nullable': true },
+          'settlementMethodId': { 'type': 'string', 'nullable': true },
+          'settlementMethodCode': { 'type': 'string', 'nullable': true },
+          'settlementMethodName': { 'type': 'string', 'nullable': true },
+          'termCode': { 'type': 'string', 'nullable': true },
+          'defaultSalesSurcharge': { 'type': 'string', 'nullable': true },
+          'salespersonEmployeeId': { 'type': 'string', 'nullable': true },
+          'defaultPurchaserEmployeeId': { 'type': 'string', 'nullable': true },
+          'defaultPurchaserCode': { 'type': 'string', 'nullable': true },
+          'defaultPurchaserName': { 'type': 'string', 'nullable': true },
+          'productTypeId': { 'type': 'string', 'nullable': true },
+          'defaultInputUnitId': { 'type': 'string', 'nullable': true },
+          'defaultInputUnitCode': { 'type': 'string', 'nullable': true },
+          'defaultInputUnitName': { 'type': 'string', 'nullable': true },
+          'vehicleTypeName': { 'type': 'string', 'nullable': true },
+          'inventoryUnitId': { 'type': 'string', 'nullable': true },
+          'pricingUnitId': { 'type': 'string', 'nullable': true },
+          'unitConversions':
             {
-              'type': 'object',
-              'required': ['name'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'name': { 'type': 'string', 'nullable': true },
-                  'unit': { 'type': 'string', 'nullable': true },
-                  'currency': { 'type': 'string', 'nullable': true },
-                  'customerType': { 'type': 'string', 'nullable': true },
-                  'plateNumber': { 'type': 'string', 'nullable': true },
-                  'vehicleType': { 'type': 'string', 'nullable': true },
-                  'carrierAffiliation':
-                    { '$ref': '#/VehicleCarrierAffiliation', 'nullable': true },
-                  'bulkLiquidCapable': { 'type': 'boolean', 'nullable': true },
-                  'shortName': { 'type': 'string', 'nullable': true },
-                  'categoryId': { 'type': 'string', 'nullable': true },
-                  'taxNumber': { 'type': 'string', 'nullable': true },
-                  'contactName': { 'type': 'string', 'nullable': true },
-                  'contactPhone': { 'type': 'string', 'nullable': true },
-                  'email': { 'type': 'string', 'nullable': true },
-                  'address': { 'type': 'string', 'nullable': true },
-                  'remark': { 'type': 'string', 'nullable': true },
-                  'departmentId': { 'type': 'string', 'nullable': true },
-                  'positionId': { 'type': 'string', 'nullable': true },
-                  'phone': { 'type': 'string', 'nullable': true },
-                  'hireDate': { 'type': 'string', 'nullable': true },
-                  'specification': { 'type': 'string', 'nullable': true },
-                  'model': { 'type': 'string', 'nullable': true },
-                  'barcode': { 'type': 'string', 'nullable': true },
-                  'description': { 'type': 'string', 'nullable': true },
-                  'managerEmployeeId': { 'type': 'string', 'nullable': true },
-                  'vin': { 'type': 'string', 'nullable': true },
-                  'engineNumber': { 'type': 'string', 'nullable': true },
-                  'loadCapacityKg': { 'type': 'string', 'nullable': true },
-                  'accountName': { 'type': 'string', 'nullable': true },
-                  'bankName': { 'type': 'string', 'nullable': true },
-                  'bankBranch': { 'type': 'string', 'nullable': true },
-                  'accountNumber': { 'type': 'string', 'nullable': true },
-                  'operatingEntityId': { 'type': 'string' },
-                  'settlementMethodId': { 'type': 'string', 'nullable': true },
-                  'termCode': { 'type': 'string', 'nullable': true },
-                  'defaultSalesSurcharge':
-                    { 'type': 'string', 'nullable': true },
-                  'salespersonEmployeeId':
-                    { 'type': 'string', 'nullable': true },
-                  'productTypeId': { 'type': 'string', 'nullable': true },
-                  'defaultInputUnitId': { 'type': 'string', 'nullable': true },
-                  'inventoryUnitId': { 'type': 'string', 'nullable': true },
-                  'pricingUnitId': { 'type': 'string', 'nullable': true },
-                  'unitConversions':
-                    {
-                      'type': 'array',
-                      'nullable': true,
-                      'items': { '$ref': '#/BobProductUnitConversionInput' },
-                    },
-                  'returnable': { 'type': 'boolean', 'nullable': true },
-                  'defaultPackagingSpec':
-                    {
-                      'type': 'string',
-                      'nullable': true,
-                      'description': '仅非包装产品适用；一标准包装件对应的基准数量，必须大于零且最多六位小数',
-                    },
-                  'formula':
-                    {
-                      'type': 'object',
-                      'allOf': [{ '$ref': '#/BobProductFormulaInput' }],
-                      'nullable': true,
-                    },
-                },
+              'type': 'array',
+              'nullable': true,
+              'items': { '$ref': '#/BobProductUnitConversionInput' },
             },
-        },
-    },
-  'BobObjectRevisionRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'objectRevision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-        },
-    },
-  'BobSaveRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
-          'data':
+          'returnable': { 'type': 'boolean', 'nullable': true },
+          'defaultPackagingSpec':
+            {
+              'type': 'string',
+              'nullable': true,
+              'description': '仅非包装产品适用；一标准包装件对应的基准数量，必须大于零且最多六位小数',
+            },
+          'formula':
             {
               'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'name': { 'type': 'string', 'nullable': true },
-                  'unit': { 'type': 'string', 'nullable': true },
-                  'currency': { 'type': 'string', 'nullable': true },
-                  'customerType': { 'type': 'string', 'nullable': true },
-                  'plateNumber': { 'type': 'string', 'nullable': true },
-                  'vehicleType': { 'type': 'string', 'nullable': true },
-                  'carrierAffiliation':
-                    { '$ref': '#/VehicleCarrierAffiliation', 'nullable': true },
-                  'bulkLiquidCapable': { 'type': 'boolean', 'nullable': true },
-                  'shortName': { 'type': 'string', 'nullable': true },
-                  'categoryId': { 'type': 'string', 'nullable': true },
-                  'taxNumber': { 'type': 'string', 'nullable': true },
-                  'contactName': { 'type': 'string', 'nullable': true },
-                  'contactPhone': { 'type': 'string', 'nullable': true },
-                  'email': { 'type': 'string', 'nullable': true },
-                  'address': { 'type': 'string', 'nullable': true },
-                  'remark': { 'type': 'string', 'nullable': true },
-                  'departmentId': { 'type': 'string', 'nullable': true },
-                  'positionId': { 'type': 'string', 'nullable': true },
-                  'phone': { 'type': 'string', 'nullable': true },
-                  'hireDate': { 'type': 'string', 'nullable': true },
-                  'specification': { 'type': 'string', 'nullable': true },
-                  'model': { 'type': 'string', 'nullable': true },
-                  'barcode': { 'type': 'string', 'nullable': true },
-                  'description': { 'type': 'string', 'nullable': true },
-                  'managerEmployeeId': { 'type': 'string', 'nullable': true },
-                  'vin': { 'type': 'string', 'nullable': true },
-                  'engineNumber': { 'type': 'string', 'nullable': true },
-                  'loadCapacityKg': { 'type': 'string', 'nullable': true },
-                  'accountName': { 'type': 'string', 'nullable': true },
-                  'bankName': { 'type': 'string', 'nullable': true },
-                  'bankBranch': { 'type': 'string', 'nullable': true },
-                  'accountNumber': { 'type': 'string', 'nullable': true },
-                  'operatingEntityId': { 'type': 'string' },
-                  'settlementMethodId': { 'type': 'string', 'nullable': true },
-                  'termCode': { 'type': 'string', 'nullable': true },
-                  'defaultSalesSurcharge':
-                    { 'type': 'string', 'nullable': true },
-                  'salespersonEmployeeId':
-                    { 'type': 'string', 'nullable': true },
-                  'productTypeId': { 'type': 'string', 'nullable': true },
-                  'defaultInputUnitId': { 'type': 'string', 'nullable': true },
-                  'inventoryUnitId': { 'type': 'string', 'nullable': true },
-                  'pricingUnitId': { 'type': 'string', 'nullable': true },
-                  'unitConversions':
-                    {
-                      'type': 'array',
-                      'nullable': true,
-                      'items': { '$ref': '#/BobProductUnitConversionInput' },
-                    },
-                  'returnable': { 'type': 'boolean', 'nullable': true },
-                  'defaultPackagingSpec':
-                    {
-                      'type': 'string',
-                      'nullable': true,
-                      'description': '仅非包装产品适用；一标准包装件对应的基准数量，必须大于零且最多六位小数',
-                    },
-                  'formula':
-                    {
-                      'type': 'object',
-                      'allOf': [{ '$ref': '#/BobProductFormulaInput' }],
-                      'nullable': true,
-                    },
-                },
+              'allOf': [{ '$ref': '#/BobProductFormulaInput' }],
+              'nullable': true,
             },
         },
     },
@@ -401,15 +291,15 @@
   'BobMeasurementUnitSnapshot':
     {
       'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'code', 'name', 'symbol'],
+      'required': ['objectId', 'code', 'name', 'symbol', 'quantityScale'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'symbol': { 'type': 'string' },
+          'quantityScale': { 'type': 'integer', 'minimum': 0, 'maximum': 6 },
         },
     },
   'BobProductUnitConversionSnapshot':
@@ -482,57 +372,6 @@
               'nullable': true,
             },
           'requiresConfirmation': { 'type': 'boolean', 'nullable': true },
-        },
-    },
-  'BobDeleteRequest':
-    {
-      'type': 'object',
-      'required':
-        ['objectId', 'objectRevision', 'approvalEntryId', 'approvalRevision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
-        },
-    },
-  'BobVersionRevisionRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'approvalRevision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
-        },
-    },
-  'BobReviewRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'reason'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
-          'reason': { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
-        },
-    },
-  'BobHistoryRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
         },
     },
   'BobCustomerQueryRequest':
@@ -641,6 +480,7 @@
           'operatingEntityName',
           'enabled',
           'sourceApprovalEntryId',
+          'sourceVersionNo',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -657,6 +497,8 @@
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -672,7 +514,6 @@
           'sha256',
           'status',
           'categoryObjectId',
-          'categoryApprovalEntryId',
           'categoryCode',
           'categoryName',
           'createdAt',
@@ -692,7 +533,6 @@
           'sha256': { 'type': 'string' },
           'status': { 'type': 'string', 'enum': ['READY'] },
           'categoryObjectId': { 'type': 'string' },
-          'categoryApprovalEntryId': { 'type': 'string' },
           'categoryCode': { 'type': 'string' },
           'categoryName': { 'type': 'string' },
           'storedAt': { 'type': 'string', 'format': 'date-time' },
@@ -711,6 +551,7 @@
           'customerRelationshipCode',
           'enabled',
           'sourceApprovalEntryId',
+          'sourceVersionNo',
           'data',
           'attachments',
           'updatedAt',
@@ -724,6 +565,8 @@
           'customerRelationshipCode': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'data': { '$ref': './dcl.yaml#/DclCustomerAccountData' },
           'attachments':
             {
@@ -745,6 +588,7 @@
           'operatingEntityName',
           'enabled',
           'sourceApprovalEntryId',
+          'sourceVersionNo',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -757,6 +601,8 @@
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -770,10 +616,11 @@
           'customerRelationshipId',
           'customerRelationshipCode',
           'name',
-          'customerTypeCode',
+          'customerTypeId',
           'operatingEntityCode',
           'enabled',
           'sourceApprovalEntryId',
+          'sourceVersionNo',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -784,10 +631,12 @@
           'customerRelationshipId': { 'type': 'string' },
           'customerRelationshipCode': { 'type': 'string' },
           'name': { 'type': 'string' },
-          'customerTypeCode': { 'type': 'string' },
+          'customerTypeId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -897,7 +746,6 @@
       'required':
         [
           'sourceObjectId',
-          'approvalEntryId',
           'code',
           'name',
           'termCode',
@@ -910,7 +758,6 @@
       'properties':
         {
           'sourceObjectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'termCode': { 'type': 'string' },
@@ -931,239 +778,6 @@
           'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
-        },
-    },
-  'SupplierView':
-    {
-      'type': 'object',
-      'required': ['settlementMethod', 'defaultPurchaser'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'contactName': { 'type': 'string', 'nullable': true },
-          'contactPhone': { 'type': 'string', 'nullable': true },
-          'email': { 'type': 'string', 'nullable': true },
-          'address': { 'type': 'string', 'nullable': true },
-          'remark': { 'type': 'string', 'nullable': true },
-          'settlementMethodId': { 'type': 'string', 'nullable': true },
-          'defaultPurchaserEmployeeId': { 'type': 'string', 'nullable': true },
-          'settlementMethod':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SupplierSettlementSnapshot' }],
-              'nullable': true,
-            },
-          'defaultPurchaser':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SupplierPurchaserSnapshot' }],
-              'nullable': true,
-            },
-        },
-    },
-  'SupplierVersionView':
-    {
-      'type': 'object',
-      'required': ['approval', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'data': { '$ref': '#/SupplierView' },
-        },
-    },
-  'SupplierDetailView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'objectRevision',
-          'enabled',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'latestApproved',
-          'openVersion',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': '#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'latestApproved':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SupplierVersionView' }],
-              'nullable': true,
-            },
-          'openVersion':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SupplierVersionView' }],
-              'nullable': true,
-            },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'SupplierGetResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SupplierDetailView' }],
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'SupplierQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-          'filters':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'keyword': { 'type': 'string' },
-                  'status': { 'type': 'array', 'items': { 'type': 'string' } },
-                  'enabled': { 'type': 'boolean' },
-                  'defaultPurchaserEmployeeId': { 'type': 'string' },
-                },
-            },
-          'sort':
-            {
-              'type': 'array',
-              'maxItems': 1,
-              'items':
-                {
-                  'type': 'object',
-                  'required': ['field', 'order'],
-                  'additionalProperties': false,
-                  'properties':
-                    {
-                      'field': { 'type': 'string', 'enum': ['code'] },
-                      'order': { 'type': 'string', 'enum': ['asc'] },
-                    },
-                },
-            },
-        },
-    },
-  'SupplierListVersion':
-    {
-      'type': 'object',
-      'required': ['approval'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'defaultPurchaserCode': { 'type': 'string' },
-          'defaultPurchaserName': { 'type': 'string' },
-        },
-    },
-  'SupplierListItem':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'objectRevision',
-          'enabled',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'latestApproved',
-          'openVersion',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': '#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'latestApproved':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SupplierListVersion' }],
-              'nullable': true,
-            },
-          'openVersion':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SupplierListVersion' }],
-              'nullable': true,
-            },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'SupplierQueryResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'required': ['items', 'total', 'page', 'pageSize'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'items':
-                    {
-                      'type': 'array',
-                      'items': { '$ref': '#/SupplierListItem' },
-                    },
-                  'total': { 'type': 'integer', 'format': 'int64' },
-                  'page': { 'type': 'integer' },
-                  'pageSize': { 'type': 'integer' },
-                },
-            },
-          'requestId': { 'type': 'string' },
         },
     },
   'BobReferenceQueryRequest':
@@ -1316,12 +930,12 @@
           'objectId',
           'entity',
           'code',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
           'operatingEntityId',
           'operatingEntityCode',
           'operatingEntityName',
           'enabled',
-          'status',
-          'version',
         ],
       'additionalProperties': false,
       'properties':
@@ -1340,13 +954,13 @@
                 ],
             },
           'code': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'operatingEntityId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
-          'status':
-            { 'type': 'string', 'enum': ['DRAFT', 'PENDING', 'APPROVED'] },
-          'version': { 'type': 'integer', 'format': 'int32' },
         },
     },
   'PartyView':
@@ -1358,6 +972,8 @@
           'kind',
           'legalName',
           'displayName',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
           'strongIdentifiers',
           'relationships',
           'updatedAt',
@@ -1369,6 +985,9 @@
           'kind': { '$ref': '#/PartyKind' },
           'legalName': { 'type': 'string' },
           'displayName': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'taxNumber': { 'type': 'string' },
           'strongIdentifiers':
             { 'type': 'array', 'items': { '$ref': '#/PartyIdentifier' } },
@@ -1383,7 +1002,16 @@
   'PartyListItem':
     {
       'type': 'object',
-      'required': ['partyId', 'kind', 'legalName', 'displayName', 'updatedAt'],
+      'required':
+        [
+          'partyId',
+          'kind',
+          'legalName',
+          'displayName',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'updatedAt',
+        ],
       'additionalProperties': false,
       'properties':
         {
@@ -1391,6 +1019,9 @@
           'kind': { '$ref': '#/PartyKind' },
           'legalName': { 'type': 'string' },
           'displayName': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -1441,636 +1072,13 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'OtherUnitData':
-    {
-      'type': 'object',
-      'required': ['operatingEntityId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'operatingEntityId': { 'type': 'string' },
-          'contactName': { 'type': 'string', 'maxLength': 100 },
-          'contactPhone': { 'type': 'string', 'maxLength': 32 },
-          'email': { 'type': 'string', 'maxLength': 254 },
-          'address': { 'type': 'string', 'maxLength': 500 },
-          'settlementMethodId': { 'type': 'string' },
-          'settlementMethodCode': { 'type': 'string', 'readOnly': true },
-          'settlementMethodName': { 'type': 'string', 'readOnly': true },
-          'remark': { 'type': 'string', 'maxLength': 1000 },
-        },
-    },
-  'OtherUnitCreateRequest':
-    {
-      'oneOf':
-        [
-          { '$ref': '#/OtherUnitCreateWithExistingPartyRequest' },
-          { '$ref': '#/OtherUnitCreateWithNewPartyRequest' },
-        ],
-    },
-  'OtherUnitCreateWithExistingPartyRequest':
-    {
-      'type': 'object',
-      'required': ['partyId', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'partyId': { 'type': 'string' },
-          'data': { '$ref': '#/OtherUnitData' },
-        },
-    },
-  'OtherUnitCreateWithNewPartyRequest':
-    {
-      'type': 'object',
-      'required': ['newParty', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'newParty': { '$ref': '#/PartyIdentityData' },
-          'data': { '$ref': '#/OtherUnitData' },
-        },
-    },
-  'OtherUnitQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-          'filters':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'keyword': { 'type': 'string' },
-                  'enabled': { 'type': 'boolean' },
-                  'status':
-                    {
-                      'type': 'array',
-                      'items':
-                        {
-                          'type': 'string',
-                          'enum': ['DRAFT', 'PENDING', 'APPROVED'],
-                        },
-                    },
-                  'operatingEntityId': { 'type': 'string' },
-                },
-            },
-        },
-    },
-  'OtherUnitSaveRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision':
-            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'data':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'contactName': { 'type': 'string', 'nullable': true },
-                  'contactPhone': { 'type': 'string', 'nullable': true },
-                  'email': { 'type': 'string', 'nullable': true },
-                  'address': { 'type': 'string', 'nullable': true },
-                  'settlementMethodId': { 'type': 'string', 'nullable': true },
-                  'remark': { 'type': 'string', 'nullable': true },
-                },
-            },
-        },
-    },
-  'OtherUnitView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'objectRevision',
-          'enabled',
-          'approval',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'data',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': '#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'data': { '$ref': '#/OtherUnitData' },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'OtherUnitMutationResult':
-    {
-      'type': 'object',
-      'required': ['objectId', 'objectRevision', 'enabled', 'approval'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'partyId': { 'type': 'string' },
-        },
-    },
-  'OtherUnitPage':
-    {
-      'type': 'object',
-      'required': ['items', 'total', 'page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'items': { 'type': 'array', 'items': { '$ref': '#/OtherUnitView' } },
-          'total': { 'type': 'integer', 'format': 'int64' },
-          'page': { 'type': 'integer' },
-          'pageSize': { 'type': 'integer' },
-        },
-    },
-  'OtherUnitGetResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/OtherUnitView' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'OtherUnitQueryResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/OtherUnitPage' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'OtherUnitMutationResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/OtherUnitMutationResult' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
   'SalesPartnerCapability':
     { 'type': 'string', 'enum': ['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'] },
-  'SalesPartnerInput':
-    {
-      'type': 'object',
-      'required': ['operatingEntityId', 'capabilities'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'operatingEntityId': { 'type': 'string' },
-          'capabilities':
-            {
-              'type': 'array',
-              'uniqueItems': true,
-              'items': { '$ref': '#/SalesPartnerCapability' },
-            },
-          'contactName': { 'type': 'string', 'maxLength': 100 },
-          'contactPhone': { 'type': 'string', 'maxLength': 32 },
-          'email': { 'type': 'string', 'maxLength': 254 },
-          'address': { 'type': 'string', 'maxLength': 500 },
-          'remark': { 'type': 'string', 'maxLength': 1000 },
-        },
-    },
-  'SalesPartnerDataView':
-    {
-      'type': 'object',
-      'required': ['capabilities'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'capabilities':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/SalesPartnerCapability' },
-            },
-          'contactName': { 'type': 'string' },
-          'contactPhone': { 'type': 'string' },
-          'email': { 'type': 'string' },
-          'address': { 'type': 'string' },
-          'remark': { 'type': 'string' },
-        },
-    },
-  'SalesPartnerCreateRequest':
-    {
-      'oneOf':
-        [
-          {
-            'type': 'object',
-            'required': ['partyId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'partyId': { 'type': 'string' },
-                'data': { '$ref': '#/SalesPartnerInput' },
-              },
-          },
-          {
-            'type': 'object',
-            'required': ['newParty', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'newParty': { '$ref': '#/PartyIdentityData' },
-                'data': { '$ref': '#/SalesPartnerInput' },
-              },
-          },
-        ],
-    },
-  'SalesPartnerSaveRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
-          'data': { '$ref': '#/SalesPartnerInput' },
-        },
-    },
-  'SalesPartnerQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize', 'filters', 'sort'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-          'filters':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'keyword': { 'type': 'string', 'maxLength': 200 },
-                  'status': { 'type': 'array', 'items': { 'type': 'string' } },
-                  'enabled': { 'type': 'boolean' },
-                  'operatingEntityId': { 'type': 'string' },
-                  'capability': { '$ref': '#/SalesPartnerCapability' },
-                },
-            },
-          'sort':
-            {
-              'type': 'array',
-              'maxItems': 1,
-              'items':
-                {
-                  'type': 'object',
-                  'required': ['field', 'order'],
-                  'additionalProperties': false,
-                  'properties':
-                    {
-                      'field': { 'type': 'string', 'enum': ['code'] },
-                      'order': { 'type': 'string', 'enum': ['asc'] },
-                    },
-                },
-            },
-        },
-    },
-  'SalesPartnerListVersion':
-    {
-      'type': 'object',
-      'required': ['approval', 'capabilities'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'capabilities':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/SalesPartnerCapability' },
-            },
-        },
-    },
-  'SalesPartnerListItem':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'objectRevision',
-          'enabled',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'latestApproved',
-          'openVersion',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': '#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'latestApproved':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SalesPartnerListVersion' }],
-              'nullable': true,
-            },
-          'openVersion':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SalesPartnerListVersion' }],
-              'nullable': true,
-            },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'SalesPartnerPage':
-    {
-      'type': 'object',
-      'required': ['items', 'total', 'page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'items':
-            { 'type': 'array', 'items': { '$ref': '#/SalesPartnerListItem' } },
-          'total': { 'type': 'integer', 'format': 'int64' },
-          'page': { 'type': 'integer' },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-        },
-    },
-  'SalesPartnerVersionView':
-    {
-      'type': 'object',
-      'required': ['approval', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'data': { '$ref': '#/SalesPartnerDataView' },
-        },
-    },
-  'SalesPartnerDetailView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'objectRevision',
-          'enabled',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'latestApproved',
-          'openVersion',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': '#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'latestApproved':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SalesPartnerVersionView' }],
-              'nullable': true,
-            },
-          'openVersion':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/SalesPartnerVersionView' }],
-              'nullable': true,
-            },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'SalesPartnerMutationResult':
-    {
-      'type': 'object',
-      'required': ['objectId', 'objectRevision', 'enabled', 'approval'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'partyId': { 'type': 'string' },
-        },
-    },
-  'SalesPartnerQueryResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/SalesPartnerPage' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'SalesPartnerGetResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/SalesPartnerDetailView' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'SalesPartnerMutationResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/SalesPartnerMutationResult' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'BobActiveReferenceCount':
-    {
-      'type': 'object',
-      'required': ['entity', 'field', 'count'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'entity': { 'type': 'string' },
-          'field': { 'type': 'string' },
-          'count': { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
-        },
-    },
-  'BobActiveReferenceBlockers':
-    {
-      'type': 'object',
-      'required': ['references'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'references':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/BobActiveReferenceCount' },
-            },
-        },
-    },
-  'BobDisableResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'anyOf':
-                [
-                  { '$ref': '#/BobActiveReferenceBlockers' },
-                  { '$ref': '#/BobMutationResult' },
-                ],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'BobUnapproveResponse':
-    {
-      'type': 'object',
-      'required': [code, errorKey, message, data, requestId],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'anyOf':
-                [
-                  { '$ref': '#/BobMutationResult' },
-                  { '$ref': '#/BobActiveReferenceBlockers' },
-                ],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
   'BobDetailView':
     {
       'allOf':
         [
-          { '$ref': '#/BobSaveRequest/properties/data' },
+          { '$ref': '#/BobDetailData' },
           {
             'type': 'object',
             'required': ['name'],
@@ -2094,7 +1102,6 @@
           },
         ],
     },
-  'BobVersionMeta': { '$ref': './common.yaml#/ApprovalVersionMeta' },
   'BobRelationshipIdentityView':
     {
       'type': 'object',
@@ -2128,8 +1135,9 @@
           'code',
           'objectRevision',
           'enabled',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
           'updatedAt',
-          'approval',
           'data',
         ],
       'additionalProperties': false,
@@ -2143,67 +1151,13 @@
           'sourceApprovalEntryId':
             {
               'type': 'string',
-              'nullable': true,
-              'description': 'DCL current 投影的精确来源 Approval Entry；employee 必须返回该值。',
+              'description': 'DCL current 投影的精确来源 Approval Entry。',
             },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/BobDetailView' },
           'relationship': { '$ref': '#/BobRelationshipIdentityView' },
-        },
-    },
-  'BobMutationResult':
-    {
-      'type': 'object',
-      'required': [objectId, objectRevision, enabled, approval],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-        },
-    },
-  'BobVersionHistoryItem':
-    {
-      'allOf':
-        [
-          { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          {
-            'type': 'object',
-            'required': ['summary'],
-            'properties':
-              { 'summary': { 'type': 'object', 'additionalProperties': true } },
-          },
-        ],
-    },
-  'BobVersionHistoryPage':
-    {
-      'type': 'object',
-      'required': [items, total, page, pageSize],
-      'additionalProperties': false,
-      'properties':
-        {
-          'items':
-            { 'type': 'array', 'items': { '$ref': '#/BobVersionHistoryItem' } },
-          'total': { 'type': 'integer', 'format': 'int64' },
-          'page': { 'type': 'integer' },
-          'pageSize': { 'type': 'integer' },
-        },
-    },
-  'BobAuditEvent': { '$ref': './common.yaml#/ApprovalEventView' },
-  'BobAuditEventPage':
-    {
-      'type': 'object',
-      'required': [items, total, page, pageSize],
-      'additionalProperties': false,
-      'properties':
-        {
-          'items': { 'type': 'array', 'items': { '$ref': '#/BobAuditEvent' } },
-          'total': { 'type': 'integer', 'format': 'int64' },
-          'page': { 'type': 'integer' },
-          'pageSize': { 'type': 'integer' },
         },
     },
   'BobObjectResponse':
@@ -2220,63 +1174,6 @@
             {
               'type': 'object',
               'allOf': [{ '$ref': '#/BobObjectView' }],
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'BobMutationResponse':
-    {
-      'type': 'object',
-      'required': [code, errorKey, message, data, requestId],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/BobMutationResult' }],
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'BobVersionHistoryResponse':
-    {
-      'type': 'object',
-      'required': [code, errorKey, message, data, requestId],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/BobVersionHistoryPage' }],
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'BobAuditHistoryResponse':
-    {
-      'type': 'object',
-      'required': [code, errorKey, message, data, requestId],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/BobAuditEventPage' }],
               'nullable': true,
             },
           'requestId': { 'type': 'string' },

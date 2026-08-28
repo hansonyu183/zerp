@@ -47,7 +47,7 @@ func validateServiceContractDraft(input DraftInput, result validatedDraft) (vali
 	}
 	validated := &validatedServiceContract{Capabilities: []string{}, Terms: strings.TrimSpace(detail.Terms)}
 	if result.CounterpartyType == contractCounterpartyService {
-		if err := validateReference(input.SettlementMethod, "settlementMethod", false); err != nil {
+		if err := validateAuxiliaryReference(input.SettlementMethod, "settlementMethod", false); err != nil {
 			return validatedDraft{}, err
 		}
 		if len(detail.Capabilities) != 0 || strings.TrimSpace(detail.ApplicableFrom) != "" || strings.TrimSpace(detail.ApplicableTo) != "" {

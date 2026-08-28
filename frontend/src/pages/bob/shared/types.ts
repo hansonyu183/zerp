@@ -5,8 +5,6 @@ import type {
 } from '@/components/business-object'
 import type { components } from '@/api/generated/schema'
 
-export type BobStatus = components['schemas']['ApprovalVersionMeta']['status']
-
 export type BobEntity = components['schemas']['BobReadableEntity']
 
 export type BobForm = {
@@ -16,21 +14,8 @@ export type BobForm = {
 }
 
 export type BobDetail = components['schemas']['BobDetailView']
-export type BobVersionSummary = components['schemas']['BobVersionSummary']
 export type BobListItem = components['schemas']['BobListItem']
-
-export function bobListActiveVersion(item: BobListItem): BobVersionSummary {
-  const version = item.openVersion ?? item.latestApproved
-  if (!version) throw new Error('业务对象缺少已批准版本和开放候选版本。')
-  return version
-}
-
-export type BobVersionMeta = components['schemas']['ApprovalVersionMeta']
 export type BobObjectView = components['schemas']['BobObjectView']
-export type BobVersionHistoryItem = BobVersionMeta & {
-  summary: Record<string, unknown>
-}
-export type BobAuditEvent = components['schemas']['ApprovalEventView']
 
 interface ReferenceConfigBase {
   value?: 'objectId' | 'code'

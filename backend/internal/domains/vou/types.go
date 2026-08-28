@@ -152,6 +152,10 @@ type ReferenceInput struct {
 	ApprovalEntryID string `json:"approvalEntryId"`
 }
 
+type AuxiliaryReferenceInput struct {
+	ObjectID string `json:"objectId"`
+}
+
 type ProductReferenceInput struct {
 	ObjectID string `json:"objectId"`
 }
@@ -290,16 +294,17 @@ type ProductionOutputInput struct {
 }
 
 type AssetAcquisitionLineInput struct {
-	AssetName        string          `json:"assetName"`
-	Specification    string          `json:"specification,omitempty"`
-	Category         ReferenceInput  `json:"category"`
-	OriginalValue    string          `json:"originalValue"`
-	UsefulLifeMonths int32           `json:"usefulLifeMonths"`
-	ResidualRate     string          `json:"residualRate"`
-	Department       ReferenceInput  `json:"department"`
-	Custodian        *ReferenceInput `json:"custodian,omitempty"`
-	Location         string          `json:"location,omitempty"`
-	Remark           string          `json:"remark,omitempty"`
+	LineID           string                  `json:"lineId,omitempty"`
+	AssetName        string                  `json:"assetName"`
+	Specification    string                  `json:"specification,omitempty"`
+	Category         AuxiliaryReferenceInput `json:"category"`
+	OriginalValue    string                  `json:"originalValue"`
+	UsefulLifeMonths int32                   `json:"usefulLifeMonths"`
+	ResidualRate     string                  `json:"residualRate"`
+	Department       AuxiliaryReferenceInput `json:"department"`
+	Custodian        *ReferenceInput         `json:"custodian,omitempty"`
+	Location         string                  `json:"location,omitempty"`
+	Remark           string                  `json:"remark,omitempty"`
 }
 
 type AssetSaleLineInput struct {
@@ -355,7 +360,7 @@ type DraftInput struct {
 	Carrier                 *ReferenceInput               `json:"carrier,omitempty"`
 	Vehicle                 *ReferenceInput               `json:"vehicle,omitempty"`
 	FundAccount             *ReferenceInput               `json:"fundAccount,omitempty"`
-	SettlementMethod        *ReferenceInput               `json:"settlementMethod,omitempty"`
+	SettlementMethod        *AuxiliaryReferenceInput      `json:"settlementMethod,omitempty"`
 	SourceName              string                        `json:"sourceName,omitempty"`
 	Amount                  string                        `json:"amount,omitempty"`
 	ProductLines            []ProductLineInput            `json:"productLines,omitempty"`
@@ -606,30 +611,35 @@ type AttachmentRemoveInput struct {
 }
 
 type ReferenceView struct {
-	ObjectID                   string                            `json:"objectId"`
-	ApprovalEntryID            string                            `json:"approvalEntryId"`
-	Entity                     string                            `json:"entity"`
-	Code                       string                            `json:"code"`
-	Name                       string                            `json:"name"`
-	Unit                       string                            `json:"unit,omitempty"`
-	Currency                   string                            `json:"currency,omitempty"`
-	PlateNumber                string                            `json:"plateNumber,omitempty"`
-	BehaviorProfile            string                            `json:"behaviorProfile,omitempty"`
-	ProductTypeObjectID        string                            `json:"productTypeObjectId,omitempty"`
-	ProductTypeApprovalEntryID string                            `json:"productTypeApprovalEntryId,omitempty"`
-	ProductTypeCode            string                            `json:"productTypeCode,omitempty"`
-	ProductTypeName            string                            `json:"productTypeName,omitempty"`
-	DefaultInputUnitID         string                            `json:"defaultInputUnitId,omitempty"`
-	PricingUnitID              string                            `json:"pricingUnitId,omitempty"`
-	UnitConversions            []bobdomain.ProductUnitConversion `json:"unitConversions,omitempty"`
+	ObjectID            string                            `json:"objectId"`
+	ApprovalEntryID     string                            `json:"approvalEntryId"`
+	Entity              string                            `json:"entity"`
+	Code                string                            `json:"code"`
+	Name                string                            `json:"name"`
+	Unit                string                            `json:"unit,omitempty"`
+	Currency            string                            `json:"currency,omitempty"`
+	PlateNumber         string                            `json:"plateNumber,omitempty"`
+	BehaviorProfile     string                            `json:"behaviorProfile,omitempty"`
+	ProductTypeObjectID string                            `json:"productTypeObjectId,omitempty"`
+	ProductTypeCode     string                            `json:"productTypeCode,omitempty"`
+	ProductTypeName     string                            `json:"productTypeName,omitempty"`
+	DefaultInputUnitID  string                            `json:"defaultInputUnitId,omitempty"`
+	PricingUnitID       string                            `json:"pricingUnitId,omitempty"`
+	UnitConversions     []bobdomain.ProductUnitConversion `json:"unitConversions,omitempty"`
+}
+
+type AuxiliaryReferenceView struct {
+	ObjectID string `json:"objectId"`
+	Entity   string `json:"entity"`
+	Code     string `json:"code"`
+	Name     string `json:"name"`
 }
 
 type UnitSnapshotView struct {
-	ObjectID        string `json:"objectId"`
-	ApprovalEntryID string `json:"approvalEntryId"`
-	Code            string `json:"code"`
-	Name            string `json:"name"`
-	Symbol          string `json:"symbol"`
+	ObjectID string `json:"objectId"`
+	Code     string `json:"code"`
+	Name     string `json:"name"`
+	Symbol   string `json:"symbol"`
 }
 
 type ProductLineView struct {
@@ -840,18 +850,20 @@ type InventoryCountBalanceItem struct {
 }
 
 type AssetAcquisitionLineView struct {
-	LineID           string         `json:"lineId"`
-	LineNo           int32          `json:"lineNo"`
-	AssetName        string         `json:"assetName"`
-	Specification    string         `json:"specification,omitempty"`
-	Category         ReferenceView  `json:"category"`
-	OriginalValue    string         `json:"originalValue"`
-	UsefulLifeMonths int32          `json:"usefulLifeMonths"`
-	ResidualRate     string         `json:"residualRate"`
-	Department       ReferenceView  `json:"department"`
-	Custodian        *ReferenceView `json:"custodian,omitempty"`
-	Location         string         `json:"location,omitempty"`
-	Remark           string         `json:"remark,omitempty"`
+	LineID                          string                 `json:"lineId"`
+	LineNo                          int32                  `json:"lineNo"`
+	AssetName                       string                 `json:"assetName"`
+	Specification                   string                 `json:"specification,omitempty"`
+	Category                        AuxiliaryReferenceView `json:"category"`
+	CategoryDefaultUsefulLifeMonths int32                  `json:"categoryDefaultUsefulLifeMonths"`
+	CategoryDefaultResidualRate     string                 `json:"categoryDefaultResidualRate"`
+	OriginalValue                   string                 `json:"originalValue"`
+	UsefulLifeMonths                int32                  `json:"usefulLifeMonths"`
+	ResidualRate                    string                 `json:"residualRate"`
+	Department                      AuxiliaryReferenceView `json:"department"`
+	Custodian                       *ReferenceView         `json:"custodian,omitempty"`
+	Location                        string                 `json:"location,omitempty"`
+	Remark                          string                 `json:"remark,omitempty"`
 }
 
 type AssetSaleLineView struct {
@@ -912,7 +924,6 @@ type BillCashLineView struct {
 
 type SettlementMethodSnapshotView struct {
 	ObjectID              string `json:"objectId"`
-	ApprovalEntryID       string `json:"approvalEntryId,omitempty"`
 	Code                  string `json:"code"`
 	Name                  string `json:"name"`
 	RuleType              string `json:"ruleType"`

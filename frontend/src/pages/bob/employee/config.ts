@@ -1,5 +1,4 @@
 import { defineBobEntityConfig, textarea } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const employeeConfig = defineBobEntityConfig({
   entity: 'employee',
@@ -8,7 +7,7 @@ export const employeeConfig = defineBobEntityConfig({
   nameLabel: '主体名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     operatingEntityName: '',
     employeeCategoryName: '',
     departmentName: '',
@@ -21,7 +20,7 @@ export const employeeConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -41,30 +40,30 @@ export const employeeConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '主体',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'operatingEntity',
       label: '经营主体',
       value: (row) =>
-        bobListActiveVersion(row).summary.operatingEntityName ?? '—',
+        row.relationship?.operatingEntityName ?? '—',
     },
     {
       key: 'employeeCategory',
       label: '人员类别',
       value: (row) =>
-        bobListActiveVersion(row).summary.employeeCategoryName ?? '—',
+        row.data.categoryName ?? '—',
     },
     {
       key: 'department',
       label: '部门',
-      value: (row) => bobListActiveVersion(row).summary.departmentName ?? '—',
+      value: (row) => row.data.departmentName ?? '—',
     },
     {
       key: 'position',
       label: '岗位',
-      value: (row) => bobListActiveVersion(row).summary.positionName ?? '—',
+      value: (row) => row.data.positionName ?? '—',
     },
     {
       key: 'enabled',

@@ -6,29 +6,11 @@ import (
 	"math"
 	"strings"
 	"testing"
-
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 func errorIsKind(err error, kind ErrorKind) bool {
 	var target *DomainError
 	return errors.As(err, &target) && target.Kind == kind
-}
-
-func TestObjectPrefixes(t *testing.T) {
-	t.Parallel()
-	expected := map[string]string{
-		EntityCustomer: "CUS", EntityCustomerAccount: "CUA", EntitySupplier: "SUP", EntityOtherUnit: "OTU", EntityEmployee: "EMP",
-		EntitySalesPartner: "SLP",
-		EntityProduct:      "PRD", EntityWarehouse: "WHS",
-		EntityVehicle: "VEH", EntityFundAccount: "FAC",
-		EntityOperatingEntity: "OPE",
-	}
-	for entity, prefix := range expected {
-		if actual := objectPrefix(entity); actual != prefix {
-			t.Fatalf("objectPrefix(%q) = %q, want %q", entity, actual, prefix)
-		}
-	}
 }
 
 func TestSalesPartnerCapabilitiesAreClosedAndRequiredForSubmission(t *testing.T) {
@@ -51,30 +33,39 @@ func TestSalesPartnerCapabilitiesAreClosedAndRequiredForSubmission(t *testing.T)
 	}
 }
 
-func TestGenericCreateRejectsOtherUnitWithoutPartyRelationship(t *testing.T) {
-	t.Parallel()
-	service := &Service{}
-	_, err := service.Create(t.Context(), EntityOtherUnit, CreateInput{}, approval.Actor{})
-	if !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("Create(other-unit) error = %v, want dedicated-operation validation", err)
-	}
-}
-
-func TestGenericSaveRejectsTypedRelationshipEntities(t *testing.T) {
-	t.Parallel()
-	service := &Service{}
-	for _, entity := range []string{EntityCustomer, EntityCustomerAccount, EntitySupplier, EntityOtherUnit, EntitySalesPartner} {
-		if _, err := service.Save(t.Context(), entity, SaveInput{}, approval.Actor{}); !errorIsKind(err, ErrorValidation) {
-			t.Fatalf("Save(%s) error = %v, want dedicated-operation validation", entity, err)
-		}
-	}
-}
-
 func TestPartyQueryRequiresFixedPageSize(t *testing.T) {
 	t.Parallel()
 	service := &Service{}
 	if _, err := service.PartyQuery(t.Context(), QueryInput{Page: 1, PageSize: 10}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("PartyQuery pageSize=10 error = %v, want validation", err)
+	}
+}
+
+func TestExactAuxiliarySnapshotsDoNotRequireCurrentSource(t *testing.T) {
+	t.Parallel()
+	service := &Service{}
+	const objectID = "01JAVX00000000000000000011"
+
+	employee, err := service.ResolveEmployeeAuxiliaryReferences(t.Context(), nil, EmployeeData{
+		Department: &EmployeeReferenceSnapshot{ObjectID: objectID, Code: "DEP-0001", Name: "生产部"},
+	}, true)
+	if err != nil || employee.Department == nil || employee.Department.Name != "生产部" {
+		t.Fatalf("exact employee snapshot = %+v, err = %v", employee, err)
+	}
+
+	other, err := service.ResolveOtherUnitDeclaration(t.Context(), nil, DetailView{
+		SettlementMethodID: objectID, SettlementMethodCode: "SET-0001", SettlementMethodName: "预付",
+		TermCode: SettlementTermPrepaid, RuleType: SettlementRuleRelativeDays,
+	}, true)
+	if err != nil || other.SettlementMethodName != "预付" {
+		t.Fatalf("exact settlement snapshot = %+v, err = %v", other, err)
+	}
+
+	vehicle, err := service.ResolveVehicleType(t.Context(), nil, VehicleData{
+		Name: "车辆", PlateNumber: "粤A12345", VehicleTypeObjectID: objectID, VehicleType: "DIT-0001", VehicleTypeName: "厢式货车",
+	}, true)
+	if err != nil || vehicle.VehicleTypeName != "厢式货车" {
+		t.Fatalf("exact vehicle type snapshot = %+v, err = %v", vehicle, err)
 	}
 }
 
@@ -176,10 +167,10 @@ func TestValidateProductDraftAllowsIncompleteConfiguration(t *testing.T) {
 
 func TestValidateCompleteProductConfiguration(t *testing.T) {
 	t.Parallel()
-	unit := MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011", ApprovalEntryID: "01JAVX00000000000000000012", Code: "UNT-0001", Name: "千克", Symbol: "kg"}
+	unit := MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011", Code: "UNT-0001", Name: "千克", Symbol: "kg"}
 	valid := DetailView{
 		Name: "固定配方成品", ProductTypeID: "01JPTY00000000000000000003",
-		ProductTypeApprovalEntryID: "01JPTY00000000000000000004", ProductTypeCode: "PTY-0002",
+		ProductTypeCode: "PTY-0002",
 		ProductTypeName: "标准成品", BehaviorProfile: ProductBehaviorStandardFinished,
 		DefaultInputUnitID: unit.ObjectID, PricingUnitID: unit.ObjectID,
 		UnitConversions:      []ProductUnitConversion{{Unit: unit, Factor: "1"}},
@@ -506,25 +497,30 @@ func TestQueryFilterValidation(t *testing.T) {
 	if _, err := validateQueryFilters(EntityOperatingEntity, QueryFilters{}); err != nil {
 		t.Fatalf("operating entity query rejected: %v", err)
 	}
-	if _, err := validateQueryFilters(EntityEmployee, QueryFilters{
-		DepartmentID: "01J00000000000000000000020",
-		PositionID:   "01J00000000000000000000021",
+	if _, err := validateQueryFilters(EntityProduct, QueryFilters{
+		CategoryID:    "01J00000000000000000000020",
+		ProductTypeID: "01J00000000000000000000021",
 	}); err != nil {
-		t.Fatalf("employee filters rejected: %v", err)
+		t.Fatalf("product filters rejected: %v", err)
 	}
-	if _, err := validateQueryFilters(EntityProduct, QueryFilters{CustomerType: CustomerTypeEndUser}); !errorIsKind(err, ErrorValidation) {
+	if _, err := validateQueryFilters(EntitySupplier, QueryFilters{CategoryID: "01J00000000000000000000020"}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("cross-entity filter error = %v", err)
 	}
 
-	var explicitEmpty QueryFilters
-	if err := json.Unmarshal([]byte(`{"rootOnly":false}`), &explicitEmpty); err != nil {
-		t.Fatalf("decode explicit empty filter: %v", err)
+	var filters QueryFilters
+	if err := json.Unmarshal([]byte(`{"capability":"CHANNEL_PARTNER"}`), &filters); err == nil {
+		t.Fatal("unsupported capability filter was accepted")
 	}
-	if _, err := validateQueryFilters(EntityCustomer, explicitEmpty); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("explicit cross-entity filter error = %v", err)
-	}
-	if err := json.Unmarshal([]byte(`{"unknown":true}`), &explicitEmpty); err == nil {
+	if err := json.Unmarshal([]byte(`{"unknown":true}`), &filters); err == nil {
 		t.Fatal("unknown nested filter was accepted")
+	}
+
+	service := &Service{}
+	if _, err := service.querySuppliersCurrent(t.Context(), QueryInput{
+		Page: 1, PageSize: 20,
+		Filters: QueryFilters{CategoryID: "01J00000000000000000000020"},
+	}); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("Supplier cross-entity filter error = %v", err)
 	}
 
 	var crossEntityClear DetailInput

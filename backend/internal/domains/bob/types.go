@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"time"
-
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 const (
@@ -24,6 +22,7 @@ const (
 	EntityOperatingEntity = "operating-entity"
 
 	CustomerTypeEndUser             = "DIT-0001"
+	CustomerTypeEndUserID           = "01JAVX00000000000000000005"
 	SettlementRuleRelativeDays      = "RELATIVE_DAYS"
 	SettlementRuleMonthEnd          = "MONTH_END"
 	SettlementRuleFixedDay          = "FIXED_DAY"
@@ -78,13 +77,6 @@ var publicEntities = [...]string{
 	EntityVehicle,
 	EntityFundAccount,
 	EntityOperatingEntity,
-}
-
-var publicApprovalEntities = [...]string{
-	EntityCustomer,
-	EntityCustomerAccount,
-	EntityOtherUnit,
-	EntitySalesPartner,
 }
 
 type ErrorKind int
@@ -263,11 +255,11 @@ type FormulaMaterialReference struct {
 }
 
 type MeasurementUnitSnapshot struct {
-	ObjectID        string `json:"objectId"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
-	Code            string `json:"code,omitempty"`
-	Name            string `json:"name,omitempty"`
-	Symbol          string `json:"symbol,omitempty"`
+	ObjectID      string `json:"objectId"`
+	Code          string `json:"code,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Symbol        string `json:"symbol,omitempty"`
+	QuantityScale int32  `json:"quantityScale"`
 }
 
 type ProductUnitConversion struct {
@@ -312,75 +304,18 @@ func Optional(value string) OptionalString {
 	return OptionalString{Value: value, Set: true}
 }
 
-type CreateInput struct {
-	Data CreateDetailInput `json:"data"`
-}
-
-type SaveInput struct {
-	ObjectID         string      `json:"objectId"`
-	ApprovalEntryID  string      `json:"approvalEntryId"`
-	ApprovalRevision int64       `json:"approvalRevision"`
-	Data             DetailInput `json:"data"`
-}
-
-type ObjectRevisionInput struct {
-	ObjectID       string `json:"objectId"`
-	ObjectRevision int64  `json:"objectRevision"`
-}
-
-type ReverseInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Reason           string `json:"reason"`
-}
-
-type VersionRevisionInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-
-type DeleteInput struct {
-	ObjectID         string `json:"objectId"`
-	ObjectRevision   int64  `json:"objectRevision"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-
-type ReviewInput struct {
-	ObjectID         string  `json:"objectId"`
-	ApprovalEntryID  string  `json:"approvalEntryId"`
-	ApprovalRevision int64   `json:"approvalRevision"`
-	Reason           *string `json:"reason"`
-}
-
 type GetInput struct {
-	ObjectID        string `json:"objectId"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+	ObjectID string `json:"objectId"`
 }
 
 type QueryFilters struct {
-	Keyword                    string   `json:"keyword,omitempty"`
-	PartyKind                  string   `json:"kind,omitempty"`
-	Merged                     *bool    `json:"merged,omitempty"`
-	Status                     []string `json:"status,omitempty"`
-	Enabled                    *bool    `json:"enabled,omitempty"`
-	CustomerType               string   `json:"customerType,omitempty"`
-	OperatingEntityID          string   `json:"operatingEntityId,omitempty"`
-	Capability                 string   `json:"capability,omitempty"`
-	SalesAttributionType       string   `json:"salesAttributionType,omitempty"`
-	SalesAttributionSubjectID  string   `json:"salesAttributionSubjectId,omitempty"`
-	CategoryID                 string   `json:"categoryId,omitempty"`
-	DepartmentID               string   `json:"departmentId,omitempty"`
-	PositionID                 string   `json:"positionId,omitempty"`
-	SalespersonEmployeeID      string   `json:"salespersonEmployeeId,omitempty"`
-	DefaultPurchaserEmployeeID string   `json:"defaultPurchaserEmployeeId,omitempty"`
-	Currency                   string   `json:"currency,omitempty"`
-	ProductTypeID              string   `json:"productTypeId,omitempty"`
-	TargetEntity               string   `json:"targetEntity,omitempty"`
-	ParentID                   string   `json:"parentId,omitempty"`
-	RootOnly                   bool     `json:"rootOnly,omitempty"`
+	Keyword                    string `json:"keyword,omitempty"`
+	PartyKind                  string `json:"kind,omitempty"`
+	Merged                     *bool  `json:"merged,omitempty"`
+	Enabled                    *bool  `json:"enabled,omitempty"`
+	CategoryID                 string `json:"categoryId,omitempty"`
+	DefaultPurchaserEmployeeID string `json:"defaultPurchaserEmployeeId,omitempty"`
+	ProductTypeID              string `json:"productTypeId,omitempty"`
 	provided                   map[string]bool
 }
 
@@ -440,14 +375,14 @@ type DetailView struct {
 	CustomerType                    string                  `json:"customerType,omitempty"`
 	PlateNumber                     string                  `json:"plateNumber,omitempty"`
 	VehicleType                     string                  `json:"vehicleType,omitempty"`
+	VehicleTypeName                 string                  `json:"vehicleTypeName,omitempty"`
 	CarrierAffiliation              *CarrierAffiliation     `json:"carrierAffiliation,omitempty"`
 	BulkLiquidCapable               bool                    `json:"bulkLiquidCapable"`
 	TargetEntity                    string                  `json:"targetEntity,omitempty"`
 	ShortName                       string                  `json:"shortName,omitempty"`
 	CategoryID                      string                  `json:"categoryId,omitempty"`
-	CategoryApprovalEntryID         string                  `json:"-"`
-	CategoryCode                    string                  `json:"-"`
-	CategoryName                    string                  `json:"-"`
+	CategoryCode                    string                  `json:"categoryCode,omitempty"`
+	CategoryName                    string                  `json:"categoryName,omitempty"`
 	TaxNumber                       string                  `json:"taxNumber,omitempty"`
 	ContactName                     string                  `json:"contactName,omitempty"`
 	ContactPhone                    string                  `json:"contactPhone,omitempty"`
@@ -455,9 +390,11 @@ type DetailView struct {
 	Address                         string                  `json:"address,omitempty"`
 	Remark                          string                  `json:"remark,omitempty"`
 	DepartmentID                    string                  `json:"departmentId,omitempty"`
-	DepartmentApprovalEntryID       string                  `json:"-"`
+	DepartmentCode                  string                  `json:"departmentCode,omitempty"`
+	DepartmentName                  string                  `json:"departmentName,omitempty"`
 	PositionID                      string                  `json:"positionId,omitempty"`
-	PositionApprovalEntryID         string                  `json:"-"`
+	PositionCode                    string                  `json:"positionCode,omitempty"`
+	PositionName                    string                  `json:"positionName,omitempty"`
 	Phone                           string                  `json:"phone,omitempty"`
 	HireDate                        string                  `json:"hireDate,omitempty"`
 	Specification                   string                  `json:"specification,omitempty"`
@@ -475,17 +412,18 @@ type DetailView struct {
 	AccountNumber                   string                  `json:"accountNumber,omitempty"`
 	OperatingEntityID               string                  `json:"operatingEntityId,omitempty"`
 	OperatingEntityApprovalEntryID  string                  `json:"-"`
-	OperatingEntityCode             string                  `json:"-"`
-	OperatingEntityName             string                  `json:"-"`
+	OperatingEntityCode             string                  `json:"operatingEntityCode,omitempty"`
+	OperatingEntityName             string                  `json:"operatingEntityName,omitempty"`
 	ParentID                        string                  `json:"parentId,omitempty"`
 	SettlementMethodID              string                  `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               int32                   `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string                  `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID      string                  `json:"defaultPurchaserEmployeeId,omitempty"`
 	DefaultPurchaserApprovalEntryID string                  `json:"-"`
-	SettlementMethodApprovalEntryID string                  `json:"-"`
-	SettlementMethodCode            string                  `json:"-"`
-	SettlementMethodName            string                  `json:"-"`
+	DefaultPurchaserCode            string                  `json:"defaultPurchaserCode,omitempty"`
+	DefaultPurchaserName            string                  `json:"defaultPurchaserName,omitempty"`
+	SettlementMethodCode            string                  `json:"settlementMethodCode,omitempty"`
+	SettlementMethodName            string                  `json:"settlementMethodName,omitempty"`
 	RuleType                        string                  `json:"ruleType,omitempty"`
 	MonthOffset                     int32                   `json:"monthOffset,omitempty"`
 	DayOfMonth                      *int32                  `json:"dayOfMonth,omitempty"`
@@ -495,44 +433,30 @@ type DetailView struct {
 	DefaultSalesSurcharge           string                  `json:"defaultSalesSurcharge,omitempty"`
 	TermCode                        string                  `json:"termCode,omitempty"`
 	ProductTypeID                   string                  `json:"productTypeId,omitempty"`
-	ProductTypeApprovalEntryID      string                  `json:"-"`
 	ProductTypeCode                 string                  `json:"productTypeCode,omitempty"`
 	ProductTypeName                 string                  `json:"productTypeName,omitempty"`
 	BehaviorProfile                 string                  `json:"behaviorProfile,omitempty"`
 	DefaultInputUnitID              string                  `json:"defaultInputUnitId,omitempty"`
-	DefaultInputUnitApprovalEntryID string                  `json:"-"`
+	DefaultInputUnitCode            string                  `json:"defaultInputUnitCode,omitempty"`
+	DefaultInputUnitName            string                  `json:"defaultInputUnitName,omitempty"`
 	PricingUnitID                   string                  `json:"pricingUnitId,omitempty"`
-	PricingUnitApprovalEntryID      string                  `json:"-"`
 	UnitConversions                 []ProductUnitConversion `json:"unitConversions,omitempty"`
 	Returnable                      bool                    `json:"returnable"`
 	DefaultPackagingSpec            string                  `json:"defaultPackagingSpec,omitempty"`
 	Formula                         *ProductFormula         `json:"formula,omitempty"`
 }
 
-type MutationResult struct {
-	ObjectID       string               `json:"objectId"`
-	ObjectRevision int64                `json:"objectRevision"`
-	Enabled        bool                 `json:"enabled"`
-	Approval       approval.VersionMeta `json:"approval"`
-}
-
-type VersionMeta = approval.VersionMeta
-
-type VersionView struct {
-	Approval approval.VersionMeta `json:"approval"`
-	Data     DetailView           `json:"data"`
-}
-
 type ObjectView struct {
-	ObjectID       string                    `json:"objectId"`
-	Entity         string                    `json:"entity"`
-	Code           string                    `json:"code"`
-	ObjectRevision int64                     `json:"objectRevision"`
-	Enabled        bool                      `json:"enabled"`
-	Approval       approval.VersionMeta      `json:"approval"`
-	Data           DetailView                `json:"data"`
-	UpdatedAt      time.Time                 `json:"updatedAt"`
-	Relationship   *RelationshipIdentityView `json:"relationship,omitempty"`
+	ObjectID              string                    `json:"objectId"`
+	Entity                string                    `json:"entity"`
+	Code                  string                    `json:"code"`
+	ObjectRevision        int64                     `json:"objectRevision"`
+	Enabled               bool                      `json:"enabled"`
+	SourceApprovalEntryID string                    `json:"sourceApprovalEntryId"`
+	SourceVersionNo       int32                     `json:"sourceVersionNo"`
+	Data                  DetailView                `json:"data"`
+	UpdatedAt             time.Time                 `json:"updatedAt"`
+	Relationship          *RelationshipIdentityView `json:"relationship,omitempty"`
 }
 
 type RelationshipIdentityView struct {
@@ -544,26 +468,17 @@ type RelationshipIdentityView struct {
 	OperatingEntityName string `json:"operatingEntityName"`
 }
 
-type VersionSummary struct {
-	Approval approval.VersionMeta `json:"approval"`
-	Summary  DetailView           `json:"summary"`
-}
-
-type VersionHistoryItem struct {
-	Approval approval.VersionMeta `json:"approval"`
-	Summary  DetailView           `json:"summary"`
-}
-
 type QueryItem struct {
-	ObjectID       string                    `json:"objectId"`
-	Entity         string                    `json:"entity"`
-	Code           string                    `json:"code"`
-	ObjectRevision int64                     `json:"objectRevision"`
-	Enabled        bool                      `json:"enabled"`
-	LatestApproved *VersionSummary           `json:"latestApproved"`
-	OpenVersion    *VersionSummary           `json:"openVersion"`
-	UpdatedAt      time.Time                 `json:"updatedAt"`
-	Relationship   *RelationshipIdentityView `json:"relationship,omitempty"`
+	ObjectID              string                    `json:"objectId"`
+	Entity                string                    `json:"entity"`
+	Code                  string                    `json:"code"`
+	ObjectRevision        int64                     `json:"objectRevision"`
+	Enabled               bool                      `json:"enabled"`
+	SourceApprovalEntryID string                    `json:"sourceApprovalEntryId"`
+	SourceVersionNo       int32                     `json:"sourceVersionNo"`
+	Data                  DetailView                `json:"data"`
+	UpdatedAt             time.Time                 `json:"updatedAt"`
+	Relationship          *RelationshipIdentityView `json:"relationship,omitempty"`
 }
 
 type Page[T any] struct {
@@ -572,8 +487,6 @@ type Page[T any] struct {
 	Page     int   `json:"page"`
 	PageSize int   `json:"pageSize"`
 }
-
-type AuditEventView = approval.EventView
 
 type EffectiveReference struct {
 	ObjectID        string     `json:"objectId"`

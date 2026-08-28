@@ -4,7 +4,7 @@ import { formatReferenceLabel } from '@/utils/reference-label'
 
 export interface ReferenceOption {
   objectId: string
-  approvalEntryId: string
+  approvalEntryId?: string
   entity?: string
   code: string
   name: string

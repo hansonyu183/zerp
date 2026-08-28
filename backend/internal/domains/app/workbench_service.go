@@ -147,13 +147,6 @@ func appendDCLWorkbenchEntities(scope workbenchPermissionScope, entities []strin
 	return entities
 }
 
-func workbenchApprovalDomain(entity string) string {
-	if entity == "operating-entity" || entity == "warehouse" || entity == "vehicle" || entity == "fund-account" || entity == "product" || entity == "party" || entity == "employee" || entity == "supplier" || entity == "other-unit" || entity == "sales-partner" || entity == "customer" || entity == "customer-account" {
-		return "dcl"
-	}
-	return "bob"
-}
-
 func (s *Service) queryWorkbenchBob(
 	ctx context.Context,
 	actorID string,
@@ -161,23 +154,13 @@ func (s *Service) queryWorkbenchBob(
 	input WorkbenchQueryInput,
 	spec pageSpec,
 ) (Page[WorkbenchItem], error) {
-	draftEntities := scope.entitiesWith("bob", func(entity string) bool {
-		return scope.can("bob", entity, "submit")
-	})
-	draftEntities = appendDCLWorkbenchEntities(scope, draftEntities, func(domain, entity string) bool {
+	draftEntities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "submit")
 	})
-	pendingEntities := scope.entitiesWith("bob", func(entity string) bool {
-		return scope.can("bob", entity, "approve") ||
-			scope.can("bob", entity, "reject")
-	})
-	pendingEntities = appendDCLWorkbenchEntities(scope, pendingEntities, func(domain, entity string) bool {
+	pendingEntities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "approve") || scope.can(domain, entity, "reject")
 	})
-	unsubmitEntities := scope.entitiesWith("bob", func(entity string) bool {
-		return scope.can("bob", entity, "unsubmit")
-	})
-	unsubmitEntities = appendDCLWorkbenchEntities(scope, unsubmitEntities, func(domain, entity string) bool {
+	unsubmitEntities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "unsubmit")
 	})
 	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
@@ -215,7 +198,7 @@ func (s *Service) queryWorkbenchBob(
 	}
 	items := make([]WorkbenchItem, 0, len(rows))
 	for _, row := range rows {
-		domain := workbenchApprovalDomain(row.Entity)
+		const domain = "dcl"
 		actions := make([]string, 0, 4)
 		if scope.can(domain, row.Entity, "get") {
 			actions = append(actions, "view")

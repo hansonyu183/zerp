@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { VouAuxiliaryReferenceView } from './VouAuxiliaryReferenceView';
 import type { VouReferenceView } from './VouReferenceView';
 export type VouAssetLineView = {
   lineId: string;
@@ -9,8 +10,10 @@ export type VouAssetLineView = {
   assetNo?: string;
   assetName: string;
   specification?: string;
-  category?: VouReferenceView;
-  department?: VouReferenceView;
+  category?: VouAuxiliaryReferenceView;
+  categoryDefaultUsefulLifeMonths?: number;
+  categoryDefaultResidualRate?: string;
+  department?: VouAuxiliaryReferenceView;
   custodian?: VouReferenceView;
   originalValue?: string;
   usefulLifeMonths?: number;

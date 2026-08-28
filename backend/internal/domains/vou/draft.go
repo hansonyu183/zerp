@@ -40,7 +40,7 @@ func (s *Service) loadPreservedReferences(
 		if view == nil {
 			return nil
 		}
-		return &bobdomain.EffectiveReference{ObjectID: view.ObjectID, ApprovalEntryID: view.ApprovalEntryID,
+		return &bobdomain.EffectiveReference{ObjectID: view.ObjectID,
 			Entity: auxdomain.EntitySettlementMethod, Code: view.Code, Data: bobdomain.DetailView{
 				Name: view.Name, RuleType: view.RuleType, MonthOffset: view.MonthOffset, DayOfMonth: view.DayOfMonth,
 				DayOffset: view.DayOffset, DueDays: view.DueDays, CutoffDay: view.CutoffDay,
@@ -195,6 +195,17 @@ func productUnitSnapshot(
 	return bobdomain.MeasurementUnitSnapshot{}, domainError(
 		ErrorConflict, "entered unit is not configured for product", nil, nil,
 	)
+}
+
+func validateUnitQuantityScale(quantityMicros int64, unit bobdomain.MeasurementUnitSnapshot) error {
+	if unit.QuantityScale < 0 || unit.QuantityScale > 6 {
+		return domainError(ErrorConflict, "measurement unit quantity scale is unavailable", nil, nil)
+	}
+	divisors := [...]int64{1_000_000, 100_000, 10_000, 1_000, 100, 10, 1}
+	if quantityMicros%divisors[unit.QuantityScale] != 0 {
+		return domainError(ErrorValidation, "entered quantity exceeds measurement unit precision", nil, nil)
+	}
+	return nil
 }
 
 func defaultPackagingSpecSnapshot(product bobdomain.DetailView) (*int64, error) {
@@ -413,7 +424,7 @@ func (s *Service) replaceLines(
 				ProductObjectID: ref.ObjectID, ProductApprovalEntryID: ref.ApprovalEntryID,
 				ProductCode: ref.Code, ProductName: ref.Data.Name,
 				EnteredQuantityMicros: line.EnteredQuantity, EnteredUnitObjectID: unit.ObjectID,
-				EnteredUnitApprovalEntryID: unit.ApprovalEntryID, EnteredUnitCode: unit.Code,
+				EnteredUnitCode: unit.Code,
 				EnteredUnitName: unit.Name, EnteredUnitSymbol: unit.Symbol,
 				ActualBaseQuantityMicros: line.ActualQuantity, Remark: line.Remark,
 			}); err != nil {
@@ -436,8 +447,8 @@ func (s *Service) replaceLines(
 				ProductObjectID: ref.ObjectID, ProductApprovalEntryID: ref.ApprovalEntryID, ProductCode: ref.Code,
 				ProductName: ref.Data.Name, DefaultInputUnitSymbol: defaultUnitSymbol(ref.Data),
 				BehaviorProfile:     ref.Data.BehaviorProfile,
-				ProductTypeObjectID: ref.Data.ProductTypeID, ProductTypeApprovalEntryID: ref.Data.ProductTypeApprovalEntryID,
-				ProductTypeCode: ref.Data.ProductTypeCode, ProductTypeName: ref.Data.ProductTypeName,
+				ProductTypeObjectID: ref.Data.ProductTypeID,
+				ProductTypeCode:     ref.Data.ProductTypeCode, ProductTypeName: ref.Data.ProductTypeName,
 				UnitPriceCents: line.UnitPrice, Remark: line.Remark,
 			}); err != nil {
 				return err
@@ -465,11 +476,11 @@ func (s *Service) replaceLines(
 				ProductObjectID: ref.ObjectID, ProductApprovalEntryID: ref.ApprovalEntryID,
 				ProductCode: ref.Code, ProductName: ref.Data.Name,
 				EnteredQuantityMicros: line.EnteredQuantity, EnteredUnitObjectID: unit.ObjectID,
-				EnteredUnitApprovalEntryID: unit.ApprovalEntryID, EnteredUnitCode: unit.Code,
+				EnteredUnitCode: unit.Code,
 				EnteredUnitName: unit.Name, EnteredUnitSymbol: unit.Symbol,
 				BaseQuantityMicros:  line.Quantity,
-				ProductTypeObjectID: ref.Data.ProductTypeID, ProductTypeApprovalEntryID: ref.Data.ProductTypeApprovalEntryID,
-				ProductTypeCode: ref.Data.ProductTypeCode, ProductTypeName: ref.Data.ProductTypeName,
+				ProductTypeObjectID: ref.Data.ProductTypeID,
+				ProductTypeCode:     ref.Data.ProductTypeCode, ProductTypeName: ref.Data.ProductTypeName,
 				BehaviorProfile: ref.Data.BehaviorProfile, DefaultPackagingSpecMicros: defaultPackagingSpec,
 				BaseUnitPriceCents:       line.BaseUnitPrice,
 				SettlementSurchargeCents: line.SettlementSurcharge,
@@ -494,8 +505,8 @@ func (s *Service) replaceLines(
 					SourceDocumentID:            stringPointer(line.Formula.SourceDocumentID),
 					SourceDocumentNo:            stringPointer(line.Formula.SourceDocumentNo),
 					OutputEnteredQuantityMicros: line.Formula.Output.EnteredQuantity,
-					OutputEnteredUnitObjectID:   outputUnit.ObjectID, OutputEnteredUnitApprovalEntryID: outputUnit.ApprovalEntryID,
-					OutputEnteredUnitCode: outputUnit.Code, OutputEnteredUnitName: outputUnit.Name,
+					OutputEnteredUnitObjectID:   outputUnit.ObjectID,
+					OutputEnteredUnitCode:       outputUnit.Code, OutputEnteredUnitName: outputUnit.Name,
 					OutputEnteredUnitSymbol:  outputUnit.Symbol,
 					OutputBaseQuantityMicros: line.Formula.Output.BaseQuantity,
 				}); err != nil {
@@ -513,8 +524,8 @@ func (s *Service) replaceLines(
 							MaterialObjectID: material.ObjectID, MaterialApprovalEntryID: material.ApprovalEntryID,
 							MaterialCode: material.Code, MaterialName: material.Data.Name,
 							EnteredQuantityMicros: component.Quantity.EnteredQuantity,
-							EnteredUnitObjectID:   componentUnit.ObjectID, EnteredUnitApprovalEntryID: componentUnit.ApprovalEntryID,
-							EnteredUnitCode: componentUnit.Code, EnteredUnitName: componentUnit.Name,
+							EnteredUnitObjectID:   componentUnit.ObjectID,
+							EnteredUnitCode:       componentUnit.Code, EnteredUnitName: componentUnit.Name,
 							EnteredUnitSymbol:  componentUnit.Symbol,
 							BaseQuantityMicros: component.Quantity.BaseQuantity,
 						},
@@ -561,7 +572,7 @@ func (s *Service) validateStoredAttributes(
 		}
 		missing = detail.CounterpartyObjectID == "" || detail.CounterpartyApprovalEntryID == "" || detail.HandlerObjectID == "" || detail.HandlerApprovalEntryID == ""
 		if detail.CounterpartyEntity == contractCounterpartyService {
-			missing = missing || detail.SettlementMethodObjectID == nil || detail.SettlementMethodApprovalEntryID == nil
+			missing = missing || detail.SettlementMethodObjectID == nil
 		} else if detail.CounterpartyEntity == contractCounterpartySales {
 			missing = missing || len(detail.Capabilities) == 0 || !detail.ApplicableFrom.Valid
 		} else {

@@ -98,7 +98,9 @@ describe('DCL fund account view model', () => {
             {
               objectId: 'OPE-1',
               code: 'OPE-0001',
-              latestApproved: { summary: { name: '华东主体' } },
+              sourceApprovalEntryId: 'VER-OPE-1',
+              sourceVersionNo: 1,
+              data: { name: '华东主体' },
             },
           ],
         },
@@ -126,7 +128,7 @@ describe('DCL fund account view model', () => {
       {
         page: 1,
         pageSize: 20,
-        filters: { status: ['APPROVED'], enabled: true },
+        filters: { enabled: true },
         sort: [{ field: 'name', order: 'asc' }],
       },
     )
@@ -219,7 +221,9 @@ describe('DCL fund account view model', () => {
             {
               objectId: 'OPE-2',
               code: 'OPE-0002',
-              latestApproved: { summary: { name: '其他主体' } },
+              sourceApprovalEntryId: 'VER-OPE-2',
+              sourceVersionNo: 1,
+              data: { name: '其他主体' },
             },
           ],
         },
@@ -270,7 +274,9 @@ describe('DCL fund account view model', () => {
               {
                 objectId: 'OPE-1',
                 code: 'OPE-0001',
-                latestApproved: { summary: { name: '当前主体' } },
+                sourceApprovalEntryId: 'VER-OPE-1',
+                sourceVersionNo: 1,
+                data: { name: '当前主体' },
               },
             ],
           },
@@ -281,7 +287,9 @@ describe('DCL fund account view model', () => {
               {
                 objectId: 'OPE-2',
                 code: 'OPE-0002',
-                latestApproved: { summary: { name: '搜索主体' } },
+                sourceApprovalEntryId: 'VER-OPE-2',
+                sourceVersionNo: 1,
+                data: { name: '搜索主体' },
               },
             ],
           },
@@ -304,7 +312,6 @@ describe('DCL fund account view model', () => {
           page: 1,
           pageSize: 20,
           filters: {
-            status: ['APPROVED'],
             enabled: true,
             keyword: '搜索',
           },

@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { data } from './data';
-export type BobDetailView = (data & {
+import type { BobDetailData } from './BobDetailData';
+export type BobDetailView = (BobDetailData & {
   name: string;
   productTypeCode?: string;
   productTypeName?: string;

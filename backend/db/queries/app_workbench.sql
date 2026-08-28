@@ -19,7 +19,8 @@ CROSS JOIN LATERAL (
     ELSE ''
   END AS name
 ) named
-WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')))
+WHERE entry.domain='dcl'
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
@@ -67,7 +68,8 @@ CROSS JOIN LATERAL (
     ELSE ''
   END AS name
 ) named
-WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')))
+WHERE entry.domain='dcl'
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (

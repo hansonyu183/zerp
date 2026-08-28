@@ -1303,7 +1303,6 @@
         {
           'name': { 'type': 'string' },
           'categoryId': { 'type': 'string', 'nullable': true },
-          'categoryApprovalEntryId': { 'type': 'string', 'nullable': true },
           'categoryCode': { 'type': 'string', 'nullable': true },
           'categoryName': { 'type': 'string', 'nullable': true },
           'specification': { 'type': 'string', 'nullable': true },
@@ -1311,7 +1310,6 @@
           'barcode': { 'type': 'string', 'nullable': true },
           'remark': { 'type': 'string', 'nullable': true },
           'productTypeId': { 'type': 'string', 'nullable': true },
-          'productTypeApprovalEntryId': { 'type': 'string', 'nullable': true },
           'productTypeCode': { 'type': 'string', 'nullable': true },
           'productTypeName': { 'type': 'string', 'nullable': true },
           'behaviorProfile':
@@ -1327,10 +1325,7 @@
               'nullable': true,
             },
           'defaultInputUnitId': { 'type': 'string', 'nullable': true },
-          'defaultInputUnitApprovalEntryId':
-            { 'type': 'string', 'nullable': true },
           'pricingUnitId': { 'type': 'string', 'nullable': true },
-          'pricingUnitApprovalEntryId': { 'type': 'string', 'nullable': true },
           'unitConversions':
             {
               'type': 'array',
@@ -1624,16 +1619,12 @@
       'properties':
         {
           'employeeCategoryId': { 'type': 'string', 'nullable': true },
-          'employeeCategoryApprovalEntryId':
-            { 'type': 'string', 'nullable': true },
           'employeeCategoryCode': { 'type': 'string', 'nullable': true },
           'employeeCategoryName': { 'type': 'string', 'nullable': true },
           'departmentId': { 'type': 'string', 'nullable': true },
-          'departmentApprovalEntryId': { 'type': 'string', 'nullable': true },
           'departmentCode': { 'type': 'string', 'nullable': true },
           'departmentName': { 'type': 'string', 'nullable': true },
           'positionId': { 'type': 'string', 'nullable': true },
-          'positionApprovalEntryId': { 'type': 'string', 'nullable': true },
           'positionCode': { 'type': 'string', 'nullable': true },
           'positionName': { 'type': 'string', 'nullable': true },
           'phone': { 'type': 'string', 'nullable': true },
@@ -2042,6 +2033,24 @@
           'phone': { 'type': 'string' },
         },
     },
+  'DclCustomerAuxiliarySnapshot':
+    {
+      'type': 'object',
+      'required': ['sourceObjectId', 'code', 'name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceObjectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'termCode': { 'type': 'string' },
+          'ruleType': { 'type': 'string' },
+          'dueDays': { 'type': 'integer', 'format': 'int32' },
+          'monthOffset': { 'type': 'integer', 'format': 'int32' },
+          'cutoffDay': { 'type': 'integer', 'format': 'int32' },
+          'defaultSalesSurcharge': { 'type': 'string' },
+        },
+    },
   'DclCustomerSalesAttributionSnapshot':
     {
       'type': 'object',
@@ -2074,7 +2083,7 @@
       'required':
         [
           'name',
-          'customerTypeCode',
+          'customerTypeId',
           'pricingPolicy',
           'creditLimits',
           'primarySalesAttribution',
@@ -2084,7 +2093,8 @@
         {
           'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'shortName': { 'type': 'string', 'nullable': true },
-          'customerTypeCode': { 'type': 'string' },
+          'customerTypeId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
           'contactName': { 'type': 'string', 'nullable': true },
           'contactPhone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
@@ -2117,7 +2127,8 @@
       'required':
         [
           'name',
-          'customerTypeCode',
+          'customerTypeId',
+          'customerType',
           'operatingEntityId',
           'pricingPolicy',
           'creditLimits',
@@ -2131,7 +2142,8 @@
         {
           'name': { 'type': 'string' },
           'shortName': { 'type': 'string', 'nullable': true },
-          'customerTypeCode': { 'type': 'string' },
+          'customerTypeId': { 'type': 'string' },
+          'customerType': { '$ref': '#/DclCustomerAuxiliarySnapshot' },
           'contactName': { 'type': 'string', 'nullable': true },
           'contactPhone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
@@ -2157,13 +2169,13 @@
           'settlementMethod':
             {
               'type': 'object',
-              'allOf': [{ '$ref': '#/DclCustomerSnapshot' }],
+              'allOf': [{ '$ref': '#/DclCustomerAuxiliarySnapshot' }],
               'nullable': true,
             },
           'paymentMethod':
             {
               'type': 'object',
-              'allOf': [{ '$ref': '#/DclCustomerSnapshot' }],
+              'allOf': [{ '$ref': '#/DclCustomerAuxiliarySnapshot' }],
               'nullable': true,
             },
           'primarySalesAttribution':
@@ -2186,7 +2198,6 @@
           'sha256',
           'status',
           'categoryObjectId',
-          'categoryApprovalEntryId',
           'categoryCode',
           'categoryName',
           'createdAt',
@@ -2206,7 +2217,6 @@
           'sha256': { 'type': 'string' },
           'status': { 'type': 'string', 'enum': ['PENDING', 'READY'] },
           'categoryObjectId': { 'type': 'string' },
-          'categoryApprovalEntryId': { 'type': 'string' },
           'categoryCode': { 'type': 'string' },
           'categoryName': { 'type': 'string' },
           'storedAt':
@@ -3019,7 +3029,45 @@
   'DclSupplierVersionRequest': { '$ref': '#/DclOperatingEntityVersionRequest' },
   'DclSupplierReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
   'DclSupplierGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
-  'DclSupplierQueryRequest': { '$ref': './bob.yaml#/SupplierQueryRequest' },
+  'DclSupplierQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string' },
+                  'status': { 'type': 'array', 'items': { 'type': 'string' } },
+                  'enabled': { 'type': 'boolean' },
+                  'defaultPurchaserEmployeeId': { 'type': 'string' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['code'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
   'DclSupplierHistoryRequest': { '$ref': '#/DclOperatingEntityHistoryRequest' },
   'DclSupplierMutationResponse':
     { '$ref': '#/DclOperatingEntityMutationResponse' },
@@ -3240,7 +3288,6 @@
             'type': 'object',
             'properties':
               {
-                'settlementMethodApprovalEntryId': { 'type': 'string' },
                 'settlementMethodCode': { 'type': 'string' },
                 'settlementMethodName': { 'type': 'string' },
                 'settlementTermCode': { 'type': 'string' },

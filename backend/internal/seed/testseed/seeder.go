@@ -88,7 +88,7 @@ type Seeder struct {
 	vouchers          *voudomain.Service
 	accounting        *accdomain.Service
 	auxRefs           map[string]auxdomain.ObjectView
-	bobRefs           map[string]bobdomain.ObjectView
+	bobRefs           map[string]seedBusinessView
 }
 
 // seedAuthorizer is only used by the isolated test-data builder. Every
@@ -137,10 +137,10 @@ func New(
 	}
 	cfg.AttachmentStorageRoot = attachmentRoot
 	events := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, seedAuthorizer{}, events)
+	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), seedAuthorizer{}, events)
-	business := bobdomain.NewService(pool, auxiliaryResolver, seedAuthorizer{}, events)
+	business := bobdomain.NewService(pool, auxiliaryResolver)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, business, seedAuthorizer{}, events)
 	warehouses := dcldomain.NewWarehouseService(pool, business, seedAuthorizer{}, events)
 	vehicles := dcldomain.NewVehicleService(pool, business, seedAuthorizer{}, events)
@@ -174,7 +174,7 @@ func New(
 		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, relationships: relationships, parties: partyDeclarations,
 		vouchers: vouchers, accounting: accounting,
 		auxRefs: make(map[string]auxdomain.ObjectView),
-		bobRefs: make(map[string]bobdomain.ObjectView),
+		bobRefs: make(map[string]seedBusinessView),
 	}, nil
 }
 

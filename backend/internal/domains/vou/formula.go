@@ -40,7 +40,7 @@ func (s *Service) FormulaDefault(
 		}
 		quantity := QuantitySnapshotView{
 			EnteredQuantity: "1.0",
-			EnteredUnit:     UnitSnapshotView{ObjectID: unit.ObjectID, ApprovalEntryID: unit.ApprovalEntryID, Code: unit.Code, Name: unit.Name, Symbol: unit.Symbol},
+			EnteredUnit:     UnitSnapshotView{ObjectID: unit.ObjectID, Code: unit.Code, Name: unit.Name, Symbol: unit.Symbol},
 			BaseQuantity:    "1.0",
 		}
 		formula := &FormulaView{
@@ -137,8 +137,8 @@ func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {
 		Output: QuantitySnapshotView{
 			EnteredQuantity: input.Output.EnteredQuantity,
 			EnteredUnit: UnitSnapshotView{
-				ObjectID: input.Output.EnteredUnit.ObjectID, ApprovalEntryID: input.Output.EnteredUnit.ApprovalEntryID,
-				Code: input.Output.EnteredUnit.Code, Name: input.Output.EnteredUnit.Name, Symbol: input.Output.EnteredUnit.Symbol,
+				ObjectID: input.Output.EnteredUnit.ObjectID,
+				Code:     input.Output.EnteredUnit.Code, Name: input.Output.EnteredUnit.Name, Symbol: input.Output.EnteredUnit.Symbol,
 			},
 			BaseQuantity: input.Output.BaseQuantity,
 		}, SourceType: "PRODUCT_FIXED",
@@ -156,8 +156,8 @@ func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {
 			Quantity: QuantitySnapshotView{
 				EnteredQuantity: component.Quantity.EnteredQuantity,
 				EnteredUnit: UnitSnapshotView{
-					ObjectID: component.Quantity.EnteredUnit.ObjectID, ApprovalEntryID: component.Quantity.EnteredUnit.ApprovalEntryID,
-					Code: component.Quantity.EnteredUnit.Code, Name: component.Quantity.EnteredUnit.Name,
+					ObjectID: component.Quantity.EnteredUnit.ObjectID,
+					Code:     component.Quantity.EnteredUnit.Code, Name: component.Quantity.EnteredUnit.Name,
 					Symbol: component.Quantity.EnteredUnit.Symbol,
 				},
 				BaseQuantity: component.Quantity.BaseQuantity,

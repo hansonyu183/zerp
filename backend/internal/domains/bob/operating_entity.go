@@ -165,7 +165,7 @@ func (s *Service) EnsureOperatingEntityUnapproveAllowed(ctx context.Context, tx 
 }
 
 func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid operating entity get request", nil, nil)
 	}
 	row, err := s.queries.GetBobOperatingEntityCurrent(ctx, input.ObjectID)
@@ -185,7 +185,7 @@ func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput)
 	}
 	return ObjectView{
 		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
-		ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, Approval: approvalMeta(entry),
+		ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo),
 		Data: DetailView{Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
 			Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark)},
 		UpdatedAt: row.UpdatedAt.Time,
@@ -201,18 +201,13 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 	if err != nil {
 		return Page[QueryItem]{}, err
 	}
-	for _, status := range uniqueStrings(filters.Status) {
-		if !validStatus(status) {
-			return Page[QueryItem]{}, domainError(ErrorValidation, "invalid status filter", nil, nil)
-		}
-	}
 	sortField, sortOrder := "updatedAt", "desc"
 	if len(input.Sort) > 1 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "only one sort item is allowed", nil, nil)
 	}
 	if len(input.Sort) == 1 {
 		sortField, sortOrder = input.Sort[0].Field, strings.ToLower(input.Sort[0].Order)
-		validField := sortField == "updatedAt" || sortField == "code" || sortField == "name" || sortField == "status" || sortField == "version"
+		validField := sortField == "updatedAt" || sortField == "code" || sortField == "name"
 		if !validField || (sortOrder != "asc" && sortOrder != "desc") {
 			return Page[QueryItem]{}, domainError(ErrorValidation, "invalid sort", nil, nil)
 		}
@@ -225,17 +220,16 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 			enabledFilter = 0
 		}
 	}
-	statusFilter := uniqueStrings(filters.Status)
 	rows, err := s.queries.ListBobOperatingEntities(ctx, dbsqlc.ListBobOperatingEntitiesParams{
 		Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabledFilter,
-		StatusFilter: statusFilter, SortField: sortField, SortOrder: sortOrder,
+		SortField: sortField, SortOrder: sortOrder,
 		RowOffset: offset, RowLimit: int32(input.PageSize),
 	})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list operating entities", err)
 	}
 	total, err := s.queries.CountBobOperatingEntities(ctx, dbsqlc.CountBobOperatingEntitiesParams{
-		Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabledFilter, StatusFilter: statusFilter,
+		Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabledFilter,
 	})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("count operating entities", err)
@@ -248,8 +242,8 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 		}
 		items = append(items, QueryItem{
 			ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
-			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
-			LatestApproved: &VersionSummary{Approval: view.Approval, Summary: view.Data},
+			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID,
+			SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil

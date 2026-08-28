@@ -227,27 +227,16 @@ export async function queryEmployeeReference(
         page: 1,
         pageSize: 20,
         filters: {
-          status: ['APPROVED'],
           enabled: true,
           ...(keyword ? { keyword } : {}),
         },
         sort: [{ field: 'name', order: 'asc' }],
       },
     )
-    return data.items.flatMap((item) => {
-      const version = item.latestApproved
-      return version
-        ? [
-            {
-              value: item.objectId,
-              title: formatReferenceLabel({
-                code: item.code,
-                name: String(version.summary.name ?? ''),
-              }),
-            },
-          ]
-        : []
-    })
+    return data.items.map((item) => ({
+      value: item.objectId,
+      title: formatReferenceLabel({ code: item.code, name: String(item.data.name ?? '') }),
+    }))
   }
   const { data } = await apiClient.postContract(`aux/${entity}/query`, {
     page: 1,
@@ -255,20 +244,13 @@ export async function queryEmployeeReference(
     filters: { enabled: true, ...(keyword ? { keyword } : {}) },
     sort: [{ field: 'code', order: 'asc' }],
   })
-  return data.items.flatMap((item) => {
-    const version = item.latestApproved
-    return version
-      ? [
-          {
-            value: item.objectId,
-            title: formatReferenceLabel({
-              code: item.code,
-              name: version.data.name,
-            }),
-          },
-        ]
-      : []
-  })
+  return data.items.map((item) => ({
+    value: item.objectId,
+    title: formatReferenceLabel({
+      code: item.code,
+      name: item.data.name,
+    }),
+  }))
 }
 
 export async function queryEmployeeParties(

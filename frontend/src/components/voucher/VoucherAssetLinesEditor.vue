@@ -2,17 +2,17 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import { auxListActiveVersion } from '@/pages/aux/shared/vm'
 import { getErrorMessage } from '@/api/types'
 import { emptyAssetLine } from '@/pages/vou/shared/form'
 import type {
   VoucherAssetLineDraft,
+  VoucherAuxiliaryReference,
   VoucherLineKind,
   VoucherReference,
 } from './types'
 
 type AssetRow = components['schemas']['VouAvailableAssetItem']
-interface SelectReference extends VoucherReference {
+interface SelectReference extends VoucherAuxiliaryReference {
   defaultUsefulLifeMonths?: number
   defaultResidualRate?: string
 }
@@ -29,7 +29,7 @@ const emit = defineEmits<{
 const loading = ref(false)
 const errorMessage = ref('')
 const categories = ref<SelectReference[]>([])
-const departments = ref<VoucherReference[]>([])
+const departments = ref<VoucherAuxiliaryReference[]>([])
 const custodians = ref<VoucherReference[]>([])
 const assets = ref<AssetRow[]>([])
 const acquisition = computed(() => props.kind === 'asset-acquisition')
@@ -55,12 +55,9 @@ function removeLine(index: number) {
 function auxReference(
   row: components['schemas']['AuxObjectView'],
 ): SelectReference {
-  const version = auxListActiveVersion(row)
-  if (!version) throw new Error('辅助资料缺少开放版本或已批准版本。')
-  const { data } = version
+  const { data } = row
   return {
     objectId: row.objectId,
-    approvalEntryId: version.approval.approvalEntryId,
     entity: row.entity,
     code: row.code,
     name: String(data.name ?? ''),
@@ -76,32 +73,27 @@ function auxReference(
 }
 function employeeReference(
   row: components['schemas']['BobListItem'],
-): SelectReference | null {
-  const version = row.openVersion ?? row.latestApproved
-  if (!version) return null
+): VoucherReference {
   return {
     objectId: row.objectId,
-    approvalEntryId: version.approval.approvalEntryId,
+    approvalEntryId: row.sourceApprovalEntryId,
     entity: row.entity,
     code: row.code,
-    name: String(version.summary.name ?? ''),
+    name: String(row.data.name ?? ''),
   }
 }
-async function loadReference(
-  entity: 'asset-category' | 'department' | 'employee',
-) {
-  if (entity === 'employee') {
-    const { data } = await apiClient.postContract('bob/employee/query', {
-      page: 1,
-      pageSize: 200,
-      filters: { status: ['APPROVED'] },
-      sort: [{ field: 'name', order: 'asc' }],
-    })
-    return data.items.flatMap((row) => {
-      const item = employeeReference(row)
-      return item ? [item] : []
-    })
-  }
+async function loadEmployeeReferences(): Promise<VoucherReference[]> {
+  const { data } = await apiClient.postContract('bob/employee/query', {
+    page: 1,
+    pageSize: 200,
+    filters: {},
+    sort: [{ field: 'name', order: 'asc' }],
+  })
+  return data.items.map(employeeReference)
+}
+async function loadAuxReferences(
+  entity: 'asset-category' | 'department',
+): Promise<SelectReference[]> {
   const { data } =
     entity === 'asset-category'
       ? await apiClient.postContract('aux/asset-category/query', {
@@ -142,9 +134,9 @@ async function initialize() {
     if (acquisition.value) {
       ;[categories.value, departments.value, custodians.value] =
         await Promise.all([
-          loadReference('asset-category'),
-          loadReference('department'),
-          loadReference('employee'),
+          loadAuxReferences('asset-category'),
+          loadAuxReferences('department'),
+          loadEmployeeReferences(),
         ])
     } else await loadAssets()
     initialized.value = true

@@ -5,7 +5,13 @@
 export type BobQueryRequest = {
   page: number;
   pageSize: number;
-  filters?: Record<string, any>;
+  filters?: {
+    keyword?: string;
+    enabled?: boolean;
+    categoryId?: string;
+    defaultPurchaserEmployeeId?: string;
+    productTypeId?: string;
+  };
   sort?: Array<{
     field: string;
     order: 'asc' | 'desc';

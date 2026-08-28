@@ -18,6 +18,7 @@ type productCurrentWriter interface {
 	ReserveProductIdentity(context.Context, pgx.Tx, string) (bobdomain.ProductIdentity, error)
 	GetProductIdentity(context.Context, pgx.Tx, string) (bobdomain.ProductIdentity, error)
 	ResolveProductDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bool, bool) (bobdomain.DetailView, error)
+	ResolveProductDraftDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bobdomain.DetailView) (bobdomain.DetailView, error)
 	EnsureProductDeclarationReferencesCurrent(context.Context, pgx.Tx, bobdomain.DetailView) error
 	ApplyProductCurrent(context.Context, pgx.Tx, string, string, bool, bobdomain.DetailView, string) (bobdomain.ProductCurrent, error)
 	RemoveProductCurrent(context.Context, pgx.Tx, string, string) (bobdomain.ProductIdentity, error)
@@ -54,14 +55,14 @@ func productDeclarationData(data ProductInput) bobdomain.DetailView {
 }
 func productDCLData(data bobdomain.DetailView) ProductData {
 	return ProductData{
-		Name: data.Name, CategoryID: data.CategoryID, CategoryApprovalEntryID: data.CategoryApprovalEntryID,
+		Name: data.Name, CategoryID: data.CategoryID,
 		CategoryCode: data.CategoryCode, CategoryName: data.CategoryName,
 		Specification: data.Specification, Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
-		ProductTypeID: data.ProductTypeID, ProductTypeApprovalEntryID: data.ProductTypeApprovalEntryID,
+		ProductTypeID:   data.ProductTypeID,
 		ProductTypeCode: data.ProductTypeCode, ProductTypeName: data.ProductTypeName, BehaviorProfile: data.BehaviorProfile,
-		DefaultInputUnitID: data.DefaultInputUnitID, DefaultInputUnitApprovalEntryID: data.DefaultInputUnitApprovalEntryID,
-		PricingUnitID: data.PricingUnitID, PricingUnitApprovalEntryID: data.PricingUnitApprovalEntryID,
-		UnitConversions: data.UnitConversions, Returnable: data.Returnable,
+		DefaultInputUnitID: data.DefaultInputUnitID,
+		PricingUnitID:      data.PricingUnitID,
+		UnitConversions:    data.UnitConversions, Returnable: data.Returnable,
 		DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
 	}
 }
@@ -97,58 +98,6 @@ func carryProductFormulaCandidateSources(next *bobdomain.DetailView, previous bo
 			continue
 		}
 		component.Material.ApprovalEntryID = old.Material.ApprovalEntryID
-	}
-}
-
-// carryProductDraftSources preserves immutable source evidence when a user
-// saves unrelated fields on an existing draft. A changed stable ID has no
-// carried entry and is resolved to the current approved source by BOB.
-func carryProductDraftSources(next *bobdomain.DetailView, previous bobdomain.DetailView) {
-	if next.CategoryID == previous.CategoryID {
-		next.CategoryApprovalEntryID = previous.CategoryApprovalEntryID
-		next.CategoryCode, next.CategoryName = previous.CategoryCode, previous.CategoryName
-	}
-	if next.ProductTypeID == previous.ProductTypeID {
-		next.ProductTypeApprovalEntryID = previous.ProductTypeApprovalEntryID
-		next.ProductTypeCode, next.ProductTypeName = previous.ProductTypeCode, previous.ProductTypeName
-		next.BehaviorProfile = previous.BehaviorProfile
-	}
-	if next.DefaultInputUnitID == previous.DefaultInputUnitID {
-		next.DefaultInputUnitApprovalEntryID = previous.DefaultInputUnitApprovalEntryID
-	}
-	if next.PricingUnitID == previous.PricingUnitID {
-		next.PricingUnitApprovalEntryID = previous.PricingUnitApprovalEntryID
-	}
-	units := make(map[string]bobdomain.MeasurementUnitSnapshot, len(previous.UnitConversions))
-	for _, conversion := range previous.UnitConversions {
-		units[conversion.Unit.ObjectID] = conversion.Unit
-	}
-	for index := range next.UnitConversions {
-		if unit, ok := units[next.UnitConversions[index].Unit.ObjectID]; ok {
-			next.UnitConversions[index].Unit = unit
-		}
-	}
-	if next.Formula == nil || previous.Formula == nil {
-		return
-	}
-	if next.Formula.Output.EnteredUnit.ObjectID == previous.Formula.Output.EnteredUnit.ObjectID {
-		next.Formula.Output.EnteredUnit = previous.Formula.Output.EnteredUnit
-	}
-	components := make(map[string]bobdomain.ProductFormulaComponent, len(previous.Formula.Components))
-	for _, component := range previous.Formula.Components {
-		components[component.Material.ObjectID] = component
-	}
-	for index := range next.Formula.Components {
-		component := &next.Formula.Components[index]
-		old, ok := components[component.Material.ObjectID]
-		if !ok {
-			continue
-		}
-		component.Material = old.Material
-		component.ResolutionStatus = old.ResolutionStatus
-		if component.Quantity.EnteredUnit.ObjectID == old.Quantity.EnteredUnit.ObjectID {
-			component.Quantity.EnteredUnit = old.Quantity.EnteredUnit
-		}
 	}
 }
 
@@ -222,13 +171,14 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 		return ProductView{}, translateError(err)
 	}
 	var e approval.Entry
+	var draftPrevious *bobdomain.DetailView
 	if stored.Status == string(approval.StatusApproved) {
 		e, err = s.coordinator.CreateNextVersion(ctx, tx, input.ObjectID, actor, productPayload(id, input.Enabled, productDCLData(data)))
 		if err == nil {
-			err = bobdomain.CopyProductSnapshot(ctx, q, e.ID, stored.ID)
+			err = copyProductSnapshot(ctx, q, e.ID, stored.ID)
 		}
 		if err == nil {
-			previous, loadErr := bobdomain.LoadProductSnapshot(ctx, q, stored.ID)
+			previous, loadErr := bobdomain.LoadDCLProductSnapshot(ctx, q, stored.ID)
 			if loadErr != nil {
 				err = loadErr
 			} else {
@@ -237,11 +187,11 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
 		e = approvalEntry(stored)
-		previous, loadErr := bobdomain.LoadProductSnapshot(ctx, q, stored.ID)
+		previous, loadErr := bobdomain.LoadDCLProductSnapshot(ctx, q, stored.ID)
 		if loadErr != nil {
 			err = loadErr
 		} else {
-			carryProductDraftSources(&data, previous)
+			draftPrevious = &previous
 		}
 	} else {
 		err = newError(ErrorConflict, "approval_invalid_transition", "only a draft or latest approved declaration can be saved", nil, nil)
@@ -249,11 +199,15 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
-	data, err = s.current.ResolveProductDeclaration(ctx, tx, data, false, stored.Status == string(approval.StatusDraft))
+	if draftPrevious != nil {
+		data, err = s.current.ResolveProductDraftDeclaration(ctx, tx, data, *draftPrevious)
+	} else {
+		data, err = s.current.ResolveProductDeclaration(ctx, tx, data, false, false)
+	}
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
-	n, err := bobdomain.DeleteProductSnapshot(ctx, q, e.ID)
+	n, err := deleteProductSnapshot(ctx, q, e.ID)
 	if err == nil && n == 1 {
 		err = insertProductVersion(ctx, q, e.ID, input.Enabled, data)
 	}
@@ -322,7 +276,7 @@ func (s *ProductService) transition(ctx context.Context, input ProductVersionInp
 		return ProductMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	stored, err := bobdomain.LoadProductSnapshot(ctx, q, input.ApprovalEntryID)
+	stored, err := bobdomain.LoadDCLProductSnapshot(ctx, q, input.ApprovalEntryID)
 	if err != nil {
 		return ProductMutation{}, translateError(err)
 	}
@@ -383,7 +337,7 @@ func (s *ProductService) restoreLatestApproved(ctx context.Context, tx pgx.Tx, i
 	if err != nil {
 		return bobdomain.ProductIdentity{}, false, translateError(err)
 	}
-	stored, err := bobdomain.LoadProductSnapshot(ctx, s.queries.WithTx(tx), latest.ID)
+	stored, err := bobdomain.LoadDCLProductSnapshot(ctx, s.queries.WithTx(tx), latest.ID)
 	if err != nil {
 		return bobdomain.ProductIdentity{}, false, translateError(err)
 	}
@@ -416,11 +370,11 @@ func (s *ProductService) Delete(ctx context.Context, input ProductDeleteInput, a
 	if err != nil || e.SubjectID != input.ObjectID {
 		return translateError(newError(ErrorValidation, "validation_failed", "declaration not found", nil, err))
 	}
-	stored, err := bobdomain.LoadProductSnapshot(ctx, q, e.ID)
+	stored, err := bobdomain.LoadDCLProductSnapshot(ctx, q, e.ID)
 	if err != nil {
 		return translateError(err)
 	}
-	if n, er := bobdomain.DeleteProductSnapshot(ctx, q, e.ID); er != nil || n != 1 {
+	if n, er := deleteProductSnapshot(ctx, q, e.ID); er != nil || n != 1 {
 		if er == nil {
 			er = errors.New("product declaration snapshot changed")
 		}
@@ -452,7 +406,7 @@ func (s *ProductService) Delete(ctx context.Context, input ProductDeleteInput, a
 
 func insertProductVersion(ctx context.Context, q *dbsqlc.Queries, id string, enabled bool, d bobdomain.DetailView) error {
 	d.Enabled = enabled
-	return bobdomain.StoreProductSnapshot(ctx, q, id, d)
+	return storeProductSnapshot(ctx, q, id, d)
 }
 
 func refreshProductBarcodeClaims(ctx context.Context, q *dbsqlc.Queries, objectID string) error {

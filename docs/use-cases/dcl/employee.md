@@ -25,5 +25,5 @@
 ## 验收场景
 
 1. 员工所有维护请求只发送到 `/dcl/employee/*`；BOB current 页面没有写动作。
-2. 真实 PostgreSQL 覆盖已有/new Party 创建、Party approval blocker、AUX/经营主体来源漂移、V1/V2 current 切换与回落、精确引用 blocker 及事务回滚。
+2. 真实 PostgreSQL 覆盖已有/new Party 创建、Party approval blocker、AUX stable-ID 快照不受 current 后续变化影响、经营主体来源漂移、V1/V2 current 切换与回落、精确引用 blocker 及事务回滚。
 3. 历史 VOU/ACC 在员工后续改版、启停、反批或 Party 更新后仍保留原 stable ID、Approval Entry 与业务快照。

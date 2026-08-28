@@ -1,5 +1,4 @@
 import { defineBobEntityConfig, textarea } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const salesPartnerConfig = defineBobEntityConfig({
   entity: 'sales-partner',
@@ -8,7 +7,7 @@ export const salesPartnerConfig = defineBobEntityConfig({
   nameLabel: '主体名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     operatingEntityName: '',
     capabilities: '',
     contactName: '',
@@ -20,7 +19,7 @@ export const salesPartnerConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -39,14 +38,14 @@ export const salesPartnerConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '主体',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'operatingEntity',
       label: '经营主体',
       value: (row) =>
-        bobListActiveVersion(row).summary.operatingEntityName ?? '—',
+        row.relationship?.operatingEntityName ?? '—',
     },
     {
       key: 'enabled',

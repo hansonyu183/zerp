@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { OtherUnitView } from './OtherUnitView';
-export type OtherUnitGetResponse = {
+import type { AuxReferenceCandidate } from './AuxReferenceCandidate';
+export type AuxReferenceQueryResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: OtherUnitView | null;
+  data: Array<AuxReferenceCandidate>;
   requestId: string;
 };

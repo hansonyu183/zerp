@@ -7,189 +7,447 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getAuxVersionData = `-- name: GetAuxVersionData :one
-SELECT data
-FROM aux_version_payloads
-WHERE approval_entry_id = $1
-  AND object_id = $2
-  AND entity = $3
+const acquireAuxiliaryWriteLock = `-- name: AcquireAuxiliaryWriteLock :exec
+SELECT pg_advisory_xact_lock($1)
 `
 
-type GetAuxVersionDataParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	ObjectID        string `db:"object_id" json:"object_id"`
-	Entity          string `db:"entity" json:"entity"`
+func (q *Queries) AcquireAuxiliaryWriteLock(ctx context.Context, lockKey int64) error {
+	_, err := q.db.Exec(ctx, acquireAuxiliaryWriteLock, lockKey)
+	return err
 }
 
-func (q *Queries) GetAuxVersionData(ctx context.Context, arg GetAuxVersionDataParams) ([]byte, error) {
-	row := q.db.QueryRow(ctx, getAuxVersionData, arg.ApprovalEntryID, arg.ObjectID, arg.Entity)
+const allocateAuxObjectNumber = `-- name: AllocateAuxObjectNumber :one
+INSERT INTO object_number_counters(domain,entity,last_value)
+VALUES('aux',$1,1)
+ON CONFLICT(domain,entity) DO UPDATE
+SET last_value=object_number_counters.last_value+1
+WHERE object_number_counters.last_value<9999
+RETURNING last_value
+`
+
+func (q *Queries) AllocateAuxObjectNumber(ctx context.Context, entity string) (int32, error) {
+	row := q.db.QueryRow(ctx, allocateAuxObjectNumber, entity)
+	var last_value int32
+	err := row.Scan(&last_value)
+	return last_value, err
+}
+
+const deleteAuxObject = `-- name: DeleteAuxObject :execrows
+DELETE FROM aux_objects
+WHERE id=$1 AND entity=$2
+`
+
+type DeleteAuxObjectParams struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+func (q *Queries) DeleteAuxObject(ctx context.Context, arg DeleteAuxObjectParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAuxObject, arg.ObjectID, arg.Entity)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const findAuxObjectByCodeOrName = `-- name: FindAuxObjectByCodeOrName :one
+SELECT id FROM aux_objects
+WHERE entity=$1 AND (code=$2 OR data->>'name'=$3::text)
+ORDER BY id LIMIT 1
+`
+
+type FindAuxObjectByCodeOrNameParams struct {
+	Entity string `db:"entity" json:"entity"`
+	Code   string `db:"code" json:"code"`
+	Name   string `db:"name" json:"name"`
+}
+
+func (q *Queries) FindAuxObjectByCodeOrName(ctx context.Context, arg FindAuxObjectByCodeOrNameParams) (string, error) {
+	row := q.db.QueryRow(ctx, findAuxObjectByCodeOrName, arg.Entity, arg.Code, arg.Name)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findAuxObjectByName = `-- name: FindAuxObjectByName :one
+SELECT id FROM aux_objects
+WHERE entity=$1 AND data->>'name'=$2::text
+ORDER BY id LIMIT 1
+`
+
+type FindAuxObjectByNameParams struct {
+	Entity string `db:"entity" json:"entity"`
+	Name   string `db:"name" json:"name"`
+}
+
+func (q *Queries) FindAuxObjectByName(ctx context.Context, arg FindAuxObjectByNameParams) (string, error) {
+	row := q.db.QueryRow(ctx, findAuxObjectByName, arg.Entity, arg.Name)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findEnabledProductTypeByBehaviorProfile = `-- name: FindEnabledProductTypeByBehaviorProfile :one
+SELECT id FROM aux_objects
+WHERE entity='product-type' AND enabled AND data->>'behaviorProfile'=$1::text
+ORDER BY code LIMIT 1
+`
+
+func (q *Queries) FindEnabledProductTypeByBehaviorProfile(ctx context.Context, behaviorProfile string) (string, error) {
+	row := q.db.QueryRow(ctx, findEnabledProductTypeByBehaviorProfile, behaviorProfile)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findEnabledSettlementMethodByTermCode = `-- name: FindEnabledSettlementMethodByTermCode :one
+SELECT id FROM aux_objects
+WHERE entity='settlement-method' AND enabled AND data->>'termCode'=$1::text
+ORDER BY id LIMIT 1
+`
+
+func (q *Queries) FindEnabledSettlementMethodByTermCode(ctx context.Context, termCode string) (string, error) {
+	row := q.db.QueryRow(ctx, findEnabledSettlementMethodByTermCode, termCode)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getAuxObject = `-- name: GetAuxObject :one
+SELECT id,entity,code,enabled,revision,updated_at,updated_by,data
+FROM aux_objects
+WHERE id=$1 AND entity=$2
+`
+
+type GetAuxObjectParams struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+type GetAuxObjectRow struct {
+	ID        string             `db:"id" json:"id"`
+	Entity    string             `db:"entity" json:"entity"`
+	Code      string             `db:"code" json:"code"`
+	Enabled   bool               `db:"enabled" json:"enabled"`
+	Revision  int64              `db:"revision" json:"revision"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy string             `db:"updated_by" json:"updated_by"`
+	Data      []byte             `db:"data" json:"data"`
+}
+
+func (q *Queries) GetAuxObject(ctx context.Context, arg GetAuxObjectParams) (GetAuxObjectRow, error) {
+	row := q.db.QueryRow(ctx, getAuxObject, arg.ObjectID, arg.Entity)
+	var i GetAuxObjectRow
+	err := row.Scan(
+		&i.ID,
+		&i.Entity,
+		&i.Code,
+		&i.Enabled,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+		&i.Data,
+	)
+	return i, err
+}
+
+const getAuxObjectForUpdate = `-- name: GetAuxObjectForUpdate :one
+SELECT code,enabled,revision,data
+FROM aux_objects
+WHERE id=$1 AND entity=$2
+FOR UPDATE
+`
+
+type GetAuxObjectForUpdateParams struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+type GetAuxObjectForUpdateRow struct {
+	Code     string `db:"code" json:"code"`
+	Enabled  bool   `db:"enabled" json:"enabled"`
+	Revision int64  `db:"revision" json:"revision"`
+	Data     []byte `db:"data" json:"data"`
+}
+
+func (q *Queries) GetAuxObjectForUpdate(ctx context.Context, arg GetAuxObjectForUpdateParams) (GetAuxObjectForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getAuxObjectForUpdate, arg.ObjectID, arg.Entity)
+	var i GetAuxObjectForUpdateRow
+	err := row.Scan(
+		&i.Code,
+		&i.Enabled,
+		&i.Revision,
+		&i.Data,
+	)
+	return i, err
+}
+
+const getAuxObjectRevisionForUpdate = `-- name: GetAuxObjectRevisionForUpdate :one
+SELECT revision
+FROM aux_objects
+WHERE id=$1 AND entity=$2
+FOR UPDATE
+`
+
+type GetAuxObjectRevisionForUpdateParams struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+func (q *Queries) GetAuxObjectRevisionForUpdate(ctx context.Context, arg GetAuxObjectRevisionForUpdateParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getAuxObjectRevisionForUpdate, arg.ObjectID, arg.Entity)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
+}
+
+const getAuxObjectStateForUpdate = `-- name: GetAuxObjectStateForUpdate :one
+SELECT enabled,revision
+FROM aux_objects
+WHERE id=$1 AND entity=$2
+FOR UPDATE
+`
+
+type GetAuxObjectStateForUpdateParams struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+type GetAuxObjectStateForUpdateRow struct {
+	Enabled  bool  `db:"enabled" json:"enabled"`
+	Revision int64 `db:"revision" json:"revision"`
+}
+
+func (q *Queries) GetAuxObjectStateForUpdate(ctx context.Context, arg GetAuxObjectStateForUpdateParams) (GetAuxObjectStateForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getAuxObjectStateForUpdate, arg.ObjectID, arg.Entity)
+	var i GetAuxObjectStateForUpdateRow
+	err := row.Scan(&i.Enabled, &i.Revision)
+	return i, err
+}
+
+const getEnabledAuxCurrentReference = `-- name: GetEnabledAuxCurrentReference :one
+SELECT id,entity,code,data
+FROM aux_objects
+WHERE id=$1 AND entity=$2 AND enabled
+FOR SHARE
+`
+
+type GetEnabledAuxCurrentReferenceParams struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+type GetEnabledAuxCurrentReferenceRow struct {
+	ID     string `db:"id" json:"id"`
+	Entity string `db:"entity" json:"entity"`
+	Code   string `db:"code" json:"code"`
+	Data   []byte `db:"data" json:"data"`
+}
+
+func (q *Queries) GetEnabledAuxCurrentReference(ctx context.Context, arg GetEnabledAuxCurrentReferenceParams) (GetEnabledAuxCurrentReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getEnabledAuxCurrentReference, arg.ObjectID, arg.Entity)
+	var i GetEnabledAuxCurrentReferenceRow
+	err := row.Scan(
+		&i.ID,
+		&i.Entity,
+		&i.Code,
+		&i.Data,
+	)
+	return i, err
+}
+
+const getEnabledAuxObjectData = `-- name: GetEnabledAuxObjectData :one
+SELECT data
+FROM aux_objects
+WHERE entity=$1 AND id=$2 AND enabled
+`
+
+type GetEnabledAuxObjectDataParams struct {
+	Entity   string `db:"entity" json:"entity"`
+	ObjectID string `db:"object_id" json:"object_id"`
+}
+
+func (q *Queries) GetEnabledAuxObjectData(ctx context.Context, arg GetEnabledAuxObjectDataParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getEnabledAuxObjectData, arg.Entity, arg.ObjectID)
 	var data []byte
 	err := row.Scan(&data)
 	return data, err
 }
 
-const isAuxApprovalEntryReferenced = `-- name: IsAuxApprovalEntryReferenced :one
-WITH current_dcl_product_entries AS (
-    SELECT entry.id FROM approval_entries entry
-    WHERE entry.domain='dcl' AND entry.entity='product' AND entry.status='APPROVED'
-      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='product' AND newer.subject_id=entry.subject_id AND newer.status='APPROVED' AND newer.version_no>entry.version_no)
-), current_dcl_employee_entries AS (
-    SELECT entry.id FROM approval_entries entry
-    WHERE entry.domain='dcl' AND entry.entity='employee' AND entry.status='APPROVED'
-      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='employee' AND newer.subject_id=entry.subject_id AND newer.status='APPROVED' AND newer.version_no>entry.version_no)
-), bob_refs AS (
-    SELECT attachment.category_approval_entry_id AS entry_id
-    FROM dcl_customer_attachments attachment
-    JOIN approval_entries current_entry
-      ON current_entry.id=attachment.approval_entry_id
-     AND current_entry.domain='dcl' AND current_entry.entity='customer'
-     AND current_entry.status='APPROVED'
-    WHERE NOT EXISTS (
-      SELECT 1 FROM approval_entries newer
-      WHERE newer.domain='dcl' AND newer.entity='customer'
-        AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED'
-        AND newer.version_no>current_entry.version_no
-    )
-    UNION ALL SELECT attachment.category_approval_entry_id
-    FROM dcl_customer_account_attachments attachment
-    JOIN approval_entries current_entry
-      ON current_entry.id=attachment.approval_entry_id
-     AND current_entry.domain='dcl' AND current_entry.entity='customer-account'
-     AND current_entry.status='APPROVED'
-    WHERE NOT EXISTS (
-      SELECT 1 FROM approval_entries newer
-      WHERE newer.domain='dcl' AND newer.entity='customer-account'
-        AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED'
-        AND newer.version_no>current_entry.version_no
-    )
-    UNION ALL SELECT reference.entry_id FROM dcl_customer_account_versions payload
-      JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
-        AND current_entry.domain='dcl' AND current_entry.entity='customer-account' AND current_entry.status='APPROVED'
-      CROSS JOIN LATERAL unnest(ARRAY[payload.settlement_method_approval_entry_id,payload.payment_method_approval_entry_id]) reference(entry_id)
-      WHERE NOT EXISTS (
-        SELECT 1 FROM approval_entries newer
-        WHERE newer.domain='dcl' AND newer.entity='customer-account' AND newer.subject_id=current_entry.subject_id
-          AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no
-      )
-    UNION ALL SELECT reference.entry_id FROM dcl_employee_versions payload JOIN current_dcl_employee_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.employee_category_approval_entry_id,payload.department_approval_entry_id,payload.position_approval_entry_id]) reference(entry_id)
-    UNION ALL SELECT payload.entered_unit_approval_entry_id FROM dcl_product_formula_lines payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
-    UNION ALL SELECT payload.output_unit_approval_entry_id FROM dcl_product_formulas payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
-    UNION ALL SELECT payload.unit_approval_entry_id FROM dcl_product_unit_conversions payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
-    UNION ALL SELECT reference.entry_id FROM dcl_product_versions payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.pricing_unit_approval_entry_id,payload.product_type_approval_entry_id,payload.default_input_unit_approval_entry_id]) reference(entry_id)
-    UNION ALL SELECT payload.settlement_method_approval_entry_id
-    FROM dcl_other_unit_versions payload
-    JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
-      AND current_entry.domain='dcl' AND current_entry.entity='other-unit' AND current_entry.status='APPROVED'
-    WHERE NOT EXISTS (
-      SELECT 1 FROM approval_entries newer
-      WHERE newer.domain='dcl' AND newer.entity='other-unit' AND newer.subject_id=current_entry.subject_id
-        AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no
-    )
-    UNION ALL SELECT payload.settlement_method_approval_entry_id
-    FROM dcl_supplier_versions payload
-    JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
-      AND current_entry.domain='dcl' AND current_entry.entity='supplier' AND current_entry.status='APPROVED'
-    WHERE NOT EXISTS (
-      SELECT 1 FROM approval_entries newer
-      WHERE newer.domain='dcl' AND newer.entity='supplier' AND newer.subject_id=current_entry.subject_id
-        AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no
-    )
-    UNION ALL SELECT payload.vehicle_type_approval_entry_id FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='vehicle' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
-    UNION ALL SELECT payload.category_approval_entry_id FROM dcl_warehouse_versions payload
-      JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
-       AND current_entry.domain='dcl' AND current_entry.entity='warehouse' AND current_entry.status='APPROVED'
-      WHERE NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='warehouse' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
-), vou_refs AS (
-    SELECT reference.entry_id FROM vou_asset_acquisition_lines payload CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.department_approval_entry_id]) reference(entry_id)
-    UNION ALL SELECT payload.entered_unit_approval_entry_id FROM vou_inventory_count_lines payload
-    UNION ALL SELECT payload.product_type_approval_entry_id FROM vou_price_lines payload
-    UNION ALL SELECT reference.entry_id FROM vou_product_lines payload CROSS JOIN LATERAL unnest(ARRAY[payload.entered_unit_approval_entry_id,payload.product_type_approval_entry_id]) reference(entry_id)
-    UNION ALL SELECT payload.actual_entered_unit_approval_entry_id FROM vou_production_material_lines payload
-    UNION ALL SELECT payload.entered_unit_approval_entry_id FROM vou_production_output_lines payload
-    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM vou_purchase_order_details payload
-    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM vou_sale_order_details payload
-    UNION ALL SELECT payload.entered_unit_approval_entry_id FROM vou_sale_order_formula_lines payload
-    UNION ALL SELECT payload.output_entered_unit_approval_entry_id FROM vou_sale_order_formulas payload
-    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM vou_service_contract_details payload
-)
-SELECT EXISTS(
-    SELECT 1 FROM bob_refs WHERE entry_id=$1::text
-    UNION ALL
-    SELECT 1 FROM vou_refs WHERE entry_id=$1::text
-)
+const getEnabledAuxParentID = `-- name: GetEnabledAuxParentID :one
+SELECT CAST(COALESCE(data->>'parentId','') AS text) AS parent_id
+FROM aux_objects
+WHERE id=$1 AND entity=$2 AND enabled
 `
 
-func (q *Queries) IsAuxApprovalEntryReferenced(ctx context.Context, approvalEntryID string) (bool, error) {
-	row := q.db.QueryRow(ctx, isAuxApprovalEntryReferenced, approvalEntryID)
+type GetEnabledAuxParentIDParams struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+func (q *Queries) GetEnabledAuxParentID(ctx context.Context, arg GetEnabledAuxParentIDParams) (string, error) {
+	row := q.db.QueryRow(ctx, getEnabledAuxParentID, arg.ObjectID, arg.Entity)
+	var parent_id string
+	err := row.Scan(&parent_id)
+	return parent_id, err
+}
+
+const getEnabledAuxReferenceByCode = `-- name: GetEnabledAuxReferenceByCode :one
+SELECT id,entity,code,data
+FROM aux_objects
+WHERE entity=$1 AND upper(code)=upper($2::text) AND enabled
+FOR SHARE
+`
+
+type GetEnabledAuxReferenceByCodeParams struct {
+	Entity string `db:"entity" json:"entity"`
+	Code   string `db:"code" json:"code"`
+}
+
+type GetEnabledAuxReferenceByCodeRow struct {
+	ID     string `db:"id" json:"id"`
+	Entity string `db:"entity" json:"entity"`
+	Code   string `db:"code" json:"code"`
+	Data   []byte `db:"data" json:"data"`
+}
+
+func (q *Queries) GetEnabledAuxReferenceByCode(ctx context.Context, arg GetEnabledAuxReferenceByCodeParams) (GetEnabledAuxReferenceByCodeRow, error) {
+	row := q.db.QueryRow(ctx, getEnabledAuxReferenceByCode, arg.Entity, arg.Code)
+	var i GetEnabledAuxReferenceByCodeRow
+	err := row.Scan(
+		&i.ID,
+		&i.Entity,
+		&i.Code,
+		&i.Data,
+	)
+	return i, err
+}
+
+const getEnabledDictionaryType = `-- name: GetEnabledDictionaryType :one
+SELECT code,CAST(COALESCE(data->>'name','') AS text) AS name
+FROM aux_objects
+WHERE id=$1 AND entity='dictionary-type' AND enabled
+`
+
+type GetEnabledDictionaryTypeRow struct {
+	Code string `db:"code" json:"code"`
+	Name string `db:"name" json:"name"`
+}
+
+func (q *Queries) GetEnabledDictionaryType(ctx context.Context, objectID string) (GetEnabledDictionaryTypeRow, error) {
+	row := q.db.QueryRow(ctx, getEnabledDictionaryType, objectID)
+	var i GetEnabledDictionaryTypeRow
+	err := row.Scan(&i.Code, &i.Name)
+	return i, err
+}
+
+const insertAuxObject = `-- name: InsertAuxObject :exec
+INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by)
+VALUES($1,$2,$3,$4,$5,$5)
+`
+
+type InsertAuxObjectParams struct {
+	ID      string `db:"id" json:"id"`
+	Entity  string `db:"entity" json:"entity"`
+	Code    string `db:"code" json:"code"`
+	Data    []byte `db:"data" json:"data"`
+	ActorID string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) InsertAuxObject(ctx context.Context, arg InsertAuxObjectParams) error {
+	_, err := q.db.Exec(ctx, insertAuxObject,
+		arg.ID,
+		arg.Entity,
+		arg.Code,
+		arg.Data,
+		arg.ActorID,
+	)
+	return err
+}
+
+const isAuxProductTypeReferenced = `-- name: IsAuxProductTypeReferenced :one
+SELECT EXISTS(SELECT 1 FROM dcl_product_versions WHERE product_type_id=$1::text)
+`
+
+func (q *Queries) IsAuxProductTypeReferenced(ctx context.Context, objectID string) (bool, error) {
+	row := q.db.QueryRow(ctx, isAuxProductTypeReferenced, objectID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
 }
 
-const isBobCustomerPaymentMethodReferenced = `-- name: IsBobCustomerPaymentMethodReferenced :one
-SELECT EXISTS(
-    SELECT 1
-FROM dcl_customer_account_versions customer
-    JOIN approval_entries entry
-      ON entry.id = customer.approval_entry_id
-     AND entry.domain = 'dcl'
-     AND entry.entity = 'customer-account'
-     AND entry.status = 'APPROVED'
-    WHERE customer.payment_method_id = $1::text
-      AND NOT EXISTS (
-          SELECT 1 FROM approval_entries newer
-          WHERE newer.domain = entry.domain
-            AND newer.entity = entry.entity
-            AND newer.subject_id = entry.subject_id
-            AND newer.status = 'APPROVED'
-            AND newer.version_no > entry.version_no
-      )
+const listAuxObjectDeleteBlockers = `-- name: ListAuxObjectDeleteBlockers :many
+WITH requested AS (SELECT $1::text AS object_id), blockers(source,count) AS (
+  SELECT 'aux_objects'::text,count(*)::bigint FROM aux_objects,requested WHERE data->>'parentId'=requested.object_id OR data->>'dictionaryTypeId'=requested.object_id
+  UNION ALL SELECT 'dcl_employee_versions',count(*) FROM dcl_employee_versions,requested WHERE employee_category_id=requested.object_id OR department_id=requested.object_id OR position_id=requested.object_id
+  UNION ALL SELECT 'dcl_product_versions',count(*) FROM dcl_product_versions,requested WHERE category_id=requested.object_id OR pricing_unit_id=requested.object_id OR product_type_id=requested.object_id OR default_input_unit_id=requested.object_id
+  UNION ALL SELECT 'dcl_product_formulas',count(*) FROM dcl_product_formulas,requested WHERE output_unit_object_id=requested.object_id
+  UNION ALL SELECT 'dcl_product_formula_lines',count(*) FROM dcl_product_formula_lines,requested WHERE entered_unit_object_id=requested.object_id
+  UNION ALL SELECT 'dcl_product_unit_conversions',count(*) FROM dcl_product_unit_conversions,requested WHERE unit_object_id=requested.object_id
+  UNION ALL SELECT 'dcl_supplier_versions',count(*) FROM dcl_supplier_versions,requested WHERE settlement_method_id=requested.object_id
+  UNION ALL SELECT 'dcl_other_unit_versions',count(*) FROM dcl_other_unit_versions,requested WHERE settlement_method_id=requested.object_id
+  UNION ALL SELECT 'dcl_customer_account_versions',count(*) FROM dcl_customer_account_versions,requested WHERE customer_type=requested.object_id OR settlement_method_id=requested.object_id OR payment_method_id=requested.object_id
+  UNION ALL SELECT 'dcl_vehicle_versions',count(*) FROM dcl_vehicle_versions,requested WHERE vehicle_type_object_id=requested.object_id
+  UNION ALL SELECT 'dcl_warehouse_versions',count(*) FROM dcl_warehouse_versions,requested WHERE category_id=requested.object_id
+  UNION ALL SELECT 'dcl_customer_attachments',count(*) FROM dcl_customer_attachments,requested WHERE category_object_id=requested.object_id
+  UNION ALL SELECT 'dcl_customer_account_attachments',count(*) FROM dcl_customer_account_attachments,requested WHERE category_object_id=requested.object_id
+  UNION ALL SELECT 'bob_warehouses',count(*) FROM bob_warehouses,requested WHERE category_id=requested.object_id
+  UNION ALL SELECT 'bob_vehicles',count(*) FROM bob_vehicles,requested WHERE vehicle_type_object_id=requested.object_id
+  UNION ALL SELECT 'vou_asset_acquisition_lines',count(*) FROM vou_asset_acquisition_lines,requested WHERE category_object_id=requested.object_id OR department_object_id=requested.object_id
+  UNION ALL SELECT 'vou_inventory_count_lines',count(*) FROM vou_inventory_count_lines,requested WHERE entered_unit_object_id=requested.object_id
+  UNION ALL SELECT 'vou_price_lines',count(*) FROM vou_price_lines,requested WHERE product_type_object_id=requested.object_id
+  UNION ALL SELECT 'vou_product_lines',count(*) FROM vou_product_lines,requested WHERE entered_unit_object_id=requested.object_id OR product_type_object_id=requested.object_id
+  UNION ALL SELECT 'vou_production_material_lines',count(*) FROM vou_production_material_lines,requested WHERE actual_entered_unit_object_id=requested.object_id
+  UNION ALL SELECT 'vou_production_output_lines',count(*) FROM vou_production_output_lines,requested WHERE entered_unit_object_id=requested.object_id
+  UNION ALL SELECT 'vou_purchase_order_details',count(*) FROM vou_purchase_order_details,requested WHERE settlement_method_object_id=requested.object_id
+  UNION ALL SELECT 'vou_sale_order_details',count(*) FROM vou_sale_order_details,requested WHERE settlement_method_object_id=requested.object_id
+  UNION ALL SELECT 'vou_sale_order_formula_lines',count(*) FROM vou_sale_order_formula_lines,requested WHERE entered_unit_object_id=requested.object_id
+  UNION ALL SELECT 'vou_sale_order_formulas',count(*) FROM vou_sale_order_formulas,requested WHERE output_entered_unit_object_id=requested.object_id
+  UNION ALL SELECT 'vou_service_contract_details',count(*) FROM vou_service_contract_details,requested WHERE settlement_method_object_id=requested.object_id
+  UNION ALL SELECT 'acc_assets',count(*) FROM acc_assets,requested WHERE category_id=requested.object_id OR department_id=requested.object_id
+  UNION ALL SELECT 'acc_opening_assets',count(*) FROM acc_opening_assets,requested WHERE category_id=requested.object_id OR department_id=requested.object_id
 )
+SELECT source,count FROM blockers WHERE count>0 ORDER BY source
 `
 
-func (q *Queries) IsBobCustomerPaymentMethodReferenced(ctx context.Context, objectID string) (bool, error) {
-	row := q.db.QueryRow(ctx, isBobCustomerPaymentMethodReferenced, objectID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
+type ListAuxObjectDeleteBlockersRow struct {
+	Source string `db:"source" json:"source"`
+	Count  int64  `db:"count" json:"count"`
+}
+
+func (q *Queries) ListAuxObjectDeleteBlockers(ctx context.Context, objectID string) ([]ListAuxObjectDeleteBlockersRow, error) {
+	rows, err := q.db.Query(ctx, listAuxObjectDeleteBlockers, objectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAuxObjectDeleteBlockersRow{}
+	for rows.Next() {
+		var i ListAuxObjectDeleteBlockersRow
+		if err := rows.Scan(&i.Source, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const queryAuxReferenceCandidates = `-- name: QueryAuxReferenceCandidates :many
-SELECT
-    o.id AS object_id,
-    a.id AS approval_entry_id,
-    o.code,
-    COALESCE(p.data->>'name', '')::text AS name
-FROM aux_objects o
-JOIN approval_entries a
-  ON a.domain = 'aux'
- AND a.entity = o.entity
- AND a.subject_id = o.id
- AND a.status = 'APPROVED'
- AND NOT EXISTS (
-     SELECT 1
-     FROM approval_entries newer
-     WHERE newer.domain = a.domain
-       AND newer.entity = a.entity
-       AND newer.subject_id = a.subject_id
-       AND newer.status = 'APPROVED'
-       AND newer.version_no > a.version_no
- )
-JOIN aux_version_payloads p ON p.approval_entry_id = a.id
-WHERE o.entity = $1
-  AND o.enabled
-  AND (
-      $2::text = ''
-      OR o.code ILIKE '%' || $2::text || '%'
-      OR COALESCE(p.data->>'name', '') ILIKE '%' || $2::text || '%'
-  )
-  AND (
-      $3::text = ''
-      OR p.data->>'dictionaryTypeCode' = $3::text
-  )
-ORDER BY COALESCE((p.data->>'sortOrder')::integer, 2147483647), o.code, o.id
+
+SELECT id AS object_id, code, CAST(COALESCE(data->>'name','') AS text) AS name
+FROM aux_objects
+WHERE entity=$1
+  AND enabled
+  AND ($2::text='' OR code ILIKE '%'||$2::text||'%' OR COALESCE(data->>'name','') ILIKE '%'||$2::text||'%')
+  AND ($3::text='' OR data->>'dictionaryTypeCode'=$3::text)
+ORDER BY COALESCE((data->>'sortOrder')::integer,2147483647),code,id
 LIMIT 20
 `
 
@@ -200,12 +458,13 @@ type QueryAuxReferenceCandidatesParams struct {
 }
 
 type QueryAuxReferenceCandidatesRow struct {
-	ObjectID        string `db:"object_id" json:"object_id"`
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Code            string `db:"code" json:"code"`
-	Name            string `db:"name" json:"name"`
+	ObjectID string `db:"object_id" json:"object_id"`
+	Code     string `db:"code" json:"code"`
+	Name     string `db:"name" json:"name"`
 }
 
+// AUX is stable-ID current data. These queries intentionally expose no
+// Approval entry, candidate, version, or historical payload identity.
 func (q *Queries) QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxReferenceCandidatesParams) ([]QueryAuxReferenceCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, queryAuxReferenceCandidates, arg.Entity, arg.Keyword, arg.DictionaryTypeCode)
 	if err != nil {
@@ -215,12 +474,7 @@ func (q *Queries) QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxR
 	items := []QueryAuxReferenceCandidatesRow{}
 	for rows.Next() {
 		var i QueryAuxReferenceCandidatesRow
-		if err := rows.Scan(
-			&i.ObjectID,
-			&i.ApprovalEntryID,
-			&i.Code,
-			&i.Name,
-		); err != nil {
+		if err := rows.Scan(&i.ObjectID, &i.Code, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -229,4 +483,58 @@ func (q *Queries) QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxR
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAuxObjectData = `-- name: UpdateAuxObjectData :execrows
+UPDATE aux_objects
+SET data=$1,revision=revision+1,updated_at=now(),updated_by=$2
+WHERE id=$3 AND entity=$4
+`
+
+type UpdateAuxObjectDataParams struct {
+	Data     []byte `db:"data" json:"data"`
+	ActorID  string `db:"actor_id" json:"actor_id"`
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+func (q *Queries) UpdateAuxObjectData(ctx context.Context, arg UpdateAuxObjectDataParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateAuxObjectData,
+		arg.Data,
+		arg.ActorID,
+		arg.ObjectID,
+		arg.Entity,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateAuxObjectState = `-- name: UpdateAuxObjectState :execrows
+UPDATE aux_objects
+SET enabled=$1,revision=revision+1,updated_at=now(),updated_by=$2
+WHERE id=$3 AND entity=$4 AND revision=$5
+`
+
+type UpdateAuxObjectStateParams struct {
+	Enabled        bool   `db:"enabled" json:"enabled"`
+	ActorID        string `db:"actor_id" json:"actor_id"`
+	ObjectID       string `db:"object_id" json:"object_id"`
+	Entity         string `db:"entity" json:"entity"`
+	ObjectRevision int64  `db:"object_revision" json:"object_revision"`
+}
+
+func (q *Queries) UpdateAuxObjectState(ctx context.Context, arg UpdateAuxObjectStateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateAuxObjectState,
+		arg.Enabled,
+		arg.ActorID,
+		arg.ObjectID,
+		arg.Entity,
+		arg.ObjectRevision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

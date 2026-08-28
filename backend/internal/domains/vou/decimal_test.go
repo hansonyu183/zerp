@@ -1,6 +1,10 @@
 package vou
 
-import "testing"
+import (
+	"testing"
+
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+)
 
 func TestFixedDecimalParsingAndFormatting(t *testing.T) {
 	t.Parallel()
@@ -45,5 +49,16 @@ func TestLineAmountRoundsHalfUp(t *testing.T) {
 	amount, err := lineAmountCents(1_500_000, 101)
 	if err != nil || amount != 152 {
 		t.Fatalf("amount = %d, err=%v; want 152", amount, err)
+	}
+}
+
+func TestValidateUnitQuantityScale(t *testing.T) {
+	t.Parallel()
+	unit := bobdomain.MeasurementUnitSnapshot{ObjectID: "unit-1", QuantityScale: 2}
+	if err := validateUnitQuantityScale(1_230_000, unit); err != nil {
+		t.Fatalf("two-decimal quantity rejected: %v", err)
+	}
+	if err := validateUnitQuantityScale(1_234_000, unit); err == nil {
+		t.Fatal("three-decimal quantity unexpectedly accepted by two-decimal unit")
 	}
 }

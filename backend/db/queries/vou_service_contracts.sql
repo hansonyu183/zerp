@@ -3,14 +3,14 @@ INSERT INTO vou_service_contract_details(
  document_id,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,
  party_id,party_name,operating_entity_object_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,
  handler_object_id,handler_approval_entry_id,handler_code,handler_name,
- settlement_method_object_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,
+ settlement_method_object_id,settlement_method_code,settlement_method_name,
  settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,
  capabilities,applicable_from,applicable_to,contract_terms
 ) VALUES (
  sqlc.arg(document_id),sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),sqlc.arg(counterparty_approval_entry_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name),
  sqlc.arg(party_id),sqlc.arg(party_name),sqlc.arg(operating_entity_object_id),sqlc.arg(operating_entity_approval_entry_id),sqlc.arg(operating_entity_code),sqlc.arg(operating_entity_name),
  sqlc.arg(handler_object_id),sqlc.arg(handler_approval_entry_id),sqlc.arg(handler_code),sqlc.arg(handler_name),
- sqlc.narg(settlement_method_object_id),sqlc.narg(settlement_method_approval_entry_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),
+ sqlc.narg(settlement_method_object_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),
  sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.narg(settlement_month_offset),sqlc.narg(settlement_day_of_month),sqlc.narg(settlement_day_offset),
  sqlc.arg(capabilities),sqlc.narg(applicable_from),sqlc.narg(applicable_to),sqlc.arg(contract_terms)
 );
@@ -26,7 +26,6 @@ SELECT object.id AS counterparty_object_id,object.entity AS counterparty_entity,
        service_detail.settlement_method_name,service_detail.settlement_term_code,
        service_detail.settlement_rule_type,service_detail.settlement_month_offset,
        service_detail.settlement_day_of_month,service_detail.settlement_day_offset
-       ,service_detail.settlement_method_approval_entry_id AS default_settlement_approval_entry_id
 FROM bob_objects object
 JOIN LATERAL (
   SELECT id FROM approval_entries
@@ -50,7 +49,7 @@ UPDATE vou_service_contract_details SET
  counterparty_entity=sqlc.arg(counterparty_entity),counterparty_object_id=sqlc.arg(counterparty_object_id),counterparty_approval_entry_id=sqlc.arg(counterparty_approval_entry_id),counterparty_code=sqlc.arg(counterparty_code),counterparty_name=sqlc.arg(counterparty_name),
  party_id=sqlc.arg(party_id),party_name=sqlc.arg(party_name),operating_entity_object_id=sqlc.arg(operating_entity_object_id),operating_entity_approval_entry_id=sqlc.arg(operating_entity_approval_entry_id),operating_entity_code=sqlc.arg(operating_entity_code),operating_entity_name=sqlc.arg(operating_entity_name),
  handler_object_id=sqlc.arg(handler_object_id),handler_approval_entry_id=sqlc.arg(handler_approval_entry_id),handler_code=sqlc.arg(handler_code),handler_name=sqlc.arg(handler_name),
- settlement_method_object_id=sqlc.narg(settlement_method_object_id),settlement_method_approval_entry_id=sqlc.narg(settlement_method_approval_entry_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),
+	settlement_method_object_id=sqlc.narg(settlement_method_object_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),
  settlement_term_code=sqlc.narg(settlement_term_code),settlement_rule_type=sqlc.narg(settlement_rule_type),settlement_month_offset=sqlc.narg(settlement_month_offset),settlement_day_of_month=sqlc.narg(settlement_day_of_month),settlement_day_offset=sqlc.narg(settlement_day_offset),
  capabilities=sqlc.arg(capabilities),applicable_from=sqlc.narg(applicable_from),applicable_to=sqlc.narg(applicable_to),contract_terms=sqlc.arg(contract_terms)
 WHERE document_id=sqlc.arg(document_id);

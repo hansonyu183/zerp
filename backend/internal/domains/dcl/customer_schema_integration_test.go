@@ -45,9 +45,9 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	accounts := NewCustomerAccountService(pool, business, authorizer, bus)
 	customers := NewCustomerService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), accounts, authorizer, bus)
@@ -78,7 +78,7 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 	}
 	salesperson = submitAndApproveEmployee(t, employees, salesperson, creator("salesperson-submit"), reviewer("salesperson-approve"))
 	defaultAccount := CustomerAccountDataInput{
-		Name: "复用客户账户", CustomerTypeCode: bobdomain.CustomerTypeEndUser,
+		Name: "复用客户账户", CustomerTypeID: bobdomain.CustomerTypeEndUserID,
 		PricingPolicy:           CustomerPricingPolicy{DefaultPremiumUnitPrice: "0", DefaultDiscountUnitPrice: "0", ThirdPartyIntermediaryFixedUnitCost: "0", ThirdPartyIntermediaryVariableUnitCost: "0", CostItems: []CustomerPricingCostItem{}},
 		CreditLimits:            []CustomerCreditLimit{},
 		PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: salesperson.ObjectID},
@@ -108,7 +108,7 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 		t.Fatalf("draft changed BOB current source=%s err=%v", current, err)
 	}
 	currentView, err := business.CustomerCurrentGet(t.Context(), v1.ObjectID)
-	if err != nil || currentView.SourceApprovalEntryID != v1.Approval.ApprovalEntryID {
+	if err != nil || currentView.SourceApprovalEntryID != v1.Approval.ApprovalEntryID || currentView.SourceVersionNo != 1 {
 		t.Fatalf("BOB current get leaked DCL candidate: view=%+v err=%v", currentView, err)
 	}
 	// Relationship attachment snapshots copy the same physical file into the
@@ -120,7 +120,7 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 		t.Fatalf("insert attachment file: %v", err)
 	}
 	for _, entryID := range []string{v1.Approval.ApprovalEntryID, v2.Approval.ApprovalEntryID} {
-		if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_attachments(approval_entry_id,file_id,category_object_id,category_approval_entry_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,'CONTRACT','合同',$5)`, entryID, fileID, ulid.Make().String(), ulid.Make().String(), creatorID); err != nil {
+		if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,'CONTRACT','合同',$4)`, entryID, fileID, ulid.Make().String(), creatorID); err != nil {
 			t.Fatalf("copy attachment into %s: %v", entryID, err)
 		}
 	}
@@ -133,8 +133,12 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 		t.Fatalf("approved V2 source=%s err=%v", current, err)
 	}
 	currentView, err = business.CustomerCurrentGet(t.Context(), v1.ObjectID)
-	if err != nil || currentView.SourceApprovalEntryID != v2.Approval.ApprovalEntryID {
+	if err != nil || currentView.SourceApprovalEntryID != v2.Approval.ApprovalEntryID || currentView.SourceVersionNo != 2 {
 		t.Fatalf("BOB current get did not switch to V2: view=%+v err=%v", currentView, err)
+	}
+	currentPage, err := business.CustomerCurrentQuery(t.Context(), bobdomain.CustomerCurrentQueryInput{Page: 1, PageSize: 20})
+	if err != nil || len(currentPage.Items) != 1 || currentPage.Items[0].SourceApprovalEntryID != v2.Approval.ApprovalEntryID || currentPage.Items[0].SourceVersionNo != 2 {
+		t.Fatalf("BOB current query source version: page=%+v err=%v", currentPage, err)
 	}
 	// DCL reads hydrate the declaration's chosen candidate/current snapshot;
 	// no BOB payload or open account candidate is part of this relationship API.

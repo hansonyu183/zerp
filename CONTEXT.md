@@ -39,9 +39,9 @@ _Authority_: [Approval 授权](docs/domains/approval.md#4-授权与事务边界)
 ## Business Objects
 
 **Continuous Effectiveness（连续生效）**:
-已有有效版本的主数据在候选变更期间继续以最后有效版本供业务使用，候选审核后一次切换；只有显式停用才立即阻止新引用。
-_Avoid_: 编辑即停用、候选待审期间无可用版本、逐页面决定变更期是否可用
-_Authority_: [BOB 候选换版](docs/domains/bob.md#42-草稿编辑候选换版与历史版本冻结)、[AUX Approval 生命周期](docs/domains/aux.md#2-approval--versioning-生命周期)、[APP 菜单模板](docs/domains/app.md#39-菜单模板)
+使用 Approval Version 的主数据在候选变更期间继续以最后有效版本供业务使用，候选审核后一次切换；AUX current data 则由保存直接生效，并由采用方 snapshot 隔离历史业务解释。两者都只有显式停用才立即阻止新引用。
+_Avoid_: 编辑即停用、候选待审期间无可用版本、AUX 修改后重解释历史、逐页面决定变更期是否可用
+_Authority_: [DCL current 投影边界](docs/domains/dcl.md#4-原子性与引用)、[AUX Stable-ID Direct CRUD](docs/domains/aux.md#2-stable-id-direct-crud-生命周期)、[APP 菜单模板](docs/domains/app.md#39-菜单模板)
 
 **Party（主体）**:
 现实中的个人或组织，是名称、身份标识和联系资料等共享身份事实的唯一根；同一主体可以同时拥有多种业务关系。
@@ -71,7 +71,7 @@ _Authority_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
 **Party Merge（主体合并）**:
 把误建的重复主体归入一个保留主体，并转移不冲突的当前业务关系；历史交易和关系快照保持原事实。
 _Avoid_: 自动合并、覆盖同类型关系、删除来源主体或改写历史快照
-_Authority_: [BOB 主体合并](docs/domains/bob.md#45-主体合并)
+_Authority_: [BOB 主体合并](docs/domains/bob.md#41-主体合并)
 
 **Relationship Detail（关系明细）**:
 业务编码、业务联系人、结算、信用、价格或岗位等只属于一条具体业务关系的资料。服务内容由合同和履约单据表达，不在服务关系上另设服务范围。

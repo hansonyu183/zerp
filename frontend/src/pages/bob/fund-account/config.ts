@@ -1,5 +1,4 @@
 import { defineBobEntityConfig } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const fundAccountConfig = defineBobEntityConfig({
   entity: 'fund-account',
@@ -7,6 +6,7 @@ export const fundAccountConfig = defineBobEntityConfig({
   codeLabel: '账户编码',
   nameLabel: '账户名称',
   defaults: {
+    sourceApprovalEntryId: '',
     currency: 'CNY',
     operatingEntityId: '',
     accountName: '',
@@ -18,7 +18,7 @@ export const fundAccountConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -37,30 +37,30 @@ export const fundAccountConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '名称',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'currency',
       label: '币种',
-      value: (row) => bobListActiveVersion(row).summary.currency,
+      value: (row) => row.data.currency,
       sizing: 'compact',
     },
     {
       key: 'bankName',
       label: '银行',
-      value: (row) => bobListActiveVersion(row).summary.bankName,
+      value: (row) => row.data.bankName,
     },
     {
       key: 'operatingEntityId',
       label: '经营主体',
-      value: (row) => bobListActiveVersion(row).summary.operatingEntityId,
+      value: (row) => row.data.operatingEntityName ?? '—',
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

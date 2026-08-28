@@ -1,4 +1,5 @@
 import type {
+  VoucherAuxiliaryReference,
   VoucherDocumentView,
   VoucherDraftForm,
   VoucherEntityConfig,
@@ -6,6 +7,7 @@ import type {
   VoucherReferenceInput,
   VoucherReferenceView,
 } from '@/components/voucher'
+import type { components } from '@/api/generated/schema'
 import { localDate } from '@/utils/date'
 import { formulaFromPayload } from '@/components/formula'
 import { emptyServiceDetails, serviceDetailsFromDocument } from './service-form'
@@ -144,6 +146,12 @@ export function inputReference(
     : undefined
 }
 
+export function inputAuxiliaryReference(
+  reference: { objectId: string } | null | undefined,
+): { objectId: string } | undefined {
+  return reference ? { objectId: reference.objectId } : undefined
+}
+
 export function inputProductReference(
   reference: VoucherReference | VoucherReferenceView | null | undefined,
 ): { objectId: string } | undefined {
@@ -153,6 +161,12 @@ export function inputProductReference(
 function formReference(
   reference: VoucherReferenceView | undefined,
 ): VoucherReference | null {
+  return reference ? { ...reference } : null
+}
+
+function formAuxiliaryReference(
+  reference: components['schemas']['VouAuxiliaryReferenceView'] | undefined,
+): VoucherAuxiliaryReference | null {
   return reference ? { ...reference } : null
 }
 
@@ -272,8 +286,8 @@ export function formFromDocument(
       assetNo: line.assetNo ?? '',
       assetName: line.assetName,
       specification: line.specification ?? '',
-      category: formReference(line.category),
-      department: formReference(line.department),
+      category: formAuxiliaryReference(line.category),
+      department: formAuxiliaryReference(line.department),
       custodian: formReference(line.custodian),
       originalValue: line.originalValue ?? '',
       usefulLifeMonths: String(line.usefulLifeMonths ?? ''),

@@ -1,15 +1,9 @@
-import { request } from '@playwright/test'
 import { expect, test, type Locator, type Page } from './fixtures'
 
 test.describe.configure({ mode: 'serial' })
 test.use({ storageState: { cookies: [], origins: [] } })
 
 type Credentials = { username: string; password: string }
-type AuxMutation = {
-  objectId: string
-  approval: { approvalEntryId: string; revision: number }
-}
-type Envelope<T> = { code: string | number; message?: string; data: T }
 
 async function signIn(page: Page, credentials: Credentials): Promise<void> {
   await page.goto('/signin')
@@ -53,59 +47,6 @@ async function createProductType(
   await expect(page.locator('tbody tr').filter({ hasText: name })).toHaveCount(
     1,
   )
-}
-
-async function runProductTypeApprovalAction(
-  page: Page,
-  name: string,
-): Promise<AuxMutation> {
-  await page.goto('/aux/product-type')
-  await page.getByRole('textbox', { name: '产品类型关键字' }).fill(name)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  const row = page.locator('tbody tr').filter({ hasText: name })
-  await expect(row).toHaveCount(1)
-  const submittedResponse = page.waitForResponse((response) =>
-    response.url().endsWith('/aux/product-type/submit'),
-  )
-  await selectRowAction(page, row, '提交')
-  const envelope = (await (
-    await submittedResponse
-  ).json()) as Envelope<AuxMutation>
-  expect(String(envelope.code), envelope.message).toBe('0')
-  await expect(row).toContainText('待批准')
-  return envelope.data
-}
-
-async function approveProductTypes(
-  credentials: Credentials,
-  candidates: AuxMutation[],
-): Promise<void> {
-  const context = await request.newContext({
-    baseURL: process.env.E2E_API_BASE_URL,
-  })
-  try {
-    const signedIn = await context.post('app/user/signin', {
-      data: credentials,
-    })
-    expect(signedIn.status()).toBe(200)
-    const session = (await signedIn.json()) as Envelope<{ csrfToken: string }>
-    expect(String(session.code), session.message).toBe('0')
-    for (const candidate of candidates) {
-      const approved = await context.post('aux/product-type/approve', {
-        data: {
-          objectId: candidate.objectId,
-          approvalEntryId: candidate.approval.approvalEntryId,
-          approvalRevision: candidate.approval.revision,
-        },
-        headers: { 'X-CSRF-Token': session.data.csrfToken },
-      })
-      expect(approved.status()).toBe(200)
-      const envelope = (await approved.json()) as Envelope<AuxMutation>
-      expect(String(envelope.code), envelope.message).toBe('0')
-    }
-  } finally {
-    await context.dispose()
-  }
 }
 
 function productRow(page: Page, name: string): Locator {
@@ -212,12 +153,12 @@ async function openProductCreate(page: Page): Promise<Locator> {
   expect(response.ok()).toBe(true)
   const envelope = (await response.json()) as {
     code: string | number
-    data: { items: Array<{ latestApproved: { data: { name?: string } } }> }
+    data: { items: Array<{ data: { name?: string } }> }
   }
   expect(String(envelope.code)).toBe('0')
   expect(
     envelope.data.items.some(
-      (item) => item.latestApproved.data.name === '千克',
+      (item) => item.data.name === '千克',
     ),
   ).toBe(true)
   return page.locator('.bob-entity-drawer')
@@ -494,7 +435,7 @@ async function verifyBobProductCurrentReadOnly(
   await expect(row.getByText('审核通过', { exact: true })).toHaveCount(0)
 }
 
-test('已批准产品类型驱动三类产品、固定配方及候选换版', async ({
+test('当前产品类型驱动三类产品、固定配方及候选换版', async ({
   page,
   workerState,
 }, testInfo) => {
@@ -512,20 +453,6 @@ test('已批准产品类型驱动三类产品、固定配方及候选换版', as
   await createProductType(page, rawType, '原材料')
   await createProductType(page, packagingType, '包装物')
   await createProductType(page, finishedType, '标准成品')
-  const productTypes = [
-    await runProductTypeApprovalAction(page, rawType),
-    await runProductTypeApprovalAction(page, packagingType),
-    await runProductTypeApprovalAction(page, finishedType),
-  ]
-  const approvalUsername = process.env.E2E_USERNAME
-  const approvalPassword = process.env.E2E_PASSWORD
-  if (!approvalUsername || !approvalPassword) {
-    throw new Error('产品类型审批缺少隔离 E2E 管理员凭证。')
-  }
-  await approveProductTypes(
-    { username: approvalUsername, password: approvalPassword },
-    productTypes,
-  )
 
   await createProductDraft(page, {
     name: rawProduct,

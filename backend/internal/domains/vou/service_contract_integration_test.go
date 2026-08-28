@@ -3,16 +3,74 @@
 package vou
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 )
+
+func TestServiceContractSavePreservesDisabledSettlementSnapshotIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	settlements := auxdomain.NewService(pool)
+	settlementActor := trustedIntegrationActor(t, "service-contract-settlement-state")
+	settlement, err := settlements.Get(t.Context(), auxdomain.EntitySettlementMethod, auxdomain.GetInput{
+		ObjectID: refs.settlement.ObjectID,
+	}, settlementActor)
+	if err != nil {
+		t.Fatalf("get settlement method: %v", err)
+	}
+	settlementName := auxiliaryString(settlement.Data, "name")
+	settlementRef := AuxiliaryReferenceInput{ObjectID: settlement.ObjectID}
+	draft := DraftInput{
+		BusinessDate: "2026-08-01", Currency: "CNY", CounterpartyType: bobdomain.EntityOtherUnit,
+		Counterparty: &refs.carrier, Handler: &refs.employee, SettlementMethod: &settlementRef,
+		ServiceContract: &ServiceContractInput{Terms: "快照保留验证"},
+	}
+	created, err := service.Create(t.Context(), EntityServiceContract, CreateInput{Data: draft},
+		integrationApprovalActor(t, integrationActorOne, "service-contract-snapshot-create"))
+	if err != nil {
+		t.Fatalf("create service contract: %v", err)
+	}
+	disabled, err := settlements.Disable(t.Context(), auxdomain.EntitySettlementMethod, auxdomain.ObjectRevisionInput{
+		ObjectID: settlement.ObjectID, ObjectRevision: settlement.ObjectRevision,
+	}, settlementActor)
+	if err != nil || disabled.Enabled {
+		t.Fatalf("disable settlement method: %+v %v", disabled, err)
+	}
+	t.Cleanup(func() {
+		_, _ = settlements.Enable(context.Background(), auxdomain.EntitySettlementMethod, auxdomain.ObjectRevisionInput{
+			ObjectID: disabled.ObjectID, ObjectRevision: disabled.ObjectRevision,
+		}, settlementActor)
+	})
+	if _, err = service.Save(t.Context(), EntityServiceContract, SaveInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision, Data: draft,
+	}, integrationApprovalActor(t, integrationActorOne, "service-contract-snapshot-save")); err != nil {
+		t.Fatalf("save existing contract with disabled settlement snapshot: %v", err)
+	}
+	view, err := service.Get(t.Context(), EntityServiceContract, GetInput{DocumentID: created.DocumentID})
+	if err != nil || view.Data.ServiceContract == nil || view.Data.ServiceContract.SettlementMethod == nil ||
+		view.Data.ServiceContract.SettlementMethod.ObjectID != settlement.ObjectID ||
+		view.Data.ServiceContract.SettlementMethod.Name != settlementName {
+		t.Fatalf("preserved settlement snapshot = %+v, err=%v", view.Data.ServiceContract, err)
+	}
+	_, err = service.Create(t.Context(), EntityServiceContract, CreateInput{Data: draft},
+		integrationApprovalActor(t, integrationActorOne, "service-contract-disabled-settlement-create"))
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorConflict {
+		t.Fatalf("new contract with disabled settlement error = %#v, want conflict", err)
+	}
+}
 
 func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
@@ -98,7 +156,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	if _, err = accounts.Create(t.Context(), dcldomain.CustomerAccountCreateInput{
 		CustomerRelationshipID: customerRelationshipID,
 		Data: dcldomain.CustomerAccountDataInput{
-			Name: "禁止自归属账户", CustomerTypeCode: bobdomain.CustomerTypeEndUser,
+			Name: "禁止自归属账户", CustomerTypeID: bobdomain.CustomerTypeEndUserID,
 			PricingPolicy: dcldomain.CustomerPricingPolicy{
 				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00",
 				ThirdPartyIntermediaryFixedUnitCost: "0.00", ThirdPartyIntermediaryVariableUnitCost: "0.00",

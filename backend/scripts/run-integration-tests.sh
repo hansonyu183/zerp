@@ -100,6 +100,71 @@ initialize_schema() {
 		<db/schema.sql
 }
 
+initialize_pre_cutover_schema() {
+	local database="$1"
+	git show d505c567:backend/db/schema.sql |
+		"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+			'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"'
+}
+
+seed_issue_289_snapshot_fixture() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' <<'SQL'
+INSERT INTO approval_entries(
+  id,domain,entity,subject_id,version_no,status,revision,
+  created_by,created_at,updated_by,updated_at
+) VALUES (
+  '01Z289PRODUCTENTRY00000001','dcl','product','01Z289PRODUCT0000000000001',1,'DRAFT',1,
+  '01JAPPSYST3MACTR0000000000',now(),'01JAPPSYST3MACTR0000000000',now()
+);
+INSERT INTO dcl_product_versions(approval_entry_id,name,enabled)
+VALUES('01Z289PRODUCTENTRY00000001','issue-289 cutover fixture',true);
+INSERT INTO dcl_product_unit_conversions(
+  product_approval_entry_id,unit_object_id,unit_approval_entry_id,
+  unit_code,unit_name,unit_symbol,factor_micros
+) VALUES (
+  '01Z289PRODUCTENTRY00000001','01JAVX00000000000000000011','01JAVX00000000000000000012',
+  'UNT-0001','千克','kg',1000000
+);
+SQL
+}
+
+run_issue_289_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-289-aux-snapshots.sql
+}
+
+verify_issue_289_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN (SELECT unit_quantity_scale FROM dcl_product_unit_conversions WHERE product_approval_entry_id='"'"'01Z289PRODUCTENTRY00000001'"'"')=6 AND NOT EXISTS (SELECT 1 FROM dcl_product_unit_conversions WHERE unit_quantity_scale IS NULL) THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
+run_issue_290_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-290-aux-direct-crud.sql
+}
+
+verify_issue_290_order_guard() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.aux_version_payloads'"'"') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='"'"'public'"'"' AND table_name='"'"'aux_objects'"'"' AND column_name='"'"'data'"'"') THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
+verify_issue_290_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.aux_version_payloads'"'"') IS NULL AND NOT EXISTS (SELECT 1 FROM approval_entries WHERE domain='"'"'aux'"'"') AND NOT EXISTS (SELECT 1 FROM dcl_customer_account_versions WHERE length(customer_type)<>26 OR customer_type_code='"'"''"'"' OR customer_type_name='"'"''"'"') AND NOT EXISTS (SELECT 1 FROM aux_objects WHERE entity='"'"'dictionary-item'"'"' AND (length(data->>'"'"'dictionaryTypeId'"'"')<>26 OR COALESCE(data->>'"'"'dictionaryTypeCode'"'"','"'"''"'"')='"'"''"'"' OR COALESCE(data->>'"'"'dictionaryTypeName'"'"','"'"''"'"')='"'"''"'"')) THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 wait_for_packages() {
 	local failed=0
 	local index exit_code status
@@ -169,6 +234,45 @@ trap 'exit 143' TERM
 
 mkdir -p "$work_root"
 "${compose[@]}" up -d --wait db
+
+cutover_database="$(database_name "_issues_289_290_cutover_${run_id}_test")"
+clone_databases+=("$cutover_database")
+recreate_database "$cutover_database"
+initialize_pre_cutover_schema "$cutover_database"
+seed_issue_289_snapshot_fixture "$cutover_database"
+if run_issue_290_cutover "$cutover_database" >/dev/null 2>&1; then
+	fail "issue-290 cutover accepted execution before issue-289"
+fi
+verify_issue_290_order_guard "$cutover_database"
+
+recreate_database "$cutover_database"
+initialize_pre_cutover_schema "$cutover_database"
+seed_issue_289_snapshot_fixture "$cutover_database"
+run_issue_289_cutover "$cutover_database"
+verify_issue_289_cutover "$cutover_database"
+run_issue_290_cutover "$cutover_database"
+verify_issue_290_cutover "$cutover_database"
+
+recreate_database "$cutover_database"
+initialize_pre_cutover_schema "$cutover_database"
+seed_issue_289_snapshot_fixture "$cutover_database"
+"${compose[@]}" exec -T -e TARGET_DATABASE="$cutover_database" db sh -eu -c \
+	'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+	 "UPDATE aux_version_payloads SET data=data-'"'"'quantityScale'"'"' WHERE approval_entry_id='"'"'01JAVX00000000000000000012'"'"'"' </dev/null
+if run_issue_289_cutover "$cutover_database" >/dev/null 2>&1; then
+	fail "issue-289 cutover accepted an incomplete measurement-unit snapshot"
+fi
+
+recreate_database "$cutover_database"
+initialize_pre_cutover_schema "$cutover_database"
+seed_issue_289_snapshot_fixture "$cutover_database"
+run_issue_289_cutover "$cutover_database"
+"${compose[@]}" exec -T -e TARGET_DATABASE="$cutover_database" db sh -eu -c \
+	'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+	 "DELETE FROM aux_version_payloads WHERE approval_entry_id=(SELECT id FROM approval_entries WHERE domain='"'"'aux'"'"' AND status='"'"'APPROVED'"'"' LIMIT 1)"' </dev/null
+if run_issue_290_cutover "$cutover_database" >/dev/null 2>&1; then
+	fail "issue-290 cutover accepted an approved AUX entry without a payload"
+fi
 
 recreate_database "$base_database"
 initialize_schema "$base_database"

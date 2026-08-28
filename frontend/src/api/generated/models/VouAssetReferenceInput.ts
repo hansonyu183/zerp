@@ -4,5 +4,4 @@
 /* eslint-disable */
 export type VouAssetReferenceInput = {
   objectId: string;
-  approvalEntryId: string;
 };

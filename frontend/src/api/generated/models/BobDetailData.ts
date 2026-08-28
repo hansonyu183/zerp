@@ -5,7 +5,7 @@
 import type { BobProductFormulaInput } from './BobProductFormulaInput';
 import type { BobProductUnitConversionInput } from './BobProductUnitConversionInput';
 import type { VehicleCarrierAffiliation } from './VehicleCarrierAffiliation';
-export type data = {
+export type BobDetailData = {
   name?: string | null;
   unit?: string | null;
   currency?: string | null;
@@ -16,6 +16,8 @@ export type data = {
   bulkLiquidCapable?: boolean | null;
   shortName?: string | null;
   categoryId?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
   taxNumber?: string | null;
   contactName?: string | null;
   contactPhone?: string | null;
@@ -23,7 +25,11 @@ export type data = {
   address?: string | null;
   remark?: string | null;
   departmentId?: string | null;
+  departmentCode?: string | null;
+  departmentName?: string | null;
   positionId?: string | null;
+  positionCode?: string | null;
+  positionName?: string | null;
   phone?: string | null;
   hireDate?: string | null;
   specification?: string | null;
@@ -39,12 +45,22 @@ export type data = {
   bankBranch?: string | null;
   accountNumber?: string | null;
   operatingEntityId?: string;
+  operatingEntityCode?: string | null;
+  operatingEntityName?: string | null;
   settlementMethodId?: string | null;
+  settlementMethodCode?: string | null;
+  settlementMethodName?: string | null;
   termCode?: string | null;
   defaultSalesSurcharge?: string | null;
   salespersonEmployeeId?: string | null;
+  defaultPurchaserEmployeeId?: string | null;
+  defaultPurchaserCode?: string | null;
+  defaultPurchaserName?: string | null;
   productTypeId?: string | null;
   defaultInputUnitId?: string | null;
+  defaultInputUnitCode?: string | null;
+  defaultInputUnitName?: string | null;
+  vehicleTypeName?: string | null;
   inventoryUnitId?: string | null;
   pricingUnitId?: string | null;
   unitConversions?: Array<BobProductUnitConversionInput> | null;

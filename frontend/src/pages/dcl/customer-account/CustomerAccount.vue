@@ -38,7 +38,7 @@ const columns: readonly BusinessObjectColumn<DclCustomerAccountListItem>[] = [
   {
     key: 'type',
     label: '客户类型',
-    value: (row) => customerAccountActiveVersion(row).data.customerTypeCode,
+    value: (row) => customerAccountActiveVersion(row).data.customerType.name,
   },
   {
     key: 'status',
@@ -200,7 +200,7 @@ void vm.query()
           <v-list-item title="账户名称" :subtitle="vm.currentView.data.name" />
           <v-list-item
             title="客户类型"
-            :subtitle="vm.currentView.data.customerTypeCode"
+            :subtitle="`${vm.currentView.data.customerType.code} · ${vm.currentView.data.customerType.name}`"
           />
           <v-list-item
             title="联系人"

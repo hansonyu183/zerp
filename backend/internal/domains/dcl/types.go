@@ -62,20 +62,19 @@ type CustomerMutation struct {
 // Relationship declarations own mutable commercial data. The Party and
 // operating-entity pair is reserved once in BOB and cannot change on save.
 type OtherUnitData struct {
-	ContactName                     string `json:"contactName,omitempty"`
-	ContactPhone                    string `json:"contactPhone,omitempty"`
-	Email                           string `json:"email,omitempty"`
-	Address                         string `json:"address,omitempty"`
-	SettlementMethodID              string `json:"settlementMethodId,omitempty"`
-	SettlementMethodApprovalEntryID string `json:"settlementMethodApprovalEntryId,omitempty"`
-	SettlementMethodCode            string `json:"settlementMethodCode,omitempty"`
-	SettlementMethodName            string `json:"settlementMethodName,omitempty"`
-	SettlementTermCode              string `json:"settlementTermCode,omitempty"`
-	SettlementRuleType              string `json:"settlementRuleType,omitempty"`
-	SettlementMonthOffset           int32  `json:"settlementMonthOffset,omitempty"`
-	SettlementDayOfMonth            int32  `json:"settlementDayOfMonth,omitempty"`
-	SettlementDayOffset             int32  `json:"settlementDayOffset,omitempty"`
-	Remark                          string `json:"remark,omitempty"`
+	ContactName           string `json:"contactName,omitempty"`
+	ContactPhone          string `json:"contactPhone,omitempty"`
+	Email                 string `json:"email,omitempty"`
+	Address               string `json:"address,omitempty"`
+	SettlementMethodID    string `json:"settlementMethodId,omitempty"`
+	SettlementMethodCode  string `json:"settlementMethodCode,omitempty"`
+	SettlementMethodName  string `json:"settlementMethodName,omitempty"`
+	SettlementTermCode    string `json:"settlementTermCode,omitempty"`
+	SettlementRuleType    string `json:"settlementRuleType,omitempty"`
+	SettlementMonthOffset int32  `json:"settlementMonthOffset,omitempty"`
+	SettlementDayOfMonth  int32  `json:"settlementDayOfMonth,omitempty"`
+	SettlementDayOffset   int32  `json:"settlementDayOffset,omitempty"`
+	Remark                string `json:"remark,omitempty"`
 }
 type SalesPartnerData struct {
 	Capabilities []string `json:"capabilities"`
@@ -102,7 +101,6 @@ type SupplierData struct {
 	// Stable selection IDs are the input surface; nested fields are the exact
 	// snapshots returned after resolution.
 	SettlementMethodID              string `json:"settlementMethodId,omitempty"`
-	SettlementMethodApprovalEntryID string `json:"-"`
 	SettlementMethodCode            string `json:"-"`
 	SettlementMethodName            string `json:"-"`
 	SettlementTermCode              string `json:"-"`
@@ -116,15 +114,14 @@ type SupplierData struct {
 	DefaultPurchaserName            string `json:"-"`
 }
 type SupplierSettlementMethodSnapshot struct {
-	SourceObjectID  string `json:"sourceObjectId"`
-	ApprovalEntryID string `json:"approvalEntryId"`
-	Code            string `json:"code"`
-	Name            string `json:"name"`
-	TermCode        string `json:"termCode"`
-	RuleType        string `json:"ruleType"`
-	MonthOffset     int32  `json:"monthOffset"`
-	DayOfMonth      int32  `json:"dayOfMonth"`
-	DayOffset       int32  `json:"dayOffset"`
+	SourceObjectID string `json:"sourceObjectId"`
+	Code           string `json:"code"`
+	Name           string `json:"name"`
+	TermCode       string `json:"termCode"`
+	RuleType       string `json:"ruleType"`
+	MonthOffset    int32  `json:"monthOffset"`
+	DayOfMonth     int32  `json:"dayOfMonth"`
+	DayOffset      int32  `json:"dayOffset"`
 }
 type SupplierEmployeeSnapshot struct {
 	SourceObjectID  string `json:"sourceObjectId"`
@@ -343,22 +340,19 @@ type EmployeeInput struct {
 }
 
 type EmployeeData struct {
-	EmployeeCategoryID              string `json:"employeeCategoryId,omitempty"`
-	EmployeeCategoryApprovalEntryID string `json:"employeeCategoryApprovalEntryId,omitempty"`
-	EmployeeCategoryCode            string `json:"employeeCategoryCode,omitempty"`
-	EmployeeCategoryName            string `json:"employeeCategoryName,omitempty"`
-	DepartmentID                    string `json:"departmentId,omitempty"`
-	DepartmentApprovalEntryID       string `json:"departmentApprovalEntryId,omitempty"`
-	DepartmentCode                  string `json:"departmentCode,omitempty"`
-	DepartmentName                  string `json:"departmentName,omitempty"`
-	PositionID                      string `json:"positionId,omitempty"`
-	PositionApprovalEntryID         string `json:"positionApprovalEntryId,omitempty"`
-	PositionCode                    string `json:"positionCode,omitempty"`
-	PositionName                    string `json:"positionName,omitempty"`
-	Phone                           string `json:"phone,omitempty"`
-	Email                           string `json:"email,omitempty"`
-	HireDate                        string `json:"hireDate,omitempty"`
-	Remark                          string `json:"remark,omitempty"`
+	EmployeeCategoryID   string `json:"employeeCategoryId,omitempty"`
+	EmployeeCategoryCode string `json:"employeeCategoryCode,omitempty"`
+	EmployeeCategoryName string `json:"employeeCategoryName,omitempty"`
+	DepartmentID         string `json:"departmentId,omitempty"`
+	DepartmentCode       string `json:"departmentCode,omitempty"`
+	DepartmentName       string `json:"departmentName,omitempty"`
+	PositionID           string `json:"positionId,omitempty"`
+	PositionCode         string `json:"positionCode,omitempty"`
+	PositionName         string `json:"positionName,omitempty"`
+	Phone                string `json:"phone,omitempty"`
+	Email                string `json:"email,omitempty"`
+	HireDate             string `json:"hireDate,omitempty"`
+	Remark               string `json:"remark,omitempty"`
 }
 
 type EmployeeCreateInput struct {
@@ -524,28 +518,24 @@ type ProductInput struct {
 // stable identity/current projection, while DCL exposes no unrelated BOB
 // DetailView fields such as bulkLiquidCapable.
 type ProductData struct {
-	Name                            string                            `json:"name"`
-	CategoryID                      string                            `json:"categoryId"`
-	CategoryApprovalEntryID         string                            `json:"categoryApprovalEntryId"`
-	CategoryCode                    string                            `json:"categoryCode"`
-	CategoryName                    string                            `json:"categoryName"`
-	Specification                   string                            `json:"specification"`
-	Model                           string                            `json:"model"`
-	Barcode                         string                            `json:"barcode"`
-	Remark                          string                            `json:"remark"`
-	ProductTypeID                   string                            `json:"productTypeId"`
-	ProductTypeApprovalEntryID      string                            `json:"productTypeApprovalEntryId"`
-	ProductTypeCode                 string                            `json:"productTypeCode"`
-	ProductTypeName                 string                            `json:"productTypeName"`
-	BehaviorProfile                 string                            `json:"behaviorProfile"`
-	DefaultInputUnitID              string                            `json:"defaultInputUnitId"`
-	DefaultInputUnitApprovalEntryID string                            `json:"defaultInputUnitApprovalEntryId"`
-	PricingUnitID                   string                            `json:"pricingUnitId"`
-	PricingUnitApprovalEntryID      string                            `json:"pricingUnitApprovalEntryId"`
-	UnitConversions                 []bobdomain.ProductUnitConversion `json:"unitConversions"`
-	Returnable                      bool                              `json:"returnable"`
-	DefaultPackagingSpec            string                            `json:"defaultPackagingSpec"`
-	Formula                         *bobdomain.ProductFormula         `json:"formula"`
+	Name                 string                            `json:"name"`
+	CategoryID           string                            `json:"categoryId"`
+	CategoryCode         string                            `json:"categoryCode"`
+	CategoryName         string                            `json:"categoryName"`
+	Specification        string                            `json:"specification"`
+	Model                string                            `json:"model"`
+	Barcode              string                            `json:"barcode"`
+	Remark               string                            `json:"remark"`
+	ProductTypeID        string                            `json:"productTypeId"`
+	ProductTypeCode      string                            `json:"productTypeCode"`
+	ProductTypeName      string                            `json:"productTypeName"`
+	BehaviorProfile      string                            `json:"behaviorProfile"`
+	DefaultInputUnitID   string                            `json:"defaultInputUnitId"`
+	PricingUnitID        string                            `json:"pricingUnitId"`
+	UnitConversions      []bobdomain.ProductUnitConversion `json:"unitConversions"`
+	Returnable           bool                              `json:"returnable"`
+	DefaultPackagingSpec string                            `json:"defaultPackagingSpec"`
+	Formula              *bobdomain.ProductFormula         `json:"formula"`
 }
 type ProductCreateInput struct {
 	Data ProductInput `json:"data"`

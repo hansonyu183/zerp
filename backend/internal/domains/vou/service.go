@@ -23,8 +23,7 @@ type effectiveReferenceResolver interface {
 }
 
 type auxiliaryReferenceResolver interface {
-	ResolveLatestApprovedAuxiliaryReference(context.Context, pgx.Tx, string, string) (bobdomain.AuxiliaryReference, error)
-	ValidateApprovedAuxiliarySnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.AuxiliaryReference, error)
+	ResolveCurrentAuxiliaryReference(context.Context, pgx.Tx, string, string) (bobdomain.AuxiliaryReference, error)
 }
 
 // AccountingControl is the narrow business-control view exposed by ACC to VOU.

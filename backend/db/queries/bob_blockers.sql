@@ -2,17 +2,7 @@
 -- payload of each referencing object is a current formal reference; each row
 -- is matched by the immutable snapshot entry rather than the stable object.
 -- name: ListBobApprovalEntryReferenceCounts :many
-WITH current_bob_entries AS (
-    SELECT entry.id
-    FROM approval_entries entry
-    WHERE entry.domain='bob' AND entry.status='APPROVED'
-      AND NOT EXISTS (
-          SELECT 1 FROM approval_entries newer
-          WHERE newer.domain=entry.domain AND newer.entity=entry.entity
-            AND newer.subject_id=entry.subject_id AND newer.status='APPROVED'
-            AND newer.version_no>entry.version_no
-      )
-), snapshot_references(entity, field, entry_id) AS (
+WITH snapshot_references(entity, field, entry_id) AS (
     SELECT 'customer-account','customer-operating',payload.operating_entity_approval_entry_id
     FROM dcl_customer_account_versions payload
     JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
@@ -59,7 +49,7 @@ ORDER BY entity,field;
 -- name: ListVouApprovalEntryReferenceCounts :many
 WITH snapshot_references(entity, field, entry_id) AS (
     SELECT 'vou_asset_acquisition_details','snapshot',unnest(ARRAY[supplier_approval_entry_id]) FROM vou_asset_acquisition_details
-    UNION ALL SELECT 'vou_asset_acquisition_lines','snapshot',unnest(ARRAY[category_approval_entry_id,department_approval_entry_id,custodian_approval_entry_id]) FROM vou_asset_acquisition_lines
+    UNION ALL SELECT 'vou_asset_acquisition_lines','snapshot',unnest(ARRAY[custodian_approval_entry_id]) FROM vou_asset_acquisition_lines
     UNION ALL SELECT 'vou_asset_sale_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id]) FROM vou_asset_sale_details
     UNION ALL SELECT 'vou_bill_cash_lines','snapshot',unnest(ARRAY[fund_account_approval_entry_id]) FROM vou_bill_cash_lines
     UNION ALL SELECT 'vou_bill_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id,handler_approval_entry_id,interest_party_approval_entry_id]) FROM vou_bill_details
@@ -68,32 +58,31 @@ WITH snapshot_references(entity, field, entry_id) AS (
     UNION ALL SELECT 'vou_expense_reimbursement_details','snapshot',unnest(ARRAY[employee_approval_entry_id]) FROM vou_expense_reimbursement_details
     UNION ALL SELECT 'vou_intermediary_calculation_summaries','snapshot',unnest(ARRAY[payee_approval_entry_id]) FROM vou_intermediary_calculation_summaries
     UNION ALL SELECT 'vou_inventory_count_details','snapshot',unnest(ARRAY[warehouse_approval_entry_id]) FROM vou_inventory_count_details
-    UNION ALL SELECT 'vou_inventory_count_lines','snapshot',unnest(ARRAY[product_approval_entry_id,entered_unit_approval_entry_id]) FROM vou_inventory_count_lines
+    UNION ALL SELECT 'vou_inventory_count_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_inventory_count_lines
     UNION ALL SELECT 'vou_other_income_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id,fund_account_approval_entry_id,handler_approval_entry_id]) FROM vou_other_income_details
     UNION ALL SELECT 'vou_payment_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id,fund_account_approval_entry_id,handler_approval_entry_id]) FROM vou_payment_details
-    UNION ALL SELECT 'vou_price_lines','snapshot',unnest(ARRAY[product_approval_entry_id,product_type_approval_entry_id]) FROM vou_price_lines
-    UNION ALL SELECT 'vou_product_lines','snapshot',unnest(ARRAY[product_approval_entry_id,entered_unit_approval_entry_id,product_type_approval_entry_id]) FROM vou_product_lines
+    UNION ALL SELECT 'vou_price_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_price_lines
+    UNION ALL SELECT 'vou_product_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_product_lines
     UNION ALL SELECT 'vou_production_details','snapshot',unnest(ARRAY[material_warehouse_approval_entry_id,finished_warehouse_approval_entry_id]) FROM vou_production_details
-    UNION ALL SELECT 'vou_production_material_lines','snapshot',unnest(ARRAY[formula_material_approval_entry_id,actual_material_approval_entry_id,actual_entered_unit_approval_entry_id]) FROM vou_production_material_lines
-    UNION ALL SELECT 'vou_production_output_lines','snapshot',unnest(ARRAY[product_approval_entry_id,entered_unit_approval_entry_id]) FROM vou_production_output_lines
+    UNION ALL SELECT 'vou_production_material_lines','snapshot',unnest(ARRAY[formula_material_approval_entry_id,actual_material_approval_entry_id]) FROM vou_production_material_lines
+    UNION ALL SELECT 'vou_production_output_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_production_output_lines
     UNION ALL SELECT 'vou_purchase_inbound_details','snapshot',unnest(ARRAY[supplier_approval_entry_id,warehouse_approval_entry_id]) FROM vou_purchase_inbound_details
     UNION ALL SELECT 'vou_purchase_inbound_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_purchase_inbound_lines
     UNION ALL SELECT 'vou_purchase_inquiry_details','snapshot',unnest(ARRAY[supplier_approval_entry_id]) FROM vou_purchase_inquiry_details
-    UNION ALL SELECT 'vou_purchase_order_details','snapshot',unnest(ARRAY[supplier_approval_entry_id,purchaser_approval_entry_id,warehouse_approval_entry_id,settlement_method_approval_entry_id]) FROM vou_purchase_order_details
+    UNION ALL SELECT 'vou_purchase_order_details','snapshot',unnest(ARRAY[supplier_approval_entry_id,purchaser_approval_entry_id,warehouse_approval_entry_id]) FROM vou_purchase_order_details
     UNION ALL SELECT 'vou_purchase_return_details','snapshot',unnest(ARRAY[supplier_approval_entry_id,warehouse_approval_entry_id]) FROM vou_purchase_return_details
     UNION ALL SELECT 'vou_purchase_return_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_purchase_return_lines
     UNION ALL SELECT 'vou_receipt_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id,fund_account_approval_entry_id,handler_approval_entry_id]) FROM vou_receipt_details
     UNION ALL SELECT 'vou_sale_delivery_details','snapshot',unnest(ARRAY[customer_approval_entry_id,carrier_service_relationship_approval_entry_id,vehicle_approval_entry_id,carrier_operating_entity_approval_entry_id]) FROM vou_sale_delivery_details
-    UNION ALL SELECT 'vou_sale_order_details','snapshot',unnest(ARRAY[customer_approval_entry_id,salesperson_approval_entry_id,settlement_method_approval_entry_id,warehouse_approval_entry_id,sales_attribution_subject_approval_entry_id]) FROM vou_sale_order_details
-    UNION ALL SELECT 'vou_sale_order_formula_lines','snapshot',unnest(ARRAY[material_approval_entry_id,entered_unit_approval_entry_id]) FROM vou_sale_order_formula_lines
-    UNION ALL SELECT 'vou_sale_order_formulas','snapshot',unnest(ARRAY[output_entered_unit_approval_entry_id]) FROM vou_sale_order_formulas
+    UNION ALL SELECT 'vou_sale_order_details','snapshot',unnest(ARRAY[customer_approval_entry_id,salesperson_approval_entry_id,warehouse_approval_entry_id,sales_attribution_subject_approval_entry_id]) FROM vou_sale_order_details
+    UNION ALL SELECT 'vou_sale_order_formula_lines','snapshot',unnest(ARRAY[material_approval_entry_id]) FROM vou_sale_order_formula_lines
     UNION ALL SELECT 'vou_sale_outbound_details','snapshot',unnest(ARRAY[customer_approval_entry_id,warehouse_approval_entry_id]) FROM vou_sale_outbound_details
     UNION ALL SELECT 'vou_sale_outbound_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_sale_outbound_lines
     UNION ALL SELECT 'vou_sale_return_details','snapshot',unnest(ARRAY[customer_approval_entry_id,warehouse_approval_entry_id]) FROM vou_sale_return_details
     UNION ALL SELECT 'vou_sale_return_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_sale_return_lines
     UNION ALL SELECT 'vou_sale_signoff_details','snapshot',unnest(ARRAY[customer_approval_entry_id,warehouse_approval_entry_id]) FROM vou_sale_signoff_details
     UNION ALL SELECT 'vou_sale_signoff_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_sale_signoff_lines
-    UNION ALL SELECT 'vou_service_contract_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id,operating_entity_approval_entry_id,handler_approval_entry_id,settlement_method_approval_entry_id]) FROM vou_service_contract_details
+    UNION ALL SELECT 'vou_service_contract_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id,operating_entity_approval_entry_id,handler_approval_entry_id]) FROM vou_service_contract_details
 )
 SELECT entity::text, field::text, count(*)::bigint AS reference_count
 FROM snapshot_references

@@ -109,7 +109,7 @@ func (s *ProductService) Get(ctx context.Context, input ProductGetInput, actor a
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
-	stored, err := bobdomain.LoadProductSnapshot(ctx, s.queries.WithTx(tx), id)
+	stored, err := bobdomain.LoadDCLProductSnapshot(ctx, s.queries.WithTx(tx), id)
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
@@ -186,7 +186,7 @@ func (s *ProductService) loadVersionViewFromEntry(ctx context.Context, q *dbsqlc
 	if e.SubjectID != objectID {
 		return ProductVersionView{}, newError(ErrorValidation, "validation_failed", "declaration version does not belong to subject", nil, nil)
 	}
-	r, err := bobdomain.LoadProductSnapshot(ctx, q, e.ID)
+	r, err := bobdomain.LoadDCLProductSnapshot(ctx, q, e.ID)
 	if err != nil {
 		return ProductVersionView{}, translateError(err)
 	}

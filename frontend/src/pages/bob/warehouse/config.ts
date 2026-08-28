@@ -5,7 +5,6 @@ import {
   text,
   textarea,
 } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const warehouseConfig = defineBobEntityConfig({
   entity: 'warehouse',
@@ -14,7 +13,7 @@ export const warehouseConfig = defineBobEntityConfig({
   nameLabel: '仓库名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     address: '',
     contactName: '',
     contactPhone: '',
@@ -24,7 +23,7 @@ export const warehouseConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -43,30 +42,30 @@ export const warehouseConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '名称',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'managerEmployeeId',
       label: '仓库负责人',
       value: (row) =>
-        bobListActiveVersion(row).summary.managerEmployeeId || '—',
+        row.data.managerEmployeeId || '—',
     },
     {
       key: 'address',
       label: '地址',
-      value: (row) => bobListActiveVersion(row).summary.address,
+      value: (row) => row.data.address,
     },
     {
       key: 'contactName',
       label: '联系人',
-      value: (row) => bobListActiveVersion(row).summary.contactName,
+      value: (row) => row.data.contactName,
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

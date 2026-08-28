@@ -3,7 +3,7 @@
 ## 页面范围
 
 - 路由：`/home/dashboard`
-- 领域规则：[APP 工作台待办](../../domains/app.md#工作台待办)、[BOB 生命周期](../../domains/bob.md#4-生命周期状态机) 与 [VOU 生命周期](../../domains/vou.md#22-生命周期)
+- 领域规则：[APP 工作台待办](../../domains/app.md#工作台待办)、[DCL 原子性与引用](../../domains/dcl.md#4-原子性与引用) 与 [VOU 生命周期](../../domains/vou.md#22-生命周期)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [APP Schema](../../../contracts/openapi/schemas/app.yaml)
 - 全站筛选和行操作规范：[前端工程约束](../../../frontend/AGENTS.md)
 
@@ -50,7 +50,7 @@
 
 ### 后端协作与结果
 
-动作状态、并发和事务规则分别以 [BOB 生命周期](../../domains/bob.md#4-生命周期状态机) 与 [VOU 生命周期](../../domains/vou.md#22-生命周期)为准。页面不自动重放冲突动作。
+资料动作状态、并发和事务规则以 [DCL 领域](../../domains/dcl.md) 为准，单据动作以 [VOU 生命周期](../../domains/vou.md#22-生命周期)为准。工作台不调用 BOB lifecycle，也不自动重放冲突动作。
 
 ## 验收场景
 
@@ -66,3 +66,4 @@
 - 同时可查看和编辑时只显示“编辑”，只有不可编辑时才显示“查看”；
 - 提交、核对和批准直接执行；驳回、撤回提交要求填写内容；反核对要求确认但不要求原因；
 - 状态或 revision 冲突后刷新列表且不自动重试，用户基于最新状态重新操作。
+- 待办资料的 `domain` 固定为 `dcl`，查看、编辑和所有动作深链到对应 `/dcl/{entity}`；BOB 只读 current 不进入待办。

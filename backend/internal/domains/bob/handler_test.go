@@ -14,7 +14,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/middleware"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type serviceStub struct {
@@ -39,66 +38,6 @@ func (s *serviceStub) Get(_ context.Context, entity string, _ GetInput) (ObjectV
 	return ObjectView{}, nil
 }
 
-func (s *serviceStub) Create(_ context.Context, entity string, _ CreateInput, _ approval.Actor) (MutationResult, error) {
-	s.record("create", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Unsubmit(_ context.Context, entity string, _ ReverseInput, _ approval.Actor) (MutationResult, error) {
-	s.record("unsubmit", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Save(_ context.Context, entity string, _ SaveInput, _ approval.Actor) (MutationResult, error) {
-	s.record("save", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Delete(_ context.Context, entity string, _ DeleteInput, _ approval.Actor) error {
-	s.record("delete", entity)
-	return nil
-}
-
-func (s *serviceStub) Submit(_ context.Context, entity string, _ VersionRevisionInput, _ approval.Actor) (MutationResult, error) {
-	s.record("submit", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Approve(_ context.Context, entity string, _ ReviewInput, _ approval.Actor) (MutationResult, error) {
-	s.record("approve", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Unapprove(_ context.Context, entity string, _ ReverseInput, _ approval.Actor) (MutationResult, error) {
-	s.record("unapprove", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Reject(_ context.Context, entity string, _ ReviewInput, _ approval.Actor) (MutationResult, error) {
-	s.record("reject", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Enable(_ context.Context, entity string, _ ObjectRevisionInput, _ approval.Actor) (MutationResult, error) {
-	s.record("enable", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Disable(_ context.Context, entity string, _ ObjectRevisionInput, _ approval.Actor) (MutationResult, error) {
-	s.record("disable", entity)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) Versions(_ context.Context, entity string, _ HistoryInput) (Page[VersionHistoryItem], error) {
-	s.record("versions", entity)
-	return Page[VersionHistoryItem]{Items: []VersionHistoryItem{}}, nil
-}
-
-func (s *serviceStub) AuditHistory(_ context.Context, entity string, _ HistoryInput) (Page[AuditEventView], error) {
-	s.record("audit-history", entity)
-	return Page[AuditEventView]{Items: []AuditEventView{}}, nil
-}
-
 func (s *serviceStub) CustomerCurrentQuery(_ context.Context, input CustomerCurrentQueryInput) (Page[CustomerCurrentListItem], error) {
 	s.record("query", EntityCustomer)
 	return Page[CustomerCurrentListItem]{Items: []CustomerCurrentListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
@@ -117,16 +56,6 @@ func (s *serviceStub) CustomerAccountCurrentQuery(_ context.Context, input Custo
 func (s *serviceStub) CustomerAccountCurrentGet(_ context.Context, _ string) (CustomerAccountCurrentView, error) {
 	s.record("get", EntityCustomerAccount)
 	return CustomerAccountCurrentView{}, nil
-}
-
-func (s *serviceStub) SupplierQuery(_ context.Context, input QueryInput) (Page[SupplierListItem], error) {
-	s.record("query", EntitySupplier)
-	return Page[SupplierListItem]{Items: []SupplierListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
-}
-
-func (s *serviceStub) SupplierGet(_ context.Context, _ GetInput) (SupplierDetailView, error) {
-	s.record("get", EntitySupplier)
-	return SupplierDetailView{}, nil
 }
 
 func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQueryInput) ([]ReferenceCandidate, error) {
@@ -311,6 +240,72 @@ func TestHandlerDoesNotRegisterCustomerWritePaths(t *testing.T) {
 		router.ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusNotFound {
 			t.Fatalf("%s status=%d, want 404", path, recorder.Code)
+		}
+	}
+}
+
+func TestCurrentObjectViewExposesDCLSource(t *testing.T) {
+	view := ObjectView{
+		SourceApprovalEntryID: "01J00000000000000000000010",
+		SourceVersionNo:       7,
+	}
+	payload, err := json.Marshal(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields["sourceApprovalEntryId"] != "01J00000000000000000000010" {
+		t.Fatalf("sourceApprovalEntryId = %#v", fields["sourceApprovalEntryId"])
+	}
+	if fields["sourceVersionNo"] != float64(7) {
+		t.Fatalf("sourceVersionNo = %#v", fields["sourceVersionNo"])
+	}
+}
+
+func TestCurrentQueryItemExposesDCLSourceInsteadOfApprovalSummary(t *testing.T) {
+	item := QueryItem{
+		SourceApprovalEntryID: "01J00000000000000000000010",
+		SourceVersionNo:       7,
+	}
+	payload, err := json.Marshal(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields["sourceApprovalEntryId"] != "01J00000000000000000000010" || fields["sourceVersionNo"] != float64(7) {
+		t.Fatalf("current source = %#v", fields)
+	}
+	if _, exists := fields["latestApproved"]; exists {
+		t.Fatalf("legacy approval summary is public: %#v", fields)
+	}
+}
+
+func TestPartyCurrentResponsesExposeDCLSource(t *testing.T) {
+	values := []any{
+		PartyListItem{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
+		PartyView{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
+		PartyRelationshipCard{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
+	}
+	for _, value := range values {
+		payload, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]any
+		if err = json.Unmarshal(payload, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if fields["sourceApprovalEntryId"] != "01J00000000000000000000010" || fields["sourceVersionNo"] != float64(7) {
+			t.Fatalf("Party current source = %#v", fields)
+		}
+		if _, exists := fields["approval"]; exists {
+			t.Fatalf("legacy approval metadata is public: %#v", fields)
 		}
 	}
 }

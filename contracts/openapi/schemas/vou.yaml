@@ -1425,13 +1425,9 @@
                   'settlementMethod':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'approvalEntryId'],
+                      'required': ['objectId'],
                       'additionalProperties': false,
-                      'properties':
-                        {
-                          'objectId': { 'type': 'string' },
-                          'approvalEntryId': { 'type': 'string' },
-                        },
+                      'properties': { 'objectId': { 'type': 'string' } },
                     },
                   'employee':
                     {
@@ -1832,13 +1828,9 @@
                   'settlementMethod':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'approvalEntryId'],
+                      'required': ['objectId'],
                       'additionalProperties': false,
-                      'properties':
-                        {
-                          'objectId': { 'type': 'string' },
-                          'approvalEntryId': { 'type': 'string' },
-                        },
+                      'properties': { 'objectId': { 'type': 'string' } },
                     },
                   'employee':
                     {
@@ -2309,6 +2301,13 @@
   'VouAssetReferenceInput':
     {
       'type': 'object',
+      'required': ['objectId'],
+      'additionalProperties': false,
+      'properties': { 'objectId': { 'type': 'string' } },
+    },
+  'VouVersionedReferenceInput':
+    {
+      'type': 'object',
       'required': ['objectId', 'approvalEntryId'],
       'additionalProperties': false,
       'properties':
@@ -2332,6 +2331,11 @@
       'additionalProperties': false,
       'properties':
         {
+          'lineId':
+            {
+              'type': 'string',
+              'description': 'Existing draft line ID; omit for a new line.',
+            },
           'assetName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'specification': { 'type': 'string', 'maxLength': 200 },
           'category': { '$ref': '#/VouAssetReferenceInput' },
@@ -2340,7 +2344,7 @@
             { 'type': 'integer', 'minimum': 1, 'maximum': 1200 },
           'residualRate': { 'type': 'string' },
           'department': { '$ref': '#/VouAssetReferenceInput' },
-          'custodian': { '$ref': '#/VouAssetReferenceInput' },
+          'custodian': { '$ref': '#/VouVersionedReferenceInput' },
           'location': { 'type': 'string', 'maxLength': 200 },
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
@@ -2590,7 +2594,6 @@
                 [RAW_MATERIAL, STANDARD_FINISHED, CUSTOM_FINISHED, PACKAGING],
             },
           'productTypeObjectId': { 'type': 'string' },
-          'productTypeApprovalEntryId': { 'type': 'string' },
           'productTypeCode': { 'type': 'string' },
           'productTypeName': { 'type': 'string' },
           'defaultInputUnitId': { 'type': 'string' },
@@ -2614,11 +2617,10 @@
   'VouUnitSnapshotView':
     {
       'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'code', 'name', 'symbol'],
+      'required': ['objectId', 'code', 'name', 'symbol'],
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'symbol': { 'type': 'string' },
@@ -2878,8 +2880,10 @@
           'assetNo': { 'type': 'string' },
           'assetName': { 'type': 'string' },
           'specification': { 'type': 'string' },
-          'category': { '$ref': '#/VouReferenceView' },
-          'department': { '$ref': '#/VouReferenceView' },
+          'category': { '$ref': '#/VouAuxiliaryReferenceView' },
+          'categoryDefaultUsefulLifeMonths': { 'type': 'integer' },
+          'categoryDefaultResidualRate': { 'type': 'string' },
+          'department': { '$ref': '#/VouAuxiliaryReferenceView' },
           'custodian': { '$ref': '#/VouReferenceView' },
           'originalValue': { 'type': 'string' },
           'usefulLifeMonths': { 'type': 'integer' },
@@ -2894,23 +2898,26 @@
           'remark': { 'type': 'string' },
         },
     },
-  'VouSettlementMethodSnapshotView':
+  'VouAuxiliaryReferenceView':
     {
       'type': 'object',
-      'required':
-        [
-          objectId,
-          approvalEntryId,
-          code,
-          name,
-          ruleType,
-          monthOffset,
-          dayOffset,
-        ],
+      'required': ['objectId', 'entity', 'code', 'name'],
+      'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
+          'entity': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+        },
+    },
+  'VouSettlementMethodSnapshotView':
+    {
+      'type': 'object',
+      'required': [objectId, code, name, ruleType, monthOffset, dayOffset],
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'ruleType':

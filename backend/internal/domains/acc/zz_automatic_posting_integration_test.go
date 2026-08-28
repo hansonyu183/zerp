@@ -34,9 +34,8 @@ func trustedAccountingActor(t *testing.T, requestID string) approval.Actor {
 }
 
 func newAccountingIntegrationBOBService(pool *pgxpool.Pool, bus *txevent.Bus) *bobdomain.Service {
-	authorizer := authorization.Func(nil)
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 }
 
 func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput) voudomain.ReferenceInput {
@@ -92,19 +91,8 @@ func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service,
 		}
 		return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 	}
-	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, trustedAccountingActor(t, "acc-posting-reference-create"))
-	if err != nil {
-		t.Fatalf("create %s reference: %v", entity, err)
-	}
-	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedAccountingActor(t, "acc-posting-reference-submit"))
-	if err != nil {
-		t.Fatalf("submit %s reference: %v", entity, err)
-	}
-	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, trustedAccountingActor(t, "acc-posting-reference-approve"))
-	if err != nil {
-		t.Fatalf("approve %s reference: %v", entity, err)
-	}
-	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	t.Fatalf("unsupported accounting reference entity %q", entity)
+	return voudomain.ReferenceInput{}
 }
 
 func createApprovedAccountingEmployee(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, bus *txevent.Bus, operatingEntityID, name, requestPrefix string) voudomain.ReferenceInput {
@@ -179,7 +167,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
-	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newAccountingIntegrationBOBService(pool, bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "自动记账经营主体"})
 	handler := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "自动记账经办人", "acc-posting-employee")
@@ -440,7 +428,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
-	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newAccountingIntegrationBOBService(pool, bus)
 	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
@@ -448,12 +436,9 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	employee := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "服务验收经办人", "service-acceptance-employee")
 	var settlementID string
 	if err = pool.QueryRow(t.Context(), `
-		SELECT object.id
-		FROM aux_objects object
-		JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity AND entry.subject_id=object.id AND entry.status='APPROVED'
-		JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
-		WHERE object.entity='settlement-method' AND object.enabled AND payload.data->>'termCode'=$1
-		ORDER BY entry.version_no DESC LIMIT 1
+		SELECT object.id FROM aux_objects object
+		WHERE object.entity='settlement-method' AND object.enabled AND object.data->>'termCode'=$1
+		ORDER BY object.code LIMIT 1
 	`, bobdomain.SettlementTermMonthly30).Scan(&settlementID); err != nil {
 		t.Fatalf("load monthly settlement method: %v", err)
 	}

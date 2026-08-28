@@ -6,10 +6,10 @@ export type PartyRelationshipCard = {
   objectId: string;
   entity: 'customer' | 'supplier' | 'employee' | 'other-unit' | 'sales-partner';
   code: string;
+  sourceApprovalEntryId: string;
+  sourceVersionNo: number;
   operatingEntityId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
   enabled: boolean;
-  status: 'DRAFT' | 'PENDING' | 'APPROVED';
-  version: number;
 };

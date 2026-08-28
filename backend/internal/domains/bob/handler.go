@@ -21,8 +21,6 @@ type applicationService interface {
 	CustomerCurrentGet(context.Context, string) (CustomerCurrentView, error)
 	CustomerAccountCurrentQuery(context.Context, CustomerAccountCurrentQueryInput) (Page[CustomerAccountCurrentListItem], error)
 	CustomerAccountCurrentGet(context.Context, string) (CustomerAccountCurrentView, error)
-	SupplierQuery(context.Context, QueryInput) (Page[SupplierListItem], error)
-	SupplierGet(context.Context, GetInput) (SupplierDetailView, error)
 	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
 }
 
@@ -144,11 +142,6 @@ func (h *Handler) query(c *gin.Context, entity string) {
 	}
 	var input QueryInput
 	if h.bind(c, &input) {
-		if entity == EntitySupplier {
-			result, err := h.service.SupplierQuery(c.Request.Context(), input)
-			h.result(c, result, err)
-			return
-		}
 		result, err := h.service.Query(c.Request.Context(), entity, input)
 		h.result(c, result, err)
 	}
@@ -158,25 +151,12 @@ func (h *Handler) get(c *gin.Context, entity string) {
 	var input GetInput
 	if h.bind(c, &input) {
 		if entity == EntityCustomer {
-			if input.ApprovalEntryID != "" {
-				h.writeError(c, domainError(ErrorValidation, "BOB customer get reads only current projection", nil, nil))
-				return
-			}
 			result, err := h.service.CustomerCurrentGet(c.Request.Context(), input.ObjectID)
 			h.result(c, result, err)
 			return
 		}
 		if entity == EntityCustomerAccount {
-			if input.ApprovalEntryID != "" {
-				h.writeError(c, domainError(ErrorValidation, "BOB customer account get reads only current projection", nil, nil))
-				return
-			}
 			result, err := h.service.CustomerAccountCurrentGet(c.Request.Context(), input.ObjectID)
-			h.result(c, result, err)
-			return
-		}
-		if entity == EntitySupplier {
-			result, err := h.service.SupplierGet(c.Request.Context(), input)
 			h.result(c, result, err)
 			return
 		}

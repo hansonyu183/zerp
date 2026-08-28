@@ -9,7 +9,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -554,7 +553,7 @@ func validateProductComplete(input DetailView) error {
 	if err := validateProductDraft(input); err != nil {
 		return err
 	}
-	if !validID(input.ProductTypeID) || !validID(input.ProductTypeApprovalEntryID) || input.ProductTypeCode == "" || input.ProductTypeName == "" || !validProductBehavior(input.BehaviorProfile) {
+	if !validID(input.ProductTypeID) || input.ProductTypeCode == "" || input.ProductTypeName == "" || !validProductBehavior(input.BehaviorProfile) {
 		return domainError(ErrorValidation, "product type is required", nil, nil)
 	}
 	if len(input.UnitConversions) == 0 || input.DefaultInputUnitID == "" || input.PricingUnitID == "" {
@@ -562,7 +561,7 @@ func validateProductComplete(input DetailView) error {
 	}
 	byUnit := make(map[string]ProductUnitConversion, len(input.UnitConversions))
 	for _, conversion := range input.UnitConversions {
-		if conversion.Unit.ApprovalEntryID == "" || conversion.Unit.Code == "" || conversion.Unit.Name == "" || conversion.Unit.Symbol == "" {
+		if !validID(conversion.Unit.ObjectID) || conversion.Unit.Code == "" || conversion.Unit.Name == "" || conversion.Unit.Symbol == "" {
 			return domainError(ErrorValidation, "unit conversion snapshot is incomplete", nil, nil)
 		}
 		byUnit[conversion.Unit.ObjectID] = conversion
@@ -697,41 +696,19 @@ func normalizeLoadCapacity(value string) string {
 	return integer + "." + fraction
 }
 
-func validCustomerType(value string) bool {
-	return value == CustomerTypeEndUser
-}
-
-func validCategoryTarget(value string) bool {
-	return slices.Contains(entities[:], value)
-}
-
 func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, error) {
 	input.Keyword = strings.TrimSpace(input.Keyword)
 	input.PartyKind = strings.ToUpper(strings.TrimSpace(input.PartyKind))
-	input.CustomerType = strings.ToUpper(strings.TrimSpace(input.CustomerType))
-	input.Currency = strings.ToUpper(strings.TrimSpace(input.Currency))
 	input.ProductTypeID = strings.TrimSpace(input.ProductTypeID)
-	input.TargetEntity = strings.ToLower(strings.TrimSpace(input.TargetEntity))
 	input.CategoryID = strings.TrimSpace(input.CategoryID)
-	input.DepartmentID = strings.TrimSpace(input.DepartmentID)
-	input.PositionID = strings.TrimSpace(input.PositionID)
-	input.SalespersonEmployeeID = strings.TrimSpace(input.SalespersonEmployeeID)
 	input.DefaultPurchaserEmployeeID = strings.TrimSpace(input.DefaultPurchaserEmployeeID)
-	input.OperatingEntityID = strings.TrimSpace(input.OperatingEntityID)
-	input.ParentID = strings.TrimSpace(input.ParentID)
-	if utf8.RuneCountInString(input.Keyword) > 128 || len(input.Status) > 5 ||
+	if utf8.RuneCountInString(input.Keyword) > 128 ||
 		(input.PartyKind != "" && input.PartyKind != PartyKindPerson && input.PartyKind != PartyKindOrganization) ||
-		(input.CustomerType != "" && !validCustomerType(input.CustomerType)) ||
-		(input.Currency != "" && !currencyPattern.MatchString(input.Currency)) ||
-		(input.ProductTypeID != "" && !validID(input.ProductTypeID)) ||
-		(input.TargetEntity != "" && !validCategoryTarget(input.TargetEntity)) ||
-		(input.ParentID != "" && input.RootOnly) {
+		(input.ProductTypeID != "" && !validID(input.ProductTypeID)) {
 		return QueryFilters{}, domainError(ErrorValidation, "invalid query filters", nil, nil)
 	}
 	for _, id := range []string{
-		input.CategoryID, input.DepartmentID, input.PositionID,
-		input.SalespersonEmployeeID, input.DefaultPurchaserEmployeeID, input.OperatingEntityID, input.ParentID,
-		input.ProductTypeID,
+		input.CategoryID, input.DefaultPurchaserEmployeeID, input.ProductTypeID,
 	} {
 		if id != "" && !validID(id) {
 			return QueryFilters{}, domainError(ErrorValidation, "invalid query reference filter", nil, nil)
@@ -743,22 +720,12 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 			accepted[field] = true
 		}
 		values := map[string]bool{
-			"kind":              input.PartyKind != "" || input.provided["kind"],
-			"merged":            input.Merged != nil || input.provided["merged"],
-			"operatingEntityId": input.OperatingEntityID != "" || input.provided["operatingEntityId"],
-			"customerType":      input.CustomerType != "" || input.provided["customerType"],
-			"categoryId":        input.CategoryID != "" || input.provided["categoryId"],
-			"departmentId":      input.DepartmentID != "" || input.provided["departmentId"],
-			"positionId":        input.PositionID != "" || input.provided["positionId"],
-			"salespersonEmployeeId": input.SalespersonEmployeeID != "" ||
-				input.provided["salespersonEmployeeId"],
+			"kind":       input.PartyKind != "" || input.provided["kind"],
+			"merged":     input.Merged != nil || input.provided["merged"],
+			"categoryId": input.CategoryID != "" || input.provided["categoryId"],
 			"defaultPurchaserEmployeeId": input.DefaultPurchaserEmployeeID != "" ||
 				input.provided["defaultPurchaserEmployeeId"],
-			"currency":      input.Currency != "" || input.provided["currency"],
 			"productTypeId": input.ProductTypeID != "" || input.provided["productTypeId"],
-			"targetEntity":  input.TargetEntity != "" || input.provided["targetEntity"],
-			"parentId":      input.ParentID != "" || input.provided["parentId"],
-			"rootOnly":      input.RootOnly || input.provided["rootOnly"],
 		}
 		for field, present := range values {
 			if present && !accepted[field] {
@@ -769,20 +736,14 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	}
 	var unexpected bool
 	switch entity {
-	case EntityCustomer:
-		unexpected = hasUnexpected("customerType", "salespersonEmployeeId")
-	case EntityOtherUnit:
-		unexpected = hasUnexpected("operatingEntityId")
 	case "party":
-		unexpected = hasUnexpected("kind", "merged")
-	case EntityEmployee:
-		unexpected = hasUnexpected("departmentId", "positionId")
+		unexpected = hasUnexpected("kind")
 	case EntityProduct:
 		unexpected = hasUnexpected("categoryId", "productTypeId")
-	case EntityOperatingEntity, EntityWarehouse, EntityVehicle:
+	case EntitySupplier:
+		unexpected = hasUnexpected("defaultPurchaserEmployeeId")
+	case EntityEmployee, EntityOtherUnit, EntitySalesPartner, EntityOperatingEntity, EntityWarehouse, EntityVehicle, EntityFundAccount:
 		unexpected = hasUnexpected()
-	case EntityFundAccount:
-		unexpected = hasUnexpected("currency")
 	default:
 		unexpected = true
 	}
@@ -792,25 +753,8 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	return input, nil
 }
 
-func validWriteInput(entity, objectID, versionID string, revision int64, actorID, requestID string) bool {
-	return approvalEntity(entity) && validID(objectID) && validID(versionID) && revision >= 1 && validActorAndRequest(actorID, requestID)
-}
-
-func validDeleteInput(entity string, input DeleteInput) bool {
-	return approvalEntity(entity) &&
-		validID(input.ObjectID) &&
-		validID(input.ApprovalEntryID) &&
-		input.ObjectRevision >= 1 &&
-		input.ApprovalRevision >= 1
-}
-
 func validActorAndRequest(actorID, requestID string) bool {
 	return validID(actorID) && requestID != "" && len(requestID) <= 128
-}
-
-func validHistoryInput(entity string, input HistoryInput) bool {
-	_, validPage := pageOffset(input.Page, input.PageSize)
-	return approvalEntity(entity) && validID(input.ObjectID) && validPage
 }
 
 func pageOffset(page, pageSize int) (int32, bool) {
@@ -825,33 +769,11 @@ func pageOffset(page, pageSize int) (int32, bool) {
 	return int32(offset), true
 }
 
-func mustPageOffset(page, pageSize int) int32 {
-	offset, _ := pageOffset(page, pageSize)
-	return offset
-}
-
 func validEntity(entity string) bool { return slices.Contains(entities[:], entity) }
-
-func validStatus(status string) bool {
-	return slices.Contains([]string{string(approval.StatusDraft), string(approval.StatusPending), string(approval.StatusApproved)}, status)
-}
 
 func validID(id string) bool {
 	parsed, err := ulid.ParseStrict(id)
 	return err == nil && parsed.String() == id
-}
-
-func uniqueStrings(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if _, exists := seen[value]; exists {
-			continue
-		}
-		seen[value] = struct{}{}
-		result = append(result, value)
-	}
-	return result
 }
 
 func optionalComment(value *string) (*string, error) {

@@ -223,9 +223,9 @@ func (s *CustomerAttachmentService) Initiate(ctx context.Context, in CustomerAtt
 		return CustomerAttachmentInitiateResult{}, translateError(err)
 	}
 	if in.Scope == CustomerAttachmentScopeCustomer {
-		err = q.InsertDCLCustomerAttachment(ctx, dbsqlc.InsertDCLCustomerAttachmentParams{ApprovalEntryID: owner.ID, FileID: fileID, CategoryObjectID: category.ObjectID, CategoryApprovalEntryID: category.ApprovalEntryID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
+		err = q.InsertDCLCustomerAttachment(ctx, dbsqlc.InsertDCLCustomerAttachmentParams{ApprovalEntryID: owner.ID, FileID: fileID, CategoryObjectID: category.ObjectID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
 	} else {
-		err = q.InsertDCLCustomerAccountAttachment(ctx, dbsqlc.InsertDCLCustomerAccountAttachmentParams{ApprovalEntryID: owner.ID, FileID: fileID, CategoryObjectID: category.ObjectID, CategoryApprovalEntryID: category.ApprovalEntryID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
+		err = q.InsertDCLCustomerAccountAttachment(ctx, dbsqlc.InsertDCLCustomerAccountAttachmentParams{ApprovalEntryID: owner.ID, FileID: fileID, CategoryObjectID: category.ObjectID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
 	}
 	if err != nil {
 		return CustomerAttachmentInitiateResult{}, translateError(err)
@@ -383,19 +383,18 @@ func (s *CustomerAttachmentService) CleanupOrphanFiles(ctx context.Context) (int
 // Account declarations. Attachments are version-owned, immutable after a
 // draft leaves DRAFT, and copied with a candidate version.
 type CustomerAttachmentView struct {
-	FileID                  string     `json:"fileId"`
-	FileName                string     `json:"fileName"`
-	ContentType             string     `json:"contentType"`
-	Size                    int64      `json:"size"`
-	SHA256                  string     `json:"sha256"`
-	Status                  string     `json:"status"`
-	StoredAt                *time.Time `json:"storedAt,omitempty"`
-	CategoryObjectID        string     `json:"categoryObjectId"`
-	CategoryApprovalEntryID string     `json:"categoryApprovalEntryId"`
-	CategoryCode            string     `json:"categoryCode"`
-	CategoryName            string     `json:"categoryName"`
-	CreatedAt               time.Time  `json:"createdAt"`
-	CreatedBy               string     `json:"createdBy"`
+	FileID           string     `json:"fileId"`
+	FileName         string     `json:"fileName"`
+	ContentType      string     `json:"contentType"`
+	Size             int64      `json:"size"`
+	SHA256           string     `json:"sha256"`
+	Status           string     `json:"status"`
+	StoredAt         *time.Time `json:"storedAt,omitempty"`
+	CategoryObjectID string     `json:"categoryObjectId"`
+	CategoryCode     string     `json:"categoryCode"`
+	CategoryName     string     `json:"categoryName"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	CreatedBy        string     `json:"createdBy"`
 }
 
 func ListCustomerAttachments(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) ([]CustomerAttachmentView, error) {
@@ -405,7 +404,7 @@ func ListCustomerAttachments(ctx context.Context, q *dbsqlc.Queries, approvalEnt
 	}
 	items := make([]CustomerAttachmentView, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, customerAttachmentView(row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryApprovalEntryID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
+		items = append(items, customerAttachmentView(row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
 	}
 	return items, nil
 }
@@ -416,12 +415,12 @@ func ListCustomerAccountAttachments(ctx context.Context, q *dbsqlc.Queries, appr
 	}
 	items := make([]CustomerAttachmentView, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, customerAttachmentView(row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryApprovalEntryID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
+		items = append(items, customerAttachmentView(row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
 	}
 	return items, nil
 }
-func customerAttachmentView(fileID, fileName, contentType string, size int64, sha, status string, storedAt pgtype.Timestamptz, categoryID, categoryEntryID, categoryCode, categoryName string, createdAt time.Time, createdBy string) CustomerAttachmentView {
-	v := CustomerAttachmentView{FileID: fileID, FileName: fileName, ContentType: contentType, Size: size, SHA256: sha, Status: status, CategoryObjectID: categoryID, CategoryApprovalEntryID: categoryEntryID, CategoryCode: categoryCode, CategoryName: categoryName, CreatedAt: createdAt, CreatedBy: createdBy}
+func customerAttachmentView(fileID, fileName, contentType string, size int64, sha, status string, storedAt pgtype.Timestamptz, categoryID, categoryCode, categoryName string, createdAt time.Time, createdBy string) CustomerAttachmentView {
+	v := CustomerAttachmentView{FileID: fileID, FileName: fileName, ContentType: contentType, Size: size, SHA256: sha, Status: status, CategoryObjectID: categoryID, CategoryCode: categoryCode, CategoryName: categoryName, CreatedAt: createdAt, CreatedBy: createdBy}
 	if storedAt.Valid {
 		value := storedAt.Time
 		v.StoredAt = &value

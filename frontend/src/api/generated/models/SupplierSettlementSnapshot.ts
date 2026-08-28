@@ -4,7 +4,6 @@
 /* eslint-disable */
 export type SupplierSettlementSnapshot = {
   sourceObjectId: string;
-  approvalEntryId: string;
   code: string;
   name: string;
   termCode: string;

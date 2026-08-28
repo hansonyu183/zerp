@@ -248,23 +248,16 @@ export async function querySupplierReference(
         page: 1,
         pageSize: 20,
         filters: {
-          status: ['APPROVED'],
           enabled: true,
           ...(keyword ? { keyword } : {}),
         },
         sort: [{ field: 'code', order: 'asc' }],
       },
     )
-    return data.items.flatMap((item) =>
-      item.latestApproved
-        ? [
-            {
-              value: item.objectId,
-              title: `${item.code} · ${item.latestApproved.summary.name ?? ''}`,
-            },
-          ]
-        : [],
-    )
+    return data.items.map((item) => ({
+      value: item.objectId,
+      title: `${item.code} · ${item.data.name ?? ''}`,
+    }))
   }
   if (entity === 'settlement-method') {
     const { data } = await apiClient.postContract('aux/reference/query', {

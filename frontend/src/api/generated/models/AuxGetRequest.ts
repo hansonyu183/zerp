@@ -4,5 +4,4 @@
 /* eslint-disable */
 export type AuxGetRequest = {
   objectId: string;
-  approvalEntryId?: string;
 };

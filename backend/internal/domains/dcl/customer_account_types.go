@@ -53,6 +53,17 @@ type CustomerSnapshot struct {
 	Address               string `json:"address,omitempty"`
 	Phone                 string `json:"phone,omitempty"`
 }
+type CustomerAuxiliarySnapshot struct {
+	SourceObjectID        string `json:"sourceObjectId"`
+	Code                  string `json:"code"`
+	Name                  string `json:"name"`
+	TermCode              string `json:"termCode,omitempty"`
+	RuleType              string `json:"ruleType,omitempty"`
+	DueDays               int32  `json:"dueDays,omitempty"`
+	MonthOffset           int32  `json:"monthOffset,omitempty"`
+	CutoffDay             int32  `json:"cutoffDay,omitempty"`
+	DefaultSalesSurcharge string `json:"defaultSalesSurcharge,omitempty"`
+}
 type CustomerSalesAttributionInput struct {
 	Type            string `json:"type"`
 	SubjectObjectID string `json:"subjectObjectId"`
@@ -69,7 +80,7 @@ type CustomerSalesAttributionSnapshot struct {
 type CustomerAccountDataInput struct {
 	Name                       string                        `json:"name"`
 	ShortName                  string                        `json:"shortName,omitempty"`
-	CustomerTypeCode           string                        `json:"customerTypeCode"`
+	CustomerTypeID             string                        `json:"customerTypeId"`
 	ContactName                string                        `json:"contactName,omitempty"`
 	ContactPhone               string                        `json:"contactPhone,omitempty"`
 	Email                      string                        `json:"email,omitempty"`
@@ -89,8 +100,9 @@ type CustomerAccountData struct {
 	CustomerAccountDataInput
 	OperatingEntityID       string                           `json:"operatingEntityId"`
 	OperatingEntity         *CustomerSnapshot                `json:"operatingEntity"`
-	SettlementMethod        *CustomerSnapshot                `json:"settlementMethod,omitempty"`
-	PaymentMethod           *CustomerSnapshot                `json:"paymentMethod,omitempty"`
+	CustomerType            *CustomerAuxiliarySnapshot       `json:"customerType"`
+	SettlementMethod        *CustomerAuxiliarySnapshot       `json:"settlementMethod,omitempty"`
+	PaymentMethod           *CustomerAuxiliarySnapshot       `json:"paymentMethod,omitempty"`
 	PrimarySalesAttribution CustomerSalesAttributionSnapshot `json:"primarySalesAttribution"`
 }
 type CustomerAccountCreateInput struct {
@@ -190,13 +202,13 @@ type CustomerAccountQueryItem struct {
 }
 
 func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDataInput, error) {
-	in.Name, in.ShortName, in.CustomerTypeCode = strings.TrimSpace(in.Name), strings.TrimSpace(in.ShortName), strings.TrimSpace(in.CustomerTypeCode)
+	in.Name, in.ShortName, in.CustomerTypeID = strings.TrimSpace(in.Name), strings.TrimSpace(in.ShortName), strings.TrimSpace(in.CustomerTypeID)
 	in.ContactName, in.ContactPhone, in.Email, in.Address = strings.TrimSpace(in.ContactName), strings.TrimSpace(in.ContactPhone), strings.TrimSpace(in.Email), strings.TrimSpace(in.Address)
 	in.SettlementMethodID, in.PaymentMethodID = strings.TrimSpace(in.SettlementMethodID), strings.TrimSpace(in.PaymentMethodID)
 	in.DefaultTransportMethodCode, in.DefaultTransportMethodName = strings.TrimSpace(in.DefaultTransportMethodCode), strings.TrimSpace(in.DefaultTransportMethodName)
 	in.InternalReminder, in.DefaultSalesOrderRemark = strings.TrimSpace(in.InternalReminder), strings.TrimSpace(in.DefaultSalesOrderRemark)
 	in.PrimarySalesAttribution.Type, in.PrimarySalesAttribution.SubjectObjectID = strings.TrimSpace(in.PrimarySalesAttribution.Type), strings.TrimSpace(in.PrimarySalesAttribution.SubjectObjectID)
-	if in.Name == "" || len(in.Name) > 200 || in.CustomerTypeCode == "" || !validID(in.PrimarySalesAttribution.SubjectObjectID) || !slices.Contains([]string{CustomerSalesAttributionInternalEmployee, CustomerSalesAttributionExternalPartTime, CustomerSalesAttributionChannelPartner}, in.PrimarySalesAttribution.Type) || (in.SettlementMethodID != "" && !validID(in.SettlementMethodID)) || (in.PaymentMethodID != "" && !validID(in.PaymentMethodID)) {
+	if in.Name == "" || len(in.Name) > 200 || !validID(in.CustomerTypeID) || !validID(in.PrimarySalesAttribution.SubjectObjectID) || !slices.Contains([]string{CustomerSalesAttributionInternalEmployee, CustomerSalesAttributionExternalPartTime, CustomerSalesAttributionChannelPartner}, in.PrimarySalesAttribution.Type) || (in.SettlementMethodID != "" && !validID(in.SettlementMethodID)) || (in.PaymentMethodID != "" && !validID(in.PaymentMethodID)) {
 		return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer account data", nil, nil)
 	}
 	var err error

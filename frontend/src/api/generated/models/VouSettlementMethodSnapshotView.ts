@@ -4,7 +4,6 @@
 /* eslint-disable */
 export type VouSettlementMethodSnapshotView = {
   objectId: string;
-  approvalEntryId: string;
   code: string;
   name: string;
   ruleType: 'DUE_DAYS' | 'MONTH_END' | 'RELATIVE_DAYS' | 'FIXED_DAY';

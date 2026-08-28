@@ -20,6 +20,7 @@ type employeeCurrentWriter interface {
 	ReserveEmployeeIdentity(context.Context, pgx.Tx, string, string, string) (bobdomain.EmployeeIdentity, error)
 	GetEmployeeIdentity(context.Context, pgx.Tx, string) (bobdomain.EmployeeIdentity, error)
 	ResolveEmployeeAuxiliaryReferences(context.Context, pgx.Tx, bobdomain.EmployeeData, bool) (bobdomain.EmployeeData, error)
+	ResolveEmployeeDraftAuxiliaryReferences(context.Context, pgx.Tx, bobdomain.EmployeeData, bobdomain.EmployeeData) (bobdomain.EmployeeData, error)
 	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	ApplyEmployeeCurrent(context.Context, pgx.Tx, string, string, bool, string) (bobdomain.EmployeeCurrent, error)
 	RemoveEmployeeCurrent(context.Context, pgx.Tx, string, string) (bobdomain.EmployeeIdentity, error)
@@ -68,15 +69,15 @@ func employeeDeclarationData(data EmployeeInput) bobdomain.EmployeeData {
 func employeeDCLData(data bobdomain.EmployeeData) EmployeeData {
 	result := EmployeeData{Phone: data.Phone, Email: data.Email, HireDate: data.HireDate, Remark: data.Remark}
 	if data.EmployeeCategory != nil {
-		result.EmployeeCategoryID, result.EmployeeCategoryApprovalEntryID = data.EmployeeCategory.ObjectID, data.EmployeeCategory.ApprovalEntryID
+		result.EmployeeCategoryID = data.EmployeeCategory.ObjectID
 		result.EmployeeCategoryCode, result.EmployeeCategoryName = data.EmployeeCategory.Code, data.EmployeeCategory.Name
 	}
 	if data.Department != nil {
-		result.DepartmentID, result.DepartmentApprovalEntryID = data.Department.ObjectID, data.Department.ApprovalEntryID
+		result.DepartmentID = data.Department.ObjectID
 		result.DepartmentCode, result.DepartmentName = data.Department.Code, data.Department.Name
 	}
 	if data.Position != nil {
-		result.PositionID, result.PositionApprovalEntryID = data.Position.ObjectID, data.Position.ApprovalEntryID
+		result.PositionID = data.Position.ObjectID
 		result.PositionCode, result.PositionName = data.Position.Code, data.Position.Name
 	}
 	return result
@@ -97,13 +98,13 @@ func employeeVersionData(r dbsqlc.GetDCLEmployeeVersionRow) EmployeeData {
 func employeeStoredData(r dbsqlc.GetDCLEmployeeVersionRow) bobdomain.EmployeeData {
 	result := bobdomain.EmployeeData{Phone: stringValue(r.Phone), Email: stringValue(r.Email), HireDate: employeeDateString(r.HireDate), Remark: stringValue(r.Remark)}
 	if r.EmployeeCategoryID != nil {
-		result.EmployeeCategory = &bobdomain.EmployeeReferenceSnapshot{ObjectID: *r.EmployeeCategoryID, ApprovalEntryID: stringValue(r.EmployeeCategoryApprovalEntryID), Code: stringValue(r.EmployeeCategoryCode), Name: stringValue(r.EmployeeCategoryName)}
+		result.EmployeeCategory = &bobdomain.EmployeeReferenceSnapshot{ObjectID: *r.EmployeeCategoryID, Code: stringValue(r.EmployeeCategoryCode), Name: stringValue(r.EmployeeCategoryName)}
 	}
 	if r.DepartmentID != nil {
-		result.Department = &bobdomain.EmployeeReferenceSnapshot{ObjectID: *r.DepartmentID, ApprovalEntryID: stringValue(r.DepartmentApprovalEntryID), Code: stringValue(r.DepartmentCode), Name: stringValue(r.DepartmentName)}
+		result.Department = &bobdomain.EmployeeReferenceSnapshot{ObjectID: *r.DepartmentID, Code: stringValue(r.DepartmentCode), Name: stringValue(r.DepartmentName)}
 	}
 	if r.PositionID != nil {
-		result.Position = &bobdomain.EmployeeReferenceSnapshot{ObjectID: *r.PositionID, ApprovalEntryID: stringValue(r.PositionApprovalEntryID), Code: stringValue(r.PositionCode), Name: stringValue(r.PositionName)}
+		result.Position = &bobdomain.EmployeeReferenceSnapshot{ObjectID: *r.PositionID, Code: stringValue(r.PositionCode), Name: stringValue(r.PositionName)}
 	}
 	return result
 }
@@ -187,6 +188,7 @@ func (s *EmployeeService) Save(ctx context.Context, input EmployeeSaveInput, act
 		return EmployeeMutation{}, translateError(err)
 	}
 	var e approval.Entry
+	var draftPrevious *bobdomain.EmployeeData
 	if stored.Status == string(approval.StatusApproved) {
 		e, err = s.coordinator.CreateNextVersion(ctx, tx, input.ObjectID, actor, employeePayload(id, input.Enabled, employeeDCLData(data)))
 		if err == nil {
@@ -198,13 +200,24 @@ func (s *EmployeeService) Save(ctx context.Context, input EmployeeSaveInput, act
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
 		e = approvalEntry(stored)
+		previous, loadErr := q.GetDCLEmployeeVersion(ctx, stored.ID)
+		if loadErr != nil {
+			err = loadErr
+		} else {
+			resolvedPrevious := employeeStoredData(previous)
+			draftPrevious = &resolvedPrevious
+		}
 	} else {
 		err = newError(ErrorConflict, "approval_invalid_transition", "only a draft or latest approved declaration can be saved", nil, nil)
 	}
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
-	data, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, false)
+	if draftPrevious != nil {
+		data, err = s.current.ResolveEmployeeDraftAuxiliaryReferences(ctx, tx, data, *draftPrevious)
+	} else {
+		data, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, false)
+	}
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
@@ -432,26 +445,26 @@ func insertEmployeeVersion(ctx context.Context, q *dbsqlc.Queries, id string, en
 func employeeUpdateParams(id string, enabled bool, d bobdomain.EmployeeData) dbsqlc.UpdateDCLEmployeeVersionParams {
 	p := dbsqlc.UpdateDCLEmployeeVersionParams{ApprovalEntryID: id, Phone: nilIfEmpty(d.Phone), Email: nilIfEmpty(d.Email), HireDate: employeeDateValue(d.HireDate), Remark: nilIfEmpty(d.Remark), Enabled: enabled}
 	if d.EmployeeCategory != nil {
-		p.EmployeeCategoryID, p.EmployeeCategoryApprovalEntryID, p.EmployeeCategoryCode, p.EmployeeCategoryName = &d.EmployeeCategory.ObjectID, &d.EmployeeCategory.ApprovalEntryID, &d.EmployeeCategory.Code, &d.EmployeeCategory.Name
+		p.EmployeeCategoryID, p.EmployeeCategoryCode, p.EmployeeCategoryName = &d.EmployeeCategory.ObjectID, &d.EmployeeCategory.Code, &d.EmployeeCategory.Name
 	}
 	if d.Department != nil {
-		p.DepartmentID, p.DepartmentApprovalEntryID, p.DepartmentCode, p.DepartmentName = &d.Department.ObjectID, &d.Department.ApprovalEntryID, &d.Department.Code, &d.Department.Name
+		p.DepartmentID, p.DepartmentCode, p.DepartmentName = &d.Department.ObjectID, &d.Department.Code, &d.Department.Name
 	}
 	if d.Position != nil {
-		p.PositionID, p.PositionApprovalEntryID, p.PositionCode, p.PositionName = &d.Position.ObjectID, &d.Position.ApprovalEntryID, &d.Position.Code, &d.Position.Name
+		p.PositionID, p.PositionCode, p.PositionName = &d.Position.ObjectID, &d.Position.Code, &d.Position.Name
 	}
 	return p
 }
 
 func setEmployeeInsertReferences(p *dbsqlc.InsertDCLEmployeeVersionParams, d bobdomain.EmployeeData) {
 	if d.EmployeeCategory != nil {
-		p.EmployeeCategoryID, p.EmployeeCategoryApprovalEntryID, p.EmployeeCategoryCode, p.EmployeeCategoryName = &d.EmployeeCategory.ObjectID, &d.EmployeeCategory.ApprovalEntryID, &d.EmployeeCategory.Code, &d.EmployeeCategory.Name
+		p.EmployeeCategoryID, p.EmployeeCategoryCode, p.EmployeeCategoryName = &d.EmployeeCategory.ObjectID, &d.EmployeeCategory.Code, &d.EmployeeCategory.Name
 	}
 	if d.Department != nil {
-		p.DepartmentID, p.DepartmentApprovalEntryID, p.DepartmentCode, p.DepartmentName = &d.Department.ObjectID, &d.Department.ApprovalEntryID, &d.Department.Code, &d.Department.Name
+		p.DepartmentID, p.DepartmentCode, p.DepartmentName = &d.Department.ObjectID, &d.Department.Code, &d.Department.Name
 	}
 	if d.Position != nil {
-		p.PositionID, p.PositionApprovalEntryID, p.PositionCode, p.PositionName = &d.Position.ObjectID, &d.Position.ApprovalEntryID, &d.Position.Code, &d.Position.Name
+		p.PositionID, p.PositionCode, p.PositionName = &d.Position.ObjectID, &d.Position.Code, &d.Position.Name
 	}
 }
 

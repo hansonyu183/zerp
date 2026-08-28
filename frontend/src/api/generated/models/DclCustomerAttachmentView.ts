@@ -10,7 +10,6 @@ export type DclCustomerAttachmentView = {
   sha256: string;
   status: 'PENDING' | 'READY';
   categoryObjectId: string;
-  categoryApprovalEntryId: string;
   categoryCode: string;
   categoryName: string;
   storedAt?: string | null;

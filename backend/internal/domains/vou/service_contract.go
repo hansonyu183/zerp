@@ -53,7 +53,6 @@ func (s *Service) writeServiceContractDetail(
 	if draft.CounterpartyType == contractCounterpartyService {
 		if refs.Settlement != nil {
 			params.SettlementMethodObjectID = stringPtr(refs.Settlement.ObjectID)
-			params.SettlementMethodApprovalEntryID = stringPtr(refs.Settlement.ApprovalEntryID)
 			params.SettlementMethodCode = stringPtr(refs.Settlement.Code)
 			params.SettlementMethodName = stringPtr(refs.Settlement.Data.Name)
 			params.SettlementTermCode = stringPtr(refs.Settlement.Data.TermCode)
@@ -61,12 +60,11 @@ func (s *Service) writeServiceContractDetail(
 			params.SettlementMonthOffset = int32Ptr(refs.Settlement.Data.MonthOffset)
 			params.SettlementDayOfMonth = refs.Settlement.Data.DayOfMonth
 			params.SettlementDayOffset = int32Ptr(refs.Settlement.Data.DayOffset)
-		} else if identity.SettlementMethodID != nil && identity.DefaultSettlementApprovalEntryID != nil &&
+		} else if identity.SettlementMethodID != nil &&
 			identity.SettlementMethodCode != nil && identity.SettlementMethodName != nil &&
 			identity.SettlementTermCode != nil && identity.SettlementRuleType != nil &&
 			identity.SettlementMonthOffset != nil && identity.SettlementDayOffset != nil {
 			params.SettlementMethodObjectID = identity.SettlementMethodID
-			params.SettlementMethodApprovalEntryID = identity.DefaultSettlementApprovalEntryID
 			params.SettlementMethodCode = identity.SettlementMethodCode
 			params.SettlementMethodName = identity.SettlementMethodName
 			params.SettlementTermCode = identity.SettlementTermCode
@@ -87,8 +85,8 @@ func (s *Service) writeServiceContractDetail(
 		PartyID: params.PartyID, PartyName: params.PartyName, OperatingEntityObjectID: params.OperatingEntityObjectID,
 		OperatingEntityApprovalEntryID: params.OperatingEntityApprovalEntryID, OperatingEntityCode: params.OperatingEntityCode, OperatingEntityName: params.OperatingEntityName,
 		HandlerObjectID: params.HandlerObjectID, HandlerApprovalEntryID: params.HandlerApprovalEntryID, HandlerCode: params.HandlerCode, HandlerName: params.HandlerName,
-		SettlementMethodObjectID: params.SettlementMethodObjectID, SettlementMethodApprovalEntryID: params.SettlementMethodApprovalEntryID,
-		SettlementMethodCode: params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName, SettlementTermCode: params.SettlementTermCode,
+		SettlementMethodObjectID: params.SettlementMethodObjectID,
+		SettlementMethodCode:     params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName, SettlementTermCode: params.SettlementTermCode,
 		SettlementRuleType: params.SettlementRuleType, SettlementMonthOffset: params.SettlementMonthOffset, SettlementDayOfMonth: params.SettlementDayOfMonth,
 		SettlementDayOffset: params.SettlementDayOffset, Capabilities: params.Capabilities, ApplicableFrom: params.ApplicableFrom, ApplicableTo: params.ApplicableTo, ContractTerms: params.ContractTerms,
 	}))
@@ -155,7 +153,7 @@ func contractDetailView(detail dbsqlc.VouServiceContractDetail) *ServiceContract
 		OperatingEntity: reference(detail.OperatingEntityObjectID, detail.OperatingEntityApprovalEntryID, "operating-entity", detail.OperatingEntityCode, detail.OperatingEntityName, "", "", ""),
 		Handler:         reference(detail.HandlerObjectID, detail.HandlerApprovalEntryID, bobdomain.EntityEmployee, detail.HandlerCode, detail.HandlerName, "", "", ""),
 		SettlementMethod: settlementView(
-			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
+			detail.SettlementMethodObjectID,
 			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth, detail.SettlementDayOffset,
 			nil, nil, 0, nil, false,

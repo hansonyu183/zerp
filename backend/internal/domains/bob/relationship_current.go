@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -20,31 +21,18 @@ func (s *Service) ResolveOtherUnitDeclaration(ctx context.Context, tx pgx.Tx, da
 	if data.SettlementMethodID == "" {
 		return validateDetailData(EntityOtherUnit, data)
 	}
-	if !exact {
-		resolved, err := s.resolveSettlementSnapshot(ctx, tx, data)
-		if err != nil {
-			return DetailView{}, err
+	if exact {
+		if data.SettlementMethodCode == "" || data.SettlementMethodName == "" {
+			return DetailView{}, domainError(ErrorConflict, "settlement method snapshot is incomplete", nil, nil)
 		}
-		resolved.DefaultSalesSurcharge = ""
-		return validateDetailData(EntityOtherUnit, resolved)
+		return validateDetailData(EntityOtherUnit, data)
 	}
-	validated, err := validateDetailData(EntityOtherUnit, data)
+	resolved, err := s.resolveSettlementSnapshot(ctx, tx, data)
 	if err != nil {
 		return DetailView{}, err
 	}
-	if exact {
-		if !validID(validated.SettlementMethodApprovalEntryID) {
-			return DetailView{}, domainError(ErrorConflict, "Other Unit settlement snapshot is missing", nil, nil)
-		}
-		reference, e := s.resolveAuxiliaryReference(ctx, tx, "settlement-method", validated.SettlementMethodID, validated.SettlementMethodApprovalEntryID)
-		if e != nil {
-			return DetailView{}, e
-		}
-		validated.SettlementMethodApprovalEntryID, validated.SettlementMethodCode, validated.SettlementMethodName = reference.ApprovalEntryID, reference.Code, reference.Data.Name
-		validated.TermCode, validated.RuleType, validated.MonthOffset, validated.DayOfMonth, validated.DayOffset = reference.Data.TermCode, reference.Data.RuleType, reference.Data.MonthOffset, reference.Data.DayOfMonth, reference.Data.DayOffset
-		return validated, nil
-	}
-	return validated, nil
+	resolved.DefaultSalesSurcharge = ""
+	return validateDetailData(EntityOtherUnit, resolved)
 }
 
 func (s *Service) ReserveOtherUnitIdentity(ctx context.Context, tx pgx.Tx, partyID, operatingEntityID, actorID string) (RelationshipIdentity, error) {
@@ -352,7 +340,7 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 	var settlement, payment EffectiveReference
 	var err error
 	if settlementID != "" {
-		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID, "")
+		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID)
 		err = e
 		settlement = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), TermCode: mapString(r.Data, "termCode"), RuleType: mapString(r.Data, "ruleType"), DueDays: int32(mapInt(r.Data, "dayOffset")), MonthOffset: int32(mapInt(r.Data, "monthOffset")), CutoffDay: int32(mapInt(r.Data, "dayOfMonth")), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
 		if err != nil {
@@ -360,7 +348,7 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 		}
 	}
 	if paymentID != "" {
-		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID, "")
+		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID)
 		err = e
 		payment = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
 		if err != nil {
@@ -392,25 +380,9 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 
 // ValidateCustomerAccountReferences proves a stored declaration still names
 // exact approved snapshots before it can be submitted or approved.
-func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerPartyID, settlementID, settlementEntryID, paymentID, paymentEntryID, attributionType, attributionID, attributionEntryID string) error {
+func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerPartyID, _, _, _, _, attributionType, attributionID, attributionEntryID string) error {
 	if tx == nil || !validID(customerPartyID) || !validID(attributionID) || !validID(attributionEntryID) {
 		return domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
-	}
-	if settlementID != "" {
-		if !validID(settlementEntryID) {
-			return domainError(ErrorConflict, "settlement-method approval snapshot is missing", nil, nil)
-		}
-		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID, settlementEntryID); err != nil {
-			return err
-		}
-	}
-	if paymentID != "" {
-		if !validID(paymentEntryID) {
-			return domainError(ErrorConflict, "payment-method approval snapshot is missing", nil, nil)
-		}
-		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID, paymentEntryID); err != nil {
-			return err
-		}
 	}
 	entity := EntitySalesPartner
 	if attributionType == "INTERNAL_EMPLOYEE" {
@@ -612,11 +584,14 @@ func (s *Service) EnsureSalesPartnerUnapproveAllowed(ctx context.Context, tx pgx
 }
 
 func otherUnitCurrentView(r dbsqlc.GetBobOtherUnitCurrentRow) ObjectView {
-	e := dbsqlc.ApprovalEntry{ID: r.ApprovalEntryID, Domain: r.Domain, Entity: EntityOtherUnit, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.UpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, Approval: approvalMeta(e), UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, Data: DetailView{ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset}}
+	e := struct {
+		ID        string
+		VersionNo int32
+	}{ID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo)}
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, Data: DetailView{ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset}}
 }
 func (s *Service) getOtherUnitCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Other Unit get request", nil, nil)
 	}
 	r, err := s.queries.GetBobOtherUnitCurrent(ctx, input.ObjectID)
@@ -629,7 +604,7 @@ func (s *Service) getOtherUnitCurrent(ctx context.Context, input GetInput) (Obje
 	return otherUnitCurrentView(r), nil
 }
 func (s *Service) getSalesPartnerCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Sales Partner get request", nil, nil)
 	}
 	r, err := s.queries.GetBobSalesPartnerCurrent(ctx, input.ObjectID)
@@ -639,8 +614,11 @@ func (s *Service) getSalesPartnerCurrent(ctx context.Context, input GetInput) (O
 	if err != nil {
 		return ObjectView{}, s.internal("get Sales Partner current", err)
 	}
-	e := dbsqlc.ApprovalEntry{ID: r.ApprovalEntryID, Domain: r.Domain, Entity: EntitySalesPartner, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.UpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, Approval: approvalMeta(e), UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, Data: DetailView{SalesCapabilities: r.Capabilities, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark)}}, nil
+	e := struct {
+		ID        string
+		VersionNo int32
+	}{ID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo)}
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, Data: DetailView{SalesCapabilities: r.Capabilities, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark)}}, nil
 }
 
 func (s *Service) queryRelationshipCurrent(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
@@ -652,6 +630,13 @@ func (s *Service) queryRelationshipCurrent(ctx context.Context, entity string, i
 	if err != nil {
 		return Page[QueryItem]{}, err
 	}
+	sortField, sortOrder := "updatedAt", "desc"
+	if len(input.Sort) == 1 {
+		sortField, sortOrder = input.Sort[0].Field, strings.ToLower(input.Sort[0].Order)
+		if (sortField != "updatedAt" && sortField != "code" && sortField != "name") || (sortOrder != "asc" && sortOrder != "desc") {
+			return Page[QueryItem]{}, domainError(ErrorValidation, "invalid relationship query sort", nil, nil)
+		}
+	}
 	enabled := int32(-1)
 	if filters.Enabled != nil {
 		if *filters.Enabled {
@@ -660,11 +645,11 @@ func (s *Service) queryRelationshipCurrent(ctx context.Context, entity string, i
 			enabled = 0
 		}
 	}
-	rows, err := s.queries.ListDCLRelationships(ctx, dbsqlc.ListDCLRelationshipsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled, StatusFilter: []string{}, RowOffset: offset, RowLimit: int32(input.PageSize)})
+	rows, err := s.queries.ListBobRelationshipCurrents(ctx, dbsqlc.ListBobRelationshipCurrentsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list relationship current", err)
 	}
-	total, err := s.queries.CountDCLRelationships(ctx, dbsqlc.CountDCLRelationshipsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled, StatusFilter: []string{}})
+	total, err := s.queries.CountBobRelationshipCurrents(ctx, dbsqlc.CountBobRelationshipCurrentsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("count relationship current", err)
 	}
@@ -679,7 +664,7 @@ func (s *Service) queryRelationshipCurrent(ctx context.Context, entity string, i
 		if err != nil {
 			return Page[QueryItem]{}, err
 		}
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time, LatestApproved: &VersionSummary{Approval: v.Approval, Summary: v.Data}})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: v.Data, UpdatedAt: r.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -702,7 +687,7 @@ func (s *Service) validateOtherUnitSnapshotReference(ctx context.Context, q *dbs
 	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: o.Code, ApprovalEntryID: entryID, Data: otherUnitDetail(d)}, nil
 }
 func otherUnitDetail(d dbsqlc.DclOtherUnitVersion) DetailView {
-	return DetailView{ContactName: deref(d.ContactName), ContactPhone: deref(d.ContactPhone), Email: deref(d.Email), Address: deref(d.Address), SettlementMethodID: deref(d.SettlementMethodID), SettlementMethodApprovalEntryID: deref(d.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(d.SettlementMethodCode), SettlementMethodName: deref(d.SettlementMethodName), TermCode: deref(d.SettlementTermCode), RuleType: deref(d.SettlementRuleType), MonthOffset: d.SettlementMonthOffset, DayOffset: d.SettlementDayOffset, Remark: deref(d.Remark)}
+	return DetailView{ContactName: deref(d.ContactName), ContactPhone: deref(d.ContactPhone), Email: deref(d.Email), Address: deref(d.Address), SettlementMethodID: deref(d.SettlementMethodID), SettlementMethodCode: deref(d.SettlementMethodCode), SettlementMethodName: deref(d.SettlementMethodName), TermCode: deref(d.SettlementTermCode), RuleType: deref(d.SettlementRuleType), MonthOffset: d.SettlementMonthOffset, DayOffset: d.SettlementDayOffset, Remark: deref(d.Remark)}
 }
 func (s *Service) validateSalesPartnerSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntitySalesPartner})

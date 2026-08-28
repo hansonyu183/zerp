@@ -23,7 +23,7 @@ import {
   type VoucherLifecycleAction,
   type VoucherLineKind,
   type VoucherListItem,
-  type VoucherReference,
+  type VoucherSelectableReference,
   type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
 import { lifecycleLabels } from './config'
@@ -138,7 +138,7 @@ if (
 
 function updateReference(
   key: keyof VoucherDraftForm,
-  value: VoucherReference | null,
+  value: VoucherSelectableReference | null,
 ): void {
   ;(vm.form as unknown as Record<string, unknown>)[key] = value
   vm.markReferenceChanged(key)

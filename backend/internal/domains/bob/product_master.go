@@ -46,11 +46,11 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 	if len(versionIDs) == 0 {
 		return page, nil
 	}
-	payloadRows, err := s.queries.ListBobProductPayloadsForVersions(ctx, versionIDs)
+	payloadRows, err := s.queries.ListDCLProductSnapshotsByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("load product current payloads", err)
 	}
-	entryRows, err := s.queries.ListBobProductApprovalEntriesForVersions(ctx, versionIDs)
+	entryRows, err := s.queries.ListDCLProductApprovalEntriesByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("load product current approvals", err)
 	}
@@ -68,7 +68,7 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 		if !payloadOK || !entryOK {
 			return Page[QueryItem]{}, s.internal("load product current", pgx.ErrNoRows)
 		}
-		page.Items = append(page.Items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time, LatestApproved: &VersionSummary{Approval: approvalMeta(entry), Summary: productDetailFromRow(payload)}})
+		page.Items = append(page.Items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: productDetailFromRow(payload), UpdatedAt: r.UpdatedAt.Time})
 	}
 	unitConversions, formulas, err := s.loadProductListEnrichments(ctx, versionIDs)
 	if err != nil {
@@ -76,14 +76,9 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 	}
 	for index := range page.Items {
 		item := &page.Items[index]
-		for _, version := range []*VersionSummary{item.LatestApproved, item.OpenVersion} {
-			if version == nil {
-				continue
-			}
-			entryID := version.Approval.ApprovalEntryID
-			version.Summary.UnitConversions = unitConversions[entryID]
-			version.Summary.Formula = formulas[entryID]
-		}
+		item.Data.UnitConversions = unitConversions[item.SourceApprovalEntryID]
+		enrichDefaultInputUnit(&item.Data)
+		item.Data.Formula = formulas[item.SourceApprovalEntryID]
 	}
 	return page, nil
 }
@@ -95,21 +90,22 @@ func (s *Service) loadProductListEnrichments(
 	for _, versionID := range versionIDs {
 		unitConversions[versionID] = []ProductUnitConversion{}
 	}
-	conversionRows, err := s.queries.ListBobProductUnitConversionsForVersions(ctx, versionIDs)
+	conversionRows, err := s.queries.ListDCLProductUnitConversionsByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return nil, nil, s.internal("read product unit conversions", err)
 	}
 	for _, row := range conversionRows {
 		unitConversions[row.ProductApprovalEntryID] = append(unitConversions[row.ProductApprovalEntryID], ProductUnitConversion{
 			Unit: MeasurementUnitSnapshot{
-				ObjectID: row.UnitObjectID, ApprovalEntryID: row.UnitApprovalEntryID,
-				Code: row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol,
+				ObjectID: row.UnitObjectID,
+				Code:     row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol,
+				QuantityScale: row.UnitQuantityScale,
 			},
 			Factor: formatMicros(row.FactorMicros),
 		})
 	}
 	formulas := make(map[string]*ProductFormula, len(versionIDs))
-	formulaRows, err := s.queries.ListBobProductFormulasForVersions(ctx, versionIDs)
+	formulaRows, err := s.queries.ListDCLProductFormulasByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return nil, nil, s.internal("read product formulas", err)
 	}
@@ -119,14 +115,15 @@ func (s *Service) loadProductListEnrichments(
 				EnteredQuantity: formatMicros(row.OutputEnteredQuantityMicros),
 				BaseQuantity:    formatMicros(row.OutputBaseQuantityMicros),
 				EnteredUnit: MeasurementUnitSnapshot{
-					ObjectID: row.OutputUnitObjectID, ApprovalEntryID: row.OutputUnitApprovalEntryID,
-					Code: row.OutputUnitCode, Name: row.OutputUnitName, Symbol: row.OutputUnitSymbol,
+					ObjectID: row.OutputUnitObjectID,
+					Code:     row.OutputUnitCode, Name: row.OutputUnitName, Symbol: row.OutputUnitSymbol,
+					QuantityScale: row.OutputUnitQuantityScale,
 				},
 			},
 			Components: []ProductFormulaComponent{},
 		}
 	}
-	lineRows, err := s.queries.ListBobProductFormulaLinesForVersions(ctx, versionIDs)
+	lineRows, err := s.queries.ListDCLProductFormulaLinesByEntryIDs(ctx, versionIDs)
 	if err != nil {
 		return nil, nil, s.internal("read product formula lines", err)
 	}
@@ -145,8 +142,9 @@ func (s *Service) loadProductListEnrichments(
 				EnteredQuantity: formatMicros(row.EnteredQuantityMicros),
 				BaseQuantity:    formatMicros(row.BaseQuantityMicros),
 				EnteredUnit: MeasurementUnitSnapshot{
-					ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
-					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
+					ObjectID: row.EnteredUnitObjectID,
+					Code:     row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
+					QuantityScale: row.EnteredUnitQuantityScale,
 				},
 			},
 			ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation,
@@ -157,26 +155,22 @@ func (s *Service) loadProductListEnrichments(
 
 func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data DetailView, resolveFormula, preserveSources bool) (DetailView, error) {
 	if data.CategoryID != "" {
-		if preserveSources && data.CategoryApprovalEntryID != "" {
-			// The complete stored snapshot remains authoritative until submit.
-		} else {
-			category, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-category", data.CategoryID, "")
+		{
+			category, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-category", data.CategoryID)
 			if err != nil {
 				return DetailView{}, err
 			}
-			data.CategoryApprovalEntryID, data.CategoryCode = category.ApprovalEntryID, category.Code
+			data.CategoryCode = category.Code
 			data.CategoryName = mapString(category.Data, "name")
 		}
 	}
 	if data.ProductTypeID != "" {
-		if preserveSources && data.ProductTypeApprovalEntryID != "" {
-			// Preserve the exact type snapshot already held by this draft.
-		} else {
-			typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID, "")
+		{
+			typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID)
 			if err != nil {
 				return DetailView{}, err
 			}
-			data.ProductTypeApprovalEntryID, data.ProductTypeCode = typeRef.ApprovalEntryID, typeRef.Code
+			data.ProductTypeCode = typeRef.Code
 			data.ProductTypeName = mapString(typeRef.Data, "name")
 			data.BehaviorProfile = mapString(typeRef.Data, "behaviorProfile")
 			if !validProductBehavior(data.BehaviorProfile) {
@@ -185,36 +179,32 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 		}
 	}
 	resolveUnit := func(snapshot *MeasurementUnitSnapshot) error {
-		if preserveSources && snapshot.ApprovalEntryID != "" {
-			return nil
-		}
-		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", snapshot.ObjectID, "")
+		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", snapshot.ObjectID)
 		if err != nil {
 			return err
 		}
-		snapshot.ApprovalEntryID, snapshot.Code = unit.ApprovalEntryID, unit.Code
+		snapshot.Code = unit.Code
 		snapshot.Name, snapshot.Symbol = mapString(unit.Data, "name"), mapString(unit.Data, "symbol")
+		snapshot.QuantityScale = int32(mapInt(unit.Data, "quantityScale"))
+		if snapshot.QuantityScale < 0 || snapshot.QuantityScale > 6 {
+			return domainError(ErrorConflict, "measurement unit quantity scale is unavailable", nil, nil)
+		}
 		return nil
 	}
-	resolveUnitEntry := func(objectID string, entryID *string) error {
+	resolveUnitEntry := func(objectID string) error {
 		if objectID == "" {
-			*entryID = ""
 			return nil
 		}
-		if preserveSources && *entryID != "" {
-			return nil
-		}
-		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", objectID, "")
+		_, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", objectID)
 		if err != nil {
 			return err
 		}
-		*entryID = unit.ApprovalEntryID
 		return nil
 	}
-	if err := resolveUnitEntry(data.DefaultInputUnitID, &data.DefaultInputUnitApprovalEntryID); err != nil {
+	if err := resolveUnitEntry(data.DefaultInputUnitID); err != nil {
 		return DetailView{}, err
 	}
-	if err := resolveUnitEntry(data.PricingUnitID, &data.PricingUnitApprovalEntryID); err != nil {
+	if err := resolveUnitEntry(data.PricingUnitID); err != nil {
 		return DetailView{}, err
 	}
 	for index := range data.UnitConversions {
@@ -251,6 +241,115 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 			component.ResolutionStatus = "CURRENT"
 			component.RequiresConfirmation = component.RequiresConfirmation ||
 				(previousApprovalEntryID != "" && previousApprovalEntryID != material.ApprovalEntryID)
+		}
+	}
+	return data, nil
+}
+
+func (s *Service) resolveProductDraftReferences(ctx context.Context, tx pgx.Tx, data, previous DetailView) (DetailView, error) {
+	resolveUnit := func(snapshot *MeasurementUnitSnapshot) error {
+		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", snapshot.ObjectID)
+		if err != nil {
+			return err
+		}
+		snapshot.Code = unit.Code
+		snapshot.Name, snapshot.Symbol = mapString(unit.Data, "name"), mapString(unit.Data, "symbol")
+		snapshot.QuantityScale = int32(mapInt(unit.Data, "quantityScale"))
+		if snapshot.QuantityScale < 0 || snapshot.QuantityScale > 6 {
+			return domainError(ErrorConflict, "measurement unit quantity scale is unavailable", nil, nil)
+		}
+		return nil
+	}
+	resolveUnitID := func(objectID string) error {
+		if objectID == "" {
+			return nil
+		}
+		_, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", objectID)
+		return err
+	}
+	if data.CategoryID == previous.CategoryID {
+		data.CategoryCode, data.CategoryName = previous.CategoryCode, previous.CategoryName
+	} else if data.CategoryID != "" {
+		category, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-category", data.CategoryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		data.CategoryCode, data.CategoryName = category.Code, mapString(category.Data, "name")
+	}
+	if data.ProductTypeID == previous.ProductTypeID {
+		data.ProductTypeCode, data.ProductTypeName, data.BehaviorProfile = previous.ProductTypeCode, previous.ProductTypeName, previous.BehaviorProfile
+	} else if data.ProductTypeID != "" {
+		typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		data.ProductTypeCode, data.ProductTypeName = typeRef.Code, mapString(typeRef.Data, "name")
+		data.BehaviorProfile = mapString(typeRef.Data, "behaviorProfile")
+	}
+	if !validProductBehavior(data.BehaviorProfile) {
+		return DetailView{}, domainError(ErrorConflict, "product type behavior profile is unavailable", nil, nil)
+	}
+	if data.DefaultInputUnitID != previous.DefaultInputUnitID {
+		if err := resolveUnitID(data.DefaultInputUnitID); err != nil {
+			return DetailView{}, err
+		}
+	}
+	if data.PricingUnitID != previous.PricingUnitID {
+		if err := resolveUnitID(data.PricingUnitID); err != nil {
+			return DetailView{}, err
+		}
+	}
+	previousUnits := make(map[string]MeasurementUnitSnapshot, len(previous.UnitConversions))
+	for _, conversion := range previous.UnitConversions {
+		previousUnits[conversion.Unit.ObjectID] = conversion.Unit
+	}
+	for index := range data.UnitConversions {
+		unit := &data.UnitConversions[index].Unit
+		if previousUnit, exists := previousUnits[unit.ObjectID]; exists {
+			*unit = previousUnit
+			continue
+		}
+		if err := resolveUnit(unit); err != nil {
+			return DetailView{}, err
+		}
+	}
+	if data.Formula == nil {
+		return data, nil
+	}
+	if previous.Formula != nil && data.Formula.Output.EnteredUnit.ObjectID == previous.Formula.Output.EnteredUnit.ObjectID {
+		data.Formula.Output.EnteredUnit = previous.Formula.Output.EnteredUnit
+	} else if err := resolveUnit(&data.Formula.Output.EnteredUnit); err != nil {
+		return DetailView{}, err
+	}
+	previousComponents := make(map[string]ProductFormulaComponent)
+	if previous.Formula != nil {
+		previousComponents = make(map[string]ProductFormulaComponent, len(previous.Formula.Components))
+		for _, component := range previous.Formula.Components {
+			previousComponents[component.Material.ObjectID] = component
+		}
+	}
+	for index := range data.Formula.Components {
+		component := &data.Formula.Components[index]
+		previousComponent, unchangedMaterial := previousComponents[component.Material.ObjectID]
+		if unchangedMaterial {
+			component.Material = previousComponent.Material
+		} else {
+			material, err := s.ResolveLatestApprovedReference(ctx, tx, EntityProduct, component.Material.ObjectID)
+			if err != nil {
+				return DetailView{}, err
+			}
+			component.Material.ApprovalEntryID, component.Material.Code = material.ApprovalEntryID, material.Code
+			component.Material.Name, component.Material.BehaviorProfile = material.Data.Name, material.Data.BehaviorProfile
+			if material.Data.BehaviorProfile != ProductBehaviorRawMaterial {
+				component.ResolutionStatus, component.RequiresConfirmation = "UNRESOLVED", false
+			} else {
+				component.ResolutionStatus = "CURRENT"
+			}
+		}
+		if unchangedMaterial && component.Quantity.EnteredUnit.ObjectID == previousComponent.Quantity.EnteredUnit.ObjectID {
+			component.Quantity.EnteredUnit = previousComponent.Quantity.EnteredUnit
+		} else if err := resolveUnit(&component.Quantity.EnteredUnit); err != nil {
+			return DetailView{}, err
 		}
 	}
 	return data, nil

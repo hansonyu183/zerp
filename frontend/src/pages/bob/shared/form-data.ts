@@ -17,7 +17,8 @@ export function bobFormFromView(
   const form = config.emptyForm()
   form.code = view.code
   form.objectId = view.objectId
-  form.approvalEntryId = view.approval.approvalEntryId
+  form.sourceApprovalEntryId = view.sourceApprovalEntryId
+  form.sourceVersionNo = view.sourceVersionNo
   const detail = Object.fromEntries(Object.entries(view.data))
   for (const key of config.detailKeys) {
     form[key] = detail[key] ?? form[key] ?? ''

@@ -90,9 +90,9 @@ func New(
 		return nil, errors.New("production demo seed pool is required")
 	}
 	events := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, events)
+	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.FailClosed{}, events)
+	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,
@@ -170,12 +170,12 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 		if err != nil {
 			return voudomain.ReferenceInput{}, fmt.Errorf("get BOB demo object %s: %w", code, err)
 		}
-		if view.Approval.Status != approval.StatusApproved {
+		if view.SourceApprovalEntryID == "" {
 			return voudomain.ReferenceInput{}, fmt.Errorf("BOB demo object %s has no approved version", code)
 		}
 		return voudomain.ReferenceInput{
 			ObjectID:        view.ObjectID,
-			ApprovalEntryID: view.Approval.ApprovalEntryID,
+			ApprovalEntryID: view.SourceApprovalEntryID,
 		}, nil
 	}
 	var refs references

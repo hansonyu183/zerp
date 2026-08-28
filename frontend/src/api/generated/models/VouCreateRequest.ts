@@ -43,7 +43,6 @@ export type VouCreateRequest = {
     };
     settlementMethod?: {
       objectId: string;
-      approvalEntryId: string;
     };
     employee?: {
       objectId: string;

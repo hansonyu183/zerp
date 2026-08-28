@@ -8,9 +8,8 @@ import {
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
-import { getStatusText } from './config'
 import type { BobEntityViewModel } from './vm'
-import { bobListActiveVersion, type BobListItem } from './types'
+import type { BobListItem } from './types'
 import ProductUnitConversionsEditor from '../product/ProductUnitConversionsEditor.vue'
 import ProductFormulaEditorDialog from '../product/ProductFormulaEditorDialog.vue'
 import {
@@ -159,22 +158,6 @@ function openFormula(
             variant="outlined"
           />
         </template>
-      </template>
-
-      <template #cell-status="{ row }">
-        <div class="bob-status-chips">
-          <v-chip density="comfortable" size="small" variant="tonal">
-            {{ getStatusText(bobListActiveVersion(row).approval.status) }}
-          </v-chip>
-          <v-chip
-            :color="row.enabled ? 'success' : 'default'"
-            density="comfortable"
-            size="small"
-            variant="tonal"
-          >
-            {{ row.enabled ? '启用' : '禁用' }}
-          </v-chip>
-        </div>
       </template>
 
       <template #actions="{ row }">

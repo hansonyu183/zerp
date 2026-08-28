@@ -623,13 +623,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           { signal },
         )
         return result.data.items
-          .filter((item) => item.approval.status === 'APPROVED' && item.enabled)
+          .filter((item) => item.enabled)
           .map((item) => ({
             objectId: item.objectId,
-            approvalEntryId: item.approval.approvalEntryId,
+            approvalEntryId: item.sourceApprovalEntryId,
             entity,
             code: item.code,
-            name: item.partyDisplayName,
+            name: item.relationship?.partyDisplayName ?? '',
           }))
       } catch {
         return []
@@ -647,20 +647,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         request,
         { signal },
       )
-      return result.data.items.flatMap((item) => {
-        const version = item.latestApproved
-        return version
-          ? [
-              {
-                objectId: item.objectId,
-                approvalEntryId: version.approval.approvalEntryId,
-                entity: item.entity,
-                code: item.code,
-                name: String(version.summary.name ?? item.code),
-              },
-            ]
-          : []
-      })
+      return result.data.items.map((item) => ({
+        objectId: item.objectId,
+        approvalEntryId: item.sourceApprovalEntryId,
+        entity: item.entity,
+        code: item.code,
+        name: String(item.data.name ?? item.code),
+      }))
     } catch {
       return []
     }

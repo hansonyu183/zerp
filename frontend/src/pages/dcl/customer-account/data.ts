@@ -18,7 +18,7 @@ export function dclCustomerAccountPayload(
   return {
     name: form.name.trim(),
     shortName: optional(form.shortName),
-    customerTypeCode: form.customerTypeCode.trim(),
+    customerTypeId: form.customerTypeId.trim(),
     contactName: optional(form.contactName),
     contactPhone: optional(form.contactPhone),
     email: optional(form.email),
@@ -113,7 +113,7 @@ export function customerAccountFormFromView(
   return {
     name: data.name,
     shortName: data.shortName ?? '',
-    customerTypeCode: data.customerTypeCode,
+    customerTypeId: data.customerTypeId,
     contactName: data.contactName ?? '',
     contactPhone: data.contactPhone ?? '',
     email: data.email ?? '',

@@ -1,8 +1,22 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { apiClient } from '@/api/client'
 import type { CustomerAccountForm } from './types'
 import { salesAttributionLabels } from './types'
 
 const model = defineModel<CustomerAccountForm>({ required: true })
+const customerTypeOptions = ref<readonly { title: string; value: string }[]>([])
+
+onMounted(async () => {
+  const { data } = await apiClient.postContract('aux/reference/query', {
+    entity: 'dictionary-item',
+    dictionaryTypeCode: 'DCT-0001',
+  })
+  customerTypeOptions.value = data.map((item) => ({
+    title: `${item.code} · ${item.name}`,
+    value: item.objectId,
+  }))
+})
 
 function addCost(): void {
   model.value.pricingPolicy.costItems.push({
@@ -22,9 +36,10 @@ function addCost(): void {
       ><v-text-field v-model="model.shortName" label="账户简称"
     /></v-col>
     <v-col cols="12" md="6"
-      ><v-text-field
-        v-model="model.customerTypeCode"
-        label="客户类型编码"
+      ><v-select
+        v-model="model.customerTypeId"
+        :items="customerTypeOptions"
+        label="客户类型"
         required
     /></v-col>
     <v-col cols="12" md="6"

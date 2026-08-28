@@ -104,9 +104,7 @@ interface DclCustomerAccountListItem {
 
 interface AuxQueryItem {
   objectId: string
-  latestApproved: {
-    data: { termCode?: string }
-  }
+  data: { termCode?: string }
 }
 
 interface BobReferenceQueryItem {
@@ -154,10 +152,8 @@ const accMappingEntities = new Set([
 
 interface AuxMutation {
   objectId: string
-  approval: {
-    approvalEntryId: string
-    revision: number
-  }
+  objectRevision: number
+  enabled: boolean
 }
 
 interface VouMutation {
@@ -360,7 +356,6 @@ const bobReviewerActions = new Set([
   '/acc/opening/approve',
   '/acc/mapping/approve',
   '/wfl/process-definition/approve',
-  '/aux/payment-method/approve',
   '/bob/customer/query',
   '/bob/customer/get',
   '/bob/customer-account/query',
@@ -429,6 +424,7 @@ async function createEffectiveBob(
   data: Record<string, unknown>,
 ): Promise<BobMutation> {
   if (
+    entity === 'operating-entity' ||
     entity === 'warehouse' ||
     entity === 'vehicle' ||
     entity === 'fund-account' ||
@@ -467,10 +463,7 @@ async function createEffectiveBob(
     })
     return { ...approved, code: view.code }
   }
-  const created = await operator.post<BobMutation>(`bob/${entity}/create`, {
-    data,
-  })
-  return approveBob(operator, reviewer, entity, created)
+  throw new Error(`Unsupported DCL seed entity: ${entity}`)
 }
 
 async function createEffectiveEmployment(
@@ -577,34 +570,6 @@ async function createEffectiveOtherUnit(
   return { ...approved, code: view.code }
 }
 
-async function approveBob(
-  operator: RealApi,
-  reviewer: RealApi,
-  entity: string,
-  created: BobMutation,
-): Promise<BobMutation> {
-  const submitted = await operator.post<BobMutation>(`bob/${entity}/submit`, {
-    objectId: created.objectId,
-    approvalEntryId: created.approval.approvalEntryId,
-    approvalRevision: created.approval.revision,
-  })
-  const approved = await reviewer.post<BobMutation>(`bob/${entity}/approve`, {
-    objectId: submitted.objectId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
-  const effective = approved.enabled
-    ? approved
-    : await operator.post<BobMutation>(`bob/${entity}/enable`, {
-        objectId: approved.objectId,
-        objectRevision: approved.objectRevision,
-      })
-  const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
-    objectId: effective.objectId,
-  })
-  return { ...effective, code: view.code }
-}
-
 async function fixedSettlementMethod(
   operator: RealApi,
 ): Promise<Pick<BobMutation, 'objectId'>> {
@@ -618,7 +583,7 @@ async function fixedSettlementMethod(
     },
   )
   const item = page.items.find(
-    (candidate) => candidate.latestApproved.data.termCode === 'MONTHLY_CURRENT',
+    (candidate) => candidate.data.termCode === 'MONTHLY_CURRENT',
   )
   if (!item) throw new Error('WFL 预置未找到系统固定当月结结算方式。')
   return { objectId: item.objectId }
@@ -631,7 +596,6 @@ async function fixedOperatingEntity(operator: RealApi): Promise<string> {
       page: 1,
       pageSize: 20,
       filters: {
-        status: ['APPROVED'],
         enabled: true,
       },
       sort: [{ field: 'code', order: 'asc' }],
@@ -644,7 +608,6 @@ async function fixedOperatingEntity(operator: RealApi): Promise<string> {
 
 async function createPaymentMethod(
   operator: RealApi,
-  reviewer: RealApi,
   name: string,
 ): Promise<string> {
   const created = await operator.post<AuxMutation>(
@@ -653,23 +616,7 @@ async function createPaymentMethod(
       data: { name, defaultSalesSurcharge: '0.00', description: 'E2E 测试' },
     },
   )
-  const submitted = await operator.post<AuxMutation>(
-    'aux/payment-method/submit',
-    {
-      objectId: created.objectId,
-      approvalEntryId: created.approval.approvalEntryId,
-      approvalRevision: created.approval.revision,
-    },
-  )
-  const approved = await reviewer.post<AuxMutation>(
-    'aux/payment-method/approve',
-    {
-      objectId: submitted.objectId,
-      approvalEntryId: submitted.approval.approvalEntryId,
-      approvalRevision: submitted.approval.revision,
-    },
-  )
-  return approved.objectId
+  return created.objectId
 }
 
 async function createEffectiveCustomer(
@@ -690,7 +637,7 @@ async function createEffectiveCustomer(
     operatingEntityId,
     defaultAccount: {
       name,
-      customerTypeCode: 'DIT-0001',
+      customerTypeId: '01JAVX00000000000000000005',
       settlementMethodId,
       paymentMethodId,
       defaultTransportMethodCode: 'SELF_PICKUP',
@@ -1449,7 +1396,6 @@ export async function createWflWorkerState(options: {
     }
     const paymentMethodId = await createPaymentMethod(
       operatorSession.api,
-      reviewerSession.api,
       `WFL 银行转账 ${suffix}`,
     )
     const customer = await createEffectiveCustomer(

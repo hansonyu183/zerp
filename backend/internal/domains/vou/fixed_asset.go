@@ -26,11 +26,13 @@ func isAssetEntity(entity string) bool {
 }
 
 type preparedAssetAcquisitionLine struct {
-	input                AssetAcquisitionLineInput
-	category, department bobdomain.AuxiliaryReference
-	custodian            *bobdomain.EffectiveReference
-	originalValue        int64
-	residualRateBps      int32
+	input                           AssetAcquisitionLineInput
+	category, department            bobdomain.AuxiliaryReference
+	custodian                       *bobdomain.EffectiveReference
+	originalValue                   int64
+	residualRateBps                 int32
+	categoryDefaultUsefulLifeMonths int32
+	categoryDefaultResidualRateBps  int32
 }
 
 type preparedAssetSaleLine struct {
@@ -102,6 +104,23 @@ func validateAssetText(value, field string, required bool, max int) (string, err
 	return value, nil
 }
 
+func (s *Service) resolveSelectedAssetCategoryReference(
+	ctx context.Context,
+	tx pgx.Tx,
+	input *AuxiliaryReferenceInput,
+	preserved *bobdomain.AuxiliaryReference,
+	newDocument bool,
+) (bobdomain.AuxiliaryReference, error) {
+	if !newDocument && preserved != nil && input.ObjectID == preserved.ObjectID {
+		return *preserved, nil
+	}
+	reference, err := s.auxResolver.ResolveCurrentAuxiliaryReference(ctx, tx, auxdomain.EntityAssetCategory, input.ObjectID)
+	if err != nil {
+		return bobdomain.AuxiliaryReference{}, domainError(ErrorConflict, "asset category is not effective", nil, err)
+	}
+	return reference, nil
+}
+
 func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity string, input DraftInput, saved *DocumentDataView) (preparedAssetDraft, error) {
 	var result preparedAssetDraft
 	if input.Currency != "CNY" {
@@ -133,7 +152,14 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 		if len(input.AssetAcquisitionLines) < 1 || len(input.AssetAcquisitionLines) > 200 {
 			return result, domainError(ErrorValidation, "asset acquisition requires 1-200 lines", nil, nil)
 		}
-		for lineIndex, line := range input.AssetAcquisitionLines {
+		savedLines := make(map[string]AssetAcquisitionLineView)
+		if saved != nil {
+			for _, line := range saved.AssetAcquisitionLines {
+				savedLines[line.LineID] = line
+			}
+		}
+		seenLineIDs := make(map[string]struct{})
+		for _, line := range input.AssetAcquisitionLines {
 			line.AssetName, err = validateAssetText(line.AssetName, "assetName", true, 200)
 			if err != nil {
 				return result, err
@@ -146,24 +172,50 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 			if err != nil {
 				return result, err
 			}
-			if err = validateReference(&line.Category, "category", true); err != nil {
+			if err = validateAuxiliaryReference(&line.Category, "category", true); err != nil {
 				return result, err
 			}
-			if err = validateReference(&line.Department, "department", true); err != nil {
+			if err = validateAuxiliaryReference(&line.Department, "department", true); err != nil {
 				return result, err
 			}
-			var savedCategory, savedDepartment, savedCustodian *bobdomain.EffectiveReference
-			if saved != nil && lineIndex < len(saved.AssetAcquisitionLines) {
-				stored := saved.AssetAcquisitionLines[lineIndex]
-				savedCategory = &bobdomain.EffectiveReference{ObjectID: stored.Category.ObjectID, ApprovalEntryID: stored.Category.ApprovalEntryID}
-				savedDepartment = &bobdomain.EffectiveReference{ObjectID: stored.Department.ObjectID, ApprovalEntryID: stored.Department.ApprovalEntryID}
+			var savedCategory *bobdomain.AuxiliaryReference
+			var savedDepartment, savedCustodian *bobdomain.EffectiveReference
+			if line.LineID != "" {
+				if !validID(line.LineID) {
+					return result, domainError(ErrorValidation, "invalid asset acquisition lineId", nil, nil)
+				}
+				if _, duplicate := seenLineIDs[line.LineID]; duplicate {
+					return result, domainError(ErrorValidation, "duplicate asset acquisition lineId", nil, nil)
+				}
+				seenLineIDs[line.LineID] = struct{}{}
+				stored, exists := savedLines[line.LineID]
+				if !exists {
+					return result, domainError(ErrorValidation, "unknown asset acquisition lineId", nil, nil)
+				}
+				savedCategory = &bobdomain.AuxiliaryReference{
+					ObjectID: stored.Category.ObjectID, Entity: auxdomain.EntityAssetCategory,
+					Code: stored.Category.Code, Data: map[string]any{
+						"name":                    stored.Category.Name,
+						"defaultUsefulLifeMonths": stored.CategoryDefaultUsefulLifeMonths,
+						"defaultResidualRate":     stored.CategoryDefaultResidualRate,
+					},
+				}
+				savedDepartment = &bobdomain.EffectiveReference{
+					ObjectID: stored.Department.ObjectID, Entity: auxdomain.EntityDepartment,
+					Code: stored.Department.Code, Data: bobdomain.DetailView{Name: stored.Department.Name},
+				}
 				if stored.Custodian != nil {
 					savedCustodian = &bobdomain.EffectiveReference{ObjectID: stored.Custodian.ObjectID, ApprovalEntryID: stored.Custodian.ApprovalEntryID}
 				}
 			}
-			categoryRef, auxErr := s.resolveSelectedAuxiliaryReference(ctx, tx, auxdomain.EntityAssetCategory, &line.Category, savedCategory, saved == nil)
+			categoryRef, auxErr := s.resolveSelectedAssetCategoryReference(ctx, tx, &line.Category, savedCategory, saved == nil)
 			if auxErr != nil {
-				return result, domainError(ErrorConflict, "asset category is not effective", nil, auxErr)
+				return result, auxErr
+			}
+			categoryDefaultUsefulLifeMonths := auxiliaryInt32(categoryRef.Data, "defaultUsefulLifeMonths")
+			categoryDefaultResidualRate, categoryDefaultRateErr := parseFixed(auxiliaryString(categoryRef.Data, "defaultResidualRate"), 2, true)
+			if categoryDefaultRateErr != nil || categoryDefaultUsefulLifeMonths < 1 || categoryDefaultUsefulLifeMonths > 1200 || categoryDefaultResidualRate < 0 || categoryDefaultResidualRate >= 10000 {
+				return result, domainError(ErrorConflict, "asset category defaults are invalid", nil, categoryDefaultRateErr)
 			}
 			departmentRef, auxErr := s.resolveSelectedAuxiliaryReference(ctx, tx, auxdomain.EntityDepartment, &line.Department, savedDepartment, saved == nil)
 			if auxErr != nil {
@@ -192,9 +244,9 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 				return result, domainError(ErrorValidation, "total amount is out of range", nil, nil)
 			}
 			result.total += original
-			category := bobdomain.AuxiliaryReference{ObjectID: categoryRef.ObjectID, ApprovalEntryID: categoryRef.ApprovalEntryID, Entity: categoryRef.Entity, Code: categoryRef.Code, Data: map[string]any{"name": categoryRef.Data.Name}}
-			department := bobdomain.AuxiliaryReference{ObjectID: departmentRef.ObjectID, ApprovalEntryID: departmentRef.ApprovalEntryID, Entity: departmentRef.Entity, Code: departmentRef.Code, Data: map[string]any{"name": departmentRef.Data.Name}}
-			result.acquisitions = append(result.acquisitions, preparedAssetAcquisitionLine{input: line, category: category, department: department, custodian: custodian, originalValue: original, residualRateBps: int32(rate)})
+			category := bobdomain.AuxiliaryReference{ObjectID: categoryRef.ObjectID, Entity: categoryRef.Entity, Code: categoryRef.Code, Data: map[string]any{"name": auxiliaryString(categoryRef.Data, "name")}}
+			department := bobdomain.AuxiliaryReference{ObjectID: departmentRef.ObjectID, Entity: departmentRef.Entity, Code: departmentRef.Code, Data: map[string]any{"name": departmentRef.Data.Name}}
+			result.acquisitions = append(result.acquisitions, preparedAssetAcquisitionLine{input: line, category: category, department: department, custodian: custodian, originalValue: original, residualRateBps: int32(rate), categoryDefaultUsefulLifeMonths: categoryDefaultUsefulLifeMonths, categoryDefaultResidualRateBps: int32(categoryDefaultResidualRate)})
 		}
 	case EntityAssetSale:
 		if input.CounterpartyType != "customer-account" && input.CounterpartyType != "other-unit" {
@@ -392,6 +444,10 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 			return err
 		}
 		for i, line := range draft.acquisitions {
+			lineID := line.input.LineID
+			if lineID == "" {
+				lineID = newID()
+			}
 			var custID, custVersion, custCode, custName *string
 			if line.custodian != nil {
 				custID = stringPtr(line.custodian.ObjectID)
@@ -399,7 +455,7 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 				custCode = stringPtr(line.custodian.Code)
 				custName = stringPtr(line.custodian.Data.Name)
 			}
-			if err := q.InsertVouAssetAcquisitionLine(ctx, dbsqlc.InsertVouAssetAcquisitionLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), AssetName: line.input.AssetName, Specification: line.input.Specification, CategoryObjectID: line.category.ObjectID, CategoryApprovalEntryID: line.category.ApprovalEntryID, CategoryCode: line.category.Code, CategoryName: auxName(line.category), OriginalValueCents: line.originalValue, UsefulLifeMonths: line.input.UsefulLifeMonths, ResidualRateBps: line.residualRateBps, DepartmentObjectID: line.department.ObjectID, DepartmentApprovalEntryID: line.department.ApprovalEntryID, DepartmentCode: line.department.Code, DepartmentName: auxName(line.department), CustodianObjectID: custID, CustodianApprovalEntryID: custVersion, CustodianCode: custCode, CustodianName: custName, Location: line.input.Location, Remark: optionalText(line.input.Remark)}); err != nil {
+			if err := q.InsertVouAssetAcquisitionLine(ctx, dbsqlc.InsertVouAssetAcquisitionLineParams{ID: lineID, DocumentID: documentID, LineNo: int32(i + 1), AssetName: line.input.AssetName, Specification: line.input.Specification, CategoryObjectID: line.category.ObjectID, CategoryCode: line.category.Code, CategoryName: auxName(line.category), CategoryDefaultUsefulLifeMonths: line.categoryDefaultUsefulLifeMonths, CategoryDefaultResidualRateBps: line.categoryDefaultResidualRateBps, OriginalValueCents: line.originalValue, UsefulLifeMonths: line.input.UsefulLifeMonths, ResidualRateBps: line.residualRateBps, DepartmentObjectID: line.department.ObjectID, DepartmentCode: line.department.Code, DepartmentName: auxName(line.department), CustodianObjectID: custID, CustodianApprovalEntryID: custVersion, CustodianCode: custCode, CustodianName: custName, Location: line.input.Location, Remark: optionalText(line.input.Remark)}); err != nil {
 				return err
 			}
 		}
@@ -452,7 +508,7 @@ func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document
 		}
 		data.AssetAcquisitionLines = make([]AssetAcquisitionLineView, 0, len(rows))
 		for _, row := range rows {
-			item := AssetAcquisitionLineView{LineID: row.ID, LineNo: row.LineNo, AssetName: row.AssetName, Specification: row.Specification, Category: *reference(row.CategoryObjectID, row.CategoryApprovalEntryID, auxdomain.EntityAssetCategory, row.CategoryCode, row.CategoryName, "", "", ""), OriginalValue: formatMoney(row.OriginalValueCents), UsefulLifeMonths: row.UsefulLifeMonths, ResidualRate: formatFixed(int64(row.ResidualRateBps), 2), Department: *reference(row.DepartmentObjectID, row.DepartmentApprovalEntryID, auxdomain.EntityDepartment, row.DepartmentCode, row.DepartmentName, "", "", ""), Location: row.Location, Remark: deref(row.Remark)}
+			item := AssetAcquisitionLineView{LineID: row.ID, LineNo: row.LineNo, AssetName: row.AssetName, Specification: row.Specification, Category: auxiliaryReference(row.CategoryObjectID, auxdomain.EntityAssetCategory, row.CategoryCode, row.CategoryName), CategoryDefaultUsefulLifeMonths: row.CategoryDefaultUsefulLifeMonths, CategoryDefaultResidualRate: formatFixed(int64(row.CategoryDefaultResidualRateBps), 2), OriginalValue: formatMoney(row.OriginalValueCents), UsefulLifeMonths: row.UsefulLifeMonths, ResidualRate: formatFixed(int64(row.ResidualRateBps), 2), Department: auxiliaryReference(row.DepartmentObjectID, auxdomain.EntityDepartment, row.DepartmentCode, row.DepartmentName), Location: row.Location, Remark: deref(row.Remark)}
 			if row.CustodianObjectID != nil {
 				item.Custodian = reference(deref(row.CustodianObjectID), deref(row.CustodianApprovalEntryID), bobdomain.EntityEmployee, deref(row.CustodianCode), deref(row.CustodianName), "", "", "")
 			}

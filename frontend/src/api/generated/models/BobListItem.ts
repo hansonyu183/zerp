@@ -2,15 +2,18 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BobDetailView } from './BobDetailView';
 import type { BobEntity } from './BobEntity';
-import type { BobVersionSummary } from './BobVersionSummary';
+import type { BobRelationshipIdentityView } from './BobRelationshipIdentityView';
 export type BobListItem = {
   objectId: string;
   entity: BobEntity;
   code: string;
   objectRevision: number;
   enabled: boolean;
-  latestApproved: BobVersionSummary | null;
-  openVersion: BobVersionSummary | null;
+  sourceApprovalEntryId: string;
+  sourceVersionNo: number;
+  data: BobDetailView;
+  relationship?: BobRelationshipIdentityView;
   updatedAt: string;
 };

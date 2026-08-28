@@ -274,26 +274,8 @@ func createApprovedBOB(
 	if entity == bobdomain.EntityOtherUnit {
 		return createApprovedOtherUnitDeclaration(t, vouIntegrationPool(t), service, data)
 	}
-	var created bobdomain.MutationResult
-	var err error
-	created, err = service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
-		trustedIntegrationActor(t, "vou-ref-create"))
-	if err != nil {
-		t.Fatalf("create %s reference: %v (cause: %v)", entity, err, errors.Unwrap(err))
-	}
-	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{
-		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
-	}, trustedIntegrationActor(t, "vou-ref-submit"))
-	if err != nil {
-		t.Fatalf("submit %s reference: %v", entity, err)
-	}
-	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{
-		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
-	}, trustedIntegrationActor(t, "vou-ref-approve"))
-	if err != nil {
-		t.Fatalf("approve %s reference: %v", entity, err)
-	}
-	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	t.Fatalf("unsupported DCL integration reference entity %q", entity)
+	return ReferenceInput{}
 }
 
 func createApprovedSupplierDeclaration(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, data bobdomain.CreateDetailInput) ReferenceInput {
@@ -447,88 +429,47 @@ func disableVehicleViaDCL(
 	}
 }
 
-func reverseApprovedBOBToDraft(
-	t *testing.T,
-	service *bobdomain.Service,
-	entity string,
-	view bobdomain.ObjectView,
-	requestID string,
-) bobdomain.MutationResult {
-	t.Helper()
-	unapproved, err := service.Unapprove(t.Context(), entity, bobdomain.ReverseInput{
-		ObjectID: view.ObjectID, ApprovalEntryID: view.Approval.ApprovalEntryID,
-		ApprovalRevision: view.Approval.Revision, Reason: "integration update",
-	}, trustedIntegrationActor(t, requestID+"-unapprove"))
-	if err != nil {
-		t.Fatalf("unapprove BOB reference: %v", err)
-	}
-	draft, err := service.Unsubmit(t.Context(), entity, bobdomain.ReverseInput{
-		ObjectID: unapproved.ObjectID, ApprovalEntryID: unapproved.Approval.ApprovalEntryID,
-		ApprovalRevision: unapproved.Approval.Revision, Reason: "integration update",
-	}, trustedIntegrationActor(t, requestID+"-unsubmit"))
-	if err != nil {
-		t.Fatalf("unsubmit BOB reference: %v", err)
-	}
-	return draft
-}
-
 func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string) ReferenceInput {
 	t.Helper()
 	var result ReferenceInput
 	if err := pool.QueryRow(t.Context(), `
-		SELECT object.id,entry.id
+		SELECT object.id
 		FROM aux_objects object
-		JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity
-		  AND entry.subject_id=object.id AND entry.status='APPROVED'
-		JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
-		WHERE object.entity='settlement-method' AND object.enabled AND payload.data->>'termCode'=$1
-		ORDER BY entry.version_no DESC LIMIT 1
-	`, termCode).Scan(&result.ObjectID, &result.ApprovalEntryID); err != nil {
+		WHERE object.entity='settlement-method' AND object.enabled AND object.data->>'termCode'=$1
+		ORDER BY object.code LIMIT 1
+	`, termCode).Scan(&result.ObjectID); err != nil {
 		t.Fatalf("find fixed settlement method %s: %v", termCode, err)
 	}
 	return result
 }
 
 func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
-	bus := txevent.NewBus()
-	authorizer := authorization.Func(nil)
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 }
 
 type vouCustomerAuxiliaryResolver struct{}
 
-func (resolver vouCustomerAuxiliaryResolver) ResolveLatestApprovedAuxiliaryReference(
+func (resolver vouCustomerAuxiliaryResolver) ResolveCurrentAuxiliaryReference(
 	ctx context.Context, tx pgx.Tx, entity, objectID string,
 ) (bobdomain.AuxiliaryReference, error) {
-	return resolver.ValidateApprovedAuxiliarySnapshotReference(ctx, tx, entity, objectID, "")
-}
-
-func (vouCustomerAuxiliaryResolver) ValidateApprovedAuxiliarySnapshotReference(
-	ctx context.Context, tx pgx.Tx, entity, objectID, _ string,
-) (bobdomain.AuxiliaryReference, error) {
 	if entity == "payment-method" {
-		return bobdomain.AuxiliaryReference{ObjectID: objectID, ApprovalEntryID: "01J00000000000000000000083",
-			Entity: entity, Code: "PAY-0001", Data: map[string]any{"name": "银行转账"}}, nil
+		return bobdomain.AuxiliaryReference{ObjectID: objectID, Entity: entity, Code: "PAY-0001", Data: map[string]any{"name": "银行转账"}}, nil
 	}
-	var versionID, code string
+	var code string
 	var raw []byte
 	if err := tx.QueryRow(ctx, `
-		SELECT entry.id,object.code,payload.data
+		SELECT object.code,object.data
 		FROM aux_objects object
-		JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity
-		  AND entry.subject_id=object.id AND entry.status='APPROVED'
-		JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
 		WHERE object.id=$1 AND object.entity=$2 AND object.enabled
-		ORDER BY entry.version_no DESC LIMIT 1
-	`, objectID, entity).Scan(&versionID, &code, &raw); err != nil {
+	`, objectID, entity).Scan(&code, &raw); err != nil {
 		return bobdomain.AuxiliaryReference{}, err
 	}
 	data := map[string]any{}
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return bobdomain.AuxiliaryReference{}, err
 	}
-	return bobdomain.AuxiliaryReference{ObjectID: objectID, ApprovalEntryID: versionID, Entity: entity, Code: code, Data: data}, nil
+	return bobdomain.AuxiliaryReference{ObjectID: objectID, Entity: entity, Code: code, Data: data}, nil
 }
 
 func (vouCustomerAuxiliaryResolver) ResolveAuxiliaryCode(
@@ -546,7 +487,7 @@ func createApprovedCustomer(
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
 	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
-	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{}, authorizer, bus)
+	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{})
 	accounts := dcldomain.NewCustomerAccountService(pool, service, authorizer, bus)
 	customers := dcldomain.NewCustomerService(pool, service, parties, bobdomain.NewPartyCurrentReader(pool), accounts, authorizer, bus)
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
@@ -559,7 +500,7 @@ func createApprovedCustomer(
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name + "主体" + newID()[20:]},
 		OperatingEntityID: operating.ObjectID,
 		DefaultAccount: dcldomain.CustomerAccountDataInput{
-			Name: data.Name, CustomerTypeCode: bobdomain.CustomerTypeEndUser,
+			Name: data.Name, CustomerTypeID: bobdomain.CustomerTypeEndUserID,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
 			SettlementMethodID:         data.SettlementMethodID,
 			DefaultTransportMethodCode: "SELF_PICKUP", DefaultTransportMethodName: "客户自提",
@@ -722,7 +663,7 @@ func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 
 func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus) *Service {
 	t.Helper()
-	service, err := NewService(pool, newBOBIntegrationService(pool), auxiliaryrefs.New(auxdomain.NewService(pool, authorization.Func(nil), bus)), bus, AttachmentOptions{Root: t.TempDir()},
+	service, err := NewService(pool, newBOBIntegrationService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccountingControl(integrationAccountingControl{}),
 		WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {

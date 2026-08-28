@@ -50,7 +50,7 @@ func (s *Service) InventoryCountBookBalance(
 	}
 	items := make([]InventoryCountBalanceItem, 0, len(rows))
 	for _, row := range rows {
-		product, loadErr := bobdomain.LoadProductSnapshot(ctx, q, row.ProductApprovalEntryID)
+		product, loadErr := bobdomain.LoadDCLProductSnapshot(ctx, q, row.ProductApprovalEntryID)
 		if loadErr != nil {
 			return Page[InventoryCountBalanceItem]{}, s.internal("load inventory count product snapshot", loadErr)
 		}

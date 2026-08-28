@@ -3,10 +3,10 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { RptVersionData } from './RptVersionData';
-export type RptVersionSaveRequest = {
+export type DclRptDefinitionSaveRequest = {
   code: string;
   approvalEntryId: string;
-  revision: number;
+  approvalRevision: number;
   name?: string;
   description?: string;
   data: RptVersionData;

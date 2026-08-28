@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,43 +32,63 @@ type rptApprovalInput struct {
 
 type rptExecutionMutation struct {
 	ID       string
+	Code     string
 	Status   string
 	Revision int64
 }
 
 type rptExecutionService struct {
 	*Service
-	t *testing.T
+	declarations *dcldomain.RptDefinitionService
+	t            *testing.T
+}
+
+type rptDefinitionCreateInput struct {
+	Code, Name, Description string
+	Data                    VersionData
 }
 
 func newRPTExecutionService(t *testing.T, pool *pgxpool.Pool) (*rptExecutionService, error) {
 	t.Helper()
 	seedRPTActors(t, pool)
-	service, err := NewService(pool, authorization.Func(nil), txevent.NewBus())
+	bus := txevent.NewBus()
+	service, err := NewService(pool)
 	if err != nil {
 		return nil, err
 	}
-	return &rptExecutionService{Service: service, t: t}, nil
+	declarations := dcldomain.NewRptDefinitionService(pool, service, authorization.Func(nil), bus)
+	return &rptExecutionService{Service: service, declarations: declarations, t: t}, nil
 }
 
-func (service *rptExecutionService) CreateDefinition(ctx context.Context, input DefinitionCreateInput, _ string, requestID string) (rptExecutionMutation, error) {
-	created, err := service.Service.CreateDefinition(ctx, input, rptActor(service.t, rptSubmitterID, requestID))
+func (service *rptExecutionService) CreateDefinition(ctx context.Context, input rptDefinitionCreateInput, _ string, requestID string) (rptExecutionMutation, error) {
+	parameters, err := json.Marshal(input.Data.Parameters)
 	if err != nil {
 		return rptExecutionMutation{}, err
 	}
-	return rptExecutionMutation{ID: created.Approval.ApprovalEntryID, Status: string(created.Approval.Status), Revision: created.Approval.Revision}, nil
+	columns, err := json.Marshal(input.Data.Columns)
+	if err != nil {
+		return rptExecutionMutation{}, err
+	}
+	created, err := service.declarations.Create(ctx, dcldomain.RptDefinitionCreateInput{
+		Name: input.Name, Description: input.Description,
+		Data: dcldomain.RptDefinitionData{SQL: input.Data.SQL, Parameters: parameters, Columns: columns},
+	}, rptActor(service.t, rptSubmitterID, requestID))
+	if err != nil {
+		return rptExecutionMutation{}, err
+	}
+	return rptExecutionMutation{ID: created.Approval.ApprovalEntryID, Code: created.Code, Status: string(created.Approval.Status), Revision: created.Approval.Revision}, nil
 }
 
 func (service *rptExecutionService) submitAndApprove(ctx context.Context, input rptApprovalInput, requestID string) (rptExecutionMutation, error) {
-	pending, err := service.Service.Submit(ctx, VersionActionInput{
-		Code: input.Code, ApprovalEntryID: input.VersionID, Revision: input.Revision,
+	pending, err := service.declarations.Submit(ctx, dcldomain.RptDefinitionVersionInput{
+		Code: input.Code, ApprovalEntryID: input.VersionID, ApprovalRevision: input.Revision,
 		ValidationParameters: input.ValidationParameters,
 	}, rptActor(service.t, rptSubmitterID, requestID+"-submit"))
 	if err != nil {
 		return rptExecutionMutation{}, err
 	}
-	approved, err := service.Service.Approve(ctx, VersionActionInput{
-		Code: input.Code, ApprovalEntryID: input.VersionID, Revision: pending.Approval.Revision,
+	approved, err := service.declarations.Approve(ctx, dcldomain.RptDefinitionVersionInput{
+		Code: input.Code, ApprovalEntryID: input.VersionID, ApprovalRevision: pending.Approval.Revision,
 		ValidationParameters: input.ValidationParameters,
 	}, rptActor(service.t, rptReviewerID, requestID))
 	if err != nil {
@@ -92,12 +113,13 @@ func TestRPTExecutionPaginationIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	code := rptCode()
-	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{
+	created, err := service.CreateDefinition(t.Context(), rptDefinitionCreateInput{
 		Code: code, Name: "分页报表", Data: rptData(`SELECT path AS value FROM app_permissions ORDER BY path`, "value"),
 	}, rptIntegrationActor, "rpt-page-create")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}
+	code = created.Code
 	approved, err := service.submitAndApprove(t.Context(), rptApprovalInput{
 		Code: code, VersionID: created.ID, Revision: created.Revision,
 	}, "rpt-page-approve")
@@ -156,15 +178,36 @@ func TestRPTStructuralErrorInvalidatesVersionAndDisablesPermissionsIntegration(t
 	if _, err = pool.Exec(t.Context(), fmt.Sprintf(`INSERT INTO %s(value) VALUES('ok'); GRANT SELECT ON %s TO zerp_report_reader`, tableName, tableName)); err != nil {
 		t.Fatalf("seed report fixture table: %v", err)
 	}
-	serviceSQL := fmt.Sprintf(`SELECT value AS value FROM %s`, tableName)
 	code := rptCode()
-	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "失效报表", Data: rptData(serviceSQL, "value")}, rptIntegrationActor, "rpt-invalid-create")
+	v1, err := service.CreateDefinition(t.Context(), rptDefinitionCreateInput{Code: code, Name: "有效版本 V1", Data: rptData(`SELECT 'v1'::text AS value`, "value")}, rptIntegrationActor, "rpt-valid-v1-create")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}
-	approved, err := service.submitAndApprove(t.Context(), rptApprovalInput{Code: code, VersionID: created.ID, Revision: created.Revision}, "rpt-invalid-approve")
+	code = v1.Code
+	v1Approved, err := service.submitAndApprove(t.Context(), rptApprovalInput{Code: code, VersionID: v1.ID, Revision: v1.Revision}, "rpt-valid-v1-approve")
 	if err != nil {
-		t.Fatalf("approve report: %v", err)
+		t.Fatalf("approve V1 report: %v", err)
+	}
+	v2, err := service.declarations.CreateNext(t.Context(), dcldomain.RptDefinitionVersionInput{
+		Code: code, ApprovalEntryID: v1Approved.ID, ApprovalRevision: v1Approved.Revision,
+	}, rptActor(t, rptSubmitterID, "rpt-invalid-v2-next"))
+	if err != nil {
+		t.Fatalf("create V2 report: %v", err)
+	}
+	serviceSQL := fmt.Sprintf(`SELECT value AS value FROM %s`, tableName)
+	v2Name := "失效版本 V2"
+	parameters, _ := json.Marshal(rptData(serviceSQL, "value").Parameters)
+	columns, _ := json.Marshal(rptData(serviceSQL, "value").Columns)
+	v2, err = service.declarations.Save(t.Context(), dcldomain.RptDefinitionSaveInput{
+		Code: code, ApprovalEntryID: v2.Approval.ApprovalEntryID, ApprovalRevision: v2.Approval.Revision,
+		Name: &v2Name, Data: dcldomain.RptDefinitionData{SQL: serviceSQL, Parameters: parameters, Columns: columns},
+	}, rptActor(t, rptSubmitterID, "rpt-invalid-v2-save"))
+	if err != nil {
+		t.Fatalf("save V2 report: %v", err)
+	}
+	v2Approved, err := service.submitAndApprove(t.Context(), rptApprovalInput{Code: code, VersionID: v2.Approval.ApprovalEntryID, Revision: v2.Approval.Revision}, "rpt-invalid-v2-approve")
+	if err != nil {
+		t.Fatalf("approve V2 report: %v", err)
 	}
 	if _, err = pool.Exec(t.Context(), fmt.Sprintf(`DROP TABLE %s`, tableName)); err != nil {
 		t.Fatalf("drop report fixture table: %v", err)
@@ -176,8 +219,8 @@ func TestRPTStructuralErrorInvalidatesVersionAndDisablesPermissionsIntegration(t
 	var status, validity string
 	if err = pool.QueryRow(t.Context(), `SELECT entry.status,payload.validity
 		FROM approval_entries entry
-		JOIN rpt_versions payload ON payload.approval_entry_id=entry.id
-		WHERE entry.id=$1`, created.ID).Scan(&status, &validity); err != nil {
+		JOIN dcl_rpt_definition_versions payload ON payload.approval_entry_id=entry.id
+		WHERE entry.id=$1`, v2Approved.ID).Scan(&status, &validity); err != nil {
 		t.Fatalf("read invalid report: %v", err)
 	}
 	if status != "APPROVED" || validity != "INVALID" {
@@ -191,7 +234,6 @@ func TestRPTStructuralErrorInvalidatesVersionAndDisablesPermissionsIntegration(t
 	if _, err = service.Execute(t.Context(), code, ExecuteInput{Parameters: map[string]any{}}, rptIntegrationActor, "rpt-invalid-query-again"); err == nil || err.Error() != "report is unavailable" {
 		t.Fatalf("second invalid report query error = %v", err)
 	}
-	_ = approved
 }
 
 func TestRPTReadOnlySQLAndApprovalTimeoutIntegration(t *testing.T) {
@@ -201,16 +243,17 @@ func TestRPTReadOnlySQLAndApprovalTimeoutIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, sql := range []string{"DELETE FROM app_permissions", "SELECT 1; SELECT 2", "WITH removed AS (DELETE FROM app_permissions RETURNING id) SELECT * FROM removed"} {
-		if _, err = service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: rptCode(), Name: "只读校验", Data: rptData(sql, "value")}, rptIntegrationActor, "rpt-readonly-create"); !rptErrorKind(err, ErrorValidation) {
+		if _, err = service.CreateDefinition(t.Context(), rptDefinitionCreateInput{Code: rptCode(), Name: "只读校验", Data: rptData(sql, "value")}, rptIntegrationActor, "rpt-readonly-create"); !rptErrorKind(err, ErrorValidation) {
 			t.Fatalf("unsafe SQL %q error = %v", sql, err)
 		}
 	}
 
 	code := rptCode()
-	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "超时报表", Data: rptData(`SELECT pg_sleep(3) AS value`, "value")}, rptIntegrationActor, "rpt-timeout-create")
+	created, err := service.CreateDefinition(t.Context(), rptDefinitionCreateInput{Code: code, Name: "超时报表", Data: rptData(`SELECT pg_sleep(3) AS value`, "value")}, rptIntegrationActor, "rpt-timeout-create")
 	if err != nil {
 		t.Fatalf("create timeout report: %v", err)
 	}
+	code = created.Code
 	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Second)
 	defer cancel()
 	if _, err = service.submitAndApprove(ctx, rptApprovalInput{Code: code, VersionID: created.ID, Revision: created.Revision}, "rpt-timeout-approve"); !rptErrorKind(err, ErrorValidation) {
@@ -236,11 +279,11 @@ func TestRPTBuiltInReportsUseOrdinaryExecutionPathIntegration(t *testing.T) {
 				JOIN LATERAL (
 					SELECT entry.id,entry.status
 					FROM approval_entries entry
-					WHERE entry.domain='rpt' AND entry.entity='definition'
+					WHERE entry.domain='dcl' AND entry.entity='rpt-definition'
 						AND entry.subject_id=d.id AND entry.status='APPROVED'
 					ORDER BY entry.version_no DESC LIMIT 1
 				) e ON true
-				JOIN rpt_versions v ON v.approval_entry_id=e.id
+				JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
 				JOIN app_permissions q ON q.path='/rpt/'||d.code||'/query'
 				JOIN app_permissions x ON x.path='/rpt/'||d.code||'/export' WHERE d.code=$1`, code).
 				Scan(&status, &validity, &queryStatus, &exportStatus)
@@ -456,10 +499,11 @@ func TestRPTCSVExportStreamsAndRejectsOversizeIntegration(t *testing.T) {
 	code := rptCode()
 	data := rptData(`SELECT i::bigint AS value FROM generate_series(1,3) i ORDER BY i`, "value")
 	data.Columns[0].Type = ResultTypeInteger
-	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "CSV 导出", Data: data}, rptIntegrationActor, "rpt-export-create")
+	created, err := service.CreateDefinition(t.Context(), rptDefinitionCreateInput{Code: code, Name: "CSV 导出", Data: data}, rptIntegrationActor, "rpt-export-create")
 	if err != nil {
 		t.Fatal(err)
 	}
+	code = created.Code
 	if _, err = service.submitAndApprove(t.Context(), rptApprovalInput{Code: code, VersionID: created.ID, Revision: created.Revision}, "rpt-export-approve"); err != nil {
 		t.Fatal(err)
 	}
@@ -509,10 +553,11 @@ func TestRPTCSVExportStreamsAndRejectsOversizeIntegration(t *testing.T) {
 
 	oversizeCode := rptCode()
 	oversize := rptData(`SELECT i::text AS value FROM generate_series(1,100001) i`, "value")
-	created, err = service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: oversizeCode, Name: "超限导出", Data: oversize}, rptIntegrationActor, "rpt-oversize-create")
+	created, err = service.CreateDefinition(t.Context(), rptDefinitionCreateInput{Code: oversizeCode, Name: "超限导出", Data: oversize}, rptIntegrationActor, "rpt-oversize-create")
 	if err != nil {
 		t.Fatal(err)
 	}
+	oversizeCode = created.Code
 	if _, err = service.submitAndApprove(t.Context(), rptApprovalInput{Code: oversizeCode, VersionID: created.ID, Revision: created.Revision}, "rpt-oversize-approve"); err != nil {
 		t.Fatal(err)
 	}
@@ -532,10 +577,11 @@ func TestRPTExecutionStatementTimeoutIntegration(t *testing.T) {
 	code := rptCode()
 	data := rptData(`SELECT value FROM (SELECT pg_sleep($1), 'ok'::text AS value) rpt_sleep`, "value")
 	data.Parameters = []Parameter{{Key: "delay", Name: "延迟秒数", Type: ParameterTypeInteger, Required: true}}
-	created, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{Code: code, Name: "执行超时报表", Data: data}, rptIntegrationActor, "rpt-execution-timeout-create")
+	created, err := service.CreateDefinition(t.Context(), rptDefinitionCreateInput{Code: code, Name: "执行超时报表", Data: data}, rptIntegrationActor, "rpt-execution-timeout-create")
 	if err != nil {
 		t.Fatalf("create execution timeout report: %v", err)
 	}
+	code = created.Code
 	validationParameters := map[string]any{"delay": float64(0)}
 	if _, err = service.submitAndApprove(t.Context(), rptApprovalInput{Code: code, VersionID: created.ID, Revision: created.Revision, ValidationParameters: validationParameters}, "rpt-execution-timeout-approve"); err != nil {
 		t.Fatalf("approve execution timeout report: %v", err)
@@ -546,7 +592,7 @@ func TestRPTExecutionStatementTimeoutIntegration(t *testing.T) {
 		t.Fatalf("execution timeout error = %v", err)
 	}
 	var validity string
-	if err = pool.QueryRow(t.Context(), `SELECT validity FROM rpt_versions WHERE approval_entry_id=$1`, created.ID).Scan(&validity); err != nil {
+	if err = pool.QueryRow(t.Context(), `SELECT validity FROM dcl_rpt_definition_versions WHERE approval_entry_id=$1`, created.ID).Scan(&validity); err != nil {
 		t.Fatalf("read execution timeout validity: %v", err)
 	}
 	if validity != "VALID" {

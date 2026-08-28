@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { RptDefinitionViewData } from './RptDefinitionViewData';
-export type RptDefinitionVersionPageData = {
-  items: Array<RptDefinitionViewData>;
+import type { DclRptDefinitionListItem } from './DclRptDefinitionListItem';
+export type DclRptDefinitionQueryPageData = {
+  items: Array<DclRptDefinitionListItem>;
   total: number;
   page: number;
   pageSize: number;

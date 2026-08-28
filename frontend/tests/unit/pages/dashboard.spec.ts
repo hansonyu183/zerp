@@ -119,6 +119,20 @@ describe('Dashboard workbench', () => {
     })
   })
 
+  it('routes report definition tasks to the DCL declaration page', () => {
+    const item = {
+      ...objectItem,
+      entity: 'rpt-definition',
+      code: 'account-journal',
+    } as WorkbenchItem
+    expect(workbenchItemPath(item)).toBe('/dcl/rpt-definition')
+    expect(workbenchItemQuery(item, 'edit')).toEqual({
+      code: 'account-journal',
+      approvalEntryId: item.versionId,
+      mode: 'edit',
+    })
+  })
+
   it('初始查询失败时不显示空状态', async () => {
     mockedPost.mockRejectedValueOnce(new Error('network unavailable'))
     const router = createTestRouter()

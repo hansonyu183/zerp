@@ -66,6 +66,11 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	}
 	accService := accdomain.NewService(db, authorizer, eventBus)
 	dclAccMappingService := dcldomain.NewAccMappingService(db, accService, authorizer, eventBus)
+	rptService, err := rptdomain.NewService(db)
+	if err != nil {
+		return nil, err
+	}
+	dclRptDefinitionService := dcldomain.NewRptDefinitionService(db, rptService, authorizer, eventBus)
 	vouService, err := voudomain.NewService(db, bobService, auxiliaryResolver, eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger, voudomain.WithAccountingControl(accService), voudomain.WithApprovalAuthorizer(authorizer))
@@ -77,10 +82,6 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		return nil, err
 	}
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
-		return nil, err
-	}
-	rptService, err := rptdomain.NewService(db, authorizer, eventBus)
-	if err != nil {
 		return nil, err
 	}
 	router := newRouter(cfg, db, logger, func(router *gin.Engine) {
@@ -99,6 +100,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		dcldomain.NewCustomerAccountHandler(dclCustomerAccountService, authorizer, logger).Register(router)
 		dcldomain.NewRelationshipHandler(dclRelationshipService, authorizer, logger).Register(router)
 		dcldomain.NewAccMappingHandler(dclAccMappingService, authorizer, logger).Register(router)
+		dcldomain.NewRptDefinitionHandler(dclRptDefinitionService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)

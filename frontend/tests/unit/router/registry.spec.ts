@@ -758,24 +758,20 @@ describe('permission menu registry', () => {
 })
 
 describe('RPT dynamic routes', () => {
-  it('registers each authorized report with the shared report page and keeps definition management separate', () => {
+  it('keeps execution routes in RPT and definition maintenance in DCL', () => {
     const router = createTestRouter()
     const menus = buildMenus([
       '/rpt/account-journal/query',
       '/rpt/account-balance/export',
-      '/rpt/definition/create',
+      '/dcl/rpt-definition/create',
     ])
 
     expect(menus).toMatchObject([
-      {
-        domain: 'rpt',
-        title: '报表',
-        children: [
-          { entity: 'definition', title: '报表定义管理', actions: ['create'] },
-          { entity: 'account-balance', actions: ['export'] },
-          { entity: 'account-journal', actions: ['query'] },
-        ],
-      },
+      { domain: 'dcl', children: [{ entity: 'rpt-definition', title: '报表定义申报', actions: ['create'] }] },
+      { domain: 'rpt', title: '报表', children: [
+        { entity: 'account-balance', actions: ['export'] },
+        { entity: 'account-journal', actions: ['query'] },
+      ] },
     ])
     expect(registerMenuRoutes(router, menus)).toBe(3)
     expect(router.resolve('/rpt/account-journal').meta).toMatchObject({
@@ -788,11 +784,12 @@ describe('RPT dynamic routes', () => {
       reportCode: 'account-balance',
       actions: ['export'],
     })
-    expect(router.resolve('/rpt/definition').meta).toMatchObject({
+    expect(router.resolve('/dcl/rpt-definition').meta).toMatchObject({
       developing: false,
-      title: '报表定义管理',
+      title: '报表定义申报',
       actions: ['create'],
     })
+    expect(router.resolve('/rpt/definition').name).toBe('not-found')
     expect(router.hasRoute('page:rpt/report-center')).toBe(false)
   })
 })

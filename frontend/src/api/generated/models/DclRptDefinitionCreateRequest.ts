@@ -3,8 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { RptVersionData } from './RptVersionData';
-export type RptDefinitionCreateRequest = {
-  code: string;
+export type DclRptDefinitionCreateRequest = {
   name: string;
   description?: string;
   data: RptVersionData;

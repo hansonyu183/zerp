@@ -11,14 +11,12 @@ import {
   visibleColumns,
   initialParameters,
   reportActions,
-  reportDefinitionActions,
   reportPageCount,
   reportParameterMinimum,
   validateReportParameterValues,
   vouDrilldown,
 } from '@/pages/rpt/shared/vm'
 import {
-  parseDefinitionPage,
   parseQueryResult,
   parseReferenceItems,
   parseReportMetadata,
@@ -85,7 +83,7 @@ async function mountReportViewModel(): Promise<{
   let vm: ReturnType<typeof useReportViewModel> | undefined
   const Harness = defineComponent({
     setup() {
-      vm = useReportViewModel('report')
+      vm = useReportViewModel()
       return () => h('div')
     },
   })
@@ -327,22 +325,7 @@ describe('RPT report center view model', () => {
     })
   })
 
-  it('exposes every definition action independently and calculates result pages', () => {
-    expect(reportDefinitionActions).toEqual([
-      'create',
-      'create-version',
-      'save',
-      'versions',
-      'delete-version',
-      'submit',
-      'unsubmit',
-      'reject',
-      'approve',
-      'unapprove',
-      'enable',
-      'disable',
-      'delete',
-    ])
+  it('calculates result pages', () => {
     expect(reportPageCount(101, 50)).toBe(3)
     expect(reportPageCount(0, 50)).toBe(1)
   })
@@ -676,35 +659,7 @@ describe('RPT report center view model', () => {
     wrapper.unmount()
   })
 
-  it('accepts the single definition and metadata contract shapes', () => {
-    expect(
-      parseDefinitionPage({
-        items: [
-          {
-            code: 'account-journal',
-            name: '科目流水',
-            description: '说明',
-            enabled: true,
-            revision: 1,
-            approval: {
-              approvalEntryId: '01K00000000000000000000000',
-              versionNo: 1,
-              status: 'DRAFT',
-              revision: 1,
-              createdBy: '01K00000000000000000000001',
-              createdAt: '2026-01-01T00:00:00Z',
-              updatedBy: '01K00000000000000000000001',
-              updatedAt: '2026-01-01T00:00:00Z',
-            },
-            validity: 'VALID',
-            data: { sql: 'SELECT 1', parameters: [], columns: resultColumns },
-          },
-        ],
-        total: 1,
-        page: 1,
-        pageSize: 200,
-      })[0]?.data?.sql,
-    ).toBe('SELECT 1')
+  it('accepts the current report metadata contract shape', () => {
     expect(
       parseReportMetadata({
         code: 'account-journal',
@@ -712,14 +667,11 @@ describe('RPT report center view model', () => {
         description: '说明',
         parameters: [],
         columns: resultColumns,
-      }).data,
-    ).toBeUndefined()
+      }).columns,
+    ).toEqual(resultColumns)
   })
 
   it('rejects guessed legacy response shapes', () => {
-    expect(() => parseDefinitionPage({ records: [] })).toThrow(
-      '报表接口返回格式错误',
-    )
     expect(() => parseQueryResult({ rows: [] })).toThrow('报表接口返回格式错误')
     expect(() => parseReferenceItems({ items: [{ value: 'id' }] })).toThrow(
       '报表接口返回格式错误',

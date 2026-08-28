@@ -218,6 +218,77 @@ verify_issue_291_cutover() {
 		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
 }
 
+seed_issue_292_report_fixture() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' <<'SQL'
+INSERT INTO app_roles(id,code,name,status,created_by,updated_by)
+VALUES('01Z29200000000000000000001','ROL-0292','Issue 292 role','ENABLED','01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000');
+INSERT INTO app_role_permissions(role_id,permission_id,created_by)
+VALUES
+  ('01Z29200000000000000000001','01KRPT00000000000000000001','01JAPPSYST3MACTR0000000000'),
+  ('01Z29200000000000000000001','01KRPT00000000000000000002','01JAPPSYST3MACTR0000000000'),
+  ('01Z29200000000000000000001','01KRPT00000000000000000010','01JAPPSYST3MACTR0000000000'),
+  ('01Z29200000000000000000001','01KRPT00000000000000000011','01JAPPSYST3MACTR0000000000');
+INSERT INTO rpt_definitions(id,code,created_by,updated_by)
+VALUES('01Z29200000000000000000002','issue-292-report','01Z29100000000000000000001','01Z29100000000000000000001');
+INSERT INTO approval_entries(
+  id,domain,entity,subject_id,version_no,status,revision,
+  created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+) VALUES(
+  '01Z29200000000000000000003','rpt','definition','01Z29200000000000000000002',1,'APPROVED',3,
+  '01Z29100000000000000000001',now(),'01Z29100000000000000000002',now(),
+  '01Z29100000000000000000001',now(),'01Z29100000000000000000002',now()
+);
+INSERT INTO rpt_versions(
+  approval_entry_id,definition_id,name,description,validity,sql_text,parameters,columns,created_by,updated_by
+) VALUES(
+  '01Z29200000000000000000003','01Z29200000000000000000002','Issue 292 report','cutover fixture','VALID',
+  'SELECT 1 AS value','[]'::jsonb,'[{"alias":"value","name":"值","order":1,"type":"INTEGER","width":120,"visible":true}]'::jsonb,
+  '01Z29100000000000000000001','01Z29100000000000000000002'
+);
+INSERT INTO approval_events(
+  id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
+  from_revision,to_revision,actor_id,request_id,created_at
+) VALUES(
+  '01Z29200000000000000000004','01Z29200000000000000000003','rpt','definition',
+  '01Z29200000000000000000002',1,'APPROVED','PENDING','APPROVED',2,3,
+  '01Z29100000000000000000002','issue-292-cutover',now()
+);
+INSERT INTO rpt_runtime_audit_events(
+  id,definition_id,report_code,approval_entry_id,event_type,actor_id,request_id,summary
+) VALUES(
+  '01Z29200000000000000000005','01Z29200000000000000000002','issue-292-report',
+  '01Z29200000000000000000003','EXECUTED','01Z29100000000000000000001','issue-292-runtime','{}'::jsonb
+);
+SQL
+}
+
+run_issue_292_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-292-dcl-rpt-definition.sql
+}
+
+verify_issue_292_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.rpt_versions'"'"') IS NULL
+		 AND (SELECT count(*) FROM dcl_subjects WHERE entity='"'"'rpt-definition'"'"')=(SELECT count(*) FROM rpt_definitions)
+		 AND (SELECT count(*) FROM dcl_rpt_definition_versions)=(SELECT count(*) FROM approval_entries WHERE domain='"'"'dcl'"'"' AND entity='"'"'rpt-definition'"'"')
+		 AND NOT EXISTS (SELECT 1 FROM approval_entries WHERE domain='"'"'rpt'"'"' AND entity='"'"'definition'"'"')
+		 AND NOT EXISTS (SELECT 1 FROM approval_events WHERE domain='"'"'rpt'"'"' AND entity='"'"'definition'"'"')
+		 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z29200000000000000000003'"'"' AND domain='"'"'dcl'"'"' AND entity='"'"'rpt-definition'"'"' AND subject_id='"'"'01Z29200000000000000000002'"'"')
+		 AND EXISTS (SELECT 1 FROM approval_events WHERE id='"'"'01Z29200000000000000000004'"'"' AND entry_id='"'"'01Z29200000000000000000003'"'"' AND domain='"'"'dcl'"'"' AND entity='"'"'rpt-definition'"'"')
+		 AND EXISTS (SELECT 1 FROM rpt_runtime_audit_events WHERE id='"'"'01Z29200000000000000000005'"'"' AND definition_id='"'"'01Z29200000000000000000002'"'"' AND approval_entry_id='"'"'01Z29200000000000000000003'"'"')
+		 AND NOT EXISTS (SELECT 1 FROM app_permissions WHERE path LIKE '"'"'/rpt/definition/%'"'"')
+		 AND NOT EXISTS (SELECT 1 FROM app_permissions WHERE id='"'"'01KRPT00000000000000000010'"'"')
+		 AND (SELECT count(*) FROM app_role_permissions WHERE role_id='"'"'01Z29200000000000000000001'"'"' AND permission_id IN ('"'"'01KRPT00000000000000000001'"'"','"'"'01KRPT00000000000000000002'"'"','"'"'01KRPT00000000000000000011'"'"','"'"'01KRPT00000000000000000017'"'"'))=4
+		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 wait_for_packages() {
 	local failed=0
 	local index exit_code status
@@ -308,6 +379,9 @@ verify_issue_290_cutover "$cutover_database"
 seed_issue_291_mapping_fixture "$cutover_database"
 run_issue_291_cutover "$cutover_database"
 verify_issue_291_cutover "$cutover_database"
+seed_issue_292_report_fixture "$cutover_database"
+run_issue_292_cutover "$cutover_database"
+verify_issue_292_cutover "$cutover_database"
 
 recreate_database "$cutover_database"
 initialize_pre_cutover_schema "$cutover_database"

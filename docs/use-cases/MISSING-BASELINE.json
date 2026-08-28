@@ -16,7 +16,6 @@
     "aux/product-category",
     "aux/product-type",
     "aux/settlement-method",
-    "rpt/definition",
     "rpt/report",
     "vou/asset-acquisition",
     "vou/asset-liquidation",

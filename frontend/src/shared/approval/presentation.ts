@@ -21,6 +21,18 @@ export const approvalActionLabels = {
   unapprove: '反批准',
 } as const satisfies Record<ApprovalAction, string>
 
+export const approvalEventActionLabels = {
+  CREATED: '创建',
+  SAVED: '保存',
+  SUBMITTED: '提交',
+  UNSUBMITTED: '撤回',
+  REJECTED: '驳回',
+  APPROVED: '批准',
+  UNAPPROVED: '反批准',
+  DELETED: '删除',
+  MERGED: '合并',
+} as const
+
 export function approvalVersionHistoryMetadata(meta: ApprovalVersionMeta) {
   const status = approvalStatusPresentation[meta.status]
   return {

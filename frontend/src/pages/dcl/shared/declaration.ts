@@ -15,6 +15,7 @@ export type DclDeclarationEntity =
   | 'other-unit'
   | 'sales-partner'
   | 'acc-mapping'
+  | 'rpt-definition'
 export type DclDeclarationLifecycleAction =
   'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
 export type DclDeclarationWireAction =
@@ -113,7 +114,8 @@ export function isDclDeclarationEntity(
     entity === 'supplier' ||
     entity === 'other-unit' ||
     entity === 'sales-partner' ||
-    entity === 'acc-mapping'
+    entity === 'acc-mapping' ||
+    entity === 'rpt-definition'
   )
 }
 

@@ -1,0 +1,263 @@
+DclRptDefinitionCreateRequest:
+  type: object
+  additionalProperties: false
+  required: [name, data]
+  properties:
+    name: { type: string, minLength: 1, maxLength: 200 }
+    description: { type: string, maxLength: 1000 }
+    data: { $ref: './rpt.yaml#/RptVersionData' }
+
+DclRptDefinitionSaveRequest:
+  type: object
+  additionalProperties: false
+  required: [code, approvalEntryId, approvalRevision, data]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
+    approvalRevision: { type: integer, format: int64, minimum: 1 }
+    name: { type: string, minLength: 1, maxLength: 200 }
+    description: { type: string, maxLength: 1000 }
+    data: { $ref: './rpt.yaml#/RptVersionData' }
+
+DclRptDefinitionVersionRequest:
+  type: object
+  additionalProperties: false
+  required: [code, approvalEntryId, approvalRevision]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
+    approvalRevision: { type: integer, format: int64, minimum: 1 }
+    validationParameters: { type: object, additionalProperties: true }
+
+DclRptDefinitionReviewRequest:
+  type: object
+  additionalProperties: false
+  required: [code, approvalEntryId, approvalRevision]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
+    approvalRevision: { type: integer, format: int64, minimum: 1 }
+    reason: { type: string, maxLength: 1000, nullable: true }
+
+DclRptDefinitionDeleteRequest:
+  type: object
+  additionalProperties: false
+  required: [code, approvalEntryId, approvalRevision]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
+    approvalRevision: { type: integer, format: int64, minimum: 1 }
+
+DclRptDefinitionGetRequest:
+  type: object
+  additionalProperties: false
+  required: [code]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    approvalEntryId:
+      type: string
+      minLength: 26
+      maxLength: 26
+      description: Exact central Approval Version entry; omit to read the latest APPROVED or open candidate.
+
+DclRptDefinitionQueryRequest:
+  type: object
+  additionalProperties: false
+  required: [page, pageSize]
+  properties:
+    page: { type: integer, minimum: 1 }
+    pageSize: { type: integer, minimum: 1, maximum: 100 }
+    filters:
+      type: object
+      additionalProperties: false
+      properties:
+        keyword: { type: string }
+        status:
+          type: array
+          items: { $ref: './common.yaml#/ApprovalStatus' }
+        includeDisabled: { type: boolean }
+    sort:
+      type: array
+      items:
+        type: object
+        required: [field, order]
+        additionalProperties: false
+        properties:
+          field: { type: string, enum: [code] }
+          order: { type: string, enum: [asc] }
+
+DclRptDefinitionHistoryRequest:
+  type: object
+  additionalProperties: false
+  required: [code, page, pageSize]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    page: { type: integer, minimum: 1 }
+    pageSize: { type: integer, minimum: 1, maximum: 100 }
+
+DclRptDefinitionEnableRequest:
+  type: object
+  additionalProperties: false
+  required: [code, revision]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    revision: { type: integer, format: int64, minimum: 1 }
+
+DclRptDefinitionMutation:
+  type: object
+  additionalProperties: false
+  required: [code, definitionId, revision, enabled, approval]
+  properties:
+    code: { type: string }
+    definitionId: { type: string }
+    revision: { type: integer, format: int64 }
+    enabled: { type: boolean }
+    approval: { $ref: './common.yaml#/ApprovalVersionMeta' }
+
+DclRptDefinitionView:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      code,
+      definitionId,
+      name,
+      description,
+      enabled,
+      revision,
+      approval,
+      validity,
+      data,
+    ]
+  properties:
+    code: { type: string }
+    definitionId: { type: string }
+    name: { type: string }
+    description: { type: string }
+    enabled: { type: boolean }
+    revision: { type: integer, format: int64 }
+    approval: { $ref: './common.yaml#/ApprovalVersionMeta' }
+    validity: { type: string, enum: [VALID, INVALID] }
+    data: { $ref: './rpt.yaml#/RptVersionData' }
+
+DclRptDefinitionVersionView:
+  type: object
+  additionalProperties: false
+  required: [name, description, approval, validity, data]
+  properties:
+    name: { type: string }
+    description: { type: string }
+    approval: { $ref: './common.yaml#/ApprovalVersionMeta' }
+    validity: { type: string, enum: [VALID, INVALID] }
+    data: { $ref: './rpt.yaml#/RptVersionData' }
+
+DclRptDefinitionVersionSummary:
+  type: object
+  additionalProperties: false
+  required: [name, description, approval, validity]
+  properties:
+    name: { type: string }
+    description: { type: string }
+    approval: { $ref: './common.yaml#/ApprovalVersionMeta' }
+    validity: { type: string, enum: [VALID, INVALID] }
+
+DclRptDefinitionListItem:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      code,
+      definitionId,
+      name,
+      description,
+      enabled,
+      revision,
+      latestApproved,
+      openVersion,
+    ]
+  properties:
+    code: { type: string }
+    definitionId: { type: string }
+    name: { type: string }
+    description: { type: string }
+    enabled: { type: boolean }
+    revision: { type: integer, format: int64 }
+    latestApproved:
+      type: object
+      allOf: [{ $ref: '#/DclRptDefinitionVersionSummary' }]
+      nullable: true
+    openVersion:
+      type: object
+      allOf: [{ $ref: '#/DclRptDefinitionVersionSummary' }]
+      nullable: true
+
+DclRptDefinitionMutationResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/DclRptDefinitionMutation', nullable: true }
+    requestId: { type: string }
+
+DclRptDefinitionViewResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/DclRptDefinitionView', nullable: true }
+    requestId: { type: string }
+
+DclRptDefinitionQueryPageData:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items: { $ref: '#/DclRptDefinitionListItem' }
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+
+DclRptDefinitionQueryResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/DclRptDefinitionQueryPageData', nullable: true }
+    requestId: { type: string }
+
+DclRptDefinitionVersionPageData:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items: { $ref: '#/DclRptDefinitionVersionView' }
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+
+DclRptDefinitionVersionPageResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/DclRptDefinitionVersionPageData', nullable: true }
+    requestId: { type: string }
+
+DclRptDefinitionAuditHistoryResponse:
+  $ref: './dcl.yaml#/DclWarehouseAuditHistoryResponse'

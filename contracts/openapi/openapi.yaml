@@ -7470,6 +7470,606 @@
                 },
             },
         },
+      '/dcl/rpt-definition/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建报表定义首个草稿版本',
+              'operationId': 'dclRptDefinitionCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的报表定义草稿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/create-next':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建报表定义下一草稿版本',
+              'operationId': 'dclRptDefinitionCreateNext',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的报表定义候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存报表定义草稿',
+              'operationId': 'dclRptDefinitionSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的报表定义草稿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交报表定义审批',
+              'operationId': 'dclRptDefinitionSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '提交后的报表定义候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回报表定义审批',
+              'operationId': 'dclRptDefinitionUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '撤回后的报表定义候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回报表定义审批',
+              'operationId': 'dclRptDefinitionReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '驳回后的报表定义候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准报表定义',
+              'operationId': 'dclRptDefinitionApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批准后的报表定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批报表定义',
+              'operationId': 'dclRptDefinitionUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '反批后的报表定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/delete-version':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除报表定义草稿版本',
+              'operationId': 'dclRptDefinitionDeleteVersion',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionDeleteRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/rpt-definition/enable':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '启用报表定义',
+              'operationId': 'dclRptDefinitionEnable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionEnableRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '启用后的报表定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/disable':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '停用报表定义',
+              'operationId': 'dclRptDefinitionDisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionEnableRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '停用后的报表定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询报表定义申报',
+              'operationId': 'dclRptDefinitionQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '报表定义申报分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取报表定义申报版本',
+              'operationId': 'dclRptDefinitionGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '报表定义申报版本详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询报表定义版本历史',
+              'operationId': 'dclRptDefinitionVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '报表定义版本历史分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/rpt-definition/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询报表定义审核历史',
+              'operationId': 'dclRptDefinitionAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '报表定义审核历史分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/app/workbench/query':
         {
           'post':
@@ -11172,425 +11772,6 @@
                 },
             },
         },
-      '/rpt/definition/query':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '查询报表定义',
-              'operationId': 'rptDefinitionQuery',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptDefinitionQueryRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionPage' },
-                },
-            },
-        },
-      '/rpt/definition/get':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '读取报表定义',
-              'operationId': 'rptDefinitionGet',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptDefinitionGetRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/create':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '新建报表定义',
-              'operationId': 'rptDefinitionCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptDefinitionCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/create-version':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '新建报表版本',
-              'operationId': 'rptDefinitionCreateVersion',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/save':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '保存报表版本',
-              'operationId': 'rptDefinitionSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/versions':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '读取报表定义版本历史',
-              'operationId': 'rptDefinitionVersions',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionListRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      '$ref': '#/components/responses/RptDefinitionVersionPage',
-                    },
-                },
-            },
-        },
-      '/rpt/definition/delete-version':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '删除报表草稿版本',
-              'operationId': 'rptDefinitionDeleteVersion',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionDeleteRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Empty' } },
-            },
-        },
-      '/rpt/definition/submit':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '提交报表版本审批',
-              'operationId': 'rptDefinitionSubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/unsubmit':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '撤回报表版本审批',
-              'operationId': 'rptDefinitionUnsubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/reject':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '驳回报表版本审批',
-              'operationId': 'rptDefinitionReject',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionReasonActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/approve':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '批准报表版本',
-              'operationId': 'rptDefinitionApprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/unapprove':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '反批准报表版本',
-              'operationId': 'rptDefinitionUnapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptVersionReasonActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/enable':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '启用报表',
-              'operationId': 'rptDefinitionEnable',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptDefinitionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/disable':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '停用报表',
-              'operationId': 'rptDefinitionDisable',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptDefinitionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
-                },
-            },
-        },
-      '/rpt/definition/delete':
-        {
-          'post':
-            {
-              'tags': ['rpt'],
-              'summary': '删除未批准报表',
-              'operationId': 'rptDefinitionDelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/rpt.yaml#/RptDefinitionRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Empty' } },
-            },
-        },
       '/rpt/{report}/query':
         {
           'post':
@@ -11968,48 +12149,6 @@
                       'schema':
                         {
                           '$ref': './schemas/wfl.yaml#/WflCreateChildResponse',
-                        },
-                    },
-                },
-            },
-          'RptDefinitionPage':
-            {
-              'description': '精确报表定义分页响应。',
-              'content':
-                {
-                  'application/json':
-                    {
-                      'schema':
-                        {
-                          '$ref': './schemas/rpt.yaml#/RptDefinitionPageResponse',
-                        },
-                    },
-                },
-            },
-          'RptDefinitionView':
-            {
-              'description': '精确报表定义响应。',
-              'content':
-                {
-                  'application/json':
-                    {
-                      'schema':
-                        {
-                          '$ref': './schemas/rpt.yaml#/RptDefinitionViewResponse',
-                        },
-                    },
-                },
-            },
-          'RptDefinitionVersionPage':
-            {
-              'description': '精确报表定义版本分页响应。',
-              'content':
-                {
-                  'application/json':
-                    {
-                      'schema':
-                        {
-                          '$ref': './schemas/rpt.yaml#/RptDefinitionVersionPageResponse',
                         },
                     },
                 },

@@ -1135,6 +1135,7 @@
           'other-unit',
           'sales-partner',
           'acc-mapping',
+          'rpt-definition',
         ],
     },
   'WorkbenchObjectItem':

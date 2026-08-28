@@ -190,12 +190,12 @@ FROM bob_party_relationship_endpoints relation
 JOIN bob_objects object ON object.id=relation.object_id
 JOIN LATERAL (
   SELECT id,status,revision FROM approval_entries
-  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
+  WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) approved ON true
 LEFT JOIN LATERAL (
   SELECT id,status,revision FROM approval_entries
-  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status IN ('DRAFT','PENDING')
+  WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status IN ('DRAFT','PENDING')
   ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
 JOIN bob_operating_entities operating_detail ON operating_detail.object_id=relation.operating_entity_id

@@ -24,6 +24,7 @@ type employeeCurrentWriter interface {
 	ApplyEmployeeCurrent(context.Context, pgx.Tx, string, string, bool, string) (bobdomain.EmployeeCurrent, error)
 	RemoveEmployeeCurrent(context.Context, pgx.Tx, string, string) (bobdomain.EmployeeIdentity, error)
 	DeleteEmployeeIdentity(context.Context, pgx.Tx, string, int64) error
+	EnsureEmployeeDisableAllowed(context.Context, pgx.Tx, string) error
 	EnsureEmployeeUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 
@@ -279,9 +280,17 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 			return EmployeeMutation{}, translateError(err)
 		}
 	}
+	if action == approval.ActionApproved && !stored.Enabled {
+		if err = s.current.EnsureEmployeeDisableAllowed(ctx, tx, input.ObjectID); err != nil {
+			return EmployeeMutation{}, translateError(err)
+		}
+	}
 	if action == approval.ActionUnapproved {
 		if err = s.current.EnsureEmployeeUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
 			return EmployeeMutation{}, translateError(err)
+		}
+		if err = s.ensureEmployeeUnapproveFallbackAllowed(ctx, tx, input.ObjectID, input.ApprovalEntryID); err != nil {
+			return EmployeeMutation{}, err
 		}
 	}
 	e, err := s.coordinator.Commit(ctx, tx, p, employeePayload(id, stored.Enabled, employeeDCLData(data)))
@@ -306,6 +315,31 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 		return EmployeeMutation{}, translateError(err)
 	}
 	return employeeMutation(resultID, resultEnabled, e), nil
+}
+
+func (s *EmployeeService) ensureEmployeeUnapproveFallbackAllowed(
+	ctx context.Context,
+	tx pgx.Tx,
+	objectID string,
+	excludedApprovalEntryID string,
+) error {
+	fallback, err := s.queries.WithTx(tx).GetLatestApprovedDCLEmployeeVersionExcluding(ctx, dbsqlc.GetLatestApprovedDCLEmployeeVersionExcludingParams{
+		ObjectID:                objectID,
+		ExcludedApprovalEntryID: excludedApprovalEntryID,
+	})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return translateError(err)
+	}
+	if err == nil {
+		version, loadErr := s.queries.WithTx(tx).GetDCLEmployeeVersion(ctx, fallback.ID)
+		if loadErr != nil {
+			return translateError(loadErr)
+		}
+		if version.Enabled {
+			return nil
+		}
+	}
+	return translateError(s.current.EnsureEmployeeDisableAllowed(ctx, tx, objectID))
 }
 
 func (s *EmployeeService) restoreLatestApproved(ctx context.Context, tx pgx.Tx, id bobdomain.EmployeeIdentity, actorID string) (bobdomain.EmployeeIdentity, bool, error) {

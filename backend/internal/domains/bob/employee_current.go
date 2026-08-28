@@ -227,6 +227,20 @@ func (s *Service) EnsureEmployeeUnapproveAllowed(ctx context.Context, tx pgx.Tx,
 	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
 }
 
+func (s *Service) EnsureEmployeeDisableAllowed(ctx context.Context, tx pgx.Tx, objectID string) error {
+	if tx == nil || !validID(objectID) {
+		return domainError(ErrorValidation, "invalid Employee disable request", nil, nil)
+	}
+	counts, err := listActiveReferenceCounts(ctx, s.queries.WithTx(tx), EntityEmployee, objectID)
+	if err != nil {
+		return s.internal("scan current Employee references", err)
+	}
+	if len(counts) != 0 {
+		return domainErrorWithKey(ErrorConflict, "bob_disable_blocked", "object is referenced by current BOB facts", ActiveReferenceBlockers{References: counts}, nil)
+	}
+	return nil
+}
+
 func employeeDetailFromCurrent(row dbsqlc.GetBobEmployeeCurrentRow) DetailView {
 	return DetailView{
 		Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryApprovalEntryID: deref(row.EmployeeCategoryApprovalEntryID),

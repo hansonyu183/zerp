@@ -18,6 +18,7 @@ interface Envelope<T> {
 
 interface Mutation {
   objectId: string
+  partyId?: string
   objectRevision: number
   enabled: boolean
   approval: {
@@ -26,11 +27,6 @@ interface Mutation {
     status: string
   }
   code?: string
-}
-
-interface BobObjectMutation extends Mutation {
-  objectRevision: number
-  enabled: boolean
 }
 
 interface Party {
@@ -287,6 +283,37 @@ async function approveDcl(
   })
 }
 
+async function approveRelationshipParty(
+  operator: Api,
+  reviewer: Api,
+  entity: 'employee' | 'customer' | 'other-unit',
+  mutation: Mutation,
+): Promise<void> {
+  const partyId =
+    mutation.partyId ??
+    (
+      await operator.ok<{ partyId: string }>(`dcl/${entity}/get`, {
+        objectId: mutation.objectId,
+        approvalEntryId: mutation.approval.approvalEntryId,
+      })
+    ).partyId
+  const party = await operator.ok<{
+    approval: { approvalEntryId: string; revision: number }
+  }>('dcl/party/get', { partyId })
+  const submitted = await operator.ok<{
+    approval: { approvalEntryId: string; revision: number }
+  }>('dcl/party/submit', {
+    partyId,
+    approvalEntryId: party.approval.approvalEntryId,
+    approvalRevision: party.approval.revision,
+  })
+  await reviewer.ok('dcl/party/approve', {
+    partyId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+}
+
 async function approveAux(
   operator: Api,
   reviewer: Api,
@@ -354,6 +381,7 @@ async function createApprovedSharedRelationships(
     operatingEntityId,
     data: { settlementMethodId, contactName: 'E2E' },
   })
+  await approveRelationshipParty(operator, reviewer, 'other-unit', otherUnit)
   const approvedOtherUnit = await approveDcl(
     operator,
     reviewer,
@@ -616,6 +644,7 @@ async function createAttributedCustomer(
       },
     },
   })
+  await approveRelationshipParty(operator, reviewer, 'customer', created)
   const approvedCustomer = await approveDcl(
     operator,
     reviewer,
@@ -925,24 +954,10 @@ async function createApprovedEmployee(
     operatingEntityId,
     data: {},
   })
+  await approveRelationshipParty(operator, reviewer, 'employee', created)
   const approved = await approveDcl(operator, reviewer, 'employee', created)
   return operator.ok<BobView>('bob/employee/get', {
     objectId: approved.objectId,
-  })
-}
-
-async function saveEmployeeEnabled(
-  api: Api,
-  objectId: string,
-  enabled: boolean,
-) {
-  const view = await api.ok<BobView>('dcl/employee/get', { objectId })
-  return api.post<BobObjectMutation>('dcl/employee/save', {
-    objectId,
-    approvalEntryId: view.approval.approvalEntryId,
-    approvalRevision: view.approval.revision,
-    enabled,
-    data: view.data,
   })
 }
 
@@ -999,6 +1014,7 @@ async function createEmployeeAttributedCustomer(
       },
     },
   })
+  await approveRelationshipParty(operator, reviewer, 'customer', created)
   const approvedCustomer = await approveDcl(
     operator,
     reviewer,
@@ -1334,14 +1350,31 @@ test(
         'dcl/employee/get',
         { objectId: manager.objectId },
       )
-      const blockedManagerDisable = await session.api.post<{
+      const managerDisableCandidate = await session.api.ok<Mutation>(
+        'dcl/employee/save',
+        {
+          objectId: manager.objectId,
+          approvalEntryId: managerForDisable.approval.approvalEntryId,
+          approvalRevision: managerForDisable.approval.revision,
+          enabled: false,
+          data: managerForDisable.data,
+        },
+      )
+      const submittedManagerDisable = await session.api.ok<Mutation>(
+        'dcl/employee/submit',
+        {
+          objectId: managerDisableCandidate.objectId,
+          approvalEntryId:
+            managerDisableCandidate.approval.approvalEntryId,
+          approvalRevision: managerDisableCandidate.approval.revision,
+        },
+      )
+      const blockedManagerDisable = await reviewerSession.api.post<{
         references: Array<{ entity: string; field: string; count: number }>
-      }>('dcl/employee/save', {
-        objectId: manager.objectId,
-        approvalEntryId: managerForDisable.approval.approvalEntryId,
-        approvalRevision: managerForDisable.approval.revision,
-        enabled: false,
-        data: managerForDisable.data,
+      }>('dcl/employee/approve', {
+        objectId: submittedManagerDisable.objectId,
+        approvalEntryId: submittedManagerDisable.approval.approvalEntryId,
+        approvalRevision: submittedManagerDisable.approval.revision,
       })
       expect(String(blockedManagerDisable.code)).not.toBe('0')
       expect(blockedManagerDisable.data.references).toEqual([
@@ -1376,16 +1409,13 @@ test(
         'warehouse',
         managerRemovalCandidate,
       )
-      const disabledManager = await saveEmployeeEnabled(
-        session.api,
-        manager.objectId,
-        false,
-      )
-      const approvedDisabledManager = await approveDcl(
-        session.api,
-        reviewerSession.api,
-        'employee',
-        disabledManager,
+      const approvedDisabledManager = await reviewerSession.api.ok<Mutation>(
+        'dcl/employee/approve',
+        {
+          objectId: submittedManagerDisable.objectId,
+          approvalEntryId: submittedManagerDisable.approval.approvalEntryId,
+          approvalRevision: submittedManagerDisable.approval.revision,
+        },
       )
       expect(approvedDisabledManager.enabled).toBe(false)
       const updatedWarehouse = await session.api.ok<BobView>(
@@ -1925,7 +1955,7 @@ test(
       })
       expect(String(selfAttribution.code)).not.toBe('0')
       expect(selfAttribution.message).toBe(
-        'customer cannot attribute sales to itself',
+        'customer cannot attribute sales to its own Party',
       )
 
       // A duplicate target creates a service-relationship conflict; the source
@@ -1947,6 +1977,12 @@ test(
           remark: '',
         },
       })
+      await approveRelationshipParty(
+        session.api,
+        reviewerSession.api,
+        'other-unit',
+        target,
+      )
       const approvedTarget = await approveDcl(
         session.api,
         reviewerSession.api,

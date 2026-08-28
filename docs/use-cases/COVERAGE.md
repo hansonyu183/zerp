@@ -4,9 +4,9 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：83
-- 已覆盖入口：31
-- 已登记用例：30
+- 页面入口：85
+- 已覆盖入口：33
+- 已登记用例：32
 - 缺少用例：52
 - 孤儿用例：0
 
@@ -25,15 +25,17 @@
 
 ## DCL
 
-| 页面         | 路由                    | 来源                                                | 状态                                |
-| ------------ | ----------------------- | --------------------------------------------------- | ----------------------------------- |
-| 主体申报     | `/dcl/party`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/party.md)            |
-| 经营主体申报 | `/dcl/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md) |
-| 仓库申报     | `/dcl/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)        |
-| 车辆申报     | `/dcl/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)          |
-| 资金账户申报 | `/dcl/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)     |
-| 人员申报     | `/dcl/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/employee.md)         |
-| 产品申报     | `/dcl/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)          |
+| 页面           | 路由                    | 来源                                                | 状态                                |
+| -------------- | ----------------------- | --------------------------------------------------- | ----------------------------------- |
+| 主体申报       | `/dcl/party`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/party.md)            |
+| 经营主体申报   | `/dcl/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md) |
+| 仓库申报       | `/dcl/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)        |
+| 车辆申报       | `/dcl/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)          |
+| 资金账户申报   | `/dcl/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)     |
+| 人员申报       | `/dcl/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/employee.md)         |
+| 其他单位申报   | `/dcl/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/other-unit.md)       |
+| 销售合作方申报 | `/dcl/sales-partner`    | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/sales-partner.md)    |
+| 产品申报       | `/dcl/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)          |
 
 ## RPT
 

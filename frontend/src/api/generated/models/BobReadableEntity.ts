@@ -5,4 +5,4 @@
 /**
  * 仍可从 BOB current read model 查询或读取的实体；经营主体的候选与审批生命周期位于 DCL。
  */
-export type BobReadableEntity = 'employee' | 'product' | 'warehouse' | 'vehicle' | 'fund-account' | 'operating-entity';
+export type BobReadableEntity = 'employee' | 'other-unit' | 'sales-partner' | 'product' | 'warehouse' | 'vehicle' | 'fund-account' | 'operating-entity';

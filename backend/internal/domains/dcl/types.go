@@ -15,7 +15,136 @@ const (
 	EntityProduct         = "product"
 	EntityParty           = "party"
 	EntityEmployee        = "employee"
+	EntityOtherUnit       = "other-unit"
+	EntitySalesPartner    = "sales-partner"
 )
+
+// Relationship declarations own mutable commercial data. The Party and
+// operating-entity pair is reserved once in BOB and cannot change on save.
+type OtherUnitData struct {
+	ContactName                     string `json:"contactName,omitempty"`
+	ContactPhone                    string `json:"contactPhone,omitempty"`
+	Email                           string `json:"email,omitempty"`
+	Address                         string `json:"address,omitempty"`
+	SettlementMethodID              string `json:"settlementMethodId,omitempty"`
+	SettlementMethodApprovalEntryID string `json:"settlementMethodApprovalEntryId,omitempty"`
+	SettlementMethodCode            string `json:"settlementMethodCode,omitempty"`
+	SettlementMethodName            string `json:"settlementMethodName,omitempty"`
+	SettlementTermCode              string `json:"settlementTermCode,omitempty"`
+	SettlementRuleType              string `json:"settlementRuleType,omitempty"`
+	SettlementMonthOffset           int32  `json:"settlementMonthOffset,omitempty"`
+	SettlementDayOfMonth            int32  `json:"settlementDayOfMonth,omitempty"`
+	SettlementDayOffset             int32  `json:"settlementDayOffset,omitempty"`
+	Remark                          string `json:"remark,omitempty"`
+}
+type SalesPartnerData struct {
+	Capabilities []string `json:"capabilities"`
+	ContactName  string   `json:"contactName,omitempty"`
+	ContactPhone string   `json:"contactPhone,omitempty"`
+	Email        string   `json:"email,omitempty"`
+	Address      string   `json:"address,omitempty"`
+	Remark       string   `json:"remark,omitempty"`
+}
+type OtherUnitCreateInput struct {
+	PartyID           string                     `json:"partyId,omitempty"`
+	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
+	OperatingEntityID string                     `json:"operatingEntityId"`
+	Data              OtherUnitData              `json:"data"`
+}
+type SalesPartnerCreateInput struct {
+	PartyID           string                     `json:"partyId,omitempty"`
+	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
+	OperatingEntityID string                     `json:"operatingEntityId"`
+	Data              SalesPartnerData           `json:"data"`
+}
+type OtherUnitSaveInput struct {
+	ObjectID         string        `json:"objectId"`
+	ApprovalEntryID  string        `json:"approvalEntryId"`
+	ApprovalRevision int64         `json:"approvalRevision"`
+	Enabled          bool          `json:"enabled"`
+	Data             OtherUnitData `json:"data"`
+}
+type SalesPartnerSaveInput struct {
+	ObjectID         string           `json:"objectId"`
+	ApprovalEntryID  string           `json:"approvalEntryId"`
+	ApprovalRevision int64            `json:"approvalRevision"`
+	Enabled          bool             `json:"enabled"`
+	Data             SalesPartnerData `json:"data"`
+}
+type RelationshipVersionInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+type RelationshipReviewInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	Reason           string `json:"reason"`
+}
+type RelationshipMutation struct {
+	ObjectID       string               `json:"objectId"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	PartyID        string               `json:"partyId"`
+	Approval       approval.VersionMeta `json:"approval"`
+}
+type RelationshipGetInput struct {
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+}
+type RelationshipQueryInput struct {
+	Page     int               `json:"page"`
+	PageSize int               `json:"pageSize"`
+	Keyword  string            `json:"keyword,omitempty"`
+	Status   []approval.Status `json:"status,omitempty"`
+	Enabled  *bool             `json:"enabled,omitempty"`
+}
+type RelationshipHistoryInput struct {
+	ObjectID string `json:"objectId"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+}
+type RelationshipIdentityView struct {
+	ObjectID          string               `json:"objectId"`
+	Entity            string               `json:"entity"`
+	Code              string               `json:"code"`
+	ObjectRevision    int64                `json:"objectRevision"`
+	PartyID           string               `json:"partyId"`
+	PartyKind         string               `json:"partyKind"`
+	PartyDisplayName  string               `json:"partyDisplayName"`
+	OperatingEntityID string               `json:"operatingEntityId"`
+	Enabled           bool                 `json:"enabled"`
+	Approval          approval.VersionMeta `json:"approval"`
+}
+type OtherUnitView struct {
+	RelationshipIdentityView
+	Data OtherUnitData `json:"data"`
+}
+type SalesPartnerView struct {
+	RelationshipIdentityView
+	Data SalesPartnerData `json:"data"`
+}
+type OtherUnitVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Enabled  bool                 `json:"enabled"`
+	Data     OtherUnitData        `json:"data"`
+}
+type SalesPartnerVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Enabled  bool                 `json:"enabled"`
+	Data     SalesPartnerData     `json:"data"`
+}
+type OtherUnitQueryItem struct {
+	RelationshipIdentityView
+	LatestApproved *OtherUnitVersionView `json:"latestApproved,omitempty"`
+	OpenVersion    *OtherUnitVersionView `json:"openVersion,omitempty"`
+}
+type SalesPartnerQueryItem struct {
+	RelationshipIdentityView
+	LatestApproved *SalesPartnerVersionView `json:"latestApproved,omitempty"`
+	OpenVersion    *SalesPartnerVersionView `json:"openVersion,omitempty"`
+}
 
 // EmployeeInput contains only Employee-owned mutable attributes. Party identity
 // and the immutable Party x operating-entity relationship are separate roots.

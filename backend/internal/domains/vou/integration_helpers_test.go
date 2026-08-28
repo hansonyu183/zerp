@@ -260,6 +260,9 @@ func createApprovedBOB(
 	if entity == bobdomain.EntityEmployee {
 		return createApprovedEmployeeDeclaration(t, vouIntegrationPool(t), service, data)
 	}
+	if entity == bobdomain.EntityOtherUnit {
+		return createApprovedOtherUnitDeclaration(t, vouIntegrationPool(t), service, data)
+	}
 	var created bobdomain.MutationResult
 	var err error
 	switch entity {
@@ -270,14 +273,6 @@ func createApprovedBOB(
 				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
 				SettlementMethodID:         data.SettlementMethodID,
 				DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
-		}, trustedIntegrationActor(t, "vou-ref-create"), true)
-		created, err = result.MutationResult, createErr
-	case bobdomain.EntityOtherUnit:
-		result, createErr := service.OtherUnitCreate(t.Context(), bobdomain.OtherUnitCreateInput{
-			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name},
-			Data: bobdomain.OtherUnitData{OperatingEntityID: data.OperatingEntityID,
-				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
-				SettlementMethodID: data.SettlementMethodID},
 		}, trustedIntegrationActor(t, "vou-ref-create"), true)
 		created, err = result.MutationResult, createErr
 	default:
@@ -298,6 +293,38 @@ func createApprovedBOB(
 	}, trustedIntegrationActor(t, "vou-ref-approve"))
 	if err != nil {
 		t.Fatalf("approve %s reference: %v", entity, err)
+	}
+	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+}
+
+func createApprovedOtherUnitDeclaration(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, data bobdomain.CreateDetailInput) ReferenceInput {
+	t.Helper()
+	bus := txevent.NewBus()
+	authorizer := authorization.Func(nil)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	relationships := dcldomain.NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	created, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name}, OperatingEntityID: data.OperatingEntityID, Data: dcldomain.OtherUnitData{ContactName: data.ContactName, ContactPhone: data.ContactPhone, SettlementMethodID: data.SettlementMethodID}}, trustedIntegrationActor(t, "vou-other-unit-create"))
+	if err != nil {
+		t.Fatalf("create other-unit declaration: %v", err)
+	}
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: created.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-other-unit-party-get"))
+	if err != nil {
+		t.Fatalf("get other-unit Party: %v", err)
+	}
+	pendingParty, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-party-submit"))
+	if err != nil {
+		t.Fatalf("submit other-unit Party: %v", err)
+	}
+	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: pendingParty.Approval.ApprovalEntryID, ApprovalRevision: pendingParty.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-party-approve")); err != nil {
+		t.Fatalf("approve other-unit Party: %v", err)
+	}
+	submitted, err := relationships.SubmitOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-submit"))
+	if err != nil {
+		t.Fatalf("submit other-unit declaration: %v", err)
+	}
+	approved, err := relationships.ApproveOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-approve"))
+	if err != nil {
+		t.Fatalf("approve other-unit declaration: %v", err)
 	}
 	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }

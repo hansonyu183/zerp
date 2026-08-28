@@ -68,6 +68,8 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
 	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
+	relationships := dcldomain.NewRelationshipService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") || strings.Contains(label, "reject") {
@@ -88,22 +90,38 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	`).Scan(&partyID, &operatingEntityID); err != nil {
 		t.Fatalf("load seeded party identity: %v", err)
 	}
-	salesPartner, err := service.SalesPartnerCreate(t.Context(), bob.SalesPartnerCreateInput{
-		PartyID: partyID,
-		Data: bob.SalesPartnerData{OperatingEntityID: operatingEntityID,
-			Capabilities: []string{bob.SalesCapabilityChannelPartner}},
-	}, actor("sales-partner-create"), true)
+	party, err := partyDeclarations.Get(t.Context(), dcldomain.PartyGetInput{PartyID: partyID}, bob.PartyRelationshipVisibility{}, actor("sales-partner-party-get"))
+	if err != nil {
+		t.Fatalf("get seeded Party declaration: %v", err)
+	}
+	if party.Approval.Status == approval.StatusDraft {
+		pending, submitErr := partyDeclarations.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: partyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor("sales-partner-party-submit"))
+		if submitErr != nil {
+			t.Fatalf("submit seeded Party declaration: %v", submitErr)
+		}
+		party.Approval = pending.Approval
+	}
+	if party.Approval.Status == approval.StatusPending {
+		if _, err = partyDeclarations.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: partyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor("sales-partner-party-approve")); err != nil {
+			t.Fatalf("approve seeded Party declaration: %v", err)
+		}
+	}
+	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
+		PartyID:           partyID,
+		OperatingEntityID: operatingEntityID,
+		Data:              dcldomain.SalesPartnerData{Capabilities: []string{bob.SalesCapabilityChannelPartner}},
+	}, actor("sales-partner-create"))
 	if err != nil {
 		t.Fatalf("create sales partner: %v", err)
 	}
-	submittedPartner, err := service.Submit(t.Context(), bob.EntitySalesPartner, bob.VersionRevisionInput{
+	submittedPartner, err := relationships.SubmitSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID,
 		ApprovalRevision: salesPartner.Approval.Revision,
 	}, actor("sales-partner-submit"))
 	if err != nil {
 		t.Fatalf("submit sales partner: %v", err)
 	}
-	if _, err = service.Approve(t.Context(), bob.EntitySalesPartner, bob.ReviewInput{
+	if _, err = relationships.ApproveSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID,
 		ApprovalRevision: submittedPartner.Approval.Revision,
 	}, actor("sales-partner-approve")); err != nil {
@@ -126,7 +144,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		}
 		var status string
 		approvalDomain := "bob"
-		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee {
+		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee || item.entity == bob.EntityOtherUnit || item.entity == bob.EntitySalesPartner {
 			approvalDomain = "dcl"
 		}
 		if err = pool.QueryRow(t.Context(), `
@@ -162,15 +180,15 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 	payloadTables := map[string]string{
 		bob.EntityCustomer: "bob_customer_relationship_versions", bob.EntityCustomerAccount: "bob_customer_versions",
-		bob.EntitySupplier: "bob_supplier_versions", bob.EntityOtherUnit: "bob_service_relationship_versions",
-		bob.EntityEmployee: "dcl_employee_versions", bob.EntitySalesPartner: "bob_sales_partner_versions",
+		bob.EntitySupplier: "bob_supplier_versions", bob.EntityOtherUnit: "dcl_other_unit_versions",
+		bob.EntityEmployee: "dcl_employee_versions", bob.EntitySalesPartner: "dcl_sales_partner_versions",
 		bob.EntityProduct: "dcl_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",
 		bob.EntityVehicle: "dcl_vehicle_versions", bob.EntityFundAccount: "dcl_fund_account_versions",
 		bob.EntityOperatingEntity: "dcl_operating_entity_versions",
 	}
 	for _, entity := range allEntities {
 		approvalDomain := "bob"
-		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee {
+		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntityOtherUnit || entity == bob.EntitySalesPartner {
 			approvalDomain = "dcl"
 		}
 		var objectCount, entryCount, payloadCount int

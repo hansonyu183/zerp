@@ -450,6 +450,8 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	}
 	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
 	business := newAccountingIntegrationBOBService(pool, bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
+	relationships := dcldomain.NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "服务验收经营主体"})
 	employee := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "服务验收经办人", "service-acceptance-employee")
 	var settlementID string
@@ -463,20 +465,37 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	`, bobdomain.SettlementTermMonthly30).Scan(&settlementID); err != nil {
 		t.Fatalf("load monthly settlement method: %v", err)
 	}
-	serviceRelationship, err := business.OtherUnitCreate(t.Context(), bobdomain.OtherUnitCreateInput{
-		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "服务验收往来单位"},
-		Data:     bobdomain.OtherUnitData{OperatingEntityID: operating.ObjectID, SettlementMethodID: settlementID},
-	}, trustedAccountingActor(t, "service-acceptance-other-unit-create"), true)
+	serviceRelationship, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
+		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "服务验收往来单位"},
+		OperatingEntityID: operating.ObjectID,
+		Data:              dcldomain.OtherUnitData{SettlementMethodID: settlementID},
+	}, trustedAccountingActor(t, "service-acceptance-other-unit-create"))
 	if err != nil {
 		t.Fatalf("create service relationship: %v", err)
 	}
-	submittedRelationship, err := business.Submit(t.Context(), bobdomain.EntityOtherUnit, bobdomain.VersionRevisionInput{
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: serviceRelationship.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedAccountingActor(t, "service-acceptance-other-unit-party-get"))
+	if err != nil {
+		t.Fatalf("get service relationship Party: %v", err)
+	}
+	if party.Approval.Status == approval.StatusDraft {
+		pending, submitErr := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedAccountingActor(t, "service-acceptance-other-unit-party-submit"))
+		if submitErr != nil {
+			t.Fatalf("submit service relationship Party: %v", submitErr)
+		}
+		party.Approval = pending.Approval
+	}
+	if party.Approval.Status == approval.StatusPending {
+		if _, approveErr := parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedAccountingActor(t, "service-acceptance-other-unit-party-approve")); approveErr != nil {
+			t.Fatalf("approve service relationship Party: %v", approveErr)
+		}
+	}
+	submittedRelationship, err := relationships.SubmitOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: serviceRelationship.ObjectID, ApprovalEntryID: serviceRelationship.Approval.ApprovalEntryID, ApprovalRevision: serviceRelationship.Approval.Revision,
 	}, trustedAccountingActor(t, "service-acceptance-other-unit-submit"))
 	if err != nil {
 		t.Fatalf("submit service relationship: %v", err)
 	}
-	approvedRelationship, err := business.Approve(t.Context(), bobdomain.EntityOtherUnit, bobdomain.ReviewInput{
+	approvedRelationship, err := relationships.ApproveOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: serviceRelationship.ObjectID, ApprovalEntryID: serviceRelationship.Approval.ApprovalEntryID, ApprovalRevision: submittedRelationship.Approval.Revision,
 	}, trustedAccountingActor(t, "service-acceptance-other-unit-approve"))
 	if err != nil {

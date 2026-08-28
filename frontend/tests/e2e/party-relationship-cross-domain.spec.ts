@@ -263,7 +263,13 @@ async function approve(
 async function approveDcl(
   operator: Api,
   reviewer: Api,
-  entity: 'operating-entity' | 'warehouse' | 'vehicle' | 'employee',
+  entity:
+    | 'operating-entity'
+    | 'warehouse'
+    | 'vehicle'
+    | 'employee'
+    | 'other-unit'
+    | 'sales-partner',
   mutation: Mutation,
 ): Promise<Mutation> {
   const submitted = await operator.ok<Mutation>(`dcl/${entity}/submit`, {
@@ -333,7 +339,7 @@ async function createApprovedSharedRelationships(
   expect(settlementMethodId).toBeTruthy()
 
   const name = `E2E 跨域主体 ${suffix}`
-  const otherUnit = await operator.ok<Mutation>('bob/other-unit/create', {
+  const otherUnit = await operator.ok<Mutation>('dcl/other-unit/create', {
     newParty: {
       kind: 'ORGANIZATION',
       legalName: name,
@@ -342,9 +348,10 @@ async function createApprovedSharedRelationships(
         { type: 'UNIFIED_SOCIAL_CREDIT_CODE', value: `91310000${suffix}` },
       ],
     },
-    data: { operatingEntityId, settlementMethodId, contactName: 'E2E' },
+    operatingEntityId,
+    data: { settlementMethodId, contactName: 'E2E' },
   })
-  const approvedOtherUnit = await approve(
+  const approvedOtherUnit = await approveDcl(
     operator,
     reviewer,
     'other-unit',
@@ -362,10 +369,10 @@ async function createApprovedSharedRelationships(
   const party = parties.items.find((item) => item.displayName === name)
   expect(party).toBeTruthy()
 
-  const salesPartner = await operator.ok<Mutation>('bob/sales-partner/create', {
+  const salesPartner = await operator.ok<Mutation>('dcl/sales-partner/create', {
     partyId: party!.partyId,
+    operatingEntityId,
     data: {
-      operatingEntityId,
       capabilities: ['CHANNEL_PARTNER'],
       contactName: 'E2E',
       contactPhone: '',
@@ -374,7 +381,7 @@ async function createApprovedSharedRelationships(
       remark: '',
     },
   })
-  const approvedSalesPartner = await approve(
+  const approvedSalesPartner = await approveDcl(
     operator,
     reviewer,
     'sales-partner',
@@ -1889,15 +1896,15 @@ test(
 
       // A duplicate target creates a service-relationship conflict; the source
       // sales relationship moves while its approved contract keeps the same ID.
-      const target = await session.api.ok<Mutation>('bob/other-unit/create', {
+      const target = await session.api.ok<Mutation>('dcl/other-unit/create', {
         newParty: {
           kind: 'ORGANIZATION',
           legalName: `E2E 合并保留 ${suffix}`,
           displayName: `E2E 合并保留 ${suffix}`,
           strongIdentifiers: [],
         },
+        operatingEntityId: facts.operatingEntityId,
         data: {
-          operatingEntityId: facts.operatingEntityId,
           settlementMethodId: facts.settlementMethodId,
           contactName: '',
           contactPhone: '',
@@ -1906,7 +1913,7 @@ test(
           remark: '',
         },
       })
-      const approvedTarget = await approve(
+      const approvedTarget = await approveDcl(
         session.api,
         reviewerSession.api,
         'other-unit',

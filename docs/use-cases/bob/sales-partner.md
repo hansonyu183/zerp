@@ -1,9 +1,21 @@
-# 销售合作关系
+# 销售合作方 current 查询页面用例
 
-- 领域规则以 [BOB 领域](../../domains/bob.md) 为准；HTTP 契约以 `contracts/openapi/openapi.yaml` 的 `sales-partner` 操作为准。
-- 列表初始不请求。用户通过关键词回车或“查询”、筛选区“应用筛选”显式提交条件；服务端固定每页 20 条，按编码升序分页。
-- 桌面表格和手机纵向卡片均展示编码、主体、经营主体、能力、状态和同一组行操作。动作按全站行操作规则排列，超过 3 个时其余进入“更多”。
-- 新建可选择“新主体”或“复用已有主体”：新主体要求销售合作关系创建、主体创建和经营主体查询权限；复用已有主体要求销售合作关系创建、主体读取/查询和经营主体查询权限。缺少任一项时，不展示对应入口且 ViewModel 拒绝执行。
-- 能力仅允许 `EXTERNAL_PART_TIME`（外部兼职销售）和 `CHANNEL_PARTNER`（渠道商）；草稿可以为空，提交和审核时至少选择一种。编辑最新已批准版本时，后端创建开放草稿版本。
-- 引用搜索、详情读取和列表查询使用请求序号保护；旧响应或组件销毁后的响应不得覆盖当前页面状态，已选引用须保留在候选项中。
-- 行操作根据版本状态和权限提供查看、编辑、提交、审核、启用、停用；审核不允许审核本人提交的版本。后端仍是最终鉴权与状态机裁决者。
+## 页面范围
+
+- 路由：`/bob/sales-partner`
+- 领域规则：[BOB 领域](../../domains/bob.md) 与 [DCL 领域](../../domains/dcl.md)
+- 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 的 `POST /bob/sales-partner/query|get|reference`
+
+本页只读取销售合作方的 latest approved current 投影，不拥有 candidate、创建、保存、启停、生命周期、版本或审计能力。
+
+## 列表与详情
+
+1. 用户显式提交关键词、经营主体和 enabled 筛选；列表固定每页 20 条并按业务编码稳定排序。
+2. 当前投影展示 Party、经营主体、完整能力集、联系人、地址、备注、enabled 与来源 Approval Entry；能力始终映射为“外部兼职销售”或“渠道商”，不显示 wire value。
+3. 不存在编辑按钮、写 API 调用或 `/bob/sales-partner/create` 路径。需维护时，具有 DCL 权限的用户由深链进入 `/dcl/sales-partner`；无权用户只看 current。
+
+## 验收场景
+
+1. 列表、详情和 reference 只返回可读 current 投影，不泄漏草稿或历史 candidate。
+2. BOB 页面不渲染或调用任何写入、生命周期、versions、audit 或 DCL mutation。
+3. DCL 深链保留对象上下文；Party 身份、经营主体边界和销售合作快照均不能在 BOB 页面被改写。

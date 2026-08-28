@@ -58,7 +58,15 @@ WITH current_bob_entries AS (
     UNION ALL SELECT payload.output_unit_approval_entry_id FROM dcl_product_formulas payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
     UNION ALL SELECT payload.unit_approval_entry_id FROM dcl_product_unit_conversions payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
     UNION ALL SELECT reference.entry_id FROM dcl_product_versions payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.pricing_unit_approval_entry_id,payload.product_type_approval_entry_id,payload.default_input_unit_approval_entry_id]) reference(entry_id)
-    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM bob_service_relationship_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT payload.settlement_method_approval_entry_id
+    FROM dcl_other_unit_versions payload
+    JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
+      AND current_entry.domain='dcl' AND current_entry.entity='other-unit' AND current_entry.status='APPROVED'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM approval_entries newer
+      WHERE newer.domain='dcl' AND newer.entity='other-unit' AND newer.subject_id=current_entry.subject_id
+        AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no
+    )
     UNION ALL SELECT reference.entry_id FROM bob_supplier_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.settlement_method_approval_entry_id]) reference(entry_id)
     UNION ALL SELECT payload.vehicle_type_approval_entry_id FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='vehicle' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
     UNION ALL SELECT payload.category_approval_entry_id FROM dcl_warehouse_versions payload

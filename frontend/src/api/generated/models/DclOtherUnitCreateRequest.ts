@@ -2,12 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { DclOtherUnitInput } from './DclOtherUnitInput';
 import type { PartyIdentityData } from './PartyIdentityData';
-import type { SalesPartnerInput } from './SalesPartnerInput';
-export type SalesPartnerCreateRequest = ({
+export type DclOtherUnitCreateRequest = ({
   partyId: string;
-  data: SalesPartnerInput;
+  operatingEntityId: string;
+  data: DclOtherUnitInput;
 } | {
   newParty: PartyIdentityData;
-  data: SalesPartnerInput;
+  operatingEntityId: string;
+  data: DclOtherUnitInput;
 });

@@ -162,26 +162,6 @@ func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _ app
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) SalesPartnerQuery(_ context.Context, input QueryInput) (Page[SalesPartnerListItem], error) {
-	s.record("query", EntitySalesPartner)
-	return Page[SalesPartnerListItem]{Items: []SalesPartnerListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
-}
-
-func (s *serviceStub) SalesPartnerGet(_ context.Context, _ GetInput) (SalesPartnerDetailView, error) {
-	s.record("get", EntitySalesPartner)
-	return SalesPartnerDetailView{}, nil
-}
-
-func (s *serviceStub) SalesPartnerCreate(_ context.Context, _ SalesPartnerCreateInput, _ approval.Actor, _ bool) (SalesPartnerCreateResult, error) {
-	s.record("create", EntitySalesPartner)
-	return SalesPartnerCreateResult{}, nil
-}
-
-func (s *serviceStub) SalesPartnerSave(_ context.Context, _ SalesPartnerSaveInput, _ approval.Actor) (MutationResult, error) {
-	s.record("save", EntitySalesPartner)
-	return MutationResult{}, nil
-}
-
 func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQueryInput) ([]ReferenceCandidate, error) {
 	s.record("query", "reference")
 	return []ReferenceCandidate{}, nil
@@ -195,31 +175,6 @@ func (s *serviceStub) PartyQuery(_ context.Context, input QueryInput) (Page[Part
 func (s *serviceStub) PartyGet(_ context.Context, _ PartyGetInput, _ PartyRelationshipVisibility) (PartyView, error) {
 	s.record("get", "party")
 	return PartyView{}, nil
-}
-
-func (s *serviceStub) OtherUnitQuery(_ context.Context, input QueryInput) (Page[OtherUnitView], error) {
-	s.record("query", EntityOtherUnit)
-	return Page[OtherUnitView]{Items: []OtherUnitView{}, Page: input.Page, PageSize: input.PageSize}, nil
-}
-
-func (s *serviceStub) OtherUnitGet(_ context.Context, _ GetInput) (OtherUnitView, error) {
-	s.record("get", EntityOtherUnit)
-	return OtherUnitView{}, nil
-}
-
-func (s *serviceStub) OtherUnitCreate(_ context.Context, _ OtherUnitCreateInput, _ approval.Actor, _ bool) (OtherUnitCreateResult, error) {
-	s.record("create", EntityOtherUnit)
-	return OtherUnitCreateResult{}, nil
-}
-
-func (s *serviceStub) OtherUnitSave(_ context.Context, _ OtherUnitSaveInput, _ approval.Actor) (MutationResult, error) {
-	s.record("save", EntityOtherUnit)
-	return MutationResult{}, nil
-}
-
-func (s *serviceStub) OtherUnitVersions(_ context.Context, input HistoryInput) (Page[VersionHistoryItem], error) {
-	s.record("versions", EntityOtherUnit)
-	return Page[VersionHistoryItem]{Items: []VersionHistoryItem{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
 func testBOBLogger() *slog.Logger {
@@ -237,7 +192,7 @@ func newBOBTestRouter(service applicationService, authorizer authorization.Autho
 func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
-	expectedEntities := []string{"customer", "supplier", "sales-partner"}
+	expectedEntities := []string{"customer", "supplier"}
 	expectedActions := []string{
 		"query", "get", "create", "save", "delete", "submit", "unsubmit",
 		"approve", "unapprove", "reject", "enable", "disable", "versions", "audit-history",
@@ -260,10 +215,8 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 	wanted["/bob/employee/get"] = false
 	for _, path := range []string{
 		"/bob/party/query", "/bob/party/get",
-		"/bob/other-unit/query", "/bob/other-unit/get", "/bob/other-unit/create", "/bob/other-unit/save",
-		"/bob/other-unit/delete", "/bob/other-unit/submit", "/bob/other-unit/unsubmit",
-		"/bob/other-unit/approve", "/bob/other-unit/reject", "/bob/other-unit/unapprove", "/bob/other-unit/enable",
-		"/bob/other-unit/disable", "/bob/other-unit/versions", "/bob/other-unit/audit-history",
+		"/bob/other-unit/query", "/bob/other-unit/get",
+		"/bob/sales-partner/query", "/bob/sales-partner/get",
 		"/bob/customer-account/submit", "/bob/customer-account/unsubmit",
 		"/bob/customer-account/approve", "/bob/customer-account/reject", "/bob/customer-account/unapprove",
 		"/bob/customer-account/enable", "/bob/customer-account/disable",
@@ -296,6 +249,14 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 			route.Path != "/bob/employee/query" && route.Path != "/bob/employee/get" {
 			t.Fatalf("DCL-owned employee lifecycle alias remains registered: %s", route.Path)
 		}
+		if strings.HasPrefix(route.Path, "/bob/other-unit/") &&
+			route.Path != "/bob/other-unit/query" && route.Path != "/bob/other-unit/get" {
+			t.Fatalf("DCL-owned other-unit lifecycle alias remains registered: %s", route.Path)
+		}
+		if strings.HasPrefix(route.Path, "/bob/sales-partner/") &&
+			route.Path != "/bob/sales-partner/query" && route.Path != "/bob/sales-partner/get" {
+			t.Fatalf("DCL-owned sales-partner lifecycle alias remains registered: %s", route.Path)
+		}
 		if strings.HasPrefix(route.Path, "/bob/service/") {
 			t.Fatalf("obsolete standalone service route remains registered: %s", route.Path)
 		}
@@ -323,57 +284,6 @@ func TestHandlerDoesNotRegisterLegacyTaxMatchRoutes(t *testing.T) {
 		if route.Path == "/bob/customer/tax-match" || route.Path == "/bob/supplier/tax-match" {
 			t.Fatalf("legacy route remains reachable: %s", route.Path)
 		}
-	}
-}
-
-func TestOtherUnitCreateRequiresMatchingPartyPermission(t *testing.T) {
-	tests := []struct {
-		name          string
-		body          string
-		partyPathWant string
-	}{
-		{
-			name:          "new Party",
-			body:          `{"newParty":{"kind":"ORGANIZATION","legalName":"测试机构","strongIdentifiers":[]},"data":{"operatingEntityId":"01J00000000000000000000010"}}`,
-			partyPathWant: "/dcl/party/create",
-		},
-		{
-			name:          "existing Party",
-			body:          `{"partyId":"01J00000000000000000000011","data":{"operatingEntityId":"01J00000000000000000000010"}}`,
-			partyPathWant: "/bob/party/get",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			var paths []string
-			authorizer := splitAuthorizationStub{
-				authenticate: func(_ context.Context, _ *http.Request, path, _ string) (authorization.Principal, error) {
-					paths = append(paths, path)
-					return authorization.Principal{
-						ActorID:     "01J00000000000000000000000",
-						Permissions: []string{"/bob/party/get", "/bob/other-unit/get"},
-					}, nil
-				},
-				permission: func(_ context.Context, _ authorization.Principal, path, _ string) error {
-					paths = append(paths, path)
-					return nil
-				},
-			}
-			service := &serviceStub{}
-			router := newBOBTestRouter(service, authorizer)
-			request := httptest.NewRequest(http.MethodPost, "/bob/other-unit/create", strings.NewReader(test.body))
-			request.Header.Set("Content-Type", "application/json")
-			recorder := httptest.NewRecorder()
-
-			router.ServeHTTP(recorder, request)
-
-			if recorder.Code != http.StatusOK {
-				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
-			}
-			if len(paths) != 3 || paths[0] != "/bob/other-unit/create" || paths[1] != "/bob/other-unit/create" || paths[2] != test.partyPathWant {
-				t.Fatalf("authorization paths = %v", paths)
-			}
-		})
 	}
 }
 

@@ -61,7 +61,7 @@ type lifecycleService interface {
 
 type relationshipAwareLifecycleService struct {
 	lifecycleService
-	relationships           *bob.Service
+	relationships           *dcldomain.RelationshipService
 	settlementRelationships *bob.Service
 	auxiliary               *auxdomain.Service
 	pool                    *pgxpool.Pool
@@ -129,14 +129,15 @@ func (service relationshipAwareLifecycleService) Create(
 		}, actor, true)
 		return result.MutationResult, err
 	case bob.EntityOtherUnit:
-		result, err := service.relationships.OtherUnitCreate(ctx, bob.OtherUnitCreateInput{
-			NewParty: party,
-			Data: bob.OtherUnitData{OperatingEntityID: input.Data.OperatingEntityID,
+		result, err := service.relationships.CreateOtherUnit(ctx, dcldomain.OtherUnitCreateInput{
+			NewParty:          party,
+			OperatingEntityID: input.Data.OperatingEntityID,
+			Data: dcldomain.OtherUnitData{
 				ContactName: input.Data.ContactName, ContactPhone: input.Data.ContactPhone,
 				Email: input.Data.Email, Address: input.Data.Address,
 				SettlementMethodID: input.Data.SettlementMethodID, Remark: input.Data.Remark},
-		}, actor, true)
-		return result.MutationResult, err
+		}, actor)
+		return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
 	case bob.EntityCustomerAccount:
 		paymentMethodID, err := service.ensurePaymentMethod(ctx, actor)
 		if err != nil {
@@ -368,7 +369,7 @@ func (service relationshipAwareLifecycleService) Save(
 		return employeeMutation(result), err
 	}
 	if entity == bob.EntitySupplier {
-		return service.relationships.Save(ctx, entity, input, actor)
+		return service.settlementRelationships.Save(ctx, entity, input, actor)
 	}
 	return service.lifecycleService.Save(ctx, entity, input, actor)
 }
@@ -411,7 +412,7 @@ func (service relationshipAwareLifecycleService) Get(
 	if entity != bob.EntityOtherUnit {
 		return service.lifecycleService.Get(ctx, entity, input)
 	}
-	view, err := service.relationships.OtherUnitGet(ctx, input)
+	view, err := service.relationships.GetOtherUnit(ctx, dcldomain.RelationshipGetInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID}, mustSeedActor("seed-bob-other-unit-get"))
 	if err != nil {
 		return bob.ObjectView{}, err
 	}
@@ -448,6 +449,30 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 		result, err := service.employees.Submit(ctx, dcldomain.EmployeeVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return employeeMutation(result), err
 	}
+	if entity == bob.EntityOtherUnit {
+		view, err := service.relationships.GetOtherUnit(ctx, dcldomain.RelationshipGetInput{ObjectID: input.ObjectID}, actor)
+		if err != nil {
+			return bob.MutationResult{}, err
+		}
+		party, err := service.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: view.PartyID}, bob.PartyRelationshipVisibility{}, actor)
+		if err != nil {
+			return bob.MutationResult{}, err
+		}
+		if party.Approval.Status == approval.StatusDraft {
+			pending, submitErr := service.parties.Submit(ctx, dcldomain.PartyVersionInput{PartyID: view.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor)
+			if submitErr != nil {
+				return bob.MutationResult{}, submitErr
+			}
+			party.Approval = pending.Approval
+		}
+		if party.Approval.Status == approval.StatusPending {
+			if _, approveErr := service.parties.Approve(ctx, dcldomain.PartyVersionInput{PartyID: view.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, mustReviewerActor("seed-bob-"+input.ObjectID+"-party-approve")); approveErr != nil {
+				return bob.MutationResult{}, approveErr
+			}
+		}
+		result, err := service.relationships.SubmitOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+	}
 	if entity == bob.EntityProduct {
 		result, err := service.products.Submit(ctx, dcldomain.ProductVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return productMutation(result), err
@@ -479,6 +504,10 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 	if entity == bob.EntityEmployee {
 		result, err := service.employees.Unsubmit(ctx, dcldomain.EmployeeReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return employeeMutation(result), err
+	}
+	if entity == bob.EntityOtherUnit {
+		result, err := service.relationships.UnsubmitOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
+		return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityProduct {
 		result, err := service.products.Unsubmit(ctx, dcldomain.ProductReviewInput{
@@ -516,6 +545,10 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 }
 
 func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityOtherUnit {
+		result, err := service.relationships.ApproveOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+	}
 	if entity == bob.EntityEmployee {
 		result, err := service.employees.Approve(ctx, dcldomain.EmployeeVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return employeeMutation(result), err
@@ -548,6 +581,10 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 }
 
 func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityOtherUnit {
+		result, err := service.relationships.UnapproveOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
+		return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+	}
 	if entity == bob.EntityEmployee {
 		result, err := service.employees.Unapprove(ctx, dcldomain.EmployeeReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return employeeMutation(result), err
@@ -588,6 +625,14 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 }
 
 func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityOtherUnit {
+		reason := ""
+		if input.Reason != nil {
+			reason = *input.Reason
+		}
+		result, err := service.relationships.RejectOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: reason}, actor)
+		return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+	}
 	if entity == bob.EntityEmployee {
 		reason := ""
 		if input.Reason != nil {
@@ -881,8 +926,9 @@ func New(pool *pgxpool.Pool) *Seeder {
 	fundAccounts := dcldomain.NewFundAccountService(pool, service, authorizer, bus)
 	products := dcldomain.NewProductService(pool, service, authorizer, bus)
 	employees := dcldomain.NewEmployeeService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorizer, bus)
+	relationships := dcldomain.NewRelationshipService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorizer, bus)
 	return &Seeder{
-		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: service,
+		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: relationships,
 			settlementRelationships: supplier, auxiliary: auxiliary, pool: pool,
 			operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, parties: partyDeclarations},
 		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,

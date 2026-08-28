@@ -24,6 +24,18 @@ interface ReferenceState {
   requestSequence: number
 }
 
+function referenceName(item: unknown): string {
+  if (!item || typeof item !== 'object') return ''
+  const record = item as Record<string, unknown>
+  if (typeof record.partyDisplayName === 'string') return record.partyDisplayName
+  const version = record.latestApproved
+  if (!version || typeof version !== 'object') return ''
+  const summary = (version as Record<string, unknown>).summary
+  if (!summary || typeof summary !== 'object') return ''
+  const name = (summary as Record<string, unknown>).name
+  return typeof name === 'string' ? name : ''
+}
+
 function createReferenceState(): ReferenceState {
   return {
     options: [],
@@ -349,10 +361,10 @@ export function useBobReferences(
         ).data.items.map((item) => ({
           title: formatReferenceLabel({
             code: item.code,
-            name: item.latestApproved?.summary.name ?? '',
+            name: referenceName(item),
           }),
           value: reference.value === 'code' ? item.code : item.objectId,
-        }))
+      }))
       }
       if (state.requestSequence !== sequence) return
       const selected = state.options.filter((option) =>

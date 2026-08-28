@@ -720,6 +720,14 @@ type BobOperatingEntity struct {
 	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
+type BobOtherUnit struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
+}
+
 type BobParty struct {
 	ID                string             `db:"id" json:"id"`
 	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
@@ -801,15 +809,12 @@ type BobProduct struct {
 	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
-type BobSalesPartnerVersion struct {
-	ApprovalEntryID string   `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity          string   `db:"entity" json:"entity"`
-	Capabilities    []string `db:"capabilities" json:"capabilities"`
-	ContactName     *string  `db:"contact_name" json:"contact_name"`
-	ContactPhone    *string  `db:"contact_phone" json:"contact_phone"`
-	Email           *string  `db:"email" json:"email"`
-	Address         *string  `db:"address" json:"address"`
-	Remark          *string  `db:"remark" json:"remark"`
+type BobSalesPartner struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobSalesRelationship struct {
@@ -834,25 +839,6 @@ type BobServiceRelationship struct {
 	CreatedBy             string             `db:"created_by" json:"created_by"`
 	MergedIntoObjectID    *string            `db:"merged_into_object_id" json:"merged_into_object_id"`
 	MergedAt              pgtype.Timestamptz `db:"merged_at" json:"merged_at"`
-}
-
-type BobServiceRelationshipVersion struct {
-	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                          string  `db:"entity" json:"entity"`
-	ContactName                     *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                    *string `db:"contact_phone" json:"contact_phone"`
-	Email                           *string `db:"email" json:"email"`
-	Address                         *string `db:"address" json:"address"`
-	SettlementMethodID              *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodApprovalEntryID *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
-	SettlementMethodCode            *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName            *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode              *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType              *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset           int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth            int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset             int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
-	Remark                          *string `db:"remark" json:"remark"`
 }
 
 type BobSupplierRelationship struct {
@@ -993,6 +979,25 @@ type DclOperatingEntityVersion struct {
 	Enabled         bool    `db:"enabled" json:"enabled"`
 }
 
+type DclOtherUnitVersion struct {
+	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
+	ContactName                     *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                    *string `db:"contact_phone" json:"contact_phone"`
+	Email                           *string `db:"email" json:"email"`
+	Address                         *string `db:"address" json:"address"`
+	SettlementMethodID              *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodApprovalEntryID *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode            *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName            *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode              *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType              *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset           int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth            int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset             int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                          *string `db:"remark" json:"remark"`
+	Enabled                         bool    `db:"enabled" json:"enabled"`
+}
+
 type DclPartyIdentifierClaim struct {
 	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
 	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
@@ -1090,6 +1095,17 @@ type DclProductVersion struct {
 	DefaultInputUnitID              *string `db:"default_input_unit_id" json:"default_input_unit_id"`
 	DefaultInputUnitApprovalEntryID *string `db:"default_input_unit_approval_entry_id" json:"default_input_unit_approval_entry_id"`
 	Enabled                         bool    `db:"enabled" json:"enabled"`
+}
+
+type DclSalesPartnerVersion struct {
+	ApprovalEntryID string   `db:"approval_entry_id" json:"approval_entry_id"`
+	Capabilities    []string `db:"capabilities" json:"capabilities"`
+	ContactName     *string  `db:"contact_name" json:"contact_name"`
+	ContactPhone    *string  `db:"contact_phone" json:"contact_phone"`
+	Email           *string  `db:"email" json:"email"`
+	Address         *string  `db:"address" json:"address"`
+	Remark          *string  `db:"remark" json:"remark"`
+	Enabled         bool     `db:"enabled" json:"enabled"`
 }
 
 type DclSubject struct {

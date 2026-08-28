@@ -21,12 +21,8 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 		return q.InsertBobCustomerRelationshipPayload(ctx, approvalEntryID)
 	case EntityCustomerAccount:
 		err = q.InsertBobCustomerPayload(ctx, dbsqlc.InsertBobCustomerPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
-	case EntityOtherUnit:
-		err = q.InsertBobOtherUnitPayload(ctx, approvalEntryID)
 	case EntitySupplier:
 		err = q.InsertBobSupplierPayload(ctx, dbsqlc.InsertBobSupplierPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
-	case EntitySalesPartner:
-		err = q.InsertBobSalesPartnerPayload(ctx, approvalEntryID)
 	case EntityProduct:
 		err = q.InsertBobProductPayload(ctx, dbsqlc.InsertBobProductPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
 	default:
@@ -49,32 +45,12 @@ func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID 
 			return DetailView{}, err
 		}
 		return DetailView{Name: r.Name, CustomerType: r.CustomerType, ShortName: deref(r.ShortName), TaxNumber: deref(r.TaxNumber), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), OperatingEntityID: deref(r.OperatingEntityID), OperatingEntityApprovalEntryID: deref(r.OperatingEntityApprovalEntryID), OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: deref(r.OperatingEntityName), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), DueDays: r.SettlementDueDays, MonthOffset: r.SettlementMonthOffset, CutoffDay: r.SettlementCutoffDay, RebateUnitPrice: fixeddecimal.Format(r.RebateUnitPriceCents, 2, false)}, nil
-	case EntityOtherUnit:
-		r, err := q.GetBobOpenOtherUnitPayload(ctx, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		name, err := relationshipPartyName(ctx, q, EntityOtherUnit, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		return DetailView{Name: name, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOfMonth: int32Pointer(r.SettlementDayOfMonth), DayOffset: r.SettlementDayOffset, Remark: deref(r.Remark)}, nil
 	case EntitySupplier:
 		r, err := q.GetBobOpenSupplierPayload(ctx, approvalEntryID)
 		if err != nil {
 			return DetailView{}, err
 		}
 		return DetailView{Name: r.Name, ShortName: deref(r.ShortName), TaxNumber: deref(r.TaxNumber), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOfMonth: int32Pointer(r.SettlementDayOfMonth), DayOffset: r.SettlementDayOffset, DefaultPurchaserEmployeeID: deref(r.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: deref(r.DefaultPurchaserEmployeeApprovalEntryID)}, nil
-	case EntitySalesPartner:
-		r, err := q.GetBobOpenSalesPartnerPayload(ctx, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		name, err := relationshipPartyName(ctx, q, EntitySalesPartner, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		return DetailView{Name: name, SalesCapabilities: r.Capabilities, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark)}, nil
 	case EntityProduct:
 		r, err := q.GetBobOpenProductPayload(ctx, approvalEntryID)
 		if err != nil {
@@ -98,37 +74,6 @@ func productDetailFromRow(r dbsqlc.DclProductVersion) DetailView {
 		data.DefaultPackagingSpec = formatMicros(*r.DefaultPackagingSpecMicros)
 	}
 	return data
-}
-
-func relationshipPartyName(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (string, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{
-		ID: approvalEntryID, Domain: "bob", Entity: entity,
-	})
-	if err != nil {
-		return "", err
-	}
-	var partyID string
-	switch entity {
-	case EntityOtherUnit:
-		relationship, relationshipErr := q.GetBobOtherUnitRelationship(ctx, entry.SubjectID)
-		if relationshipErr != nil {
-			return "", relationshipErr
-		}
-		partyID = relationship.PartyID
-	case EntitySalesPartner:
-		relationship, relationshipErr := q.GetBobSalesPartnerRelationship(ctx, entry.SubjectID)
-		if relationshipErr != nil {
-			return "", relationshipErr
-		}
-		partyID = relationship.PartyID
-	default:
-		return "", invalidPayloadEntity(entity)
-	}
-	party, err := q.GetBobParty(ctx, partyID)
-	if err != nil {
-		return "", err
-	}
-	return party.DisplayName, nil
 }
 
 func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, data DetailView) error {
@@ -164,12 +109,8 @@ func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntry
 		return q.UpdateBobCustomerPayload(ctx, dbsqlc.UpdateBobCustomerPayloadParams{Name: d.Name, CustomerType: d.CustomerType, ShortName: nilIfEmpty(d.ShortName), TaxNumber: nilIfEmpty(d.TaxNumber), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), OperatingEntityID: nilIfEmpty(d.OperatingEntityID), OperatingEntityApprovalEntryID: nilIfEmpty(d.OperatingEntityApprovalEntryID), OperatingEntityCode: nilIfEmpty(d.OperatingEntityCode), OperatingEntityName: nilIfEmpty(d.OperatingEntityName), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(d.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementDueDays: d.DueDays, SettlementMonthOffset: d.MonthOffset, SettlementCutoffDay: d.CutoffDay, SettlementSalesSurchargeCents: rebate, PricingPolicy: []byte("{}"), ApprovalEntryID: approvalEntryID})
 	case EntityCustomer:
 		return 1, nil
-	case EntityOtherUnit:
-		return q.UpdateBobOtherUnitPayload(ctx, dbsqlc.UpdateBobOtherUnitPayloadParams{ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(d.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementMonthOffset: d.MonthOffset, SettlementDayOfMonth: derefInt32(d.DayOfMonth), SettlementDayOffset: d.DayOffset, Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
 	case EntitySupplier:
 		return q.UpdateBobSupplierPayload(ctx, dbsqlc.UpdateBobSupplierPayloadParams{Name: d.Name, ShortName: nilIfEmpty(d.ShortName), TaxNumber: nilIfEmpty(d.TaxNumber), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(d.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementMonthOffset: d.MonthOffset, SettlementDayOfMonth: derefInt32(d.DayOfMonth), SettlementDayOffset: d.DayOffset, DefaultPurchaserEmployeeID: nilIfEmpty(d.DefaultPurchaserEmployeeID), DefaultPurchaserEmployeeApprovalEntryID: nilIfEmpty(d.DefaultPurchaserApprovalEntryID), ApprovalEntryID: approvalEntryID})
-	case EntitySalesPartner:
-		return q.UpdateBobSalesPartnerPayload(ctx, dbsqlc.UpdateBobSalesPartnerPayloadParams{Capabilities: d.SalesCapabilities, ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
 	case EntityProduct:
 		packaging, err := defaultPackagingSpecMicros(d)
 		if err != nil {
@@ -190,12 +131,8 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntry
 			return err
 		}
 		return copyCustomerPayloadExtras(ctx, q, newApprovalEntryID, sourceApprovalEntryID)
-	case EntityOtherUnit:
-		return q.CopyBobOtherUnitPayload(ctx, dbsqlc.CopyBobOtherUnitPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	case EntitySupplier:
 		return q.CopyBobSupplierPayload(ctx, dbsqlc.CopyBobSupplierPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
-	case EntitySalesPartner:
-		return q.CopyBobSalesPartnerPayload(ctx, dbsqlc.CopyBobSalesPartnerPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	case EntityProduct:
 		if err := q.CopyBobProductPayload(ctx, dbsqlc.CopyBobProductPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID}); err != nil {
 			return err
@@ -229,12 +166,8 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 			return 0, err
 		}
 		return q.DeleteBobCustomerPayload(ctx, approvalEntryID)
-	case EntityOtherUnit:
-		return q.DeleteBobOtherUnitPayload(ctx, approvalEntryID)
 	case EntitySupplier:
 		return q.DeleteBobSupplierPayload(ctx, approvalEntryID)
-	case EntitySalesPartner:
-		return q.DeleteBobSalesPartnerPayload(ctx, approvalEntryID)
 	case EntityProduct:
 		if err := q.DeleteBobProductFormula(ctx, approvalEntryID); err != nil {
 			return 0, err

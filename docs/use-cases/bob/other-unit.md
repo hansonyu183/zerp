@@ -1,30 +1,21 @@
-# 其他单位页面用例
+# 其他单位 current 查询页面用例
 
 ## 页面范围
 
 - 路由：`/bob/other-unit`
-- Party、服务关系、权限和生命周期：[BOB 领域](../../domains/bob.md)
-- 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [BOB Schema](../../../contracts/openapi/schemas/bob.yaml)
+- 领域规则：[BOB 领域](../../domains/bob.md) 与 [DCL 领域](../../domains/dcl.md)
+- 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 的 `POST /bob/other-unit/query|get|reference`
 
-本用例只记录服务关系页面的编排、可观察结果、异常和验收。
+本页只读取其他单位的 latest approved current 投影，不拥有 candidate、创建、保存、启停、生命周期、版本或审计能力。
 
 ## 列表与详情
 
 1. 用户显式提交编码、主体名称、状态或经营主体筛选；列表固定每页 20 条并按业务编码稳定排序。
-2. 打开详情时调用 `POST /bob/other-unit/get` 读取权威资料；经营主体在创建后只读。
-3. 页面只编辑业务联系人、业务联系方式、业务地址、可选结算方式和关系备注；Party 身份字段在此页面不提供编辑入口。
-4. 关闭有未保存输入的表单时要求确认；窄屏下创建、编辑和生命周期动作完整可用。
-
-## 新建与变更
-
-1. 新建时可选择已有 Party 或填写新 Party，两种入口都调用 `POST /bob/other-unit/create`。
-2. 名称匹配只展示当前用户可读取的非阻断建议，并允许切换为复用建议 Party。强标识命中不可见 Party 时，仅显示通用联系管理员提示。
-3. 成功后打开详情并刷新列表。失败时保留输入与页面位置，显示后端业务消息及 `requestId`，且页面不显示可继续操作的新 Party 或服务关系。
-4. 有待处理变更时，列表与详情分别表达当前交易资料和正在编辑资料；完成、撤回或删除后重新读取结果。
+2. 打开详情时调用 `POST /bob/other-unit/get` 读取 current 投影，展示 Party 名称、经营主体、联系人、可选结算默认快照、备注、enabled 与来源 Approval Entry。
+3. 不存在编辑按钮、写 API 调用或 `/bob/other-unit/create` 路径。需维护时，具有 DCL 权限的用户由深链进入 `/dcl/other-unit`；无权用户只看 current。
 
 ## 验收场景
 
-1. 新建、复用 Party、不可见匹配和失败恢复均保持清晰、脱敏的页面结果。
-2. 详情总是重新读取；经营主体和 Party 身份字段没有错误的可编辑入口。
-3. 有待处理变更时，列表只显示一个其他单位并给出变更标记；删除变更后恢复当前资料。
-4. 列表、详情和生命周期操作在窄屏及权限受限状态下保留完整可用或明确拒绝的结果。
+1. 列表、详情和 reference 只返回可读 current 投影，不泄漏草稿或历史 candidate。
+2. BOB 页面不渲染或调用任何写入、生命周期、versions、audit 或 DCL mutation。
+3. DCL 深链保留对象上下文；经营主体、Party 身份和服务关系快照均不能在 BOB 页面被改写。

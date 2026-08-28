@@ -774,6 +774,198 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
     };
   };
+  "/dcl/other-unit/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOtherUnitCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/other-unit/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOtherUnitSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/other-unit/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/other-unit/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/other-unit/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/other-unit/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/other-unit/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/other-unit/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/other-unit/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitGetResponse } } };
+    };
+  };
+  "/dcl/other-unit/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.OtherUnitQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitQueryResponse } } };
+    };
+  };
+  "/dcl/other-unit/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitQueryResponse } } };
+    };
+  };
+  "/dcl/other-unit/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
+    };
+  };
+  "/dcl/sales-partner/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclSalesPartnerCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/sales-partner/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclSalesPartnerSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/sales-partner/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/sales-partner/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/sales-partner/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/sales-partner/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/sales-partner/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/sales-partner/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/sales-partner/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.SalesPartnerGetResponse } } };
+    };
+  };
+  "/dcl/sales-partner/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.SalesPartnerQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.SalesPartnerQueryResponse } } };
+    };
+  };
+  "/dcl/sales-partner/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.SalesPartnerQueryResponse } } };
+    };
+  };
+  "/dcl/sales-partner/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
+    };
+  };
   "/dcl/party/save": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1326,94 +1518,6 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.OtherUnitGetResponse } } };
     };
   };
-  "/bob/other-unit/create": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.OtherUnitCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
-    };
-  };
-  "/bob/other-unit/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.OtherUnitSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
-    };
-  };
-  "/bob/other-unit/delete": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
-    };
-  };
-  "/bob/other-unit/submit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
-    };
-  };
-  "/bob/other-unit/unsubmit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
-    };
-  };
-  "/bob/other-unit/approve": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
-    };
-  };
-  "/bob/other-unit/reject": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
-    };
-  };
-  "/bob/other-unit/enable": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobObjectRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
-    };
-  };
-  "/bob/other-unit/disable": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobObjectRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
-    };
-  };
-  "/bob/other-unit/versions": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobVersionHistoryResponse } } };
-    };
-  };
-  "/bob/other-unit/audit-history": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobAuditHistoryResponse } } };
-    };
-  };
   "/bob/customer/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1548,22 +1652,6 @@ export interface paths {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobGetRequest } };
       responses: { 200: { content: { 'application/json': Models.SalesPartnerGetResponse } } };
-    };
-  };
-  "/bob/sales-partner/create": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.SalesPartnerCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.SalesPartnerMutationResponse } } };
-    };
-  };
-  "/bob/sales-partner/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.SalesPartnerSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.SalesPartnerMutationResponse } } };
     };
   };
   "/bob/{entity}/query": {
@@ -2356,6 +2444,28 @@ export interface components {
       "DclEmployeeVersionPage": Models.DclEmployeeVersionPage;
       "DclEmployeeVersionPageResponse": Models.DclEmployeeVersionPageResponse;
       "DclOperatingEntityAuditHistoryResponse": Models.DclOperatingEntityAuditHistoryResponse;
+      "DclOtherUnitInput": Models.DclOtherUnitInput;
+      "DclOtherUnitCreateRequest": Models.DclOtherUnitCreateRequest;
+      "DclOtherUnitSaveRequest": Models.DclOtherUnitSaveRequest;
+      "OtherUnitData": Models.OtherUnitData;
+      "OtherUnitView": Models.OtherUnitView;
+      "OtherUnitGetResponse": Models.OtherUnitGetResponse;
+      "OtherUnitQueryRequest": Models.OtherUnitQueryRequest;
+      "OtherUnitPage": Models.OtherUnitPage;
+      "OtherUnitQueryResponse": Models.OtherUnitQueryResponse;
+      "SalesPartnerCapability": Models.SalesPartnerCapability;
+      "DclSalesPartnerInput": Models.DclSalesPartnerInput;
+      "DclSalesPartnerCreateRequest": Models.DclSalesPartnerCreateRequest;
+      "DclSalesPartnerSaveRequest": Models.DclSalesPartnerSaveRequest;
+      "SalesPartnerDataView": Models.SalesPartnerDataView;
+      "SalesPartnerVersionView": Models.SalesPartnerVersionView;
+      "SalesPartnerDetailView": Models.SalesPartnerDetailView;
+      "SalesPartnerGetResponse": Models.SalesPartnerGetResponse;
+      "SalesPartnerQueryRequest": Models.SalesPartnerQueryRequest;
+      "SalesPartnerListVersion": Models.SalesPartnerListVersion;
+      "SalesPartnerListItem": Models.SalesPartnerListItem;
+      "SalesPartnerPage": Models.SalesPartnerPage;
+      "SalesPartnerQueryResponse": Models.SalesPartnerQueryResponse;
       "DclPartyData": Models.DclPartyData;
       "DclPartySaveRequest": Models.DclPartySaveRequest;
       "DclPartyMutation": Models.DclPartyMutation;
@@ -2488,29 +2598,7 @@ export interface components {
       "PartyGetRequest": Models.PartyGetRequest;
       "PartyView": Models.PartyView;
       "PartyGetResponse": Models.PartyGetResponse;
-      "OtherUnitQueryRequest": Models.OtherUnitQueryRequest;
-      "OtherUnitData": Models.OtherUnitData;
-      "OtherUnitView": Models.OtherUnitView;
-      "OtherUnitPage": Models.OtherUnitPage;
-      "OtherUnitQueryResponse": Models.OtherUnitQueryResponse;
       "BobGetRequest": Models.BobGetRequest;
-      "OtherUnitGetResponse": Models.OtherUnitGetResponse;
-      "OtherUnitCreateWithExistingPartyRequest": Models.OtherUnitCreateWithExistingPartyRequest;
-      "OtherUnitCreateWithNewPartyRequest": Models.OtherUnitCreateWithNewPartyRequest;
-      "OtherUnitCreateRequest": Models.OtherUnitCreateRequest;
-      "OtherUnitMutationResult": Models.OtherUnitMutationResult;
-      "OtherUnitMutationResponse": Models.OtherUnitMutationResponse;
-      "OtherUnitSaveRequest": Models.OtherUnitSaveRequest;
-      "BobDeleteRequest": Models.BobDeleteRequest;
-      "BobVersionRevisionRequest": Models.BobVersionRevisionRequest;
-      "BobReviewRequest": Models.BobReviewRequest;
-      "BobObjectRevisionRequest": Models.BobObjectRevisionRequest;
-      "BobHistoryRequest": Models.BobHistoryRequest;
-      "BobVersionHistoryItem": Models.BobVersionHistoryItem;
-      "BobVersionHistoryPage": Models.BobVersionHistoryPage;
-      "BobVersionHistoryResponse": Models.BobVersionHistoryResponse;
-      "BobAuditEventPage": Models.BobAuditEventPage;
-      "BobAuditHistoryResponse": Models.BobAuditHistoryResponse;
       "CustomerQueryRequest": Models.CustomerQueryRequest;
       "CustomerListItem": Models.CustomerListItem;
       "CustomerQueryResponse": Models.CustomerQueryResponse;
@@ -2533,6 +2621,7 @@ export interface components {
       "CustomerCreateResponse": Models.CustomerCreateResponse;
       "CustomerAccountAddRequest": Models.CustomerAccountAddRequest;
       "CustomerAccountResponse": Models.CustomerAccountResponse;
+      "BobDeleteRequest": Models.BobDeleteRequest;
       "CustomerSaveRequest": Models.CustomerSaveRequest;
       "BobMutationResponse": Models.BobMutationResponse;
       "CustomerAttachmentScope": Models.CustomerAttachmentScope;
@@ -2563,21 +2652,6 @@ export interface components {
       "ReferenceCandidate": Models.ReferenceCandidate;
       "ReferenceQueryResponse": Models.ReferenceQueryResponse;
       "AuxReferenceQueryRequest": Models.AuxReferenceQueryRequest;
-      "SalesPartnerCapability": Models.SalesPartnerCapability;
-      "SalesPartnerQueryRequest": Models.SalesPartnerQueryRequest;
-      "SalesPartnerListVersion": Models.SalesPartnerListVersion;
-      "SalesPartnerListItem": Models.SalesPartnerListItem;
-      "SalesPartnerPage": Models.SalesPartnerPage;
-      "SalesPartnerQueryResponse": Models.SalesPartnerQueryResponse;
-      "SalesPartnerDataView": Models.SalesPartnerDataView;
-      "SalesPartnerVersionView": Models.SalesPartnerVersionView;
-      "SalesPartnerDetailView": Models.SalesPartnerDetailView;
-      "SalesPartnerGetResponse": Models.SalesPartnerGetResponse;
-      "SalesPartnerInput": Models.SalesPartnerInput;
-      "SalesPartnerCreateRequest": Models.SalesPartnerCreateRequest;
-      "SalesPartnerMutationResult": Models.SalesPartnerMutationResult;
-      "SalesPartnerMutationResponse": Models.SalesPartnerMutationResponse;
-      "SalesPartnerSaveRequest": Models.SalesPartnerSaveRequest;
       "BobReadableEntity": Models.BobReadableEntity;
       "BobQueryRequest": Models.BobQueryRequest;
       "BobVersionSummary": Models.BobVersionSummary;
@@ -2590,10 +2664,19 @@ export interface components {
       "BobObjectView": Models.BobObjectView;
       "BobObjectResponse": Models.BobObjectResponse;
       "BobLifecycleEntity": Models.BobLifecycleEntity;
+      "BobVersionRevisionRequest": Models.BobVersionRevisionRequest;
+      "BobReviewRequest": Models.BobReviewRequest;
       "BobActiveReferenceCount": Models.BobActiveReferenceCount;
       "BobActiveReferenceBlockers": Models.BobActiveReferenceBlockers;
       "BobUnapproveResponse": Models.BobUnapproveResponse;
+      "BobObjectRevisionRequest": Models.BobObjectRevisionRequest;
       "BobDisableResponse": Models.BobDisableResponse;
+      "BobHistoryRequest": Models.BobHistoryRequest;
+      "BobVersionHistoryItem": Models.BobVersionHistoryItem;
+      "BobVersionHistoryPage": Models.BobVersionHistoryPage;
+      "BobVersionHistoryResponse": Models.BobVersionHistoryResponse;
+      "BobAuditEventPage": Models.BobAuditEventPage;
+      "BobAuditHistoryResponse": Models.BobAuditHistoryResponse;
       "VouQueryRequest": Models.VouQueryRequest;
       "VouSalesBaseQuantitySummary": Models.VouSalesBaseQuantitySummary;
       "VouPurchaseBaseQuantitySummary": Models.VouPurchaseBaseQuantitySummary;

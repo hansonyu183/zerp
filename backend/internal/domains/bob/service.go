@@ -98,6 +98,9 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	if entity == EntityProduct {
 		return s.queryProducts(ctx, input)
 	}
+	if entity == EntityOtherUnit || entity == EntitySalesPartner {
+		return s.queryRelationshipCurrent(ctx, entity, input)
+	}
 	return s.queryObjects(ctx, entity, input)
 }
 
@@ -219,6 +222,12 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	}
 	if entity == EntityEmployee {
 		return s.getEmployeeCurrent(ctx, input)
+	}
+	if entity == EntityOtherUnit {
+		return s.getOtherUnitCurrent(ctx, input)
+	}
+	if entity == EntitySalesPartner {
+		return s.getSalesPartnerCurrent(ctx, input)
 	}
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid get request", nil, nil)
@@ -651,6 +660,12 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntityEmployee {
 		return s.validateEmployeeSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
+	if entity == EntityOtherUnit {
+		return s.validateOtherUnitSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
+	if entity == EntitySalesPartner {
+		return s.validateSalesPartnerSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
@@ -687,6 +702,12 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	}
 	if entity == EntityEmployee {
 		return s.resolveEmployeeCurrentReference(ctx, q, objectID)
+	}
+	if entity == EntityOtherUnit {
+		return s.resolveOtherUnitCurrentReference(ctx, q, objectID)
+	}
+	if entity == EntitySalesPartner {
+		return s.resolveSalesPartnerCurrentReference(ctx, q, objectID)
 	}
 	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -791,14 +812,7 @@ func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q
 		if err != nil {
 			return s.internal("load sales relationship payload for validation", err)
 		}
-		partner, err := normalizeSalesPartnerData(SalesPartnerData{
-			Capabilities: data.SalesCapabilities, ContactName: data.ContactName,
-			ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark,
-		})
-		if err != nil {
-			return err
-		}
-		if err = validateEffectiveSalesPartnerCapabilities(partner.Capabilities); err != nil {
+		if err = ValidateSalesPartnerDeclaration(data.SalesCapabilities, data.ContactName, data.ContactPhone, data.Email, data.Address, data.Remark); err != nil {
 			return err
 		}
 		identity, identityErr := q.GetBobSalesPartnerRelationship(ctx, objectID)

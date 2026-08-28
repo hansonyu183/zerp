@@ -501,15 +501,29 @@ async function createEffectiveOtherUnit(
   operatingEntityId: string,
   settlementMethodId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('bob/other-unit/create', {
+  const created = await operator.post<BobMutation>('dcl/other-unit/create', {
     newParty: {
       kind: 'ORGANIZATION',
       legalName: name,
       strongIdentifiers: [],
     },
-    data: { operatingEntityId, settlementMethodId },
+    operatingEntityId,
+    data: { settlementMethodId },
   })
-  return approveBob(operator, reviewer, 'other-unit', created)
+  const submitted = await operator.post<BobMutation>('dcl/other-unit/submit', {
+    objectId: created.objectId,
+    approvalEntryId: created.approval.approvalEntryId,
+    approvalRevision: created.approval.revision,
+  })
+  const approved = await reviewer.post<BobMutation>('dcl/other-unit/approve', {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+  const view = await operator.post<{ code: string }>('bob/other-unit/get', {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
 }
 
 async function approveBob(

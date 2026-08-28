@@ -17,7 +17,8 @@ import (
 )
 
 type applicationService interface {
-	partyOtherUnitApplicationService
+	PartyQuery(context.Context, QueryInput) (Page[PartyListItem], error)
+	PartyGet(context.Context, PartyGetInput, PartyRelationshipVisibility) (PartyView, error)
 	Query(context.Context, string, QueryInput) (Page[QueryItem], error)
 	Get(context.Context, string, GetInput) (ObjectView, error)
 	Create(context.Context, string, CreateInput, approval.Actor) (MutationResult, error)
@@ -42,21 +43,7 @@ type applicationService interface {
 	SupplierGet(context.Context, GetInput) (SupplierDetailView, error)
 	SupplierCreate(context.Context, SupplierCreateInput, approval.Actor, bool) (SupplierCreateResult, error)
 	SupplierSave(context.Context, SupplierSaveInput, approval.Actor) (MutationResult, error)
-	SalesPartnerQuery(context.Context, QueryInput) (Page[SalesPartnerListItem], error)
-	SalesPartnerGet(context.Context, GetInput) (SalesPartnerDetailView, error)
-	SalesPartnerCreate(context.Context, SalesPartnerCreateInput, approval.Actor, bool) (SalesPartnerCreateResult, error)
-	SalesPartnerSave(context.Context, SalesPartnerSaveInput, approval.Actor) (MutationResult, error)
 	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
-}
-
-type partyOtherUnitApplicationService interface {
-	PartyQuery(context.Context, QueryInput) (Page[PartyListItem], error)
-	PartyGet(context.Context, PartyGetInput, PartyRelationshipVisibility) (PartyView, error)
-	OtherUnitQuery(context.Context, QueryInput) (Page[OtherUnitView], error)
-	OtherUnitGet(context.Context, GetInput) (OtherUnitView, error)
-	OtherUnitCreate(context.Context, OtherUnitCreateInput, approval.Actor, bool) (OtherUnitCreateResult, error)
-	OtherUnitSave(context.Context, OtherUnitSaveInput, approval.Actor) (MutationResult, error)
-	OtherUnitVersions(context.Context, HistoryInput) (Page[VersionHistoryItem], error)
 }
 
 type customerAttachmentApplicationService interface {
@@ -115,7 +102,7 @@ func (h *Handler) Register(router *gin.Engine) {
 		entity := registeredEntity
 		entityGroup := group.Group("/" + entity)
 		for _, route := range actionRoutes {
-			if (entity == EntityOperatingEntity || entity == EntityWarehouse || entity == EntityVehicle || entity == EntityFundAccount || entity == EntityProduct || entity == EntityEmployee) && route.action != "query" && route.action != "get" {
+			if (entity == EntityOperatingEntity || entity == EntityWarehouse || entity == EntityVehicle || entity == EntityFundAccount || entity == EntityProduct || entity == EntityEmployee || entity == EntityOtherUnit || entity == EntitySalesPartner) && route.action != "query" && route.action != "get" {
 				continue
 			}
 			action := route.action
@@ -129,22 +116,6 @@ func (h *Handler) Register(router *gin.Engine) {
 	partyGroup := group.Group("/party")
 	partyGroup.POST("/query", h.authorize("/bob/party/query"), h.partyQuery)
 	partyGroup.POST("/get", h.authorize("/bob/party/get"), h.partyGet)
-	otherUnitGroup := group.Group("/" + EntityOtherUnit)
-	otherUnitGroup.POST("/query", h.authorize("/bob/other-unit/query"), h.otherUnitQuery)
-	otherUnitGroup.POST("/get", h.authorize("/bob/other-unit/get"), h.otherUnitGet)
-	otherUnitGroup.POST("/create", h.authorize("/bob/other-unit/create"), h.otherUnitCreate)
-	otherUnitGroup.POST("/save", h.authorize("/bob/other-unit/save"), h.otherUnitSave)
-	otherUnitGroup.POST("/versions", h.authorize("/bob/other-unit/versions"), h.otherUnitVersions)
-	for _, route := range actionRoutes {
-		if route.action == "query" || route.action == "get" || route.action == "create" || route.action == "save" || route.action == "versions" {
-			continue
-		}
-		action, handle := route.action, route.handle
-		path := "/bob/other-unit/" + action
-		otherUnitGroup.POST("/"+action, h.authorize(path), func(c *gin.Context) {
-			handle(h, c, EntityOtherUnit)
-		})
-	}
 	group.POST("/customer/account-add", h.authorize("/bob/customer-account/create"), h.customerAccountAdd)
 	group.POST("/customer/account-delete", h.authorize("/bob/customer-account/delete"), h.customerAccountDelete)
 	customerAccountGroup := group.Group("/" + EntityCustomerAccount)
@@ -167,14 +138,6 @@ func (h *Handler) Register(router *gin.Engine) {
 	referenceGroup.POST("/query", authmiddleware.RequireSession(h.authorizer, "/bob/reference/query", h.writeAuthorizationError), h.referenceQuery)
 	router.PUT("/files/customer-attachments/upload/:token", h.customerAttachmentUpload)
 	router.GET("/files/customer-attachments/download/:token", h.customerAttachmentFileDownload)
-}
-
-func (h *Handler) otherUnitVersions(c *gin.Context) {
-	var input HistoryInput
-	if h.bind(c, &input) {
-		result, err := h.service.OtherUnitVersions(c.Request.Context(), input)
-		h.result(c, result, err)
-	}
 }
 
 func (h *Handler) partyQuery(c *gin.Context) {
@@ -205,55 +168,6 @@ func (h *Handler) partyRelationshipVisibility(c *gin.Context) PartyRelationshipV
 		Customer: hasPermission(principal, "/bob/customer/get"), Supplier: hasPermission(principal, "/bob/supplier/get"),
 		Employment: hasPermission(principal, "/bob/employee/get"), OtherUnit: hasPermission(principal, "/bob/other-unit/get"),
 		SalesPartner: hasPermission(principal, "/bob/sales-partner/get"),
-	}
-}
-
-func (h *Handler) otherUnitQuery(c *gin.Context) {
-	var input QueryInput
-	if h.bind(c, &input) {
-		result, err := h.service.OtherUnitQuery(c.Request.Context(), input)
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) otherUnitGet(c *gin.Context) {
-	var input GetInput
-	if h.bind(c, &input) {
-		result, err := h.service.OtherUnitGet(c.Request.Context(), input)
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) otherUnitCreate(c *gin.Context) {
-	var input OtherUnitCreateInput
-	if !h.bind(c, &input) {
-		return
-	}
-	requiredPartyPath := "/bob/party/get"
-	if input.NewParty != nil {
-		requiredPartyPath = "/dcl/party/create"
-	}
-	if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.OtherUnitCreate(c.Request.Context(), input, actor,
-		hasPermission(h.principal(c), "/bob/party/get"))
-	h.result(c, result, err)
-}
-
-func (h *Handler) otherUnitSave(c *gin.Context) {
-	var input OtherUnitSaveInput
-	if h.bind(c, &input) {
-		actor, ok := h.approvalActor(c)
-		if !ok {
-			return
-		}
-		result, err := h.service.OtherUnitSave(c.Request.Context(), input, actor)
-		h.result(c, result, err)
 	}
 }
 
@@ -308,11 +222,6 @@ func (h *Handler) query(c *gin.Context, entity string) {
 			h.result(c, result, err)
 			return
 		}
-		if entity == EntitySalesPartner {
-			result, err := h.service.SalesPartnerQuery(c.Request.Context(), input)
-			h.result(c, result, err)
-			return
-		}
 		result, err := h.service.Query(c.Request.Context(), entity, input)
 		h.result(c, result, err)
 	}
@@ -331,11 +240,6 @@ func (h *Handler) get(c *gin.Context, entity string) {
 		}
 		if entity == EntitySupplier {
 			result, err := h.service.SupplierGet(c.Request.Context(), input)
-			h.result(c, result, err)
-			return
-		}
-		if entity == EntitySalesPartner {
-			result, err := h.service.SalesPartnerGet(c.Request.Context(), input)
 			h.result(c, result, err)
 			return
 		}
@@ -446,27 +350,6 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		h.result(c, result, err)
 		return
 	}
-	if entity == EntitySalesPartner {
-		var input SalesPartnerCreateInput
-		if !h.bind(c, &input) {
-			return
-		}
-		requiredPartyPath := "/bob/party/get"
-		if input.NewParty != nil {
-			requiredPartyPath = "/dcl/party/create"
-		}
-		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
-			return
-		}
-		actor, ok := h.approvalActor(c)
-		if !ok {
-			return
-		}
-		result, err := h.service.SalesPartnerCreate(c.Request.Context(), input, actor,
-			hasPermission(h.principal(c), "/bob/party/get"))
-		h.result(c, result, err)
-		return
-	}
 	var input CreateInput
 	if h.bind(c, &input) {
 		actor, ok := h.approvalActor(c)
@@ -522,18 +405,6 @@ func (h *Handler) save(c *gin.Context, entity string) {
 				return
 			}
 			result, err := h.service.SupplierSave(c.Request.Context(), input, actor)
-			h.result(c, result, err)
-		}
-		return
-	}
-	if entity == EntitySalesPartner {
-		var input SalesPartnerSaveInput
-		if h.bind(c, &input) {
-			actor, ok := h.approvalActor(c)
-			if !ok {
-				return
-			}
-			result, err := h.service.SalesPartnerSave(c.Request.Context(), input, actor)
 			h.result(c, result, err)
 		}
 		return

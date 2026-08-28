@@ -69,21 +69,6 @@ func (q *Queries) CopyBobCustomerVersionAttachments(ctx context.Context, arg Cop
 	return err
 }
 
-const copyBobOtherUnitPayload = `-- name: CopyBobOtherUnitPayload :exec
-INSERT INTO bob_service_relationship_versions(approval_entry_id,entity,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark)
-SELECT $1,entity,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark FROM bob_service_relationship_versions source WHERE source.approval_entry_id=$2
-`
-
-type CopyBobOtherUnitPayloadParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyBobOtherUnitPayload(ctx context.Context, arg CopyBobOtherUnitPayloadParams) error {
-	_, err := q.db.Exec(ctx, copyBobOtherUnitPayload, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
-}
-
 const copyBobProductPayload = `-- name: CopyBobProductPayload :exec
 INSERT INTO dcl_product_versions(approval_entry_id,entity,name,category_id,category_approval_entry_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,pricing_unit_approval_entry_id,returnable,default_packaging_spec_micros,product_type_id,product_type_approval_entry_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,default_input_unit_approval_entry_id,enabled)
 SELECT $1,entity,name,category_id,category_approval_entry_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,pricing_unit_approval_entry_id,returnable,default_packaging_spec_micros,product_type_id,product_type_approval_entry_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,default_input_unit_approval_entry_id,enabled FROM dcl_product_versions source WHERE source.approval_entry_id=$2
@@ -96,21 +81,6 @@ type CopyBobProductPayloadParams struct {
 
 func (q *Queries) CopyBobProductPayload(ctx context.Context, arg CopyBobProductPayloadParams) error {
 	_, err := q.db.Exec(ctx, copyBobProductPayload, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
-}
-
-const copyBobSalesPartnerPayload = `-- name: CopyBobSalesPartnerPayload :exec
-INSERT INTO bob_sales_partner_versions(approval_entry_id,entity,capabilities,contact_name,contact_phone,email,address,remark)
-SELECT $1,entity,capabilities,contact_name,contact_phone,email,address,remark FROM bob_sales_partner_versions source WHERE source.approval_entry_id=$2
-`
-
-type CopyBobSalesPartnerPayloadParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyBobSalesPartnerPayload(ctx context.Context, arg CopyBobSalesPartnerPayloadParams) error {
-	_, err := q.db.Exec(ctx, copyBobSalesPartnerPayload, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
 	return err
 }
 
@@ -247,13 +217,13 @@ FROM bob_objects o
 LEFT JOIN LATERAL (
     SELECT id, status
     FROM approval_entries
-    WHERE domain=CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
+    WHERE domain=CASE WHEN o.entity IN ('product','employee','other-unit','sales-partner') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
     ORDER BY version_no DESC LIMIT 1
 ) approved ON true
 LEFT JOIN LATERAL (
     SELECT id, status
     FROM approval_entries
-    WHERE domain=CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status IN ('DRAFT','PENDING')
+    WHERE domain=CASE WHEN o.entity IN ('product','employee','other-unit','sales-partner') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status IN ('DRAFT','PENDING')
     ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
 LEFT JOIN dcl_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
@@ -266,8 +236,8 @@ LEFT JOIN dcl_fund_account_versions approved_fund ON approved_fund.approval_entr
 LEFT JOIN dcl_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
 LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
-LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
-LEFT JOIN bob_sales_partner_versions open_sales ON open_sales.approval_entry_id=open_entry.id
+LEFT JOIN dcl_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
+LEFT JOIN dcl_sales_partner_versions open_sales ON open_sales.approval_entry_id=open_entry.id
 LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.object_id=o.id AND o.entity='customer'
 LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
@@ -550,12 +520,12 @@ func (q *Queries) DeleteBobOperatingEntityCurrent(ctx context.Context, objectID 
 	return result.RowsAffected(), nil
 }
 
-const deleteBobOtherUnitPayload = `-- name: DeleteBobOtherUnitPayload :execrows
-DELETE FROM bob_service_relationship_versions WHERE approval_entry_id = $1
+const deleteBobOtherUnitCurrent = `-- name: DeleteBobOtherUnitCurrent :execrows
+DELETE FROM bob_other_units WHERE object_id=$1
 `
 
-func (q *Queries) DeleteBobOtherUnitPayload(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobOtherUnitPayload, approvalEntryID)
+func (q *Queries) DeleteBobOtherUnitCurrent(ctx context.Context, objectID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobOtherUnitCurrent, objectID)
 	if err != nil {
 		return 0, err
 	}
@@ -613,12 +583,12 @@ func (q *Queries) DeleteBobProductUnitConversions(ctx context.Context, productAp
 	return err
 }
 
-const deleteBobSalesPartnerPayload = `-- name: DeleteBobSalesPartnerPayload :execrows
-DELETE FROM bob_sales_partner_versions WHERE approval_entry_id = $1
+const deleteBobSalesPartnerCurrent = `-- name: DeleteBobSalesPartnerCurrent :execrows
+DELETE FROM bob_sales_partners WHERE object_id=$1
 `
 
-func (q *Queries) DeleteBobSalesPartnerPayload(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobSalesPartnerPayload, approvalEntryID)
+func (q *Queries) DeleteBobSalesPartnerCurrent(ctx context.Context, objectID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobSalesPartnerCurrent, objectID)
 	if err != nil {
 		return 0, err
 	}
@@ -664,7 +634,8 @@ func (q *Queries) DeleteBobWarehouseCurrent(ctx context.Context, objectID string
 const findBobSeedObjectID = `-- name: FindBobSeedObjectID :one
 SELECT subject_id
 FROM approval_events
-WHERE domain='bob' AND entity=$1
+WHERE domain=CASE WHEN $1::text IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','other-unit','sales-partner') THEN 'dcl' ELSE 'bob' END
+  AND entity=$1
   AND request_id='seed-bob-' || $2::text || '-create'
   AND action='CREATED'
 ORDER BY created_at,id
@@ -1392,34 +1363,6 @@ func (q *Queries) GetBobOpenEntry(ctx context.Context, arg GetBobOpenEntryParams
 	return i, err
 }
 
-const getBobOpenOtherUnitPayload = `-- name: GetBobOpenOtherUnitPayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.contact_name, payload.contact_phone, payload.email, payload.address, payload.settlement_method_id, payload.settlement_method_approval_entry_id, payload.settlement_method_code, payload.settlement_method_name, payload.settlement_term_code, payload.settlement_rule_type, payload.settlement_month_offset, payload.settlement_day_of_month, payload.settlement_day_offset, payload.remark FROM bob_service_relationship_versions payload WHERE payload.approval_entry_id=$1
-`
-
-func (q *Queries) GetBobOpenOtherUnitPayload(ctx context.Context, approvalEntryID string) (BobServiceRelationshipVersion, error) {
-	row := q.db.QueryRow(ctx, getBobOpenOtherUnitPayload, approvalEntryID)
-	var i BobServiceRelationshipVersion
-	err := row.Scan(
-		&i.ApprovalEntryID,
-		&i.Entity,
-		&i.ContactName,
-		&i.ContactPhone,
-		&i.Email,
-		&i.Address,
-		&i.SettlementMethodID,
-		&i.SettlementMethodApprovalEntryID,
-		&i.SettlementMethodCode,
-		&i.SettlementMethodName,
-		&i.SettlementTermCode,
-		&i.SettlementRuleType,
-		&i.SettlementMonthOffset,
-		&i.SettlementDayOfMonth,
-		&i.SettlementDayOffset,
-		&i.Remark,
-	)
-	return i, err
-}
-
 const getBobOpenProductPayload = `-- name: GetBobOpenProductPayload :one
 SELECT payload.approval_entry_id, payload.entity, payload.name, payload.category_id, payload.category_approval_entry_id, payload.category_code, payload.category_name, payload.category_entity, payload.specification, payload.model, payload.barcode, payload.remark, payload.pricing_unit_id, payload.pricing_unit_approval_entry_id, payload.returnable, payload.default_packaging_spec_micros, payload.product_type_id, payload.product_type_approval_entry_id, payload.product_type_code, payload.product_type_name, payload.behavior_profile, payload.default_input_unit_id, payload.default_input_unit_approval_entry_id, payload.enabled FROM dcl_product_versions payload WHERE payload.approval_entry_id=$1
 `
@@ -1452,26 +1395,6 @@ func (q *Queries) GetBobOpenProductPayload(ctx context.Context, approvalEntryID 
 		&i.DefaultInputUnitID,
 		&i.DefaultInputUnitApprovalEntryID,
 		&i.Enabled,
-	)
-	return i, err
-}
-
-const getBobOpenSalesPartnerPayload = `-- name: GetBobOpenSalesPartnerPayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.capabilities, payload.contact_name, payload.contact_phone, payload.email, payload.address, payload.remark FROM bob_sales_partner_versions payload WHERE payload.approval_entry_id=$1
-`
-
-func (q *Queries) GetBobOpenSalesPartnerPayload(ctx context.Context, approvalEntryID string) (BobSalesPartnerVersion, error) {
-	row := q.db.QueryRow(ctx, getBobOpenSalesPartnerPayload, approvalEntryID)
-	var i BobSalesPartnerVersion
-	err := row.Scan(
-		&i.ApprovalEntryID,
-		&i.Entity,
-		&i.Capabilities,
-		&i.ContactName,
-		&i.ContactPhone,
-		&i.Email,
-		&i.Address,
-		&i.Remark,
 	)
 	return i, err
 }
@@ -1669,18 +1592,84 @@ func (q *Queries) GetBobOperatingEntityCurrentReference(ctx context.Context, obj
 	return i, err
 }
 
-const getBobOtherUnitPayload = `-- name: GetBobOtherUnitPayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.contact_name, payload.contact_phone, payload.email, payload.address, payload.settlement_method_id, payload.settlement_method_approval_entry_id, payload.settlement_method_code, payload.settlement_method_name, payload.settlement_term_code, payload.settlement_rule_type, payload.settlement_month_offset, payload.settlement_day_of_month, payload.settlement_day_offset, payload.remark FROM bob_service_relationship_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
-WHERE payload.approval_entry_id=$1 AND entry.domain='bob' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
+const getBobOtherUnitCurrent = `-- name: GetBobOtherUnitCurrent :one
+SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled,current.updated_at,
+       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,
+       operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
+       snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.settlement_method_id,
+       snapshot.settlement_method_approval_entry_id,snapshot.settlement_method_code,snapshot.settlement_method_name,
+       snapshot.settlement_term_code,snapshot.settlement_rule_type,snapshot.settlement_month_offset,snapshot.settlement_day_of_month,
+       snapshot.settlement_day_offset,snapshot.remark,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,
+       entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,
+       entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
+FROM bob_objects object JOIN bob_other_units current ON current.object_id=object.id
+JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN approval_entries entry ON entry.id=current.source_approval_entry_id AND entry.domain='dcl' AND entry.entity='other-unit' AND entry.subject_id=object.id AND entry.status='APPROVED'
+JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE object.id=$1 AND object.entity='other-unit'
 `
 
-func (q *Queries) GetBobOtherUnitPayload(ctx context.Context, approvalEntryID string) (BobServiceRelationshipVersion, error) {
-	row := q.db.QueryRow(ctx, getBobOtherUnitPayload, approvalEntryID)
-	var i BobServiceRelationshipVersion
+type GetBobOtherUnitCurrentRow struct {
+	ObjectID                        string             `db:"object_id" json:"object_id"`
+	Entity                          string             `db:"entity" json:"entity"`
+	Code                            string             `db:"code" json:"code"`
+	ObjectRevision                  int64              `db:"object_revision" json:"object_revision"`
+	Enabled                         bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	PartyID                         string             `db:"party_id" json:"party_id"`
+	PartyKind                       string             `db:"party_kind" json:"party_kind"`
+	DisplayName                     string             `db:"display_name" json:"display_name"`
+	OperatingEntityID               string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode             string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName             string             `db:"operating_entity_name" json:"operating_entity_name"`
+	ContactName                     *string            `db:"contact_name" json:"contact_name"`
+	ContactPhone                    *string            `db:"contact_phone" json:"contact_phone"`
+	Email                           *string            `db:"email" json:"email"`
+	Address                         *string            `db:"address" json:"address"`
+	SettlementMethodID              *string            `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodApprovalEntryID *string            `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode            *string            `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName            *string            `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode              *string            `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType              *string            `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset           int32              `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth            int32              `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset             int32              `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                          *string            `db:"remark" json:"remark"`
+	ApprovalEntryID                 string             `db:"approval_entry_id" json:"approval_entry_id"`
+	Domain                          string             `db:"domain" json:"domain"`
+	VersionNo                       *int32             `db:"version_no" json:"version_no"`
+	Status                          string             `db:"status" json:"status"`
+	ApprovalRevision                int64              `db:"approval_revision" json:"approval_revision"`
+	CreatedBy                       string             `db:"created_by" json:"created_by"`
+	CreatedAt                       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedBy                       string             `db:"updated_by" json:"updated_by"`
+	ApprovalUpdatedAt               pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	SubmittedBy                     *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt                     pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy                      *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt                      pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+}
+
+func (q *Queries) GetBobOtherUnitCurrent(ctx context.Context, objectID string) (GetBobOtherUnitCurrentRow, error) {
+	row := q.db.QueryRow(ctx, getBobOtherUnitCurrent, objectID)
+	var i GetBobOtherUnitCurrentRow
 	err := row.Scan(
-		&i.ApprovalEntryID,
+		&i.ObjectID,
 		&i.Entity,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.Enabled,
+		&i.UpdatedAt,
+		&i.PartyID,
+		&i.PartyKind,
+		&i.DisplayName,
+		&i.OperatingEntityID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.Email,
@@ -1695,6 +1684,48 @@ func (q *Queries) GetBobOtherUnitPayload(ctx context.Context, approvalEntryID st
 		&i.SettlementDayOfMonth,
 		&i.SettlementDayOffset,
 		&i.Remark,
+		&i.ApprovalEntryID,
+		&i.Domain,
+		&i.VersionNo,
+		&i.Status,
+		&i.ApprovalRevision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.ApprovalUpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const getBobOtherUnitCurrentReference = `-- name: GetBobOtherUnitCurrentReference :one
+SELECT object.id AS object_id,object.entity,object.code,current.source_approval_entry_id AS approval_entry_id,party.display_name
+FROM bob_objects object JOIN bob_other_units current ON current.object_id=object.id
+JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE object.id=$1 AND object.entity='other-unit' AND current.enabled
+`
+
+type GetBobOtherUnitCurrentReferenceRow struct {
+	ObjectID        string `db:"object_id" json:"object_id"`
+	Entity          string `db:"entity" json:"entity"`
+	Code            string `db:"code" json:"code"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DisplayName     string `db:"display_name" json:"display_name"`
+}
+
+func (q *Queries) GetBobOtherUnitCurrentReference(ctx context.Context, objectID string) (GetBobOtherUnitCurrentReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getBobOtherUnitCurrentReference, objectID)
+	var i GetBobOtherUnitCurrentReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.ApprovalEntryID,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -1878,24 +1909,121 @@ func (q *Queries) GetBobProductPayload(ctx context.Context, approvalEntryID stri
 	return i, err
 }
 
-const getBobSalesPartnerPayload = `-- name: GetBobSalesPartnerPayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.capabilities, payload.contact_name, payload.contact_phone, payload.email, payload.address, payload.remark FROM bob_sales_partner_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
-WHERE payload.approval_entry_id=$1 AND entry.domain='bob' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
+const getBobSalesPartnerCurrent = `-- name: GetBobSalesPartnerCurrent :one
+SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled,current.updated_at,
+       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,
+       operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
+       snapshot.capabilities,snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.remark,
+       entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,
+       entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
+FROM bob_objects object JOIN bob_sales_partners current ON current.object_id=object.id
+JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN approval_entries entry ON entry.id=current.source_approval_entry_id AND entry.domain='dcl' AND entry.entity='sales-partner' AND entry.subject_id=object.id AND entry.status='APPROVED'
+JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE object.id=$1 AND object.entity='sales-partner'
 `
 
-func (q *Queries) GetBobSalesPartnerPayload(ctx context.Context, approvalEntryID string) (BobSalesPartnerVersion, error) {
-	row := q.db.QueryRow(ctx, getBobSalesPartnerPayload, approvalEntryID)
-	var i BobSalesPartnerVersion
+type GetBobSalesPartnerCurrentRow struct {
+	ObjectID            string             `db:"object_id" json:"object_id"`
+	Entity              string             `db:"entity" json:"entity"`
+	Code                string             `db:"code" json:"code"`
+	ObjectRevision      int64              `db:"object_revision" json:"object_revision"`
+	Enabled             bool               `db:"enabled" json:"enabled"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	PartyID             string             `db:"party_id" json:"party_id"`
+	PartyKind           string             `db:"party_kind" json:"party_kind"`
+	DisplayName         string             `db:"display_name" json:"display_name"`
+	OperatingEntityID   string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName string             `db:"operating_entity_name" json:"operating_entity_name"`
+	Capabilities        []string           `db:"capabilities" json:"capabilities"`
+	ContactName         *string            `db:"contact_name" json:"contact_name"`
+	ContactPhone        *string            `db:"contact_phone" json:"contact_phone"`
+	Email               *string            `db:"email" json:"email"`
+	Address             *string            `db:"address" json:"address"`
+	Remark              *string            `db:"remark" json:"remark"`
+	ApprovalEntryID     string             `db:"approval_entry_id" json:"approval_entry_id"`
+	Domain              string             `db:"domain" json:"domain"`
+	VersionNo           *int32             `db:"version_no" json:"version_no"`
+	Status              string             `db:"status" json:"status"`
+	ApprovalRevision    int64              `db:"approval_revision" json:"approval_revision"`
+	CreatedBy           string             `db:"created_by" json:"created_by"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedBy           string             `db:"updated_by" json:"updated_by"`
+	ApprovalUpdatedAt   pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	SubmittedBy         *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt         pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy          *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt          pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+}
+
+func (q *Queries) GetBobSalesPartnerCurrent(ctx context.Context, objectID string) (GetBobSalesPartnerCurrentRow, error) {
+	row := q.db.QueryRow(ctx, getBobSalesPartnerCurrent, objectID)
+	var i GetBobSalesPartnerCurrentRow
 	err := row.Scan(
-		&i.ApprovalEntryID,
+		&i.ObjectID,
 		&i.Entity,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.Enabled,
+		&i.UpdatedAt,
+		&i.PartyID,
+		&i.PartyKind,
+		&i.DisplayName,
+		&i.OperatingEntityID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
 		&i.Capabilities,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.Email,
 		&i.Address,
 		&i.Remark,
+		&i.ApprovalEntryID,
+		&i.Domain,
+		&i.VersionNo,
+		&i.Status,
+		&i.ApprovalRevision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.ApprovalUpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const getBobSalesPartnerCurrentReference = `-- name: GetBobSalesPartnerCurrentReference :one
+SELECT object.id AS object_id,object.entity,object.code,current.source_approval_entry_id AS approval_entry_id,party.display_name
+FROM bob_objects object JOIN bob_sales_partners current ON current.object_id=object.id
+JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE object.id=$1 AND object.entity='sales-partner' AND current.enabled
+`
+
+type GetBobSalesPartnerCurrentReferenceRow struct {
+	ObjectID        string `db:"object_id" json:"object_id"`
+	Entity          string `db:"entity" json:"entity"`
+	Code            string `db:"code" json:"code"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DisplayName     string `db:"display_name" json:"display_name"`
+}
+
+func (q *Queries) GetBobSalesPartnerCurrentReference(ctx context.Context, objectID string) (GetBobSalesPartnerCurrentReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getBobSalesPartnerCurrentReference, objectID)
+	var i GetBobSalesPartnerCurrentReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.ApprovalEntryID,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -2374,15 +2502,6 @@ func (q *Queries) InsertBobObject(ctx context.Context, arg InsertBobObjectParams
 	return err
 }
 
-const insertBobOtherUnitPayload = `-- name: InsertBobOtherUnitPayload :exec
-INSERT INTO bob_service_relationship_versions (approval_entry_id) VALUES ($1)
-`
-
-func (q *Queries) InsertBobOtherUnitPayload(ctx context.Context, approvalEntryID string) error {
-	_, err := q.db.Exec(ctx, insertBobOtherUnitPayload, approvalEntryID)
-	return err
-}
-
 const insertBobOtherUnitRelationship = `-- name: InsertBobOtherUnitRelationship :exec
 INSERT INTO bob_service_relationships(object_id,party_id,operating_entity_id,created_by) VALUES($1,$2,$3,$4)
 `
@@ -2513,15 +2632,6 @@ func (q *Queries) InsertBobProductUnitConversion(ctx context.Context, arg Insert
 		arg.UnitSymbol,
 		arg.FactorMicros,
 	)
-	return err
-}
-
-const insertBobSalesPartnerPayload = `-- name: InsertBobSalesPartnerPayload :exec
-INSERT INTO bob_sales_partner_versions (approval_entry_id) VALUES ($1)
-`
-
-func (q *Queries) InsertBobSalesPartnerPayload(ctx context.Context, approvalEntryID string) error {
-	_, err := q.db.Exec(ctx, insertBobSalesPartnerPayload, approvalEntryID)
 	return err
 }
 
@@ -2982,13 +3092,13 @@ FROM bob_objects o
 LEFT JOIN LATERAL (
     SELECT id, version_no, status, revision
     FROM approval_entries
-    WHERE domain = CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
+    WHERE domain = CASE WHEN o.entity IN ('product','employee','other-unit','sales-partner') THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
     ORDER BY version_no DESC LIMIT 1
 ) approved ON true
 LEFT JOIN LATERAL (
     SELECT id, version_no, status, revision
     FROM approval_entries
-    WHERE domain = CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status IN ('DRAFT', 'PENDING')
+    WHERE domain = CASE WHEN o.entity IN ('product','employee','other-unit','sales-partner') THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status IN ('DRAFT', 'PENDING')
     ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
 LEFT JOIN dcl_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
@@ -3001,8 +3111,8 @@ LEFT JOIN dcl_fund_account_versions approved_fund ON approved_fund.approval_entr
 LEFT JOIN dcl_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
 LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
-LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
-LEFT JOIN bob_sales_partner_versions open_sales ON open_sales.approval_entry_id=open_entry.id
+LEFT JOIN dcl_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
+LEFT JOIN dcl_sales_partner_versions open_sales ON open_sales.approval_entry_id=open_entry.id
 LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.object_id=o.id AND o.entity='customer'
 LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
@@ -4871,52 +4981,6 @@ func (q *Queries) UpdateBobCustomerPayload(ctx context.Context, arg UpdateBobCus
 	return result.RowsAffected(), nil
 }
 
-const updateBobOtherUnitPayload = `-- name: UpdateBobOtherUnitPayload :execrows
-UPDATE bob_service_relationship_versions SET contact_name=$1,contact_phone=$2,email=$3,address=$4,settlement_method_id=$5,settlement_method_approval_entry_id=$6,settlement_method_code=$7,settlement_method_name=$8,settlement_term_code=$9,settlement_rule_type=$10,settlement_month_offset=$11,settlement_day_of_month=$12,settlement_day_offset=$13,remark=$14 WHERE approval_entry_id=$15
-`
-
-type UpdateBobOtherUnitPayloadParams struct {
-	ContactName                     *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                    *string `db:"contact_phone" json:"contact_phone"`
-	Email                           *string `db:"email" json:"email"`
-	Address                         *string `db:"address" json:"address"`
-	SettlementMethodID              *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodApprovalEntryID *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
-	SettlementMethodCode            *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName            *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode              *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType              *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset           int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth            int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset             int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
-	Remark                          *string `db:"remark" json:"remark"`
-	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateBobOtherUnitPayload(ctx context.Context, arg UpdateBobOtherUnitPayloadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateBobOtherUnitPayload,
-		arg.ContactName,
-		arg.ContactPhone,
-		arg.Email,
-		arg.Address,
-		arg.SettlementMethodID,
-		arg.SettlementMethodApprovalEntryID,
-		arg.SettlementMethodCode,
-		arg.SettlementMethodName,
-		arg.SettlementTermCode,
-		arg.SettlementRuleType,
-		arg.SettlementMonthOffset,
-		arg.SettlementDayOfMonth,
-		arg.SettlementDayOffset,
-		arg.Remark,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateBobProductPayload = `-- name: UpdateBobProductPayload :execrows
 UPDATE dcl_product_versions SET name=$1,category_id=$2,category_approval_entry_id=$3,category_code=$4,category_name=$5,specification=$6,model=$7,barcode=$8,remark=$9,pricing_unit_id=$10,pricing_unit_approval_entry_id=$11,returnable=$12,default_packaging_spec_micros=$13,product_type_id=$14,product_type_approval_entry_id=$15,product_type_code=$16,product_type_name=$17,behavior_profile=$18,default_input_unit_id=$19,default_input_unit_approval_entry_id=$20,enabled=$21 WHERE approval_entry_id=$22
 `
@@ -4969,36 +5033,6 @@ func (q *Queries) UpdateBobProductPayload(ctx context.Context, arg UpdateBobProd
 		arg.DefaultInputUnitID,
 		arg.DefaultInputUnitApprovalEntryID,
 		arg.Enabled,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const updateBobSalesPartnerPayload = `-- name: UpdateBobSalesPartnerPayload :execrows
-UPDATE bob_sales_partner_versions SET capabilities=$1,contact_name=$2,contact_phone=$3,email=$4,address=$5,remark=$6 WHERE approval_entry_id=$7
-`
-
-type UpdateBobSalesPartnerPayloadParams struct {
-	Capabilities    []string `db:"capabilities" json:"capabilities"`
-	ContactName     *string  `db:"contact_name" json:"contact_name"`
-	ContactPhone    *string  `db:"contact_phone" json:"contact_phone"`
-	Email           *string  `db:"email" json:"email"`
-	Address         *string  `db:"address" json:"address"`
-	Remark          *string  `db:"remark" json:"remark"`
-	ApprovalEntryID string   `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateBobSalesPartnerPayload(ctx context.Context, arg UpdateBobSalesPartnerPayloadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateBobSalesPartnerPayload,
-		arg.Capabilities,
-		arg.ContactName,
-		arg.ContactPhone,
-		arg.Email,
-		arg.Address,
-		arg.Remark,
 		arg.ApprovalEntryID,
 	)
 	if err != nil {
@@ -5189,6 +5223,31 @@ func (q *Queries) UpsertBobOperatingEntityCurrent(ctx context.Context, arg Upser
 	return err
 }
 
+const upsertBobOtherUnitCurrent = `-- name: UpsertBobOtherUnitCurrent :exec
+INSERT INTO bob_other_units(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
+VALUES($1,$2,$3,now(),$4)
+ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=EXCLUDED.source_approval_entry_id,enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by
+`
+
+type UpsertBobOtherUnitCurrentParams struct {
+	ObjectID              string `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool   `db:"enabled" json:"enabled"`
+	ActorID               string `db:"actor_id" json:"actor_id"`
+}
+
+// Other Unit and Sales Partner identities stay in BOB, while DCL approval
+// selects the sole current snapshot visible to BOB readers.
+func (q *Queries) UpsertBobOtherUnitCurrent(ctx context.Context, arg UpsertBobOtherUnitCurrentParams) error {
+	_, err := q.db.Exec(ctx, upsertBobOtherUnitCurrent,
+		arg.ObjectID,
+		arg.SourceApprovalEntryID,
+		arg.Enabled,
+		arg.ActorID,
+	)
+	return err
+}
+
 const upsertBobProductCurrent = `-- name: UpsertBobProductCurrent :exec
 INSERT INTO bob_products(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
 VALUES($1,$2,$3,now(),$4)
@@ -5204,6 +5263,29 @@ type UpsertBobProductCurrentParams struct {
 
 func (q *Queries) UpsertBobProductCurrent(ctx context.Context, arg UpsertBobProductCurrentParams) error {
 	_, err := q.db.Exec(ctx, upsertBobProductCurrent,
+		arg.ObjectID,
+		arg.SourceApprovalEntryID,
+		arg.Enabled,
+		arg.ActorID,
+	)
+	return err
+}
+
+const upsertBobSalesPartnerCurrent = `-- name: UpsertBobSalesPartnerCurrent :exec
+INSERT INTO bob_sales_partners(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
+VALUES($1,$2,$3,now(),$4)
+ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=EXCLUDED.source_approval_entry_id,enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by
+`
+
+type UpsertBobSalesPartnerCurrentParams struct {
+	ObjectID              string `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool   `db:"enabled" json:"enabled"`
+	ActorID               string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) UpsertBobSalesPartnerCurrent(ctx context.Context, arg UpsertBobSalesPartnerCurrentParams) error {
+	_, err := q.db.Exec(ctx, upsertBobSalesPartnerCurrent,
 		arg.ObjectID,
 		arg.SourceApprovalEntryID,
 		arg.Enabled,

@@ -1191,7 +1191,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -1232,6 +1232,45 @@ CREATE TABLE public.dcl_employee_versions (
     CONSTRAINT dcl_employee_versions_employee_category_snapshot_check CHECK (((employee_category_id IS NULL) = (employee_category_approval_entry_id IS NULL)) AND ((employee_category_id IS NULL) = (employee_category_code IS NULL)) AND ((employee_category_id IS NULL) = (employee_category_name IS NULL))),
     CONSTRAINT dcl_employee_versions_department_snapshot_check CHECK (((department_id IS NULL) = (department_approval_entry_id IS NULL)) AND ((department_id IS NULL) = (department_code IS NULL)) AND ((department_id IS NULL) = (department_name IS NULL))),
     CONSTRAINT dcl_employee_versions_position_snapshot_check CHECK (((position_id IS NULL) = (position_approval_entry_id IS NULL)) AND ((position_id IS NULL) = (position_code IS NULL)) AND ((position_id IS NULL) = (position_name IS NULL)))
+);
+
+-- Other Unit and Sales Partner keep their immutable Party-to-operating-entity
+-- identities in BOB. DCL owns every mutable declaration snapshot.
+CREATE TABLE public.dcl_other_unit_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    contact_name character varying(100),
+    contact_phone character varying(32),
+    email character varying(254),
+    address character varying(500),
+    settlement_method_id character varying(26),
+    settlement_method_approval_entry_id character varying(26),
+    settlement_method_code character varying(32),
+    settlement_method_name character varying(200),
+    settlement_term_code character varying(32),
+    settlement_rule_type character varying(32),
+    settlement_month_offset integer DEFAULT 0 NOT NULL,
+    settlement_day_of_month integer DEFAULT 0 NOT NULL,
+    settlement_day_offset integer DEFAULT 0 NOT NULL,
+    remark character varying(1000),
+    enabled boolean NOT NULL,
+    CONSTRAINT dcl_other_unit_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_other_unit_settlement_ck CHECK (((settlement_method_id IS NULL) = (settlement_method_approval_entry_id IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_method_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_method_name IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_term_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_rule_type IS NULL)) AND ((settlement_method_id IS NOT NULL) OR ((settlement_month_offset = 0) AND (settlement_day_of_month = 0) AND (settlement_day_offset = 0)))),
+    CONSTRAINT dcl_other_unit_day_of_month_ck CHECK ((settlement_day_of_month >= 0) AND (settlement_day_of_month <= 31)),
+    CONSTRAINT dcl_other_unit_day_offset_ck CHECK (settlement_day_offset >= 0),
+    CONSTRAINT dcl_other_unit_month_offset_ck CHECK (settlement_month_offset >= 0)
+);
+
+CREATE TABLE public.dcl_sales_partner_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    capabilities character varying(32)[] DEFAULT '{}'::character varying[] NOT NULL,
+    contact_name character varying(100),
+    contact_phone character varying(32),
+    email character varying(254),
+    address character varying(500),
+    remark character varying(1000),
+    enabled boolean NOT NULL,
+    CONSTRAINT dcl_sales_partner_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_sales_partner_capabilities_ck CHECK ((capabilities <@ ARRAY['EXTERNAL_PART_TIME'::character varying(32), 'CHANNEL_PARTNER'::character varying(32)]) AND cardinality(capabilities) <= 2 AND (cardinality(capabilities) < 2 OR capabilities[1] <> capabilities[2]))
 );
 
 -- Party keeps a stable BOB root because every relationship refers to it, but
@@ -1567,6 +1606,26 @@ CREATE TABLE public.bob_employees (
     updated_by character varying(26) NOT NULL,
     CONSTRAINT bob_employees_pkey PRIMARY KEY (object_id),
     CONSTRAINT bob_employees_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
+);
+
+CREATE TABLE public.bob_other_units (
+    object_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
+    enabled boolean NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT bob_other_units_pkey PRIMARY KEY (object_id),
+    CONSTRAINT bob_other_units_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
+);
+
+CREATE TABLE public.bob_sales_partners (
+    object_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
+    enabled boolean NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT bob_sales_partners_pkey PRIMARY KEY (object_id),
+    CONSTRAINT bob_sales_partners_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
 );
 
 
@@ -2006,53 +2065,6 @@ CREATE TABLE public.dcl_product_barcode_claims (
     approved_entry_id character varying(26),
     open_entry_id character varying(26),
     CONSTRAINT dcl_product_barcode_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
-);
-
-
---
--- Name: bob_sales_partner_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_sales_partner_versions (
-    approval_entry_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'sales-partner'::character varying NOT NULL,
-    capabilities character varying(32)[] DEFAULT '{}'::character varying[] NOT NULL,
-    contact_name character varying(100),
-    contact_phone character varying(32),
-    email character varying(254),
-    address character varying(500),
-    remark character varying(1000),
-    CONSTRAINT bob_sales_partner_capabilities_ck CHECK (((capabilities <@ ARRAY['EXTERNAL_PART_TIME'::character varying(32), 'CHANNEL_PARTNER'::character varying(32)]) AND (cardinality(capabilities) <= 2) AND ((cardinality(capabilities) < 2) OR ((capabilities[1])::text <> (capabilities[2])::text)))),
-    CONSTRAINT bob_sales_partner_versions_entity_check CHECK (((entity)::text = 'sales-partner'::text))
-);
-
-
---
--- Name: bob_service_relationship_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_service_relationship_versions (
-    approval_entry_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'other-unit'::character varying NOT NULL,
-    contact_name character varying(100),
-    contact_phone character varying(32),
-    email character varying(254),
-    address character varying(500),
-    settlement_method_id character varying(26),
-    settlement_method_approval_entry_id character varying(26),
-    settlement_method_code character varying(32),
-    settlement_method_name character varying(200),
-    settlement_term_code character varying(32),
-    settlement_rule_type character varying(32),
-    settlement_month_offset integer DEFAULT 0 CONSTRAINT bob_service_relationship_versi_settlement_month_offset_not_null NOT NULL,
-    settlement_day_of_month integer DEFAULT 0 CONSTRAINT bob_service_relationship_versi_settlement_day_of_month_not_null NOT NULL,
-    settlement_day_offset integer DEFAULT 0 CONSTRAINT bob_service_relationship_version_settlement_day_offset_not_null NOT NULL,
-    remark character varying(1000),
-    CONSTRAINT bob_service_relationship_settlement_ck CHECK ((((settlement_method_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_term_code IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset = 0) AND (settlement_day_of_month = 0) AND (settlement_day_offset = 0)) OR ((settlement_method_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND (settlement_term_code IS NOT NULL) AND (settlement_rule_type IS NOT NULL)))),
-    CONSTRAINT bob_service_relationship_versions_entity_check CHECK (((entity)::text = 'other-unit'::text)),
-    CONSTRAINT bob_service_relationship_versions_settlement_day_of_month_check CHECK (((settlement_day_of_month >= 0) AND (settlement_day_of_month <= 31))),
-    CONSTRAINT bob_service_relationship_versions_settlement_day_offset_check CHECK ((settlement_day_offset >= 0)),
-    CONSTRAINT bob_service_relationship_versions_settlement_month_offset_check CHECK ((settlement_month_offset >= 0))
 );
 
 
@@ -4628,30 +4640,26 @@ INSERT INTO public.app_permissions VALUES ('01JBOB88MRG000000000000001', '/dcl/p
 INSERT INTO public.app_permissions VALUES ('01JBOB88MRG000000000000002', '/dcl/party/merge-confirm', 'dcl', 'party', 'merge-confirm', '确认主体合并', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000006', '/bob/other-unit/query', 'bob', 'other-unit', 'query', '查询其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000007', '/bob/other-unit/get', 'bob', 'other-unit', 'get', '查看其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000008', '/bob/other-unit/create', 'bob', 'other-unit', 'create', '创建其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000009', '/bob/other-unit/save', 'bob', 'other-unit', 'save', '保存其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000010', '/bob/other-unit/delete', 'bob', 'other-unit', 'delete', '删除其他单位草稿', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000011', '/bob/other-unit/submit', 'bob', 'other-unit', 'submit', '提交其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000012', '/bob/other-unit/unsubmit', 'bob', 'other-unit', 'unsubmit', '撤回其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000013', '/bob/other-unit/approve', 'bob', 'other-unit', 'approve', '审核其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000014', '/bob/other-unit/reject', 'bob', 'other-unit', 'reject', '驳回其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000015', '/bob/other-unit/enable', 'bob', 'other-unit', 'enable', '启用其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000016', '/bob/other-unit/disable', 'bob', 'other-unit', 'disable', '停用其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000017', '/bob/other-unit/versions', 'bob', 'other-unit', 'versions', '查看其他单位版本', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000018', '/bob/other-unit/audit-history', 'bob', 'other-unit', 'audit-history', '查看其他单位审计', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000008', '/dcl/other-unit/create', 'dcl', 'other-unit', 'create', '创建其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000009', '/dcl/other-unit/save', 'dcl', 'other-unit', 'save', '保存其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000010', '/dcl/other-unit/delete', 'dcl', 'other-unit', 'delete', '删除其他单位草稿', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000011', '/dcl/other-unit/submit', 'dcl', 'other-unit', 'submit', '提交其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000012', '/dcl/other-unit/unsubmit', 'dcl', 'other-unit', 'unsubmit', '撤回其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000013', '/dcl/other-unit/approve', 'dcl', 'other-unit', 'approve', '审核其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000014', '/dcl/other-unit/reject', 'dcl', 'other-unit', 'reject', '驳回其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000017', '/dcl/other-unit/versions', 'dcl', 'other-unit', 'versions', '查看其他单位版本', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000018', '/dcl/other-unit/audit-history', 'dcl', 'other-unit', 'audit-history', '查看其他单位审计', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000001', '/bob/sales-partner/query', 'bob', 'sales-partner', 'query', '查询销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000002', '/bob/sales-partner/get', 'bob', 'sales-partner', 'get', '查看销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000003', '/bob/sales-partner/create', 'bob', 'sales-partner', 'create', '创建销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000004', '/bob/sales-partner/save', 'bob', 'sales-partner', 'save', '保存销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000005', '/bob/sales-partner/delete', 'bob', 'sales-partner', 'delete', '删除销售合作方草稿', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000006', '/bob/sales-partner/submit', 'bob', 'sales-partner', 'submit', '提交销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000007', '/bob/sales-partner/unsubmit', 'bob', 'sales-partner', 'unsubmit', '撤回销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000008', '/bob/sales-partner/approve', 'bob', 'sales-partner', 'approve', '审核销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000009', '/bob/sales-partner/reject', 'bob', 'sales-partner', 'reject', '驳回销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000010', '/bob/sales-partner/enable', 'bob', 'sales-partner', 'enable', '启用销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000011', '/bob/sales-partner/disable', 'bob', 'sales-partner', 'disable', '停用销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000012', '/bob/sales-partner/versions', 'bob', 'sales-partner', 'versions', '查看销售合作方版本', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000013', '/bob/sales-partner/audit-history', 'bob', 'sales-partner', 'audit-history', '查看销售合作方审计', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000003', '/dcl/sales-partner/create', 'dcl', 'sales-partner', 'create', '创建销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000004', '/dcl/sales-partner/save', 'dcl', 'sales-partner', 'save', '保存销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000005', '/dcl/sales-partner/delete', 'dcl', 'sales-partner', 'delete', '删除销售合作方草稿', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000006', '/dcl/sales-partner/submit', 'dcl', 'sales-partner', 'submit', '提交销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000007', '/dcl/sales-partner/unsubmit', 'dcl', 'sales-partner', 'unsubmit', '撤回销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000008', '/dcl/sales-partner/approve', 'dcl', 'sales-partner', 'approve', '审核销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000009', '/dcl/sales-partner/reject', 'dcl', 'sales-partner', 'reject', '驳回销售合作方', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000012', '/dcl/sales-partner/versions', 'dcl', 'sales-partner', 'versions', '查看销售合作方版本', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB86SLP000000000000013', '/dcl/sales-partner/audit-history', 'dcl', 'sales-partner', 'audit-history', '查看销售合作方审计', 'ENABLED', '2026-08-24 15:23:50.347482+00', NULL, '2026-08-24 15:23:50.347482+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000001', '/vou/service-contract/query', 'vou', 'service-contract', 'query', '查询服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000002', '/vou/service-contract/get', 'vou', 'service-contract', 'get', '查看服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000003', '/vou/service-contract/create', 'vou', 'service-contract', 'create', '创建服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
@@ -4741,8 +4749,8 @@ INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000053', '/aux/a
 INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000054', '/aux/asset-category/reject', 'aux', 'asset-category', 'reject', '驳回资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000055', '/aux/asset-category/unapprove', 'aux', 'asset-category', 'unapprove', '反审核资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000001', '/bob/customer-account/unapprove', 'bob', 'customer-account', 'unapprove', '反审核客户结算账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000002', '/bob/other-unit/unapprove', 'bob', 'other-unit', 'unapprove', '反审核其他单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/bob/sales-partner/unapprove', 'bob', 'sales-partner', 'unapprove', '反审核销售合作关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000002', '/dcl/other-unit/unapprove', 'dcl', 'other-unit', 'unapprove', '反审核其他单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/dcl/sales-partner/unapprove', 'dcl', 'sales-partner', 'unapprove', '反审核销售合作关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 
 
 --
@@ -5008,19 +5016,7 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 
 
 --
--- Data for Name: bob_sales_partner_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: bob_sales_relationships; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: bob_service_relationship_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -6585,13 +6581,6 @@ ALTER TABLE ONLY public.dcl_product_versions
     ADD CONSTRAINT dcl_product_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
---
--- Name: bob_sales_partner_versions bob_sales_partner_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_sales_partner_versions
-    ADD CONSTRAINT bob_sales_partner_versions_pkey PRIMARY KEY (approval_entry_id);
-
 
 --
 -- Name: bob_sales_relationships bob_sales_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -6600,13 +6589,6 @@ ALTER TABLE ONLY public.bob_sales_partner_versions
 ALTER TABLE ONLY public.bob_sales_relationships
     ADD CONSTRAINT bob_sales_relationships_pkey PRIMARY KEY (object_id);
 
-
---
--- Name: bob_service_relationship_versions bob_service_relationship_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_service_relationship_versions
-    ADD CONSTRAINT bob_service_relationship_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -9196,13 +9178,6 @@ ALTER TABLE ONLY public.dcl_product_versions
     ADD CONSTRAINT dcl_product_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
---
--- Name: bob_sales_partner_versions bob_sales_partner_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_sales_partner_versions
-    ADD CONSTRAINT bob_sales_partner_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
 
 --
 -- Name: bob_sales_relationships bob_sales_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -9243,13 +9218,6 @@ ALTER TABLE ONLY public.bob_sales_relationships
 ALTER TABLE ONLY public.bob_service_relationships
     ADD CONSTRAINT bob_service_relationship_merged_into_fk FOREIGN KEY (merged_into_object_id) REFERENCES public.bob_service_relationships(object_id) ON DELETE RESTRICT;
 
-
---
--- Name: bob_service_relationship_versions bob_service_relationship_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_service_relationship_versions
-    ADD CONSTRAINT bob_service_relationship_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -10337,12 +10305,39 @@ ALTER TABLE ONLY public.bob_employees
     ADD CONSTRAINT bob_employees_source_approval_entry_id_fkey
     FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY public.dcl_other_unit_versions
+    ADD CONSTRAINT dcl_other_unit_versions_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_versions
+    ADD CONSTRAINT dcl_other_unit_versions_settlement_method_id_fkey
+    FOREIGN KEY (settlement_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_versions
+    ADD CONSTRAINT dcl_other_unit_versions_settlement_method_entry_id_fkey
+    FOREIGN KEY (settlement_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_versions
+    ADD CONSTRAINT dcl_sales_partner_versions_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_other_units
+    ADD CONSTRAINT bob_other_units_object_id_fkey
+    FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_other_units
+    ADD CONSTRAINT bob_other_units_source_approval_entry_id_fkey
+    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_sales_partners
+    ADD CONSTRAINT bob_sales_partners_object_id_fkey
+    FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_sales_partners
+    ADD CONSTRAINT bob_sales_partners_source_approval_entry_id_fkey
+    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
 CREATE INDEX dcl_employee_versions_employee_category_idx
     ON public.dcl_employee_versions USING btree (employee_category_id);
 CREATE INDEX dcl_employee_versions_department_idx
     ON public.dcl_employee_versions USING btree (department_id);
 CREATE INDEX dcl_employee_versions_position_idx
     ON public.dcl_employee_versions USING btree (position_id);
+CREATE INDEX dcl_other_unit_versions_settlement_method_idx
+    ON public.dcl_other_unit_versions USING btree (settlement_method_id);
 
 
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;

@@ -69,6 +69,7 @@ var entities = [...]string{
 var publicEntities = [...]string{
 	EntityCustomer,
 	EntitySupplier,
+	EntityOtherUnit,
 	EntityEmployee,
 	EntitySalesPartner,
 	EntityProduct,

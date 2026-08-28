@@ -161,6 +161,20 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/dcl/employee/Employee.vue'),
   }),
   registerPage('dcl', {
+    entity: 'other-unit',
+    entityTitle: '其他单位申报',
+    icon: 'mdi-handshake-outline',
+    order: 46,
+    component: () => import('@/pages/dcl/other-unit/OtherUnit.vue'),
+  }),
+  registerPage('dcl', {
+    entity: 'sales-partner',
+    entityTitle: '销售合作方申报',
+    icon: 'mdi-account-tie-outline',
+    order: 47,
+    component: () => import('@/pages/dcl/sales-partner/SalesPartner.vue'),
+  }),
+  registerPage('dcl', {
     entity: 'product',
     entityTitle: '产品申报',
     icon: 'mdi-package-variant-closed',

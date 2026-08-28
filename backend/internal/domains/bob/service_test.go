@@ -70,14 +70,11 @@ func TestGenericSaveRejectsTypedRelationshipEntities(t *testing.T) {
 	}
 }
 
-func TestPartyAndOtherUnitQueriesRequireFixedPageSize(t *testing.T) {
+func TestPartyQueryRequiresFixedPageSize(t *testing.T) {
 	t.Parallel()
 	service := &Service{}
 	if _, err := service.PartyQuery(t.Context(), QueryInput{Page: 1, PageSize: 10}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("PartyQuery pageSize=10 error = %v, want validation", err)
-	}
-	if _, err := service.OtherUnitQuery(t.Context(), QueryInput{Page: 1, PageSize: 100}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("OtherUnitQuery pageSize=100 error = %v, want validation", err)
 	}
 }
 

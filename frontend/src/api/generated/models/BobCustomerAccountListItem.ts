@@ -12,5 +12,6 @@ export type BobCustomerAccountListItem = {
   operatingEntityCode: string;
   enabled: boolean;
   sourceApprovalEntryId: string;
+  sourceVersionNo: number;
   updatedAt: string;
 };

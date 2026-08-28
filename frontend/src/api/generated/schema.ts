@@ -1762,8 +1762,8 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.OtherUnitQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitQueryResponse } } };
+      requestBody: { content: { 'application/json': Models.BobQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.BobQueryResponse } } };
     };
   };
   "/bob/other-unit/get": {
@@ -1771,7 +1771,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobGetRequest } };
-      responses: { 200: { content: { 'application/json': Models.OtherUnitGetResponse } } };
+      responses: { 200: { content: { 'application/json': Models.BobObjectResponse } } };
     };
   };
   "/bob/customer/query": {
@@ -2773,13 +2773,16 @@ export interface components {
       "PartyGetRequest": Models.PartyGetRequest;
       "PartyView": Models.PartyView;
       "PartyGetResponse": Models.PartyGetResponse;
-      "OtherUnitQueryRequest": Models.OtherUnitQueryRequest;
-      "OtherUnitData": Models.OtherUnitData;
-      "OtherUnitView": Models.OtherUnitView;
-      "OtherUnitPage": Models.OtherUnitPage;
-      "OtherUnitQueryResponse": Models.OtherUnitQueryResponse;
+      "BobQueryRequest": Models.BobQueryRequest;
+      "BobDetailData": Models.BobDetailData;
+      "BobDetailView": Models.BobDetailView;
+      "BobRelationshipIdentityView": Models.BobRelationshipIdentityView;
+      "BobListItem": Models.BobListItem;
+      "BobListPage": Models.BobListPage;
+      "BobQueryResponse": Models.BobQueryResponse;
       "BobGetRequest": Models.BobGetRequest;
-      "OtherUnitGetResponse": Models.OtherUnitGetResponse;
+      "BobObjectView": Models.BobObjectView;
+      "BobObjectResponse": Models.BobObjectResponse;
       "BobCustomerQueryRequest": Models.BobCustomerQueryRequest;
       "BobCustomerListItem": Models.BobCustomerListItem;
       "BobCustomerQueryResponse": Models.BobCustomerQueryResponse;
@@ -2791,15 +2794,6 @@ export interface components {
       "BobCustomerAttachmentView": Models.BobCustomerAttachmentView;
       "BobCustomerAccountCurrentView": Models.BobCustomerAccountCurrentView;
       "BobCustomerAccountGetResponse": Models.BobCustomerAccountGetResponse;
-      "BobQueryRequest": Models.BobQueryRequest;
-      "BobDetailData": Models.BobDetailData;
-      "BobDetailView": Models.BobDetailView;
-      "BobRelationshipIdentityView": Models.BobRelationshipIdentityView;
-      "BobListItem": Models.BobListItem;
-      "BobListPage": Models.BobListPage;
-      "BobQueryResponse": Models.BobQueryResponse;
-      "BobObjectView": Models.BobObjectView;
-      "BobObjectResponse": Models.BobObjectResponse;
       "BobReferenceQueryRequest": Models.BobReferenceQueryRequest;
       "ReferenceCandidate": Models.ReferenceCandidate;
       "ReferenceQueryResponse": Models.ReferenceQueryResponse;

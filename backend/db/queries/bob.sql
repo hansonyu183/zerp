@@ -825,6 +825,7 @@ WHERE c.object_id=sqlc.arg(object_id) AND c.enabled;
 SELECT count(*)
 FROM bob_customers current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
 JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
 JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -835,9 +836,10 @@ WHERE (sqlc.arg(keyword)='' OR object.code ILIKE '%'||sqlc.arg(keyword)||'%' OR 
 -- name: ListBobCustomerCurrents :many
 SELECT object.id AS object_id,object.code,relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,payload.operating_entity_approval_entry_id,payload.operating_entity_code,payload.operating_entity_name,
-       current.enabled,current.source_approval_entry_id,current.updated_at
+       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
 FROM bob_customers current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
 JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
 JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -850,9 +852,10 @@ LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 -- name: GetBobCustomerCurrent :one
 SELECT object.id AS object_id,object.code,relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,payload.operating_entity_approval_entry_id,payload.operating_entity_code,payload.operating_entity_name,
-       current.enabled,current.source_approval_entry_id,current.updated_at
+       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
 FROM bob_customers current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
 JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
 JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -862,6 +865,7 @@ WHERE current.object_id=sqlc.arg(object_id);
 SELECT count(*)
 FROM bob_customer_account_currents current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
 JOIN bob_customer_accounts account ON account.object_id=object.id
 JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
 JOIN dcl_customer_account_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -874,9 +878,10 @@ WHERE (sqlc.arg(keyword)='' OR object.code ILIKE '%'||sqlc.arg(keyword)||'%' OR 
   AND (sqlc.arg(sales_attribution_subject_id)='' OR payload.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id));
 -- name: ListBobCustomerAccountCurrents :many
 SELECT object.id AS object_id,object.code,account.customer_relationship_id,relationship_object.code AS customer_relationship_code,
-       payload.name,payload.customer_type,payload.operating_entity_code,current.enabled,current.source_approval_entry_id,current.updated_at
+       payload.name,payload.customer_type,payload.operating_entity_code,current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
 FROM bob_customer_account_currents current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
 JOIN bob_customer_accounts account ON account.object_id=object.id
 JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
 JOIN dcl_customer_account_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -891,9 +896,10 @@ ORDER BY object.code ASC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 -- name: GetBobCustomerAccountCurrent :one
 SELECT object.id AS object_id,object.code,account.customer_relationship_id,relationship_object.code AS customer_relationship_code,
-       current.enabled,current.source_approval_entry_id,current.updated_at
+       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
 FROM bob_customer_account_currents current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
 JOIN bob_customer_accounts account ON account.object_id=object.id
 JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
 WHERE current.object_id=sqlc.arg(object_id);

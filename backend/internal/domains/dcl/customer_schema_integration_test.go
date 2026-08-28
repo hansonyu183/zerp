@@ -108,7 +108,7 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 		t.Fatalf("draft changed BOB current source=%s err=%v", current, err)
 	}
 	currentView, err := business.CustomerCurrentGet(t.Context(), v1.ObjectID)
-	if err != nil || currentView.SourceApprovalEntryID != v1.Approval.ApprovalEntryID {
+	if err != nil || currentView.SourceApprovalEntryID != v1.Approval.ApprovalEntryID || currentView.SourceVersionNo != 1 {
 		t.Fatalf("BOB current get leaked DCL candidate: view=%+v err=%v", currentView, err)
 	}
 	// Relationship attachment snapshots copy the same physical file into the
@@ -133,8 +133,12 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 		t.Fatalf("approved V2 source=%s err=%v", current, err)
 	}
 	currentView, err = business.CustomerCurrentGet(t.Context(), v1.ObjectID)
-	if err != nil || currentView.SourceApprovalEntryID != v2.Approval.ApprovalEntryID {
+	if err != nil || currentView.SourceApprovalEntryID != v2.Approval.ApprovalEntryID || currentView.SourceVersionNo != 2 {
 		t.Fatalf("BOB current get did not switch to V2: view=%+v err=%v", currentView, err)
+	}
+	currentPage, err := business.CustomerCurrentQuery(t.Context(), bobdomain.CustomerCurrentQueryInput{Page: 1, PageSize: 20})
+	if err != nil || len(currentPage.Items) != 1 || currentPage.Items[0].SourceApprovalEntryID != v2.Approval.ApprovalEntryID || currentPage.Items[0].SourceVersionNo != 2 {
+		t.Fatalf("BOB current query source version: page=%+v err=%v", currentPage, err)
 	}
 	// DCL reads hydrate the declaration's chosen candidate/current snapshot;
 	// no BOB payload or open account candidate is part of this relationship API.

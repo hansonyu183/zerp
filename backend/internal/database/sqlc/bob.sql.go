@@ -121,6 +121,7 @@ const countBobCustomerAccountCurrents = `-- name: CountBobCustomerAccountCurrent
 SELECT count(*)
 FROM bob_customer_account_currents current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
 JOIN bob_customer_accounts account ON account.object_id=object.id
 JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
 JOIN dcl_customer_account_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -162,6 +163,7 @@ const countBobCustomerCurrents = `-- name: CountBobCustomerCurrents :one
 SELECT count(*)
 FROM bob_customers current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
 JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
 JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -677,9 +679,10 @@ func (q *Queries) FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObject
 
 const getBobCustomerAccountCurrent = `-- name: GetBobCustomerAccountCurrent :one
 SELECT object.id AS object_id,object.code,account.customer_relationship_id,relationship_object.code AS customer_relationship_code,
-       current.enabled,current.source_approval_entry_id,current.updated_at
+       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
 FROM bob_customer_account_currents current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
 JOIN bob_customer_accounts account ON account.object_id=object.id
 JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
 WHERE current.object_id=$1
@@ -692,6 +695,7 @@ type GetBobCustomerAccountCurrentRow struct {
 	CustomerRelationshipCode string             `db:"customer_relationship_code" json:"customer_relationship_code"`
 	Enabled                  bool               `db:"enabled" json:"enabled"`
 	SourceApprovalEntryID    string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	SourceVersionNo          int32              `db:"source_version_no" json:"source_version_no"`
 	UpdatedAt                pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
@@ -705,6 +709,7 @@ func (q *Queries) GetBobCustomerAccountCurrent(ctx context.Context, objectID str
 		&i.CustomerRelationshipCode,
 		&i.Enabled,
 		&i.SourceApprovalEntryID,
+		&i.SourceVersionNo,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -776,9 +781,10 @@ func (q *Queries) GetBobCustomerAccountRelationship(ctx context.Context, objectI
 const getBobCustomerCurrent = `-- name: GetBobCustomerCurrent :one
 SELECT object.id AS object_id,object.code,relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,payload.operating_entity_approval_entry_id,payload.operating_entity_code,payload.operating_entity_name,
-       current.enabled,current.source_approval_entry_id,current.updated_at
+       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
 FROM bob_customers current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
 JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
 JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -797,6 +803,7 @@ type GetBobCustomerCurrentRow struct {
 	OperatingEntityName            string             `db:"operating_entity_name" json:"operating_entity_name"`
 	Enabled                        bool               `db:"enabled" json:"enabled"`
 	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	SourceVersionNo                int32              `db:"source_version_no" json:"source_version_no"`
 	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
@@ -815,6 +822,7 @@ func (q *Queries) GetBobCustomerCurrent(ctx context.Context, objectID string) (G
 		&i.OperatingEntityName,
 		&i.Enabled,
 		&i.SourceApprovalEntryID,
+		&i.SourceVersionNo,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -2991,9 +2999,10 @@ func (q *Queries) ListAllDCLCustomerStorageKeys(ctx context.Context) ([]string, 
 
 const listBobCustomerAccountCurrents = `-- name: ListBobCustomerAccountCurrents :many
 SELECT object.id AS object_id,object.code,account.customer_relationship_id,relationship_object.code AS customer_relationship_code,
-       payload.name,payload.customer_type,payload.operating_entity_code,current.enabled,current.source_approval_entry_id,current.updated_at
+       payload.name,payload.customer_type,payload.operating_entity_code,current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
 FROM bob_customer_account_currents current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
 JOIN bob_customer_accounts account ON account.object_id=object.id
 JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
 JOIN dcl_customer_account_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -3030,6 +3039,7 @@ type ListBobCustomerAccountCurrentsRow struct {
 	OperatingEntityCode      string             `db:"operating_entity_code" json:"operating_entity_code"`
 	Enabled                  bool               `db:"enabled" json:"enabled"`
 	SourceApprovalEntryID    string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	SourceVersionNo          int32              `db:"source_version_no" json:"source_version_no"`
 	UpdatedAt                pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
@@ -3062,6 +3072,7 @@ func (q *Queries) ListBobCustomerAccountCurrents(ctx context.Context, arg ListBo
 			&i.OperatingEntityCode,
 			&i.Enabled,
 			&i.SourceApprovalEntryID,
+			&i.SourceVersionNo,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -3127,9 +3138,10 @@ func (q *Queries) ListBobCustomerAccountObjects(ctx context.Context, customerRel
 const listBobCustomerCurrents = `-- name: ListBobCustomerCurrents :many
 SELECT object.id AS object_id,object.code,relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,payload.operating_entity_approval_entry_id,payload.operating_entity_code,payload.operating_entity_name,
-       current.enabled,current.source_approval_entry_id,current.updated_at
+       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
 FROM bob_customers current
 JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
+JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
 JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
 JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
@@ -3162,6 +3174,7 @@ type ListBobCustomerCurrentsRow struct {
 	OperatingEntityName            string             `db:"operating_entity_name" json:"operating_entity_name"`
 	Enabled                        bool               `db:"enabled" json:"enabled"`
 	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	SourceVersionNo                int32              `db:"source_version_no" json:"source_version_no"`
 	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
@@ -3193,6 +3206,7 @@ func (q *Queries) ListBobCustomerCurrents(ctx context.Context, arg ListBobCustom
 			&i.OperatingEntityName,
 			&i.Enabled,
 			&i.SourceApprovalEntryID,
+			&i.SourceVersionNo,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err

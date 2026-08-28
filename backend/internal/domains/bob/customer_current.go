@@ -176,6 +176,7 @@ type CustomerCurrentListItem struct {
 	OperatingEntityName   string    `json:"operatingEntityName"`
 	Enabled               bool      `json:"enabled"`
 	SourceApprovalEntryID string    `json:"sourceApprovalEntryId"`
+	SourceVersionNo       int32     `json:"sourceVersionNo"`
 	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
@@ -191,6 +192,7 @@ type CustomerCurrentView struct {
 	OperatingEntityName            string    `json:"operatingEntityName"`
 	Enabled                        bool      `json:"enabled"`
 	SourceApprovalEntryID          string    `json:"sourceApprovalEntryId"`
+	SourceVersionNo                int32     `json:"sourceVersionNo"`
 	UpdatedAt                      time.Time `json:"updatedAt"`
 }
 
@@ -204,6 +206,7 @@ type CustomerAccountCurrentListItem struct {
 	OperatingEntityCode      string    `json:"operatingEntityCode"`
 	Enabled                  bool      `json:"enabled"`
 	SourceApprovalEntryID    string    `json:"sourceApprovalEntryId"`
+	SourceVersionNo          int32     `json:"sourceVersionNo"`
 	UpdatedAt                time.Time `json:"updatedAt"`
 }
 
@@ -214,6 +217,7 @@ type CustomerAccountCurrentView struct {
 	CustomerRelationshipCode string                   `json:"customerRelationshipCode"`
 	Enabled                  bool                     `json:"enabled"`
 	SourceApprovalEntryID    string                   `json:"sourceApprovalEntryId"`
+	SourceVersionNo          int32                    `json:"sourceVersionNo"`
 	Data                     CustomerAccountData      `json:"data"`
 	Attachments              []CustomerAttachmentView `json:"attachments"`
 	UpdatedAt                time.Time                `json:"updatedAt"`
@@ -255,7 +259,7 @@ func (s *Service) CustomerCurrentQuery(ctx context.Context, in CustomerCurrentQu
 	}
 	items := make([]CustomerCurrentListItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, CustomerCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, PartyDisplayName: row.DisplayName, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, UpdatedAt: row.UpdatedAt.Time})
+		items = append(items, CustomerCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, PartyDisplayName: row.DisplayName, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[CustomerCurrentListItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
@@ -271,7 +275,7 @@ func (s *Service) CustomerCurrentGet(ctx context.Context, objectID string) (Cust
 	if err != nil {
 		return CustomerCurrentView{}, s.internal("get current customer", err)
 	}
-	return CustomerCurrentView{ObjectID: row.ObjectID, Code: row.Code, PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityApprovalEntryID: row.OperatingEntityApprovalEntryID, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, UpdatedAt: row.UpdatedAt.Time}, nil
+	return CustomerCurrentView{ObjectID: row.ObjectID, Code: row.Code, PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityApprovalEntryID: row.OperatingEntityApprovalEntryID, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 
 func (s *Service) CustomerAccountCurrentQuery(ctx context.Context, in CustomerAccountCurrentQueryInput) (Page[CustomerAccountCurrentListItem], error) {
@@ -293,7 +297,7 @@ func (s *Service) CustomerAccountCurrentQuery(ctx context.Context, in CustomerAc
 	}
 	items := make([]CustomerAccountCurrentListItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, CustomerAccountCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, CustomerRelationshipID: row.CustomerRelationshipID, CustomerRelationshipCode: row.CustomerRelationshipCode, Name: row.Name, CustomerTypeID: row.CustomerType, OperatingEntityCode: row.OperatingEntityCode, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, UpdatedAt: row.UpdatedAt.Time})
+		items = append(items, CustomerAccountCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, CustomerRelationshipID: row.CustomerRelationshipID, CustomerRelationshipCode: row.CustomerRelationshipCode, Name: row.Name, CustomerTypeID: row.CustomerType, OperatingEntityCode: row.OperatingEntityCode, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[CustomerAccountCurrentListItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
@@ -321,7 +325,7 @@ func (s *Service) CustomerAccountCurrentGet(ctx context.Context, objectID string
 	if err != nil {
 		return CustomerAccountCurrentView{}, err
 	}
-	return CustomerAccountCurrentView{ObjectID: current.ObjectID, Code: current.Code, CustomerRelationshipID: current.CustomerRelationshipID, CustomerRelationshipCode: current.CustomerRelationshipCode, Enabled: current.Enabled, SourceApprovalEntryID: current.SourceApprovalEntryID, Data: data, Attachments: attachments, UpdatedAt: current.UpdatedAt.Time}, nil
+	return CustomerAccountCurrentView{ObjectID: current.ObjectID, Code: current.Code, CustomerRelationshipID: current.CustomerRelationshipID, CustomerRelationshipCode: current.CustomerRelationshipCode, Enabled: current.Enabled, SourceApprovalEntryID: current.SourceApprovalEntryID, SourceVersionNo: current.SourceVersionNo, Data: data, Attachments: attachments, UpdatedAt: current.UpdatedAt.Time}, nil
 }
 
 func bobCustomerAccountData(row dbsqlc.DclCustomerAccountVersion, q *dbsqlc.Queries, ctx context.Context) (CustomerAccountData, error) {

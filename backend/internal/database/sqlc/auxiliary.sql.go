@@ -54,6 +54,69 @@ func (q *Queries) DeleteAuxObject(ctx context.Context, arg DeleteAuxObjectParams
 	return result.RowsAffected(), nil
 }
 
+const findAuxObjectByCodeOrName = `-- name: FindAuxObjectByCodeOrName :one
+SELECT id FROM aux_objects
+WHERE entity=$1 AND (code=$2 OR data->>'name'=$3::text)
+ORDER BY id LIMIT 1
+`
+
+type FindAuxObjectByCodeOrNameParams struct {
+	Entity string `db:"entity" json:"entity"`
+	Code   string `db:"code" json:"code"`
+	Name   string `db:"name" json:"name"`
+}
+
+func (q *Queries) FindAuxObjectByCodeOrName(ctx context.Context, arg FindAuxObjectByCodeOrNameParams) (string, error) {
+	row := q.db.QueryRow(ctx, findAuxObjectByCodeOrName, arg.Entity, arg.Code, arg.Name)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findAuxObjectByName = `-- name: FindAuxObjectByName :one
+SELECT id FROM aux_objects
+WHERE entity=$1 AND data->>'name'=$2::text
+ORDER BY id LIMIT 1
+`
+
+type FindAuxObjectByNameParams struct {
+	Entity string `db:"entity" json:"entity"`
+	Name   string `db:"name" json:"name"`
+}
+
+func (q *Queries) FindAuxObjectByName(ctx context.Context, arg FindAuxObjectByNameParams) (string, error) {
+	row := q.db.QueryRow(ctx, findAuxObjectByName, arg.Entity, arg.Name)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findEnabledProductTypeByBehaviorProfile = `-- name: FindEnabledProductTypeByBehaviorProfile :one
+SELECT id FROM aux_objects
+WHERE entity='product-type' AND enabled AND data->>'behaviorProfile'=$1::text
+ORDER BY code LIMIT 1
+`
+
+func (q *Queries) FindEnabledProductTypeByBehaviorProfile(ctx context.Context, behaviorProfile string) (string, error) {
+	row := q.db.QueryRow(ctx, findEnabledProductTypeByBehaviorProfile, behaviorProfile)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findEnabledSettlementMethodByTermCode = `-- name: FindEnabledSettlementMethodByTermCode :one
+SELECT id FROM aux_objects
+WHERE entity='settlement-method' AND enabled AND data->>'termCode'=$1::text
+ORDER BY id LIMIT 1
+`
+
+func (q *Queries) FindEnabledSettlementMethodByTermCode(ctx context.Context, termCode string) (string, error) {
+	row := q.db.QueryRow(ctx, findEnabledSettlementMethodByTermCode, termCode)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getAuxObject = `-- name: GetAuxObject :one
 SELECT id,entity,code,enabled,revision,updated_at,updated_by,data
 FROM aux_objects

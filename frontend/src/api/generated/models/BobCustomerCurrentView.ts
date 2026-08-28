@@ -15,5 +15,6 @@ export type BobCustomerCurrentView = {
   operatingEntityName: string;
   enabled: boolean;
   sourceApprovalEntryId: string;
+  sourceVersionNo: number;
   updatedAt: string;
 };

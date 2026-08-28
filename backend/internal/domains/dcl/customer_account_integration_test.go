@@ -81,6 +81,10 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customer_account_currents WHERE object_id=$1`, accountID).Scan(&current); err != nil || current != account.Approval.ApprovalEntryID {
 		t.Fatalf("V1 current=%s err=%v", current, err)
 	}
+	currentAccount, err := business.CustomerAccountCurrentGet(t.Context(), accountID)
+	if err != nil || currentAccount.SourceApprovalEntryID != account.Approval.ApprovalEntryID || currentAccount.SourceVersionNo != 1 {
+		t.Fatalf("V1 BOB current account source version=%+v err=%v", currentAccount, err)
+	}
 	if err = accounts.Delete(t.Context(), CustomerAccountDeleteInput{ObjectID: accountID, ApprovalEntryID: account.Approval.ApprovalEntryID, ApprovalRevision: account.Approval.Revision}, creator("account-delete-approved")); err == nil {
 		t.Fatal("approved customer account delete was accepted")
 	}
@@ -172,6 +176,14 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	v2 = submitAndApproveCustomerAccount(t, accounts, v2, creator("account-submit-v2"), reviewer("account-approve-v2"))
 	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customer_account_currents WHERE object_id=$1`, accountID).Scan(&current); err != nil || current != v2.Approval.ApprovalEntryID {
 		t.Fatalf("V2 current=%s err=%v", current, err)
+	}
+	currentAccount, err = business.CustomerAccountCurrentGet(t.Context(), accountID)
+	if err != nil || currentAccount.SourceApprovalEntryID != v2.Approval.ApprovalEntryID || currentAccount.SourceVersionNo != 2 {
+		t.Fatalf("V2 BOB current account source version=%+v err=%v", currentAccount, err)
+	}
+	currentAccounts, err := business.CustomerAccountCurrentQuery(t.Context(), bobdomain.CustomerAccountCurrentQueryInput{Page: 1, PageSize: 20, Filters: bobdomain.CustomerAccountCurrentQueryFilters{CustomerRelationshipID: customer.ObjectID}})
+	if err != nil || len(currentAccounts.Items) != 1 || currentAccounts.Items[0].SourceApprovalEntryID != v2.Approval.ApprovalEntryID || currentAccounts.Items[0].SourceVersionNo != 2 {
+		t.Fatalf("V2 BOB current account query source version=%+v err=%v", currentAccounts, err)
 	}
 	tx, err = pool.Begin(t.Context())
 	if err != nil {

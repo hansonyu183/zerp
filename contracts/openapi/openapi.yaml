@@ -8740,7 +8740,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/bob.yaml#/OtherUnitQueryRequest',
+                              '$ref': './schemas/bob.yaml#/BobQueryRequest',
                             },
                         },
                     },
@@ -8756,7 +8756,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/OtherUnitQueryResponse',
+                                  '$ref': './schemas/bob.yaml#/BobQueryResponse',
                                 },
                             },
                         },
@@ -8795,7 +8795,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/OtherUnitGetResponse',
+                                  '$ref': './schemas/bob.yaml#/BobObjectResponse',
                                 },
                             },
                         },

@@ -474,6 +474,7 @@
           'operatingEntityName',
           'enabled',
           'sourceApprovalEntryId',
+          'sourceVersionNo',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -490,6 +491,8 @@
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -542,6 +545,7 @@
           'customerRelationshipCode',
           'enabled',
           'sourceApprovalEntryId',
+          'sourceVersionNo',
           'data',
           'attachments',
           'updatedAt',
@@ -555,6 +559,8 @@
           'customerRelationshipCode': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'data': { '$ref': './dcl.yaml#/DclCustomerAccountData' },
           'attachments':
             {
@@ -576,6 +582,7 @@
           'operatingEntityName',
           'enabled',
           'sourceApprovalEntryId',
+          'sourceVersionNo',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -588,6 +595,8 @@
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -605,6 +614,7 @@
           'operatingEntityCode',
           'enabled',
           'sourceApprovalEntryId',
+          'sourceVersionNo',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -619,6 +629,8 @@
           'operatingEntityCode': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -1028,233 +1040,6 @@
                   'page': { 'type': 'integer' },
                   'pageSize': { 'type': 'integer' },
                 },
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'OtherUnitData':
-    {
-      'type': 'object',
-      'required': ['operatingEntityId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'operatingEntityId': { 'type': 'string' },
-          'contactName': { 'type': 'string', 'maxLength': 100 },
-          'contactPhone': { 'type': 'string', 'maxLength': 32 },
-          'email': { 'type': 'string', 'maxLength': 254 },
-          'address': { 'type': 'string', 'maxLength': 500 },
-          'settlementMethodId': { 'type': 'string' },
-          'settlementMethodCode': { 'type': 'string', 'readOnly': true },
-          'settlementMethodName': { 'type': 'string', 'readOnly': true },
-          'remark': { 'type': 'string', 'maxLength': 1000 },
-        },
-    },
-  'OtherUnitCreateRequest':
-    {
-      'oneOf':
-        [
-          { '$ref': '#/OtherUnitCreateWithExistingPartyRequest' },
-          { '$ref': '#/OtherUnitCreateWithNewPartyRequest' },
-        ],
-    },
-  'OtherUnitCreateWithExistingPartyRequest':
-    {
-      'type': 'object',
-      'required': ['partyId', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'partyId': { 'type': 'string' },
-          'data': { '$ref': '#/OtherUnitData' },
-        },
-    },
-  'OtherUnitCreateWithNewPartyRequest':
-    {
-      'type': 'object',
-      'required': ['newParty', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'newParty': { '$ref': '#/PartyIdentityData' },
-          'data': { '$ref': '#/OtherUnitData' },
-        },
-    },
-  'OtherUnitQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-          'filters':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'keyword': { 'type': 'string' },
-                  'enabled': { 'type': 'boolean' },
-                  'status':
-                    {
-                      'type': 'array',
-                      'items':
-                        {
-                          'type': 'string',
-                          'enum': ['DRAFT', 'PENDING', 'APPROVED'],
-                        },
-                    },
-                  'operatingEntityId': { 'type': 'string' },
-                },
-            },
-        },
-    },
-  'OtherUnitSaveRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision':
-            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'data':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'contactName': { 'type': 'string', 'nullable': true },
-                  'contactPhone': { 'type': 'string', 'nullable': true },
-                  'email': { 'type': 'string', 'nullable': true },
-                  'address': { 'type': 'string', 'nullable': true },
-                  'settlementMethodId': { 'type': 'string', 'nullable': true },
-                  'remark': { 'type': 'string', 'nullable': true },
-                },
-            },
-        },
-    },
-  'OtherUnitView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'objectRevision',
-          'enabled',
-          'approval',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'data',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': '#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'data': { '$ref': '#/OtherUnitData' },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'OtherUnitMutationResult':
-    {
-      'type': 'object',
-      'required': ['objectId', 'objectRevision', 'enabled', 'approval'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
-          'enabled': { 'type': 'boolean' },
-          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'partyId': { 'type': 'string' },
-        },
-    },
-  'OtherUnitPage':
-    {
-      'type': 'object',
-      'required': ['items', 'total', 'page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'items': { 'type': 'array', 'items': { '$ref': '#/OtherUnitView' } },
-          'total': { 'type': 'integer', 'format': 'int64' },
-          'page': { 'type': 'integer' },
-          'pageSize': { 'type': 'integer' },
-        },
-    },
-  'OtherUnitGetResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/OtherUnitView' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'OtherUnitQueryResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/OtherUnitPage' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'OtherUnitMutationResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/OtherUnitMutationResult' }],
             },
           'requestId': { 'type': 'string' },
         },

@@ -212,8 +212,9 @@ func (service relationshipAwareLifecycleService) Create(
 }
 
 func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context.Context, actor approval.Actor) (string, error) {
-	var objectID string
-	err := service.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity='payment-method' AND data->>'name'='演示银行转账' ORDER BY id LIMIT 1`).Scan(&objectID)
+	objectID, err := dbsqlc.New(service.pool).FindAuxObjectByName(ctx, dbsqlc.FindAuxObjectByNameParams{
+		Entity: auxdomain.EntityPaymentMethod, Name: "演示银行转账",
+	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return "", err
 	}
@@ -1105,16 +1106,16 @@ func (l queryLookup) Find(ctx context.Context, entity, code string) (string, boo
 				break
 			}
 		}
-		var id string
-		err := l.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity=$1 AND (code=$2 OR data->>'name'=$3) ORDER BY id LIMIT 1`, auxiliaryEntity, code, seedName).Scan(&id)
+		id, err := l.queries.FindAuxObjectByCodeOrName(ctx, dbsqlc.FindAuxObjectByCodeOrNameParams{
+			Entity: auxiliaryEntity, Code: code, Name: seedName,
+		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
 		}
 		return id, err == nil, err
 	}
 	if entity == auxdomain.EntitySettlementMethod {
-		var id string
-		err := l.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity='settlement-method' AND enabled AND data->>'termCode'=$1 ORDER BY id LIMIT 1`, code).Scan(&id)
+		id, err := l.queries.FindEnabledSettlementMethodByTermCode(ctx, code)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
 		}
@@ -1406,7 +1407,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		}
 		if s.pool == nil {
 			item.data.ProductTypeID = demoProductTypeID(profile)
-		} else if err := s.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity='product-type' AND enabled AND data->>'behaviorProfile'=$1 ORDER BY code LIMIT 1`, profile).Scan(&item.data.ProductTypeID); err != nil {
+		} else if item.data.ProductTypeID, err = dbsqlc.New(s.pool).FindEnabledProductTypeByBehaviorProfile(ctx, profile); err != nil {
 			return 0, fmt.Errorf("resolve demo product type: %w", err)
 		}
 		if s.pool != nil {

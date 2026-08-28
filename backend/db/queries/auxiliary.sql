@@ -125,3 +125,23 @@ WHERE entity=sqlc.arg(entity) AND id=sqlc.arg(object_id) AND enabled;
 
 -- name: IsAuxProductTypeReferenced :one
 SELECT EXISTS(SELECT 1 FROM dcl_product_versions WHERE product_type_id=sqlc.arg(object_id)::text);
+
+-- name: FindAuxObjectByName :one
+SELECT id FROM aux_objects
+WHERE entity=sqlc.arg(entity) AND data->>'name'=sqlc.arg(name)::text
+ORDER BY id LIMIT 1;
+
+-- name: FindAuxObjectByCodeOrName :one
+SELECT id FROM aux_objects
+WHERE entity=sqlc.arg(entity) AND (code=sqlc.arg(code) OR data->>'name'=sqlc.arg(name)::text)
+ORDER BY id LIMIT 1;
+
+-- name: FindEnabledSettlementMethodByTermCode :one
+SELECT id FROM aux_objects
+WHERE entity='settlement-method' AND enabled AND data->>'termCode'=sqlc.arg(term_code)::text
+ORDER BY id LIMIT 1;
+
+-- name: FindEnabledProductTypeByBehaviorProfile :one
+SELECT id FROM aux_objects
+WHERE entity='product-type' AND enabled AND data->>'behaviorProfile'=sqlc.arg(behavior_profile)::text
+ORDER BY code LIMIT 1;

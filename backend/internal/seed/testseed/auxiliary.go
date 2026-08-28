@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	"github.com/jackc/pgx/v5"
 )
@@ -127,7 +128,9 @@ func (s *Seeder) ensureAuxiliary(
 ) (auxdomain.ObjectView, outcome, error) {
 	var objectID string
 	data := sample.data(s.auxRefs)
-	err := s.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity=$1 AND data->>'name'=$2 ORDER BY id LIMIT 1`, sample.entity, data["name"]).Scan(&objectID)
+	objectID, err := s.queries.FindAuxObjectByName(ctx, dbsqlc.FindAuxObjectByNameParams{
+		Entity: sample.entity, Name: fmt.Sprint(data["name"]),
+	})
 	created := false
 	if errors.Is(err, pgx.ErrNoRows) {
 		createActor, actorErr := seedActor(actorID, requestID(sample.key, "create"))

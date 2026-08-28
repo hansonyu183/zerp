@@ -93,6 +93,10 @@ export function useDclCustomerAccountViewModel() {
     page.value = 1
     await query()
   }
+  async function changePage(value: number) {
+    page.value = value
+    await query()
+  }
   function openCreate() {
     if (!canCreate.value) return
     editorMode.value = 'create'
@@ -239,6 +243,7 @@ export function useDclCustomerAccountViewModel() {
     actionAvailability,
     query,
     search,
+    changePage,
     openCreate,
     openById,
     save,

@@ -54,6 +54,11 @@ export function useBobCustomerViewModel() {
     await query()
   }
 
+  async function changePage(value: number): Promise<void> {
+    page.value = value
+    await query()
+  }
+
   async function openById(objectId: string): Promise<void> {
     editorLoading.value = true
     errorMessage.value = null
@@ -88,6 +93,7 @@ export function useBobCustomerViewModel() {
     canView,
     query,
     search,
+    changePage,
     openById,
   }
 }

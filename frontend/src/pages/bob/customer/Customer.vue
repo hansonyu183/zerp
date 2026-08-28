@@ -26,7 +26,7 @@ void vm.query()
 </script>
 
 <template>
-  <v-container fluid class="pa-5 pa-md-8">
+  <v-container fluid class="bob-customer-current pa-5 pa-md-8">
     <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
     <BusinessObjectList
       :columns="columns"
@@ -44,10 +44,7 @@ void vm.query()
       @apply-filters="vm.search"
       @query="vm.search"
       @update:keyword="vm.keyword = $event"
-      @update:page="
-        vm.page = $event
-        vm.query()
-      "
+      @update:page="vm.changePage"
     >
       <template #filters>
         <v-select

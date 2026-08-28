@@ -102,6 +102,10 @@ export function useDclCustomerViewModel() {
     page.value = 1
     await query()
   }
+  async function changePage(value: number) {
+    page.value = value
+    await query()
+  }
   async function openById(objectId: string, approvalEntryId?: string) {
     try {
       currentView.value = await getDclCustomer(objectId, approvalEntryId)
@@ -231,6 +235,7 @@ export function useDclCustomerViewModel() {
     actionAvailability,
     query,
     search,
+    changePage,
     openById,
     openCreate,
     create,

@@ -48,10 +48,7 @@ void vm.query()
       @apply-filters="vm.search"
       @query="vm.search"
       @update:keyword="vm.keyword = $event"
-      @update:page="
-        vm.page = $event
-        vm.query()
-      "
+      @update:page="vm.changePage"
     >
       <template #filters>
         <v-text-field

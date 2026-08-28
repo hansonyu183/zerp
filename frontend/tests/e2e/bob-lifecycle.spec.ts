@@ -102,6 +102,42 @@ async function openBobCurrentPage(page: Page, path: string): Promise<void> {
   expect(String(payload.code), payload.message).toBe('0')
 }
 
+function partyDeclarationRow(page: Page, partyName: string): Locator {
+  return page.locator('tbody tr').filter({ hasText: partyName })
+}
+
+async function openPartyDeclarations(
+  page: Page,
+  partyName: string,
+): Promise<Locator> {
+  await page.goto('/dcl/party')
+  await page
+    .getByRole('textbox', { name: '名称、电话、邮箱或地址' })
+    .fill(partyName)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const row = partyDeclarationRow(page, partyName)
+  await expect(row).toHaveCount(1)
+  return row
+}
+
+async function selectPartyLifecycleAction(
+  page: Page,
+  row: Locator,
+  label: string,
+): Promise<void> {
+  const directAction = row.getByRole('button', { name: label, exact: true })
+  if (await directAction.count()) {
+    await directAction.click()
+    return
+  }
+  await row.getByRole('button', { name: '更多操作', exact: true }).click()
+  await page
+    .locator('.v-overlay.v-menu.v-overlay--active')
+    .getByRole('listitem')
+    .filter({ hasText: label })
+    .click()
+}
+
 test(
   '原子创建 Party 与其他单位并从主体页查看关系卡片',
   { tag: '@mobile' },
@@ -111,39 +147,30 @@ test(
     const partyName = `E2E 服务主体 ${suffix}`
 
     await signIn(page, workerState.operator)
-    await page.goto('/bob/other-unit')
+    await page.goto('/dcl/other-unit')
     await expect(
-      page.getByText('其他单位', { exact: true }).first(),
+      page.getByRole('heading', { name: '其他单位申报' }),
     ).toBeVisible()
-    await page.getByRole('button', { name: '新增', exact: true }).click()
-    const editor = page.getByRole('dialog').filter({ hasText: '新增其他单位' })
-    await editor.getByLabel('法定名称').fill(partyName)
-    await editor.getByLabel('显示名称').fill(`${partyName}简称`)
-    await editor
-      .getByLabel('强标识（精确命中会自动复用）')
-      .fill(`91310000E2E${suffix.replaceAll('-', '').toUpperCase()}`)
-    await selectAutocomplete(page, editor, '经营主体', '上海示例')
-    await editor.getByLabel('业务联系人').fill('E2E 联系人')
-    await editor.getByRole('button', { name: '保存草稿' }).click()
+    await page.getByLabel('新建主体').check()
+    await page.getByLabel('主体名称').fill(partyName)
+    await page
+      .getByLabel('经营主体 ID')
+      .fill(workerState.fixtures.operatingEntityId)
+    await page.getByLabel('联系人').fill('E2E 联系人')
+    await page.getByRole('button', { name: '新建申报' }).click()
 
     const createdRow = page.locator('tbody tr').filter({ hasText: partyName })
     await expect(createdRow).toHaveCount(1)
     const code = (await createdRow.locator('td').first().textContent())?.trim()
-    expect(code).toMatch(/^OTU-\d{4}$/)
+    expect(code).toMatch(/^OUT-\d{4}$/)
 
-    await page.goto('/bob/party')
-    await page
-      .getByRole('textbox', { name: '名称、电话、邮箱或地址' })
-      .fill(partyName)
-    await page.getByRole('button', { name: '查询', exact: true }).click()
-    const partyRow = page.locator('tbody tr').filter({ hasText: partyName })
-    await expect(partyRow).toHaveCount(1)
-    await partyRow.getByRole('button', { name: '查看 / 编辑' }).click()
-    const partyDialog = page
-      .getByRole('dialog')
-      .filter({ hasText: '主体共享身份' })
-    await expect(partyDialog).toContainText(`${code} · 服务关系`)
-    await expect(partyDialog).toContainText('上海示例')
+    const partyRow = await openPartyDeclarations(page, partyName)
+    await partyRow
+      .getByRole('button', { name: new RegExp(`编辑 ${partyName}`) })
+      .click()
+    const partyDrawer = page.locator('.dcl-party-drawer')
+    await expect(partyDrawer).toContainText(`${code} · 服务关系`)
+    await expect(partyDrawer).toContainText('上海示例')
   },
 )
 
@@ -176,7 +203,7 @@ test(
     await openSupplier(page)
     await page.getByRole('button', { name: '新增', exact: true }).click()
     const editor = page.locator('.dcl-supplier-drawer')
-    await editor.getByLabel('主体来源').click()
+    await editor.getByText('选择已有主体', { exact: true }).click()
     await page.getByRole('option', { name: '新建主体', exact: true }).click()
     await editor.getByLabel('法定名称').fill(supplierName)
     await selectAutocomplete(page, editor, '经营主体', '上海示例')
@@ -198,6 +225,24 @@ test(
     )?.trim()
     expect(code).toMatch(/^SUP-\d{4}$/)
     await page.getByRole('button', { name: '关闭提示' }).click()
+
+    let partyRow = await openPartyDeclarations(page, supplierName)
+    await selectPartyLifecycleAction(page, partyRow, '提交审核')
+    await expect(partyDeclarationRow(page, supplierName)).toContainText(
+      '待批准',
+    )
+    await signOut(page)
+
+    await signIn(page, workerState.reviewer)
+    partyRow = await openPartyDeclarations(page, supplierName)
+    await selectPartyLifecycleAction(page, partyRow, '审核通过')
+    await expect(partyDeclarationRow(page, supplierName)).toContainText(
+      '已批准',
+    )
+    await signOut(page)
+
+    await signIn(page, workerState.operator)
+    await openSupplier(page)
     await searchSupplier(page, code!)
     await selectSupplierLifecycleAction(page, code!, '提交审核')
     await dismissSupplierNotice(page, '已提交审核')
@@ -218,6 +263,7 @@ test(
     await editor.getByLabel('联系人').fill('候选联系人')
     await editor.getByRole('button', { name: '保存', exact: true }).click()
     await page.getByRole('button', { name: '关闭提示' }).click()
+    await editor.getByRole('button', { name: '取消', exact: true }).click()
     await searchSupplier(page, code!)
     await expect(supplierRow(page, code!)).toContainText('草稿')
     await expect(supplierRow(page, code!)).toContainText('有')

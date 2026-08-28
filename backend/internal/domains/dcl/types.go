@@ -251,11 +251,15 @@ type RelationshipGetInput struct {
 	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
 }
 type RelationshipQueryInput struct {
-	Page     int               `json:"page"`
-	PageSize int               `json:"pageSize"`
-	Keyword  string            `json:"keyword,omitempty"`
-	Status   []approval.Status `json:"status,omitempty"`
-	Enabled  *bool             `json:"enabled,omitempty"`
+	Page     int                      `json:"page"`
+	PageSize int                      `json:"pageSize"`
+	Filters  RelationshipQueryFilters `json:"filters"`
+}
+type RelationshipQueryFilters struct {
+	Keyword           string            `json:"keyword,omitempty"`
+	Status            []approval.Status `json:"status,omitempty"`
+	Enabled           *bool             `json:"enabled,omitempty"`
+	OperatingEntityID string            `json:"operatingEntityId,omitempty"`
 }
 type RelationshipHistoryInput struct {
 	ObjectID string `json:"objectId"`
@@ -263,16 +267,19 @@ type RelationshipHistoryInput struct {
 	PageSize int    `json:"pageSize"`
 }
 type RelationshipIdentityView struct {
-	ObjectID          string               `json:"objectId"`
-	Entity            string               `json:"entity"`
-	Code              string               `json:"code"`
-	ObjectRevision    int64                `json:"objectRevision"`
-	PartyID           string               `json:"partyId"`
-	PartyKind         string               `json:"partyKind"`
-	PartyDisplayName  string               `json:"partyDisplayName"`
-	OperatingEntityID string               `json:"operatingEntityId"`
-	Enabled           bool                 `json:"enabled"`
-	Approval          approval.VersionMeta `json:"approval"`
+	ObjectID            string               `json:"objectId"`
+	Entity              string               `json:"entity"`
+	Code                string               `json:"code"`
+	ObjectRevision      int64                `json:"objectRevision"`
+	PartyID             string               `json:"partyId"`
+	PartyKind           string               `json:"partyKind"`
+	PartyDisplayName    string               `json:"partyDisplayName"`
+	OperatingEntityID   string               `json:"operatingEntityId"`
+	OperatingEntityCode string               `json:"operatingEntityCode"`
+	OperatingEntityName string               `json:"operatingEntityName"`
+	Enabled             bool                 `json:"enabled"`
+	Approval            approval.VersionMeta `json:"approval"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 type OtherUnitView struct {
 	RelationshipIdentityView
@@ -293,14 +300,34 @@ type SalesPartnerVersionView struct {
 	Data     SalesPartnerData     `json:"data"`
 }
 type OtherUnitQueryItem struct {
-	RelationshipIdentityView
-	LatestApproved *OtherUnitVersionView `json:"latestApproved,omitempty"`
-	OpenVersion    *OtherUnitVersionView `json:"openVersion,omitempty"`
+	ObjectID            string                `json:"objectId"`
+	Entity              string                `json:"entity"`
+	Code                string                `json:"code"`
+	ObjectRevision      int64                 `json:"objectRevision"`
+	PartyID             string                `json:"partyId"`
+	PartyKind           string                `json:"partyKind"`
+	PartyDisplayName    string                `json:"partyDisplayName"`
+	OperatingEntityID   string                `json:"operatingEntityId"`
+	OperatingEntityCode string                `json:"operatingEntityCode"`
+	OperatingEntityName string                `json:"operatingEntityName"`
+	Enabled             bool                  `json:"enabled"`
+	LatestApproved      *OtherUnitVersionView `json:"latestApproved,omitempty"`
+	OpenVersion         *OtherUnitVersionView `json:"openVersion,omitempty"`
 }
 type SalesPartnerQueryItem struct {
-	RelationshipIdentityView
-	LatestApproved *SalesPartnerVersionView `json:"latestApproved,omitempty"`
-	OpenVersion    *SalesPartnerVersionView `json:"openVersion,omitempty"`
+	ObjectID            string                   `json:"objectId"`
+	Entity              string                   `json:"entity"`
+	Code                string                   `json:"code"`
+	ObjectRevision      int64                    `json:"objectRevision"`
+	PartyID             string                   `json:"partyId"`
+	PartyKind           string                   `json:"partyKind"`
+	PartyDisplayName    string                   `json:"partyDisplayName"`
+	OperatingEntityID   string                   `json:"operatingEntityId"`
+	OperatingEntityCode string                   `json:"operatingEntityCode"`
+	OperatingEntityName string                   `json:"operatingEntityName"`
+	Enabled             bool                     `json:"enabled"`
+	LatestApproved      *SalesPartnerVersionView `json:"latestApproved,omitempty"`
+	OpenVersion         *SalesPartnerVersionView `json:"openVersion,omitempty"`
 }
 
 // EmployeeInput contains only Employee-owned mutable attributes. Party identity

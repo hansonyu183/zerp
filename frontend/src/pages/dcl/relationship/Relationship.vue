@@ -63,7 +63,6 @@ async function query() {
       page: 1,
       pageSize: 20,
       filters: keyword.value ? { keyword: keyword.value } : {},
-      sort: [{ field: 'code', order: 'asc' }],
     })
     rows.value = data.items as Row[]
   } catch (cause) {

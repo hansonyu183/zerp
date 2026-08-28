@@ -15,16 +15,16 @@ func relationshipPage(input RelationshipQueryInput) (int32, int32, []string, err
 	if !ok {
 		return 0, 0, nil, newError(ErrorValidation, "validation_failed", "invalid relationship query", nil, nil)
 	}
-	statuses := make([]string, 0, len(input.Status))
-	for _, status := range input.Status {
+	statuses := make([]string, 0, len(input.Filters.Status))
+	for _, status := range input.Filters.Status {
 		if status != approval.StatusDraft && status != approval.StatusPending && status != approval.StatusApproved {
 			return 0, 0, nil, newError(ErrorValidation, "validation_failed", "invalid relationship status", nil, nil)
 		}
 		statuses = append(statuses, string(status))
 	}
 	enabled := int32(-1)
-	if input.Enabled != nil {
-		if *input.Enabled {
+	if input.Filters.Enabled != nil {
+		if *input.Filters.Enabled {
 			enabled = 1
 		} else {
 			enabled = 0
@@ -40,18 +40,18 @@ func (s *RelationshipService) QueryOtherUnits(ctx context.Context, input Relatio
 	if err = s.other.Authorize(ctx, actor, "query"); err != nil {
 		return Page[OtherUnitQueryItem]{}, translateError(err)
 	}
-	p := dbsqlc.ListDCLRelationshipsParams{Entity: EntityOtherUnit, Keyword: strings.TrimSpace(input.Keyword), EnabledFilter: enabled, StatusFilter: statuses, RowOffset: offset, RowLimit: int32(input.PageSize)}
+	p := dbsqlc.ListDCLRelationshipsParams{Entity: EntityOtherUnit, Keyword: strings.TrimSpace(input.Filters.Keyword), OperatingEntityID: strings.TrimSpace(input.Filters.OperatingEntityID), EnabledFilter: enabled, StatusFilter: statuses, RowOffset: offset, RowLimit: int32(input.PageSize)}
 	rows, err := s.queries.ListDCLRelationships(ctx, p)
 	if err != nil {
 		return Page[OtherUnitQueryItem]{}, translateError(err)
 	}
-	total, err := s.queries.CountDCLRelationships(ctx, dbsqlc.CountDCLRelationshipsParams{Entity: p.Entity, Keyword: p.Keyword, EnabledFilter: p.EnabledFilter, StatusFilter: p.StatusFilter})
+	total, err := s.queries.CountDCLRelationships(ctx, dbsqlc.CountDCLRelationshipsParams{Entity: p.Entity, Keyword: p.Keyword, OperatingEntityID: p.OperatingEntityID, EnabledFilter: p.EnabledFilter, StatusFilter: p.StatusFilter})
 	if err != nil {
 		return Page[OtherUnitQueryItem]{}, translateError(err)
 	}
 	items := make([]OtherUnitQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := OtherUnitQueryItem{RelationshipIdentityView: RelationshipIdentityView{ObjectID: r.ObjectID, Entity: EntityOtherUnit, Code: r.Code, ObjectRevision: r.ObjectRevision, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, Enabled: r.Enabled}}
+		item := OtherUnitQueryItem{ObjectID: r.ObjectID, Entity: EntityOtherUnit, Code: r.Code, ObjectRevision: r.ObjectRevision, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName, Enabled: r.Enabled}
 		if r.ApprovedEntryID != "" {
 			v, e := s.otherVersion(ctx, r.ApprovedEntryID)
 			if e != nil {
@@ -78,18 +78,18 @@ func (s *RelationshipService) QuerySalesPartners(ctx context.Context, input Rela
 	if err = s.sales.Authorize(ctx, actor, "query"); err != nil {
 		return Page[SalesPartnerQueryItem]{}, translateError(err)
 	}
-	p := dbsqlc.ListDCLRelationshipsParams{Entity: EntitySalesPartner, Keyword: strings.TrimSpace(input.Keyword), EnabledFilter: enabled, StatusFilter: statuses, RowOffset: offset, RowLimit: int32(input.PageSize)}
+	p := dbsqlc.ListDCLRelationshipsParams{Entity: EntitySalesPartner, Keyword: strings.TrimSpace(input.Filters.Keyword), OperatingEntityID: strings.TrimSpace(input.Filters.OperatingEntityID), EnabledFilter: enabled, StatusFilter: statuses, RowOffset: offset, RowLimit: int32(input.PageSize)}
 	rows, err := s.queries.ListDCLRelationships(ctx, p)
 	if err != nil {
 		return Page[SalesPartnerQueryItem]{}, translateError(err)
 	}
-	total, err := s.queries.CountDCLRelationships(ctx, dbsqlc.CountDCLRelationshipsParams{Entity: p.Entity, Keyword: p.Keyword, EnabledFilter: p.EnabledFilter, StatusFilter: p.StatusFilter})
+	total, err := s.queries.CountDCLRelationships(ctx, dbsqlc.CountDCLRelationshipsParams{Entity: p.Entity, Keyword: p.Keyword, OperatingEntityID: p.OperatingEntityID, EnabledFilter: p.EnabledFilter, StatusFilter: p.StatusFilter})
 	if err != nil {
 		return Page[SalesPartnerQueryItem]{}, translateError(err)
 	}
 	items := make([]SalesPartnerQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := SalesPartnerQueryItem{RelationshipIdentityView: RelationshipIdentityView{ObjectID: r.ObjectID, Entity: EntitySalesPartner, Code: r.Code, ObjectRevision: r.ObjectRevision, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, Enabled: r.Enabled}}
+		item := SalesPartnerQueryItem{ObjectID: r.ObjectID, Entity: EntitySalesPartner, Code: r.Code, ObjectRevision: r.ObjectRevision, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName, Enabled: r.Enabled}
 		if r.ApprovedEntryID != "" {
 			v, e := s.salesVersion(ctx, r.ApprovedEntryID)
 			if e != nil {
@@ -170,7 +170,11 @@ func (s *RelationshipService) getOther(ctx context.Context, input RelationshipGe
 	if err != nil {
 		return OtherUnitView{}, translateError(err)
 	}
-	return OtherUnitView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntityOtherUnit, Code: id.Code, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, OperatingEntityID: id.OperatingEntityID, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e)}, Data: otherDataFromStored(stored)}, nil
+	display, err := s.queries.WithTx(tx).GetDCLRelationshipIdentity(ctx, dbsqlc.GetDCLRelationshipIdentityParams{Entity: EntityOtherUnit, ObjectID: id.ObjectID})
+	if err != nil {
+		return OtherUnitView{}, translateError(err)
+	}
+	return OtherUnitView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntityOtherUnit, Code: id.Code, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, PartyKind: display.PartyKind, PartyDisplayName: display.DisplayName, OperatingEntityID: id.OperatingEntityID, OperatingEntityCode: display.OperatingEntityCode, OperatingEntityName: display.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e), UpdatedAt: e.UpdatedAt}, Data: otherDataFromStored(stored)}, nil
 }
 func (s *RelationshipService) GetSalesPartner(ctx context.Context, input RelationshipGetInput, actor approval.Actor) (SalesPartnerView, error) {
 	if !validID(input.ObjectID) {
@@ -209,7 +213,11 @@ func (s *RelationshipService) GetSalesPartner(ctx context.Context, input Relatio
 	if err != nil {
 		return SalesPartnerView{}, translateError(err)
 	}
-	return SalesPartnerView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySalesPartner, Code: id.Code, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, OperatingEntityID: id.OperatingEntityID, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e)}, Data: salesStored(stored)}, nil
+	display, err := s.queries.WithTx(tx).GetDCLRelationshipIdentity(ctx, dbsqlc.GetDCLRelationshipIdentityParams{Entity: EntitySalesPartner, ObjectID: id.ObjectID})
+	if err != nil {
+		return SalesPartnerView{}, translateError(err)
+	}
+	return SalesPartnerView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySalesPartner, Code: id.Code, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, PartyKind: display.PartyKind, PartyDisplayName: display.DisplayName, OperatingEntityID: id.OperatingEntityID, OperatingEntityCode: display.OperatingEntityCode, OperatingEntityName: display.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e), UpdatedAt: e.UpdatedAt}, Data: salesStored(stored)}, nil
 }
 
 func (s *RelationshipService) OtherUnitVersions(ctx context.Context, in RelationshipHistoryInput, a approval.Actor) (Page[OtherUnitVersionView], error) {

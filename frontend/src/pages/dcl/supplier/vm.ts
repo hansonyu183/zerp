@@ -115,8 +115,8 @@ export function useDclSupplierViewModel() {
   const canReferences = computed(
     () =>
       session.can('/bob/operating-entity/query') &&
-      session.can('/aux/reference/query') &&
-      session.can('/bob/reference/query'),
+      session.can('/aux/settlement-method/query') &&
+      session.can('/bob/employee/query'),
   )
   const canCreate = computed(
     () =>

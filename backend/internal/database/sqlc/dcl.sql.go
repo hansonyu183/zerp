@@ -231,7 +231,13 @@ SELECT count(*)
 FROM dcl_subjects subject
 JOIN bob_objects object ON object.id=subject.id AND object.entity='customer'
 JOIN bob_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
+) party ON true
 LEFT JOIN LATERAL (
   SELECT id,status,updated_at FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
@@ -549,20 +555,29 @@ WITH selected AS (
  LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
  LEFT JOIN bob_service_relationships other_relation ON subject.entity='other-unit' AND other_relation.object_id=subject.id AND other_relation.merged_into_object_id IS NULL
  LEFT JOIN bob_sales_relationships sales_relation ON subject.entity='sales-partner' AND sales_relation.object_id=subject.id AND sales_relation.merged_into_object_id IS NULL
- JOIN bob_party_currents party ON party.party_id=COALESCE(other_relation.party_id,sales_relation.party_id)
+ JOIN LATERAL (
+  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+    AND party_entry.subject_id=COALESCE(other_relation.party_id,sales_relation.party_id)
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
+ ) party ON true
  LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
  LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
  WHERE subject.entity=$1 AND ($2::text='' OR object.code ILIKE '%'||$2::text||'%' OR party.display_name ILIKE '%'||$2::text||'%')
  AND ($3::integer=-1 OR COALESCE(other_snapshot.enabled,sales_snapshot.enabled)=($3::integer=1))
  AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
+ AND ($5::text='' OR COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id)=$5::text)
 ) SELECT count(*) FROM selected
 `
 
 type CountDCLRelationshipsParams struct {
-	Entity        string   `db:"entity" json:"entity"`
-	Keyword       string   `db:"keyword" json:"keyword"`
-	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	Entity            string   `db:"entity" json:"entity"`
+	Keyword           string   `db:"keyword" json:"keyword"`
+	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter      []string `db:"status_filter" json:"status_filter"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
 }
 
 func (q *Queries) CountDCLRelationships(ctx context.Context, arg CountDCLRelationshipsParams) (int64, error) {
@@ -571,6 +586,7 @@ func (q *Queries) CountDCLRelationships(ctx context.Context, arg CountDCLRelatio
 		arg.Keyword,
 		arg.EnabledFilter,
 		arg.StatusFilter,
+		arg.OperatingEntityID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -595,7 +611,13 @@ LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries 
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
 JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 JOIN bob_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
+) party ON true
 WHERE subject.entity='supplier' AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND ($3::text='' OR relationship.operating_entity_id=$3) AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
 `
 
@@ -902,7 +924,13 @@ SELECT object.id AS object_id,object.code,object.revision AS object_revision,
        relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id
 FROM bob_objects object
 JOIN bob_customer_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
+) party ON true
 WHERE object.id=$1 AND object.entity='customer'
 `
 
@@ -1114,6 +1142,62 @@ func (q *Queries) GetDCLPartyVersion(ctx context.Context, approvalEntryID string
 	return i, err
 }
 
+const getDCLRelationshipIdentity = `-- name: GetDCLRelationshipIdentity :one
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+ COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,
+ party.kind AS party_kind,party.display_name,
+ COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
+ operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name
+FROM bob_objects object
+LEFT JOIN bob_service_relationships other_relation ON $1::text='other-unit' AND other_relation.object_id=object.id AND other_relation.merged_into_object_id IS NULL
+LEFT JOIN bob_sales_relationships sales_relation ON $1::text='sales-partner' AND sales_relation.object_id=object.id AND sales_relation.merged_into_object_id IS NULL
+JOIN LATERAL (
+ SELECT payload.kind,payload.display_name FROM approval_entries party_entry
+ JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+ WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+   AND party_entry.subject_id=COALESCE(other_relation.party_id,sales_relation.party_id)
+   AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+ ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
+) party ON true
+JOIN bob_objects operating ON operating.id=COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+WHERE object.id=$2 AND object.entity=$1
+`
+
+type GetDCLRelationshipIdentityParams struct {
+	Entity   string `db:"entity" json:"entity"`
+	ObjectID string `db:"object_id" json:"object_id"`
+}
+
+type GetDCLRelationshipIdentityRow struct {
+	ObjectID            string `db:"object_id" json:"object_id"`
+	Code                string `db:"code" json:"code"`
+	ObjectRevision      int64  `db:"object_revision" json:"object_revision"`
+	PartyID             string `db:"party_id" json:"party_id"`
+	PartyKind           string `db:"party_kind" json:"party_kind"`
+	DisplayName         string `db:"display_name" json:"display_name"`
+	OperatingEntityID   string `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName string `db:"operating_entity_name" json:"operating_entity_name"`
+}
+
+func (q *Queries) GetDCLRelationshipIdentity(ctx context.Context, arg GetDCLRelationshipIdentityParams) (GetDCLRelationshipIdentityRow, error) {
+	row := q.db.QueryRow(ctx, getDCLRelationshipIdentity, arg.Entity, arg.ObjectID)
+	var i GetDCLRelationshipIdentityRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.PartyID,
+		&i.PartyKind,
+		&i.DisplayName,
+		&i.OperatingEntityID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
+	)
+	return i, err
+}
+
 const getDCLSalesPartnerVersion = `-- name: GetDCLSalesPartnerVersion :one
 SELECT approval_entry_id, capabilities, contact_name, contact_phone, email, address, remark, enabled FROM dcl_sales_partner_versions WHERE approval_entry_id=$1
 `
@@ -1162,7 +1246,16 @@ SELECT snapshot.approval_entry_id, snapshot.short_name, snapshot.tax_number, sna
 FROM dcl_supplier_versions snapshot
 JOIN approval_entries entry ON entry.id=snapshot.approval_entry_id AND entry.domain='dcl' AND entry.entity='supplier'
 JOIN bob_supplier_relationships relationship ON relationship.object_id=entry.subject_id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name
+  FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+    AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
+  LIMIT 1
+) party ON true
 JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
 JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
 WHERE snapshot.approval_entry_id=$1 AND relationship.merged_into_object_id IS NULL
@@ -1902,7 +1995,13 @@ SELECT object.id AS object_id,object.code,object.revision AS object_revision,
 FROM dcl_subjects subject
 JOIN bob_objects object ON object.id=subject.id AND object.entity='customer'
 JOIN bob_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
+) party ON true
 LEFT JOIN LATERAL (
   SELECT id,status,updated_at FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
@@ -2888,8 +2987,9 @@ func (q *Queries) ListDCLRelationshipApprovalEvents(ctx context.Context, arg Lis
 }
 
 const listDCLRelationships = `-- name: ListDCLRelationships :many
-SELECT subject.id AS object_id,object.code,object.revision AS object_revision,party.party_id,party.kind AS party_kind,party.display_name,
+SELECT subject.id AS object_id,object.code,object.revision AS object_revision,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
+ operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
  COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
  COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
@@ -2897,36 +2997,49 @@ LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries 
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
 LEFT JOIN bob_service_relationships other_relation ON subject.entity='other-unit' AND other_relation.object_id=subject.id AND other_relation.merged_into_object_id IS NULL
 LEFT JOIN bob_sales_relationships sales_relation ON subject.entity='sales-partner' AND sales_relation.object_id=subject.id AND sales_relation.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=COALESCE(other_relation.party_id,sales_relation.party_id)
+JOIN LATERAL (
+ SELECT payload.kind,payload.display_name FROM approval_entries party_entry
+ JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+ WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+   AND party_entry.subject_id=COALESCE(other_relation.party_id,sales_relation.party_id)
+   AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+ ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
+) party ON true
+JOIN bob_objects operating ON operating.id=COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
 LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
 LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity=$1 AND ($2::text='' OR object.code ILIKE '%'||$2::text||'%' OR party.display_name ILIKE '%'||$2::text||'%')
  AND ($3::integer=-1 OR COALESCE(other_snapshot.enabled,sales_snapshot.enabled)=($3::integer=1))
  AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
-ORDER BY COALESCE(candidate.updated_at,approved.updated_at) DESC,object.id DESC LIMIT $6 OFFSET $5
+ AND ($5::text='' OR COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id)=$5::text)
+ORDER BY COALESCE(candidate.updated_at,approved.updated_at) DESC,object.id DESC LIMIT $7 OFFSET $6
 `
 
 type ListDCLRelationshipsParams struct {
-	Entity        string   `db:"entity" json:"entity"`
-	Keyword       string   `db:"keyword" json:"keyword"`
-	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter  []string `db:"status_filter" json:"status_filter"`
-	RowOffset     int32    `db:"row_offset" json:"row_offset"`
-	RowLimit      int32    `db:"row_limit" json:"row_limit"`
+	Entity            string   `db:"entity" json:"entity"`
+	Keyword           string   `db:"keyword" json:"keyword"`
+	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter      []string `db:"status_filter" json:"status_filter"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+	RowOffset         int32    `db:"row_offset" json:"row_offset"`
+	RowLimit          int32    `db:"row_limit" json:"row_limit"`
 }
 
 type ListDCLRelationshipsRow struct {
-	ObjectID          string             `db:"object_id" json:"object_id"`
-	Code              string             `db:"code" json:"code"`
-	ObjectRevision    int64              `db:"object_revision" json:"object_revision"`
-	PartyID           string             `db:"party_id" json:"party_id"`
-	PartyKind         string             `db:"party_kind" json:"party_kind"`
-	DisplayName       string             `db:"display_name" json:"display_name"`
-	OperatingEntityID string             `db:"operating_entity_id" json:"operating_entity_id"`
-	Enabled           bool               `db:"enabled" json:"enabled"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	ApprovedEntryID   string             `db:"approved_entry_id" json:"approved_entry_id"`
-	OpenEntryID       string             `db:"open_entry_id" json:"open_entry_id"`
+	ObjectID            string             `db:"object_id" json:"object_id"`
+	Code                string             `db:"code" json:"code"`
+	ObjectRevision      int64              `db:"object_revision" json:"object_revision"`
+	PartyID             string             `db:"party_id" json:"party_id"`
+	PartyKind           string             `db:"party_kind" json:"party_kind"`
+	DisplayName         string             `db:"display_name" json:"display_name"`
+	OperatingEntityID   string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName string             `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled             bool               `db:"enabled" json:"enabled"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovedEntryID     string             `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID         string             `db:"open_entry_id" json:"open_entry_id"`
 }
 
 func (q *Queries) ListDCLRelationships(ctx context.Context, arg ListDCLRelationshipsParams) ([]ListDCLRelationshipsRow, error) {
@@ -2935,6 +3048,7 @@ func (q *Queries) ListDCLRelationships(ctx context.Context, arg ListDCLRelations
 		arg.Keyword,
 		arg.EnabledFilter,
 		arg.StatusFilter,
+		arg.OperatingEntityID,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -2953,6 +3067,8 @@ func (q *Queries) ListDCLRelationships(ctx context.Context, arg ListDCLRelations
 			&i.PartyKind,
 			&i.DisplayName,
 			&i.OperatingEntityID,
+			&i.OperatingEntityCode,
+			&i.OperatingEntityName,
 			&i.Enabled,
 			&i.UpdatedAt,
 			&i.ApprovedEntryID,
@@ -3019,7 +3135,13 @@ SELECT object.id AS object_id,object.code,object.revision AS object_revision,rel
 FROM dcl_subjects subject
 JOIN bob_objects object ON object.id=subject.id AND object.entity='supplier'
 JOIN bob_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
+) party ON true
 JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
 JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true

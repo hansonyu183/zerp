@@ -3231,6 +3231,212 @@
           'remark': { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
         },
     },
+  'DclOtherUnitData':
+    {
+      'allOf':
+        [
+          { '$ref': '#/DclOtherUnitInput' },
+          {
+            'type': 'object',
+            'properties':
+              {
+                'settlementMethodApprovalEntryId': { 'type': 'string' },
+                'settlementMethodCode': { 'type': 'string' },
+                'settlementMethodName': { 'type': 'string' },
+                'settlementTermCode': { 'type': 'string' },
+                'settlementRuleType': { 'type': 'string' },
+                'settlementMonthOffset':
+                  { 'type': 'integer', 'format': 'int32' },
+                'settlementDayOfMonth':
+                  { 'type': 'integer', 'format': 'int32' },
+                'settlementDayOffset': { 'type': 'integer', 'format': 'int32' },
+              },
+          },
+        ],
+    },
+  'DclRelationshipQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string', 'maxLength': 200 },
+                  'status':
+                    {
+                      'type': 'array',
+                      'items':
+                        {
+                          'type': 'string',
+                          'enum': ['DRAFT', 'PENDING', 'APPROVED'],
+                        },
+                    },
+                  'enabled': { 'type': 'boolean' },
+                  'operatingEntityId': { 'type': 'string' },
+                },
+            },
+        },
+    },
+  'DclRelationshipMutation':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'objectRevision', 'partyId', 'enabled', 'approval'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'partyId': { 'type': 'string' },
+          'enabled': { 'type': 'boolean' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+        },
+    },
+  'DclRelationshipMutationResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclRelationshipMutation' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclRelationshipListIdentity':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
+          'enabled',
+        ],
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity':
+            { 'type': 'string', 'enum': ['other-unit', 'sales-partner'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'partyId': { 'type': 'string' },
+          'partyKind': { '$ref': './bob.yaml#/PartyKind' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'enabled': { 'type': 'boolean' },
+        },
+    },
+  'DclOtherUnitVersionView':
+    {
+      'type': 'object',
+      'required': ['approval', 'enabled', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'enabled': { 'type': 'boolean' },
+          'data': { '$ref': '#/DclOtherUnitData' },
+        },
+    },
+  'DclOtherUnitView':
+    {
+      'allOf':
+        [
+          { '$ref': '#/DclRelationshipListIdentity' },
+          {
+            'type': 'object',
+            'required': ['approval', 'data', 'updatedAt'],
+            'properties':
+              {
+                'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+                'data': { '$ref': '#/DclOtherUnitData' },
+                'updatedAt': { 'type': 'string', 'format': 'date-time' },
+              },
+          },
+        ],
+    },
+  'DclOtherUnitListItem':
+    {
+      'allOf':
+        [
+          { '$ref': '#/DclRelationshipListIdentity' },
+          {
+            'type': 'object',
+            'properties':
+              {
+                'latestApproved':
+                  {
+                    'type': 'object',
+                    'allOf': [{ '$ref': '#/DclOtherUnitVersionView' }],
+                    'nullable': true,
+                  },
+                'openVersion':
+                  {
+                    'type': 'object',
+                    'allOf': [{ '$ref': '#/DclOtherUnitVersionView' }],
+                    'nullable': true,
+                  },
+              },
+          },
+        ],
+    },
+  'DclOtherUnitQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclOtherUnitListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclOtherUnitVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclOtherUnitVersionView' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
   'DclOtherUnitCreateRequest':
     {
       'oneOf':
@@ -3279,15 +3485,68 @@
     { '$ref': '#/DclOperatingEntityVersionRequest' },
   'DclOtherUnitReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
   'DclOtherUnitGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
-  'DclOtherUnitQueryRequest': { '$ref': './bob.yaml#/OtherUnitQueryRequest' },
+  'DclOtherUnitQueryRequest': { '$ref': '#/DclRelationshipQueryRequest' },
   'DclOtherUnitHistoryRequest':
     { '$ref': '#/DclOperatingEntityHistoryRequest' },
   'DclOtherUnitMutationResponse':
-    { '$ref': '#/DclOperatingEntityMutationResponse' },
-  'DclOtherUnitViewResponse': { '$ref': './bob.yaml#/OtherUnitGetResponse' },
-  'DclOtherUnitQueryResponse': { '$ref': './bob.yaml#/OtherUnitQueryResponse' },
+    { '$ref': '#/DclRelationshipMutationResponse' },
+  'DclOtherUnitViewResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclOtherUnitView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclOtherUnitQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclOtherUnitQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclOtherUnitVersionPageResponse':
-    { '$ref': './bob.yaml#/OtherUnitQueryResponse' },
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclOtherUnitVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclOtherUnitAuditHistoryResponse':
     { '$ref': '#/DclOperatingEntityAuditHistoryResponse' },
   'DclSalesPartnerInput':
@@ -3309,6 +3568,94 @@
           'email': { 'type': 'string', 'nullable': true, 'maxLength': 254 },
           'address': { 'type': 'string', 'nullable': true, 'maxLength': 500 },
           'remark': { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
+        },
+    },
+  'DclSalesPartnerVersionView':
+    {
+      'type': 'object',
+      'required': ['approval', 'enabled', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'enabled': { 'type': 'boolean' },
+          'data': { '$ref': '#/DclSalesPartnerInput' },
+        },
+    },
+  'DclSalesPartnerView':
+    {
+      'allOf':
+        [
+          { '$ref': '#/DclRelationshipListIdentity' },
+          {
+            'type': 'object',
+            'required': ['approval', 'data', 'updatedAt'],
+            'properties':
+              {
+                'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+                'data': { '$ref': '#/DclSalesPartnerInput' },
+                'updatedAt': { 'type': 'string', 'format': 'date-time' },
+              },
+          },
+        ],
+    },
+  'DclSalesPartnerListItem':
+    {
+      'allOf':
+        [
+          { '$ref': '#/DclRelationshipListIdentity' },
+          {
+            'type': 'object',
+            'properties':
+              {
+                'latestApproved':
+                  {
+                    'type': 'object',
+                    'allOf': [{ '$ref': '#/DclSalesPartnerVersionView' }],
+                    'nullable': true,
+                  },
+                'openVersion':
+                  {
+                    'type': 'object',
+                    'allOf': [{ '$ref': '#/DclSalesPartnerVersionView' }],
+                    'nullable': true,
+                  },
+              },
+          },
+        ],
+    },
+  'DclSalesPartnerQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclSalesPartnerListItem' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclSalesPartnerVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclSalesPartnerVersionView' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
         },
     },
   'DclSalesPartnerCreateRequest':
@@ -3360,18 +3707,68 @@
   'DclSalesPartnerReviewRequest':
     { '$ref': '#/DclOperatingEntityReviewRequest' },
   'DclSalesPartnerGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
-  'DclSalesPartnerQueryRequest':
-    { '$ref': './bob.yaml#/SalesPartnerQueryRequest' },
+  'DclSalesPartnerQueryRequest': { '$ref': '#/DclRelationshipQueryRequest' },
   'DclSalesPartnerHistoryRequest':
     { '$ref': '#/DclOperatingEntityHistoryRequest' },
   'DclSalesPartnerMutationResponse':
-    { '$ref': '#/DclOperatingEntityMutationResponse' },
+    { '$ref': '#/DclRelationshipMutationResponse' },
   'DclSalesPartnerViewResponse':
-    { '$ref': './bob.yaml#/SalesPartnerGetResponse' },
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclSalesPartnerView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclSalesPartnerQueryResponse':
-    { '$ref': './bob.yaml#/SalesPartnerQueryResponse' },
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclSalesPartnerQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclSalesPartnerVersionPageResponse':
-    { '$ref': './bob.yaml#/SalesPartnerQueryResponse' },
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclSalesPartnerVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclSalesPartnerAuditHistoryResponse':
     { '$ref': '#/DclOperatingEntityAuditHistoryResponse' },
   'DclPartyData':

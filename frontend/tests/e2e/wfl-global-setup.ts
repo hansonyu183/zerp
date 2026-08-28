@@ -74,12 +74,21 @@ interface AccountingMappingView {
 interface BobMutation {
   objectId: string
   objectRevision: number
+  partyId?: string
   enabled: boolean
   approval: {
     approvalEntryId: string
     revision: number
   }
   code: string
+}
+
+interface DclPartyView {
+  partyId: string
+  approval: {
+    approvalEntryId: string
+    revision: number
+  }
 }
 
 interface DclCustomerAccountListItem {
@@ -205,6 +214,7 @@ export interface WflFixtures {
   purchaseTrialDocumentId: string
   supplierObjectId: string
   warehouseObjectId: string
+  operatingEntityId: string
 }
 
 export interface WflWorkerState {
@@ -355,7 +365,15 @@ const bobReviewerActions = new Set([
   '/bob/customer/get',
   '/bob/customer-account/query',
   '/bob/customer-account/get',
-  ...['customer', 'customer-account'].flatMap((entity) => [
+  ...[
+    'party',
+    'employee',
+    'supplier',
+    'other-unit',
+    'sales-partner',
+    'customer',
+    'customer-account',
+  ].flatMap((entity) => [
     `/dcl/${entity}/query`,
     `/dcl/${entity}/get`,
     `/dcl/${entity}/approve`,
@@ -364,17 +382,9 @@ const bobReviewerActions = new Set([
     `/dcl/${entity}/versions`,
     `/dcl/${entity}/audit-history`,
   ]),
-  ...[
-    'employee',
-    'supplier',
-    'other-unit',
-    'sales-partner',
-    'fund-account',
-  ].flatMap((entity) => [
-    `/bob/${entity}/query`,
-    `/bob/${entity}/get`,
-    `/bob/${entity}/approve`,
-  ]),
+  ...['employee', 'supplier', 'other-unit', 'sales-partner'].flatMap(
+    (entity) => [`/bob/${entity}/query`, `/bob/${entity}/get`],
+  ),
   '/bob/operating-entity/query',
   '/bob/operating-entity/get',
   '/dcl/operating-entity/query',
@@ -393,6 +403,24 @@ const bobReviewerActions = new Set([
   '/dcl/product/get',
   '/dcl/product/approve',
 ])
+
+async function approveRelationshipParty(
+  operator: RealApi,
+  reviewer: RealApi,
+  partyId: string,
+): Promise<void> {
+  const party = await operator.post<DclPartyView>('dcl/party/get', { partyId })
+  const submitted = await operator.post<DclPartyView>('dcl/party/submit', {
+    partyId,
+    approvalEntryId: party.approval.approvalEntryId,
+    approvalRevision: party.approval.revision,
+  })
+  await reviewer.post<DclPartyView>('dcl/party/approve', {
+    partyId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+}
 
 async function createEffectiveBob(
   operator: RealApi,
@@ -456,16 +484,25 @@ async function createEffectiveEmployment(
     operatingEntityId,
     data: {},
   })
+  const employee = await operator.post<DclPartyView>('dcl/employee/get', {
+    objectId: created.objectId,
+    approvalEntryId: created.approval.approvalEntryId,
+  })
+  await approveRelationshipParty(operator, reviewer, employee.partyId)
   const submitted = await operator.post<BobMutation>('dcl/employee/submit', {
     objectId: created.objectId,
     approvalEntryId: created.approval.approvalEntryId,
     approvalRevision: created.approval.revision,
   })
-  return reviewer.post<BobMutation>('dcl/employee/approve', {
+  const approved = await reviewer.post<BobMutation>('dcl/employee/approve', {
     objectId: submitted.objectId,
     approvalEntryId: submitted.approval.approvalEntryId,
     approvalRevision: submitted.approval.revision,
   })
+  const view = await operator.post<{ code: string }>('bob/employee/get', {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
 }
 
 async function createEffectiveSupplier(
@@ -488,16 +525,22 @@ async function createEffectiveSupplier(
       defaultPurchaserEmployeeId: purchaserObjectId,
     },
   })
+  if (!created.partyId) throw new Error('供应商预置未返回 Party ID。')
+  await approveRelationshipParty(operator, reviewer, created.partyId)
   const submitted = await operator.post<BobMutation>('dcl/supplier/submit', {
     objectId: created.objectId,
     approvalEntryId: created.approval.approvalEntryId,
     approvalRevision: created.approval.revision,
   })
-  return reviewer.post<BobMutation>('dcl/supplier/approve', {
+  const approved = await reviewer.post<BobMutation>('dcl/supplier/approve', {
     objectId: submitted.objectId,
     approvalEntryId: submitted.approval.approvalEntryId,
     approvalRevision: submitted.approval.revision,
   })
+  const view = await operator.post<{ code: string }>('bob/supplier/get', {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
 }
 
 async function createEffectiveOtherUnit(
@@ -516,6 +559,8 @@ async function createEffectiveOtherUnit(
     operatingEntityId,
     data: { settlementMethodId },
   })
+  if (!created.partyId) throw new Error('其他单位预置未返回 Party ID。')
+  await approveRelationshipParty(operator, reviewer, created.partyId)
   const submitted = await operator.post<BobMutation>('dcl/other-unit/submit', {
     objectId: created.objectId,
     approvalEntryId: created.approval.approvalEntryId,
@@ -665,6 +710,8 @@ async function createEffectiveCustomer(
       },
     },
   })
+  if (!created.partyId) throw new Error('客户预置未返回 Party ID。')
+  await approveRelationshipParty(operator, reviewer, created.partyId)
   const submittedCustomer = await operator.post<BobMutation>(
     'dcl/customer/submit',
     {
@@ -1618,6 +1665,7 @@ export async function createWflWorkerState(options: {
         purchaseTrialDocumentId: purchaseTrial.documentId,
         supplierObjectId: supplier.objectId,
         warehouseObjectId: warehouse.objectId,
+        operatingEntityId,
       },
       storageState: await operatorSession.context.storageState(),
       grantWorkflowPermissions: (processCodes) =>

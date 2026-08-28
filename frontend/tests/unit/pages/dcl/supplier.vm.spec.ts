@@ -33,8 +33,8 @@ describe('DCL supplier view model', () => {
       '/dcl/supplier/create',
       '/bob/party/query',
       '/bob/operating-entity/query',
-      '/aux/reference/query',
-      '/bob/reference/query',
+      '/aux/settlement-method/query',
+      '/bob/employee/query',
     ]
     mockedPost.mockResolvedValue({ data: { items: [] } })
     const vm = useDclSupplierViewModel()
@@ -72,8 +72,8 @@ describe('DCL supplier view model', () => {
       '/dcl/supplier/create',
       '/bob/party/query',
       '/bob/operating-entity/query',
-      '/aux/reference/query',
-      '/bob/reference/query',
+      '/aux/settlement-method/query',
+      '/bob/employee/query',
     ]
     mockedPost.mockResolvedValue({ data: { items: [] } })
     const vm = useDclSupplierViewModel()

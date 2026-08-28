@@ -166,6 +166,12 @@ export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
       description,
     ],
   },
+  'employee-category': {
+    entity: 'employee-category',
+    title: '人员类别',
+    defaults: () => ({ name: '', description: '' }),
+    fields: [text('name', '名称', { required: true }), description],
+  },
   position: {
     entity: 'position',
     title: '岗位',

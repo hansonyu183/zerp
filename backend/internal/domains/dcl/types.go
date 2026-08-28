@@ -14,7 +14,129 @@ const (
 	EntityFundAccount     = "fund-account"
 	EntityProduct         = "product"
 	EntityParty           = "party"
+	EntityEmployee        = "employee"
 )
+
+// EmployeeInput contains only Employee-owned mutable attributes. Party identity
+// and the immutable Party x operating-entity relationship are separate roots.
+type EmployeeInput struct {
+	EmployeeCategoryID string `json:"employeeCategoryId,omitempty"`
+	DepartmentID       string `json:"departmentId,omitempty"`
+	PositionID         string `json:"positionId,omitempty"`
+	Phone              string `json:"phone,omitempty"`
+	Email              string `json:"email,omitempty"`
+	HireDate           string `json:"hireDate,omitempty"`
+	Remark             string `json:"remark,omitempty"`
+}
+
+type EmployeeData struct {
+	EmployeeCategoryID              string `json:"employeeCategoryId,omitempty"`
+	EmployeeCategoryApprovalEntryID string `json:"employeeCategoryApprovalEntryId,omitempty"`
+	EmployeeCategoryCode            string `json:"employeeCategoryCode,omitempty"`
+	EmployeeCategoryName            string `json:"employeeCategoryName,omitempty"`
+	DepartmentID                    string `json:"departmentId,omitempty"`
+	DepartmentApprovalEntryID       string `json:"departmentApprovalEntryId,omitempty"`
+	DepartmentCode                  string `json:"departmentCode,omitempty"`
+	DepartmentName                  string `json:"departmentName,omitempty"`
+	PositionID                      string `json:"positionId,omitempty"`
+	PositionApprovalEntryID         string `json:"positionApprovalEntryId,omitempty"`
+	PositionCode                    string `json:"positionCode,omitempty"`
+	PositionName                    string `json:"positionName,omitempty"`
+	Phone                           string `json:"phone,omitempty"`
+	Email                           string `json:"email,omitempty"`
+	HireDate                        string `json:"hireDate,omitempty"`
+	Remark                          string `json:"remark,omitempty"`
+}
+
+type EmployeeCreateInput struct {
+	PartyID           string                     `json:"partyId,omitempty"`
+	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
+	OperatingEntityID string                     `json:"operatingEntityId"`
+	Data              EmployeeInput              `json:"data"`
+}
+type EmployeeSaveInput struct {
+	ObjectID         string        `json:"objectId"`
+	ApprovalEntryID  string        `json:"approvalEntryId"`
+	ApprovalRevision int64         `json:"approvalRevision"`
+	Enabled          bool          `json:"enabled"`
+	Data             EmployeeInput `json:"data"`
+}
+type EmployeeVersionInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+type EmployeeReviewInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	Reason           string `json:"reason"`
+}
+type EmployeeDeleteInput = EmployeeVersionInput
+type EmployeeGetInput struct {
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+}
+type EmployeeQueryFilters struct {
+	Keyword            string            `json:"keyword,omitempty"`
+	Status             []approval.Status `json:"status,omitempty"`
+	Enabled            *bool             `json:"enabled,omitempty"`
+	OperatingEntityID  string            `json:"operatingEntityId,omitempty"`
+	EmployeeCategoryID string            `json:"employeeCategoryId,omitempty"`
+	DepartmentID       string            `json:"departmentId,omitempty"`
+	PositionID         string            `json:"positionId,omitempty"`
+}
+type EmployeeQueryInput struct {
+	Page     int                       `json:"page"`
+	PageSize int                       `json:"pageSize"`
+	Filters  EmployeeQueryFilters      `json:"filters"`
+	Sort     []OperatingEntitySortItem `json:"sort"`
+}
+type EmployeeHistoryInput = OperatingEntityHistoryInput
+type EmployeeMutation struct {
+	ObjectID       string               `json:"objectId"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	Approval       approval.VersionMeta `json:"approval"`
+}
+type EmployeeView struct {
+	ObjectID                       string               `json:"objectId"`
+	Entity                         string               `json:"entity"`
+	Code                           string               `json:"code"`
+	ObjectRevision                 int64                `json:"objectRevision"`
+	PartyID                        string               `json:"partyId"`
+	PartyKind                      string               `json:"partyKind"`
+	PartyDisplayName               string               `json:"partyDisplayName"`
+	OperatingEntityID              string               `json:"operatingEntityId"`
+	OperatingEntityApprovalEntryID string               `json:"operatingEntityApprovalEntryId"`
+	OperatingEntityCode            string               `json:"operatingEntityCode"`
+	OperatingEntityName            string               `json:"operatingEntityName"`
+	Enabled                        bool                 `json:"enabled"`
+	Approval                       approval.VersionMeta `json:"approval"`
+	Data                           EmployeeData         `json:"data"`
+	UpdatedAt                      time.Time            `json:"updatedAt"`
+}
+type EmployeeVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Data     EmployeeData         `json:"data"`
+	Enabled  bool                 `json:"enabled"`
+}
+type EmployeeQueryItem struct {
+	ObjectID            string               `json:"objectId"`
+	Entity              string               `json:"entity"`
+	Code                string               `json:"code"`
+	ObjectRevision      int64                `json:"objectRevision"`
+	PartyID             string               `json:"partyId"`
+	PartyKind           string               `json:"partyKind"`
+	PartyDisplayName    string               `json:"partyDisplayName"`
+	OperatingEntityID   string               `json:"operatingEntityId"`
+	OperatingEntityCode string               `json:"operatingEntityCode"`
+	OperatingEntityName string               `json:"operatingEntityName"`
+	Enabled             bool                 `json:"enabled"`
+	LatestApproved      *EmployeeVersionView `json:"latestApproved"`
+	OpenVersion         *EmployeeVersionView `json:"openVersion"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
+}
 
 type PartyData = bobdomain.PartyCreateData
 type PartyMutation struct {

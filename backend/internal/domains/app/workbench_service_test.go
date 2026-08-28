@@ -47,15 +47,19 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 func TestWorkbenchIncludesDCLPartyLifecycle(t *testing.T) {
 	scope := newWorkbenchPermissionScope([]string{
 		"/dcl/party/query", "/dcl/party/submit", "/dcl/party/get", "/dcl/party/save",
+		"/dcl/employee/query", "/dcl/employee/submit",
 	})
 	entities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "submit")
 	})
-	if !reflect.DeepEqual(entities, []string{"party"}) {
+	if !reflect.DeepEqual(entities, []string{"party", "employee"}) {
 		t.Fatalf("DCL submit entities = %v", entities)
 	}
 	if domain := workbenchApprovalDomain("party"); domain != "dcl" {
 		t.Fatalf("Party workbench domain = %q", domain)
+	}
+	if domain := workbenchApprovalDomain("employee"); domain != "dcl" {
+		t.Fatalf("Employee workbench domain = %q", domain)
 	}
 }
 

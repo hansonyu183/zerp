@@ -68,11 +68,11 @@ func bobApprovalPayload(objectID, entity, code string, enabled bool) bobapproval
 }
 
 func genericEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityOperatingEntity}, entity)
+	return entity == EntityOperatingEntity
 }
 
 func genericWriteEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee}, entity)
+	return false
 }
 
 func approvalEntity(entity string) bool {
@@ -217,6 +217,9 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	if entity == EntityProduct {
 		return s.getProductCurrent(ctx, input)
 	}
+	if entity == EntityEmployee {
+		return s.getEmployeeCurrent(ctx, input)
+	}
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid get request", nil, nil)
 	}
@@ -254,15 +257,6 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 		return ObjectView{}, s.internal("load BOB payload", err)
 	}
 	result := ObjectView{ObjectID: object.ID, Entity: object.Entity, Code: object.Code, ObjectRevision: object.Revision, Enabled: object.Enabled, Approval: approvalMeta(entry), Data: data, UpdatedAt: object.UpdatedAt.Time}
-	if entity == EntityEmployee {
-		identity, identityErr := s.queries.GetBobEmploymentRelationshipIdentity(ctx, input.ObjectID)
-		if identityErr != nil {
-			return ObjectView{}, s.internal("read employment relationship identity", identityErr)
-		}
-		result.Relationship = &RelationshipIdentityView{PartyID: identity.PartyID, PartyKind: identity.PartyKind,
-			PartyDisplayName: identity.PartyDisplayName, OperatingEntityID: identity.OperatingEntityID,
-			OperatingEntityCode: identity.OperatingEntityCode, OperatingEntityName: identity.OperatingEntityName}
-	}
 	return result, nil
 }
 
@@ -654,6 +648,9 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntityProduct {
 		return s.validateProductSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
+	if entity == EntityEmployee {
+		return s.validateEmployeeSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
@@ -687,6 +684,9 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	}
 	if entity == EntityProduct {
 		return s.resolveProductCurrentReference(ctx, q, objectID)
+	}
+	if entity == EntityEmployee {
+		return s.resolveEmployeeCurrentReference(ctx, q, objectID)
 	}
 	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -69,21 +69,6 @@ func (q *Queries) CopyBobCustomerVersionAttachments(ctx context.Context, arg Cop
 	return err
 }
 
-const copyBobEmployeePayload = `-- name: CopyBobEmployeePayload :exec
-INSERT INTO bob_employee_versions(approval_entry_id,entity,name,category_id,category_approval_entry_id,category_entity,department_id,department_approval_entry_id,department_entity,position_id,position_approval_entry_id,position_entity,phone,email,hire_date,remark)
-SELECT $1,entity,name,category_id,category_approval_entry_id,category_entity,department_id,department_approval_entry_id,department_entity,position_id,position_approval_entry_id,position_entity,phone,email,hire_date,remark FROM bob_employee_versions source WHERE source.approval_entry_id=$2
-`
-
-type CopyBobEmployeePayloadParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyBobEmployeePayload(ctx context.Context, arg CopyBobEmployeePayloadParams) error {
-	_, err := q.db.Exec(ctx, copyBobEmployeePayload, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
-}
-
 const copyBobOtherUnitPayload = `-- name: CopyBobOtherUnitPayload :exec
 INSERT INTO bob_service_relationship_versions(approval_entry_id,entity,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark)
 SELECT $1,entity,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark FROM bob_service_relationship_versions source WHERE source.approval_entry_id=$2
@@ -218,6 +203,28 @@ func (q *Queries) CountBobCustomerAccounts(ctx context.Context, arg CountBobCust
 	return count, err
 }
 
+const countBobEmployees = `-- name: CountBobEmployees :one
+SELECT count(*) FROM bob_objects object
+JOIN bob_employees current ON current.object_id=object.id
+JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE object.entity='employee' AND relationship.merged_into_object_id IS NULL
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+`
+
+type CountBobEmployeesParams struct {
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+}
+
+func (q *Queries) CountBobEmployees(ctx context.Context, arg CountBobEmployeesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobEmployees, arg.Keyword, arg.EnabledFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countBobFundAccounts = `-- name: CountBobFundAccounts :one
 SELECT count(*) FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR c.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR c.enabled=($2::integer=1))
 `
@@ -240,17 +247,17 @@ FROM bob_objects o
 LEFT JOIN LATERAL (
     SELECT id, status
     FROM approval_entries
-    WHERE domain=CASE WHEN o.entity='product' THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
+    WHERE domain=CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
     ORDER BY version_no DESC LIMIT 1
 ) approved ON true
 LEFT JOIN LATERAL (
     SELECT id, status
     FROM approval_entries
-    WHERE domain=CASE WHEN o.entity='product' THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status IN ('DRAFT','PENDING')
+    WHERE domain=CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status IN ('DRAFT','PENDING')
     ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
-LEFT JOIN bob_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
-LEFT JOIN bob_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
+LEFT JOIN dcl_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
+LEFT JOIN dcl_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
 LEFT JOIN dcl_product_versions approved_product ON approved_product.approval_entry_id=approved.id
 LEFT JOIN dcl_product_versions open_product ON open_product.approval_entry_id=open_entry.id
 LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
@@ -265,11 +272,12 @@ LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.obje
 LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
 LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
+LEFT JOIN bob_employment_relationships employee_relation ON employee_relation.object_id=o.id AND o.entity='employee' AND employee_relation.merged_into_object_id IS NULL
+LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id,employee_relation.party_id)
 WHERE o.entity = $1
   AND ($2::text = ''
        OR o.code ILIKE '%' || $2::text || '%'
-       OR COALESCE(approved_employee.name, open_employee.name, approved_product.name, open_product.name,
+       OR COALESCE(approved_product.name, open_product.name,
                    approved_vehicle.name, open_vehicle.name,
                    approved_fund.name, open_fund.name,
                    approved_supplier.name, open_supplier.name, relationship_party.display_name, '')
@@ -487,12 +495,12 @@ func (q *Queries) DeleteBobCustomerVersionAttachments(ctx context.Context, appro
 	return err
 }
 
-const deleteBobEmployeePayload = `-- name: DeleteBobEmployeePayload :execrows
-DELETE FROM bob_employee_versions WHERE approval_entry_id = $1
+const deleteBobEmployeeCurrent = `-- name: DeleteBobEmployeeCurrent :execrows
+DELETE FROM bob_employees WHERE object_id=$1
 `
 
-func (q *Queries) DeleteBobEmployeePayload(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobEmployeePayload, approvalEntryID)
+func (q *Queries) DeleteBobEmployeeCurrent(ctx context.Context, objectID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobEmployeeCurrent, objectID)
 	if err != nil {
 		return 0, err
 	}
@@ -798,32 +806,157 @@ func (q *Queries) GetBobCustomerRelationshipPayload(ctx context.Context, approva
 	return i, err
 }
 
-const getBobEmployeePayload = `-- name: GetBobEmployeePayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.name, payload.category_id, payload.category_approval_entry_id, payload.category_entity, payload.department_id, payload.department_approval_entry_id, payload.department_entity, payload.position_id, payload.position_approval_entry_id, payload.position_entity, payload.phone, payload.email, payload.hire_date, payload.remark FROM bob_employee_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
-WHERE payload.approval_entry_id=$1 AND entry.domain='bob' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
+const getBobEmployeeCurrent = `-- name: GetBobEmployeeCurrent :one
+SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+       current.enabled,current.updated_at,relationship.party_id,
+       party.kind AS party_kind,relationship.operating_entity_id,
+       operating.code AS operating_entity_code,
+       operating_current.legal_name AS operating_entity_name,party.display_name,
+       snapshot.employee_category_id,snapshot.employee_category_approval_entry_id,
+       snapshot.employee_category_code,snapshot.employee_category_name,snapshot.department_id,
+       snapshot.department_approval_entry_id,snapshot.department_code,snapshot.department_name,
+       snapshot.position_id,snapshot.position_approval_entry_id,snapshot.position_code,
+       snapshot.position_name,snapshot.phone,snapshot.email,snapshot.hire_date,snapshot.remark,
+       entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,
+       entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,
+       entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,
+       entry.approved_by,entry.approved_at
+FROM bob_objects object
+JOIN bob_employees current ON current.object_id=object.id
+JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+  AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN approval_entries entry ON entry.id=current.source_approval_entry_id
+  AND entry.domain='dcl' AND entry.entity='employee' AND entry.subject_id=object.id
+  AND entry.status='APPROVED'
+JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE object.id=$1 AND object.entity='employee'
+  AND relationship.merged_into_object_id IS NULL
 `
 
-func (q *Queries) GetBobEmployeePayload(ctx context.Context, approvalEntryID string) (BobEmployeeVersion, error) {
-	row := q.db.QueryRow(ctx, getBobEmployeePayload, approvalEntryID)
-	var i BobEmployeeVersion
+type GetBobEmployeeCurrentRow struct {
+	ObjectID                        string             `db:"object_id" json:"object_id"`
+	Entity                          string             `db:"entity" json:"entity"`
+	Code                            string             `db:"code" json:"code"`
+	ObjectRevision                  int64              `db:"object_revision" json:"object_revision"`
+	Enabled                         bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	PartyID                         string             `db:"party_id" json:"party_id"`
+	PartyKind                       string             `db:"party_kind" json:"party_kind"`
+	OperatingEntityID               string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode             string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName             string             `db:"operating_entity_name" json:"operating_entity_name"`
+	DisplayName                     string             `db:"display_name" json:"display_name"`
+	EmployeeCategoryID              *string            `db:"employee_category_id" json:"employee_category_id"`
+	EmployeeCategoryApprovalEntryID *string            `db:"employee_category_approval_entry_id" json:"employee_category_approval_entry_id"`
+	EmployeeCategoryCode            *string            `db:"employee_category_code" json:"employee_category_code"`
+	EmployeeCategoryName            *string            `db:"employee_category_name" json:"employee_category_name"`
+	DepartmentID                    *string            `db:"department_id" json:"department_id"`
+	DepartmentApprovalEntryID       *string            `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode                  *string            `db:"department_code" json:"department_code"`
+	DepartmentName                  *string            `db:"department_name" json:"department_name"`
+	PositionID                      *string            `db:"position_id" json:"position_id"`
+	PositionApprovalEntryID         *string            `db:"position_approval_entry_id" json:"position_approval_entry_id"`
+	PositionCode                    *string            `db:"position_code" json:"position_code"`
+	PositionName                    *string            `db:"position_name" json:"position_name"`
+	Phone                           *string            `db:"phone" json:"phone"`
+	Email                           *string            `db:"email" json:"email"`
+	HireDate                        pgtype.Date        `db:"hire_date" json:"hire_date"`
+	Remark                          *string            `db:"remark" json:"remark"`
+	ApprovalEntryID                 string             `db:"approval_entry_id" json:"approval_entry_id"`
+	Domain                          string             `db:"domain" json:"domain"`
+	VersionNo                       *int32             `db:"version_no" json:"version_no"`
+	Status                          string             `db:"status" json:"status"`
+	ApprovalRevision                int64              `db:"approval_revision" json:"approval_revision"`
+	CreatedBy                       string             `db:"created_by" json:"created_by"`
+	CreatedAt                       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedBy                       string             `db:"updated_by" json:"updated_by"`
+	ApprovalUpdatedAt               pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	SubmittedBy                     *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt                     pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy                      *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt                      pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+}
+
+func (q *Queries) GetBobEmployeeCurrent(ctx context.Context, objectID string) (GetBobEmployeeCurrentRow, error) {
+	row := q.db.QueryRow(ctx, getBobEmployeeCurrent, objectID)
+	var i GetBobEmployeeCurrentRow
 	err := row.Scan(
-		&i.ApprovalEntryID,
+		&i.ObjectID,
 		&i.Entity,
-		&i.Name,
-		&i.CategoryID,
-		&i.CategoryApprovalEntryID,
-		&i.CategoryEntity,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.Enabled,
+		&i.UpdatedAt,
+		&i.PartyID,
+		&i.PartyKind,
+		&i.OperatingEntityID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
+		&i.DisplayName,
+		&i.EmployeeCategoryID,
+		&i.EmployeeCategoryApprovalEntryID,
+		&i.EmployeeCategoryCode,
+		&i.EmployeeCategoryName,
 		&i.DepartmentID,
 		&i.DepartmentApprovalEntryID,
-		&i.DepartmentEntity,
+		&i.DepartmentCode,
+		&i.DepartmentName,
 		&i.PositionID,
 		&i.PositionApprovalEntryID,
-		&i.PositionEntity,
+		&i.PositionCode,
+		&i.PositionName,
 		&i.Phone,
 		&i.Email,
 		&i.HireDate,
 		&i.Remark,
+		&i.ApprovalEntryID,
+		&i.Domain,
+		&i.VersionNo,
+		&i.Status,
+		&i.ApprovalRevision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.ApprovalUpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const getBobEmployeeCurrentReference = `-- name: GetBobEmployeeCurrentReference :one
+SELECT object.id AS object_id,object.entity,object.code,
+       current.source_approval_entry_id AS approval_entry_id,party.display_name
+FROM bob_objects object
+JOIN bob_employees current ON current.object_id=object.id
+JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE object.id=$1 AND object.entity='employee'
+  AND relationship.merged_into_object_id IS NULL AND current.enabled
+`
+
+type GetBobEmployeeCurrentReferenceRow struct {
+	ObjectID        string `db:"object_id" json:"object_id"`
+	Entity          string `db:"entity" json:"entity"`
+	Code            string `db:"code" json:"code"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DisplayName     string `db:"display_name" json:"display_name"`
+}
+
+func (q *Queries) GetBobEmployeeCurrentReference(ctx context.Context, objectID string) (GetBobEmployeeCurrentReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getBobEmployeeCurrentReference, objectID)
+	var i GetBobEmployeeCurrentReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.ApprovalEntryID,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -1218,34 +1351,6 @@ func (q *Queries) GetBobOpenCustomerRelationshipPayload(ctx context.Context, app
 	row := q.db.QueryRow(ctx, getBobOpenCustomerRelationshipPayload, approvalEntryID)
 	var i BobCustomerRelationshipVersion
 	err := row.Scan(&i.ApprovalEntryID, &i.Entity)
-	return i, err
-}
-
-const getBobOpenEmployeePayload = `-- name: GetBobOpenEmployeePayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.name, payload.category_id, payload.category_approval_entry_id, payload.category_entity, payload.department_id, payload.department_approval_entry_id, payload.department_entity, payload.position_id, payload.position_approval_entry_id, payload.position_entity, payload.phone, payload.email, payload.hire_date, payload.remark FROM bob_employee_versions payload WHERE payload.approval_entry_id=$1
-`
-
-func (q *Queries) GetBobOpenEmployeePayload(ctx context.Context, approvalEntryID string) (BobEmployeeVersion, error) {
-	row := q.db.QueryRow(ctx, getBobOpenEmployeePayload, approvalEntryID)
-	var i BobEmployeeVersion
-	err := row.Scan(
-		&i.ApprovalEntryID,
-		&i.Entity,
-		&i.Name,
-		&i.CategoryID,
-		&i.CategoryApprovalEntryID,
-		&i.CategoryEntity,
-		&i.DepartmentID,
-		&i.DepartmentApprovalEntryID,
-		&i.DepartmentEntity,
-		&i.PositionID,
-		&i.PositionApprovalEntryID,
-		&i.PositionEntity,
-		&i.Phone,
-		&i.Email,
-		&i.HireDate,
-		&i.Remark,
-	)
 	return i, err
 }
 
@@ -2204,20 +2309,6 @@ func (q *Queries) InsertBobCustomerRelationshipPayload(ctx context.Context, appr
 	return err
 }
 
-const insertBobEmployeePayload = `-- name: InsertBobEmployeePayload :exec
-INSERT INTO bob_employee_versions (approval_entry_id, name) VALUES ($1, $2)
-`
-
-type InsertBobEmployeePayloadParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Name            string `db:"name" json:"name"`
-}
-
-func (q *Queries) InsertBobEmployeePayload(ctx context.Context, arg InsertBobEmployeePayloadParams) error {
-	_, err := q.db.Exec(ctx, insertBobEmployeePayload, arg.ApprovalEntryID, arg.Name)
-	return err
-}
-
 const insertBobEmployeeRelationship = `-- name: InsertBobEmployeeRelationship :exec
 INSERT INTO bob_employment_relationships(object_id,party_id,operating_entity_id,created_by) VALUES($1,$2,$3,$4)
 `
@@ -2745,6 +2836,83 @@ func (q *Queries) ListBobCustomerVersionAttachments(ctx context.Context, approva
 	return items, nil
 }
 
+const listBobEmployees = `-- name: ListBobEmployees :many
+SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
+       current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
+       party.display_name
+FROM bob_objects object
+JOIN bob_employees current ON current.object_id=object.id
+JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE object.entity='employee' AND relationship.merged_into_object_id IS NULL
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN current.updated_at END ASC,
+  CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN current.updated_at END DESC,
+  CASE WHEN $3::text='code' AND $4::text='asc' THEN object.code END ASC,
+  CASE WHEN $3::text='code' AND $4::text='desc' THEN object.code END DESC,
+  CASE WHEN $3::text='name' AND $4::text='asc' THEN party.display_name END ASC,
+  CASE WHEN $3::text='name' AND $4::text='desc' THEN party.display_name END DESC,
+  object.id DESC
+LIMIT $6 OFFSET $5
+`
+
+type ListBobEmployeesParams struct {
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+	SortField     string `db:"sort_field" json:"sort_field"`
+	SortOrder     string `db:"sort_order" json:"sort_order"`
+	RowOffset     int32  `db:"row_offset" json:"row_offset"`
+	RowLimit      int32  `db:"row_limit" json:"row_limit"`
+}
+
+type ListBobEmployeesRow struct {
+	ObjectID        string             `db:"object_id" json:"object_id"`
+	Entity          string             `db:"entity" json:"entity"`
+	Code            string             `db:"code" json:"code"`
+	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	DisplayName     string             `db:"display_name" json:"display_name"`
+}
+
+func (q *Queries) ListBobEmployees(ctx context.Context, arg ListBobEmployeesParams) ([]ListBobEmployeesRow, error) {
+	rows, err := q.db.Query(ctx, listBobEmployees,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobEmployeesRow{}
+	for rows.Next() {
+		var i ListBobEmployeesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Entity,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.ApprovalEntryID,
+			&i.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBobFundAccounts = `-- name: ListBobFundAccounts :many
 SELECT o.id object_id,o.entity,o.code,o.revision object_revision,c.enabled current_enabled,c.updated_at FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR c.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR c.enabled=($2::integer=1)) ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN c.updated_at END ASC, CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN c.updated_at END DESC, CASE WHEN $3::text='code' AND $4::text='asc' THEN o.code END ASC, CASE WHEN $3::text='code' AND $4::text='desc' THEN o.code END DESC, CASE WHEN $3::text='name' AND $4::text='asc' THEN c.name END ASC, CASE WHEN $3::text='name' AND $4::text='desc' THEN c.name END DESC,o.id DESC LIMIT $6 OFFSET $5
 `
@@ -2814,17 +2982,17 @@ FROM bob_objects o
 LEFT JOIN LATERAL (
     SELECT id, version_no, status, revision
     FROM approval_entries
-    WHERE domain = CASE WHEN o.entity='product' THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
+    WHERE domain = CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
     ORDER BY version_no DESC LIMIT 1
 ) approved ON true
 LEFT JOIN LATERAL (
     SELECT id, version_no, status, revision
     FROM approval_entries
-    WHERE domain = CASE WHEN o.entity='product' THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status IN ('DRAFT', 'PENDING')
+    WHERE domain = CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity = o.entity AND subject_id = o.id AND status IN ('DRAFT', 'PENDING')
     ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
-LEFT JOIN bob_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
-LEFT JOIN bob_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
+LEFT JOIN dcl_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
+LEFT JOIN dcl_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
 LEFT JOIN dcl_product_versions approved_product ON approved_product.approval_entry_id=approved.id
 LEFT JOIN dcl_product_versions open_product ON open_product.approval_entry_id=open_entry.id
 LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
@@ -2839,11 +3007,12 @@ LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.obje
 LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
 LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
+LEFT JOIN bob_employment_relationships employee_relation ON employee_relation.object_id=o.id AND o.entity='employee' AND employee_relation.merged_into_object_id IS NULL
+LEFT JOIN bob_party_currents relationship_party ON relationship_party.party_id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id,employee_relation.party_id)
 WHERE o.entity = $1
   AND ($2::text = ''
        OR o.code ILIKE '%' || $2::text || '%'
-       OR COALESCE(approved_employee.name, open_employee.name, approved_product.name, open_product.name,
+       OR COALESCE(approved_product.name, open_product.name,
                    approved_vehicle.name, open_vehicle.name,
                    approved_fund.name, open_fund.name,
                    approved_supplier.name, open_supplier.name, relationship_party.display_name, '')
@@ -2889,8 +3058,8 @@ ORDER BY
   CASE WHEN $16::text='updatedAt' AND $17::text='desc' THEN o.updated_at END DESC,
   CASE WHEN $16::text='code' AND $17::text='asc' THEN o.code END ASC,
   CASE WHEN $16::text='code' AND $17::text='desc' THEN o.code END DESC,
-  CASE WHEN $16::text='name' AND $17::text='asc' THEN COALESCE(open_employee.name,approved_employee.name,open_product.name,approved_product.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END ASC,
-  CASE WHEN $16::text='name' AND $17::text='desc' THEN COALESCE(open_employee.name,approved_employee.name,open_product.name,approved_product.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END DESC,
+  CASE WHEN $16::text='name' AND $17::text='asc' THEN COALESCE(open_product.name,approved_product.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END ASC,
+  CASE WHEN $16::text='name' AND $17::text='desc' THEN COALESCE(open_product.name,approved_product.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END DESC,
   CASE WHEN $16::text='status' AND $17::text='asc' THEN COALESCE(open_entry.status,approved.status,'') END ASC,
   CASE WHEN $16::text='status' AND $17::text='desc' THEN COALESCE(open_entry.status,approved.status,'') END DESC,
   CASE WHEN $16::text='version' AND $17::text='asc' THEN COALESCE(open_entry.version_no,approved.version_no,0) END ASC,
@@ -4411,7 +4580,7 @@ func (q *Queries) QueryBobProductReferenceCandidates(ctx context.Context, arg Qu
 
 const queryBobReferenceCandidates = `-- name: QueryBobReferenceCandidates :many
 SELECT o.id AS object_id, latest.id AS approval_entry_id, o.code,
-       COALESCE(customer.name, supplier.name, employee.name, product.name,
+       COALESCE(customer.name, supplier.name, product.name, employee_party.display_name,
                 other_party.display_name, sales_party.display_name, '')::text AS name,
        COALESCE(product.behavior_profile, '')::text AS behavior_profile,
        COALESCE(product.default_input_unit_id, '')::text AS default_input_unit_id,
@@ -4419,13 +4588,14 @@ SELECT o.id AS object_id, latest.id AS approval_entry_id, o.code,
 FROM bob_objects o
 JOIN LATERAL (
     SELECT id FROM approval_entries
-    WHERE domain=CASE WHEN o.entity='product' THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
+    WHERE domain=CASE WHEN o.entity IN ('product','employee') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
     ORDER BY version_no DESC LIMIT 1
 ) latest ON true
 LEFT JOIN bob_customer_versions customer ON customer.approval_entry_id=latest.id
 LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id=latest.id
-LEFT JOIN bob_employee_versions employee ON employee.approval_entry_id=latest.id
 LEFT JOIN dcl_product_versions product ON product.approval_entry_id=latest.id
+LEFT JOIN bob_employment_relationships employee_relation ON employee_relation.object_id=o.id AND o.entity='employee' AND employee_relation.merged_into_object_id IS NULL
+LEFT JOIN bob_party_currents employee_party ON employee_party.party_id=employee_relation.party_id
 LEFT JOIN bob_service_relationships other_relation ON other_relation.object_id=o.id AND o.entity='other-unit'
 LEFT JOIN bob_party_currents other_party ON other_party.party_id=other_relation.party_id
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
@@ -4433,7 +4603,7 @@ LEFT JOIN bob_party_currents sales_party ON sales_party.party_id=sales_relation.
 WHERE o.entity=$1 AND o.enabled
   AND ($2::text='' OR o.id<>$2::text)
   AND ($3::text='' OR o.code ILIKE '%'||$3::text||'%'
-       OR COALESCE(customer.name,supplier.name,employee.name,product.name,
+       OR COALESCE(customer.name,supplier.name,product.name,employee_party.display_name,
                    other_party.display_name,sales_party.display_name,'') ILIKE '%'||$3::text||'%')
   AND ($4::text='' OR product.behavior_profile=$4::text)
 ORDER BY o.code
@@ -4701,46 +4871,6 @@ func (q *Queries) UpdateBobCustomerPayload(ctx context.Context, arg UpdateBobCus
 	return result.RowsAffected(), nil
 }
 
-const updateBobEmployeePayload = `-- name: UpdateBobEmployeePayload :execrows
-UPDATE bob_employee_versions SET name=$1,category_id=$2,category_approval_entry_id=$3,department_id=$4,department_approval_entry_id=$5,position_id=$6,position_approval_entry_id=$7,phone=$8,email=$9,hire_date=$10,remark=$11 WHERE approval_entry_id=$12
-`
-
-type UpdateBobEmployeePayloadParams struct {
-	Name                      string      `db:"name" json:"name"`
-	CategoryID                *string     `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID   *string     `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	DepartmentID              *string     `db:"department_id" json:"department_id"`
-	DepartmentApprovalEntryID *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
-	PositionID                *string     `db:"position_id" json:"position_id"`
-	PositionApprovalEntryID   *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
-	Phone                     *string     `db:"phone" json:"phone"`
-	Email                     *string     `db:"email" json:"email"`
-	HireDate                  pgtype.Date `db:"hire_date" json:"hire_date"`
-	Remark                    *string     `db:"remark" json:"remark"`
-	ApprovalEntryID           string      `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateBobEmployeePayload(ctx context.Context, arg UpdateBobEmployeePayloadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateBobEmployeePayload,
-		arg.Name,
-		arg.CategoryID,
-		arg.CategoryApprovalEntryID,
-		arg.DepartmentID,
-		arg.DepartmentApprovalEntryID,
-		arg.PositionID,
-		arg.PositionApprovalEntryID,
-		arg.Phone,
-		arg.Email,
-		arg.HireDate,
-		arg.Remark,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateBobOtherUnitPayload = `-- name: UpdateBobOtherUnitPayload :execrows
 UPDATE bob_service_relationship_versions SET contact_name=$1,contact_phone=$2,email=$3,address=$4,settlement_method_id=$5,settlement_method_approval_entry_id=$6,settlement_method_code=$7,settlement_method_name=$8,settlement_term_code=$9,settlement_rule_type=$10,settlement_month_offset=$11,settlement_day_of_month=$12,settlement_day_offset=$13,remark=$14 WHERE approval_entry_id=$15
 `
@@ -4931,6 +5061,33 @@ func (q *Queries) UpdateBobSupplierPayload(ctx context.Context, arg UpdateBobSup
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertBobEmployeeCurrent = `-- name: UpsertBobEmployeeCurrent :exec
+INSERT INTO bob_employees(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
+VALUES($1,$2,$3,now(),$4)
+ON CONFLICT(object_id) DO UPDATE SET
+  source_approval_entry_id=EXCLUDED.source_approval_entry_id,
+  enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by
+`
+
+type UpsertBobEmployeeCurrentParams struct {
+	ObjectID              string `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool   `db:"enabled" json:"enabled"`
+	ActorID               string `db:"actor_id" json:"actor_id"`
+}
+
+// Employee relationship identity remains in BOB; DCL approval applies this
+// minimal current projection after an employee declaration is approved.
+func (q *Queries) UpsertBobEmployeeCurrent(ctx context.Context, arg UpsertBobEmployeeCurrentParams) error {
+	_, err := q.db.Exec(ctx, upsertBobEmployeeCurrent,
+		arg.ObjectID,
+		arg.SourceApprovalEntryID,
+		arg.Enabled,
+		arg.ActorID,
+	)
+	return err
 }
 
 const upsertBobFundAccountCurrent = `-- name: UpsertBobFundAccountCurrent :exec

@@ -11,6 +11,7 @@ import (
 
 const (
 	EntityProductCategory  = "product-category"
+	EntityEmployeeCategory = "employee-category"
 	EntityProductType      = "product-type"
 	EntityDepartment       = "department"
 	EntityPosition         = "position"
@@ -25,6 +26,7 @@ const (
 
 var entities = [...]string{
 	EntityProductCategory,
+	EntityEmployeeCategory,
 	EntityProductType,
 	EntityDepartment,
 	EntityPosition,

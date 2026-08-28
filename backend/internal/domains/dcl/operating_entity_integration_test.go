@@ -52,7 +52,7 @@ func newDCLIntegrationBOBService(pool *pgxpool.Pool, auxiliary *auxdomain.Servic
 func resetDCLIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
-		TRUNCATE dcl_subjects, bob_parties, bob_objects, approval_events, approval_entries, object_number_counters CASCADE
+		TRUNCATE dcl_subjects, bob_parties, bob_objects, aux_objects, approval_events, approval_entries, object_number_counters CASCADE
 	`); err != nil {
 		t.Fatalf("reset DCL integration data: %v", err)
 	}

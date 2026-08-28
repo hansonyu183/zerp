@@ -8,6 +8,7 @@ export type DclDeclarationEntity =
   | 'vehicle'
   | 'fund-account'
   | 'product'
+  | 'employee'
 export type DclDeclarationLifecycleAction =
   'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
 export type DclDeclarationWireAction =
@@ -80,7 +81,8 @@ export function isDclDeclarationEntity(
     entity === 'warehouse' ||
     entity === 'vehicle' ||
     entity === 'fund-account' ||
-    entity === 'product'
+    entity === 'product' ||
+    entity === 'employee'
   )
 }
 

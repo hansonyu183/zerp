@@ -3334,6 +3334,483 @@
                 },
             },
         },
+      '/dcl/employee/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建员工申报草稿',
+              'operationId': 'dclEmployeeCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存员工申报草稿',
+              'operationId': 'dclEmployeeSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交员工申报审核',
+              'operationId': 'dclEmployeeSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回员工申报审核',
+              'operationId': 'dclEmployeeUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回员工申报',
+              'operationId': 'dclEmployeeReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准员工申报',
+              'operationId': 'dclEmployeeApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批员工申报',
+              'operationId': 'dclEmployeeUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除员工申报草稿',
+              'operationId': 'dclEmployeeDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/employee/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取员工申报',
+              'operationId': 'dclEmployeeGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工申报。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询员工申报列表',
+              'operationId': 'dclEmployeeQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工申报列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询员工申报版本',
+              'operationId': 'dclEmployeeVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工申报版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/employee/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询员工申报审核历史',
+              'operationId': 'dclEmployeeAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclEmployeeHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工申报审核历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclEmployeeAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/dcl/party/save':
         {
           'post':
@@ -7121,47 +7598,6 @@
                 },
             },
         },
-      '/bob/employee/create':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '原子创建雇佣关系及其主体',
-              'operationId': 'employeeCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/EmploymentCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '已创建的员工版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
       '/bob/{entity}/query':
         {
           'post':
@@ -7237,88 +7673,6 @@
                               'schema':
                                 {
                                   '$ref': './schemas/bob.yaml#/BobObjectResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/create':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '创建业务对象草稿',
-              'operationId': 'bobcreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobCreateRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/{entity}/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存业务对象草稿',
-              'operationId': 'bobsave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters':
-                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobSaveRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '业务对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
                                 },
                             },
                         },
@@ -10208,13 +10562,6 @@
         },
       'parameters':
         {
-          'BobCrudEntity':
-            {
-              'name': 'entity',
-              'in': 'path',
-              'required': true,
-              'schema': { '$ref': './schemas/bob.yaml#/BobCrudEntity' },
-            },
           'BobReadableEntity':
             {
               'name': 'entity',

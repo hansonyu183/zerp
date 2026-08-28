@@ -3,6 +3,7 @@ AuxEntity:
   enum:
     - product-category
     - product-type
+    - employee-category
     - department
     - position
     - settlement-method
@@ -38,6 +39,19 @@ AuxProductTypeData:
       maxLength: 200
     behaviorProfile:
       $ref: '#/ProductBehaviorProfile'
+    description:
+      type: string
+      maxLength: 1000
+
+AuxEmployeeCategoryData:
+  type: object
+  additionalProperties: false
+  required: [name, description]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 200
     description:
       type: string
       maxLength: 1000

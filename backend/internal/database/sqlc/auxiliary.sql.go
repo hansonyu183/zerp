@@ -45,11 +45,15 @@ WITH current_bob_entries AS (
     SELECT entry.id FROM approval_entries entry
     WHERE entry.domain='dcl' AND entry.entity='product' AND entry.status='APPROVED'
       AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='product' AND newer.subject_id=entry.subject_id AND newer.status='APPROVED' AND newer.version_no>entry.version_no)
+), current_dcl_employee_entries AS (
+    SELECT entry.id FROM approval_entries entry
+    WHERE entry.domain='dcl' AND entry.entity='employee' AND entry.status='APPROVED'
+      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='employee' AND newer.subject_id=entry.subject_id AND newer.status='APPROVED' AND newer.version_no>entry.version_no)
 ), bob_refs AS (
     SELECT category_approval_entry_id AS entry_id FROM bob_customer_relationship_attachments
     UNION ALL SELECT attachment.category_approval_entry_id FROM bob_customer_version_attachments attachment JOIN current_bob_entries current_entry ON current_entry.id=attachment.approval_entry_id
     UNION ALL SELECT reference.entry_id FROM bob_customer_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.settlement_method_approval_entry_id,payload.payment_method_approval_entry_id]) reference(entry_id)
-    UNION ALL SELECT reference.entry_id FROM bob_employee_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.department_approval_entry_id,payload.position_approval_entry_id]) reference(entry_id)
+    UNION ALL SELECT reference.entry_id FROM dcl_employee_versions payload JOIN current_dcl_employee_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.employee_category_approval_entry_id,payload.department_approval_entry_id,payload.position_approval_entry_id]) reference(entry_id)
     UNION ALL SELECT payload.entered_unit_approval_entry_id FROM dcl_product_formula_lines payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
     UNION ALL SELECT payload.output_unit_approval_entry_id FROM dcl_product_formulas payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id
     UNION ALL SELECT payload.unit_approval_entry_id FROM dcl_product_unit_conversions payload JOIN current_dcl_product_entries current_entry ON current_entry.id=payload.product_approval_entry_id

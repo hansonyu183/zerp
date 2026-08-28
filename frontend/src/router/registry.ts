@@ -154,6 +154,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/dcl/fund-account/FundAccount.vue'),
   }),
   registerPage('dcl', {
+    entity: 'employee',
+    entityTitle: '人员申报',
+    icon: 'mdi-badge-account-horizontal-outline',
+    order: 45,
+    component: () => import('@/pages/dcl/employee/Employee.vue'),
+  }),
+  registerPage('dcl', {
     entity: 'product',
     entityTitle: '产品申报',
     icon: 'mdi-package-variant-closed',
@@ -321,6 +328,14 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-office-building-outline',
     order: 20,
     component: () => import('@/pages/aux/department/Department.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'employee-category',
+    entityTitle: '人员类别',
+    icon: 'mdi-account-tag-outline',
+    order: 25,
+    component: () =>
+      import('@/pages/aux/employee-category/EmployeeCategory.vue'),
   }),
   registerPage('aux', {
     entity: 'position',

@@ -655,23 +655,12 @@ type BobCustomerVersionAttachment struct {
 	CreatedBy               string             `db:"created_by" json:"created_by"`
 }
 
-type BobEmployeeVersion struct {
-	ApprovalEntryID           string      `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                    string      `db:"entity" json:"entity"`
-	Name                      string      `db:"name" json:"name"`
-	CategoryID                *string     `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID   *string     `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity            string      `db:"category_entity" json:"category_entity"`
-	DepartmentID              *string     `db:"department_id" json:"department_id"`
-	DepartmentApprovalEntryID *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
-	DepartmentEntity          string      `db:"department_entity" json:"department_entity"`
-	PositionID                *string     `db:"position_id" json:"position_id"`
-	PositionApprovalEntryID   *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
-	PositionEntity            string      `db:"position_entity" json:"position_entity"`
-	Phone                     *string     `db:"phone" json:"phone"`
-	Email                     *string     `db:"email" json:"email"`
-	HireDate                  pgtype.Date `db:"hire_date" json:"hire_date"`
-	Remark                    *string     `db:"remark" json:"remark"`
+type BobEmployee struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobEmploymentRelationship struct {
@@ -946,6 +935,27 @@ type BobWarehouse struct {
 	Enabled                        bool               `db:"enabled" json:"enabled"`
 	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
+}
+
+type DclEmployeeVersion struct {
+	ApprovalEntryID                 string      `db:"approval_entry_id" json:"approval_entry_id"`
+	EmployeeCategoryID              *string     `db:"employee_category_id" json:"employee_category_id"`
+	EmployeeCategoryApprovalEntryID *string     `db:"employee_category_approval_entry_id" json:"employee_category_approval_entry_id"`
+	EmployeeCategoryCode            *string     `db:"employee_category_code" json:"employee_category_code"`
+	EmployeeCategoryName            *string     `db:"employee_category_name" json:"employee_category_name"`
+	DepartmentID                    *string     `db:"department_id" json:"department_id"`
+	DepartmentApprovalEntryID       *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode                  *string     `db:"department_code" json:"department_code"`
+	DepartmentName                  *string     `db:"department_name" json:"department_name"`
+	PositionID                      *string     `db:"position_id" json:"position_id"`
+	PositionApprovalEntryID         *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
+	PositionCode                    *string     `db:"position_code" json:"position_code"`
+	PositionName                    *string     `db:"position_name" json:"position_name"`
+	Phone                           *string     `db:"phone" json:"phone"`
+	Email                           *string     `db:"email" json:"email"`
+	HireDate                        pgtype.Date `db:"hire_date" json:"hire_date"`
+	Remark                          *string     `db:"remark" json:"remark"`
+	Enabled                         bool        `db:"enabled" json:"enabled"`
 }
 
 type DclFundAccountIdentifierClaim struct {

@@ -2,7 +2,7 @@
 
 ## 1. 领域职责
 
-DCL（Declaration Control）拥有需要经过审批后才投影到业务运行面的申报主体与强类型申报快照。当前实体是 `operating-entity`、`warehouse`、`vehicle`、`fund-account`、`product` 与 `party`：DCL 拥有申报创建、候选编辑、提交、撤回、驳回、批准、反批、草稿删除、版本历史和审计读取；中央 Approval 唯一拥有版本号、状态、revision、审批元数据和审批事件；BOB 只拥有批准结果的当前业务投影、业务编码以及面向交易的引用解析。
+DCL（Declaration Control）拥有需要经过审批后才投影到业务运行面的申报主体与强类型申报快照。当前实体是 `operating-entity`、`warehouse`、`vehicle`、`fund-account`、`product`、`party` 与 `employee`：DCL 拥有申报创建、候选编辑、提交、撤回、驳回、批准、反批、草稿删除、版本历史和审计读取；中央 Approval 唯一拥有版本号、状态、revision、审批元数据和审批事件；BOB 只拥有批准结果的当前业务投影、业务编码以及面向交易的引用解析。
 
 DCL 不复制 Approval 版本头，不保存 `currentVersionId`、`effectiveVersionId`、`baseVersionId` 或 `nextVersionNo`。DCL 也不提供 BOB 写入别名、双写、过渡视图或失败回退。
 
@@ -17,7 +17,7 @@ DCL 不复制 Approval 版本头，不保存 `currentVersionId`、`effectiveVers
 版本语义完全复用 [Approval Version](approval.md#6-approval-version)：
 
 1. V1 草稿不存在 BOB 当前投影，不能被交易引用；
-2. V1 批准后，同一事务把该快照写入对应的 `bob_operating_entities`、`bob_warehouses`、`bob_vehicles`、`bob_fund_accounts` 或 `bob_products` 当前投影；
+2. V1 批准后，同一事务把该快照写入对应的 `bob_operating_entities`、`bob_warehouses`、`bob_vehicles`、`bob_fund_accounts`、`bob_products` 或 employee current 投影；
 3. V2 为 `DRAFT` 或 `PENDING` 时，BOB 当前投影继续指向 V1；
 4. V2 批准后，同一事务把当前投影切换到 V2；
 5. 反批 V2 后，当前投影回落到仍为 `APPROVED` 的 V1；
@@ -63,16 +63,24 @@ Party stable root 永久保存身份 ID 与合并状态；`dcl_party_versions` �
 
 `/dcl/party` 是共享身份候选、影响预览、审批、版本、审计和合并维护入口；`/bob/party` 只提供 current `query|get`。V1 与首条关系属于同一原子事实，V1 草稿不得从 Party 页面独立删除；已有正式版本时才可删除其后续 `DRAFT` candidate 并释放候选强标识。批准或反批在同一 transaction 创建、替换、回落或移除 Party current source。强标识“类型 + 规范化值”在 latest approved 与唯一 open candidate 间共同占用；合并、审批或投影失败不得部分改变占用、current 或关系。合并预检固定以双方 current `sourceApprovalEntryId + revision` 为 stale token；双方必须 current approved 且无 open Party candidate，确认仅消费同一预检与显式关系冲突选择，并在 transaction 内复核 token、关系状态和 fingerprint。来源 root 合并后移除 current identifiers 与 BOB current，DCL 历史及 identifier claim 继续保留；DCL 审计按时间统一展示声明 lifecycle 与主体合并事件。历史 VOU 与关系 snapshot 不追溯改写。
 
+## 3.6 员工申报
+
+员工 stable root 固定为 `bob_objects(entity=employee)`，而 `bob_employment_relationships` 保留员工、Party 与经营主体的不可变雇佣边界。`dcl_employee_versions` 以 `approvalEntryId` 保存完整 employee snapshot：人员类别、部门、岗位、工作电话、工作邮箱、入职日期、备注与 `enabled`；它不复制 Party identity 或姓名。人员类别、部门、岗位与经营主体均同时保存 stable ID、精确 Approval Entry、编码及名称快照。
+
+`/dcl/employee` 是员工唯一维护入口，`/bob/employee` 只提供 current `query|get|reference`。创建请求必须选择已有 Party，或提交 `newParty`；新 Party 时同一 transaction 建立 Party root、DCL Party V1 candidate、员工 root、雇佣边界和员工 V1 candidate。employee 的 submit 与 approve 都要求 Party current approved；候选创建和保存按 latest approved 解析 AUX 与经营主体来源，submit/approve 时重新校验所有已保存精确来源仍是 latest approved。V1 的 `enabled` 默认为 `true`；后续启停通过包含 `enabled` 的完整 DCL candidate 保存，不存在 BOB 直接 `enable/disable`。
+
+批准或反批在同一 transaction 创建、替换、回落或移除 BOB employee current source。BOB current 明确返回来源 Approval Entry；VOU/ACC 与其他正式事实继续保存 employee stable ID、精确 Approval Entry 以及各自所需 snapshot。任一正式事实精确引用目标 employee entry 时，反批必须返回 blocker；新 employee candidate 和后续批准版本不改写历史。
+
 ## 4. 原子性与引用
 
-DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照、同步发布强类型事件以及应用或移除 BOB 当前投影。产品 current source 随版本整体切换，并由该 source 唯一指向完整 DCL snapshot。任一 Approval subscriber 或当前投影写入失败时，entry、event、DCL snapshot 和 BOB current 必须全部回滚。
+DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照、同步发布强类型事件以及应用或移除 BOB 当前投影。产品与员工 current source 随版本整体切换，并由该 source 唯一指向完整 DCL snapshot。任一 Approval subscriber 或当前投影写入失败时，entry、event、DCL snapshot 和 BOB current 必须全部回滚。
 
 BOB 对新业务解析 current/latest approved，并返回稳定 ID、来源 `approvalEntryId`、编码和类型化资料快照；已保存业务继续按精确 `approvalEntryId` 校验历史批准快照。旧批准版本不会因新版本批准而删除或改写。反批前必须执行 BOB 领域的精确版本引用 blocker；只允许反批 Approval 判断的 latest approved。
 
 ## 5. 权限
 
-DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history` 精确授权。Party 的 `create` 仅由首条关系创建事务消耗，不提供独立 DCL create 页面。BOB 当前档案页面只检查 BOB `query` 与 `get`，不得因用户具有 DCL 权限而显示 BOB 生命周期动作。权限切换保留已有角色分配但不保留旧 BOB 写路径；仓库、车辆、资金账户与产品原 `enable/disable` 权限 ID 仅降级承载 DCL `get/query`，启停申请本身要求对应 DCL `save`。
+DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history` 精确授权。Party 的 `create` 仅由首条关系创建事务消耗，不提供独立 DCL create 页面。BOB 当前档案页面只检查 BOB `query`、`get` 与 `reference`，不得因用户具有 DCL 权限而显示 BOB 生命周期动作。权限切换保留已有角色分配但不保留旧 BOB 写路径；仓库、车辆、资金账户、产品与员工原 BOB 写/启停权限不再暴露，启停申请本身要求对应 DCL `save`。
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖 V1/V2 正式投影切换与回落、V1 反批后不可引用、草稿删除后候选号复用、同一主体唯一开放候选、并发保存最多一个成功、只反批 latest approved，以及 subscriber 或 BOB current 写入失败时整笔事务回滚。仓库还必须覆盖四类停用 blocker 与 VOU 精确版本引用 blocker；车辆还必须覆盖承运归属两种来源、车型与承运方漂移、VOU 精确版本引用 blocker 和历史运输快照不变；资金账户还必须覆盖经营主体来源漂移、账号正式版与候选版共同占用及回落冲突、VOU 精确版本 blocker、VOU 快照不变，以及 ACC 通过不可变 VOU 来源保持可追溯；产品还必须覆盖完整单位/配方 snapshot、AUX 与原料来源漂移、条码占用、current 切换与回落、正式引用 blocker、并发候选、投影失败回滚和 VOU/库存/生产/ACC 历史不变。HTTP 与前端验收必须证明旧 BOB 写路由与权限不存在、DCL 页面独占 DCL 候选及生命周期编排、BOB 页面只读取当前正式投影、APP 深链进入 DCL，以及 BOB 引用仍能校验精确历史快照。
+真实 PostgreSQL 验收必须覆盖 V1/V2 正式投影切换与回落、V1 反批后不可引用、草稿删除后候选号复用、同一主体唯一开放候选、并发保存最多一个成功、只反批 latest approved，以及 subscriber 或 BOB current 写入失败时整笔事务回滚。员工还必须覆盖 Party approved 前 submit/approve blocker、AUX 与经营主体精确来源、employee current source、正式引用 blocker、反批回落和 VOU/ACC 历史快照不变。仓库还必须覆盖四类停用 blocker 与 VOU 精确版本引用 blocker；车辆还必须覆盖承运归属两种来源、车型与承运方漂移、VOU 精确版本引用 blocker 和历史运输快照不变；资金账户还必须覆盖经营主体来源漂移、账号正式版与候选版共同占用及回落冲突、VOU 精确版本 blocker、VOU 快照不变，以及 ACC 通过不可变 VOU 来源保持可追溯；产品还必须覆盖完整单位/配方 snapshot、AUX 与原料来源漂移、条码占用、current 切换与回落、正式引用 blocker、并发候选、投影失败回滚和 VOU/库存/生产/ACC 历史不变。HTTP 与前端验收必须证明旧 BOB 写路由与权限不存在、DCL 页面独占 DCL 候选及生命周期编排、BOB 页面只读取当前正式投影、APP 深链进入 DCL，以及 BOB 引用仍能校验精确历史快照。

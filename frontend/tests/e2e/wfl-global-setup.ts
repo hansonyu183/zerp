@@ -454,11 +454,21 @@ async function createEffectiveEmployment(
   name: string,
   operatingEntityId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('bob/employee/create', {
+  const created = await operator.post<BobMutation>('dcl/employee/create', {
     newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
-    data: { operatingEntityId },
+    operatingEntityId,
+    data: {},
   })
-  return approveBob(operator, reviewer, 'employee', created)
+  const submitted = await operator.post<BobMutation>('dcl/employee/submit', {
+    objectId: created.objectId,
+    approvalEntryId: created.approval.approvalEntryId,
+    approvalRevision: created.approval.revision,
+  })
+  return reviewer.post<BobMutation>('dcl/employee/approve', {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
 }
 
 async function createEffectiveSupplier(

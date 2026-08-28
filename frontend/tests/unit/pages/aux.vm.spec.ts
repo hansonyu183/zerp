@@ -23,6 +23,19 @@ describe('AUX entity view model', () => {
     ]
   })
 
+  it('registers employee categories as a standard AUX entity', () => {
+    expect(auxConfigs['employee-category']).toMatchObject({
+      entity: 'employee-category',
+      title: '人员类别',
+      defaults: expect.any(Function),
+    })
+    expect(auxConfigs['employee-category'].fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'name', label: '名称', required: true }),
+      ]),
+    )
+  })
+
   it('新增时不展示或提交编码', async () => {
     const vm = createAuxEntityViewModel(auxConfigs.position)
     vm.openCreate()

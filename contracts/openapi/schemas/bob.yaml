@@ -20,8 +20,8 @@
   'BobCrudEntity':
     {
       'type': 'string',
-      'enum': ['employee'],
-      'description': '仍使用通用 CRUD 契约的 BOB 实体；客户和供应商使用各自的封闭契约，Product 写入由 DCL typed 契约承担。',
+      'enum': [],
+      'description': '没有仍暴露通用 CRUD HTTP 路径的 BOB 实体。',
     },
   'BobReadableEntity':
     {
@@ -45,11 +45,10 @@
           'customer',
           'customer-account',
           'supplier',
-          'employee',
           'other-unit',
           'sales-partner',
         ],
-      'description': '仍由 BOB 承担审批生命周期的实体；经营主体和 Product 由 DCL typed lifecycle 承担。',
+      'description': '仍由 BOB 承担审批生命周期的实体；经营主体、产品与员工由 DCL typed lifecycle 承担。',
     },
   'BobQueryRequest':
     {
@@ -212,48 +211,6 @@
           'objectId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
         },
-    },
-  'EmploymentData':
-    {
-      'type': 'object',
-      'required': ['operatingEntityId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'operatingEntityId': { 'type': 'string' },
-          'departmentId': { 'type': 'string', 'nullable': true },
-          'positionId': { 'type': 'string', 'nullable': true },
-          'phone': { 'type': 'string', 'nullable': true },
-          'email': { 'type': 'string', 'nullable': true },
-          'hireDate': { 'type': 'string', 'nullable': true, 'format': 'date' },
-          'remark': { 'type': 'string', 'nullable': true },
-        },
-    },
-  'EmploymentCreateRequest':
-    {
-      'oneOf':
-        [
-          {
-            'type': 'object',
-            'required': ['partyId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'partyId': { 'type': 'string' },
-                'data': { '$ref': '#/EmploymentData' },
-              },
-          },
-          {
-            'type': 'object',
-            'required': ['newParty', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'newParty': { '$ref': '#/PartyIdentityData' },
-                'data': { '$ref': '#/EmploymentData' },
-              },
-          },
-        ],
     },
   'BobCreateRequest':
     {
@@ -913,6 +870,12 @@
           'code': { 'type': 'string' },
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
+          'sourceApprovalEntryId':
+            {
+              'type': 'string',
+              'nullable': true,
+              'description': 'DCL current 投影的精确来源 Approval Entry；employee 必须返回该值。',
+            },
           'latestApproved':
             { '$ref': '#/CustomerVersionView', 'nullable': true },
           'openVersion': { '$ref': '#/CustomerVersionView', 'nullable': true },
@@ -1843,14 +1806,7 @@
   'PartyListItem':
     {
       'type': 'object',
-      'required':
-        [
-          'partyId',
-          'kind',
-          'legalName',
-          'displayName',
-          'updatedAt',
-        ],
+      'required': ['partyId', 'kind', 'legalName', 'displayName', 'updatedAt'],
       'additionalProperties': false,
       'properties':
         {
@@ -2607,6 +2563,12 @@
           'code': { 'type': 'string' },
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
+          'sourceApprovalEntryId':
+            {
+              'type': 'string',
+              'nullable': true,
+              'description': 'DCL current 投影的精确来源 Approval Entry；employee 必须返回该值。',
+            },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/BobDetailView' },

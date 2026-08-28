@@ -11,6 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const copyDCLEmployeeVersion = `-- name: CopyDCLEmployeeVersion :execrows
+INSERT INTO dcl_employee_versions(
+  approval_entry_id,employee_category_id,employee_category_approval_entry_id,
+  employee_category_code,employee_category_name,department_id,department_approval_entry_id,
+  department_code,department_name,position_id,position_approval_entry_id,position_code,
+  position_name,phone,email,hire_date,remark,enabled
+)
+SELECT $1,source.employee_category_id,
+  source.employee_category_approval_entry_id,source.employee_category_code,source.employee_category_name,
+  source.department_id,source.department_approval_entry_id,source.department_code,source.department_name,
+  source.position_id,source.position_approval_entry_id,source.position_code,source.position_name,source.phone,source.email,
+  source.hire_date,source.remark,source.enabled
+FROM dcl_employee_versions source
+WHERE source.approval_entry_id=$2
+`
+
+type CopyDCLEmployeeVersionParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLEmployeeVersion(ctx context.Context, arg CopyDCLEmployeeVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, copyDCLEmployeeVersion, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const copyDCLFundAccountVersion = `-- name: CopyDCLFundAccountVersion :execrows
 INSERT INTO dcl_fund_account_versions(approval_entry_id,entity,name,currency,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled)
 SELECT $1,source.entity,source.name,source.currency,source.account_name,source.bank_name,source.bank_branch,source.account_number,source.remark,source.operating_entity_id,source.operating_entity_approval_entry_id,source.operating_entity_code,source.operating_entity_name,source.enabled FROM dcl_fund_account_versions source WHERE source.approval_entry_id=$2
@@ -130,6 +159,82 @@ func (q *Queries) CopyDCLWarehouseVersion(ctx context.Context, arg CopyDCLWareho
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const countDCLEmployeeApprovalEvents = `-- name: CountDCLEmployeeApprovalEvents :one
+SELECT count(*) FROM approval_events
+WHERE domain='dcl' AND entity='employee' AND subject_id=$1
+`
+
+func (q *Queries) CountDCLEmployeeApprovalEvents(ctx context.Context, objectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLEmployeeApprovalEvents, objectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLEmployees = `-- name: CountDCLEmployees :one
+SELECT count(*)
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='employee'
+JOIN bob_employment_relationships relationship ON relationship.object_id=subject.id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name
+  FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+    AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
+  LIMIT 1
+) party ON true
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+  AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
+    AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
+    AND status='APPROVED' ORDER BY version_no DESC LIMIT 1
+) approved ON true
+JOIN dcl_employee_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR display.enabled=($2::integer=1))
+  AND ($3::text='' OR relationship.operating_entity_id=$3::text)
+  AND ($4::text='' OR display.employee_category_id=$4::text)
+  AND ($5::text='' OR display.department_id=$5::text)
+  AND ($6::text='' OR display.position_id=$6::text)
+  AND (cardinality($7::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($7::text[]))
+`
+
+type CountDCLEmployeesParams struct {
+	Keyword            string   `db:"keyword" json:"keyword"`
+	EnabledFilter      int32    `db:"enabled_filter" json:"enabled_filter"`
+	OperatingEntityID  string   `db:"operating_entity_id" json:"operating_entity_id"`
+	EmployeeCategoryID string   `db:"employee_category_id" json:"employee_category_id"`
+	DepartmentID       string   `db:"department_id" json:"department_id"`
+	PositionID         string   `db:"position_id" json:"position_id"`
+	StatusFilter       []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountDCLEmployees(ctx context.Context, arg CountDCLEmployeesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLEmployees,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.OperatingEntityID,
+		arg.EmployeeCategoryID,
+		arg.DepartmentID,
+		arg.PositionID,
+		arg.StatusFilter,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countDCLFundAccountApprovalEvents = `-- name: CountDCLFundAccountApprovalEvents :one
@@ -375,6 +480,18 @@ func (q *Queries) CountDCLWarehouses(ctx context.Context, arg CountDCLWarehouses
 	return count, err
 }
 
+const deleteDCLEmployeeVersion = `-- name: DeleteDCLEmployeeVersion :execrows
+DELETE FROM dcl_employee_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLEmployeeVersion(ctx context.Context, approvalEntryID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLEmployeeVersion, approvalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteDCLFundAccountIdentifierClaims = `-- name: DeleteDCLFundAccountIdentifierClaims :exec
 DELETE FROM dcl_fund_account_identifier_claims WHERE object_id=$1
 `
@@ -538,6 +655,91 @@ func (q *Queries) FindDCLVehicleIdentifierConflict(ctx context.Context, objectID
 	return i, err
 }
 
+const getDCLEmployeeVersion = `-- name: GetDCLEmployeeVersion :one
+SELECT snapshot.approval_entry_id, snapshot.employee_category_id, snapshot.employee_category_approval_entry_id, snapshot.employee_category_code, snapshot.employee_category_name, snapshot.department_id, snapshot.department_approval_entry_id, snapshot.department_code, snapshot.department_name, snapshot.position_id, snapshot.position_approval_entry_id, snapshot.position_code, snapshot.position_name, snapshot.phone, snapshot.email, snapshot.hire_date, snapshot.remark, snapshot.enabled,relationship.party_id,party.kind AS party_kind,
+       party.display_name,relationship.operating_entity_id,
+       operating.code AS operating_entity_code,
+       operating_current.legal_name AS operating_entity_name
+FROM dcl_employee_versions snapshot
+JOIN approval_entries entry ON entry.id=snapshot.approval_entry_id
+  AND entry.domain='dcl' AND entry.entity='employee'
+JOIN bob_employment_relationships relationship ON relationship.object_id=entry.subject_id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name
+  FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+    AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
+  LIMIT 1
+) party ON true
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+  AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+WHERE snapshot.approval_entry_id=$1
+  AND relationship.merged_into_object_id IS NULL
+`
+
+type GetDCLEmployeeVersionRow struct {
+	ApprovalEntryID                 string      `db:"approval_entry_id" json:"approval_entry_id"`
+	EmployeeCategoryID              *string     `db:"employee_category_id" json:"employee_category_id"`
+	EmployeeCategoryApprovalEntryID *string     `db:"employee_category_approval_entry_id" json:"employee_category_approval_entry_id"`
+	EmployeeCategoryCode            *string     `db:"employee_category_code" json:"employee_category_code"`
+	EmployeeCategoryName            *string     `db:"employee_category_name" json:"employee_category_name"`
+	DepartmentID                    *string     `db:"department_id" json:"department_id"`
+	DepartmentApprovalEntryID       *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode                  *string     `db:"department_code" json:"department_code"`
+	DepartmentName                  *string     `db:"department_name" json:"department_name"`
+	PositionID                      *string     `db:"position_id" json:"position_id"`
+	PositionApprovalEntryID         *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
+	PositionCode                    *string     `db:"position_code" json:"position_code"`
+	PositionName                    *string     `db:"position_name" json:"position_name"`
+	Phone                           *string     `db:"phone" json:"phone"`
+	Email                           *string     `db:"email" json:"email"`
+	HireDate                        pgtype.Date `db:"hire_date" json:"hire_date"`
+	Remark                          *string     `db:"remark" json:"remark"`
+	Enabled                         bool        `db:"enabled" json:"enabled"`
+	PartyID                         string      `db:"party_id" json:"party_id"`
+	PartyKind                       string      `db:"party_kind" json:"party_kind"`
+	DisplayName                     string      `db:"display_name" json:"display_name"`
+	OperatingEntityID               string      `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode             string      `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName             string      `db:"operating_entity_name" json:"operating_entity_name"`
+}
+
+func (q *Queries) GetDCLEmployeeVersion(ctx context.Context, approvalEntryID string) (GetDCLEmployeeVersionRow, error) {
+	row := q.db.QueryRow(ctx, getDCLEmployeeVersion, approvalEntryID)
+	var i GetDCLEmployeeVersionRow
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.EmployeeCategoryID,
+		&i.EmployeeCategoryApprovalEntryID,
+		&i.EmployeeCategoryCode,
+		&i.EmployeeCategoryName,
+		&i.DepartmentID,
+		&i.DepartmentApprovalEntryID,
+		&i.DepartmentCode,
+		&i.DepartmentName,
+		&i.PositionID,
+		&i.PositionApprovalEntryID,
+		&i.PositionCode,
+		&i.PositionName,
+		&i.Phone,
+		&i.Email,
+		&i.HireDate,
+		&i.Remark,
+		&i.Enabled,
+		&i.PartyID,
+		&i.PartyKind,
+		&i.DisplayName,
+		&i.OperatingEntityID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
+	)
+	return i, err
+}
+
 const getDCLFundAccountVersion = `-- name: GetDCLFundAccountVersion :one
 SELECT approval_entry_id, entity, name, currency, account_name, bank_name, bank_branch, account_number, remark, operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, enabled FROM dcl_fund_account_versions WHERE approval_entry_id=$1
 `
@@ -690,6 +892,44 @@ func (q *Queries) GetDCLWarehouseVersion(ctx context.Context, approvalEntryID st
 	return i, err
 }
 
+const getLatestApprovedDCLEmployeeVersionExcluding = `-- name: GetLatestApprovedDCLEmployeeVersionExcluding :one
+SELECT id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,
+       updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+FROM approval_entries
+WHERE domain='dcl' AND entity='employee' AND subject_id=$1
+  AND status='APPROVED' AND id<>$2
+ORDER BY version_no DESC
+LIMIT 1
+`
+
+type GetLatestApprovedDCLEmployeeVersionExcludingParams struct {
+	ObjectID                string `db:"object_id" json:"object_id"`
+	ExcludedApprovalEntryID string `db:"excluded_approval_entry_id" json:"excluded_approval_entry_id"`
+}
+
+func (q *Queries) GetLatestApprovedDCLEmployeeVersionExcluding(ctx context.Context, arg GetLatestApprovedDCLEmployeeVersionExcludingParams) (ApprovalEntry, error) {
+	row := q.db.QueryRow(ctx, getLatestApprovedDCLEmployeeVersionExcluding, arg.ObjectID, arg.ExcludedApprovalEntryID)
+	var i ApprovalEntry
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.Entity,
+		&i.SubjectID,
+		&i.VersionNo,
+		&i.Status,
+		&i.Revision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
 const getLatestApprovedDCLVehicleVersionExcluding = `-- name: GetLatestApprovedDCLVehicleVersionExcluding :one
 SELECT id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status='APPROVED' AND id<>$2 ORDER BY version_no DESC LIMIT 1
 `
@@ -758,6 +998,71 @@ func (q *Queries) GetLatestApprovedDCLWarehouseVersionExcluding(ctx context.Cont
 		&i.ApprovedAt,
 	)
 	return i, err
+}
+
+const insertDCLEmployeeVersion = `-- name: InsertDCLEmployeeVersion :exec
+INSERT INTO dcl_employee_versions(
+  approval_entry_id,employee_category_id,employee_category_approval_entry_id,
+  employee_category_code,employee_category_name,department_id,department_approval_entry_id,
+  department_code,department_name,position_id,position_approval_entry_id,position_code,
+  position_name,phone,email,hire_date,remark,enabled
+) VALUES(
+  $1,$2,
+  $3,$4,
+  $5,$6,
+  $7,$8,
+  $9,$10,
+  $11,$12,
+  $13,$14,$15,$16,
+  $17,$18
+)
+`
+
+type InsertDCLEmployeeVersionParams struct {
+	ApprovalEntryID                 string      `db:"approval_entry_id" json:"approval_entry_id"`
+	EmployeeCategoryID              *string     `db:"employee_category_id" json:"employee_category_id"`
+	EmployeeCategoryApprovalEntryID *string     `db:"employee_category_approval_entry_id" json:"employee_category_approval_entry_id"`
+	EmployeeCategoryCode            *string     `db:"employee_category_code" json:"employee_category_code"`
+	EmployeeCategoryName            *string     `db:"employee_category_name" json:"employee_category_name"`
+	DepartmentID                    *string     `db:"department_id" json:"department_id"`
+	DepartmentApprovalEntryID       *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode                  *string     `db:"department_code" json:"department_code"`
+	DepartmentName                  *string     `db:"department_name" json:"department_name"`
+	PositionID                      *string     `db:"position_id" json:"position_id"`
+	PositionApprovalEntryID         *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
+	PositionCode                    *string     `db:"position_code" json:"position_code"`
+	PositionName                    *string     `db:"position_name" json:"position_name"`
+	Phone                           *string     `db:"phone" json:"phone"`
+	Email                           *string     `db:"email" json:"email"`
+	HireDate                        pgtype.Date `db:"hire_date" json:"hire_date"`
+	Remark                          *string     `db:"remark" json:"remark"`
+	Enabled                         bool        `db:"enabled" json:"enabled"`
+}
+
+// Employee keeps Party identity in BOB's immutable employment relationship;
+// this DCL declaration stores only its versioned employment facts.
+func (q *Queries) InsertDCLEmployeeVersion(ctx context.Context, arg InsertDCLEmployeeVersionParams) error {
+	_, err := q.db.Exec(ctx, insertDCLEmployeeVersion,
+		arg.ApprovalEntryID,
+		arg.EmployeeCategoryID,
+		arg.EmployeeCategoryApprovalEntryID,
+		arg.EmployeeCategoryCode,
+		arg.EmployeeCategoryName,
+		arg.DepartmentID,
+		arg.DepartmentApprovalEntryID,
+		arg.DepartmentCode,
+		arg.DepartmentName,
+		arg.PositionID,
+		arg.PositionApprovalEntryID,
+		arg.PositionCode,
+		arg.PositionName,
+		arg.Phone,
+		arg.Email,
+		arg.HireDate,
+		arg.Remark,
+		arg.Enabled,
+	)
+	return err
 }
 
 const insertDCLFundAccountVersion = `-- name: InsertDCLFundAccountVersion :exec
@@ -1000,6 +1305,192 @@ func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWa
 		arg.Enabled,
 	)
 	return err
+}
+
+const listDCLEmployeeApprovalEvents = `-- name: ListDCLEmployeeApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
+       from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM approval_events
+WHERE domain='dcl' AND entity='employee' AND subject_id=$1
+ORDER BY created_at DESC,id DESC
+LIMIT $3 OFFSET $2
+`
+
+type ListDCLEmployeeApprovalEventsParams struct {
+	ObjectID  string `db:"object_id" json:"object_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLEmployeeApprovalEvents(ctx context.Context, arg ListDCLEmployeeApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLEmployeeApprovalEvents, arg.ObjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLEmployees = `-- name: ListDCLEmployees :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+       relationship.party_id,party.kind AS party_kind,party.display_name,
+       relationship.operating_entity_id,operating.code AS operating_entity_code,
+       operating_current.legal_name AS operating_entity_name,display.enabled,
+       COALESCE(approved.id,'')::text AS latest_approved_entry_id,
+       COALESCE(candidate.id,'')::text AS open_entry_id,
+       COALESCE(candidate.status,approved.status)::text AS display_status,
+       COALESCE(candidate.version_no,approved.version_no) AS display_version_no,
+       COALESCE(candidate.updated_at,approved.updated_at) AS updated_at
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='employee'
+JOIN bob_employment_relationships relationship ON relationship.object_id=subject.id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name
+  FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+    AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
+  LIMIT 1
+) party ON true
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+  AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
+    AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
+    AND status='APPROVED' ORDER BY version_no DESC LIMIT 1
+) approved ON true
+JOIN dcl_employee_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR display.enabled=($2::integer=1))
+  AND ($3::text='' OR relationship.operating_entity_id=$3::text)
+  AND ($4::text='' OR display.employee_category_id=$4::text)
+  AND ($5::text='' OR display.department_id=$5::text)
+  AND ($6::text='' OR display.position_id=$6::text)
+  AND (cardinality($7::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($7::text[]))
+ORDER BY CASE WHEN $8::text='updatedAt' AND $9::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
+  CASE WHEN $8::text='updatedAt' AND $9::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
+  CASE WHEN $8::text='code' AND $9::text='asc' THEN object.code END ASC,
+  CASE WHEN $8::text='code' AND $9::text='desc' THEN object.code END DESC,
+  CASE WHEN $8::text='name' AND $9::text='asc' THEN party.display_name END ASC,
+  CASE WHEN $8::text='name' AND $9::text='desc' THEN party.display_name END DESC,
+  object.id DESC
+LIMIT $11 OFFSET $10
+`
+
+type ListDCLEmployeesParams struct {
+	Keyword            string   `db:"keyword" json:"keyword"`
+	EnabledFilter      int32    `db:"enabled_filter" json:"enabled_filter"`
+	OperatingEntityID  string   `db:"operating_entity_id" json:"operating_entity_id"`
+	EmployeeCategoryID string   `db:"employee_category_id" json:"employee_category_id"`
+	DepartmentID       string   `db:"department_id" json:"department_id"`
+	PositionID         string   `db:"position_id" json:"position_id"`
+	StatusFilter       []string `db:"status_filter" json:"status_filter"`
+	SortField          string   `db:"sort_field" json:"sort_field"`
+	SortOrder          string   `db:"sort_order" json:"sort_order"`
+	RowOffset          int32    `db:"row_offset" json:"row_offset"`
+	RowLimit           int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLEmployeesRow struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	Code                  string             `db:"code" json:"code"`
+	ObjectRevision        int64              `db:"object_revision" json:"object_revision"`
+	PartyID               string             `db:"party_id" json:"party_id"`
+	PartyKind             string             `db:"party_kind" json:"party_kind"`
+	DisplayName           string             `db:"display_name" json:"display_name"`
+	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	LatestApprovedEntryID string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
+	OpenEntryID           string             `db:"open_entry_id" json:"open_entry_id"`
+	DisplayStatus         string             `db:"display_status" json:"display_status"`
+	DisplayVersionNo      *int32             `db:"display_version_no" json:"display_version_no"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListDCLEmployees(ctx context.Context, arg ListDCLEmployeesParams) ([]ListDCLEmployeesRow, error) {
+	rows, err := q.db.Query(ctx, listDCLEmployees,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.OperatingEntityID,
+		arg.EmployeeCategoryID,
+		arg.DepartmentID,
+		arg.PositionID,
+		arg.StatusFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLEmployeesRow{}
+	for rows.Next() {
+		var i ListDCLEmployeesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.PartyID,
+			&i.PartyKind,
+			&i.DisplayName,
+			&i.OperatingEntityID,
+			&i.OperatingEntityCode,
+			&i.OperatingEntityName,
+			&i.Enabled,
+			&i.LatestApprovedEntryID,
+			&i.OpenEntryID,
+			&i.DisplayStatus,
+			&i.DisplayVersionNo,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDCLFundAccountApprovalEvents = `-- name: ListDCLFundAccountApprovalEvents :many
@@ -1992,6 +2483,71 @@ DELETE FROM dcl_party_version_identifiers WHERE approval_entry_id=$1
 
 func (q *Queries) ReplaceDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) (int64, error) {
 	result, err := q.db.Exec(ctx, replaceDCLPartyVersionIdentifiers, approvalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateDCLEmployeeVersion = `-- name: UpdateDCLEmployeeVersion :execrows
+UPDATE dcl_employee_versions SET
+  employee_category_id=$1,
+  employee_category_approval_entry_id=$2,
+  employee_category_code=$3,
+  employee_category_name=$4,
+  department_id=$5,
+  department_approval_entry_id=$6,
+  department_code=$7,department_name=$8,
+  position_id=$9,
+  position_approval_entry_id=$10,
+  position_code=$11,position_name=$12,
+  phone=$13,email=$14,hire_date=$15,
+  remark=$16,enabled=$17
+WHERE approval_entry_id=$18
+`
+
+type UpdateDCLEmployeeVersionParams struct {
+	EmployeeCategoryID              *string     `db:"employee_category_id" json:"employee_category_id"`
+	EmployeeCategoryApprovalEntryID *string     `db:"employee_category_approval_entry_id" json:"employee_category_approval_entry_id"`
+	EmployeeCategoryCode            *string     `db:"employee_category_code" json:"employee_category_code"`
+	EmployeeCategoryName            *string     `db:"employee_category_name" json:"employee_category_name"`
+	DepartmentID                    *string     `db:"department_id" json:"department_id"`
+	DepartmentApprovalEntryID       *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode                  *string     `db:"department_code" json:"department_code"`
+	DepartmentName                  *string     `db:"department_name" json:"department_name"`
+	PositionID                      *string     `db:"position_id" json:"position_id"`
+	PositionApprovalEntryID         *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
+	PositionCode                    *string     `db:"position_code" json:"position_code"`
+	PositionName                    *string     `db:"position_name" json:"position_name"`
+	Phone                           *string     `db:"phone" json:"phone"`
+	Email                           *string     `db:"email" json:"email"`
+	HireDate                        pgtype.Date `db:"hire_date" json:"hire_date"`
+	Remark                          *string     `db:"remark" json:"remark"`
+	Enabled                         bool        `db:"enabled" json:"enabled"`
+	ApprovalEntryID                 string      `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) UpdateDCLEmployeeVersion(ctx context.Context, arg UpdateDCLEmployeeVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateDCLEmployeeVersion,
+		arg.EmployeeCategoryID,
+		arg.EmployeeCategoryApprovalEntryID,
+		arg.EmployeeCategoryCode,
+		arg.EmployeeCategoryName,
+		arg.DepartmentID,
+		arg.DepartmentApprovalEntryID,
+		arg.DepartmentCode,
+		arg.DepartmentName,
+		arg.PositionID,
+		arg.PositionApprovalEntryID,
+		arg.PositionCode,
+		arg.PositionName,
+		arg.Phone,
+		arg.Email,
+		arg.HireDate,
+		arg.Remark,
+		arg.Enabled,
+		arg.ApprovalEntryID,
+	)
 	if err != nil {
 		return 0, err
 	}

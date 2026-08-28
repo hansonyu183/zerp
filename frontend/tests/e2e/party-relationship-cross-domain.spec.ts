@@ -263,7 +263,7 @@ async function approve(
 async function approveDcl(
   operator: Api,
   reviewer: Api,
-  entity: 'operating-entity' | 'warehouse' | 'vehicle',
+  entity: 'operating-entity' | 'warehouse' | 'vehicle' | 'employee',
   mutation: Mutation,
 ): Promise<Mutation> {
   const submitted = await operator.ok<Mutation>(`dcl/${entity}/submit`, {
@@ -886,13 +886,29 @@ async function createApprovedEmployee(
   name: string,
   operatingEntityId: string,
 ): Promise<BobView> {
-  const created = await operator.ok<Mutation>('bob/employee/create', {
+  const created = await operator.ok<Mutation>('dcl/employee/create', {
     newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
-    data: { operatingEntityId },
+    operatingEntityId,
+    data: {},
   })
-  const approved = await approve(operator, reviewer, 'employee', created)
+  const approved = await approveDcl(operator, reviewer, 'employee', created)
   return operator.ok<BobView>('bob/employee/get', {
     objectId: approved.objectId,
+  })
+}
+
+async function saveEmployeeEnabled(
+  api: Api,
+  objectId: string,
+  enabled: boolean,
+) {
+  const view = await api.ok<BobView>('dcl/employee/get', { objectId })
+  return api.post<BobObjectMutation>('dcl/employee/save', {
+    objectId,
+    approvalEntryId: view.approval.approvalEntryId,
+    approvalRevision: view.approval.revision,
+    enabled,
+    data: view.data,
   })
 }
 
@@ -1273,11 +1289,18 @@ test(
         warehouseCandidate,
       )
 
+      const managerForDisable = await session.api.ok<BobView>(
+        'dcl/employee/get',
+        { objectId: manager.objectId },
+      )
       const blockedManagerDisable = await session.api.post<{
         references: Array<{ entity: string; field: string; count: number }>
-      }>('bob/employee/disable', {
+      }>('dcl/employee/save', {
         objectId: manager.objectId,
-        objectRevision: manager.objectRevision,
+        approvalEntryId: managerForDisable.approval.approvalEntryId,
+        approvalRevision: managerForDisable.approval.revision,
+        enabled: false,
+        data: managerForDisable.data,
       })
       expect(String(blockedManagerDisable.code)).not.toBe('0')
       expect(blockedManagerDisable.data.references).toEqual([
@@ -1312,14 +1335,18 @@ test(
         'warehouse',
         managerRemovalCandidate,
       )
-      const disabledManager = await session.api.ok<BobObjectMutation>(
-        'bob/employee/disable',
-        {
-          objectId: manager.objectId,
-          objectRevision: manager.objectRevision,
-        },
+      const disabledManager = await saveEmployeeEnabled(
+        session.api,
+        manager.objectId,
+        false,
       )
-      expect(disabledManager.enabled).toBe(false)
+      const approvedDisabledManager = await approveDcl(
+        session.api,
+        reviewerSession.api,
+        'employee',
+        disabledManager,
+      )
+      expect(approvedDisabledManager.enabled).toBe(false)
       const updatedWarehouse = await session.api.ok<BobView>(
         'bob/warehouse/get',
         { objectId: managedWarehouse.objectId },

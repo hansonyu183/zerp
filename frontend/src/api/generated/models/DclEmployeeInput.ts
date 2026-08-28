@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type EmploymentData = {
-  operatingEntityId: string;
+export type DclEmployeeInput = {
+  employeeCategoryId?: string | null;
   departmentId?: string | null;
   positionId?: string | null;
   phone?: string | null;

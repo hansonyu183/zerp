@@ -42,7 +42,6 @@ type applicationService interface {
 	SupplierGet(context.Context, GetInput) (SupplierDetailView, error)
 	SupplierCreate(context.Context, SupplierCreateInput, approval.Actor, bool) (SupplierCreateResult, error)
 	SupplierSave(context.Context, SupplierSaveInput, approval.Actor) (MutationResult, error)
-	EmploymentCreate(context.Context, EmploymentCreateInput, approval.Actor, bool) (EmploymentCreateResult, error)
 	SalesPartnerQuery(context.Context, QueryInput) (Page[SalesPartnerListItem], error)
 	SalesPartnerGet(context.Context, GetInput) (SalesPartnerDetailView, error)
 	SalesPartnerCreate(context.Context, SalesPartnerCreateInput, approval.Actor, bool) (SalesPartnerCreateResult, error)
@@ -116,7 +115,7 @@ func (h *Handler) Register(router *gin.Engine) {
 		entity := registeredEntity
 		entityGroup := group.Group("/" + entity)
 		for _, route := range actionRoutes {
-			if (entity == EntityOperatingEntity || entity == EntityWarehouse || entity == EntityVehicle || entity == EntityFundAccount || entity == EntityProduct) && route.action != "query" && route.action != "get" {
+			if (entity == EntityOperatingEntity || entity == EntityWarehouse || entity == EntityVehicle || entity == EntityFundAccount || entity == EntityProduct || entity == EntityEmployee) && route.action != "query" && route.action != "get" {
 				continue
 			}
 			action := route.action
@@ -443,27 +442,6 @@ func (h *Handler) create(c *gin.Context, entity string) {
 			return
 		}
 		result, err := h.service.SupplierCreate(c.Request.Context(), input, actor,
-			hasPermission(h.principal(c), "/bob/party/get"))
-		h.result(c, result, err)
-		return
-	}
-	if entity == EntityEmployee {
-		var input EmploymentCreateInput
-		if !h.bind(c, &input) {
-			return
-		}
-		requiredPartyPath := "/bob/party/get"
-		if input.NewParty != nil {
-			requiredPartyPath = "/dcl/party/create"
-		}
-		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
-			return
-		}
-		actor, ok := h.approvalActor(c)
-		if !ok {
-			return
-		}
-		result, err := h.service.EmploymentCreate(c.Request.Context(), input, actor,
 			hasPermission(h.principal(c), "/bob/party/get"))
 		h.result(c, result, err)
 		return

@@ -257,15 +257,12 @@ func createApprovedBOB(
 		})
 		data.OperatingEntityID = operating.ObjectID
 	}
+	if entity == bobdomain.EntityEmployee {
+		return createApprovedEmployeeDeclaration(t, vouIntegrationPool(t), service, data)
+	}
 	var created bobdomain.MutationResult
 	var err error
 	switch entity {
-	case bobdomain.EntityEmployee:
-		result, createErr := service.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
-			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: data.Name},
-			Data:     data,
-		}, trustedIntegrationActor(t, "vou-ref-create"), true)
-		created, err = result.MutationResult, createErr
 	case bobdomain.EntitySupplier:
 		result, createErr := service.SupplierCreate(t.Context(), bobdomain.SupplierCreateInput{
 			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name},
@@ -301,6 +298,47 @@ func createApprovedBOB(
 	}, trustedIntegrationActor(t, "vou-ref-approve"))
 	if err != nil {
 		t.Fatalf("approve %s reference: %v", entity, err)
+	}
+	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+}
+
+func createApprovedEmployeeDeclaration(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, data bobdomain.CreateDetailInput) ReferenceInput {
+	t.Helper()
+	bus := txevent.NewBus()
+	authorizer := authorization.Func(nil)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	employees := dcldomain.NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
+		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: data.Name},
+		OperatingEntityID: data.OperatingEntityID,
+		Data: dcldomain.EmployeeInput{EmployeeCategoryID: data.CategoryID, DepartmentID: data.DepartmentID,
+			PositionID: data.PositionID, Phone: data.Phone, Email: data.Email, HireDate: data.HireDate, Remark: data.Remark},
+	}, trustedIntegrationActor(t, "vou-employee-create"))
+	if err != nil {
+		t.Fatalf("create employee declaration: %v", err)
+	}
+	employeeView, err := employees.Get(t.Context(), dcldomain.EmployeeGetInput{ObjectID: created.ObjectID}, trustedIntegrationActor(t, "vou-employee-get"))
+	if err != nil {
+		t.Fatalf("get employee declaration: %v", err)
+	}
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: employeeView.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-employee-party-get"))
+	if err != nil {
+		t.Fatalf("get employee party: %v", err)
+	}
+	partyPending, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedIntegrationActor(t, "vou-employee-party-submit"))
+	if err != nil {
+		t.Fatalf("submit employee party: %v", err)
+	}
+	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: partyPending.PartyID, ApprovalEntryID: partyPending.Approval.ApprovalEntryID, ApprovalRevision: partyPending.Approval.Revision}, trustedIntegrationActor(t, "vou-employee-party-approve")); err != nil {
+		t.Fatalf("approve employee party: %v", err)
+	}
+	pending, err := employees.Submit(t.Context(), dcldomain.EmployeeVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedIntegrationActor(t, "vou-employee-submit"))
+	if err != nil {
+		t.Fatalf("submit employee declaration: %v", err)
+	}
+	approved, err := employees.Approve(t.Context(), dcldomain.EmployeeVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, trustedIntegrationActor(t, "vou-employee-approve"))
+	if err != nil {
+		t.Fatalf("approve employee declaration: %v", err)
 	}
 	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }

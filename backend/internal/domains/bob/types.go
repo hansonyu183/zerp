@@ -83,7 +83,6 @@ var publicApprovalEntities = [...]string{
 	EntityCustomerAccount,
 	EntitySupplier,
 	EntityOtherUnit,
-	EntityEmployee,
 	EntitySalesPartner,
 }
 

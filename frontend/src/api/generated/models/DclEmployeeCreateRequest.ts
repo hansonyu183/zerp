@@ -2,12 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { EmploymentData } from './EmploymentData';
+import type { DclEmployeeInput } from './DclEmployeeInput';
 import type { PartyIdentityData } from './PartyIdentityData';
-export type EmploymentCreateRequest = ({
+export type DclEmployeeCreateRequest = ({
   partyId: string;
-  data: EmploymentData;
+  operatingEntityId: string;
+  data: DclEmployeeInput;
 } | {
   newParty: PartyIdentityData;
-  data: EmploymentData;
+  operatingEntityId: string;
+  data: DclEmployeeInput;
 });

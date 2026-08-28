@@ -12,6 +12,10 @@ export type BobObjectView = {
   code: string;
   objectRevision: number;
   enabled: boolean;
+  /**
+   * DCL current 投影的精确来源 Approval Entry；employee 必须返回该值。
+   */
+  sourceApprovalEntryId?: string | null;
   updatedAt: string;
   approval: ApprovalVersionMeta;
   data: BobDetailView;

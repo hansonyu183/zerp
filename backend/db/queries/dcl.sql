@@ -274,6 +274,197 @@ WHERE domain='dcl' AND entity='operating-entity' AND subject_id=sqlc.arg(object_
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
+-- Employee keeps Party identity in BOB's immutable employment relationship;
+-- this DCL declaration stores only its versioned employment facts.
+-- name: InsertDCLEmployeeVersion :exec
+INSERT INTO dcl_employee_versions(
+  approval_entry_id,employee_category_id,employee_category_approval_entry_id,
+  employee_category_code,employee_category_name,department_id,department_approval_entry_id,
+  department_code,department_name,position_id,position_approval_entry_id,position_code,
+  position_name,phone,email,hire_date,remark,enabled
+) VALUES(
+  sqlc.arg(approval_entry_id),sqlc.narg(employee_category_id),
+  sqlc.narg(employee_category_approval_entry_id),sqlc.narg(employee_category_code),
+  sqlc.narg(employee_category_name),sqlc.narg(department_id),
+  sqlc.narg(department_approval_entry_id),sqlc.narg(department_code),
+  sqlc.narg(department_name),sqlc.narg(position_id),
+  sqlc.narg(position_approval_entry_id),sqlc.narg(position_code),
+  sqlc.narg(position_name),sqlc.narg(phone),sqlc.narg(email),sqlc.narg(hire_date),
+  sqlc.narg(remark),sqlc.arg(enabled)
+);
+
+-- name: CopyDCLEmployeeVersion :execrows
+INSERT INTO dcl_employee_versions(
+  approval_entry_id,employee_category_id,employee_category_approval_entry_id,
+  employee_category_code,employee_category_name,department_id,department_approval_entry_id,
+  department_code,department_name,position_id,position_approval_entry_id,position_code,
+  position_name,phone,email,hire_date,remark,enabled
+)
+SELECT sqlc.arg(new_approval_entry_id),source.employee_category_id,
+  source.employee_category_approval_entry_id,source.employee_category_code,source.employee_category_name,
+  source.department_id,source.department_approval_entry_id,source.department_code,source.department_name,
+  source.position_id,source.position_approval_entry_id,source.position_code,source.position_name,source.phone,source.email,
+  source.hire_date,source.remark,source.enabled
+FROM dcl_employee_versions source
+WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+
+-- name: UpdateDCLEmployeeVersion :execrows
+UPDATE dcl_employee_versions SET
+  employee_category_id=sqlc.narg(employee_category_id),
+  employee_category_approval_entry_id=sqlc.narg(employee_category_approval_entry_id),
+  employee_category_code=sqlc.narg(employee_category_code),
+  employee_category_name=sqlc.narg(employee_category_name),
+  department_id=sqlc.narg(department_id),
+  department_approval_entry_id=sqlc.narg(department_approval_entry_id),
+  department_code=sqlc.narg(department_code),department_name=sqlc.narg(department_name),
+  position_id=sqlc.narg(position_id),
+  position_approval_entry_id=sqlc.narg(position_approval_entry_id),
+  position_code=sqlc.narg(position_code),position_name=sqlc.narg(position_name),
+  phone=sqlc.narg(phone),email=sqlc.narg(email),hire_date=sqlc.narg(hire_date),
+  remark=sqlc.narg(remark),enabled=sqlc.arg(enabled)
+WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: GetDCLEmployeeVersion :one
+SELECT snapshot.*,relationship.party_id,party.kind AS party_kind,
+       party.display_name,relationship.operating_entity_id,
+       operating.code AS operating_entity_code,
+       operating_current.legal_name AS operating_entity_name
+FROM dcl_employee_versions snapshot
+JOIN approval_entries entry ON entry.id=snapshot.approval_entry_id
+  AND entry.domain='dcl' AND entry.entity='employee'
+JOIN bob_employment_relationships relationship ON relationship.object_id=entry.subject_id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name
+  FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+    AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
+  LIMIT 1
+) party ON true
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+  AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+WHERE snapshot.approval_entry_id=sqlc.arg(approval_entry_id)
+  AND relationship.merged_into_object_id IS NULL;
+
+-- name: DeleteDCLEmployeeVersion :execrows
+DELETE FROM dcl_employee_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: GetLatestApprovedDCLEmployeeVersionExcluding :one
+SELECT id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,
+       updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+FROM approval_entries
+WHERE domain='dcl' AND entity='employee' AND subject_id=sqlc.arg(object_id)
+  AND status='APPROVED' AND id<>sqlc.arg(excluded_approval_entry_id)
+ORDER BY version_no DESC
+LIMIT 1;
+
+-- name: CountDCLEmployees :one
+SELECT count(*)
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='employee'
+JOIN bob_employment_relationships relationship ON relationship.object_id=subject.id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name
+  FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+    AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
+  LIMIT 1
+) party ON true
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+  AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
+    AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
+    AND status='APPROVED' ORDER BY version_no DESC LIMIT 1
+) approved ON true
+JOIN dcl_employee_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
+  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)::text)
+  AND (sqlc.arg(employee_category_id)::text='' OR display.employee_category_id=sqlc.arg(employee_category_id)::text)
+  AND (sqlc.arg(department_id)::text='' OR display.department_id=sqlc.arg(department_id)::text)
+  AND (sqlc.arg(position_id)::text='' OR display.position_id=sqlc.arg(position_id)::text)
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
+
+-- name: ListDCLEmployees :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+       relationship.party_id,party.kind AS party_kind,party.display_name,
+       relationship.operating_entity_id,operating.code AS operating_entity_code,
+       operating_current.legal_name AS operating_entity_name,display.enabled,
+       COALESCE(approved.id,'')::text AS latest_approved_entry_id,
+       COALESCE(candidate.id,'')::text AS open_entry_id,
+       COALESCE(candidate.status,approved.status)::text AS display_status,
+       COALESCE(candidate.version_no,approved.version_no) AS display_version_no,
+       COALESCE(candidate.updated_at,approved.updated_at) AS updated_at
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='employee'
+JOIN bob_employment_relationships relationship ON relationship.object_id=subject.id
+JOIN LATERAL (
+  SELECT payload.kind,payload.display_name
+  FROM approval_entries party_entry
+  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
+  WHERE party_entry.domain='dcl' AND party_entry.entity='party'
+    AND party_entry.subject_id=relationship.party_id
+    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
+  LIMIT 1
+) party ON true
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+  AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
+    AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
+    AND status='APPROVED' ORDER BY version_no DESC LIMIT 1
+) approved ON true
+JOIN dcl_employee_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
+  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)::text)
+  AND (sqlc.arg(employee_category_id)::text='' OR display.employee_category_id=sqlc.arg(employee_category_id)::text)
+  AND (sqlc.arg(department_id)::text='' OR display.department_id=sqlc.arg(department_id)::text)
+  AND (sqlc.arg(position_id)::text='' OR display.position_id=sqlc.arg(position_id)::text)
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN object.code END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN object.code END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN party.display_name END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN party.display_name END DESC,
+  object.id DESC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: CountDCLEmployeeApprovalEvents :one
+SELECT count(*) FROM approval_events
+WHERE domain='dcl' AND entity='employee' AND subject_id=sqlc.arg(object_id);
+
+-- name: ListDCLEmployeeApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
+       from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM approval_events
+WHERE domain='dcl' AND entity='employee' AND subject_id=sqlc.arg(object_id)
+ORDER BY created_at DESC,id DESC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
 -- Warehouse is a DCL-owned declaration with a BOB current projection. Category
 -- columns are retained only to preserve pre-cutover snapshots and are never
 -- supplied by the Warehouse declaration API.

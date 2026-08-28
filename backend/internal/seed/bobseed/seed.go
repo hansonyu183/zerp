@@ -28,6 +28,18 @@ type Result struct {
 	Skipped int
 }
 
+func errorChain(err error) string {
+	chain := ""
+	for err != nil {
+		if chain != "" {
+			chain += ": "
+		}
+		chain += err.Error()
+		err = errors.Unwrap(err)
+	}
+	return chain
+}
+
 func seedActor(requestID string) (approval.Actor, error) {
 	return approval.TrustedSystemActor(requestID)
 }
@@ -568,22 +580,22 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 func (service relationshipAwareLifecycleService) approveCustomerRelationship(ctx context.Context, accountID string, actor approval.Actor) error {
 	account, err := service.customerAccounts.Get(ctx, dcldomain.CustomerAccountGetInput{ObjectID: accountID}, actor)
 	if err != nil {
-		return err
+		return fmt.Errorf("get customer account: %w", err)
 	}
-	customer, err := service.customers.Get(ctx, dcldomain.CustomerGetInput{ObjectID: account.CustomerRelationshipID}, actor)
+	partyID, err := service.customerPartyID(ctx, account.CustomerRelationshipID)
 	if err != nil {
-		return err
+		return fmt.Errorf("get customer Party identity: %w", err)
 	}
-	party, err := service.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: customer.PartyID}, bob.PartyRelationshipVisibility{}, actor)
+	party, err := service.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: partyID}, bob.PartyRelationshipVisibility{}, actor)
 	if err != nil {
-		return err
+		return fmt.Errorf("get customer Party: %w", err)
 	}
 	if party.Approval.Status == approval.StatusDraft {
 		pending, submitErr := service.parties.Submit(ctx, dcldomain.PartyVersionInput{
 			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision,
 		}, actor)
 		if submitErr != nil {
-			return submitErr
+			return fmt.Errorf("submit customer Party: %w", submitErr)
 		}
 		party.Approval = pending.Approval
 	}
@@ -591,15 +603,19 @@ func (service relationshipAwareLifecycleService) approveCustomerRelationship(ctx
 		if _, approveErr := service.parties.Approve(ctx, dcldomain.PartyVersionInput{
 			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision,
 		}, mustReviewerActor("seed-bob-"+accountID+"-customer-party-approve")); approveErr != nil {
-			return approveErr
+			return fmt.Errorf("approve customer Party: %w", approveErr)
 		}
+	}
+	customer, err := service.customers.Get(ctx, dcldomain.CustomerGetInput{ObjectID: account.CustomerRelationshipID}, actor)
+	if err != nil {
+		return fmt.Errorf("get customer relationship: %w", err)
 	}
 	if customer.Approval.Status == approval.StatusDraft {
 		pending, submitErr := service.customers.Submit(ctx, dcldomain.CustomerVersionInput{
 			ObjectID: customer.ObjectID, ApprovalEntryID: customer.Approval.ApprovalEntryID, ApprovalRevision: customer.Approval.Revision,
 		}, actor)
 		if submitErr != nil {
-			return submitErr
+			return fmt.Errorf("submit customer relationship: %w", submitErr)
 		}
 		customer.Approval = pending.Approval
 	}
@@ -607,10 +623,23 @@ func (service relationshipAwareLifecycleService) approveCustomerRelationship(ctx
 		if _, approveErr := service.customers.Approve(ctx, dcldomain.CustomerVersionInput{
 			ObjectID: customer.ObjectID, ApprovalEntryID: customer.Approval.ApprovalEntryID, ApprovalRevision: customer.Approval.Revision,
 		}, mustReviewerActor("seed-bob-"+accountID+"-customer-approve")); approveErr != nil {
-			return approveErr
+			return fmt.Errorf("approve customer relationship: %w", approveErr)
 		}
 	}
 	return nil
+}
+
+func (service relationshipAwareLifecycleService) customerPartyID(ctx context.Context, objectID string) (string, error) {
+	tx, err := service.pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	identity, err := service.business.GetCustomerIdentity(ctx, tx, objectID)
+	if err != nil {
+		return "", err
+	}
+	return identity.PartyID, nil
 }
 
 func (service relationshipAwareLifecycleService) supplierPartyID(ctx context.Context, objectID string) (string, error) {
@@ -1437,7 +1466,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		}
 	}
 
-	objectID, found, err := s.lookup.Find(ctx, item.entity, item.data.Code)
+	objectID, found, err := s.findSeedObject(ctx, item)
 	if err != nil {
 		return 0, fmt.Errorf("find existing object: %w", err)
 	}
@@ -1489,7 +1518,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			ApprovalRevision: current.Approval.Revision,
 		}, mustSeedActor(requestID(item.data.Code, "submit")))
 		if err != nil {
-			return 0, fmt.Errorf("submit object: %w", err)
+			return 0, fmt.Errorf("submit object: %w (cause: %s)", err, errorChain(errors.Unwrap(err)))
 		}
 	}
 
@@ -1509,6 +1538,23 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		return 0, fmt.Errorf("review object: %w", err)
 	}
 	return outcome, nil
+}
+
+func (s *Seeder) findSeedObject(ctx context.Context, item sample) (string, bool, error) {
+	if item.entity != bob.EntityCustomerAccount || s.pool == nil {
+		return s.lookup.Find(ctx, item.entity, item.data.Code)
+	}
+	var objectID string
+	err := s.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
+		WHERE domain='dcl' AND entity='customer-account' AND action='CREATED' AND request_id=$1
+		ORDER BY created_at,id LIMIT 1`, requestID(item.data.Code, "create")).Scan(&objectID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return objectID, true, nil
 }
 
 func (s *Seeder) seedAuxiliaryOne(

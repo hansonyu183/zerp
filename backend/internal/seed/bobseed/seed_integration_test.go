@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
@@ -129,9 +128,9 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 
 	counts := make(map[string]int)
-	lookup := queryLookup{queries: dbsqlc.New(pool), pool: pool}
+	seeded := New(pool)
 	for _, item := range samples {
-		objectID, found, findErr := lookup.Find(t.Context(), item.entity, item.data.Code)
+		objectID, found, findErr := seeded.findSeedObject(t.Context(), item)
 		if findErr != nil || !found {
 			t.Fatalf("find %s %s: found=%t err=%v", item.entity, item.data.Code, found, findErr)
 		}
@@ -522,7 +521,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 			ApprovalRevision: candidateCategory.Approval.Revision,
 		}, Reason: &reason,
 	}, actor("candidate-category-unapprove-"+suffix)); err != nil {
-		t.Fatalf("pending BOB candidate incorrectly blocked AUX unapprove: %v", err)
+		t.Fatalf("pending BOB candidate incorrectly blocked AUX unapprove: %s", errorChain(err))
 	}
 	if _, err = productService.Approve(t.Context(), dcldomain.ProductVersionInput{
 		ObjectID: candidatePending.ObjectID, ApprovalEntryID: candidatePending.Approval.ApprovalEntryID,

@@ -533,6 +533,9 @@ func (s *Seeder) ensureBusiness(
 	} else if err != nil {
 		return bobdomain.ObjectView{}, 0, err
 	}
+	if err = s.ensureRelationshipPartyApproved(ctx, sample.entity, objectID, sample.key); err != nil {
+		return bobdomain.ObjectView{}, 0, err
+	}
 	view, err := s.getBusiness(ctx, sample.entity, objectID, sample.key)
 	if err != nil {
 		return bobdomain.ObjectView{}, 0, err
@@ -563,6 +566,64 @@ func (s *Seeder) ensureBusiness(
 		return view, outcomeCreated, nil
 	}
 	return view, outcomeSkipped, nil
+}
+
+func (s *Seeder) ensureRelationshipPartyApproved(ctx context.Context, entity, objectID, key string) error {
+	var query string
+	switch entity {
+	case bobdomain.EntityEmployee:
+		query = `SELECT party_id FROM bob_employment_relationships WHERE object_id=$1`
+	case bobdomain.EntitySupplier:
+		query = `SELECT party_id FROM bob_supplier_relationships WHERE object_id=$1`
+	case bobdomain.EntityOtherUnit:
+		query = `SELECT party_id FROM bob_service_relationships WHERE object_id=$1`
+	case bobdomain.EntityCustomerAccount:
+		query = `SELECT relationship.party_id
+			FROM bob_customer_accounts account
+			JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+			WHERE account.object_id=$1`
+	default:
+		return nil
+	}
+	var partyID string
+	if err := s.pool.QueryRow(ctx, query, objectID).Scan(&partyID); err != nil {
+		return fmt.Errorf("load %s Party identity: %w", key, err)
+	}
+	actor, err := seedActor(actorID, requestID(key, "party-get"))
+	if err != nil {
+		return err
+	}
+	party, err := s.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: partyID}, bobdomain.PartyRelationshipVisibility{}, actor)
+	if err != nil {
+		return fmt.Errorf("get %s Party: %w", key, err)
+	}
+	if party.Approval.Status == approval.StatusDraft {
+		submitActor, actorErr := seedActor(actorID, requestID(key, "party-submit"))
+		if actorErr != nil {
+			return actorErr
+		}
+		pending, submitErr := s.parties.Submit(ctx, dcldomain.PartyVersionInput{
+			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID,
+			ApprovalRevision: party.Approval.Revision,
+		}, submitActor)
+		if submitErr != nil {
+			return fmt.Errorf("submit %s Party: %w", key, submitErr)
+		}
+		party.Approval = pending.Approval
+	}
+	if party.Approval.Status == approval.StatusPending {
+		reviewer, actorErr := seedActor(reviewerID, requestID(key, "party-approve"))
+		if actorErr != nil {
+			return actorErr
+		}
+		if _, approveErr := s.parties.Approve(ctx, dcldomain.PartyVersionInput{
+			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID,
+			ApprovalRevision: party.Approval.Revision,
+		}, reviewer); approveErr != nil {
+			return fmt.Errorf("approve %s Party: %w", key, approveErr)
+		}
+	}
+	return nil
 }
 
 func dclBusinessMutation(result dcldomain.OperatingEntityMutation) bobdomain.MutationResult {

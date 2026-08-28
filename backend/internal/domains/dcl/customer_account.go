@@ -23,8 +23,8 @@ type customerAccountCurrent interface {
 	GetCustomerIdentity(context.Context, pgx.Tx, string) (bobdomain.RelationshipIdentity, error)
 	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	ValidateApprovedSnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
-	ResolveCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error)
-	ValidateCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string, string, string) error
+	ResolveCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error)
+	ValidateCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string, string, string, string) error
 	ApplyCustomerAccountCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string, bool, string) (bobdomain.RelationshipIdentity, error)
 	RemoveCustomerAccountCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string) (bobdomain.RelationshipIdentity, error)
 	EnsureCustomerAccountUnapproveAllowed(context.Context, pgx.Tx, string) error
@@ -113,7 +113,7 @@ func (s *CustomerAccountService) resolve(ctx context.Context, tx pgx.Tx, relatio
 	if err != nil {
 		return CustomerAccountData{}, err
 	}
-	settlement, payment, sales, err := s.current.ResolveCustomerAccountReferences(ctx, tx, data.SettlementMethodID, data.PaymentMethodID, data.PrimarySalesAttribution.Type, data.PrimarySalesAttribution.SubjectObjectID)
+	settlement, payment, sales, err := s.current.ResolveCustomerAccountReferences(ctx, tx, relationship.PartyID, data.SettlementMethodID, data.PaymentMethodID, data.PrimarySalesAttribution.Type, data.PrimarySalesAttribution.SubjectObjectID)
 	if err != nil {
 		return CustomerAccountData{}, err
 	}
@@ -386,8 +386,12 @@ func (s *CustomerAccountService) transition(ctx context.Context, in CustomerAcco
 		return CustomerAccountMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
+		customer, identityErr := s.current.GetCustomerIdentity(ctx, tx, relation)
+		if identityErr != nil {
+			return CustomerAccountMutation{}, translateError(identityErr)
+		}
 		if _, err = s.current.ValidateApprovedSnapshotReference(ctx, tx, bobdomain.EntityOperatingEntity, stored.OperatingEntityID, stored.OperatingEntityApprovalEntryID); err == nil {
-			err = s.current.ValidateCustomerAccountReferences(ctx, tx, stringValue(stored.SettlementMethodID), stringValue(stored.SettlementMethodApprovalEntryID), stringValue(stored.PaymentMethodID), stringValue(stored.PaymentMethodApprovalEntryID), stringValue(stored.PrimarySalesAttributionType), stringValue(stored.PrimarySalesSubjectID), stringValue(stored.PrimarySalesSubjectApprovalEntryID))
+			err = s.current.ValidateCustomerAccountReferences(ctx, tx, customer.PartyID, stringValue(stored.SettlementMethodID), stringValue(stored.SettlementMethodApprovalEntryID), stringValue(stored.PaymentMethodID), stringValue(stored.PaymentMethodApprovalEntryID), stringValue(stored.PrimarySalesAttributionType), stringValue(stored.PrimarySalesSubjectID), stringValue(stored.PrimarySalesSubjectApprovalEntryID))
 		}
 		if err != nil {
 			return CustomerAccountMutation{}, translateError(err)

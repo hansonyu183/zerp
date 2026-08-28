@@ -36,6 +36,14 @@ func trustedIntegrationActor(t *testing.T, requestID string) approval.Actor {
 	return actor
 }
 
+func integrationErrorChain(err error) string {
+	parts := make([]string, 0, 4)
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		parts = append(parts, current.Error())
+	}
+	return strings.Join(parts, " -> ")
+}
+
 func integrationApprovalActor(t *testing.T, actorID, requestID string) approval.Actor {
 	t.Helper()
 	if strings.HasSuffix(requestID, "-approve") || strings.HasSuffix(requestID, "-reject") {
@@ -376,11 +384,11 @@ func createApprovedEmployeeDeclaration(t *testing.T, pool *pgxpool.Pool, busines
 	if err != nil {
 		t.Fatalf("create employee declaration: %v", err)
 	}
-	employeeView, err := employees.Get(t.Context(), dcldomain.EmployeeGetInput{ObjectID: created.ObjectID}, trustedIntegrationActor(t, "vou-employee-get"))
-	if err != nil {
-		t.Fatalf("get employee declaration: %v", err)
+	var partyID string
+	if err = pool.QueryRow(t.Context(), `SELECT party_id FROM bob_employment_relationships WHERE object_id=$1`, created.ObjectID).Scan(&partyID); err != nil {
+		t.Fatalf("get employee Party identity: %v", err)
 	}
-	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: employeeView.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-employee-party-get"))
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: partyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-employee-party-get"))
 	if err != nil {
 		t.Fatalf("get employee party: %v", err)
 	}
@@ -555,7 +563,6 @@ func createApprovedCustomer(
 			Name: data.Name, CustomerTypeCode: bobdomain.CustomerTypeEndUser,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
 			SettlementMethodID:         data.SettlementMethodID,
-			PaymentMethodID:            "01J00000000000000000000082",
 			DefaultTransportMethodCode: "SELF_PICKUP", DefaultTransportMethodName: "客户自提",
 			TransportSurcharge: "0.00", PricingPolicy: dcldomain.CustomerPricingPolicy{
 				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00", CostItems: []dcldomain.CustomerPricingCostItem{},
@@ -566,7 +573,7 @@ func createApprovedCustomer(
 		},
 	}, trustedIntegrationActor(t, "vou-customer-create"))
 	if err != nil {
-		t.Fatalf("create customer reference: %v", err)
+		t.Fatalf("create customer reference: %s", integrationErrorChain(err))
 	}
 	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: created.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-customer-party-get"))
 	if err != nil {

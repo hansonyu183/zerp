@@ -40,7 +40,7 @@ WITH current_dcl_product_entries AS (
     WHERE entry.domain='dcl' AND entry.entity='employee' AND entry.status='APPROVED'
       AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='employee' AND newer.subject_id=entry.subject_id AND newer.status='APPROVED' AND newer.version_no>entry.version_no)
 ), bob_refs AS (
-    SELECT attachment.category_approval_entry_id
+    SELECT attachment.category_approval_entry_id AS entry_id
     FROM dcl_customer_attachments attachment
     JOIN approval_entries current_entry
       ON current_entry.id=attachment.approval_entry_id

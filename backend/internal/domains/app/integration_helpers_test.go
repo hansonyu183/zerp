@@ -52,7 +52,7 @@ func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 		TRUNCATE acc_period_balances, acc_inventory_cost_allocations,
 			acc_opening_containers, acc_opening_bills, acc_opening_assets,
 			acc_container_entries, acc_bill_book_values, acc_bills, acc_asset_book_values, acc_assets, acc_register_events,
-			acc_periods, acc_inventory_entries, acc_voucher_lines, acc_opening_lines, acc_openings, acc_vouchers, acc_mapping_versions,
+			acc_periods, acc_inventory_entries, acc_voucher_lines, acc_opening_lines, acc_openings, acc_vouchers, dcl_acc_mapping_versions,
 			acc_subject_usages, acc_subject_dimensions, acc_subjects,
 			acc_book_user_scopes, acc_books, vou_intermediary_scripts,
 			app_business_menu_items, app_menu_settings, app_system_parameters, app_audit_events, app_sessions,

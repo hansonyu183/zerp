@@ -275,9 +275,9 @@ _Avoid_: `state`、局部批准人/时间字段、期初版本
 _Authority_: [ACC 账簿期初](docs/domains/acc.md#6-账簿期初)
 
 **Accounting Mapping（会计映射）**:
-以 `(bookId, vouEntity)` 为稳定主体的 Approval Version；候选映射不参与记账，只有最新 `APPROVED` entry 是该单据类型的记账映射。
-_Avoid_: mapping version header、当前映射指针、候选参与记账
-_Authority_: [ACC VOU 会计映射](docs/domains/acc.md#7-vou-会计映射)
+以 `(bookId, vouEntity)` 为稳定主体的 Approval Version，由 DCL 拥有声明、候选、版本和审批生命周期；ACC 只读取最新 `APPROVED` entry 作为当前记账映射，候选不参与记账。
+_Avoid_: mapping version header、当前映射指针、候选参与记账、ACC 维护映射版本
+_Authority_: [DCL 会计映射申报](docs/domains/dcl.md#38-会计映射申报)、[ACC 当前记账映射](docs/domains/acc.md#7-当前记账映射)
 
 **Accounting Subject（会计科目）**:
 归 ACC 领域和单本会计账簿所有的分层会计分类。

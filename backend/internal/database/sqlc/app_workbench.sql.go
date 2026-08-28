@@ -15,6 +15,8 @@ const countWorkbenchBobItems = `-- name: CountWorkbenchBobItems :one
 SELECT count(*)
 FROM approval_entries entry
 LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
+LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -29,11 +31,12 @@ CROSS JOIN LATERAL (
     WHEN 'vehicle' THEN (SELECT payload.name FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'fund-account' THEN (SELECT payload.name FROM dcl_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($1::text[]))
     OR (
@@ -50,6 +53,8 @@ WHERE entry.domain='dcl'
   AND (
     $5::text = ''
     OR object.code ILIKE '%' || $5 || '%'
+    OR mapping.vou_entity ILIKE '%' || $5 || '%'
+    OR mapping_book.name ILIKE '%' || $5 || '%'
     OR named.name ILIKE '%' || $5 || '%'
   )
 `
@@ -125,8 +130,9 @@ func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbench
 }
 
 const listWorkbenchBobItems = `-- name: ListWorkbenchBobItems :many
-SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, '') AS code,
+SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, mapping.vou_entity, '') AS code,
        named.name,
+       COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
        COALESCE(object.revision, 1) AS object_revision,
        entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision, COALESCE(object.updated_at, entry.updated_at) AS object_updated_at,
        CASE
@@ -135,6 +141,8 @@ SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, '') AS
        END AS is_submitted_by_actor
 FROM approval_entries entry
 LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
+LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -149,11 +157,12 @@ CROSS JOIN LATERAL (
     WHEN 'vehicle' THEN (SELECT payload.name FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'fund-account' THEN (SELECT payload.name FROM dcl_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($2::text[]))
     OR (
@@ -170,9 +179,11 @@ WHERE entry.domain='dcl'
   AND (
     $5::text = ''
     OR object.code ILIKE '%' || $5 || '%'
+    OR mapping.vou_entity ILIKE '%' || $5 || '%'
+    OR mapping_book.name ILIKE '%' || $5 || '%'
     OR named.name ILIKE '%' || $5 || '%'
   )
-ORDER BY object.updated_at DESC, entry.subject_id ASC
+ORDER BY COALESCE(object.updated_at,mapping.updated_at,entry.updated_at) DESC, entry.subject_id ASC
 LIMIT $7 OFFSET $6
 `
 
@@ -191,6 +202,8 @@ type ListWorkbenchBobItemsRow struct {
 	Entity             string             `db:"entity" json:"entity"`
 	Code               string             `db:"code" json:"code"`
 	Name               string             `db:"name" json:"name"`
+	BookID             string             `db:"book_id" json:"book_id"`
+	VouEntity          string             `db:"vou_entity" json:"vou_entity"`
 	ObjectRevision     int64              `db:"object_revision" json:"object_revision"`
 	ApprovalEntryID    string             `db:"approval_entry_id" json:"approval_entry_id"`
 	Status             string             `db:"status" json:"status"`
@@ -221,6 +234,8 @@ func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBo
 			&i.Entity,
 			&i.Code,
 			&i.Name,
+			&i.BookID,
+			&i.VouEntity,
 			&i.ObjectRevision,
 			&i.ApprovalEntryID,
 			&i.Status,

@@ -90,43 +90,9 @@ func (stub *bookServiceStub) QueryMappings(_ context.Context, input QueryMapping
 	stub.actions = append(stub.actions, "mapping-query")
 	return MappingPage{Items: []MappingView{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
-func (stub *bookServiceStub) GetMapping(_ context.Context, _, _, _ string, _ approval.Actor) (MappingView, error) {
+func (stub *bookServiceStub) GetMapping(_ context.Context, _, _ string, _ approval.Actor) (MappingView, error) {
 	stub.actions = append(stub.actions, "mapping-get")
 	return MappingView{}, nil
-}
-func (stub *bookServiceStub) CreateMapping(_ context.Context, _ CreateMappingInput, _ approval.Actor) (MappingView, error) {
-	stub.actions = append(stub.actions, "mapping-create")
-	return MappingView{}, nil
-}
-func (stub *bookServiceStub) CreateNextMappingVersion(_ context.Context, _, _ string, _ approval.Actor) (MappingView, error) {
-	return MappingView{}, nil
-}
-func (stub *bookServiceStub) MappingVersions(_ context.Context, input QueryMappingsInput, _ approval.Actor) (MappingPage, error) {
-	return MappingPage{Page: input.Page, PageSize: input.PageSize}, nil
-}
-func (stub *bookServiceStub) SaveMapping(_ context.Context, _ SaveMappingInput, _ approval.Actor) (MappingView, error) {
-	stub.actions = append(stub.actions, "mapping-save")
-	return MappingView{}, nil
-}
-func (stub *bookServiceStub) SubmitMapping(_ context.Context, _ MappingVersionInput, _ approval.Actor) (MappingView, error) {
-	return MappingView{}, nil
-}
-func (stub *bookServiceStub) UnsubmitMapping(_ context.Context, _ MappingVersionInput, _ approval.Actor) (MappingView, error) {
-	return MappingView{}, nil
-}
-func (stub *bookServiceStub) RejectMapping(_ context.Context, _ MappingReasonInput, _ approval.Actor) (MappingView, error) {
-	return MappingView{}, nil
-}
-func (stub *bookServiceStub) ApproveMapping(_ context.Context, _ MappingVersionInput, _ approval.Actor) (MappingView, error) {
-	stub.actions = append(stub.actions, "mapping-approve")
-	return MappingView{}, nil
-}
-func (stub *bookServiceStub) UnapproveMapping(_ context.Context, _ MappingReasonInput, _ approval.Actor) (MappingView, error) {
-	stub.actions = append(stub.actions, "mapping-unapprove")
-	return MappingView{}, nil
-}
-func (stub *bookServiceStub) DeleteMappingVersion(_ context.Context, _ MappingVersionInput, _ approval.Actor) error {
-	return nil
 }
 func (stub *bookServiceStub) QueryPeriods(_ context.Context, _, _ string) ([]PeriodView, error) {
 	stub.actions = append(stub.actions, "period-query")
@@ -259,14 +225,9 @@ func TestOpeningHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.
 }
 
 func TestMappingHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.T) {
-	definition := `"definition":{"defaultTemplateId":null,"rules":[],"templates":[]}`
 	tests := []struct{ action, body string }{
 		{"query", `{"bookId":"01JACC00000000000000000001","page":1,"pageSize":20}`},
-		{"get", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","approvalEntryId":"01JACC00000000000000000002"}`},
-		{"create", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","defaultResult":"UN_POST",` + definition + `}`},
-		{"save", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","approvalEntryId":"01JACC00000000000000000002","defaultResult":"UN_POST","revision":1,` + definition + `}`},
-		{"approve", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","approvalEntryId":"01JACC00000000000000000002","revision":1}`},
-		{"unapprove", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","approvalEntryId":"01JACC00000000000000000002","revision":2,"reason":"rollback"}`},
+		{"get", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.action, func(t *testing.T) {
@@ -289,6 +250,24 @@ func TestMappingHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.
 			}
 			if permission != "/acc/mapping/"+test.action || len(service.actions) != 1 || service.actions[0] != "mapping-"+test.action {
 				t.Fatalf("permission = %q, actions = %v", permission, service.actions)
+			}
+		})
+	}
+}
+
+func TestMappingLegacyLifecycleRoutesAreUnreachable(t *testing.T) {
+	for _, action := range []string{"create", "create-next", "save", "submit", "unsubmit", "reject", "approve", "unapprove", "delete-version", "versions"} {
+		t.Run(action, func(t *testing.T) {
+			service := &bookServiceStub{}
+			request := httptest.NewRequest(http.MethodPost, "/acc/mapping/"+action, strings.NewReader(`{}`))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			testRouter(service, authorization.Func(nil)).ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusNotFound {
+				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+			if len(service.actions) != 0 {
+				t.Fatalf("service actions = %v", service.actions)
 			}
 		})
 	}

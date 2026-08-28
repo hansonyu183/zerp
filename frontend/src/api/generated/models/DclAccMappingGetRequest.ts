@@ -2,9 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type MappingVersionsRequest = {
+export type DclAccMappingGetRequest = {
   bookId: string;
   vouEntity: string;
-  page: number;
-  pageSize: number;
+  approvalEntryId?: string;
 };

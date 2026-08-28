@@ -36,6 +36,22 @@ export function workbenchItemPath(item: WorkbenchItem): string {
     : `/bob/${item.entity}`
 }
 
+export function workbenchItemQuery(
+  item: WorkbenchItem,
+  mode: 'view' | 'edit',
+): Record<string, string> {
+  if (item.category === 'VOU') return { documentId: item.documentId, mode }
+  if (item.entity === 'acc-mapping') {
+    return {
+      bookId: item.bookId ?? '',
+      vouEntity: item.vouEntity ?? '',
+      approvalEntryId: item.versionId,
+      mode,
+    }
+  }
+  return { objectId: item.objectId, mode }
+}
+
 type DclCustomerEntity = 'customer' | 'customer-account'
 type DclCustomerActionRequest = {
   objectId: string

@@ -2,7 +2,7 @@
 
 ## 1. 当前范围
 
-ACC 负责 ZERP 的内部会计事实。当前实现 Accounting Book（会计账簿）、人员访问范围、每本账簿独立的 Accounting Subject（会计科目）、Opening（期初）、VOU Accounting Mapping（会计映射）、批准/反批准驱动的自动记账、库存数量账、会计期间，以及固定资产、票据和空桶登记。
+ACC 负责 ZERP 的内部会计事实。当前实现 Accounting Book（会计账簿）、人员访问范围、每本账簿独立的 Accounting Subject（会计科目）、Opening（期初）、当前记账映射只读与字段目录、批准/反批准驱动的自动记账、库存数量账、会计期间，以及固定资产、票据和空桶登记。会计映射的声明、候选、版本和审批生命周期由 DCL 拥有。
 
 ACC 不作为法定会计软件，也不提供面向用户的查询报表。科目流水、科目余额、应收预收、应付预付、库存、票据、空桶和员工借款报表统一记录为 RPT 领域待办，由 RPT 直接查询 ACC 及其他领域的投影数据并单独授权。
 
@@ -61,15 +61,15 @@ ACC 的动作、路径和数据结构以 [OpenAPI ACC Schema](../../contracts/op
 
 批准后期初只读。账簿尚无其他系统凭证时可以反批准：ACC 同一事务内删除期初系统凭证、释放期初科目引用并将 entry 转为 `PENDING`；已有 VOU、成本结算或折旧等后续会计事实时返回 blocker 并拒绝反批准。每个期初动作同时校验独立权限和账簿范围。
 
-## 7. VOU 会计映射
+## 7. 当前记账映射
 
-每本账簿按 VOU 单据类型分别维护声明式会计映射。Mapping 的 stable subject 是 `(bookId, vouEntity)`，其中 `vouEntity` 是 VOU domain stable ID；每个业务 payload 由一个中央 Approval Version entry 承载。映射只读取 ACC 发布的稳定字段目录，允许使用头字段和 `lines` 行集合迭代，不执行脚本或任意表达式。条件只允许 `EQ`、`NE`、`IN`、`NOT_IN`、`IS_EMPTY` 和 `IS_NOT_EMPTY`；保存时拒绝可能同时命中的规则，确保一张单据最多选择一个结果。
+会计映射的 stable subject `(bookId, vouEntity)` 由 [DCL 会计映射申报](dcl.md#38-会计映射申报) 唯一拥有创建、候选编辑、提交、撤回、驳回、批准、反批、草稿删除、版本历史和审计。ACC 只读取每个 `(bookId, vouEntity)` 的最新 `APPROVED` entry 作为当前记账映射，不提供版本写入、生命周期或候选查询。
 
-每个映射必须明确设置未命中规则时的 `POST` 或 `UN_POST`。`POST` 结果引用凭证模板，模板逐行声明固定科目或字段取科目、借贷方向、金额字段、币种字段、辅助核算字段以及可选数量字段；`UN_POST` 不引用模板。固定科目必须是本账簿启用的末级科目，映射批准后登记科目引用。
+`/acc/mapping/query` 与 `/acc/mapping/get` 分别返回账簿内当前最新批准映射的分页列表和详情，不暴露版本历史或开放候选。`/acc/mapping/catalog` 返回稳定 VOU 映射字段目录，供 DCL 编辑和 ACC 记账共同使用。ACC 的科目引用登记在映射批准或反批时由 DCL 事务同步触发：批准登记新版本的末级科目引用，反批回落到上一正式版本的引用集合。
 
-Mapping 的唯一审批状态是 `DRAFT`、`PENDING`、`APPROVED`，响应使用 `ApprovalVersionMeta`；前端的状态、动作和版本历史元数据使用 `frontend/src/shared/approval/` 的统一中文映射。同一 stable subject 的 `DRAFT` 与 `PENDING` 合计最多一个。首版经 create 建立 V1；有正式版本后 create-next 建立 `latest APPROVED + 1` 的候选，删除 DRAFT 候选后号码可复用。save、submit、unsubmit、reject、approve、unapprove、delete-draft 和 versions 使用中央 Versioning 语义；`reject` 和 `unapprove` 必填非空 reason，且只能反批最新 `APPROVED` entry。新批准版本只影响之后发生的会计事实；自动凭证保存实际使用的 `approvalEntryId`。已被凭证引用的最新批准版本返回 blocker，不能反批。查询动作要求账簿查询范围，维护动作要求账簿操作范围。
+映射只读取 ACC 发布的稳定字段目录，允许使用头字段和 `lines` 行集合迭代，不执行脚本或任意表达式。条件只允许 `EQ`、`NE`、`IN`、`NOT_IN`、`IS_EMPTY` 和 `IS_NOT_EMPTY`；保存时拒绝可能同时命中的规则，确保一张单据最多选择一个结果。每个映射必须明确设置未命中规则时的 `POST` 或 `UN_POST`。`POST` 结果引用凭证模板，模板逐行声明固定科目或字段取科目、借贷方向、金额字段、币种字段、辅助核算字段以及可选数量字段；`UN_POST` 不引用模板。固定科目必须是本账簿启用的末级科目。
 
-管理界面提供按账簿及 VOU 类型筛选、精确 `approvalEntryId` 读取、版本列表、声明式 JSON 编辑、字段目录提示和完整 Approval 生命周期；不显示或解释 domain-local 状态、版本头或当前指针。
+查询动作要求账簿查询范围，字段目录和记账执行不额外要求账簿操作范围。
 
 ## 8. VOU 自动记账与删除
 
@@ -125,9 +125,9 @@ VOU 批准事件携带完整的强类型单据副本。ACC 以系统身份在同
 - 查询、操作与范围外用户分别只能执行其动作权限和账簿范围共同允许的科目操作。
 - 草稿期初允许暂存，批准时逐币种试算平衡并生成可追溯的期初系统凭证；
 - 零期初需要明确批准，反批准只有在账簿没有后续会计事实时成功。
-- 映射只能引用字段目录内字段和受限条件操作符，可能同时命中的规则被拒绝；
+- 当前映射只读返回最新 `APPROVED` entry，字段目录稳定供 DCL 编辑和 ACC 记账共同使用；
 - 每个版本明确选择 `POST` 或 `UN_POST` 默认结果，批准后固定并供后续会计事实引用；
-- 已被会计凭证引用的映射版本不能反批准，查询与维护分别受动作权限和账簿范围限制。
+- 映射版本生命周期和反批 blocker 由 DCL 统一执行，ACC 只读取当前最新批准映射。
 - 自动记账只消费事件携带的完整 VOU 副本，对全部适用账簿同步生成逐币种平衡且可追溯的系统凭证；
 - 任一账簿记账失败会回滚 VOU 批准和全部 ACC 事实，重复批准事件不会重复记账；
 - 反批准精确删除同一来源 revision 的事实，不生成冲销凭证，未曾记账或重复反批准均幂等成功。

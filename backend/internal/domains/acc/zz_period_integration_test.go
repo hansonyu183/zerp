@@ -20,7 +20,7 @@ func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testin
 		t.Fatal(err)
 	}
 	createApprovedZeroOpening(t, service, book)
-	mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{
+	mapping, err := createDCLIntegrationMapping(t, service, dclMappingFixtureInput{
 		BookID: book.ID, VouEntity: "other-income", DefaultResult: MappingResultUnpost,
 		Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}},
 	}, integrationACCActor(t, adminID, "acc-period-mapping-create"))

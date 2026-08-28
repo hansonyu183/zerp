@@ -8,11 +8,9 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/events/accapproval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/oklog/ulid/v2"
 )
 
 var supportedMappingEntitySet = func() map[string]struct{} {
@@ -282,20 +280,6 @@ func rulesMayOverlap(left, right MappingRule) bool {
 	return true
 }
 
-func encodeMappingDefinition(definition MappingDefinition) ([]byte, error) {
-	if definition.Rules == nil {
-		definition.Rules = []MappingRule{}
-	}
-	if definition.Templates == nil {
-		definition.Templates = []PostingTemplate{}
-	}
-	encoded, err := json.Marshal(definition)
-	if err != nil {
-		return nil, domainError(ErrorValidation, "invalid mapping definition", err)
-	}
-	return encoded, nil
-}
-
 func validateMappingSubjects(ctx context.Context, q *dbsqlc.Queries, bookID string, definition MappingDefinition) error {
 	for _, template := range definition.Templates {
 		for _, line := range template.Lines {
@@ -356,7 +340,7 @@ func validateMappingSubjects(ctx context.Context, q *dbsqlc.Queries, bookID stri
 	return nil
 }
 
-func registerMappingSubjectUsages(ctx context.Context, q *dbsqlc.Queries, mappingID string, definition MappingDefinition) error {
+func registerMappingSubjectUsages(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string, definition MappingDefinition) error {
 	for _, template := range definition.Templates {
 		for _, line := range template.Lines {
 			subjectIDs := []string{}
@@ -367,7 +351,7 @@ func registerMappingSubjectUsages(ctx context.Context, q *dbsqlc.Queries, mappin
 				subjectIDs = append(subjectIDs, *line.CostCounterpartSubjectID)
 			}
 			for _, subjectID := range subjectIDs {
-				if err := q.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{SubjectID: subjectID, UsageType: "MAPPING", UsageID: mappingID}); err != nil {
+				if err := q.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{SubjectID: subjectID, UsageType: "MAPPING", UsageID: approvalEntryID}); err != nil {
 					return databaseError("register mapping accounting subject", err)
 				}
 			}
@@ -375,7 +359,7 @@ func registerMappingSubjectUsages(ctx context.Context, q *dbsqlc.Queries, mappin
 	}
 	if config := definition.AssetConfiguration; config != nil {
 		for _, subjectID := range []string{config.AssetSubjectID, config.AccumulatedDepreciationSubjectID, config.DepreciationExpenseSubjectID} {
-			if err := q.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{SubjectID: subjectID, UsageType: "MAPPING", UsageID: mappingID}); err != nil {
+			if err := q.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{SubjectID: subjectID, UsageType: "MAPPING", UsageID: approvalEntryID}); err != nil {
 				return databaseError("register asset accounting subject", err)
 			}
 		}
@@ -383,46 +367,9 @@ func registerMappingSubjectUsages(ctx context.Context, q *dbsqlc.Queries, mappin
 	return nil
 }
 
-func mappingView(bookID, entity, defaultResult string, definitionJSON []byte, entry approval.Entry) (MappingView, error) {
-	definition := MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}}
-	if err := json.Unmarshal(definitionJSON, &definition); err != nil {
-		return MappingView{}, domainError(ErrorInternal, "invalid stored accounting mapping", err)
-	}
-	for templateIndex := range definition.Templates {
-		for lineIndex := range definition.Templates[templateIndex].Lines {
-			line := &definition.Templates[templateIndex].Lines[lineIndex]
-			if line.Dimensions == nil {
-				line.Dimensions = map[string]string{}
-			}
-			if line.CostCounterpartDimensions == nil {
-				line.CostCounterpartDimensions = map[string]string{}
-			}
-		}
-	}
-	return MappingView{BookID: bookID, VouEntity: entity, Approval: approval.VersionMetaFromEntry(entry), DefaultResult: defaultResult, Definition: definition}, nil
-}
-
-func mappingApprovalEntry(id, subjectID string, versionNo *int32, status string, revision int64, createdBy string, createdAt pgtype.Timestamptz, updatedBy string, updatedAt pgtype.Timestamptz, submittedBy *string, submittedAt pgtype.Timestamptz, approvedBy *string, approvedAt pgtype.Timestamptz) approval.Entry {
-	entry := approval.Entry{EntryRef: approval.EntryRef{ID: id, Domain: "acc", Entity: "mapping", SubjectID: subjectID, VersionNo: versionNo}, Status: approval.Status(status), Revision: revision, CreatedBy: createdBy, CreatedAt: createdAt.Time, UpdatedBy: updatedBy, UpdatedAt: updatedAt.Time, SubmittedBy: submittedBy, ApprovedBy: approvedBy}
-	if submittedAt.Valid {
-		entry.SubmittedAt = &submittedAt.Time
-	}
-	if approvedAt.Valid {
-		entry.ApprovedAt = &approvedAt.Time
-	}
-	return entry
-}
-
-func mappingPayload(bookID, mappingID, entity, entryID string) accapproval.Payload {
-	return accapproval.Payload{BookID: bookID, MappingID: mappingID, VouEntity: entity, ApprovalEntryID: entryID}
-}
-
 func (s *Service) QueryMappings(ctx context.Context, input QueryMappingsInput, actor approval.Actor) (MappingPage, error) {
 	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
 		return MappingPage{}, domainError(ErrorValidation, "invalid accounting mapping query", nil)
-	}
-	if err := s.mappingApproval.Authorize(ctx, actor, "query"); err != nil {
-		return MappingPage{}, mapApprovalError(err)
 	}
 	if err := s.requireApprovalAccess(ctx, s.queries, input.BookID, actor, false); err != nil {
 		return MappingPage{}, err
@@ -450,309 +397,103 @@ func (s *Service) QueryMappings(ctx context.Context, input QueryMappingsInput, a
 	return page, nil
 }
 
-func (s *Service) GetMapping(ctx context.Context, bookID, entity, entryID string, actor approval.Actor) (MappingView, error) {
-	if err := s.mappingApproval.Authorize(ctx, actor, "get"); err != nil {
-		return MappingView{}, mapApprovalError(err)
-	}
+func (s *Service) GetMapping(ctx context.Context, bookID, entity string, actor approval.Actor) (MappingView, error) {
 	if err := s.requireApprovalAccess(ctx, s.queries, bookID, actor, false); err != nil {
 		return MappingView{}, err
 	}
-	var row dbsqlc.GetAccountingMappingVersionRow
-	var err error
-	if entryID == "" {
-		preferred, preferredErr := s.queries.GetPreferredAccountingMappingVersion(ctx, dbsqlc.GetPreferredAccountingMappingVersionParams{BookID: bookID, VouEntity: entity})
-		err = preferredErr
-		row = dbsqlc.GetAccountingMappingVersionRow(preferred)
-	} else {
-		row, err = s.queries.GetAccountingMappingVersion(ctx, dbsqlc.GetAccountingMappingVersionParams{BookID: bookID, VouEntity: entity, ApprovalEntryID: entryID})
-	}
+	preferred, err := s.queries.GetPreferredAccountingMappingVersion(ctx, dbsqlc.GetPreferredAccountingMappingVersionParams{BookID: bookID, VouEntity: entity})
+	row := dbsqlc.GetAccountingMappingVersionRow(preferred)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MappingView{}, domainError(ErrorConflict, "accounting mapping not found", err)
 	}
 	if err != nil {
 		return MappingView{}, databaseError("get accounting mapping", err)
 	}
-	entry, err := readACCApprovalEntry(ctx, s.pool, "mapping", row.MappingID, row.ApprovalEntryID)
+	entry, err := readDCLApprovalEntry(ctx, s.pool, row.ApprovalEntryID)
 	if err != nil {
 		return MappingView{}, databaseError("get accounting mapping approval", err)
 	}
 	return mappingView(row.BookID, row.VouEntity, row.DefaultResult, row.Definition, entry)
 }
 
-func (s *Service) CreateMapping(ctx context.Context, input CreateMappingInput, actor approval.Actor) (MappingView, error) {
-	catalog, err := MappingFieldCatalog(input.VouEntity)
+func validateMappingSnapshot(ctx context.Context, q *dbsqlc.Queries, bookID, vouEntity, defaultResult string, definition json.RawMessage) (MappingDefinition, error) {
+	var def MappingDefinition
+	if err := json.Unmarshal(definition, &def); err != nil {
+		return MappingDefinition{}, domainError(ErrorValidation, "invalid mapping definition", err)
+	}
+	catalog, err := MappingFieldCatalog(vouEntity)
 	if err != nil {
-		return MappingView{}, err
+		return MappingDefinition{}, err
 	}
-	if err = validateMapping(input.DefaultResult, input.Definition, catalog); err != nil {
-		return MappingView{}, err
+	if err := validateMapping(defaultResult, def, catalog); err != nil {
+		return MappingDefinition{}, err
 	}
-	encoded, err := encodeMappingDefinition(input.Definition)
-	if err != nil {
-		return MappingView{}, err
+	if err := validateMappingSubjects(ctx, q, bookID, def); err != nil {
+		return MappingDefinition{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MappingView{}, databaseError("begin accounting mapping creation", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	if err = s.requireApprovalAccess(ctx, qtx, input.BookID, actor, true); err != nil {
-		return MappingView{}, err
-	}
-	if err = validateMappingSubjects(ctx, qtx, input.BookID, input.Definition); err != nil {
-		return MappingView{}, err
-	}
-	mappingID := ulid.Make().String()
-	if err = qtx.CreateAccountingMappingSubject(ctx, dbsqlc.CreateAccountingMappingSubjectParams{ID: mappingID, BookID: input.BookID, VouEntity: input.VouEntity, ActorID: actor.ID()}); err != nil {
-		return MappingView{}, databaseError("accounting mapping cannot be created", err)
-	}
-	entry, err := s.mappingApproval.CreateFirstVersion(ctx, tx, mappingID, actor, mappingPayload(input.BookID, mappingID, input.VouEntity, ""))
-	if err != nil {
-		return MappingView{}, mapApprovalError(err)
-	}
-	if err = qtx.CreateAccountingMappingVersion(ctx, dbsqlc.CreateAccountingMappingVersionParams{ApprovalEntryID: entry.ID, MappingID: mappingID, DefaultResult: input.DefaultResult, Definition: encoded, ActorID: actor.ID()}); err != nil {
-		return MappingView{}, databaseError("accounting mapping version cannot be created", err)
-	}
-	result, err := mappingView(input.BookID, input.VouEntity, input.DefaultResult, encoded, entry)
-	if err != nil {
-		return MappingView{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MappingView{}, databaseError("commit accounting mapping creation", err)
-	}
-	return result, nil
+	return def, nil
 }
 
-func (s *Service) SaveMapping(ctx context.Context, input SaveMappingInput, actor approval.Actor) (MappingView, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MappingView{}, databaseError("begin accounting mapping save", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	if err = s.requireApprovalAccess(ctx, qtx, input.BookID, actor, true); err != nil {
-		return MappingView{}, err
-	}
-	row, err := qtx.GetAccountingMappingVersion(ctx, dbsqlc.GetAccountingMappingVersionParams{BookID: input.BookID, VouEntity: input.VouEntity, ApprovalEntryID: input.ApprovalEntryID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return MappingView{}, domainError(ErrorConflict, "accounting mapping not found", err)
-	}
-	if err != nil {
-		return MappingView{}, databaseError("get accounting mapping state", err)
-	}
-	prepared, err := s.mappingApproval.Prepare(ctx, tx, approval.ActionSaved, input.ApprovalEntryID, input.Revision, actor, "")
-	if err != nil {
-		return MappingView{}, mapApprovalError(err)
-	}
-	if prepared.Entry().SubjectID != row.MappingID {
-		return MappingView{}, domainError(ErrorConflict, "approval entry does not belong to accounting mapping", nil)
-	}
-	catalog, err := MappingFieldCatalog(row.VouEntity)
-	if err != nil {
-		return MappingView{}, err
-	}
-	if err = validateMapping(input.DefaultResult, input.Definition, catalog); err != nil {
-		return MappingView{}, err
-	}
-	if err = validateMappingSubjects(ctx, qtx, input.BookID, input.Definition); err != nil {
-		return MappingView{}, err
-	}
-	encoded, err := encodeMappingDefinition(input.Definition)
-	if err != nil {
-		return MappingView{}, err
-	}
-	if err = qtx.UpdateAccountingMappingVersion(ctx, dbsqlc.UpdateAccountingMappingVersionParams{DefaultResult: input.DefaultResult, Definition: encoded, ActorID: actor.ID(), ApprovalEntryID: input.ApprovalEntryID}); err != nil {
-		return MappingView{}, databaseError("accounting mapping cannot be saved", err)
-	}
-	entry, err := s.mappingApproval.Commit(ctx, tx, prepared, mappingPayload(input.BookID, row.MappingID, row.VouEntity, input.ApprovalEntryID))
-	if err != nil {
-		return MappingView{}, mapApprovalError(err)
-	}
-	result, err := mappingView(input.BookID, row.VouEntity, input.DefaultResult, encoded, entry)
-	if err != nil {
-		return MappingView{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MappingView{}, databaseError("commit accounting mapping save", err)
-	}
-	return result, nil
+// ValidateMapping lets DCL reject invalid mapping snapshots on create, save,
+// and submit without registering any accounting-subject usage.
+func (s *Service) ValidateMapping(ctx context.Context, tx pgx.Tx, bookID, vouEntity, defaultResult string, definition json.RawMessage) error {
+	_, err := validateMappingSnapshot(ctx, dbsqlc.New(tx), bookID, vouEntity, defaultResult, definition)
+	return err
 }
 
-func (s *Service) CreateNextMappingVersion(ctx context.Context, bookID, entity string, actor approval.Actor) (MappingView, error) {
-	tx, err := s.pool.Begin(ctx)
+// ValidateAndRegisterMapping is called by DCL during approve to independently
+// validate the mapping and register it for use by ACC posting.
+func (s *Service) ValidateAndRegisterMapping(ctx context.Context, tx pgx.Tx, approvalEntryID, bookID, vouEntity, defaultResult string, definition json.RawMessage) error {
+	q := dbsqlc.New(tx)
+	def, err := validateMappingSnapshot(ctx, q, bookID, vouEntity, defaultResult, definition)
 	if err != nil {
-		return MappingView{}, databaseError("begin accounting mapping version", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	if err = s.requireApprovalAccess(ctx, qtx, bookID, actor, true); err != nil {
-		return MappingView{}, err
-	}
-	current, err := qtx.GetCurrentApprovedAccountingMapping(ctx, dbsqlc.GetCurrentApprovedAccountingMappingParams{BookID: bookID, VouEntity: entity})
-	if err != nil {
-		return MappingView{}, databaseError("get latest approved accounting mapping", err)
-	}
-	entry, err := s.mappingApproval.CreateNextVersion(ctx, tx, current.MappingID, actor, mappingPayload(bookID, current.MappingID, entity, ""))
-	if err != nil {
-		return MappingView{}, mapApprovalError(err)
-	}
-	if err = qtx.CreateAccountingMappingVersion(ctx, dbsqlc.CreateAccountingMappingVersionParams{ApprovalEntryID: entry.ID, MappingID: current.MappingID, DefaultResult: current.DefaultResult, Definition: current.Definition, ActorID: actor.ID()}); err != nil {
-		return MappingView{}, databaseError("create accounting mapping candidate", err)
-	}
-	result, err := mappingView(bookID, entity, current.DefaultResult, current.Definition, entry)
-	if err != nil {
-		return MappingView{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MappingView{}, databaseError("commit accounting mapping version", err)
-	}
-	return result, nil
-}
-
-func (s *Service) MappingVersions(ctx context.Context, input QueryMappingsInput, actor approval.Actor) (MappingPage, error) {
-	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
-		return MappingPage{}, domainError(ErrorValidation, "invalid accounting mapping versions", nil)
-	}
-	if err := s.mappingApproval.Authorize(ctx, actor, "versions"); err != nil {
-		return MappingPage{}, mapApprovalError(err)
-	}
-	if err := s.requireApprovalAccess(ctx, s.queries, input.BookID, actor, false); err != nil {
-		return MappingPage{}, err
-	}
-	rows, err := s.queries.ListAccountingMappingVersions(ctx, dbsqlc.ListAccountingMappingVersionsParams{BookID: input.BookID, VouEntity: input.VouEntity, PageOffset: int32((input.Page - 1) * input.PageSize), PageSize: int32(input.PageSize)})
-	if err != nil {
-		return MappingPage{}, databaseError("list accounting mapping versions", err)
-	}
-	page := MappingPage{Items: []MappingView{}, Page: input.Page, PageSize: input.PageSize}
-	for _, row := range rows {
-		entry := mappingApprovalEntry(row.ApprovalEntryID, row.MappingID, row.VersionNo, row.Status, row.Revision, row.CreatedBy, row.CreatedAt, row.UpdatedBy, row.UpdatedAt, row.SubmittedBy, row.SubmittedAt, row.ApprovedBy, row.ApprovedAt)
-		view, viewErr := mappingView(row.BookID, row.VouEntity, row.DefaultResult, row.Definition, entry)
-		if viewErr != nil {
-			return MappingPage{}, viewErr
-		}
-		page.Items = append(page.Items, view)
-		page.Total = row.Total
-	}
-	return page, nil
-}
-
-func (s *Service) transitionMapping(ctx context.Context, input MappingVersionInput, reason string, actor approval.Actor, action approval.Action) (MappingView, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MappingView{}, databaseError("begin accounting mapping state change", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	if err = s.requireApprovalAccess(ctx, qtx, input.BookID, actor, true); err != nil {
-		return MappingView{}, err
-	}
-	row, err := qtx.GetAccountingMappingVersion(ctx, dbsqlc.GetAccountingMappingVersionParams{BookID: input.BookID, VouEntity: input.VouEntity, ApprovalEntryID: input.ApprovalEntryID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return MappingView{}, domainError(ErrorConflict, "accounting mapping not found", err)
-	}
-	if err != nil {
-		return MappingView{}, databaseError("get accounting mapping state", err)
-	}
-	prepared, err := s.mappingApproval.Prepare(ctx, tx, action, input.ApprovalEntryID, input.Revision, actor, reason)
-	if err != nil {
-		return MappingView{}, mapApprovalError(err)
-	}
-	if prepared.Entry().SubjectID != row.MappingID {
-		return MappingView{}, domainError(ErrorConflict, "approval entry does not belong to accounting mapping", nil)
-	}
-	if action == approval.ActionApproved {
-		catalog, validationErr := MappingFieldCatalog(row.VouEntity)
-		if validationErr != nil {
-			return MappingView{}, validationErr
-		}
-		definition := MappingDefinition{}
-		if jsonErr := json.Unmarshal(row.Definition, &definition); jsonErr != nil {
-			return MappingView{}, domainError(ErrorInternal, "invalid stored accounting mapping", jsonErr)
-		}
-		if validationErr = validateMapping(row.DefaultResult, definition, catalog); validationErr != nil {
-			return MappingView{}, validationErr
-		}
-		if validationErr = validateMappingSubjects(ctx, qtx, input.BookID, definition); validationErr != nil {
-			return MappingView{}, validationErr
-		}
-		if validationErr = registerMappingSubjectUsages(ctx, qtx, input.ApprovalEntryID, definition); validationErr != nil {
-			return MappingView{}, validationErr
-		}
-	} else if action == approval.ActionUnapproved {
-		referenced, referenceErr := qtx.AccountingMappingVersionReferenced(ctx, &input.ApprovalEntryID)
-		if referenceErr != nil {
-			return MappingView{}, databaseError("check accounting mapping references", referenceErr)
-		}
-		if referenced {
-			return MappingView{}, domainError(ErrorConflict, "referenced accounting mapping cannot be unapproved", nil)
-		}
-		if err = qtx.DeleteAccountingSubjectUsages(ctx, dbsqlc.DeleteAccountingSubjectUsagesParams{UsageType: "MAPPING", UsageID: input.ApprovalEntryID}); err != nil {
-			return MappingView{}, databaseError("release mapping accounting subjects", err)
-		}
-	}
-	entry, err := s.mappingApproval.Commit(ctx, tx, prepared, mappingPayload(input.BookID, row.MappingID, row.VouEntity, input.ApprovalEntryID))
-	if err != nil {
-		return MappingView{}, mapApprovalError(err)
-	}
-	result, err := mappingView(row.BookID, row.VouEntity, row.DefaultResult, row.Definition, entry)
-	if err != nil {
-		return MappingView{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MappingView{}, databaseError("commit accounting mapping state change", err)
-	}
-	return result, nil
-}
-
-func (s *Service) SubmitMapping(ctx context.Context, input MappingVersionInput, actor approval.Actor) (MappingView, error) {
-	return s.transitionMapping(ctx, input, "", actor, approval.ActionSubmitted)
-}
-func (s *Service) UnsubmitMapping(ctx context.Context, input MappingVersionInput, actor approval.Actor) (MappingView, error) {
-	return s.transitionMapping(ctx, input, "", actor, approval.ActionUnsubmitted)
-}
-func (s *Service) ApproveMapping(ctx context.Context, input MappingVersionInput, actor approval.Actor) (MappingView, error) {
-	return s.transitionMapping(ctx, input, "", actor, approval.ActionApproved)
-}
-func (s *Service) RejectMapping(ctx context.Context, input MappingReasonInput, actor approval.Actor) (MappingView, error) {
-	return s.transitionMapping(ctx, input.MappingVersionInput, input.Reason, actor, approval.ActionRejected)
-}
-func (s *Service) UnapproveMapping(ctx context.Context, input MappingReasonInput, actor approval.Actor) (MappingView, error) {
-	return s.transitionMapping(ctx, input.MappingVersionInput, input.Reason, actor, approval.ActionUnapproved)
-}
-
-func (s *Service) DeleteMappingVersion(ctx context.Context, input MappingVersionInput, actor approval.Actor) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return databaseError("begin accounting mapping delete", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	if err = s.requireApprovalAccess(ctx, qtx, input.BookID, actor, true); err != nil {
 		return err
 	}
-	row, err := qtx.GetAccountingMappingVersion(ctx, dbsqlc.GetAccountingMappingVersionParams{BookID: input.BookID, VouEntity: input.VouEntity, ApprovalEntryID: input.ApprovalEntryID})
-	if err != nil {
-		return databaseError("get accounting mapping version", err)
-	}
-	entry, err := s.mappingApproval.Lock(ctx, tx, input.ApprovalEntryID, input.Revision, actor, approval.ActionDeleted)
-	if err != nil {
-		return mapApprovalError(err)
-	}
-	if entry.SubjectID != row.MappingID || entry.Status != approval.StatusDraft {
-		return domainError(ErrorConflict, "only the mapping draft version can be deleted", nil)
-	}
-	if err = qtx.DeleteAccountingMappingVersion(ctx, input.ApprovalEntryID); err != nil {
-		return databaseError("delete accounting mapping payload", err)
-	}
-	if err = s.mappingApproval.DeleteDraftVersion(ctx, tx, input.ApprovalEntryID, input.Revision, actor, mappingPayload(input.BookID, row.MappingID, row.VouEntity, input.ApprovalEntryID)); err != nil {
-		return mapApprovalError(err)
-	}
-	if err = qtx.DeleteAccountingMappingSubjectIfEmpty(ctx, row.MappingID); err != nil {
-		return databaseError("delete empty accounting mapping", err)
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return databaseError("commit accounting mapping delete", err)
+	return registerMappingSubjectUsages(ctx, q, approvalEntryID, def)
+}
+
+// ReleaseMappingUsages is called by DCL during unapprove to release any usages
+// of the mapping being unapproved.
+func (s *Service) ReleaseMappingUsages(ctx context.Context, tx pgx.Tx, approvalEntryID string) error {
+	if err := dbsqlc.New(tx).DeleteAccountingSubjectUsages(ctx, dbsqlc.DeleteAccountingSubjectUsagesParams{UsageType: "MAPPING", UsageID: approvalEntryID}); err != nil {
+		return databaseError("release mapping accounting subjects", err)
 	}
 	return nil
+}
+
+func (s *Service) CheckMappingAccess(ctx context.Context, tx pgx.Tx, bookID, actorID string, operate bool) (bool, error) {
+	q := dbsqlc.New(tx)
+	if operate {
+		return q.HasAccountingBookOperateAccess(ctx, dbsqlc.HasAccountingBookOperateAccessParams{BookID: bookID, UserID: actorID})
+	}
+	return q.HasAccountingBookQueryAccess(ctx, dbsqlc.HasAccountingBookQueryAccessParams{BookID: bookID, UserID: actorID})
+}
+func mappingView(bookID, entity, defaultResult string, definitionJSON []byte, entry approval.Entry) (MappingView, error) {
+	definition := MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}}
+	if err := json.Unmarshal(definitionJSON, &definition); err != nil {
+		return MappingView{}, domainError(ErrorInternal, "invalid stored accounting mapping", err)
+	}
+	for templateIndex := range definition.Templates {
+		for lineIndex := range definition.Templates[templateIndex].Lines {
+			line := &definition.Templates[templateIndex].Lines[lineIndex]
+			if line.Dimensions == nil {
+				line.Dimensions = map[string]string{}
+			}
+			if line.CostCounterpartDimensions == nil {
+				line.CostCounterpartDimensions = map[string]string{}
+			}
+		}
+	}
+	return MappingView{BookID: bookID, VouEntity: entity, Approval: approval.VersionMetaFromEntry(entry), DefaultResult: defaultResult, Definition: definition}, nil
+}
+
+func mappingApprovalEntry(id, subjectID string, versionNo *int32, status string, revision int64, createdBy string, createdAt pgtype.Timestamptz, updatedBy string, updatedAt pgtype.Timestamptz, submittedBy *string, submittedAt pgtype.Timestamptz, approvedBy *string, approvedAt pgtype.Timestamptz) approval.Entry {
+	entry := approval.Entry{EntryRef: approval.EntryRef{ID: id, Domain: "dcl", Entity: "acc-mapping", SubjectID: subjectID, VersionNo: versionNo}, Status: approval.Status(status), Revision: revision, CreatedBy: createdBy, CreatedAt: createdAt.Time, UpdatedBy: updatedBy, UpdatedAt: updatedAt.Time, SubmittedBy: submittedBy, ApprovedBy: approvedBy}
+	if submittedAt.Valid {
+		entry.SubmittedAt = &submittedAt.Time
+	}
+	if approvedAt.Valid {
+		entry.ApprovedAt = &approvedAt.Time
+	}
+	return entry
 }

@@ -22,6 +22,7 @@ import {
   type WorkbenchObjectItem,
   type WorkbenchPendingStage,
   workbenchItemPath,
+  workbenchItemQuery,
   useDashboardViewModel,
 } from './vm'
 import { isDclDeclarationEntity } from '@/pages/dcl/shared/declaration'
@@ -234,12 +235,7 @@ async function openItem(
 ): Promise<void> {
   await router.push({
     path: workbenchItemPath(row),
-    query: {
-      ...(row.category === 'BOB'
-        ? { objectId: row.objectId }
-        : { documentId: row.documentId }),
-      mode,
-    },
+    query: workbenchItemQuery(row, mode),
   })
 }
 

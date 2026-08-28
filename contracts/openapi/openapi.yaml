@@ -15,6 +15,7 @@
       { 'name': 'aux', 'description': '辅助对象' },
       { 'name': 'vou', 'description': '业务单据' },
       { 'name': 'wfl', 'description': '业务流程' },
+      { 'name': 'dcl', 'description': '申报控制' },
       { 'name': 'acc', 'description': '内部会计' },
       { 'name': 'rpt', 'description': '查询报表' },
       { 'name': 'files', 'description': '二进制附件端点' },
@@ -751,401 +752,7 @@
                 },
             },
         },
-      '/acc/mapping/create':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '创建 VOU 会计映射首个草稿版本',
-              'operationId': 'accMappingCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '创建后的映射草稿。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/create-next':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '创建 VOU 会计映射下一草稿版本',
-              'operationId': 'accMappingCreateNext',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingCreateNextRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '创建后的映射候选。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/versions':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '读取 VOU 会计映射版本历史',
-              'operationId': 'accMappingVersions',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingVersionsRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '映射版本历史。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingPageEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/save':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '保存 VOU 会计映射草稿',
-              'operationId': 'accMappingSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '保存后的映射草稿。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/approve':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '批准 VOU 会计映射版本',
-              'operationId': 'accMappingApprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingApprovalActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '批准后的映射版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/unapprove':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '反批准未引用的 VOU 会计映射版本',
-              'operationId': 'accMappingUnapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingReasonActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '反批准后的映射草稿。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/submit':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '提交 VOU 会计映射审批',
-              'operationId': 'accMappingSubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingApprovalActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '提交后的映射候选。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/unsubmit':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '撤回 VOU 会计映射审批',
-              'operationId': 'accMappingUnsubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingApprovalActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '撤回后的映射候选。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/reject':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '驳回 VOU 会计映射审批',
-              'operationId': 'accMappingReject',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingReasonActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '驳回后的映射候选。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/acc/mapping/delete-version':
-        {
-          'post':
-            {
-              'tags': ['acc'],
-              'summary': '删除 VOU 会计映射草稿版本',
-              'operationId': 'accMappingDeleteVersion',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/acc.yaml#/MappingApprovalActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Empty' } },
-            },
-        },
+
       '/acc/mapping/catalog':
         {
           'post':
@@ -7338,6 +6945,524 @@
                               'schema':
                                 {
                                   '$ref': './schemas/dcl.yaml#/DclOperatingEntityAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建会计映射首个草稿版本',
+              'operationId': 'dclAccMappingCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的映射草稿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/create-next':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建会计映射下一草稿版本',
+              'operationId': 'dclAccMappingCreateNext',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存会计映射草稿',
+              'operationId': 'dclAccMappingSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingSaveResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交会计映射审批',
+              'operationId': 'dclAccMappingSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '提交后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回会计映射审批',
+              'operationId': 'dclAccMappingUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '撤回后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回会计映射审批',
+              'operationId': 'dclAccMappingReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '驳回后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准会计映射',
+              'operationId': 'dclAccMappingApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批准后的映射版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批会计映射',
+              'operationId': 'dclAccMappingUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '反批后的映射版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/delete-version':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除会计映射草稿版本',
+              'operationId': 'dclAccMappingDeleteVersion',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/acc-mapping/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询会计映射版本',
+              'operationId': 'dclAccMappingQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '账簿内的映射版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取会计映射版本',
+              'operationId': 'dclAccMappingGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '映射版本详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询会计映射版本历史',
+              'operationId': 'dclAccMappingVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '映射版本历史分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/acc-mapping/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询会计映射审计历史',
+              'operationId': 'dclAccMappingAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '映射审计历史分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclAccMappingAuditHistoryResponse',
                                 },
                             },
                         },

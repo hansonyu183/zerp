@@ -14,6 +14,7 @@ export type DclDeclarationEntity =
   | 'supplier'
   | 'other-unit'
   | 'sales-partner'
+  | 'acc-mapping'
 export type DclDeclarationLifecycleAction =
   'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
 export type DclDeclarationWireAction =
@@ -111,7 +112,8 @@ export function isDclDeclarationEntity(
     entity === 'customer-account' ||
     entity === 'supplier' ||
     entity === 'other-unit' ||
-    entity === 'sales-partner'
+    entity === 'sales-partner' ||
+    entity === 'acc-mapping'
   )
 }
 

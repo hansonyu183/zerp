@@ -2,10 +2,12 @@ package testseed
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
@@ -241,11 +243,12 @@ func (s *Seeder) ensureAccountingMapping(
 	if err != nil {
 		return 0, err
 	}
-	page, err := s.accounting.QueryMappings(ctx, accdomain.QueryMappingsInput{
-		BookID: bookID, VouEntity: entity, Page: 1, PageSize: 200,
+	page, err := s.accountMappings.Query(ctx, dcldomain.AccMappingQueryInput{
+		BookID: bookID, Page: 1, PageSize: 100,
+		Filters: dcldomain.AccMappingQueryFilters{VouEntity: entity},
 	}, actor)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("query DCL accounting mapping: %w", err)
 	}
 	for _, mapping := range page.Items {
 		if mapping.Approval.Status == approval.StatusApproved {
@@ -255,23 +258,27 @@ func (s *Seeder) ensureAccountingMapping(
 	if len(page.Items) != 0 {
 		return 0, fmt.Errorf("unapproved mapping already exists")
 	}
-	mapping, err := s.accounting.CreateMapping(ctx, accdomain.CreateMappingInput{
-		BookID: bookID, VouEntity: entity, DefaultResult: defaultResult,
-		Definition: definition,
-	}, actor)
+	encodedDefinition, err := json.Marshal(definition)
 	if err != nil {
 		return 0, err
 	}
-	mapping, err = s.accounting.SubmitMapping(ctx, accdomain.MappingVersionInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: mapping.Approval.ApprovalEntryID, Revision: mapping.Approval.Revision}, actor)
+	mapping, err := s.accountMappings.Create(ctx, dcldomain.AccMappingCreateInput{
+		BookID: bookID, VouEntity: entity,
+		Data: dcldomain.AccMappingData{DefaultResult: defaultResult, Definition: encodedDefinition},
+	}, actor)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("create DCL accounting mapping: %w", err)
+	}
+	mapping, err = s.accountMappings.Submit(ctx, dcldomain.AccMappingVersionInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: mapping.Approval.ApprovalEntryID, ApprovalRevision: mapping.Approval.Revision}, actor)
+	if err != nil {
+		return 0, fmt.Errorf("submit DCL accounting mapping: %w", err)
 	}
 	reviewer, actorErr := approval.TrustedSystemActor("seed-acc-mapping-approve-" + entity)
 	if actorErr != nil {
 		return 0, actorErr
 	}
-	if _, err = s.accounting.ApproveMapping(ctx, accdomain.MappingVersionInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: mapping.Approval.ApprovalEntryID, Revision: mapping.Approval.Revision}, reviewer); err != nil {
-		return 0, err
+	if _, err = s.accountMappings.Approve(ctx, dcldomain.AccMappingVersionInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: mapping.Approval.ApprovalEntryID, ApprovalRevision: mapping.Approval.Revision}, reviewer); err != nil {
+		return 0, fmt.Errorf("approve DCL accounting mapping: %w", err)
 	}
 	return outcomeCreated, nil
 }

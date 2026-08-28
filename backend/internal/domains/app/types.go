@@ -187,9 +187,11 @@ type WorkbenchItem struct {
 
 	ObjectID        string `json:"objectId,omitempty"`
 	ObjectRevision  int64  `json:"objectRevision,omitempty"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+	ApprovalEntryID string `json:"versionId,omitempty"`
 	Code            string `json:"code,omitempty"`
 	Name            string `json:"name,omitempty"`
+	BookID          string `json:"bookId,omitempty"`
+	VouEntity       string `json:"vouEntity,omitempty"`
 
 	DocumentID   string  `json:"documentId,omitempty"`
 	DocumentNo   string  `json:"documentNo,omitempty"`

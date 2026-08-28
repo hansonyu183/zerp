@@ -4303,4 +4303,313 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'DclAccMappingData':
+    {
+      'type': 'object',
+      'required': ['defaultResult', 'definition'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'defaultResult': { '$ref': './acc.yaml#/MappingResult' },
+          'definition': { '$ref': './acc.yaml#/MappingDefinition' },
+        },
+    },
+  'DclAccMappingCreateRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'data': { '$ref': '#/DclAccMappingData' },
+        },
+    },
+  'DclAccMappingSaveRequest':
+    {
+      'type': 'object',
+      'required':
+        ['bookId', 'vouEntity', 'approvalEntryId', 'approvalRevision', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'approvalEntryId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'data': { '$ref': '#/DclAccMappingData' },
+        },
+    },
+  'DclAccMappingVersionRequest':
+    {
+      'type': 'object',
+      'required':
+        ['bookId', 'vouEntity', 'approvalEntryId', 'approvalRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'approvalEntryId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'DclAccMappingReviewRequest':
+    {
+      'type': 'object',
+      'required':
+        [
+          'bookId',
+          'vouEntity',
+          'approvalEntryId',
+          'approvalRevision',
+          'reason',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'approvalEntryId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'reason': { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
+        },
+    },
+  'DclAccMappingGetRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'approvalEntryId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+        },
+    },
+  'DclAccMappingQueryRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'vouEntity': { 'type': 'string' },
+                  'status':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': './common.yaml#/ApprovalStatus' },
+                    },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string' },
+                      'order': { 'type': 'string', 'enum': ['asc', 'desc'] },
+                    },
+                },
+            },
+        },
+    },
+  'DclAccMappingHistoryRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+        },
+    },
+  'DclAccMappingView':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity', 'approval', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string' },
+          'vouEntity': { 'type': 'string' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclAccMappingData' },
+        },
+    },
+  'DclAccMappingMutation':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity', 'approval'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string' },
+          'vouEntity': { 'type': 'string' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+        },
+    },
+  'DclAccMappingListItem':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity', 'approval', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string' },
+          'vouEntity': { 'type': 'string' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclAccMappingData' },
+        },
+    },
+  'DclAccMappingQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclAccMappingListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclAccMappingVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclAccMappingView' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclAccMappingMutationResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclAccMappingMutation' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclAccMappingSaveResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclAccMappingView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclAccMappingViewResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclAccMappingView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclAccMappingQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclAccMappingQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclAccMappingVersionPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclAccMappingVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclAccMappingAuditHistoryResponse':
+    { '$ref': '#/DclWarehouseAuditHistoryResponse' },
 }

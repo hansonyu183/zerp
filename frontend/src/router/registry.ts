@@ -202,6 +202,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 60,
     component: () => import('@/pages/dcl/product/Product.vue'),
   }),
+  registerPage('dcl', {
+    entity: 'acc-mapping',
+    entityTitle: '会计映射申报',
+    icon: 'mdi-source-branch-plus',
+    order: 70,
+    component: () => import('@/pages/dcl/acc-mapping/AccMapping.vue'),
+  }),
   registerPage('rpt', {
     entity: 'definition',
     entityTitle: '报表定义管理',
@@ -232,7 +239,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
   }),
   registerPage('acc', {
     entity: 'mapping',
-    entityTitle: 'VOU 会计映射',
+    entityTitle: '当前 VOU 会计映射',
     icon: 'mdi-source-branch',
     order: 40,
     component: () => import('@/pages/acc/mapping/Mapping.vue'),

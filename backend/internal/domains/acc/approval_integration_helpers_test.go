@@ -3,11 +3,14 @@
 package acc
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,7 +21,29 @@ type accountingProductSnapshot struct {
 	ObjectID, ApprovalEntryID, Code, Name string
 }
 
+type dclMappingFixtureInput struct {
+	BookID, VouEntity, DefaultResult string
+	Definition                       MappingDefinition
+}
+
 var accountingProductCodeSequence uint32 = 8000
+
+func accMappingIntegrationError(err error) error {
+	var dclErr *dcldomain.DomainError
+	if !errors.As(err, &dclErr) {
+		return err
+	}
+	kind := ErrorInternal
+	switch dclErr.Kind {
+	case dcldomain.ErrorValidation:
+		kind = ErrorValidation
+	case dcldomain.ErrorForbidden:
+		kind = ErrorForbidden
+	case dcldomain.ErrorConflict:
+		kind = ErrorConflict
+	}
+	return domainErrorWithKey(kind, dclErr.ErrorKey, dclErr.Message, err)
+}
 
 func createAccountingProductSnapshot(t *testing.T, pool *pgxpool.Pool, objectID, name string) accountingProductSnapshot {
 	t.Helper()
@@ -140,13 +165,75 @@ func approveIntegrationMapping(t *testing.T, service *Service, bookID, entity st
 	ensureIntegrationBookAccess(t, service, bookID, operatorID)
 	submitter := integrationACCActor(t, adminID, fmt.Sprintf("acc-mapping-submit-%s-%s", bookID, entity))
 	reviewer := integrationACCActor(t, operatorID, fmt.Sprintf("acc-mapping-approve-%s-%s", bookID, entity))
-	pending, err := service.SubmitMapping(t.Context(), mappingInput(bookID, entity, draft), submitter)
+	dclService := testDCLAccMappingService(service)
+	pending, err := dclService.Submit(t.Context(), dcldomain.AccMappingVersionInput{
+		BookID: bookID, VouEntity: entity, ApprovalEntryID: draft.Approval.ApprovalEntryID, ApprovalRevision: draft.Approval.Revision,
+	}, submitter)
 	if err != nil {
 		t.Fatalf("submit integration mapping: %v", err)
 	}
-	approved, err := service.ApproveMapping(t.Context(), mappingInput(bookID, entity, pending), reviewer)
+	approved, err := dclService.Approve(t.Context(), dcldomain.AccMappingVersionInput{
+		BookID: bookID, VouEntity: entity, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision,
+	}, reviewer)
 	if err != nil {
 		t.Fatalf("approve integration mapping: %v", err)
 	}
-	return approved
+	return getDCLIntegrationMapping(t, service, bookID, entity, approved.Approval.ApprovalEntryID, reviewer)
+}
+
+func testDCLAccMappingService(service *Service) *dcldomain.AccMappingService {
+	return dcldomain.NewAccMappingService(service.pool, service, authorization.Func(nil), txevent.NewBus())
+}
+
+func dclMappingData(t *testing.T, defaultResult string, definition MappingDefinition) dcldomain.AccMappingData {
+	t.Helper()
+	encoded, err := json.Marshal(definition)
+	if err != nil {
+		t.Fatalf("encode integration mapping: %v", err)
+	}
+	return dcldomain.AccMappingData{DefaultResult: defaultResult, Definition: encoded}
+}
+
+func accMappingViewFromDCL(t *testing.T, view dcldomain.AccMappingView) MappingView {
+	t.Helper()
+	result, err := mappingView(view.BookID, view.VouEntity, view.Data.DefaultResult, view.Data.Definition, approval.Entry{
+		EntryRef: approval.EntryRef{
+			ID: view.Approval.ApprovalEntryID, Domain: "dcl", Entity: dcldomain.EntityAccMapping,
+			VersionNo: &view.Approval.VersionNo,
+		},
+		Status: view.Approval.Status, Revision: view.Approval.Revision,
+		CreatedBy: view.Approval.CreatedBy, CreatedAt: view.Approval.CreatedAt,
+		UpdatedBy: view.Approval.UpdatedBy, UpdatedAt: view.Approval.UpdatedAt,
+		SubmittedBy: view.Approval.SubmittedBy, SubmittedAt: view.Approval.SubmittedAt,
+		ApprovedBy: view.Approval.ApprovedBy, ApprovedAt: view.Approval.ApprovedAt,
+	})
+	if err != nil {
+		t.Fatalf("project DCL integration mapping: %v", err)
+	}
+	return result
+}
+
+func getDCLIntegrationMapping(t *testing.T, service *Service, bookID, entity, entryID string, actor approval.Actor) MappingView {
+	t.Helper()
+	view, err := testDCLAccMappingService(service).Get(t.Context(), dcldomain.AccMappingGetInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: entryID}, actor)
+	if err != nil {
+		t.Fatalf("get DCL integration mapping: %v", err)
+	}
+	return accMappingViewFromDCL(t, view)
+}
+
+// createDCLIntegrationMapping keeps ACC posting fixtures on the typed DCL
+// lifecycle without adding declaration methods to the ACC service surface.
+func createDCLIntegrationMapping(t *testing.T, s *Service, input dclMappingFixtureInput, actor approval.Actor) (MappingView, error) {
+	t.Helper()
+	service := testDCLAccMappingService(s)
+	mutation, err := service.Create(t.Context(), dcldomain.AccMappingCreateInput{BookID: input.BookID, VouEntity: input.VouEntity, Data: dclMappingData(t, input.DefaultResult, input.Definition)}, actor)
+	if err != nil {
+		return MappingView{}, accMappingIntegrationError(err)
+	}
+	view, err := service.Get(t.Context(), dcldomain.AccMappingGetInput{BookID: input.BookID, VouEntity: input.VouEntity, ApprovalEntryID: mutation.Approval.ApprovalEntryID}, actor)
+	if err != nil {
+		return MappingView{}, accMappingIntegrationError(err)
+	}
+	return accMappingViewFromDCL(t, view), nil
 }

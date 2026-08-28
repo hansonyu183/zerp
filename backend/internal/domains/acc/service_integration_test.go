@@ -52,7 +52,11 @@ func seedUsers(t *testing.T, pool *pgxpool.Pool) {
 		DELETE FROM acc_openings;
 		DELETE FROM acc_vouchers;
 		DELETE FROM acc_subject_usages;
-		DELETE FROM acc_mapping_versions;
+		DELETE FROM dcl_acc_mapping_versions;
+		DELETE FROM approval_events WHERE domain = 'dcl' AND entity = 'acc-mapping';
+		DELETE FROM approval_entries WHERE domain = 'dcl' AND entity = 'acc-mapping';
+		DELETE FROM dcl_subjects WHERE entity = 'acc-mapping';
+		DELETE FROM acc_mappings;
 		DELETE FROM approval_events WHERE domain = 'acc';
 		DELETE FROM approval_entries WHERE domain = 'acc';
 		DELETE FROM acc_books;

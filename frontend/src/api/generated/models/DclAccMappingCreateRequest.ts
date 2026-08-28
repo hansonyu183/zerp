@@ -2,10 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type MappingReasonActionRequest = {
+import type { DclAccMappingData } from './DclAccMappingData';
+export type DclAccMappingCreateRequest = {
   bookId: string;
   vouEntity: string;
-  approvalEntryId: string;
-  revision: number;
-  reason: string;
+  data: DclAccMappingData;
 };

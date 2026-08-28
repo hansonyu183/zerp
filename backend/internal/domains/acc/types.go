@@ -275,34 +275,6 @@ type QueryMappingsInput struct {
 	PageSize  int
 }
 
-type CreateMappingInput struct {
-	BookID        string
-	VouEntity     string
-	DefaultResult string
-	Definition    MappingDefinition
-}
-
-type SaveMappingInput struct {
-	BookID          string
-	VouEntity       string
-	ApprovalEntryID string
-	DefaultResult   string
-	Definition      MappingDefinition
-	Revision        int64
-}
-
-type MappingVersionInput struct {
-	BookID          string
-	VouEntity       string
-	ApprovalEntryID string
-	Revision        int64
-}
-
-type MappingReasonInput struct {
-	MappingVersionInput
-	Reason string
-}
-
 type MappingView struct {
 	BookID        string               `json:"bookId"`
 	VouEntity     string               `json:"vouEntity"`

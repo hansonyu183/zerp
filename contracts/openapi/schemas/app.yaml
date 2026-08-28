@@ -1117,6 +1117,26 @@
           'pageSize': { 'type': 'integer', 'enum': [20] },
         },
     },
+  'WorkbenchObjectEntity':
+    {
+      'type': 'string',
+      'enum':
+        [
+          'party',
+          'operating-entity',
+          'warehouse',
+          'vehicle',
+          'fund-account',
+          'product',
+          'employee',
+          'customer',
+          'customer-account',
+          'supplier',
+          'other-unit',
+          'sales-partner',
+          'acc-mapping',
+        ],
+    },
   'WorkbenchObjectItem':
     {
       'type': 'object',
@@ -1139,7 +1159,7 @@
       'properties':
         {
           'category': { 'type': 'string', 'enum': ['BOB'] },
-          'entity': { '$ref': '../schemas/bob.yaml#/BobEntity' },
+          'entity': { '$ref': '#/WorkbenchObjectEntity' },
           'status': { 'type': 'string', 'enum': ['DRAFT', 'PENDING'] },
           'pendingStage': { '$ref': '#/WorkbenchPendingStage' },
           'availableActions':
@@ -1151,6 +1171,8 @@
           'revision': { 'type': 'integer', 'format': 'int64' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
+          'bookId': { 'type': 'string' },
+          'vouEntity': { 'type': 'string' },
         },
     },
   'WorkbenchDocumentItem':

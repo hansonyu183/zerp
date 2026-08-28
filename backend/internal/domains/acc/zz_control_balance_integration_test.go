@@ -58,7 +58,7 @@ func TestZZControlBookFundsAndSettlementBalancesIntegration(t *testing.T) {
 			createApprovedZeroOpening(t, service, book)
 		}
 		templateID := "payment"
-		mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntityOtherPayment, DefaultResult: MappingResultPost, Definition: MappingDefinition{DefaultTemplateID: &templateID, Templates: []PostingTemplate{{ID: templateID, Lines: []PostingLineTemplate{
+		mapping, err := createDCLIntegrationMapping(t, service, dclMappingFixtureInput{BookID: book.ID, VouEntity: voudomain.EntityOtherPayment, DefaultResult: MappingResultPost, Definition: MappingDefinition{DefaultTemplateID: &templateID, Templates: []PostingTemplate{{ID: templateID, Lines: []PostingLineTemplate{
 			{SubjectSource: "FIXED", SubjectValue: expense.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 			{SubjectSource: "FIXED", SubjectValue: cash.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionFundAccount: "fundAccount.objectId"}},
 		}}}}}, integrationACCActor(t, adminID, "acc-control-mapping-create-"+book.ID))

@@ -33,17 +33,7 @@ type bookApplicationService interface {
 	ApproveOpening(context.Context, string, int64, approval.Actor) (OpeningView, error)
 	UnapproveOpening(context.Context, string, int64, string, approval.Actor) (OpeningView, error)
 	QueryMappings(context.Context, QueryMappingsInput, approval.Actor) (MappingPage, error)
-	GetMapping(context.Context, string, string, string, approval.Actor) (MappingView, error)
-	CreateMapping(context.Context, CreateMappingInput, approval.Actor) (MappingView, error)
-	CreateNextMappingVersion(context.Context, string, string, approval.Actor) (MappingView, error)
-	MappingVersions(context.Context, QueryMappingsInput, approval.Actor) (MappingPage, error)
-	SaveMapping(context.Context, SaveMappingInput, approval.Actor) (MappingView, error)
-	SubmitMapping(context.Context, MappingVersionInput, approval.Actor) (MappingView, error)
-	UnsubmitMapping(context.Context, MappingVersionInput, approval.Actor) (MappingView, error)
-	RejectMapping(context.Context, MappingReasonInput, approval.Actor) (MappingView, error)
-	ApproveMapping(context.Context, MappingVersionInput, approval.Actor) (MappingView, error)
-	UnapproveMapping(context.Context, MappingReasonInput, approval.Actor) (MappingView, error)
-	DeleteMappingVersion(context.Context, MappingVersionInput, approval.Actor) error
+	GetMapping(context.Context, string, string, approval.Actor) (MappingView, error)
 	QueryPeriods(context.Context, string, string) ([]PeriodView, error)
 	LockPeriod(context.Context, PeriodActionInput, string) (PeriodView, error)
 	UnlockPeriod(context.Context, PeriodActionInput, string) (PeriodView, error)
@@ -92,16 +82,6 @@ func (h *Handler) Register(router *gin.Engine) {
 	mappings := router.Group("/acc/mapping")
 	mappings.POST("/query", h.authorize("/acc/mapping/query"), h.queryMappings)
 	mappings.POST("/get", h.authorize("/acc/mapping/get"), h.getMapping)
-	mappings.POST("/create", h.authorize("/acc/mapping/create"), h.createMapping)
-	mappings.POST("/create-next", h.authorize("/acc/mapping/create-next"), h.createNextMapping)
-	mappings.POST("/versions", h.authorize("/acc/mapping/versions"), h.mappingVersions)
-	mappings.POST("/save", h.authorize("/acc/mapping/save"), h.saveMapping)
-	mappings.POST("/approve", h.authorize("/acc/mapping/approve"), h.approveMapping)
-	mappings.POST("/unapprove", h.authorize("/acc/mapping/unapprove"), h.unapproveMapping)
-	mappings.POST("/submit", h.authorize("/acc/mapping/submit"), h.submitMapping)
-	mappings.POST("/unsubmit", h.authorize("/acc/mapping/unsubmit"), h.unsubmitMapping)
-	mappings.POST("/reject", h.authorize("/acc/mapping/reject"), h.rejectMapping)
-	mappings.POST("/delete-version", h.authorize("/acc/mapping/delete-version"), h.deleteMappingVersion)
 	mappings.POST("/catalog", h.authorize("/acc/mapping/catalog"), h.mappingCatalog)
 
 	periods := router.Group("/acc/period")
@@ -382,42 +362,6 @@ func (h *Handler) rejectOpening(c *gin.Context) {
 	h.result(c, result, err)
 }
 
-func mappingDefinition(input generated.MappingDefinition) MappingDefinition {
-	rules := make([]MappingRule, 0, len(input.Rules))
-	for _, rule := range input.Rules {
-		conditions := make([]MappingCondition, 0, len(rule.Conditions))
-		for _, condition := range rule.Conditions {
-			conditions = append(conditions, MappingCondition{Field: condition.Field, Operator: string(condition.Operator), Values: condition.Values})
-		}
-		rules = append(rules, MappingRule{Conditions: conditions, Result: string(rule.Result), TemplateID: rule.TemplateId})
-	}
-	templates := make([]PostingTemplate, 0, len(input.Templates))
-	for _, template := range input.Templates {
-		lines := make([]PostingLineTemplate, 0, len(template.Lines))
-		for _, line := range template.Lines {
-			lines = append(lines, PostingLineTemplate{
-				SubjectSource: string(line.SubjectSource), SubjectValue: line.SubjectValue,
-				Direction: string(line.Direction), AmountField: line.AmountField,
-				CurrencyField: line.CurrencyField, Dimensions: line.Dimensions,
-				QuantityField: line.QuantityField, CostCounterpartSubjectID: line.CostCounterpartSubjectId,
-				CostCounterpartDimensions: line.CostCounterpartDimensions,
-			})
-		}
-		templates = append(templates, PostingTemplate{ID: template.TemplateId, Collection: template.Collection, Lines: lines})
-	}
-	definition := MappingDefinition{DefaultTemplateID: input.DefaultTemplateId, Rules: rules, Templates: templates}
-	if input.AssetConfiguration != nil {
-		definition.AssetConfiguration = &AssetAccountingConfiguration{
-			AssetSubjectID: input.AssetConfiguration.AssetSubjectId, AssetDimensions: input.AssetConfiguration.AssetDimensions,
-			AccumulatedDepreciationSubjectID:  input.AssetConfiguration.AccumulatedDepreciationSubjectId,
-			AccumulatedDepreciationDimensions: input.AssetConfiguration.AccumulatedDepreciationDimensions,
-			DepreciationExpenseSubjectID:      input.AssetConfiguration.DepreciationExpenseSubjectId,
-			DepreciationExpenseDimensions:     input.AssetConfiguration.DepreciationExpenseDimensions,
-		}
-	}
-	return definition
-}
-
 func (h *Handler) queryMappings(c *gin.Context) {
 	var body generated.MappingQueryRequest
 	if !h.bind(c, &body) {
@@ -440,137 +384,8 @@ func (h *Handler) getMapping(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.service.GetMapping(c.Request.Context(), body.BookId, body.VouEntity, optionalString(body.ApprovalEntryId), actor)
+	result, err := h.service.GetMapping(c.Request.Context(), body.BookId, body.VouEntity, actor)
 	h.result(c, result, err)
-}
-
-func (h *Handler) createMapping(c *gin.Context) {
-	var body generated.MappingCreateRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.CreateMapping(c.Request.Context(), CreateMappingInput{BookID: body.BookId, VouEntity: body.VouEntity, DefaultResult: string(body.DefaultResult), Definition: mappingDefinition(body.Definition)}, actor)
-	h.result(c, result, err)
-}
-
-func (h *Handler) saveMapping(c *gin.Context) {
-	var body generated.MappingSaveRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.SaveMapping(c.Request.Context(), SaveMappingInput{BookID: body.BookId, VouEntity: body.VouEntity, ApprovalEntryID: body.ApprovalEntryId, DefaultResult: string(body.DefaultResult), Definition: mappingDefinition(body.Definition), Revision: body.Revision}, actor)
-	h.result(c, result, err)
-}
-
-func (h *Handler) approveMapping(c *gin.Context) {
-	var body generated.MappingApprovalActionRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.ApproveMapping(c.Request.Context(), mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), actor)
-	h.result(c, result, err)
-}
-
-func (h *Handler) unapproveMapping(c *gin.Context) {
-	var body generated.MappingReasonActionRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.UnapproveMapping(c.Request.Context(), MappingReasonInput{MappingVersionInput: mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), Reason: body.Reason}, actor)
-	h.result(c, result, err)
-}
-
-func mappingVersionInput(bookID, entity, entryID string, revision int64) MappingVersionInput {
-	return MappingVersionInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: entryID, Revision: revision}
-}
-
-func (h *Handler) createNextMapping(c *gin.Context) {
-	var body generated.MappingCreateNextRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.CreateNextMappingVersion(c, body.BookId, body.VouEntity, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) mappingVersions(c *gin.Context) {
-	var body generated.MappingVersionsRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.MappingVersions(c, QueryMappingsInput{BookID: body.BookId, VouEntity: body.VouEntity, Page: body.Page, PageSize: body.PageSize}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) submitMapping(c *gin.Context) {
-	var body generated.MappingApprovalActionRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.SubmitMapping(c, mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), actor)
-	h.result(c, result, err)
-}
-func (h *Handler) unsubmitMapping(c *gin.Context) {
-	var body generated.MappingApprovalActionRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.UnsubmitMapping(c, mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), actor)
-	h.result(c, result, err)
-}
-func (h *Handler) rejectMapping(c *gin.Context) {
-	var body generated.MappingReasonActionRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	result, err := h.service.RejectMapping(c, MappingReasonInput{MappingVersionInput: mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), Reason: body.Reason}, actor)
-	h.result(c, result, err)
-}
-func (h *Handler) deleteMappingVersion(c *gin.Context) {
-	var body generated.MappingApprovalActionRequest
-	if !h.bind(c, &body) {
-		return
-	}
-	actor, ok := h.approvalActor(c)
-	if !ok {
-		return
-	}
-	err := h.service.DeleteMappingVersion(c, mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), actor)
-	h.result(c, nil, err)
 }
 
 func (h *Handler) mappingCatalog(c *gin.Context) {

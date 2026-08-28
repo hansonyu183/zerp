@@ -5,8 +5,4 @@
 export type MappingGetRequest = {
   bookId: string;
   vouEntity: string;
-  /**
-   * 精确读取该 Approval Version；省略时读取 latest APPROVED 或开放候选。
-   */
-  approvalEntryId?: string;
 };

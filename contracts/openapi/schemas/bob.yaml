@@ -272,7 +272,8 @@
   'BobMeasurementUnitSnapshot':
     {
       'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'code', 'name', 'symbol'],
+      'required':
+        ['objectId', 'approvalEntryId', 'code', 'name', 'symbol', 'quantityScale'],
       'additionalProperties': false,
       'properties':
         {
@@ -281,6 +282,7 @@
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'symbol': { 'type': 'string' },
+          'quantityScale': { 'type': 'integer', 'minimum': 0, 'maximum': 6 },
         },
     },
   'BobProductUnitConversionSnapshot':

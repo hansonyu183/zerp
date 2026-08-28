@@ -913,8 +913,8 @@ SELECT * FROM dcl_product_formulas WHERE product_approval_entry_id=sqlc.arg(prod
 -- name: DeleteBobProductFormula :exec
 DELETE FROM dcl_product_formulas WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
 -- name: InsertBobProductFormula :exec
-INSERT INTO dcl_product_formulas(product_approval_entry_id,output_base_quantity_micros,output_entered_quantity_micros,output_unit_object_id,output_unit_approval_entry_id,output_unit_code,output_unit_name,output_unit_symbol)
-VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(output_base_quantity_micros),sqlc.arg(output_entered_quantity_micros),sqlc.arg(output_unit_object_id),sqlc.arg(output_unit_approval_entry_id),sqlc.arg(output_unit_code),sqlc.arg(output_unit_name),sqlc.arg(output_unit_symbol));
+INSERT INTO dcl_product_formulas(product_approval_entry_id,output_base_quantity_micros,output_entered_quantity_micros,output_unit_object_id,output_unit_approval_entry_id,output_unit_code,output_unit_name,output_unit_symbol,output_unit_quantity_scale)
+VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(output_base_quantity_micros),sqlc.arg(output_entered_quantity_micros),sqlc.arg(output_unit_object_id),sqlc.arg(output_unit_approval_entry_id),sqlc.arg(output_unit_code),sqlc.arg(output_unit_name),sqlc.arg(output_unit_symbol),sqlc.arg(output_unit_quantity_scale));
 -- name: ListBobProductFormulaLines :many
 SELECT line.*,material_object.code AS material_code,material.name AS material_name,
        material.behavior_profile AS material_behavior_profile
@@ -930,8 +930,8 @@ ORDER BY line.line_no;
 -- name: DeleteBobProductFormulaLines :exec
 DELETE FROM dcl_product_formula_lines WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
 -- name: InsertBobProductFormulaLine :exec
-INSERT INTO dcl_product_formula_lines(product_approval_entry_id,line_no,material_object_id,material_approval_entry_id,base_quantity_micros,entered_quantity_micros,entered_unit_object_id,entered_unit_approval_entry_id,entered_unit_code,entered_unit_name,entered_unit_symbol,resolution_status,requires_confirmation)
-VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(line_no),sqlc.arg(material_object_id),sqlc.arg(material_approval_entry_id),sqlc.arg(base_quantity_micros),sqlc.arg(entered_quantity_micros),sqlc.arg(entered_unit_object_id),sqlc.arg(entered_unit_approval_entry_id),sqlc.arg(entered_unit_code),sqlc.arg(entered_unit_name),sqlc.arg(entered_unit_symbol),sqlc.arg(resolution_status),sqlc.arg(requires_confirmation));
+INSERT INTO dcl_product_formula_lines(product_approval_entry_id,line_no,material_object_id,material_approval_entry_id,base_quantity_micros,entered_quantity_micros,entered_unit_object_id,entered_unit_approval_entry_id,entered_unit_code,entered_unit_name,entered_unit_symbol,entered_unit_quantity_scale,resolution_status,requires_confirmation)
+VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(line_no),sqlc.arg(material_object_id),sqlc.arg(material_approval_entry_id),sqlc.arg(base_quantity_micros),sqlc.arg(entered_quantity_micros),sqlc.arg(entered_unit_object_id),sqlc.arg(entered_unit_approval_entry_id),sqlc.arg(entered_unit_code),sqlc.arg(entered_unit_name),sqlc.arg(entered_unit_symbol),sqlc.arg(entered_unit_quantity_scale),sqlc.arg(resolution_status),sqlc.arg(requires_confirmation));
 -- name: ListBobProductUnitConversions :many
 SELECT * FROM dcl_product_unit_conversions WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id) ORDER BY unit_object_id;
 -- name: ListBobProductUnitConversionsForVersions :many
@@ -957,8 +957,8 @@ ORDER BY line.product_approval_entry_id,line.line_no;
 -- name: DeleteBobProductUnitConversions :exec
 DELETE FROM dcl_product_unit_conversions WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
 -- name: InsertBobProductUnitConversion :exec
-INSERT INTO dcl_product_unit_conversions(product_approval_entry_id,unit_object_id,unit_approval_entry_id,unit_code,unit_name,unit_symbol,factor_micros)
-VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(unit_object_id),sqlc.arg(unit_approval_entry_id),sqlc.arg(unit_code),sqlc.arg(unit_name),sqlc.arg(unit_symbol),sqlc.arg(factor_micros));
+INSERT INTO dcl_product_unit_conversions(product_approval_entry_id,unit_object_id,unit_approval_entry_id,unit_code,unit_name,unit_symbol,unit_quantity_scale,factor_micros)
+VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(unit_object_id),sqlc.arg(unit_approval_entry_id),sqlc.arg(unit_code),sqlc.arg(unit_name),sqlc.arg(unit_symbol),sqlc.arg(unit_quantity_scale),sqlc.arg(factor_micros));
 
 -- name: ListWarehouseDisableInventory :many
 SELECT entry.product_id, object.code AS product_code, product.name AS product_name,

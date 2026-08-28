@@ -147,7 +147,7 @@ func insertProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryI
 	if err != nil {
 		return err
 	}
-	if err = q.InsertBobProductFormula(ctx, dbsqlc.InsertBobProductFormulaParams{ProductApprovalEntryID: approvalEntryID, OutputBaseQuantityMicros: base, OutputEnteredQuantityMicros: entered, OutputUnitObjectID: formula.Output.EnteredUnit.ObjectID, OutputUnitApprovalEntryID: formula.Output.EnteredUnit.ApprovalEntryID, OutputUnitCode: formula.Output.EnteredUnit.Code, OutputUnitName: formula.Output.EnteredUnit.Name, OutputUnitSymbol: formula.Output.EnteredUnit.Symbol}); err != nil {
+	if err = q.InsertBobProductFormula(ctx, dbsqlc.InsertBobProductFormulaParams{ProductApprovalEntryID: approvalEntryID, OutputBaseQuantityMicros: base, OutputEnteredQuantityMicros: entered, OutputUnitObjectID: formula.Output.EnteredUnit.ObjectID, OutputUnitApprovalEntryID: formula.Output.EnteredUnit.ApprovalEntryID, OutputUnitCode: formula.Output.EnteredUnit.Code, OutputUnitName: formula.Output.EnteredUnit.Name, OutputUnitSymbol: formula.Output.EnteredUnit.Symbol, OutputUnitQuantityScale: formula.Output.EnteredUnit.QuantityScale}); err != nil {
 		return err
 	}
 	for i, c := range formula.Components {
@@ -159,7 +159,7 @@ func insertProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryI
 		if err != nil {
 			return err
 		}
-		if err = q.InsertBobProductFormulaLine(ctx, dbsqlc.InsertBobProductFormulaLineParams{ProductApprovalEntryID: approvalEntryID, LineNo: int32(i + 1), MaterialObjectID: c.Material.ObjectID, MaterialApprovalEntryID: c.Material.ApprovalEntryID, BaseQuantityMicros: base, EnteredQuantityMicros: entered, EnteredUnitObjectID: c.Quantity.EnteredUnit.ObjectID, EnteredUnitApprovalEntryID: c.Quantity.EnteredUnit.ApprovalEntryID, EnteredUnitCode: c.Quantity.EnteredUnit.Code, EnteredUnitName: c.Quantity.EnteredUnit.Name, EnteredUnitSymbol: c.Quantity.EnteredUnit.Symbol, ResolutionStatus: c.ResolutionStatus, RequiresConfirmation: c.RequiresConfirmation}); err != nil {
+		if err = q.InsertBobProductFormulaLine(ctx, dbsqlc.InsertBobProductFormulaLineParams{ProductApprovalEntryID: approvalEntryID, LineNo: int32(i + 1), MaterialObjectID: c.Material.ObjectID, MaterialApprovalEntryID: c.Material.ApprovalEntryID, BaseQuantityMicros: base, EnteredQuantityMicros: entered, EnteredUnitObjectID: c.Quantity.EnteredUnit.ObjectID, EnteredUnitApprovalEntryID: c.Quantity.EnteredUnit.ApprovalEntryID, EnteredUnitCode: c.Quantity.EnteredUnit.Code, EnteredUnitName: c.Quantity.EnteredUnit.Name, EnteredUnitSymbol: c.Quantity.EnteredUnit.Symbol, EnteredUnitQuantityScale: c.Quantity.EnteredUnit.QuantityScale, ResolutionStatus: c.ResolutionStatus, RequiresConfirmation: c.RequiresConfirmation}); err != nil {
 			return err
 		}
 	}
@@ -177,9 +177,9 @@ func loadProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryID 
 	if err != nil {
 		return nil, err
 	}
-	result := &ProductFormula{Output: QuantitySnapshot{EnteredQuantity: formatMicros(f.OutputEnteredQuantityMicros), BaseQuantity: formatMicros(f.OutputBaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: f.OutputUnitObjectID, ApprovalEntryID: f.OutputUnitApprovalEntryID, Code: f.OutputUnitCode, Name: f.OutputUnitName, Symbol: f.OutputUnitSymbol}}, Components: make([]ProductFormulaComponent, 0, len(rows))}
+	result := &ProductFormula{Output: QuantitySnapshot{EnteredQuantity: formatMicros(f.OutputEnteredQuantityMicros), BaseQuantity: formatMicros(f.OutputBaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: f.OutputUnitObjectID, ApprovalEntryID: f.OutputUnitApprovalEntryID, Code: f.OutputUnitCode, Name: f.OutputUnitName, Symbol: f.OutputUnitSymbol, QuantityScale: f.OutputUnitQuantityScale}}, Components: make([]ProductFormulaComponent, 0, len(rows))}
 	for _, row := range rows {
-		result.Components = append(result.Components, ProductFormulaComponent{Material: FormulaMaterialReference{ObjectID: row.MaterialObjectID, ApprovalEntryID: row.MaterialApprovalEntryID, Code: row.MaterialCode, Name: row.MaterialName, BehaviorProfile: stringValue(row.MaterialBehaviorProfile)}, Quantity: QuantitySnapshot{EnteredQuantity: formatMicros(row.EnteredQuantityMicros), BaseQuantity: formatMicros(row.BaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID, Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol}}, ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation})
+		result.Components = append(result.Components, ProductFormulaComponent{Material: FormulaMaterialReference{ObjectID: row.MaterialObjectID, ApprovalEntryID: row.MaterialApprovalEntryID, Code: row.MaterialCode, Name: row.MaterialName, BehaviorProfile: stringValue(row.MaterialBehaviorProfile)}, Quantity: QuantitySnapshot{EnteredQuantity: formatMicros(row.EnteredQuantityMicros), BaseQuantity: formatMicros(row.BaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID, Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol, QuantityScale: row.EnteredUnitQuantityScale}}, ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation})
 	}
 	return result, nil
 }
@@ -190,7 +190,7 @@ func loadProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, approval
 	}
 	result := make([]ProductUnitConversion, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ProductUnitConversion{Unit: MeasurementUnitSnapshot{ObjectID: row.UnitObjectID, ApprovalEntryID: row.UnitApprovalEntryID, Code: row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol}, Factor: formatMicros(row.FactorMicros)})
+		result = append(result, ProductUnitConversion{Unit: MeasurementUnitSnapshot{ObjectID: row.UnitObjectID, ApprovalEntryID: row.UnitApprovalEntryID, Code: row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol, QuantityScale: row.UnitQuantityScale}, Factor: formatMicros(row.FactorMicros)})
 	}
 	return result, nil
 }
@@ -200,7 +200,7 @@ func replaceProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, appro
 		if err != nil {
 			return err
 		}
-		if err = q.InsertBobProductUnitConversion(ctx, dbsqlc.InsertBobProductUnitConversionParams{ProductApprovalEntryID: approvalEntryID, UnitObjectID: conversion.Unit.ObjectID, UnitApprovalEntryID: conversion.Unit.ApprovalEntryID, UnitCode: conversion.Unit.Code, UnitName: conversion.Unit.Name, UnitSymbol: conversion.Unit.Symbol, FactorMicros: factor}); err != nil {
+		if err = q.InsertBobProductUnitConversion(ctx, dbsqlc.InsertBobProductUnitConversionParams{ProductApprovalEntryID: approvalEntryID, UnitObjectID: conversion.Unit.ObjectID, UnitApprovalEntryID: conversion.Unit.ApprovalEntryID, UnitCode: conversion.Unit.Code, UnitName: conversion.Unit.Name, UnitSymbol: conversion.Unit.Symbol, UnitQuantityScale: conversion.Unit.QuantityScale, FactorMicros: factor}); err != nil {
 			return err
 		}
 	}

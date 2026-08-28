@@ -104,6 +104,7 @@ func (s *Service) loadProductListEnrichments(
 			Unit: MeasurementUnitSnapshot{
 				ObjectID: row.UnitObjectID, ApprovalEntryID: row.UnitApprovalEntryID,
 				Code: row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol,
+				QuantityScale: row.UnitQuantityScale,
 			},
 			Factor: formatMicros(row.FactorMicros),
 		})
@@ -121,6 +122,7 @@ func (s *Service) loadProductListEnrichments(
 				EnteredUnit: MeasurementUnitSnapshot{
 					ObjectID: row.OutputUnitObjectID, ApprovalEntryID: row.OutputUnitApprovalEntryID,
 					Code: row.OutputUnitCode, Name: row.OutputUnitName, Symbol: row.OutputUnitSymbol,
+					QuantityScale: row.OutputUnitQuantityScale,
 				},
 			},
 			Components: []ProductFormulaComponent{},
@@ -147,6 +149,7 @@ func (s *Service) loadProductListEnrichments(
 				EnteredUnit: MeasurementUnitSnapshot{
 					ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
 					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
+					QuantityScale: row.EnteredUnitQuantityScale,
 				},
 			},
 			ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation,
@@ -194,6 +197,10 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 		}
 		snapshot.ApprovalEntryID, snapshot.Code = unit.ApprovalEntryID, unit.Code
 		snapshot.Name, snapshot.Symbol = mapString(unit.Data, "name"), mapString(unit.Data, "symbol")
+		snapshot.QuantityScale = int32(mapInt(unit.Data, "quantityScale"))
+		if snapshot.QuantityScale < 0 || snapshot.QuantityScale > 6 {
+			return domainError(ErrorConflict, "measurement unit quantity scale is unavailable", nil, nil)
+		}
 		return nil
 	}
 	resolveUnitEntry := func(objectID string, entryID *string) error {

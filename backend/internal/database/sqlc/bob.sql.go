@@ -1986,7 +1986,7 @@ func (q *Queries) GetBobProductCurrentReference(ctx context.Context, objectID st
 }
 
 const getBobProductFormula = `-- name: GetBobProductFormula :one
-SELECT product_approval_entry_id, output_base_quantity_micros, output_entered_quantity_micros, output_unit_object_id, output_unit_approval_entry_id, output_unit_code, output_unit_name, output_unit_symbol FROM dcl_product_formulas WHERE product_approval_entry_id=$1
+SELECT product_approval_entry_id, output_base_quantity_micros, output_entered_quantity_micros, output_unit_object_id, output_unit_approval_entry_id, output_unit_code, output_unit_name, output_unit_symbol, output_unit_quantity_scale FROM dcl_product_formulas WHERE product_approval_entry_id=$1
 `
 
 // Product sub-payloads are keyed by the product Approval entry. Copying only
@@ -2003,6 +2003,7 @@ func (q *Queries) GetBobProductFormula(ctx context.Context, productApprovalEntry
 		&i.OutputUnitCode,
 		&i.OutputUnitName,
 		&i.OutputUnitSymbol,
+		&i.OutputUnitQuantityScale,
 	)
 	return i, err
 }
@@ -2900,8 +2901,8 @@ func (q *Queries) InsertBobOtherUnitRelationship(ctx context.Context, arg Insert
 }
 
 const insertBobProductFormula = `-- name: InsertBobProductFormula :exec
-INSERT INTO dcl_product_formulas(product_approval_entry_id,output_base_quantity_micros,output_entered_quantity_micros,output_unit_object_id,output_unit_approval_entry_id,output_unit_code,output_unit_name,output_unit_symbol)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+INSERT INTO dcl_product_formulas(product_approval_entry_id,output_base_quantity_micros,output_entered_quantity_micros,output_unit_object_id,output_unit_approval_entry_id,output_unit_code,output_unit_name,output_unit_symbol,output_unit_quantity_scale)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
 `
 
 type InsertBobProductFormulaParams struct {
@@ -2913,6 +2914,7 @@ type InsertBobProductFormulaParams struct {
 	OutputUnitCode              string `db:"output_unit_code" json:"output_unit_code"`
 	OutputUnitName              string `db:"output_unit_name" json:"output_unit_name"`
 	OutputUnitSymbol            string `db:"output_unit_symbol" json:"output_unit_symbol"`
+	OutputUnitQuantityScale     int32  `db:"output_unit_quantity_scale" json:"output_unit_quantity_scale"`
 }
 
 func (q *Queries) InsertBobProductFormula(ctx context.Context, arg InsertBobProductFormulaParams) error {
@@ -2925,13 +2927,14 @@ func (q *Queries) InsertBobProductFormula(ctx context.Context, arg InsertBobProd
 		arg.OutputUnitCode,
 		arg.OutputUnitName,
 		arg.OutputUnitSymbol,
+		arg.OutputUnitQuantityScale,
 	)
 	return err
 }
 
 const insertBobProductFormulaLine = `-- name: InsertBobProductFormulaLine :exec
-INSERT INTO dcl_product_formula_lines(product_approval_entry_id,line_no,material_object_id,material_approval_entry_id,base_quantity_micros,entered_quantity_micros,entered_unit_object_id,entered_unit_approval_entry_id,entered_unit_code,entered_unit_name,entered_unit_symbol,resolution_status,requires_confirmation)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+INSERT INTO dcl_product_formula_lines(product_approval_entry_id,line_no,material_object_id,material_approval_entry_id,base_quantity_micros,entered_quantity_micros,entered_unit_object_id,entered_unit_approval_entry_id,entered_unit_code,entered_unit_name,entered_unit_symbol,entered_unit_quantity_scale,resolution_status,requires_confirmation)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 `
 
 type InsertBobProductFormulaLineParams struct {
@@ -2946,6 +2949,7 @@ type InsertBobProductFormulaLineParams struct {
 	EnteredUnitCode            string `db:"entered_unit_code" json:"entered_unit_code"`
 	EnteredUnitName            string `db:"entered_unit_name" json:"entered_unit_name"`
 	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	EnteredUnitQuantityScale   int32  `db:"entered_unit_quantity_scale" json:"entered_unit_quantity_scale"`
 	ResolutionStatus           string `db:"resolution_status" json:"resolution_status"`
 	RequiresConfirmation       bool   `db:"requires_confirmation" json:"requires_confirmation"`
 }
@@ -2963,6 +2967,7 @@ func (q *Queries) InsertBobProductFormulaLine(ctx context.Context, arg InsertBob
 		arg.EnteredUnitCode,
 		arg.EnteredUnitName,
 		arg.EnteredUnitSymbol,
+		arg.EnteredUnitQuantityScale,
 		arg.ResolutionStatus,
 		arg.RequiresConfirmation,
 	)
@@ -2984,8 +2989,8 @@ func (q *Queries) InsertBobProductPayload(ctx context.Context, arg InsertBobProd
 }
 
 const insertBobProductUnitConversion = `-- name: InsertBobProductUnitConversion :exec
-INSERT INTO dcl_product_unit_conversions(product_approval_entry_id,unit_object_id,unit_approval_entry_id,unit_code,unit_name,unit_symbol,factor_micros)
-VALUES($1,$2,$3,$4,$5,$6,$7)
+INSERT INTO dcl_product_unit_conversions(product_approval_entry_id,unit_object_id,unit_approval_entry_id,unit_code,unit_name,unit_symbol,unit_quantity_scale,factor_micros)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8)
 `
 
 type InsertBobProductUnitConversionParams struct {
@@ -2995,6 +3000,7 @@ type InsertBobProductUnitConversionParams struct {
 	UnitCode               string `db:"unit_code" json:"unit_code"`
 	UnitName               string `db:"unit_name" json:"unit_name"`
 	UnitSymbol             string `db:"unit_symbol" json:"unit_symbol"`
+	UnitQuantityScale      int32  `db:"unit_quantity_scale" json:"unit_quantity_scale"`
 	FactorMicros           int64  `db:"factor_micros" json:"factor_micros"`
 }
 
@@ -3006,6 +3012,7 @@ func (q *Queries) InsertBobProductUnitConversion(ctx context.Context, arg Insert
 		arg.UnitCode,
 		arg.UnitName,
 		arg.UnitSymbol,
+		arg.UnitQuantityScale,
 		arg.FactorMicros,
 	)
 	return err
@@ -4139,7 +4146,7 @@ func (q *Queries) ListBobProductApprovalEntriesForVersions(ctx context.Context, 
 }
 
 const listBobProductFormulaLines = `-- name: ListBobProductFormulaLines :many
-SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_approval_entry_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
+SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_approval_entry_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.entered_unit_quantity_scale, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
        material.behavior_profile AS material_behavior_profile
 FROM dcl_product_formula_lines line
 JOIN approval_entries material_entry ON material_entry.id=line.material_approval_entry_id
@@ -4164,6 +4171,7 @@ type ListBobProductFormulaLinesRow struct {
 	EnteredUnitCode            string  `db:"entered_unit_code" json:"entered_unit_code"`
 	EnteredUnitName            string  `db:"entered_unit_name" json:"entered_unit_name"`
 	EnteredUnitSymbol          string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	EnteredUnitQuantityScale   int32   `db:"entered_unit_quantity_scale" json:"entered_unit_quantity_scale"`
 	ResolutionStatus           string  `db:"resolution_status" json:"resolution_status"`
 	RequiresConfirmation       bool    `db:"requires_confirmation" json:"requires_confirmation"`
 	MaterialCode               string  `db:"material_code" json:"material_code"`
@@ -4192,6 +4200,7 @@ func (q *Queries) ListBobProductFormulaLines(ctx context.Context, productApprova
 			&i.EnteredUnitCode,
 			&i.EnteredUnitName,
 			&i.EnteredUnitSymbol,
+			&i.EnteredUnitQuantityScale,
 			&i.ResolutionStatus,
 			&i.RequiresConfirmation,
 			&i.MaterialCode,
@@ -4209,7 +4218,7 @@ func (q *Queries) ListBobProductFormulaLines(ctx context.Context, productApprova
 }
 
 const listBobProductFormulaLinesForVersions = `-- name: ListBobProductFormulaLinesForVersions :many
-SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_approval_entry_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
+SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_approval_entry_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.entered_unit_quantity_scale, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
        material.behavior_profile AS material_behavior_profile
 FROM dcl_product_formula_lines line
 JOIN approval_entries material_entry ON material_entry.id=line.material_approval_entry_id
@@ -4234,6 +4243,7 @@ type ListBobProductFormulaLinesForVersionsRow struct {
 	EnteredUnitCode            string  `db:"entered_unit_code" json:"entered_unit_code"`
 	EnteredUnitName            string  `db:"entered_unit_name" json:"entered_unit_name"`
 	EnteredUnitSymbol          string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	EnteredUnitQuantityScale   int32   `db:"entered_unit_quantity_scale" json:"entered_unit_quantity_scale"`
 	ResolutionStatus           string  `db:"resolution_status" json:"resolution_status"`
 	RequiresConfirmation       bool    `db:"requires_confirmation" json:"requires_confirmation"`
 	MaterialCode               string  `db:"material_code" json:"material_code"`
@@ -4262,6 +4272,7 @@ func (q *Queries) ListBobProductFormulaLinesForVersions(ctx context.Context, pro
 			&i.EnteredUnitCode,
 			&i.EnteredUnitName,
 			&i.EnteredUnitSymbol,
+			&i.EnteredUnitQuantityScale,
 			&i.ResolutionStatus,
 			&i.RequiresConfirmation,
 			&i.MaterialCode,
@@ -4279,7 +4290,7 @@ func (q *Queries) ListBobProductFormulaLinesForVersions(ctx context.Context, pro
 }
 
 const listBobProductFormulasForVersions = `-- name: ListBobProductFormulasForVersions :many
-SELECT product_approval_entry_id, output_base_quantity_micros, output_entered_quantity_micros, output_unit_object_id, output_unit_approval_entry_id, output_unit_code, output_unit_name, output_unit_symbol FROM dcl_product_formulas
+SELECT product_approval_entry_id, output_base_quantity_micros, output_entered_quantity_micros, output_unit_object_id, output_unit_approval_entry_id, output_unit_code, output_unit_name, output_unit_symbol, output_unit_quantity_scale FROM dcl_product_formulas
 WHERE product_approval_entry_id=ANY($1::text[])
 ORDER BY product_approval_entry_id
 `
@@ -4302,6 +4313,7 @@ func (q *Queries) ListBobProductFormulasForVersions(ctx context.Context, product
 			&i.OutputUnitCode,
 			&i.OutputUnitName,
 			&i.OutputUnitSymbol,
+			&i.OutputUnitQuantityScale,
 		); err != nil {
 			return nil, err
 		}
@@ -4365,7 +4377,7 @@ func (q *Queries) ListBobProductPayloadsForVersions(ctx context.Context, product
 }
 
 const listBobProductUnitConversions = `-- name: ListBobProductUnitConversions :many
-SELECT product_approval_entry_id, unit_object_id, unit_approval_entry_id, unit_code, unit_name, unit_symbol, factor_micros FROM dcl_product_unit_conversions WHERE product_approval_entry_id=$1 ORDER BY unit_object_id
+SELECT product_approval_entry_id, unit_object_id, unit_approval_entry_id, unit_code, unit_name, unit_symbol, unit_quantity_scale, factor_micros FROM dcl_product_unit_conversions WHERE product_approval_entry_id=$1 ORDER BY unit_object_id
 `
 
 func (q *Queries) ListBobProductUnitConversions(ctx context.Context, productApprovalEntryID string) ([]DclProductUnitConversion, error) {
@@ -4384,6 +4396,7 @@ func (q *Queries) ListBobProductUnitConversions(ctx context.Context, productAppr
 			&i.UnitCode,
 			&i.UnitName,
 			&i.UnitSymbol,
+			&i.UnitQuantityScale,
 			&i.FactorMicros,
 		); err != nil {
 			return nil, err
@@ -4397,7 +4410,7 @@ func (q *Queries) ListBobProductUnitConversions(ctx context.Context, productAppr
 }
 
 const listBobProductUnitConversionsForVersions = `-- name: ListBobProductUnitConversionsForVersions :many
-SELECT product_approval_entry_id, unit_object_id, unit_approval_entry_id, unit_code, unit_name, unit_symbol, factor_micros FROM dcl_product_unit_conversions
+SELECT product_approval_entry_id, unit_object_id, unit_approval_entry_id, unit_code, unit_name, unit_symbol, unit_quantity_scale, factor_micros FROM dcl_product_unit_conversions
 WHERE product_approval_entry_id=ANY($1::text[])
 ORDER BY product_approval_entry_id,unit_object_id
 `
@@ -4418,6 +4431,7 @@ func (q *Queries) ListBobProductUnitConversionsForVersions(ctx context.Context, 
 			&i.UnitCode,
 			&i.UnitName,
 			&i.UnitSymbol,
+			&i.UnitQuantityScale,
 			&i.FactorMicros,
 		); err != nil {
 			return nil, err

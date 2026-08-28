@@ -261,6 +261,7 @@ type MeasurementUnitSnapshot struct {
 	Code            string `json:"code,omitempty"`
 	Name            string `json:"name,omitempty"`
 	Symbol          string `json:"symbol,omitempty"`
+	QuantityScale   int32  `json:"quantityScale"`
 }
 
 type ProductUnitConversion struct {

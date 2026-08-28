@@ -1615,38 +1615,40 @@ func (q *Queries) InsertVouAssetAcquisitionDetail(ctx context.Context, arg Inser
 
 const insertVouAssetAcquisitionLine = `-- name: InsertVouAssetAcquisitionLine :exec
 INSERT INTO vou_asset_acquisition_lines(id,document_id,line_no,asset_name,specification,
- category_object_id,category_approval_entry_id,category_code,category_name,original_value_cents,useful_life_months,residual_rate_bps,
+ category_object_id,category_approval_entry_id,category_code,category_name,category_default_useful_life_months,category_default_residual_rate_bps,original_value_cents,useful_life_months,residual_rate_bps,
  department_object_id,department_approval_entry_id,department_code,department_name,
  custodian_object_id,custodian_approval_entry_id,custodian_code,custodian_name,location,remark)
 VALUES($1,$2,$3,$4,$5,
- $6,$7,$8,$9,$10,$11,$12,
- $13,$14,$15,$16,
- $17,$18,$19,$20,$21,$22)
+ $6,$7,$8,$9,$10,$11,$12,$13,$14,
+ $15,$16,$17,$18,
+ $19,$20,$21,$22,$23,$24)
 `
 
 type InsertVouAssetAcquisitionLineParams struct {
-	ID                        string  `db:"id" json:"id"`
-	DocumentID                string  `db:"document_id" json:"document_id"`
-	LineNo                    int32   `db:"line_no" json:"line_no"`
-	AssetName                 string  `db:"asset_name" json:"asset_name"`
-	Specification             string  `db:"specification" json:"specification"`
-	CategoryObjectID          string  `db:"category_object_id" json:"category_object_id"`
-	CategoryApprovalEntryID   string  `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryCode              string  `db:"category_code" json:"category_code"`
-	CategoryName              string  `db:"category_name" json:"category_name"`
-	OriginalValueCents        int64   `db:"original_value_cents" json:"original_value_cents"`
-	UsefulLifeMonths          int32   `db:"useful_life_months" json:"useful_life_months"`
-	ResidualRateBps           int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
-	DepartmentObjectID        string  `db:"department_object_id" json:"department_object_id"`
-	DepartmentApprovalEntryID string  `db:"department_approval_entry_id" json:"department_approval_entry_id"`
-	DepartmentCode            string  `db:"department_code" json:"department_code"`
-	DepartmentName            string  `db:"department_name" json:"department_name"`
-	CustodianObjectID         *string `db:"custodian_object_id" json:"custodian_object_id"`
-	CustodianApprovalEntryID  *string `db:"custodian_approval_entry_id" json:"custodian_approval_entry_id"`
-	CustodianCode             *string `db:"custodian_code" json:"custodian_code"`
-	CustodianName             *string `db:"custodian_name" json:"custodian_name"`
-	Location                  string  `db:"location" json:"location"`
-	Remark                    *string `db:"remark" json:"remark"`
+	ID                              string  `db:"id" json:"id"`
+	DocumentID                      string  `db:"document_id" json:"document_id"`
+	LineNo                          int32   `db:"line_no" json:"line_no"`
+	AssetName                       string  `db:"asset_name" json:"asset_name"`
+	Specification                   string  `db:"specification" json:"specification"`
+	CategoryObjectID                string  `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID         string  `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode                    string  `db:"category_code" json:"category_code"`
+	CategoryName                    string  `db:"category_name" json:"category_name"`
+	CategoryDefaultUsefulLifeMonths int32   `db:"category_default_useful_life_months" json:"category_default_useful_life_months"`
+	CategoryDefaultResidualRateBps  int32   `db:"category_default_residual_rate_bps" json:"category_default_residual_rate_bps"`
+	OriginalValueCents              int64   `db:"original_value_cents" json:"original_value_cents"`
+	UsefulLifeMonths                int32   `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps                 int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
+	DepartmentObjectID              string  `db:"department_object_id" json:"department_object_id"`
+	DepartmentApprovalEntryID       string  `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode                  string  `db:"department_code" json:"department_code"`
+	DepartmentName                  string  `db:"department_name" json:"department_name"`
+	CustodianObjectID               *string `db:"custodian_object_id" json:"custodian_object_id"`
+	CustodianApprovalEntryID        *string `db:"custodian_approval_entry_id" json:"custodian_approval_entry_id"`
+	CustodianCode                   *string `db:"custodian_code" json:"custodian_code"`
+	CustodianName                   *string `db:"custodian_name" json:"custodian_name"`
+	Location                        string  `db:"location" json:"location"`
+	Remark                          *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertVouAssetAcquisitionLineParams) error {
@@ -1660,6 +1662,8 @@ func (q *Queries) InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertV
 		arg.CategoryApprovalEntryID,
 		arg.CategoryCode,
 		arg.CategoryName,
+		arg.CategoryDefaultUsefulLifeMonths,
+		arg.CategoryDefaultResidualRateBps,
 		arg.OriginalValueCents,
 		arg.UsefulLifeMonths,
 		arg.ResidualRateBps,
@@ -3362,7 +3366,7 @@ func (q *Queries) ListGeneratedWorkflowChildrenForUpdate(ctx context.Context, pa
 }
 
 const listVouAssetAcquisitionLines = `-- name: ListVouAssetAcquisitionLines :many
-SELECT id, document_id, line_no, asset_name, specification, category_object_id, category_approval_entry_id, category_code, category_name, original_value_cents, useful_life_months, residual_rate_bps, department_object_id, department_approval_entry_id, department_code, department_name, custodian_object_id, custodian_approval_entry_id, custodian_code, custodian_name, location, remark FROM vou_asset_acquisition_lines WHERE document_id=$1 ORDER BY line_no
+SELECT id, document_id, line_no, asset_name, specification, category_object_id, category_approval_entry_id, category_code, category_name, category_default_useful_life_months, category_default_residual_rate_bps, original_value_cents, useful_life_months, residual_rate_bps, department_object_id, department_approval_entry_id, department_code, department_name, custodian_object_id, custodian_approval_entry_id, custodian_code, custodian_name, location, remark FROM vou_asset_acquisition_lines WHERE document_id=$1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouAssetAcquisitionLines(ctx context.Context, documentID string) ([]VouAssetAcquisitionLine, error) {
@@ -3384,6 +3388,8 @@ func (q *Queries) ListVouAssetAcquisitionLines(ctx context.Context, documentID s
 			&i.CategoryApprovalEntryID,
 			&i.CategoryCode,
 			&i.CategoryName,
+			&i.CategoryDefaultUsefulLifeMonths,
+			&i.CategoryDefaultResidualRateBps,
 			&i.OriginalValueCents,
 			&i.UsefulLifeMonths,
 			&i.ResidualRateBps,

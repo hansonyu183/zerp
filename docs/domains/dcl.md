@@ -51,7 +51,7 @@ VOU 收付款、费用支付、其他收入和票据资金行继续保存 fund a
 
 ## 3.4 产品申报
 
-产品 stable ID、`PRD-*` 编码和抽象基准单位跨全部版本不变。`dcl_product_versions` 以 `approvalEntryId` 为主键，保存完整的名称、产品类型、产品分类、规格、型号、条码、计价单位、默认录入单位、默认包装规格、可回收标志、备注和 `enabled`；类型、分类和单位均同时保存来源 stable ID、精确 Approval Entry 及必要名称快照。单位换算与固定配方是同一产品版本的强类型明细，不是独立对象、独立 API 或独立生命周期；每个版本始终保存完整 snapshot，不保存 diff。
+产品 stable ID、`PRD-*` 编码和抽象基准单位跨全部版本不变。`dcl_product_versions` 以 `approvalEntryId` 为主键，保存完整的名称、产品类型、产品分类、规格、型号、条码、计价单位、默认录入单位、默认包装规格、可回收标志、备注和 `enabled`；类型、分类和单位均同时保存来源 stable ID、精确 Approval Entry 及必要名称快照。每个计量单位 snapshot 还必须保存当时的 `quantityScale`，单位换算和固定配方中的单位不得在读取或制单时回查 AUX 精度。单位换算与固定配方是同一产品版本的强类型明细，不是独立对象、独立 API 或独立生命周期；每个版本始终保存完整 snapshot，不保存 diff。
 
 创建或保存时解析当前可用 AUX 来源，并按配方原料 stable ID 解析其 latest approved 产品版本；从正式版本创建候选时，原料 entry 自动前移但权威基准用量不变，需要确认的行保持显式待处理。提交和批准使用同一套完整性规则，并重新校验产品类型、分类、计量单位和配方原料的已存精确 entry 仍为 latest approved。条码在全部产品的 latest approved 与唯一开放候选之间大小写不敏感唯一；并发候选和条码占用由同一事务保证。
 

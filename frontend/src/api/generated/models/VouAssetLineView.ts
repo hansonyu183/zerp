@@ -10,6 +10,8 @@ export type VouAssetLineView = {
   assetName: string;
   specification?: string;
   category?: VouReferenceView;
+  categoryDefaultUsefulLifeMonths?: number;
+  categoryDefaultResidualRate?: string;
   department?: VouReferenceView;
   custodian?: VouReferenceView;
   originalValue?: string;

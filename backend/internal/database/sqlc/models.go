@@ -1033,6 +1033,7 @@ type DclProductFormula struct {
 	OutputUnitCode              string `db:"output_unit_code" json:"output_unit_code"`
 	OutputUnitName              string `db:"output_unit_name" json:"output_unit_name"`
 	OutputUnitSymbol            string `db:"output_unit_symbol" json:"output_unit_symbol"`
+	OutputUnitQuantityScale     int32  `db:"output_unit_quantity_scale" json:"output_unit_quantity_scale"`
 }
 
 type DclProductFormulaLine struct {
@@ -1047,6 +1048,7 @@ type DclProductFormulaLine struct {
 	EnteredUnitCode            string `db:"entered_unit_code" json:"entered_unit_code"`
 	EnteredUnitName            string `db:"entered_unit_name" json:"entered_unit_name"`
 	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	EnteredUnitQuantityScale   int32  `db:"entered_unit_quantity_scale" json:"entered_unit_quantity_scale"`
 	ResolutionStatus           string `db:"resolution_status" json:"resolution_status"`
 	RequiresConfirmation       bool   `db:"requires_confirmation" json:"requires_confirmation"`
 }
@@ -1058,6 +1060,7 @@ type DclProductUnitConversion struct {
 	UnitCode               string `db:"unit_code" json:"unit_code"`
 	UnitName               string `db:"unit_name" json:"unit_name"`
 	UnitSymbol             string `db:"unit_symbol" json:"unit_symbol"`
+	UnitQuantityScale      int32  `db:"unit_quantity_scale" json:"unit_quantity_scale"`
 	FactorMicros           int64  `db:"factor_micros" json:"factor_micros"`
 }
 
@@ -1237,28 +1240,30 @@ type VouAssetAcquisitionDetail struct {
 }
 
 type VouAssetAcquisitionLine struct {
-	ID                        string  `db:"id" json:"id"`
-	DocumentID                string  `db:"document_id" json:"document_id"`
-	LineNo                    int32   `db:"line_no" json:"line_no"`
-	AssetName                 string  `db:"asset_name" json:"asset_name"`
-	Specification             string  `db:"specification" json:"specification"`
-	CategoryObjectID          string  `db:"category_object_id" json:"category_object_id"`
-	CategoryApprovalEntryID   string  `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryCode              string  `db:"category_code" json:"category_code"`
-	CategoryName              string  `db:"category_name" json:"category_name"`
-	OriginalValueCents        int64   `db:"original_value_cents" json:"original_value_cents"`
-	UsefulLifeMonths          int32   `db:"useful_life_months" json:"useful_life_months"`
-	ResidualRateBps           int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
-	DepartmentObjectID        string  `db:"department_object_id" json:"department_object_id"`
-	DepartmentApprovalEntryID string  `db:"department_approval_entry_id" json:"department_approval_entry_id"`
-	DepartmentCode            string  `db:"department_code" json:"department_code"`
-	DepartmentName            string  `db:"department_name" json:"department_name"`
-	CustodianObjectID         *string `db:"custodian_object_id" json:"custodian_object_id"`
-	CustodianApprovalEntryID  *string `db:"custodian_approval_entry_id" json:"custodian_approval_entry_id"`
-	CustodianCode             *string `db:"custodian_code" json:"custodian_code"`
-	CustodianName             *string `db:"custodian_name" json:"custodian_name"`
-	Location                  string  `db:"location" json:"location"`
-	Remark                    *string `db:"remark" json:"remark"`
+	ID                              string  `db:"id" json:"id"`
+	DocumentID                      string  `db:"document_id" json:"document_id"`
+	LineNo                          int32   `db:"line_no" json:"line_no"`
+	AssetName                       string  `db:"asset_name" json:"asset_name"`
+	Specification                   string  `db:"specification" json:"specification"`
+	CategoryObjectID                string  `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID         string  `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode                    string  `db:"category_code" json:"category_code"`
+	CategoryName                    string  `db:"category_name" json:"category_name"`
+	CategoryDefaultUsefulLifeMonths int32   `db:"category_default_useful_life_months" json:"category_default_useful_life_months"`
+	CategoryDefaultResidualRateBps  int32   `db:"category_default_residual_rate_bps" json:"category_default_residual_rate_bps"`
+	OriginalValueCents              int64   `db:"original_value_cents" json:"original_value_cents"`
+	UsefulLifeMonths                int32   `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps                 int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
+	DepartmentObjectID              string  `db:"department_object_id" json:"department_object_id"`
+	DepartmentApprovalEntryID       string  `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode                  string  `db:"department_code" json:"department_code"`
+	DepartmentName                  string  `db:"department_name" json:"department_name"`
+	CustodianObjectID               *string `db:"custodian_object_id" json:"custodian_object_id"`
+	CustodianApprovalEntryID        *string `db:"custodian_approval_entry_id" json:"custodian_approval_entry_id"`
+	CustodianCode                   *string `db:"custodian_code" json:"custodian_code"`
+	CustodianName                   *string `db:"custodian_name" json:"custodian_name"`
+	Location                        string  `db:"location" json:"location"`
+	Remark                          *string `db:"remark" json:"remark"`
 }
 
 type VouAssetLiquidationDetail struct {

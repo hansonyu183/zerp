@@ -274,26 +274,8 @@ func createApprovedBOB(
 	if entity == bobdomain.EntityOtherUnit {
 		return createApprovedOtherUnitDeclaration(t, vouIntegrationPool(t), service, data)
 	}
-	var created bobdomain.MutationResult
-	var err error
-	created, err = service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
-		trustedIntegrationActor(t, "vou-ref-create"))
-	if err != nil {
-		t.Fatalf("create %s reference: %v (cause: %v)", entity, err, errors.Unwrap(err))
-	}
-	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{
-		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
-	}, trustedIntegrationActor(t, "vou-ref-submit"))
-	if err != nil {
-		t.Fatalf("submit %s reference: %v", entity, err)
-	}
-	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{
-		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
-	}, trustedIntegrationActor(t, "vou-ref-approve"))
-	if err != nil {
-		t.Fatalf("approve %s reference: %v", entity, err)
-	}
-	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	t.Fatalf("unsupported DCL integration reference entity %q", entity)
+	return ReferenceInput{}
 }
 
 func createApprovedSupplierDeclaration(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, data bobdomain.CreateDetailInput) ReferenceInput {
@@ -445,31 +427,6 @@ func disableVehicleViaDCL(
 	}, integrationApprovalActor(t, integrationActorTwo, requestID+"-approve")); err != nil {
 		t.Fatalf("approve vehicle disable declaration: %v", err)
 	}
-}
-
-func reverseApprovedBOBToDraft(
-	t *testing.T,
-	service *bobdomain.Service,
-	entity string,
-	view bobdomain.ObjectView,
-	requestID string,
-) bobdomain.MutationResult {
-	t.Helper()
-	unapproved, err := service.Unapprove(t.Context(), entity, bobdomain.ReverseInput{
-		ObjectID: view.ObjectID, ApprovalEntryID: view.Approval.ApprovalEntryID,
-		ApprovalRevision: view.Approval.Revision, Reason: "integration update",
-	}, trustedIntegrationActor(t, requestID+"-unapprove"))
-	if err != nil {
-		t.Fatalf("unapprove BOB reference: %v", err)
-	}
-	draft, err := service.Unsubmit(t.Context(), entity, bobdomain.ReverseInput{
-		ObjectID: unapproved.ObjectID, ApprovalEntryID: unapproved.Approval.ApprovalEntryID,
-		ApprovalRevision: unapproved.Approval.Revision, Reason: "integration update",
-	}, trustedIntegrationActor(t, requestID+"-unsubmit"))
-	if err != nil {
-		t.Fatalf("unsubmit BOB reference: %v", err)
-	}
-	return draft
 }
 
 func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string) ReferenceInput {

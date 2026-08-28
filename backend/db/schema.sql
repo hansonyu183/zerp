@@ -1962,10 +1962,12 @@ CREATE TABLE public.dcl_product_formula_lines (
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) NOT NULL,
+    entered_unit_quantity_scale integer NOT NULL,
     resolution_status character varying(16) DEFAULT 'CURRENT'::character varying NOT NULL,
     requires_confirmation boolean DEFAULT false NOT NULL,
     CONSTRAINT dcl_product_formula_lines_line_no_check CHECK ((line_no >= 1)),
     CONSTRAINT dcl_product_formula_lines_quantity_micros_check CHECK ((base_quantity_micros > 0)),
+    CONSTRAINT dcl_product_formula_lines_quantity_scale_check CHECK (((entered_unit_quantity_scale >= 0) AND (entered_unit_quantity_scale <= 6))),
     CONSTRAINT dcl_product_formula_lines_resolution_status_check CHECK (((resolution_status)::text = ANY ((ARRAY['CURRENT'::character varying, 'UNRESOLVED'::character varying])::text[])))
 );
 
@@ -1983,7 +1985,9 @@ CREATE TABLE public.dcl_product_formulas (
     output_unit_code character varying(64) NOT NULL,
     output_unit_name character varying(200) NOT NULL,
     output_unit_symbol character varying(32) NOT NULL,
-    CONSTRAINT dcl_product_formulas_base_output_quantity_micros_check CHECK ((output_base_quantity_micros > 0))
+    output_unit_quantity_scale integer NOT NULL,
+    CONSTRAINT dcl_product_formulas_base_output_quantity_micros_check CHECK ((output_base_quantity_micros > 0)),
+    CONSTRAINT dcl_product_formulas_quantity_scale_check CHECK (((output_unit_quantity_scale >= 0) AND (output_unit_quantity_scale <= 6)))
 );
 
 
@@ -1998,8 +2002,10 @@ CREATE TABLE public.dcl_product_unit_conversions (
     unit_code character varying(64) NOT NULL,
     unit_name character varying(200) NOT NULL,
     unit_symbol character varying(32) NOT NULL,
+    unit_quantity_scale integer NOT NULL,
     factor_micros bigint NOT NULL,
-    CONSTRAINT dcl_product_unit_conversions_factor_micros_check CHECK ((factor_micros > 0))
+    CONSTRAINT dcl_product_unit_conversions_factor_micros_check CHECK ((factor_micros > 0)),
+    CONSTRAINT dcl_product_unit_conversions_quantity_scale_check CHECK (((unit_quantity_scale >= 0) AND (unit_quantity_scale <= 6)))
 );
 
 
@@ -2205,6 +2211,8 @@ CREATE TABLE public.vou_asset_acquisition_lines (
     category_approval_entry_id character varying(26) NOT NULL,
     category_code character varying(64) NOT NULL,
     category_name character varying(200) NOT NULL,
+    category_default_useful_life_months integer NOT NULL,
+    category_default_residual_rate_bps integer NOT NULL,
     original_value_cents bigint NOT NULL,
     useful_life_months integer NOT NULL,
     residual_rate_bps integer NOT NULL,
@@ -2220,6 +2228,8 @@ CREATE TABLE public.vou_asset_acquisition_lines (
     remark character varying(1000),
     CONSTRAINT vou_asset_acquisition_lines_line_no_check CHECK ((line_no > 0)),
     CONSTRAINT vou_asset_acquisition_lines_original_value_cents_check CHECK ((original_value_cents > 0)),
+    CONSTRAINT vou_asset_acquisition_lines_category_default_residual_rate_bps_check CHECK (((category_default_residual_rate_bps >= 0) AND (category_default_residual_rate_bps <= 9999))),
+    CONSTRAINT vou_asset_acquisition_lines_category_default_useful_life_months_check CHECK (((category_default_useful_life_months >= 1) AND (category_default_useful_life_months <= 1200))),
     CONSTRAINT vou_asset_acquisition_lines_residual_rate_bps_check CHECK (((residual_rate_bps >= 0) AND (residual_rate_bps <= 9999))),
     CONSTRAINT vou_asset_acquisition_lines_useful_life_months_check CHECK (((useful_life_months >= 1) AND (useful_life_months <= 1200)))
 );

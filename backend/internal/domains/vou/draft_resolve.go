@@ -113,7 +113,8 @@ func (s *Service) resolveSelectedAuxiliaryReference(
 			RuleType: auxiliaryString(ref.Data, "ruleType"), MonthOffset: auxiliaryInt32(ref.Data, "monthOffset"),
 			DayOfMonth: auxiliaryOptionalInt32(ref.Data, "dayOfMonth"), DayOffset: auxiliaryInt32(ref.Data, "dayOffset"),
 			DueDays: auxiliaryInt32(ref.Data, "dueDays"), CutoffDay: auxiliaryInt32(ref.Data, "cutoffDay"),
-			Description: auxiliaryString(ref.Data, "description"),
+			DefaultSalesSurcharge: auxiliaryString(ref.Data, "defaultSalesSurcharge"),
+			Description:           auxiliaryString(ref.Data, "description"),
 		}}, nil
 }
 
@@ -335,6 +336,13 @@ func (s *Service) resolveDraftProducts(
 		if !productHasUnit(product.Data, line.EnteredUnitID) {
 			return domainError(ErrorConflict, "entered unit is not configured for product", nil, nil)
 		}
+		enteredUnit, err := productUnitSnapshot(product.Data, line.EnteredUnitID)
+		if err != nil {
+			return err
+		}
+		if err = validateUnitQuantityScale(line.EnteredQuantity, enteredUnit); err != nil {
+			return err
+		}
 		result.Products = append(result.Products, *product)
 		if entity != EntitySaleOrder {
 			result.FormulaMaterials = append(result.FormulaMaterials, nil)
@@ -398,6 +406,13 @@ func (s *Service) resolveDraftProducts(
 		if !productHasUnit(product.Data, line.Formula.Output.EnteredUnitID) {
 			return domainError(ErrorConflict, "formula output unit is not configured for product", nil, nil)
 		}
+		outputUnit, err := productUnitSnapshot(product.Data, line.Formula.Output.EnteredUnitID)
+		if err != nil {
+			return err
+		}
+		if err = validateUnitQuantityScale(line.Formula.Output.EnteredQuantity, outputUnit); err != nil {
+			return err
+		}
 		materials := make([]bobdomain.EffectiveReference, 0, len(line.Formula.Components))
 		for componentIndex := range line.Formula.Components {
 			component := &line.Formula.Components[componentIndex]
@@ -421,6 +436,13 @@ func (s *Service) resolveDraftProducts(
 			if !productHasUnit(material.Data, component.Quantity.EnteredUnitID) {
 				return domainError(ErrorConflict, "formula material unit is not configured for product", nil, nil)
 			}
+			componentUnit, unitErr := productUnitSnapshot(material.Data, component.Quantity.EnteredUnitID)
+			if unitErr != nil {
+				return unitErr
+			}
+			if unitErr = validateUnitQuantityScale(component.Quantity.EnteredQuantity, componentUnit); unitErr != nil {
+				return unitErr
+			}
 			component.Material = ReferenceInput{
 				ObjectID:        material.ObjectID,
 				ApprovalEntryID: material.ApprovalEntryID,
@@ -438,6 +460,13 @@ func (s *Service) resolveDraftProducts(
 		line.Product.ApprovalEntryID = product.ApprovalEntryID
 		if !productHasUnit(product.Data, line.EnteredUnitID) {
 			return domainError(ErrorConflict, "entered unit is not configured for product", nil, nil)
+		}
+		enteredUnit, err := productUnitSnapshot(product.Data, line.EnteredUnitID)
+		if err != nil {
+			return err
+		}
+		if err = validateUnitQuantityScale(line.EnteredQuantity, enteredUnit); err != nil {
+			return err
 		}
 		result.Products = append(result.Products, *product)
 	}

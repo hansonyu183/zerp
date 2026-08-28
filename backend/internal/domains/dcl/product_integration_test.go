@@ -231,6 +231,37 @@ func TestProductSubmitRejectsAuxiliarySourceDriftIntegration(t *testing.T) {
 	assertApprovalState(t, pool, savedDraft.Approval.ApprovalEntryID, approval.StatusDraft, savedDraft.Approval.Revision)
 }
 
+func TestApprovedProductKeepsMeasurementUnitQuantityScaleSnapshotIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	ensureProductAuxiliaries(t, pool)
+	_, service := newProductIntegrationServices(t, pool, txevent.NewBus(), nil)
+	creator := dclActor(t, ulid.Make().String(), "quantity-scale-create")
+	approved := approveProduct(
+		t, service,
+		mustCreateProduct(t, service, productData("计量精度快照产品", productRawTypeID, nil), creator),
+		dclActor(t, creator.ID(), "quantity-scale-submit"),
+		dclActor(t, ulid.Make().String(), "quantity-scale-approve"),
+	)
+
+	insertApprovedProductAuxiliaryV2(
+		t, pool, productTonUnitID, "measurement-unit",
+		`{"name":"吨（新精度）","symbol":"T","quantityScale":2}`,
+	)
+	view, err := service.Get(t.Context(), ProductGetInput{ObjectID: approved.ObjectID}, creator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Data.UnitConversions) != 2 {
+		t.Fatalf("unit conversions = %+v", view.Data.UnitConversions)
+	}
+	for _, conversion := range view.Data.UnitConversions {
+		if conversion.Unit.QuantityScale != 6 {
+			t.Fatalf("unit snapshot changed after AUX update: %+v", conversion.Unit)
+		}
+	}
+}
+
 func newProductIntegrationServices(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus, current productCurrentWriter) (*bobdomain.Service, *ProductService) {
 	t.Helper()
 	authorizer := authorization.Func(nil)

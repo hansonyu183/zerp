@@ -92,7 +92,7 @@ payment-method PMT
 
 `measurement-unit` 字段仅为 `name`、`symbol` 和 `quantityScale`。单位名称和符号用于录入与显示，`quantityScale` 决定该单位允许录入和保存的小数位。AUX 不管理计量维度、基准单位、基准单位 ID 或通用换算比例；相同单位名称在不同产品中可以对应不同的实际换算。
 
-产品和服务通过对象 ID 引用计量单位。普通商品仍以 kg 计价，包装物按自身计价单位计价；计价单位和默认录入单位是用户可见语义，产品内部基准单位不是计量单位对象。所有产品单位换算都由 BOB 产品页面使用，不进入 AUX 或其他领域的业务规则。
+产品和服务通过对象 ID 引用计量单位。普通商品仍以 kg 计价，包装物按自身计价单位计价；计价单位和默认录入单位是用户可见语义，产品内部基准单位不是计量单位对象。产品 candidate 选择单位时把 stable ID、来源 Entry、code、name、symbol 与 `quantityScale` 一并保存；VOU 按所采用产品版本中的 `quantityScale` 校验录入数量，不回查 AUX。所有产品单位换算都由 DCL 产品页面维护，不进入 AUX 的通用规则。
 
 ### 3.6 字典
 
@@ -106,7 +106,7 @@ payment-method PMT
 
 ### 3.8 资产类别
 
-`asset-category` 为固定资产购置和台账提供稳定分类。字段为 `name`、`defaultUsefulLifeMonths`、`defaultResidualRate` 和 `description`；默认使用期限为 1–1200 个自然月，默认残值率为 `0.00`–`99.99`。购置单选择类别后默认带入这两个值，允许在单据行覆盖，历史资产保留购置时快照。
+`asset-category` 为固定资产购置和台账提供稳定分类。字段为 `name`、`defaultUsefulLifeMonths`、`defaultResidualRate` 和 `description`；默认使用期限为 1–1200 个自然月，默认残值率为 `0.00`–`99.99`。购置单选择启用的类别时，在 VOU 资产行固化类别的 ID、编码、名称及两项默认值；单据行仍可覆盖实际使用月数和残值率。之后类别改名、调整默认值或停用不重解释既有资产，新单据不得选择已停用类别。
 
 ## 4. 数据与引用
 
@@ -115,3 +115,21 @@ payment-method PMT
 BOB、VOU 和 ACC 在同一 PostgreSQL 事务中解析 AUX 引用。新选择或主动重选先锁定稳定对象，再只选择该 subject 中版本号最大的 `APPROVED` entry；已有 VOU 保存未修改快照时只验证指定 `approvalEntryId` 属于该对象且曾正式批准，不要求仍为 latest。不存在批准版本、对象已停用或传入候选 entry 时拒绝，不得回退到最新创建版本、任意最大版本或旧指针。
 
 历史批准版本永不被后续保存覆盖；停用、改名、候选版本或新的批准版本不会改写既有交易快照。结算方式在客户或供应商显式选择时解析，收款方式只在客户显式选择时解析；引用方按 3.3 和 3.4 节保存自足快照，后续提交、批准和制单不递归解析来源版本。客户结算快照保存销售加价，供应商结算快照不保存销售加价；委托配制制造费等采购加价由对应专门采购单据维护，不进入 AUX 或供应商主数据。
+
+### 4.1 字段采用分类
+
+每个 AUX 字段只能属于以下一种采用方式；禁止由读取方临时决定是否回查 current。
+
+| AUX 对象 | 业务解释字段 | 采用边界 | 后续改动对既有业务 |
+| --- | --- | --- | --- |
+| product-category | stable ID、code、name、parentId | DCL product snapshot | 不重解释；层级仅影响新选择与当前分类浏览 |
+| product-type | stable ID、code、name、behaviorProfile | DCL product snapshot，VOU 再采用该产品 snapshot | 不重解释产品行为、库存或生产 |
+| employee-category / department / position | stable ID、code、name、parentId | DCL employee snapshot | 不改写既有雇佣或交易人员快照 |
+| settlement-method | stable ID、code、name、termCode、ruleType、monthOffset、dayOfMonth、dayOffset、defaultSalesSurcharge | DCL customer/supplier snapshot；订单复制最终结算事实 | 不重算到期日、金额或加价 |
+| payment-method | stable ID、code、name、defaultSalesSurcharge | DCL customer-account snapshot；销售订单保存最终方式与加价 | 不重算既有订单金额 |
+| measurement-unit | stable ID、来源 Entry、code、name、symbol、quantityScale | DCL product unit/formula snapshot；VOU 采用产品 snapshot | 不改变历史数量精度、换算、库存或展示 |
+| dictionary-type / dictionary-item | stable type、item code 与采用时名称 | 当前只作无业务规则的选择与展示；进入正式 DCL/VOU 字段时由所属 typed snapshot 保存 | 排序与说明从不重解释业务；名称不改写已保存快照 |
+| income-expense-type | stable ID、code、name、direction、parentId | 正式收支分类接入 VOU 时由 VOU line typed snapshot 保存；当前未接入的页面不得用自由字段伪装引用 | 已有单据分类、方向与归集不回查 current |
+| asset-category | stable ID、code、name、defaultUsefulLifeMonths、defaultResidualRate | VOU asset-acquisition line 与批准后资产台账 snapshot | 不重算既有折旧参数 |
+
+`description`、页面排序和 AUX 候选状态都不是业务计算输入；读取当前 AUX 可用于管理页面展示，但不得覆盖 DCL/VOU 已保存的名称和业务参数。新 DCL/VOU 选择只接受当前启用且存在 latest approved 的来源；来源随后停用时，已保存的精确 snapshot 继续可读和可执行。

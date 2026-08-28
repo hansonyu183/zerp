@@ -2879,6 +2879,8 @@
           'assetName': { 'type': 'string' },
           'specification': { 'type': 'string' },
           'category': { '$ref': '#/VouReferenceView' },
+          'categoryDefaultUsefulLifeMonths': { 'type': 'integer' },
+          'categoryDefaultResidualRate': { 'type': 'string' },
           'department': { '$ref': '#/VouReferenceView' },
           'custodian': { '$ref': '#/VouReferenceView' },
           'originalValue': { 'type': 'string' },

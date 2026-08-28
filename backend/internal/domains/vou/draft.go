@@ -197,6 +197,17 @@ func productUnitSnapshot(
 	)
 }
 
+func validateUnitQuantityScale(quantityMicros int64, unit bobdomain.MeasurementUnitSnapshot) error {
+	if unit.QuantityScale < 0 || unit.QuantityScale > 6 {
+		return domainError(ErrorConflict, "measurement unit quantity scale is unavailable", nil, nil)
+	}
+	divisors := [...]int64{1_000_000, 100_000, 10_000, 1_000, 100, 10, 1}
+	if quantityMicros%divisors[unit.QuantityScale] != 0 {
+		return domainError(ErrorValidation, "entered quantity exceeds measurement unit precision", nil, nil)
+	}
+	return nil
+}
+
 func defaultPackagingSpecSnapshot(product bobdomain.DetailView) (*int64, error) {
 	if product.DefaultPackagingSpec == "" {
 		return nil, nil

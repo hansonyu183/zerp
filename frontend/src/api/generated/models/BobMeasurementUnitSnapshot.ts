@@ -8,4 +8,5 @@ export type BobMeasurementUnitSnapshot = {
   code: string;
   name: string;
   symbol: string;
+  quantityScale: number;
 };

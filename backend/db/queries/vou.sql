@@ -126,11 +126,11 @@ DELETE FROM vou_asset_acquisition_lines WHERE document_id=sqlc.arg(document_id);
 
 -- name: InsertVouAssetAcquisitionLine :exec
 INSERT INTO vou_asset_acquisition_lines(id,document_id,line_no,asset_name,specification,
- category_object_id,category_approval_entry_id,category_code,category_name,original_value_cents,useful_life_months,residual_rate_bps,
+ category_object_id,category_approval_entry_id,category_code,category_name,category_default_useful_life_months,category_default_residual_rate_bps,original_value_cents,useful_life_months,residual_rate_bps,
  department_object_id,department_approval_entry_id,department_code,department_name,
  custodian_object_id,custodian_approval_entry_id,custodian_code,custodian_name,location,remark)
 VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(asset_name),sqlc.arg(specification),
- sqlc.arg(category_object_id),sqlc.arg(category_approval_entry_id),sqlc.arg(category_code),sqlc.arg(category_name),sqlc.arg(original_value_cents),sqlc.arg(useful_life_months),sqlc.arg(residual_rate_bps),
+ sqlc.arg(category_object_id),sqlc.arg(category_approval_entry_id),sqlc.arg(category_code),sqlc.arg(category_name),sqlc.arg(category_default_useful_life_months),sqlc.arg(category_default_residual_rate_bps),sqlc.arg(original_value_cents),sqlc.arg(useful_life_months),sqlc.arg(residual_rate_bps),
  sqlc.arg(department_object_id),sqlc.arg(department_approval_entry_id),sqlc.arg(department_code),sqlc.arg(department_name),
  sqlc.narg(custodian_object_id),sqlc.narg(custodian_approval_entry_id),sqlc.narg(custodian_code),sqlc.narg(custodian_name),sqlc.arg(location),sqlc.narg(remark));
 

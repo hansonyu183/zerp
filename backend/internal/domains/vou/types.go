@@ -840,18 +840,20 @@ type InventoryCountBalanceItem struct {
 }
 
 type AssetAcquisitionLineView struct {
-	LineID           string         `json:"lineId"`
-	LineNo           int32          `json:"lineNo"`
-	AssetName        string         `json:"assetName"`
-	Specification    string         `json:"specification,omitempty"`
-	Category         ReferenceView  `json:"category"`
-	OriginalValue    string         `json:"originalValue"`
-	UsefulLifeMonths int32          `json:"usefulLifeMonths"`
-	ResidualRate     string         `json:"residualRate"`
-	Department       ReferenceView  `json:"department"`
-	Custodian        *ReferenceView `json:"custodian,omitempty"`
-	Location         string         `json:"location,omitempty"`
-	Remark           string         `json:"remark,omitempty"`
+	LineID                          string         `json:"lineId"`
+	LineNo                          int32          `json:"lineNo"`
+	AssetName                       string         `json:"assetName"`
+	Specification                   string         `json:"specification,omitempty"`
+	Category                        ReferenceView  `json:"category"`
+	CategoryDefaultUsefulLifeMonths int32          `json:"categoryDefaultUsefulLifeMonths"`
+	CategoryDefaultResidualRate     string         `json:"categoryDefaultResidualRate"`
+	OriginalValue                   string         `json:"originalValue"`
+	UsefulLifeMonths                int32          `json:"usefulLifeMonths"`
+	ResidualRate                    string         `json:"residualRate"`
+	Department                      ReferenceView  `json:"department"`
+	Custodian                       *ReferenceView `json:"custodian,omitempty"`
+	Location                        string         `json:"location,omitempty"`
+	Remark                          string         `json:"remark,omitempty"`
 }
 
 type AssetSaleLineView struct {

@@ -19,12 +19,11 @@ import (
 const kilogramMeasurementUnitCode = "UNT-0001"
 
 type Service struct {
-	pool                    *pgxpool.Pool
-	queries                 *dbsqlc.Queries
-	afterDeleteDetailsHook  func() error
-	auxiliaryResolver       AuxiliaryResolver
-	coordinators            map[string]*approval.Coordinator[bobapproval.Payload]
-	partyDeclarationCreator PartyDeclarationCreator
+	pool                   *pgxpool.Pool
+	queries                *dbsqlc.Queries
+	afterDeleteDetailsHook func() error
+	auxiliaryResolver      AuxiliaryResolver
+	coordinators           map[string]*approval.Coordinator[bobapproval.Payload]
 }
 
 // PartyDeclarationCreator is implemented by DCL. Relationship creation owns
@@ -40,9 +39,9 @@ type AuxiliaryResolver interface {
 	ResolveAuxiliaryCode(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
 }
 
-func NewService(pool *pgxpool.Pool, auxiliaryResolver AuxiliaryResolver, authorizer approval.Authorizer, bus *txevent.Bus, partyCreator PartyDeclarationCreator) *Service {
-	if pool == nil || auxiliaryResolver == nil || authorizer == nil || bus == nil || partyCreator == nil {
-		panic("bob: persistence, auxiliary resolver, authorizer, event bus and Party declaration creator are required")
+func NewService(pool *pgxpool.Pool, auxiliaryResolver AuxiliaryResolver, authorizer approval.Authorizer, bus *txevent.Bus) *Service {
+	if pool == nil || auxiliaryResolver == nil || authorizer == nil || bus == nil {
+		panic("bob: persistence, auxiliary resolver, authorizer and event bus are required")
 	}
 	coordinators := make(map[string]*approval.Coordinator[bobapproval.Payload], len(publicApprovalEntities))
 	for _, entity := range publicApprovalEntities {
@@ -52,7 +51,7 @@ func NewService(pool *pgxpool.Pool, auxiliaryResolver AuxiliaryResolver, authori
 		}
 		coordinators[entity] = coordinator
 	}
-	return &Service{pool: pool, queries: dbsqlc.New(pool), auxiliaryResolver: auxiliaryResolver, coordinators: coordinators, partyDeclarationCreator: partyCreator}
+	return &Service{pool: pool, queries: dbsqlc.New(pool), auxiliaryResolver: auxiliaryResolver, coordinators: coordinators}
 }
 
 func (s *Service) coordinator(entity string) (*approval.Coordinator[bobapproval.Payload], error) {

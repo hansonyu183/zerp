@@ -10,7 +10,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
@@ -93,8 +92,7 @@ func New(
 	events := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, events)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.FailClosed{}, events)
-	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.FailClosed{}, events, partyDeclarations)
+	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.FailClosed{}, events)
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,

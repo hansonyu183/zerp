@@ -207,18 +207,6 @@ func replaceProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, appro
 	return nil
 }
 
-func derefInt32(value *int32) int32 {
-	if value == nil {
-		return 0
-	}
-	return *value
-}
-func int32Pointer(value int32) *int32 {
-	if value == 0 {
-		return nil
-	}
-	return &value
-}
 func nilIfEmpty(value string) *string {
 	if value == "" {
 		return nil
@@ -227,14 +215,6 @@ func nilIfEmpty(value string) *string {
 }
 func invalidPayloadEntity(entity string) error {
 	return domainError(ErrorValidation, fmt.Sprintf("invalid BOB approval payload entity %q", entity), nil, nil)
-}
-func dateValue(value string) pgtype.Date {
-	if strings.TrimSpace(value) == "" {
-		return pgtype.Date{}
-	}
-	var date pgtype.Date
-	_ = date.Scan(value)
-	return date
 }
 func dateString(value pgtype.Date) string {
 	if !value.Valid {

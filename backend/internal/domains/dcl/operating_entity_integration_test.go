@@ -45,8 +45,7 @@ func dclIntegrationPool(t *testing.T) *pgxpool.Pool {
 }
 
 func newDCLIntegrationBOBService(pool *pgxpool.Pool, auxiliary *auxdomain.Service, authorizer approval.Authorizer, bus *txevent.Bus) *bobdomain.Service {
-	party := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
-	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus, party)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
 }
 
 func resetDCLIntegrationData(t *testing.T, pool *pgxpool.Pool) {

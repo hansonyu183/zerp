@@ -67,13 +67,6 @@ func otherDetail(data OtherUnitData) bobdomain.DetailView {
 	}
 	return result
 }
-func otherData(d bobdomain.DetailView) OtherUnitData {
-	ret := OtherUnitData{ContactName: d.ContactName, ContactPhone: d.ContactPhone, Email: d.Email, Address: d.Address, SettlementMethodID: d.SettlementMethodID, SettlementMethodApprovalEntryID: d.SettlementMethodApprovalEntryID, SettlementMethodCode: d.SettlementMethodCode, SettlementMethodName: d.SettlementMethodName, SettlementTermCode: d.TermCode, SettlementRuleType: d.RuleType, SettlementMonthOffset: d.MonthOffset, SettlementDayOffset: d.DayOffset, Remark: d.Remark}
-	if d.DayOfMonth != nil {
-		ret.SettlementDayOfMonth = *d.DayOfMonth
-	}
-	return ret
-}
 func otherPayload(id bobdomain.RelationshipIdentity, enabled bool) dclapproval.OtherUnitPayload {
 	return dclapproval.OtherUnitPayload{SubjectID: id.ObjectID, Code: id.Code, PartyID: id.PartyID, Enabled: enabled}
 }
@@ -155,7 +148,7 @@ func (s *RelationshipService) SaveOtherUnit(ctx context.Context, in OtherUnitSav
 			var n int64
 			n, err = q.CopyDCLOtherUnitVersion(ctx, dbsqlc.CopyDCLOtherUnitVersionParams{NewApprovalEntryID: e.ID, SourceApprovalEntryID: stored.ID})
 			if n != 1 && err == nil {
-				err = errors.New("Other Unit snapshot is missing")
+				err = errors.New("other unit snapshot is missing")
 			}
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
@@ -201,20 +194,6 @@ func (s *RelationshipService) UnapproveOtherUnit(ctx context.Context, i Relation
 }
 func (s *RelationshipService) DeleteOtherUnit(ctx context.Context, in RelationshipVersionInput, a approval.Actor) error {
 	return s.deleteOther(ctx, in, a)
-}
-func (s *RelationshipService) EnableOtherUnit(ctx context.Context, in RelationshipVersionInput, a approval.Actor) (RelationshipMutation, error) {
-	stored, err := s.queries.GetDCLOtherUnitVersion(ctx, in.ApprovalEntryID)
-	if err != nil {
-		return RelationshipMutation{}, translateError(err)
-	}
-	return s.SaveOtherUnit(ctx, OtherUnitSaveInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision, Enabled: true, Data: otherDataFromStored(stored)}, a)
-}
-func (s *RelationshipService) DisableOtherUnit(ctx context.Context, in RelationshipVersionInput, a approval.Actor) (RelationshipMutation, error) {
-	stored, err := s.queries.GetDCLOtherUnitVersion(ctx, in.ApprovalEntryID)
-	if err != nil {
-		return RelationshipMutation{}, translateError(err)
-	}
-	return s.SaveOtherUnit(ctx, OtherUnitSaveInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision, Enabled: false, Data: otherDataFromStored(stored)}, a)
 }
 func (s *RelationshipService) deleteOther(ctx context.Context, in RelationshipVersionInput, a approval.Actor) error {
 	if !validVersionInput(in.ObjectID, in.ApprovalEntryID, in.ApprovalRevision, a) {
@@ -465,7 +444,7 @@ func (s *RelationshipService) SaveSalesPartner(ctx context.Context, in SalesPart
 			var n int64
 			n, err = q.CopyDCLSalesPartnerVersion(ctx, dbsqlc.CopyDCLSalesPartnerVersionParams{NewApprovalEntryID: e.ID, SourceApprovalEntryID: stored.ID})
 			if n != 1 && err == nil {
-				err = errors.New("Sales Partner snapshot is missing")
+				err = errors.New("sales partner snapshot is missing")
 			}
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
@@ -548,20 +527,6 @@ func (s *RelationshipService) DeleteSalesPartner(ctx context.Context, in Relatio
 		return translateError(err)
 	}
 	return translateError(tx.Commit(ctx))
-}
-func (s *RelationshipService) EnableSalesPartner(ctx context.Context, in RelationshipVersionInput, a approval.Actor) (RelationshipMutation, error) {
-	stored, err := s.queries.GetDCLSalesPartnerVersion(ctx, in.ApprovalEntryID)
-	if err != nil {
-		return RelationshipMutation{}, translateError(err)
-	}
-	return s.SaveSalesPartner(ctx, SalesPartnerSaveInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision, Enabled: true, Data: salesStored(stored)}, a)
-}
-func (s *RelationshipService) DisableSalesPartner(ctx context.Context, in RelationshipVersionInput, a approval.Actor) (RelationshipMutation, error) {
-	stored, err := s.queries.GetDCLSalesPartnerVersion(ctx, in.ApprovalEntryID)
-	if err != nil {
-		return RelationshipMutation{}, translateError(err)
-	}
-	return s.SaveSalesPartner(ctx, SalesPartnerSaveInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision, Enabled: false, Data: salesStored(stored)}, a)
 }
 func (s *RelationshipService) transitionSales(ctx context.Context, in RelationshipVersionInput, reason string, action approval.Action, actor approval.Actor) (RelationshipMutation, error) {
 	if !validVersionInput(in.ObjectID, in.ApprovalEntryID, in.ApprovalRevision, actor) {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -23,7 +22,6 @@ var (
 	vinPattern           = regexp.MustCompile(`^[A-HJ-NPR-Z0-9]{17}$`)
 	accountNumberPattern = regexp.MustCompile(`^[A-Z0-9]{1,64}$`)
 	loadCapacityPattern  = regexp.MustCompile(`^([0-9]{1,9})(?:\.([0-9]{1,3}))?$`)
-	moneyPattern         = regexp.MustCompile(`^(0|[0-9]{1,12})(?:\.([0-9]{1,2}))?$`)
 )
 
 func validateCreate(entity string, input CreateDetailInput) (DetailView, string, error) {
@@ -657,42 +655,6 @@ func validateSettlementRule(input DetailView) error {
 		return domainError(ErrorValidation, "settlement rule does not match fixed term", nil, nil)
 	}
 	return nil
-}
-
-func validSettlementTerm(value string) bool {
-	return slices.Contains([]string{
-		SettlementTermPrepaid,
-		SettlementTermCashOnDelivery,
-		SettlementTermArrival3,
-		SettlementTermArrival5,
-		SettlementTermArrival7,
-		SettlementTermArrival15,
-		SettlementTermArrival30,
-		SettlementTermMonthlyCurrent,
-		SettlementTermMonthly30,
-		SettlementTermMonthly60,
-		SettlementTermMonthly90,
-	}, value)
-}
-
-func moneyCents(value string) (int64, error) {
-	if !moneyPattern.MatchString(value) {
-		return 0, domainError(ErrorValidation, "invalid amount", nil, nil)
-	}
-	parts := strings.SplitN(value, ".", 2)
-	whole, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		return 0, domainError(ErrorValidation, "invalid amount", nil, err)
-	}
-	fraction := "00"
-	if len(parts) == 2 {
-		fraction = parts[1] + strings.Repeat("0", 2-len(parts[1]))
-	}
-	cents, err := strconv.ParseInt(fraction, 10, 64)
-	if err != nil {
-		return 0, domainError(ErrorValidation, "invalid amount", nil, err)
-	}
-	return whole*100 + cents, nil
 }
 
 func numericField(value int32) string {

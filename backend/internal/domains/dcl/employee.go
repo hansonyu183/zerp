@@ -329,7 +329,7 @@ func (s *EmployeeService) restoreLatestApproved(ctx context.Context, tx pgx.Tx, 
 		_, err = s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
 	}
 	if err == nil {
-		d, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, d, true)
+		_, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, d, true)
 	}
 	if err != nil {
 		return bobdomain.EmployeeIdentity{}, false, translateError(err)

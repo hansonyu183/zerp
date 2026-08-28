@@ -10,7 +10,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type applicationService interface {
@@ -97,15 +96,6 @@ func (h *Handler) partyGet(c *gin.Context) {
 	h.result(c, result, err)
 }
 
-func (h *Handler) partyRelationshipVisibility(c *gin.Context) PartyRelationshipVisibility {
-	principal := h.principal(c)
-	return PartyRelationshipVisibility{
-		Customer: hasPermission(principal, "/bob/customer/get"), Supplier: hasPermission(principal, "/bob/supplier/get"),
-		Employment: hasPermission(principal, "/bob/employee/get"), OtherUnit: hasPermission(principal, "/bob/other-unit/get"),
-		SalesPartner: hasPermission(principal, "/bob/sales-partner/get"),
-	}
-}
-
 func hasPermission(principal authorization.Principal, path string) bool {
 	for _, permission := range principal.Permissions {
 		if permission == path {
@@ -117,15 +107,6 @@ func hasPermission(principal authorization.Principal, path string) bool {
 
 func (h *Handler) principal(c *gin.Context) authorization.Principal {
 	return authmiddleware.Principal(c)
-}
-
-func (h *Handler) approvalActor(c *gin.Context) (approval.Actor, bool) {
-	actor, err := approval.UserActor(h.principal(c), response.RequestID(c))
-	if err != nil {
-		h.result(c, nil, err)
-		return approval.Actor{}, false
-	}
-	return actor, true
 }
 
 func (h *Handler) referenceQuery(c *gin.Context) {
@@ -210,10 +191,6 @@ func (h *Handler) bind(c *gin.Context, target any) bool {
 		return false
 	}
 	return true
-}
-
-func (h *Handler) actorID(c *gin.Context) string {
-	return authmiddleware.Principal(c).ActorID
 }
 
 func (h *Handler) result(c *gin.Context, data any, err error) {

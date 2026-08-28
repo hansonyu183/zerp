@@ -24,7 +24,7 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus, parties)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 

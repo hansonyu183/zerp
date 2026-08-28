@@ -17,8 +17,6 @@ type relationshipApplicationService interface {
 	RejectOtherUnit(context.Context, RelationshipReviewInput, approval.Actor) (RelationshipMutation, error)
 	ApproveOtherUnit(context.Context, RelationshipVersionInput, approval.Actor) (RelationshipMutation, error)
 	UnapproveOtherUnit(context.Context, RelationshipReviewInput, approval.Actor) (RelationshipMutation, error)
-	EnableOtherUnit(context.Context, RelationshipVersionInput, approval.Actor) (RelationshipMutation, error)
-	DisableOtherUnit(context.Context, RelationshipVersionInput, approval.Actor) (RelationshipMutation, error)
 	DeleteOtherUnit(context.Context, RelationshipVersionInput, approval.Actor) error
 	GetOtherUnit(context.Context, RelationshipGetInput, approval.Actor) (OtherUnitView, error)
 	QueryOtherUnits(context.Context, RelationshipQueryInput, approval.Actor) (Page[OtherUnitQueryItem], error)
@@ -31,8 +29,6 @@ type relationshipApplicationService interface {
 	RejectSalesPartner(context.Context, RelationshipReviewInput, approval.Actor) (RelationshipMutation, error)
 	ApproveSalesPartner(context.Context, RelationshipVersionInput, approval.Actor) (RelationshipMutation, error)
 	UnapproveSalesPartner(context.Context, RelationshipReviewInput, approval.Actor) (RelationshipMutation, error)
-	EnableSalesPartner(context.Context, RelationshipVersionInput, approval.Actor) (RelationshipMutation, error)
-	DisableSalesPartner(context.Context, RelationshipVersionInput, approval.Actor) (RelationshipMutation, error)
 	DeleteSalesPartner(context.Context, RelationshipVersionInput, approval.Actor) error
 	GetSalesPartner(context.Context, RelationshipGetInput, approval.Actor) (SalesPartnerView, error)
 	QuerySalesPartners(context.Context, RelationshipQueryInput, approval.Actor) (Page[SalesPartnerQueryItem], error)
@@ -124,18 +120,6 @@ func (h *RelationshipHandler) otherUnapprove(c *gin.Context) {
 		h.withActor(c, func(a approval.Actor) (any, error) { return h.service.UnapproveOtherUnit(c, x, a) })
 	}
 }
-func (h *RelationshipHandler) otherEnable(c *gin.Context) {
-	var x RelationshipVersionInput
-	if h.bind(c, &x) {
-		h.withActor(c, func(a approval.Actor) (any, error) { return h.service.EnableOtherUnit(c, x, a) })
-	}
-}
-func (h *RelationshipHandler) otherDisable(c *gin.Context) {
-	var x RelationshipVersionInput
-	if h.bind(c, &x) {
-		h.withActor(c, func(a approval.Actor) (any, error) { return h.service.DisableOtherUnit(c, x, a) })
-	}
-}
 func (h *RelationshipHandler) otherDelete(c *gin.Context) {
 	var x RelationshipVersionInput
 	if h.bind(c, &x) {
@@ -206,18 +190,6 @@ func (h *RelationshipHandler) salesUnapprove(c *gin.Context) {
 	var x RelationshipReviewInput
 	if h.bind(c, &x) {
 		h.withActor(c, func(a approval.Actor) (any, error) { return h.service.UnapproveSalesPartner(c, x, a) })
-	}
-}
-func (h *RelationshipHandler) salesEnable(c *gin.Context) {
-	var x RelationshipVersionInput
-	if h.bind(c, &x) {
-		h.withActor(c, func(a approval.Actor) (any, error) { return h.service.EnableSalesPartner(c, x, a) })
-	}
-}
-func (h *RelationshipHandler) salesDisable(c *gin.Context) {
-	var x RelationshipVersionInput
-	if h.bind(c, &x) {
-		h.withActor(c, func(a approval.Actor) (any, error) { return h.service.DisableSalesPartner(c, x, a) })
 	}
 }
 func (h *RelationshipHandler) salesDelete(c *gin.Context) {

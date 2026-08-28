@@ -7,9 +7,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -349,14 +346,6 @@ func partyRelationshipCards(ctx context.Context, q partyQueryer, partyID string)
 	return items, rows.Err()
 }
 
-func (s *Service) relationshipOperatingEntity(ctx context.Context, objectID string) (string, string, error) {
-	current, err := s.queries.GetBobOperatingEntityCurrentReference(ctx, objectID)
-	if err != nil {
-		return "", "", err
-	}
-	return current.Code, current.LegalName, nil
-}
-
 func insertPartyIdentifiers(ctx context.Context, tx pgx.Tx, partyID string, identifiers []PartyIdentifierInput) error {
 	for _, identifier := range identifiers {
 		if _, err := tx.Exec(ctx, `INSERT INTO bob_party_identifiers(party_id,identifier_type,value,normalized_value) VALUES($1,$2,$3,$4)`, partyID, identifier.Type, identifier.Value, normalizePartyIdentifier(identifier.Value)); err != nil {
@@ -373,37 +362,3 @@ type relationshipParty struct {
 }
 
 type PartyRelationshipResolved = relationshipParty
-
-func (s *Service) resolveOrCreateRelationshipParty(
-	ctx context.Context,
-	_ *dbsqlc.Queries,
-	partyID string,
-	newParty *PartyCreateData,
-	actorID string,
-	requestID string,
-	canReadMatchedParty bool,
-	txs ...pgx.Tx,
-) (relationshipParty, error) {
-	if len(txs) == 0 {
-		return relationshipParty{}, s.internal("resolve Party", errors.New("party identity mutation requires transaction"))
-	}
-	tx := txs[0]
-	if (partyID == "") == (newParty == nil) || (partyID != "" && !validID(partyID)) {
-		return relationshipParty{}, domainError(ErrorValidation, "invalid Party reference", nil, nil)
-	}
-	if newParty != nil {
-		actor, actorErr := approval.UserActor(authorization.Principal{ActorID: actorID}, requestID)
-		if actorErr != nil {
-			return relationshipParty{}, s.writeError("create Party declaration actor", actorErr)
-		}
-		return s.partyDeclarationCreator.CreateForRelationship(ctx, tx, *newParty, actor, canReadMatchedParty)
-	}
-	row, err := partyByID(ctx, tx, partyID, false)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return relationshipParty{}, domainError(ErrorConflict, "主体不可用", nil, nil)
-	}
-	if err != nil {
-		return relationshipParty{}, s.internal("resolve Party", err)
-	}
-	return relationshipParty{ID: row.ID, Kind: row.Kind, DisplayName: row.DisplayName}, nil
-}

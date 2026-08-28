@@ -45,7 +45,6 @@ type SupplierData struct {
 	DefaultPurchaserApprovalID string                      `json:"-"`
 	SettlementMethod           *SupplierSettlementSnapshot `json:"settlementMethod"`
 	DefaultPurchaser           *SupplierPurchaserSnapshot  `json:"defaultPurchaser"`
-	provided                   map[string]bool
 }
 
 type SupplierVersionView struct {

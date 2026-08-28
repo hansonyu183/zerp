@@ -24,7 +24,7 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
 	partyReader := bobdomain.NewPartyCurrentReader(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), partyReader, bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus, parties)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
 	employees := NewEmployeeService(pool, business, parties, partyReader, authorizer, bus)
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 

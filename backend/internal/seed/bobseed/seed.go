@@ -1153,7 +1153,7 @@ func New(pool *pgxpool.Pool) *Seeder {
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	bus := txevent.NewBus()
 	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorizer, bus)
-	service := bob.NewService(pool, auxiliaryResolver, authorizer, bus, partyDeclarations)
+	service := bob.NewService(pool, auxiliaryResolver, authorizer, bus)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, service, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, service, authorizer, bus)
 	vehicles := dcldomain.NewVehicleService(pool, service, authorizer, bus)

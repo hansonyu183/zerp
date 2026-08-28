@@ -20,8 +20,7 @@ import (
 )
 
 func newIntegrationBOBService(pool *pgxpool.Pool, resolver bob.AuxiliaryResolver, authorizer approval.Authorizer, bus *txevent.Bus) *bob.Service {
-	party := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorizer, bus)
-	return bob.NewService(pool, resolver, authorizer, bus, party)
+	return bob.NewService(pool, resolver, authorizer, bus)
 }
 
 func TestSeedDemoDataIntegration(t *testing.T) {

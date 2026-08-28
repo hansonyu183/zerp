@@ -17,21 +17,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
-type splitAuthorizationStub struct {
-	authenticate func(context.Context, *http.Request, string, string) (authorization.Principal, error)
-	permission   func(context.Context, authorization.Principal, string, string) error
-}
-
-func (s splitAuthorizationStub) AuthenticateSession(ctx context.Context, request *http.Request, path, requestID string) (authorization.Principal, error) {
-	return s.authenticate(ctx, request, path, requestID)
-}
-
-func (s splitAuthorizationStub) RequirePermission(ctx context.Context, principal authorization.Principal, path, requestID string) error {
-	return s.permission(ctx, principal, path, requestID)
-}
-
-func (splitAuthorizationStub) ClearSessionCookie(http.ResponseWriter) {}
-
 type serviceStub struct {
 	queryCalls int
 	entity     string

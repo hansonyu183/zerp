@@ -18,19 +18,6 @@ func approvalMeta(entry dbsqlc.ApprovalEntry) approval.VersionMeta {
 		SubmittedBy: entry.SubmittedBy, SubmittedAt: timePointer(entry.SubmittedAt), ApprovedBy: entry.ApprovedBy, ApprovedAt: timePointer(entry.ApprovedAt)}
 }
 
-func approvalEventView(row dbsqlc.ApprovalEvent) AuditEventView {
-	var from, to *approval.Status
-	if row.FromStatus != nil {
-		value := approval.Status(*row.FromStatus)
-		from = &value
-	}
-	if row.ToStatus != nil {
-		value := approval.Status(*row.ToStatus)
-		to = &value
-	}
-	return AuditEventView{ID: row.ID, ApprovalEntryID: row.EntryID, Action: approval.Action(row.Action), FromStatus: from, ToStatus: to, ActorID: row.ActorID, Reason: row.Reason, RequestID: row.RequestID, CreatedAt: row.CreatedAt.Time}
-}
-
 func timePointer(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil

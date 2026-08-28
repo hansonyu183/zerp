@@ -195,86 +195,6 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, Data: data}, nil
 }
 
-func (s *Service) entryForObject(ctx context.Context, q *dbsqlc.Queries, entity, objectID, entryID string) (dbsqlc.ApprovalEntry, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "bob", Entity: entity})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && entry.SubjectID != objectID) {
-		return dbsqlc.ApprovalEntry{}, domainError(ErrorValidation, "approval entry does not belong to object", nil, nil)
-	}
-	if err != nil {
-		return dbsqlc.ApprovalEntry{}, s.internal("get BOB approval entry", err)
-	}
-	return entry, nil
-}
-
-func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity, objectID, entryID string) error {
-	if entity == EntitySalesPartner {
-		data, err := loadDetail(ctx, q, entity, entryID)
-		if err != nil {
-			return s.internal("load sales relationship payload for validation", err)
-		}
-		if err = ValidateSalesPartnerDeclaration(data.SalesCapabilities, data.ContactName, data.ContactPhone, data.Email, data.Address, data.Remark); err != nil {
-			return err
-		}
-		identity, identityErr := q.GetBobSalesPartnerRelationship(ctx, objectID)
-		if identityErr != nil {
-			return s.internal("load sales relationship for validation", identityErr)
-		}
-		_, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, identity.OperatingEntityID)
-		return err
-	}
-	data, err := loadDetail(ctx, q, entity, entryID)
-	if err != nil {
-		return s.internal("load BOB approval payload for validation", err)
-	}
-	data, err = validateDetailData(entity, data)
-	if err != nil {
-		return err
-	}
-	if entity == EntityProduct {
-		if data.Formula != nil {
-			for index := range data.Formula.Components {
-				component := &data.Formula.Components[index]
-				material, resolveErr := s.ValidateApprovedSnapshotReference(
-					ctx, tx, EntityProduct, component.Material.ObjectID, component.Material.ApprovalEntryID,
-				)
-				if resolveErr != nil {
-					return resolveErr
-				}
-				component.Material.Code = material.Code
-				component.Material.Name = material.Data.Name
-				component.Material.BehaviorProfile = material.Data.BehaviorProfile
-			}
-		}
-		if err = validateProductComplete(data); err != nil {
-			return err
-		}
-	}
-	if entity == EntityEmployee {
-		identity, identityErr := q.GetBobEmploymentRelationship(ctx, objectID)
-		if identityErr != nil {
-			return s.internal("load employment relationship for validation", identityErr)
-		}
-		if _, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, identity.OperatingEntityID); err != nil {
-			return err
-		}
-	}
-	if entity == EntityOtherUnit {
-		identity, identityErr := q.GetBobOtherUnitRelationship(ctx, objectID)
-		if identityErr != nil {
-			return s.internal("load service relationship for validation", identityErr)
-		}
-		if _, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, identity.OperatingEntityID); err != nil {
-			return err
-		}
-	}
-	_, err = s.resolveDetailReferenceSnapshots(ctx, tx, entity, objectID, data, true)
-	return err
-}
-
-func approvalEntry(row dbsqlc.ApprovalEntry) approval.Entry {
-	return approval.Entry{EntryRef: approval.EntryRef{ID: row.ID, Domain: row.Domain, Entity: row.Entity, SubjectID: row.SubjectID, VersionNo: row.VersionNo}, Status: approval.Status(row.Status), Revision: row.Revision, CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt.Time, UpdatedBy: row.UpdatedBy, UpdatedAt: row.UpdatedAt.Time, SubmittedBy: row.SubmittedBy, ApprovedBy: row.ApprovedBy}
-}
-
 func (s *Service) ensureUnapproveAllowed(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
 	counts, err := listBobApprovalEntryReferenceCounts(ctx, q, entryID)
 	if err != nil {
@@ -460,19 +380,4 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return *value
-}
-
-func translateApprovalError(err error) error {
-	var approvalErr *approval.Error
-	if !errors.As(err, &approvalErr) {
-		return err
-	}
-	kind := ErrorInternal
-	switch approvalErr.Kind {
-	case approval.ErrorValidation, approval.ErrorNotFound:
-		kind = ErrorValidation
-	case approval.ErrorConflict:
-		kind = ErrorConflict
-	}
-	return domainErrorWithKey(kind, approvalErr.ErrorKey, approvalErr.Message, nil, err)
 }

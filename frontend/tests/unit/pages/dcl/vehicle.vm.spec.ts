@@ -221,7 +221,34 @@ describe('DCL vehicle view model', () => {
         '/bob/operating-entity/query',
         '/bob/other-unit/query',
       ]
-      mockedPost.mockResolvedValue({ data: { items: [] } })
+      mockedPost.mockImplementation(async (path) => ({
+        data: {
+          items:
+            path === 'bob/other-unit/query'
+              ? [
+                  {
+                    objectId: 'OUT-1',
+                    entity: 'other-unit',
+                    code: 'OUT-0001',
+                    objectRevision: 1,
+                    enabled: true,
+                    sourceApprovalEntryId: 'VER-1',
+                    sourceVersionNo: 1,
+                    data: { name: '' },
+                    relationship: {
+                      partyId: 'PTY-1',
+                      partyKind: 'ORGANIZATION',
+                      partyDisplayName: '承运服务商',
+                      operatingEntityId: 'OPE-1',
+                      operatingEntityCode: 'OPE-0001',
+                      operatingEntityName: '经营主体',
+                    },
+                    updatedAt: '2026-08-28T00:00:00Z',
+                  },
+                ]
+              : [],
+        },
+      }))
       const vm = useDclVehicleViewModel()
 
       vm.openCreate()
@@ -237,11 +264,15 @@ describe('DCL vehicle view model', () => {
         page: 1,
         pageSize: 20,
         filters: {
-          status: ['APPROVED'],
           enabled: true,
           keyword: '承运商',
         },
       })
+      expect(
+        vm.editorFields.value.find(
+          (field) => field.key === 'carrierServiceRelationshipObjectId',
+        )?.options,
+      ).toEqual([{ title: 'OUT-0001 · 承运服务商', value: 'OUT-1' }])
     } finally {
       vi.useRealTimers()
     }

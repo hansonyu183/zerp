@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
+import { useSessionStore } from '@/stores/session'
 import {
   createDclCustomer,
   loadDclCustomerAudit,
@@ -19,6 +20,14 @@ import {
   initiateCustomerAttachment,
   removeCustomerAttachment,
 } from '@/pages/dcl/customer-account/attachments'
+import {
+  useDclCustomerViewModel,
+  customerActiveVersion,
+} from '@/pages/dcl/customer/vm'
+import {
+  useDclCustomerAccountViewModel,
+  customerAccountActiveVersion,
+} from '@/pages/dcl/customer-account/vm'
 
 vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn() } }))
 const mockedPost = vi.mocked(apiClient.postContract)
@@ -160,5 +169,111 @@ describe('DCL customer declarations', () => {
       'dcl/customer-account/versions',
       'dcl/customer-account/audit-history',
     ])
+  })
+
+  it('drives customer relationship list and lifecycle interactions', async () => {
+    const approval = {
+      approvalEntryId: 'ENTRY-1',
+      revision: 1,
+      status: 'DRAFT',
+      versionNo: 1,
+      submittedBy: null,
+    }
+    const row = {
+      objectId: 'CUR-1',
+      enabled: true,
+      openVersion: { approval },
+      latestApproved: null,
+    } as never
+    mockedPost.mockImplementation(async (path) => {
+      const value = String(path)
+      if (value === 'dcl/customer/query')
+        return {
+          data: { items: [row], total: 1, page: 2, pageSize: 20 },
+        } as never
+      if (value === 'dcl/customer/get')
+        return { data: { objectId: 'CUR-1', approval } } as never
+      if (value.endsWith('/versions') || value.endsWith('/audit-history'))
+        return { data: { items: [], total: 0, page: 1, pageSize: 20 } } as never
+      return { data: {} } as never
+    })
+
+    const vm = useDclCustomerViewModel()
+    await vm.query()
+    await vm.search()
+    await vm.changePage(2)
+    vm.openCreate()
+    expect(await vm.create()).toBe(false)
+    await vm.openById('CUR-1')
+    expect(await vm.runAction(row, 'submit')).toBe(true)
+    await vm.toggleEnabled(row)
+    await vm.remove(row)
+    await vm.openVersions(row)
+    await vm.openAudit(row)
+
+    expect(customerActiveVersion(row).approval.approvalEntryId).toBe('ENTRY-1')
+    expect(vm.rows.value).toHaveLength(1)
+    expect(vm.drawerOpen.value).toBe(true)
+    expect(vm.versionsOpen.value).toBe(true)
+    expect(vm.auditOpen.value).toBe(true)
+  })
+
+  it('drives customer account list and lifecycle interactions', async () => {
+    const session = useSessionStore()
+    session.permissions = ['/dcl/customer-account/create']
+    const approval = {
+      approvalEntryId: 'ENTRY-2',
+      revision: 2,
+      status: 'DRAFT',
+      versionNo: 1,
+      submittedBy: null,
+    }
+    const row = {
+      objectId: 'CAC-1',
+      enabled: true,
+      openVersion: { approval },
+      latestApproved: null,
+    } as never
+    const form = createCustomerAccountForm()
+    const view = {
+      objectId: 'CAC-1',
+      enabled: true,
+      approval,
+      data: dclCustomerAccountPayload(form),
+    }
+    mockedPost.mockImplementation(async (path) => {
+      const value = String(path)
+      if (value === 'dcl/customer-account/query')
+        return {
+          data: { items: [row], total: 1, page: 3, pageSize: 20 },
+        } as never
+      if (value === 'dcl/customer-account/get') return { data: view } as never
+      if (value.endsWith('/versions') || value.endsWith('/audit-history'))
+        return { data: { items: [], total: 0, page: 1, pageSize: 20 } } as never
+      return { data: {} } as never
+    })
+
+    const vm = useDclCustomerAccountViewModel()
+    await vm.query()
+    await vm.search()
+    await vm.changePage(3)
+    vm.customerRelationshipId.value = 'CUR-1'
+    vm.openCreate()
+    expect(vm.drawerOpen.value).toBe(true)
+    expect(await vm.save()).toBe(false)
+    await vm.openById('CAC-1', 'edit')
+    expect(await vm.runAction(row, 'submit')).toBe(true)
+    await vm.remove(row)
+    await vm.toggleEnabled(row)
+    await vm.openVersions(row)
+    await vm.openAudit(row)
+
+    expect(customerAccountActiveVersion(row).approval.approvalEntryId).toBe(
+      'ENTRY-2',
+    )
+    expect(vm.rows.value).toHaveLength(1)
+    expect(vm.editorMode.value).toBe('edit')
+    expect(vm.versionsOpen.value).toBe(true)
+    expect(vm.auditOpen.value).toBe(true)
   })
 })

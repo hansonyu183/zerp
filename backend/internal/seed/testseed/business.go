@@ -9,6 +9,7 @@ import (
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -382,12 +383,18 @@ func dclOtherUnitObjectView(view dcldomain.OtherUnitView) bobdomain.ObjectView {
 	return result
 }
 
+func (s *Seeder) supplierDeclarations() *dcldomain.SupplierService {
+	return dcldomain.NewSupplierService(
+		s.pool, s.business, s.parties, bobdomain.NewPartyCurrentReader(s.pool), seedAuthorizer{}, txevent.NewBus(),
+	)
+}
+
 func (s *Seeder) ensureBusiness(
 	ctx context.Context,
 	sample bobSample,
 ) (bobdomain.ObjectView, outcome, error) {
 	approvalDomain := "bob"
-	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle || sample.entity == bobdomain.EntityFundAccount || sample.entity == bobdomain.EntityProduct || sample.entity == bobdomain.EntityEmployee {
+	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle || sample.entity == bobdomain.EntityFundAccount || sample.entity == bobdomain.EntityProduct || sample.entity == bobdomain.EntityEmployee || sample.entity == bobdomain.EntitySupplier {
 		approvalDomain = "dcl"
 	}
 	var objectID string
@@ -450,18 +457,18 @@ func (s *Seeder) ensureBusiness(
 			}, createActor)
 			result, createErr = dclEmployeeBusinessMutation(createdEmployee), declarationErr
 		case bobdomain.EntitySupplier:
-			createdSupplier, relationshipErr := s.business.SupplierCreate(ctx, bobdomain.SupplierCreateInput{
+			createdSupplier, declarationErr := s.supplierDeclarations().Create(ctx, dcldomain.SupplierCreateInput{
 				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization,
 					LegalName: data.Name, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
 					Phone: data.ContactPhone, Email: data.Email, Address: data.Address},
-				Data: bobdomain.SupplierData{OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
-					Name: data.Name, ShortName: data.ShortName,
-					TaxNumber: data.TaxNumber, ContactName: data.ContactName, ContactPhone: data.ContactPhone,
+				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+				Data: dcldomain.SupplierData{ShortName: data.ShortName, TaxNumber: data.TaxNumber,
+					ContactName: data.ContactName, ContactPhone: data.ContactPhone,
 					Email: data.Email, Address: data.Address, Remark: data.Remark,
 					SettlementMethodID:         data.SettlementMethodID,
 					DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
-			}, createActor, true)
-			result, createErr = createdSupplier.MutationResult, relationshipErr
+			}, createActor)
+			result, createErr = dclSupplierBusinessMutation(createdSupplier), declarationErr
 		case bobdomain.EntityCustomerAccount:
 			customerType := bobdomain.CustomerTypeEndUser
 			if data.CustomerType != nil {
@@ -606,6 +613,23 @@ func dclEmployeeBusinessView(view dcldomain.EmployeeView) bobdomain.ObjectView {
 			HireDate: view.Data.HireDate, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
 
+func dclSupplierBusinessMutation(result dcldomain.SupplierMutation) bobdomain.MutationResult {
+	return bobdomain.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision,
+		Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func dclSupplierBusinessView(view dcldomain.SupplierView) bobdomain.ObjectView {
+	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntitySupplier,
+		Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.PartyDisplayName,
+			ShortName: view.Data.ShortName, TaxNumber: view.Data.TaxNumber,
+			ContactName: view.Data.ContactName, ContactPhone: view.Data.ContactPhone,
+			Email: view.Data.Email, Address: view.Data.Address, Remark: view.Data.Remark,
+			SettlementMethodID:         view.Data.SettlementMethodID,
+			DefaultPurchaserEmployeeID: view.Data.DefaultPurchaserEmployeeID,
+			OperatingEntityID:          view.OperatingEntityID}, UpdatedAt: view.UpdatedAt}
+}
+
 func dclProductBusinessView(view dcldomain.ProductView) bobdomain.ObjectView {
 	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityProduct,
 		Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
@@ -619,6 +643,14 @@ func dclProductBusinessView(view dcldomain.ProductView) bobdomain.ObjectView {
 }
 
 func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) (bobdomain.ObjectView, error) {
+	if entity == bobdomain.EntitySupplier {
+		actor, err := seedActor(actorID, requestID(key, "get"))
+		if err != nil {
+			return bobdomain.ObjectView{}, err
+		}
+		view, getErr := s.supplierDeclarations().Get(ctx, dcldomain.SupplierGetInput{ObjectID: objectID}, actor)
+		return dclSupplierBusinessView(view), getErr
+	}
 	if entity == bobdomain.EntityOtherUnit {
 		actor, err := seedActor(actorID, requestID(key, "get"))
 		if err != nil {
@@ -702,6 +734,35 @@ func (s *Seeder) advanceBusiness(
 			var submitted dcldomain.RelationshipMutation
 			submitted, err = s.relationships.SubmitOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 			current = bobdomain.MutationResult{ObjectID: submitted.ObjectID, ObjectRevision: submitted.ObjectRevision, Enabled: submitted.Enabled, Approval: submitted.Approval}
+		} else if sample.entity == bobdomain.EntitySupplier {
+			declarations := s.supplierDeclarations()
+			supplier, getErr := declarations.Get(ctx, dcldomain.SupplierGetInput{ObjectID: current.ObjectID}, actor)
+			if getErr != nil {
+				return getErr
+			}
+			party, getErr := s.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: supplier.PartyID}, bobdomain.PartyRelationshipVisibility{}, actor)
+			if getErr != nil {
+				return getErr
+			}
+			if party.Approval.Status == approval.StatusDraft {
+				pending, submitErr := s.parties.Submit(ctx, dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor)
+				if submitErr != nil {
+					return submitErr
+				}
+				party.Approval = pending.Approval
+			}
+			if party.Approval.Status == approval.StatusPending {
+				partyActor, actorErr := seedActor(reviewerID, requestID(sample.key, "party-approve"))
+				if actorErr != nil {
+					return actorErr
+				}
+				if _, err = s.parties.Approve(ctx, dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, partyActor); err != nil {
+					return err
+				}
+			}
+			var submitted dcldomain.SupplierMutation
+			submitted, err = declarations.Submit(ctx, dcldomain.SupplierVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+			current = dclSupplierBusinessMutation(submitted)
 		} else if sample.entity == bobdomain.EntityEmployee {
 			var submitted dcldomain.EmployeeMutation
 			submitted, err = s.employees.Submit(ctx, dcldomain.EmployeeVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
@@ -752,6 +813,8 @@ func (s *Seeder) advanceBusiness(
 		}
 		if sample.entity == bobdomain.EntityOtherUnit {
 			_, err = s.relationships.ApproveOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+		} else if sample.entity == bobdomain.EntitySupplier {
+			_, err = s.supplierDeclarations().Approve(ctx, dcldomain.SupplierVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntityEmployee {
 			_, err = s.employees.Approve(ctx, dcldomain.EmployeeVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntityVehicle {

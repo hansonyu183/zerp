@@ -95,6 +95,9 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	if entity == EntityEmployee {
 		return s.queryEmploymentRelationships(ctx, input)
 	}
+	if entity == EntitySupplier {
+		return s.querySuppliersCurrent(ctx, input)
+	}
 	if entity == EntityProduct {
 		return s.queryProducts(ctx, input)
 	}
@@ -228,6 +231,9 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	}
 	if entity == EntitySalesPartner {
 		return s.getSalesPartnerCurrent(ctx, input)
+	}
+	if entity == EntitySupplier {
+		return s.getSupplierCurrent(ctx, input)
 	}
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid get request", nil, nil)
@@ -666,6 +672,9 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntitySalesPartner {
 		return s.validateSalesPartnerSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
+	if entity == EntitySupplier {
+		return s.validateSupplierSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
@@ -708,6 +717,9 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	}
 	if entity == EntitySalesPartner {
 		return s.resolveSalesPartnerCurrentReference(ctx, q, objectID)
+	}
+	if entity == EntitySupplier {
+		return s.resolveSupplierCurrentReference(ctx, q, objectID)
 	}
 	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -787,25 +799,6 @@ func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q
 			return err
 		}
 		return nil
-	}
-	if entity == EntitySupplier {
-		version, err := loadSupplierVersionWithQueries(ctx, q, entryID)
-		if err != nil {
-			return s.internal("load supplier approval for validation", err)
-		}
-		if err = validateSupplierEffective(version.Data); err != nil {
-			return domainError(ErrorValidation, "supplier references are incomplete", nil, err)
-		}
-		data := supplierDetail(version.Data)
-		if _, err = s.resolveDetailReferenceSnapshots(ctx, tx, entity, objectID, data, true); err != nil {
-			return err
-		}
-		identity, identityErr := q.GetBobSupplierRelationship(ctx, objectID)
-		if identityErr != nil {
-			return s.internal("load supplier relationship for validation", identityErr)
-		}
-		_, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, identity.OperatingEntityID)
-		return err
 	}
 	if entity == EntitySalesPartner {
 		data, err := loadDetail(ctx, q, entity, entryID)
@@ -978,14 +971,6 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 	}
 	if entity == EntityWarehouse {
 		if err := resolveBob(EntityEmployee, data.ManagerEmployeeID, &data.ManagerEmployeeApprovalEntryID); err != nil {
-			return DetailView{}, err
-		}
-	}
-	if entity == EntitySupplier {
-		if err := resolveBob(EntityEmployee, data.DefaultPurchaserEmployeeID, &data.DefaultPurchaserApprovalEntryID); err != nil {
-			return DetailView{}, err
-		}
-		if err := resolveAux("settlement-method", data.SettlementMethodID, &data.SettlementMethodApprovalEntryID); err != nil {
 			return DetailView{}, err
 		}
 	}

@@ -38,6 +38,12 @@ describe('permission menu registry', () => {
     expect(hasRegisteredPage('dcl', 'party')).toBe(true)
   })
 
+  it('registers Supplier maintenance under DCL while retaining the current-only BOB page', () => {
+    expect(pageRegistry['dcl/supplier']?.entityTitle).toBe('供应商申报')
+    expect(pageRegistry['bob/supplier']?.entityTitle).toBe('供应商')
+    expect(hasRegisteredPage('dcl', 'supplier')).toBe(true)
+  })
+
   it('不将 APP 管理页面作为动态菜单路由注册', () => {
     const router = createTestRouter()
 
@@ -274,7 +280,7 @@ describe('permission menu registry', () => {
       [
         '/app/user/query',
         '/vou/saleorder/query',
-        '/bob/supplier/create',
+        '/bob/supplier/query',
         '/bob/customer/query',
       ],
       registrations,

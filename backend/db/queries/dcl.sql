@@ -274,6 +274,62 @@ WHERE domain='dcl' AND entity='operating-entity' AND subject_id=sqlc.arg(object_
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
+-- Supplier keeps its Party-to-operating-entity relationship in BOB. DCL owns
+-- all mutable commercial facts and the exact snapshots used by purchasing.
+-- name: InsertDCLSupplierVersion :exec
+INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
+VALUES(sqlc.arg(approval_entry_id),sqlc.narg(short_name),sqlc.narg(tax_number),sqlc.narg(contact_name),sqlc.narg(contact_phone),sqlc.narg(email),sqlc.narg(address),sqlc.narg(remark),sqlc.narg(settlement_method_id),sqlc.narg(settlement_method_approval_entry_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.arg(settlement_month_offset),sqlc.arg(settlement_day_of_month),sqlc.arg(settlement_day_offset),sqlc.narg(default_purchaser_employee_id),sqlc.narg(default_purchaser_employee_approval_entry_id),sqlc.narg(default_purchaser_employee_code),sqlc.narg(default_purchaser_employee_name),sqlc.arg(enabled));
+
+-- name: CopyDCLSupplierVersion :execrows
+INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
+SELECT sqlc.arg(new_approval_entry_id),source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_approval_entry_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.default_purchaser_employee_id,source.default_purchaser_employee_approval_entry_id,source.default_purchaser_employee_code,source.default_purchaser_employee_name,source.enabled FROM dcl_supplier_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+
+-- name: UpdateDCLSupplierVersion :execrows
+UPDATE dcl_supplier_versions SET short_name=sqlc.narg(short_name),tax_number=sqlc.narg(tax_number),contact_name=sqlc.narg(contact_name),contact_phone=sqlc.narg(contact_phone),email=sqlc.narg(email),address=sqlc.narg(address),remark=sqlc.narg(remark),settlement_method_id=sqlc.narg(settlement_method_id),settlement_method_approval_entry_id=sqlc.narg(settlement_method_approval_entry_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),settlement_term_code=sqlc.narg(settlement_term_code),settlement_rule_type=sqlc.narg(settlement_rule_type),settlement_month_offset=sqlc.arg(settlement_month_offset),settlement_day_of_month=sqlc.arg(settlement_day_of_month),settlement_day_offset=sqlc.arg(settlement_day_offset),default_purchaser_employee_id=sqlc.narg(default_purchaser_employee_id),default_purchaser_employee_approval_entry_id=sqlc.narg(default_purchaser_employee_approval_entry_id),default_purchaser_employee_code=sqlc.narg(default_purchaser_employee_code),default_purchaser_employee_name=sqlc.narg(default_purchaser_employee_name),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: GetDCLSupplierVersion :one
+SELECT snapshot.*,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name
+FROM dcl_supplier_versions snapshot
+JOIN approval_entries entry ON entry.id=snapshot.approval_entry_id AND entry.domain='dcl' AND entry.entity='supplier'
+JOIN bob_supplier_relationships relationship ON relationship.object_id=entry.subject_id
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+WHERE snapshot.approval_entry_id=sqlc.arg(approval_entry_id) AND relationship.merged_into_object_id IS NULL;
+
+-- name: DeleteDCLSupplierVersion :execrows
+DELETE FROM dcl_supplier_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: CountDCLSuppliers :one
+SELECT count(*) FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='supplier'
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+JOIN bob_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE subject.entity='supplier' AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
+
+-- name: ListDCLSuppliers :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='supplier'
+JOIN bob_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='supplier' AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN object.code END ASC,CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN object.code END DESC,CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN party.display_name END ASC,CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN party.display_name END DESC,object.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: CountDCLSupplierApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='supplier' AND subject_id=sqlc.arg(object_id);
+
+-- name: ListDCLSupplierApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='supplier' AND subject_id=sqlc.arg(object_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
 -- Employee keeps Party identity in BOB's immutable employment relationship;
 -- this DCL declaration stores only its versioned employment facts.
 -- name: InsertDCLEmployeeVersion :exec

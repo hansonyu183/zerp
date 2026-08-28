@@ -91,6 +91,84 @@ func (s *Service) ReserveSalesPartnerIdentity(ctx context.Context, tx pgx.Tx, pa
 	return id, nil
 }
 
+// ReserveSupplierIdentity reserves the immutable Party-to-operating-entity
+// supplier root; DCL owns every mutable supplier snapshot.
+func (s *Service) ReserveSupplierIdentity(ctx context.Context, tx pgx.Tx, partyID, operatingEntityID, actorID string) (RelationshipIdentity, error) {
+	if tx == nil || !validID(partyID) || !validID(operatingEntityID) || !validID(actorID) {
+		return RelationshipIdentity{}, domainError(ErrorValidation, "invalid Supplier identity request", nil, nil)
+	}
+	q := s.queries.WithTx(tx)
+	counter, err := q.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntitySupplier})
+	if err != nil {
+		return RelationshipIdentity{}, s.writeError("allocate Supplier number", err)
+	}
+	id := RelationshipIdentity{ObjectID: newID(), Code: fmt.Sprintf("SUP-%04d", counter), PartyID: partyID, OperatingEntityID: operatingEntityID, ObjectRevision: 1}
+	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: id.ObjectID, Entity: EntitySupplier, Code: id.Code, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("reserve Supplier identity", err)
+	}
+	if err = q.InsertBobSupplierRelationship(ctx, dbsqlc.InsertBobSupplierRelationshipParams{ObjectID: id.ObjectID, PartyID: partyID, OperatingEntityID: operatingEntityID, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("reserve Supplier relationship", err)
+	}
+	return id, nil
+}
+
+func (s *Service) ApplySupplierCurrent(ctx context.Context, tx pgx.Tx, id RelationshipIdentity, entryID string, enabled bool, actorID string) (RelationshipIdentity, error) {
+	q := s.queries.WithTx(tx)
+	if err := q.UpsertBobSupplierCurrent(ctx, dbsqlc.UpsertBobSupplierCurrentParams{ObjectID: id.ObjectID, SourceApprovalEntryID: entryID, Enabled: enabled, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("apply Supplier current", err)
+	}
+	rows, err := q.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{ObjectID: id.ObjectID, Entity: EntitySupplier, ObjectRevision: id.ObjectRevision, Enabled: enabled, ActorID: actorID})
+	if err != nil || rows != 1 {
+		return RelationshipIdentity{}, s.writeError("set Supplier current enabled", err)
+	}
+	id.ObjectRevision++
+	return id, nil
+}
+
+func (s *Service) RemoveSupplierCurrent(ctx context.Context, tx pgx.Tx, id RelationshipIdentity, actorID string) (RelationshipIdentity, error) {
+	q := s.queries.WithTx(tx)
+	n, err := q.DeleteBobSupplierCurrent(ctx, id.ObjectID)
+	if err != nil || n != 1 {
+		return RelationshipIdentity{}, domainError(ErrorConflict, "Supplier current changed", nil, err)
+	}
+	rows, err := q.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{ObjectID: id.ObjectID, Entity: EntitySupplier, ObjectRevision: id.ObjectRevision, Enabled: false, ActorID: actorID})
+	if err != nil || rows != 1 {
+		return RelationshipIdentity{}, s.writeError("set Supplier removal", err)
+	}
+	id.ObjectRevision++
+	return id, nil
+}
+
+// GetSupplierIdentity returns the immutable Supplier Party-to-operating-entity
+// relationship. DCL is the sole owner of the declaration snapshot.
+func (s *Service) GetSupplierIdentity(ctx context.Context, tx pgx.Tx, objectID string) (RelationshipIdentity, error) {
+	return s.getRelationshipIdentity(ctx, tx, objectID, EntitySupplier)
+}
+
+func (s *Service) DeleteSupplierIdentity(ctx context.Context, tx pgx.Tx, objectID string, revision int64) error {
+	if tx == nil || !validID(objectID) || revision < 1 {
+		return domainError(ErrorValidation, "invalid Supplier identity deletion", nil, nil)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM bob_supplier_relationships WHERE object_id=$1 AND merged_into_object_id IS NULL`, objectID); err != nil {
+		return s.writeError("delete Supplier relationship", err)
+	}
+	rows, err := s.queries.WithTx(tx).DeleteBobObject(ctx, dbsqlc.DeleteBobObjectParams{ObjectID: objectID, Entity: EntitySupplier, ObjectRevision: revision})
+	if err != nil {
+		return s.writeError("delete Supplier identity", err)
+	}
+	if rows != 1 {
+		return domainError(ErrorConflict, "Supplier identity changed", nil, nil)
+	}
+	return nil
+}
+
+func (s *Service) EnsureSupplierUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
+	if tx == nil || !validID(entryID) {
+		return domainError(ErrorValidation, "invalid Supplier unapprove request", nil, nil)
+	}
+	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
+}
+
 func (s *Service) GetOtherUnitIdentity(ctx context.Context, tx pgx.Tx, objectID string) (RelationshipIdentity, error) {
 	return s.getRelationshipIdentity(ctx, tx, objectID, EntityOtherUnit)
 }
@@ -117,8 +195,14 @@ func (s *Service) getRelationshipIdentity(ctx context.Context, tx pgx.Tx, object
 		if e == nil {
 			partyID, operatingID = r.PartyID, r.OperatingEntityID
 		}
-	} else {
+	} else if entity == EntitySalesPartner {
 		r, e := q.LockBobSalesPartnerRelationship(ctx, objectID)
+		err = e
+		if e == nil {
+			partyID, operatingID = r.PartyID, r.OperatingEntityID
+		}
+	} else {
+		r, e := q.LockBobSupplierRelationship(ctx, objectID)
 		err = e
 		if e == nil {
 			partyID, operatingID = r.PartyID, r.OperatingEntityID

@@ -4,9 +4,9 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：85
-- 已覆盖入口：33
-- 已登记用例：32
+- 页面入口：86
+- 已覆盖入口：34
+- 已登记用例：33
 - 缺少用例：52
 - 孤儿用例：0
 
@@ -35,6 +35,7 @@
 | 人员申报       | `/dcl/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/employee.md)         |
 | 其他单位申报   | `/dcl/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/other-unit.md)       |
 | 销售合作方申报 | `/dcl/sales-partner`    | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/sales-partner.md)    |
+| 供应商申报     | `/dcl/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/supplier.md)         |
 | 产品申报       | `/dcl/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)          |
 
 ## RPT

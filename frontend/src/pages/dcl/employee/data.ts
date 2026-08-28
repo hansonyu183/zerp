@@ -128,6 +128,18 @@ async function lifecycle(
     approvalEntryId: approval.approvalEntryId,
     approvalRevision: approval.revision,
   }
+  await runDclEmployeeAction(action, request, reason)
+}
+
+export async function runDclEmployeeAction(
+  action: DclDeclarationWireAction,
+  request: {
+    objectId: string
+    approvalEntryId: string
+    approvalRevision: number
+  },
+  reason: string,
+): Promise<void> {
   if (action === 'reject' || action === 'unapprove') {
     await apiClient.postContract(`dcl/employee/${action}`, {
       ...request,

@@ -9,6 +9,9 @@ export type DclDeclarationEntity =
   | 'fund-account'
   | 'product'
   | 'employee'
+  | 'supplier'
+  | 'other-unit'
+  | 'sales-partner'
 export type DclDeclarationLifecycleAction =
   'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
 export type DclDeclarationWireAction =
@@ -82,7 +85,10 @@ export function isDclDeclarationEntity(
     entity === 'vehicle' ||
     entity === 'fund-account' ||
     entity === 'product' ||
-    entity === 'employee'
+    entity === 'employee' ||
+    entity === 'supplier' ||
+    entity === 'other-unit' ||
+    entity === 'sales-partner'
   )
 }
 

@@ -8,8 +8,7 @@ import (
 
 func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	scope := newWorkbenchPermissionScope([]string{
-		"/bob/customer/query", "/bob/customer/submit",
-		"/bob/supplier/query", "/bob/supplier/unsubmit",
+		"/bob/customer/query", "/bob/customer/submit", "/bob/customer/unsubmit",
 		"/vou/sale-order/query", "/vou/sale-order/submit",
 		"/vou/purchase-payment/query", "/vou/purchase-payment/unsubmit",
 	})
@@ -33,7 +32,7 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 		return scope.can("vou", entity, "approve") ||
 			scope.can("vou", entity, "unsubmit")
 	})
-	if !reflect.DeepEqual(pendingBob, []string{"supplier"}) {
+	if !reflect.DeepEqual(pendingBob, []string{"customer"}) {
 		t.Fatalf("pending BOB entities = %v", pendingBob)
 	}
 	if !reflect.DeepEqual(pendingVou, []string{"purchase-payment"}) {
@@ -44,15 +43,18 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	}
 }
 
-func TestWorkbenchIncludesDCLPartyLifecycle(t *testing.T) {
+func TestWorkbenchIncludesDCLDeclarationLifecycles(t *testing.T) {
 	scope := newWorkbenchPermissionScope([]string{
 		"/dcl/party/query", "/dcl/party/submit", "/dcl/party/get", "/dcl/party/save",
 		"/dcl/employee/query", "/dcl/employee/submit",
+		"/dcl/supplier/query", "/dcl/supplier/submit",
+		"/dcl/other-unit/query", "/dcl/other-unit/submit",
+		"/dcl/sales-partner/query", "/dcl/sales-partner/submit",
 	})
 	entities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "submit")
 	})
-	if !reflect.DeepEqual(entities, []string{"party", "employee"}) {
+	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner"}) {
 		t.Fatalf("DCL submit entities = %v", entities)
 	}
 	if domain := workbenchApprovalDomain("party"); domain != "dcl" {
@@ -60,6 +62,15 @@ func TestWorkbenchIncludesDCLPartyLifecycle(t *testing.T) {
 	}
 	if domain := workbenchApprovalDomain("employee"); domain != "dcl" {
 		t.Fatalf("Employee workbench domain = %q", domain)
+	}
+	if domain := workbenchApprovalDomain("supplier"); domain != "dcl" {
+		t.Fatalf("Supplier workbench domain = %q", domain)
+	}
+	if domain := workbenchApprovalDomain("other-unit"); domain != "dcl" {
+		t.Fatalf("Other-unit workbench domain = %q", domain)
+	}
+	if domain := workbenchApprovalDomain("sales-partner"); domain != "dcl" {
+		t.Fatalf("Sales-partner workbench domain = %q", domain)
 	}
 }
 

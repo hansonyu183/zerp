@@ -41,8 +41,6 @@ type applicationService interface {
 	CustomerAccountDelete(context.Context, DeleteInput, approval.Actor) error
 	SupplierQuery(context.Context, QueryInput) (Page[SupplierListItem], error)
 	SupplierGet(context.Context, GetInput) (SupplierDetailView, error)
-	SupplierCreate(context.Context, SupplierCreateInput, approval.Actor, bool) (SupplierCreateResult, error)
-	SupplierSave(context.Context, SupplierSaveInput, approval.Actor) (MutationResult, error)
 	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
 }
 
@@ -102,7 +100,7 @@ func (h *Handler) Register(router *gin.Engine) {
 		entity := registeredEntity
 		entityGroup := group.Group("/" + entity)
 		for _, route := range actionRoutes {
-			if (entity == EntityOperatingEntity || entity == EntityWarehouse || entity == EntityVehicle || entity == EntityFundAccount || entity == EntityProduct || entity == EntityEmployee || entity == EntityOtherUnit || entity == EntitySalesPartner) && route.action != "query" && route.action != "get" {
+			if (entity == EntitySupplier || entity == EntityOperatingEntity || entity == EntityWarehouse || entity == EntityVehicle || entity == EntityFundAccount || entity == EntityProduct || entity == EntityEmployee || entity == EntityOtherUnit || entity == EntitySalesPartner) && route.action != "query" && route.action != "get" {
 				continue
 			}
 			action := route.action
@@ -329,27 +327,6 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		h.result(c, result, err)
 		return
 	}
-	if entity == EntitySupplier {
-		var input SupplierCreateInput
-		if !h.bind(c, &input) {
-			return
-		}
-		requiredPartyPath := "/bob/party/get"
-		if input.NewParty != nil {
-			requiredPartyPath = "/dcl/party/create"
-		}
-		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
-			return
-		}
-		actor, ok := h.approvalActor(c)
-		if !ok {
-			return
-		}
-		result, err := h.service.SupplierCreate(c.Request.Context(), input, actor,
-			hasPermission(h.principal(c), "/bob/party/get"))
-		h.result(c, result, err)
-		return
-	}
 	var input CreateInput
 	if h.bind(c, &input) {
 		actor, ok := h.approvalActor(c)
@@ -393,18 +370,6 @@ func (h *Handler) save(c *gin.Context, entity string) {
 				return
 			}
 			result, err := h.service.CustomerSave(c.Request.Context(), input, actor)
-			h.result(c, result, err)
-		}
-		return
-	}
-	if entity == EntitySupplier {
-		var input SupplierSaveInput
-		if h.bind(c, &input) {
-			actor, ok := h.approvalActor(c)
-			if !ok {
-				return
-			}
-			result, err := h.service.SupplierSave(c.Request.Context(), input, actor)
 			h.result(c, result, err)
 		}
 		return

@@ -2,8 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type SupplierInput = {
-  operatingEntityId: string;
+export type DclSupplierInput = {
+  shortName?: string | null;
+  taxNumber?: string | null;
   contactName?: string | null;
   contactPhone?: string | null;
   email?: string | null;

@@ -13,6 +13,9 @@ import { runDclWarehouseAction } from '@/pages/dcl/warehouse/data'
 import { runDclVehicleAction } from '@/pages/dcl/vehicle/data'
 import { runDclFundAccountAction } from '@/pages/dcl/fund-account/data'
 import { runDclProductAction } from '@/pages/dcl/product/data'
+import { runDclEmployeeAction } from '@/pages/dcl/employee/data'
+import { runDclSupplierAction } from '@/pages/dcl/supplier/data'
+import { runDclRelationshipAction } from '@/pages/dcl/relationship/data'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import { approveVoucher, submitVoucher, unsubmitVoucher } from '@/api/vou'
 
@@ -233,6 +236,20 @@ export function useDashboardViewModel() {
           await runDclFundAccountAction(action, request, comment.trim())
         } else if (item.entity === 'product') {
           await runDclProductAction(action, request, comment.trim())
+        } else if (item.entity === 'employee') {
+          await runDclEmployeeAction(action, request, comment.trim())
+        } else if (item.entity === 'supplier') {
+          await runDclSupplierAction(action, request, comment.trim())
+        } else if (
+          item.entity === 'other-unit' ||
+          item.entity === 'sales-partner'
+        ) {
+          await runDclRelationshipAction(
+            item.entity,
+            action,
+            request,
+            comment.trim(),
+          )
         } else if (action === 'submit') {
           await submitBusinessObject(item.entity, request)
         } else if (action === 'unsubmit') {

@@ -178,8 +178,6 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice")
 	case EntityOtherUnit:
 		allow("contactName", "contactPhone", "email", "address", "remark", "settlementMethodId")
-	case EntitySupplier:
-		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId")
 	case EntityEmployee:
 		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
@@ -411,14 +409,6 @@ func validateEntityFields(entity string, input DetailView) error {
 		if input.SettlementMethodID != "" {
 			if err := validateSettlementRule(input); err != nil {
 				return domainError(ErrorValidation, "invalid service settlement snapshot", nil, err)
-			}
-		}
-	case EntitySupplier:
-		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId",
-			"termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset")
-		if input.SettlementMethodID != "" {
-			if err := validateSettlementRule(input); err != nil {
-				return domainError(ErrorValidation, "invalid supplier settlement snapshot", nil, err)
 			}
 		}
 	case EntityEmployee:
@@ -839,8 +829,6 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 		unexpected = hasUnexpected("operatingEntityId")
 	case "party":
 		unexpected = hasUnexpected("kind", "merged")
-	case EntitySupplier:
-		unexpected = hasUnexpected("defaultPurchaserEmployeeId")
 	case EntityEmployee:
 		unexpected = hasUnexpected("departmentId", "positionId")
 	case EntityProduct:

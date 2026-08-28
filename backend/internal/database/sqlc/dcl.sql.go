@@ -154,6 +154,24 @@ func (q *Queries) CopyDCLSalesPartnerVersion(ctx context.Context, arg CopyDCLSal
 	return result.RowsAffected(), nil
 }
 
+const copyDCLSupplierVersion = `-- name: CopyDCLSupplierVersion :execrows
+INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
+SELECT $1,source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_approval_entry_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.default_purchaser_employee_id,source.default_purchaser_employee_approval_entry_id,source.default_purchaser_employee_code,source.default_purchaser_employee_name,source.enabled FROM dcl_supplier_versions source WHERE source.approval_entry_id=$2
+`
+
+type CopyDCLSupplierVersionParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLSupplierVersion(ctx context.Context, arg CopyDCLSupplierVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, copyDCLSupplierVersion, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const copyDCLVehicleVersion = `-- name: CopyDCLVehicleVersion :execrows
 INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name,vehicle_type_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable,enabled)
 SELECT $1,source.entity,source.name,source.plate_number,source.vehicle_type,source.vehicle_type_object_id,source.vehicle_type_approval_entry_id,source.vehicle_type_name,source.vehicle_type_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_service_relationship_object_id,source.carrier_service_relationship_approval_entry_id,source.carrier_service_relationship_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=$2
@@ -499,6 +517,47 @@ func (q *Queries) CountDCLRelationships(ctx context.Context, arg CountDCLRelatio
 	return count, err
 }
 
+const countDCLSupplierApprovalEvents = `-- name: CountDCLSupplierApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='supplier' AND subject_id=$1
+`
+
+func (q *Queries) CountDCLSupplierApprovalEvents(ctx context.Context, objectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLSupplierApprovalEvents, objectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLSuppliers = `-- name: CountDCLSuppliers :one
+SELECT count(*) FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='supplier'
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+JOIN bob_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE subject.entity='supplier' AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND ($3::text='' OR relationship.operating_entity_id=$3) AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
+`
+
+type CountDCLSuppliersParams struct {
+	Keyword           string   `db:"keyword" json:"keyword"`
+	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+	StatusFilter      []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountDCLSuppliers(ctx context.Context, arg CountDCLSuppliersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLSuppliers,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.OperatingEntityID,
+		arg.StatusFilter,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countDCLVehicleApprovalEvents = `-- name: CountDCLVehicleApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1
 `
@@ -670,6 +729,18 @@ type DeleteDCLSubjectParams struct {
 
 func (q *Queries) DeleteDCLSubject(ctx context.Context, arg DeleteDCLSubjectParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDCLSubject, arg.ID, arg.Entity)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDCLSupplierVersion = `-- name: DeleteDCLSupplierVersion :execrows
+DELETE FROM dcl_supplier_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLSupplierVersion(ctx context.Context, approvalEntryID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLSupplierVersion, approvalEntryID)
 	if err != nil {
 		return 0, err
 	}
@@ -988,6 +1059,84 @@ func (q *Queries) GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (D
 		&i.Entity,
 		&i.CreatedAt,
 		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getDCLSupplierVersion = `-- name: GetDCLSupplierVersion :one
+SELECT snapshot.approval_entry_id, snapshot.short_name, snapshot.tax_number, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.remark, snapshot.settlement_method_id, snapshot.settlement_method_approval_entry_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_purchaser_employee_id, snapshot.default_purchaser_employee_approval_entry_id, snapshot.default_purchaser_employee_code, snapshot.default_purchaser_employee_name, snapshot.enabled,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name
+FROM dcl_supplier_versions snapshot
+JOIN approval_entries entry ON entry.id=snapshot.approval_entry_id AND entry.domain='dcl' AND entry.entity='supplier'
+JOIN bob_supplier_relationships relationship ON relationship.object_id=entry.subject_id
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+WHERE snapshot.approval_entry_id=$1 AND relationship.merged_into_object_id IS NULL
+`
+
+type GetDCLSupplierVersionRow struct {
+	ApprovalEntryID                         string  `db:"approval_entry_id" json:"approval_entry_id"`
+	ShortName                               *string `db:"short_name" json:"short_name"`
+	TaxNumber                               *string `db:"tax_number" json:"tax_number"`
+	ContactName                             *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                            *string `db:"contact_phone" json:"contact_phone"`
+	Email                                   *string `db:"email" json:"email"`
+	Address                                 *string `db:"address" json:"address"`
+	Remark                                  *string `db:"remark" json:"remark"`
+	SettlementMethodID                      *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodApprovalEntryID         *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode                    *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                    *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode                      *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType                      *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                   int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                    int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                     int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	DefaultPurchaserEmployeeID              *string `db:"default_purchaser_employee_id" json:"default_purchaser_employee_id"`
+	DefaultPurchaserEmployeeApprovalEntryID *string `db:"default_purchaser_employee_approval_entry_id" json:"default_purchaser_employee_approval_entry_id"`
+	DefaultPurchaserEmployeeCode            *string `db:"default_purchaser_employee_code" json:"default_purchaser_employee_code"`
+	DefaultPurchaserEmployeeName            *string `db:"default_purchaser_employee_name" json:"default_purchaser_employee_name"`
+	Enabled                                 bool    `db:"enabled" json:"enabled"`
+	PartyID                                 string  `db:"party_id" json:"party_id"`
+	PartyKind                               string  `db:"party_kind" json:"party_kind"`
+	DisplayName                             string  `db:"display_name" json:"display_name"`
+	OperatingEntityID                       string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode                     string  `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName                     string  `db:"operating_entity_name" json:"operating_entity_name"`
+}
+
+func (q *Queries) GetDCLSupplierVersion(ctx context.Context, approvalEntryID string) (GetDCLSupplierVersionRow, error) {
+	row := q.db.QueryRow(ctx, getDCLSupplierVersion, approvalEntryID)
+	var i GetDCLSupplierVersionRow
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.ShortName,
+		&i.TaxNumber,
+		&i.ContactName,
+		&i.ContactPhone,
+		&i.Email,
+		&i.Address,
+		&i.Remark,
+		&i.SettlementMethodID,
+		&i.SettlementMethodApprovalEntryID,
+		&i.SettlementMethodCode,
+		&i.SettlementMethodName,
+		&i.SettlementTermCode,
+		&i.SettlementRuleType,
+		&i.SettlementMonthOffset,
+		&i.SettlementDayOfMonth,
+		&i.SettlementDayOffset,
+		&i.DefaultPurchaserEmployeeID,
+		&i.DefaultPurchaserEmployeeApprovalEntryID,
+		&i.DefaultPurchaserEmployeeCode,
+		&i.DefaultPurchaserEmployeeName,
+		&i.Enabled,
+		&i.PartyID,
+		&i.PartyKind,
+		&i.DisplayName,
+		&i.OperatingEntityID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
 	)
 	return i, err
 }
@@ -1448,6 +1597,66 @@ type InsertDCLSubjectParams struct {
 // Approval Version.  It deliberately stores no current/base/next pointer.
 func (q *Queries) InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectParams) error {
 	_, err := q.db.Exec(ctx, insertDCLSubject, arg.ID, arg.Entity, arg.ActorID)
+	return err
+}
+
+const insertDCLSupplierVersion = `-- name: InsertDCLSupplierVersion :exec
+INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+`
+
+type InsertDCLSupplierVersionParams struct {
+	ApprovalEntryID                         string  `db:"approval_entry_id" json:"approval_entry_id"`
+	ShortName                               *string `db:"short_name" json:"short_name"`
+	TaxNumber                               *string `db:"tax_number" json:"tax_number"`
+	ContactName                             *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                            *string `db:"contact_phone" json:"contact_phone"`
+	Email                                   *string `db:"email" json:"email"`
+	Address                                 *string `db:"address" json:"address"`
+	Remark                                  *string `db:"remark" json:"remark"`
+	SettlementMethodID                      *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodApprovalEntryID         *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode                    *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                    *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode                      *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType                      *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                   int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                    int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                     int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	DefaultPurchaserEmployeeID              *string `db:"default_purchaser_employee_id" json:"default_purchaser_employee_id"`
+	DefaultPurchaserEmployeeApprovalEntryID *string `db:"default_purchaser_employee_approval_entry_id" json:"default_purchaser_employee_approval_entry_id"`
+	DefaultPurchaserEmployeeCode            *string `db:"default_purchaser_employee_code" json:"default_purchaser_employee_code"`
+	DefaultPurchaserEmployeeName            *string `db:"default_purchaser_employee_name" json:"default_purchaser_employee_name"`
+	Enabled                                 bool    `db:"enabled" json:"enabled"`
+}
+
+// Supplier keeps its Party-to-operating-entity relationship in BOB. DCL owns
+// all mutable commercial facts and the exact snapshots used by purchasing.
+func (q *Queries) InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSupplierVersionParams) error {
+	_, err := q.db.Exec(ctx, insertDCLSupplierVersion,
+		arg.ApprovalEntryID,
+		arg.ShortName,
+		arg.TaxNumber,
+		arg.ContactName,
+		arg.ContactPhone,
+		arg.Email,
+		arg.Address,
+		arg.Remark,
+		arg.SettlementMethodID,
+		arg.SettlementMethodApprovalEntryID,
+		arg.SettlementMethodCode,
+		arg.SettlementMethodName,
+		arg.SettlementTermCode,
+		arg.SettlementRuleType,
+		arg.SettlementMonthOffset,
+		arg.SettlementDayOfMonth,
+		arg.SettlementDayOffset,
+		arg.DefaultPurchaserEmployeeID,
+		arg.DefaultPurchaserEmployeeApprovalEntryID,
+		arg.DefaultPurchaserEmployeeCode,
+		arg.DefaultPurchaserEmployeeName,
+		arg.Enabled,
+	)
 	return err
 }
 
@@ -2518,6 +2727,137 @@ func (q *Queries) ListDCLRelationships(ctx context.Context, arg ListDCLRelations
 	return items, nil
 }
 
+const listDCLSupplierApprovalEvents = `-- name: ListDCLSupplierApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='supplier' AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDCLSupplierApprovalEventsParams struct {
+	ObjectID  string `db:"object_id" json:"object_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLSupplierApprovalEvents(ctx context.Context, arg ListDCLSupplierApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLSupplierApprovalEvents, arg.ObjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLSuppliers = `-- name: ListDCLSuppliers :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='supplier'
+JOIN bob_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='supplier' AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND ($3::text='' OR relationship.operating_entity_id=$3) AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
+ORDER BY CASE WHEN $5::text='updatedAt' AND $6::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,CASE WHEN $5::text='updatedAt' AND $6::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,CASE WHEN $5::text='code' AND $6::text='asc' THEN object.code END ASC,CASE WHEN $5::text='code' AND $6::text='desc' THEN object.code END DESC,CASE WHEN $5::text='name' AND $6::text='asc' THEN party.display_name END ASC,CASE WHEN $5::text='name' AND $6::text='desc' THEN party.display_name END DESC,object.id DESC LIMIT $8 OFFSET $7
+`
+
+type ListDCLSuppliersParams struct {
+	Keyword           string   `db:"keyword" json:"keyword"`
+	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+	StatusFilter      []string `db:"status_filter" json:"status_filter"`
+	SortField         string   `db:"sort_field" json:"sort_field"`
+	SortOrder         string   `db:"sort_order" json:"sort_order"`
+	RowOffset         int32    `db:"row_offset" json:"row_offset"`
+	RowLimit          int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLSuppliersRow struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	Code                  string             `db:"code" json:"code"`
+	ObjectRevision        int64              `db:"object_revision" json:"object_revision"`
+	PartyID               string             `db:"party_id" json:"party_id"`
+	PartyKind             string             `db:"party_kind" json:"party_kind"`
+	DisplayName           string             `db:"display_name" json:"display_name"`
+	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	LatestApprovedEntryID string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
+	OpenEntryID           string             `db:"open_entry_id" json:"open_entry_id"`
+}
+
+func (q *Queries) ListDCLSuppliers(ctx context.Context, arg ListDCLSuppliersParams) ([]ListDCLSuppliersRow, error) {
+	rows, err := q.db.Query(ctx, listDCLSuppliers,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.OperatingEntityID,
+		arg.StatusFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLSuppliersRow{}
+	for rows.Next() {
+		var i ListDCLSuppliersRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.PartyID,
+			&i.PartyKind,
+			&i.DisplayName,
+			&i.OperatingEntityID,
+			&i.OperatingEntityCode,
+			&i.OperatingEntityName,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.LatestApprovedEntryID,
+			&i.OpenEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDCLVehicleApprovalEvents = `-- name: ListDCLVehicleApprovalEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
 `
@@ -3106,6 +3446,66 @@ func (q *Queries) UpdateDCLSalesPartnerVersion(ctx context.Context, arg UpdateDC
 		arg.Email,
 		arg.Address,
 		arg.Remark,
+		arg.Enabled,
+		arg.ApprovalEntryID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateDCLSupplierVersion = `-- name: UpdateDCLSupplierVersion :execrows
+UPDATE dcl_supplier_versions SET short_name=$1,tax_number=$2,contact_name=$3,contact_phone=$4,email=$5,address=$6,remark=$7,settlement_method_id=$8,settlement_method_approval_entry_id=$9,settlement_method_code=$10,settlement_method_name=$11,settlement_term_code=$12,settlement_rule_type=$13,settlement_month_offset=$14,settlement_day_of_month=$15,settlement_day_offset=$16,default_purchaser_employee_id=$17,default_purchaser_employee_approval_entry_id=$18,default_purchaser_employee_code=$19,default_purchaser_employee_name=$20,enabled=$21 WHERE approval_entry_id=$22
+`
+
+type UpdateDCLSupplierVersionParams struct {
+	ShortName                               *string `db:"short_name" json:"short_name"`
+	TaxNumber                               *string `db:"tax_number" json:"tax_number"`
+	ContactName                             *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                            *string `db:"contact_phone" json:"contact_phone"`
+	Email                                   *string `db:"email" json:"email"`
+	Address                                 *string `db:"address" json:"address"`
+	Remark                                  *string `db:"remark" json:"remark"`
+	SettlementMethodID                      *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodApprovalEntryID         *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode                    *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                    *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode                      *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType                      *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                   int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                    int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                     int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	DefaultPurchaserEmployeeID              *string `db:"default_purchaser_employee_id" json:"default_purchaser_employee_id"`
+	DefaultPurchaserEmployeeApprovalEntryID *string `db:"default_purchaser_employee_approval_entry_id" json:"default_purchaser_employee_approval_entry_id"`
+	DefaultPurchaserEmployeeCode            *string `db:"default_purchaser_employee_code" json:"default_purchaser_employee_code"`
+	DefaultPurchaserEmployeeName            *string `db:"default_purchaser_employee_name" json:"default_purchaser_employee_name"`
+	Enabled                                 bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID                         string  `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) UpdateDCLSupplierVersion(ctx context.Context, arg UpdateDCLSupplierVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateDCLSupplierVersion,
+		arg.ShortName,
+		arg.TaxNumber,
+		arg.ContactName,
+		arg.ContactPhone,
+		arg.Email,
+		arg.Address,
+		arg.Remark,
+		arg.SettlementMethodID,
+		arg.SettlementMethodApprovalEntryID,
+		arg.SettlementMethodCode,
+		arg.SettlementMethodName,
+		arg.SettlementTermCode,
+		arg.SettlementRuleType,
+		arg.SettlementMonthOffset,
+		arg.SettlementDayOfMonth,
+		arg.SettlementDayOffset,
+		arg.DefaultPurchaserEmployeeID,
+		arg.DefaultPurchaserEmployeeApprovalEntryID,
+		arg.DefaultPurchaserEmployeeCode,
+		arg.DefaultPurchaserEmployeeName,
 		arg.Enabled,
 		arg.ApprovalEntryID,
 	)

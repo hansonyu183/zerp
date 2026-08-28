@@ -27,9 +27,9 @@ async function openCustomer(page: Page): Promise<void> {
 }
 
 async function openSupplier(page: Page): Promise<void> {
-  await page.goto('/bob/supplier')
+  await page.goto('/dcl/supplier')
   await expect(
-    page.getByRole('textbox', { name: '供应商关键字' }),
+    page.getByRole('textbox', { name: '供应商编码或主体名称' }),
   ).toBeVisible()
 }
 
@@ -52,7 +52,7 @@ async function searchCustomer(page: Page, code: string): Promise<void> {
 }
 
 async function searchSupplier(page: Page, code: string): Promise<void> {
-  await page.getByRole('textbox', { name: '供应商关键字' }).fill(code)
+  await page.getByRole('textbox', { name: '供应商编码或主体名称' }).fill(code)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(supplierRow(page, code)).toBeVisible()
 }
@@ -276,7 +276,7 @@ test(
 )
 
 test(
-  '供应商已批准版本在候选启停与删除期间保持可用',
+  '供应商申报经 DCL 批准后可创建候选版本',
   { tag: '@mobile' },
   async ({ page, workerState }, testInfo) => {
     test.setTimeout(120_000)
@@ -285,8 +285,10 @@ test(
     await signIn(page, workerState.operator)
     await openSupplier(page)
     await page.getByRole('button', { name: '新增', exact: true }).click()
-    const editor = page.locator('.supplier-workspace__drawer')
-    await editor.getByLabel('主体名称').fill(supplierName)
+    const editor = page.locator('.dcl-supplier-drawer')
+    await editor.getByLabel('主体来源').click()
+    await page.getByRole('option', { name: '新建主体', exact: true }).click()
+    await editor.getByLabel('法定名称').fill(supplierName)
     await selectAutocomplete(page, editor, '经营主体', '上海示例')
     await selectAutocomplete(page, editor, '结算方式', '当月结')
     await selectAutocomplete(
@@ -306,7 +308,6 @@ test(
     )?.trim()
     expect(code).toMatch(/^SUP-\d{4}$/)
     await page.getByRole('button', { name: '关闭提示' }).click()
-    await editor.getByRole('button', { name: '取消', exact: true }).click()
     await searchSupplier(page, code!)
     await selectSupplierLifecycleAction(page, code!, '提交审核')
     await dismissSupplierNotice(page, '已提交审核')
@@ -316,8 +317,6 @@ test(
     await openSupplier(page)
     await searchSupplier(page, code!)
     await selectSupplierLifecycleAction(page, code!, '审核通过')
-    let dialog = page.getByRole('dialog').filter({ hasText: '审核通过' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
     await dismissSupplierNotice(page, '已审核通过')
     await expect(supplierRow(page, code!)).toContainText('已批准')
     await signOut(page)
@@ -325,30 +324,12 @@ test(
     await signIn(page, workerState.operator)
     await openSupplier(page)
     await searchSupplier(page, code!)
-    await supplierRow(page, code!).getByLabel('查看 / 编辑').click()
+    await supplierRow(page, code!).getByRole('button', { name: /编辑/ }).click()
     await editor.getByLabel('联系人').fill('候选联系人')
     await editor.getByRole('button', { name: '保存', exact: true }).click()
     await page.getByRole('button', { name: '关闭提示' }).click()
-    await editor.getByRole('button', { name: '取消', exact: true }).click()
     await searchSupplier(page, code!)
     await expect(supplierRow(page, code!)).toContainText('草稿')
     await expect(supplierRow(page, code!)).toContainText('有')
-
-    await selectSupplierLifecycleAction(page, code!, '禁用')
-    dialog = page.getByRole('dialog').filter({ hasText: '确认禁用供应商' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await dismissSupplierNotice(page, '已禁用')
-    await selectSupplierLifecycleAction(page, code!, '启用')
-    await dismissSupplierNotice(page, '已启用')
-    await expect(supplierRow(page, code!)).toContainText('草稿')
-    await searchSupplier(page, code!)
-
-    await selectSupplierLifecycleAction(page, code!, '删除候选版本')
-    dialog = page.getByRole('dialog').filter({ hasText: '确认删除候选版本' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await dismissSupplierNotice(page, '候选版本已删除')
-    await expect(dialog).toHaveCount(0)
-    await expect(supplierRow(page, code!)).toContainText('已批准')
-    await expect(supplierRow(page, code!)).toContainText('—')
   },
 )

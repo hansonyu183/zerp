@@ -180,6 +180,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		dcldomain.NewProductHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewPartyHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewEmployeeHandler(nil, nil, testLogger()).Register(router)
+		dcldomain.NewSupplierHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewRelationshipHandler(nil, nil, testLogger()).Register(router)
 		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
 		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)

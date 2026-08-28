@@ -26,6 +26,7 @@
 | [ADR-0038](0038-party-identity-declarations-are-dcl-owned.md)                         | 2026-08-28 | Party 共享身份由 DCL 申报并投影到 BOB 当前业务面                |
 | [ADR-0039](0039-employee-declarations-are-dcl-owned.md)                               | 2026-08-28 | 员工申报由 DCL 拥有并投影到 BOB 当前业务面                      |
 | [ADR-0040](0040-other-unit-and-sales-partner-declarations-are-dcl-owned.md)           | 2026-08-28 | 服务关系与销售合作关系申报由 DCL 拥有                           |
+| [ADR-0041](0041-supplier-declarations-are-dcl-owned.md)                               | 2026-08-28 | 供应商申报由 DCL 拥有并投影到 BOB 当前业务面                    |
 
 ## Superseded
 

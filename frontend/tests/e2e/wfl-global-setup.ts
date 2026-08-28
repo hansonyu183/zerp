@@ -479,19 +479,28 @@ async function createEffectiveSupplier(
   settlementMethodId: string,
   purchaserObjectId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('bob/supplier/create', {
+  const created = await operator.post<BobMutation>('dcl/supplier/create', {
     newParty: {
       kind: 'ORGANIZATION',
       legalName: name,
       strongIdentifiers: [],
     },
+    operatingEntityId,
     data: {
-      operatingEntityId,
       settlementMethodId,
       defaultPurchaserEmployeeId: purchaserObjectId,
     },
   })
-  return approveBob(operator, reviewer, 'supplier', created)
+  const submitted = await operator.post<BobMutation>('dcl/supplier/submit', {
+    objectId: created.objectId,
+    approvalEntryId: created.approval.approvalEntryId,
+    approvalRevision: created.approval.revision,
+  })
+  return reviewer.post<BobMutation>('dcl/supplier/approve', {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
 }
 
 async function createEffectiveOtherUnit(

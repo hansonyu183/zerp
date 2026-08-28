@@ -2,12 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { DclSupplierInput } from './DclSupplierInput';
 import type { PartyIdentityData } from './PartyIdentityData';
-import type { SupplierInput } from './SupplierInput';
-export type SupplierCreateRequest = ({
+export type DclSupplierCreateRequest = ({
   partyId: string;
-  data: SupplierInput;
+  operatingEntityId: string;
+  data: DclSupplierInput;
 } | {
   newParty: PartyIdentityData;
-  data: SupplierInput;
+  operatingEntityId: string;
+  data: DclSupplierInput;
 });

@@ -152,16 +152,6 @@ func (s *serviceStub) SupplierGet(_ context.Context, _ GetInput) (SupplierDetail
 	return SupplierDetailView{}, nil
 }
 
-func (s *serviceStub) SupplierCreate(_ context.Context, _ SupplierCreateInput, _ approval.Actor, _ bool) (SupplierCreateResult, error) {
-	s.record("create", EntitySupplier)
-	return SupplierCreateResult{}, nil
-}
-
-func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _ approval.Actor) (MutationResult, error) {
-	s.record("save", EntitySupplier)
-	return MutationResult{}, nil
-}
-
 func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQueryInput) ([]ReferenceCandidate, error) {
 	s.record("query", "reference")
 	return []ReferenceCandidate{}, nil
@@ -192,7 +182,7 @@ func newBOBTestRouter(service applicationService, authorizer authorization.Autho
 func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
-	expectedEntities := []string{"customer", "supplier"}
+	expectedEntities := []string{"customer"}
 	expectedActions := []string{
 		"query", "get", "create", "save", "delete", "submit", "unsubmit",
 		"approve", "unapprove", "reject", "enable", "disable", "versions", "audit-history",
@@ -213,6 +203,8 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 	wanted["/bob/fund-account/get"] = false
 	wanted["/bob/employee/query"] = false
 	wanted["/bob/employee/get"] = false
+	wanted["/bob/supplier/query"] = false
+	wanted["/bob/supplier/get"] = false
 	for _, path := range []string{
 		"/bob/party/query", "/bob/party/get",
 		"/bob/other-unit/query", "/bob/other-unit/get",
@@ -248,6 +240,10 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 		if strings.HasPrefix(route.Path, "/bob/employee/") &&
 			route.Path != "/bob/employee/query" && route.Path != "/bob/employee/get" {
 			t.Fatalf("DCL-owned employee lifecycle alias remains registered: %s", route.Path)
+		}
+		if strings.HasPrefix(route.Path, "/bob/supplier/") &&
+			route.Path != "/bob/supplier/query" && route.Path != "/bob/supplier/get" {
+			t.Fatalf("DCL-owned supplier lifecycle alias remains registered: %s", route.Path)
 		}
 		if strings.HasPrefix(route.Path, "/bob/other-unit/") &&
 			route.Path != "/bob/other-unit/query" && route.Path != "/bob/other-unit/get" {

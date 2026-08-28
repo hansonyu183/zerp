@@ -118,9 +118,6 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 		{EntityCustomer, CreateDetailInput{
 			Code: " cus.01 ", Name: " Customer ", SalespersonEmployeeID: salespersonEmployeeID,
 		}},
-		{EntitySupplier, CreateDetailInput{
-			Code: "sup-01", Name: "Supplier", DefaultPurchaserEmployeeID: salespersonEmployeeID,
-		}},
 		{EntityEmployee, CreateDetailInput{Code: "emp_01", Name: "Employee"}},
 		{EntityProduct, CreateDetailInput{Code: "prd01", Name: "Product", DefaultPackagingSpec: "1"}},
 		{EntityWarehouse, CreateDetailInput{Code: "wh01", Name: "主仓"}},
@@ -156,14 +153,6 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 				t.Fatalf("vehicle data = %+v", data)
 			}
 		})
-	}
-}
-
-func TestSupplierRejectsRemovedTypeAndKeepsPurchaserVocabulary(t *testing.T) {
-	if _, err := validateDetail(EntitySupplier, DetailInput{
-		Name: "保存供应商", DefaultPurchaserEmployeeID: Optional("01J00000000000000000000021"),
-	}); err != nil {
-		t.Fatalf("supplier purchaser rejected: %v", err)
 	}
 }
 
@@ -529,11 +518,6 @@ func TestQueryFilterValidation(t *testing.T) {
 		PositionID:   "01J00000000000000000000021",
 	}); err != nil {
 		t.Fatalf("employee filters rejected: %v", err)
-	}
-	if _, err := validateQueryFilters(EntitySupplier, QueryFilters{
-		DefaultPurchaserEmployeeID: "01J00000000000000000000022",
-	}); err != nil {
-		t.Fatalf("supplier default purchaser filter rejected: %v", err)
 	}
 	if _, err := validateQueryFilters(EntityProduct, QueryFilters{CustomerType: CustomerTypeEndUser}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("cross-entity filter error = %v", err)

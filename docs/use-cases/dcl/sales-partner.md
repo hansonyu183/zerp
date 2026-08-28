@@ -3,7 +3,7 @@
 ## 页面范围
 
 - 路由：`/dcl/sales-partner`
-- 领域规则：[DCL 领域](../../domains/dcl.md#37-其他单位与销售合作方申报) 与 [BOB 领域](../../domains/bob.md)
+- 领域规则：[DCL 领域](../../domains/dcl.md#37-供应商其他单位与销售合作方申报) 与 [BOB 领域](../../domains/bob.md)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 的 `POST /dcl/sales-partner/*`
 
 ## 页面编排

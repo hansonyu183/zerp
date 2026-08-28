@@ -1255,25 +1255,6 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'SupplierInput':
-    {
-      'type': 'object',
-      'required': ['operatingEntityId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'operatingEntityId': { 'type': 'string' },
-          'contactName':
-            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
-          'contactPhone':
-            { 'type': 'string', 'nullable': true, 'maxLength': 32 },
-          'email': { 'type': 'string', 'nullable': true, 'maxLength': 254 },
-          'address': { 'type': 'string', 'nullable': true, 'maxLength': 500 },
-          'remark': { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
-          'settlementMethodId': { 'type': 'string', 'nullable': true },
-          'defaultPurchaserEmployeeId': { 'type': 'string', 'nullable': true },
-        },
-    },
   'SupplierSettlementSnapshot':
     {
       'type': 'object',
@@ -1303,10 +1284,23 @@
           'dayOffset': { 'type': 'integer', 'format': 'int32' },
         },
     },
+  'SupplierPurchaserSnapshot':
+    {
+      'type': 'object',
+      'required': ['sourceObjectId', 'approvalEntryId', 'code', 'name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceObjectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+        },
+    },
   'SupplierView':
     {
       'type': 'object',
-      'required': ['settlementMethod'],
+      'required': ['settlementMethod', 'defaultPurchaser'],
       'additionalProperties': false,
       'properties':
         {
@@ -1323,59 +1317,11 @@
               'allOf': [{ '$ref': '#/SupplierSettlementSnapshot' }],
               'nullable': true,
             },
-        },
-    },
-  'SupplierCreateRequest':
-    {
-      'oneOf':
-        [
-          {
-            'type': 'object',
-            'required': ['partyId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'partyId': { 'type': 'string' },
-                'data': { '$ref': '#/SupplierInput' },
-              },
-          },
-          {
-            'type': 'object',
-            'required': ['newParty', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'newParty': { '$ref': '#/PartyIdentityData' },
-                'data': { '$ref': '#/SupplierInput' },
-              },
-          },
-        ],
-    },
-  'SupplierSaveRequest':
-    {
-      'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
-          'data':
+          'defaultPurchaser':
             {
               'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'contactName': { 'type': 'string', 'nullable': true },
-                  'contactPhone': { 'type': 'string', 'nullable': true },
-                  'email': { 'type': 'string', 'nullable': true },
-                  'address': { 'type': 'string', 'nullable': true },
-                  'remark': { 'type': 'string', 'nullable': true },
-                  'settlementMethodId': { 'type': 'string', 'nullable': true },
-                  'defaultPurchaserEmployeeId':
-                    { 'type': 'string', 'nullable': true },
-                },
+              'allOf': [{ '$ref': '#/SupplierPurchaserSnapshot' }],
+              'nullable': true,
             },
         },
     },
@@ -2741,32 +2687,6 @@
           'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data': { '$ref': '#/CustomerAccountView', 'nullable': true },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'SupplierCreateResult':
-    {
-      'allOf':
-        [
-          { '$ref': '#/BobMutationResult' },
-          {
-            'type': 'object',
-            'required': ['partyId'],
-            'properties': { 'partyId': { 'type': 'string' } },
-          },
-        ],
-    },
-  'SupplierCreateResponse':
-    {
-      'type': 'object',
-      'required': [code, errorKey, message, data, requestId],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data': { '$ref': '#/SupplierCreateResult', 'nullable': true },
           'requestId': { 'type': 'string' },
         },
     },

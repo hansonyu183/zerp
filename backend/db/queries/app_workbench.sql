@@ -7,7 +7,7 @@ CROSS JOIN LATERAL (
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'customer' THEN (SELECT current.display_name FROM bob_customer_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'supplier' THEN (SELECT payload.name FROM bob_supplier_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'supplier' THEN (SELECT current.display_name FROM bob_supplier_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'other-unit' THEN (SELECT current.display_name FROM bob_service_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'employee' THEN (SELECT party.display_name FROM bob_employment_relationships relationship JOIN bob_party_currents party ON party.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL)
     WHEN 'sales-partner' THEN (SELECT current.display_name FROM bob_sales_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
@@ -19,7 +19,7 @@ CROSS JOIN LATERAL (
     ELSE ''
   END AS name
 ) named
-WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee')))
+WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner')))
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
@@ -55,7 +55,7 @@ CROSS JOIN LATERAL (
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'customer' THEN (SELECT current.display_name FROM bob_customer_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'supplier' THEN (SELECT payload.name FROM bob_supplier_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'supplier' THEN (SELECT current.display_name FROM bob_supplier_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'other-unit' THEN (SELECT current.display_name FROM bob_service_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'employee' THEN (SELECT party.display_name FROM bob_employment_relationships relationship JOIN bob_party_currents party ON party.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL)
     WHEN 'sales-partner' THEN (SELECT current.display_name FROM bob_sales_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
@@ -67,7 +67,7 @@ CROSS JOIN LATERAL (
     ELSE ''
   END AS name
 ) named
-WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee')))
+WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner')))
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (

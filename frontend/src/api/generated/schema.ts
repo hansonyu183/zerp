@@ -870,6 +870,102 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
     };
   };
+  "/dcl/supplier/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.SupplierQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclSupplierQueryResponse } } };
+    };
+  };
+  "/dcl/supplier/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclSupplierViewResponse } } };
+    };
+  };
+  "/dcl/supplier/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclSupplierCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/supplier/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclSupplierSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/supplier/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/supplier/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/supplier/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/supplier/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/supplier/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/supplier/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/supplier/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclSupplierVersionPageResponse } } };
+    };
+  };
+  "/dcl/supplier/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
+    };
+  };
   "/dcl/sales-partner/create": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1604,22 +1700,6 @@ export interface paths {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobGetRequest } };
       responses: { 200: { content: { 'application/json': Models.SupplierGetResponse } } };
-    };
-  };
-  "/bob/supplier/create": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.SupplierCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.SupplierCreateResponse } } };
-    };
-  };
-  "/bob/supplier/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.SupplierSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
   };
   "/bob/reference/query": {
@@ -2453,6 +2533,21 @@ export interface components {
       "OtherUnitQueryRequest": Models.OtherUnitQueryRequest;
       "OtherUnitPage": Models.OtherUnitPage;
       "OtherUnitQueryResponse": Models.OtherUnitQueryResponse;
+      "SupplierQueryRequest": Models.SupplierQueryRequest;
+      "SupplierSettlementSnapshot": Models.SupplierSettlementSnapshot;
+      "SupplierPurchaserSnapshot": Models.SupplierPurchaserSnapshot;
+      "DclSupplierData": Models.DclSupplierData;
+      "DclSupplierVersionView": Models.DclSupplierVersionView;
+      "DclSupplierListItem": Models.DclSupplierListItem;
+      "DclSupplierQueryPage": Models.DclSupplierQueryPage;
+      "DclSupplierQueryResponse": Models.DclSupplierQueryResponse;
+      "DclSupplierView": Models.DclSupplierView;
+      "DclSupplierViewResponse": Models.DclSupplierViewResponse;
+      "DclSupplierInput": Models.DclSupplierInput;
+      "DclSupplierCreateRequest": Models.DclSupplierCreateRequest;
+      "DclSupplierSaveRequest": Models.DclSupplierSaveRequest;
+      "DclSupplierVersionPage": Models.DclSupplierVersionPage;
+      "DclSupplierVersionPageResponse": Models.DclSupplierVersionPageResponse;
       "SalesPartnerCapability": Models.SalesPartnerCapability;
       "DclSalesPartnerInput": Models.DclSalesPartnerInput;
       "DclSalesPartnerCreateRequest": Models.DclSalesPartnerCreateRequest;
@@ -2634,20 +2729,13 @@ export interface components {
       "CustomerAttachmentRemoveRequest": Models.CustomerAttachmentRemoveRequest;
       "CustomerAttachmentMutationResult": Models.CustomerAttachmentMutationResult;
       "CustomerAttachmentRemoveResponse": Models.CustomerAttachmentRemoveResponse;
-      "SupplierQueryRequest": Models.SupplierQueryRequest;
       "SupplierListVersion": Models.SupplierListVersion;
       "SupplierListItem": Models.SupplierListItem;
       "SupplierQueryResponse": Models.SupplierQueryResponse;
-      "SupplierSettlementSnapshot": Models.SupplierSettlementSnapshot;
       "SupplierView": Models.SupplierView;
       "SupplierVersionView": Models.SupplierVersionView;
       "SupplierDetailView": Models.SupplierDetailView;
       "SupplierGetResponse": Models.SupplierGetResponse;
-      "SupplierInput": Models.SupplierInput;
-      "SupplierCreateRequest": Models.SupplierCreateRequest;
-      "SupplierCreateResult": Models.SupplierCreateResult;
-      "SupplierCreateResponse": Models.SupplierCreateResponse;
-      "SupplierSaveRequest": Models.SupplierSaveRequest;
       "BobReferenceQueryRequest": Models.BobReferenceQueryRequest;
       "ReferenceCandidate": Models.ReferenceCandidate;
       "ReferenceQueryResponse": Models.ReferenceQueryResponse;

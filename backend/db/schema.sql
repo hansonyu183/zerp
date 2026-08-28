@@ -1191,7 +1191,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -1271,6 +1271,35 @@ CREATE TABLE public.dcl_sales_partner_versions (
     enabled boolean NOT NULL,
     CONSTRAINT dcl_sales_partner_versions_pkey PRIMARY KEY (approval_entry_id),
     CONSTRAINT dcl_sales_partner_capabilities_ck CHECK ((capabilities <@ ARRAY['EXTERNAL_PART_TIME'::character varying(32), 'CHANNEL_PARTNER'::character varying(32)]) AND cardinality(capabilities) <= 2 AND (cardinality(capabilities) < 2 OR capabilities[1] <> capabilities[2]))
+);
+
+CREATE TABLE public.dcl_supplier_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    short_name character varying(100), tax_number character varying(50),
+    contact_name character varying(100), contact_phone character varying(32), email character varying(254),
+    address character varying(500), remark character varying(1000),
+    settlement_method_id character varying(26), settlement_method_approval_entry_id character varying(26),
+    settlement_method_code character varying(32), settlement_method_name character varying(200),
+    settlement_term_code character varying(32), settlement_rule_type character varying(32),
+    settlement_month_offset integer NOT NULL DEFAULT 0, settlement_day_of_month integer NOT NULL DEFAULT 0,
+    settlement_day_offset integer NOT NULL DEFAULT 0,
+    default_purchaser_employee_id character varying(26), default_purchaser_employee_approval_entry_id character varying(26),
+    default_purchaser_employee_code character varying(64), default_purchaser_employee_name character varying(200),
+    enabled boolean NOT NULL,
+    CONSTRAINT dcl_supplier_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_supplier_settlement_snapshot_ck CHECK (
+      (settlement_method_id IS NULL)=(settlement_method_approval_entry_id IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
+      AND (settlement_method_id IS NOT NULL OR (settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0))
+    ),
+    CONSTRAINT dcl_supplier_default_purchaser_snapshot_ck CHECK (
+      (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_approval_entry_id IS NULL)
+      AND (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_code IS NULL)
+      AND (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_name IS NULL)
+    )
 );
 
 -- Party keeps a stable BOB root because every relationship refers to it, but
@@ -1626,6 +1655,16 @@ CREATE TABLE public.bob_sales_partners (
     updated_by character varying(26) NOT NULL,
     CONSTRAINT bob_sales_partners_pkey PRIMARY KEY (object_id),
     CONSTRAINT bob_sales_partners_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
+);
+
+CREATE TABLE public.bob_suppliers (
+    object_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
+    enabled boolean NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT bob_suppliers_pkey PRIMARY KEY (object_id),
+    CONSTRAINT bob_suppliers_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
 );
 
 
@@ -2065,49 +2104,6 @@ CREATE TABLE public.dcl_product_barcode_claims (
     approved_entry_id character varying(26),
     open_entry_id character varying(26),
     CONSTRAINT dcl_product_barcode_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
-);
-
-
---
--- Name: bob_supplier_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_supplier_versions (
-    approval_entry_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'supplier'::character varying NOT NULL,
-    name character varying(200) NOT NULL,
-    short_name character varying(100),
-    category_id character varying(26),
-    category_approval_entry_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
-    tax_number character varying(50),
-    contact_name character varying(100),
-    contact_phone character varying(32),
-    email character varying(254),
-    address character varying(500),
-    remark character varying(1000),
-    settlement_method_id character varying(26),
-    settlement_method_approval_entry_id character varying(26),
-    settlement_method_entity character varying(32) DEFAULT 'settlement-method'::character varying NOT NULL,
-    default_purchaser_employee_id character varying(26),
-    default_purchaser_employee_approval_entry_id character varying(26),
-    default_purchaser_employee_entity character varying(32) DEFAULT 'employee'::character varying CONSTRAINT bob_supplier_versions_salesperson_employee_entity_not_null NOT NULL,
-    settlement_method_code character varying(32),
-    settlement_method_name character varying(200),
-    settlement_term_code character varying(32),
-    settlement_rule_type character varying(32),
-    settlement_month_offset integer DEFAULT 0 NOT NULL,
-    settlement_day_of_month integer DEFAULT 0 NOT NULL,
-    settlement_day_offset integer DEFAULT 0 NOT NULL,
-    CONSTRAINT bob_supplier_settlement_snapshot_ck CHECK ((((settlement_method_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_term_code IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset = 0) AND (settlement_day_of_month = 0) AND (settlement_day_offset = 0)) OR ((settlement_method_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND (settlement_term_code IS NOT NULL) AND (settlement_rule_type IS NOT NULL)))),
-    CONSTRAINT bob_supplier_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
-    CONSTRAINT bob_supplier_versions_entity_check CHECK (((entity)::text = 'supplier'::text)),
-    CONSTRAINT bob_supplier_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
-    CONSTRAINT bob_supplier_versions_salesperson_employee_entity_check CHECK (((default_purchaser_employee_entity)::text = 'employee'::text)),
-    CONSTRAINT bob_supplier_versions_settlement_day_of_month_check CHECK (((settlement_day_of_month >= 0) AND (settlement_day_of_month <= 31))),
-    CONSTRAINT bob_supplier_versions_settlement_day_offset_check CHECK ((settlement_day_offset >= 0)),
-    CONSTRAINT bob_supplier_versions_settlement_method_entity_check CHECK (((settlement_method_entity)::text = 'settlement-method'::text)),
-    CONSTRAINT bob_supplier_versions_settlement_month_offset_check CHECK ((settlement_month_offset >= 0))
 );
 
 
@@ -3921,14 +3917,16 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000037', '/dcl/p
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000038', '/dcl/product/save', 'dcl', 'product', 'save', '保存草稿产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000039', '/dcl/product/submit', 'dcl', 'product', 'submit', '提交审核产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000040', '/dcl/product/versions', 'dcl', 'product', 'versions', '查看版本产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000011', '/bob/supplier/approve', 'bob', 'supplier', 'approve', '审核通过供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000012', '/bob/supplier/audit-history', 'bob', 'supplier', 'audit-history', '查看审核记录供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000013', '/bob/supplier/create', 'bob', 'supplier', 'create', '创建供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000011', '/dcl/supplier/approve', 'dcl', 'supplier', 'approve', '审核通过供应商声明', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000012', '/dcl/supplier/audit-history', 'dcl', 'supplier', 'audit-history', '查看供应商声明审核记录', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000013', '/dcl/supplier/create', 'dcl', 'supplier', 'create', '创建供应商声明', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000015', '/bob/supplier/get', 'bob', 'supplier', 'get', '查看供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000017', '/bob/supplier/reject', 'bob', 'supplier', 'reject', '审核驳回供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000018', '/bob/supplier/save', 'bob', 'supplier', 'save', '保存草稿供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000019', '/bob/supplier/submit', 'bob', 'supplier', 'submit', '提交审核供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000020', '/bob/supplier/versions', 'bob', 'supplier', 'versions', '查看版本供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000017', '/dcl/supplier/reject', 'dcl', 'supplier', 'reject', '审核驳回供应商声明', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000018', '/dcl/supplier/save', 'dcl', 'supplier', 'save', '保存供应商声明草稿', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000019', '/dcl/supplier/submit', 'dcl', 'supplier', 'submit', '提交供应商声明审核', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000020', '/dcl/supplier/versions', 'dcl', 'supplier', 'versions', '查看供应商声明版本', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000285', '/dcl/supplier/query', 'dcl', 'supplier', 'query', '查询供应商声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, 20);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000286', '/dcl/supplier/get', 'dcl', 'supplier', 'get', '查看供应商声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000061', '/dcl/warehouse/approve', 'dcl', 'warehouse', 'approve', '审核通过仓库声明', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000062', '/dcl/warehouse/audit-history', 'dcl', 'warehouse', 'audit-history', '查看仓库声明审核记录', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000063', '/dcl/warehouse/create', 'dcl', 'warehouse', 'create', '创建仓库声明', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
@@ -3950,7 +3948,7 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000036', '/bob/p
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000066', '/bob/warehouse/query', 'bob', 'warehouse', 'query', '查询仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, 60);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000076', '/bob/vehicle/query', 'bob', 'vehicle', 'query', '查询车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, 70);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000081', '/bob/customer/delete', 'bob', 'customer', 'delete', '删除首版草稿客户', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000082', '/bob/supplier/delete', 'bob', 'supplier', 'delete', '删除首版草稿供应商', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000082', '/dcl/supplier/delete', 'dcl', 'supplier', 'delete', '删除首版草稿供应商声明', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000083', '/dcl/employee/delete', 'dcl', 'employee', 'delete', '删除首版员工声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000084', '/dcl/product/delete', 'dcl', 'product', 'delete', '删除首版草稿产品', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000086', '/dcl/warehouse/delete', 'dcl', 'warehouse', 'delete', '删除首版仓库声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
@@ -4175,10 +4173,8 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000133', '/bob/c
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000134', '/bob/customer/unapprove', 'bob', 'customer', 'unapprove', 'unapprove customer', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000135', '/bob/customer/enable', 'bob', 'customer', 'enable', 'enable customer', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000136', '/bob/customer/disable', 'bob', 'customer', 'disable', 'disable customer', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000137', '/bob/supplier/unsubmit', 'bob', 'supplier', 'unsubmit', 'unsubmit supplier', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000138', '/bob/supplier/unapprove', 'bob', 'supplier', 'unapprove', 'unapprove supplier', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000139', '/bob/supplier/enable', 'bob', 'supplier', 'enable', 'enable supplier', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000140', '/bob/supplier/disable', 'bob', 'supplier', 'disable', 'disable supplier', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000137', '/dcl/supplier/unsubmit', 'dcl', 'supplier', 'unsubmit', '撤回供应商声明审核', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000138', '/dcl/supplier/unapprove', 'dcl', 'supplier', 'unapprove', '反批供应商声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000141', '/dcl/employee/unsubmit', 'dcl', 'employee', 'unsubmit', '撤回员工声明审核', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000142', '/dcl/employee/unapprove', 'dcl', 'employee', 'unapprove', '反审核员工声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000143', '/dcl/employee/enable', 'dcl', 'employee', 'enable', '启用员工声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
@@ -4621,7 +4617,6 @@ INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000014', '/dcl/o
 INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000001', '/bob/customer/attachment-initiate', 'bob', 'customer', 'attachment-initiate', '上传客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000002', '/bob/customer/attachment-download', 'bob', 'customer', 'attachment-download', '下载客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000003', '/bob/customer/attachment-remove', 'bob', 'customer', 'attachment-remove', '移除客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB84SUPTAXMATCH0000001', '/bob/supplier/tax-match', 'bob', 'supplier', 'tax-match', '按税号匹配供应商建档资料', 'ENABLED', '2026-08-24 15:23:50.277983+00', NULL, '2026-08-24 15:23:50.277983+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000001', '/bob/party/query', 'bob', 'party', 'query', '查询主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000002', '/bob/party/get', 'bob', 'party', 'get', '查看主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000003', '/dcl/party/create', 'dcl', 'party', 'create', '随首条关系创建主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
@@ -5028,10 +5023,6 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 
 
 --
--- Data for Name: bob_supplier_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
 
 --
 -- Data for Name: dcl_vehicle_versions; Type: TABLE DATA; Schema: public; Owner: -
@@ -6608,13 +6599,6 @@ ALTER TABLE ONLY public.bob_supplier_relationships
 
 
 --
--- Name: bob_supplier_versions bob_supplier_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_supplier_versions
-    ADD CONSTRAINT bob_supplier_versions_pkey PRIMARY KEY (approval_entry_id);
-
-
 --
 -- Name: dcl_vehicle_versions dcl_vehicle_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
@@ -7781,19 +7765,7 @@ CREATE UNIQUE INDEX bob_supplier_relationships_active_party_operating_key ON pub
 
 
 --
--- Name: bob_supplier_versions_category_idx; Type: INDEX; Schema: public; Owner: -
 --
-
-CREATE INDEX bob_supplier_versions_category_idx ON public.bob_supplier_versions USING btree (category_id);
-
-
---
--- Name: bob_supplier_versions_default_purchaser_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_supplier_versions_default_purchaser_idx ON public.bob_supplier_versions USING btree (default_purchaser_employee_id);
-
-
 --
 -- Name: dcl_vehicle_versions_carrier_operating_idx; Type: INDEX; Schema: public; Owner: -
 --
@@ -9277,29 +9249,8 @@ ALTER TABLE ONLY public.bob_supplier_relationships
 
 
 --
--- Name: bob_supplier_versions bob_supplier_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_supplier_versions
-    ADD CONSTRAINT bob_supplier_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
 --
--- Name: bob_supplier_versions bob_supplier_versions_salesperson_employee_id_salesperson__fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_supplier_versions
-    ADD CONSTRAINT bob_supplier_versions_salesperson_employee_id_salesperson__fkey FOREIGN KEY (default_purchaser_employee_id, default_purchaser_employee_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_supplier_versions bob_supplier_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_supplier_versions
-    ADD CONSTRAINT bob_supplier_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-
 --
 -- Name: dcl_vehicle_versions dcl_vehicle_versions_carrier_operating_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
@@ -10314,6 +10265,27 @@ ALTER TABLE ONLY public.dcl_other_unit_versions
 ALTER TABLE ONLY public.dcl_other_unit_versions
     ADD CONSTRAINT dcl_other_unit_versions_settlement_method_entry_id_fkey
     FOREIGN KEY (settlement_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_versions
+    ADD CONSTRAINT dcl_supplier_versions_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_versions
+    ADD CONSTRAINT dcl_supplier_versions_settlement_method_id_fkey
+    FOREIGN KEY (settlement_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_versions
+    ADD CONSTRAINT dcl_supplier_versions_settlement_method_entry_id_fkey
+    FOREIGN KEY (settlement_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_versions
+    ADD CONSTRAINT dcl_supplier_versions_default_purchaser_id_fkey
+    FOREIGN KEY (default_purchaser_employee_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_versions
+    ADD CONSTRAINT dcl_supplier_versions_default_purchaser_entry_id_fkey
+    FOREIGN KEY (default_purchaser_employee_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_suppliers
+    ADD CONSTRAINT bob_suppliers_object_id_fkey
+    FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_suppliers
+    ADD CONSTRAINT bob_suppliers_source_approval_entry_id_fkey
+    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_sales_partner_versions
     ADD CONSTRAINT dcl_sales_partner_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
@@ -10338,6 +10310,10 @@ CREATE INDEX dcl_employee_versions_position_idx
     ON public.dcl_employee_versions USING btree (position_id);
 CREATE INDEX dcl_other_unit_versions_settlement_method_idx
     ON public.dcl_other_unit_versions USING btree (settlement_method_id);
+CREATE INDEX dcl_supplier_versions_settlement_method_idx
+    ON public.dcl_supplier_versions USING btree (settlement_method_id);
+CREATE INDEX dcl_supplier_versions_default_purchaser_idx
+    ON public.dcl_supplier_versions USING btree (default_purchaser_employee_id);
 
 
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;

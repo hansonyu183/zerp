@@ -76,6 +76,19 @@ describe('Dashboard workbench', () => {
     expect(workbenchItemPath(party)).toBe('/dcl/party')
   })
 
+  it('routes Supplier workbench items to DCL declarations', () => {
+    const supplier = { ...objectItem, entity: 'supplier' } as WorkbenchItem
+    expect(workbenchItemPath(supplier)).toBe('/dcl/supplier')
+  })
+
+  it('routes DCL relationship workbench items to declarations', () => {
+    for (const entity of ['other-unit', 'sales-partner']) {
+      expect(
+        workbenchItemPath({ ...objectItem, entity } as WorkbenchItem),
+      ).toBe(`/dcl/${entity}`)
+    }
+  })
+
   it('初始查询失败时不显示空状态', async () => {
     mockedPost.mockRejectedValueOnce(new Error('network unavailable'))
     const router = createTestRouter()
@@ -120,8 +133,8 @@ describe('Dashboard workbench', () => {
     session.permissions = [
       '/bob/customer/query',
       '/bob/customer/submit',
-      '/bob/supplier/query',
-      '/bob/supplier/unsubmit',
+      '/dcl/supplier/query',
+      '/dcl/supplier/unsubmit',
       '/vou/sale-order/query',
       '/vou/sale-order/submit',
       '/vou/developing-invoice/query',
@@ -293,8 +306,8 @@ describe('Dashboard workbench', () => {
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
     ).toEqual([
-      { title: '客户', value: 'customer' },
       { title: '供应商', value: 'supplier' },
+      { title: '客户', value: 'customer' },
     ])
   })
 
@@ -664,6 +677,27 @@ describe('Dashboard workbench', () => {
       approvalEntryId: 'version-1',
       approvalRevision: 5,
     })
+
+    for (const entity of [
+      'employee',
+      'supplier',
+      'other-unit',
+      'sales-partner',
+    ] as const) {
+      vi.clearAllMocks()
+      mockedPost
+        .mockResolvedValueOnce({ data: {} })
+        .mockResolvedValueOnce(page())
+      const declaration = { ...objectItem, entity }
+
+      expect(workbenchItemPath(declaration)).toBe(`/dcl/${entity}`)
+      await expect(vm.runAction(declaration, 'submit')).resolves.toBe(true)
+      expect(mockedPost).toHaveBeenNthCalledWith(1, `dcl/${entity}/submit`, {
+        objectId: 'object-1',
+        approvalEntryId: 'version-1',
+        approvalRevision: 5,
+      })
+    }
   })
 
   it('驳回资料时提交去除首尾空白的意见', async () => {

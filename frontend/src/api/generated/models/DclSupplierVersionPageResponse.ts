@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { SupplierCreateResult } from './SupplierCreateResult';
-export type SupplierCreateResponse = {
+import type { DclSupplierVersionPage } from './DclSupplierVersionPage';
+export type DclSupplierVersionPageResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: SupplierCreateResult | null;
+  data: DclSupplierVersionPage | null;
   requestId: string;
 };

@@ -65,4 +65,13 @@ type SalesPartnerPayload struct {
 	Enabled                  bool
 }
 
+type SupplierPayload struct {
+	SubjectID string `json:"subjectId"`
+	Code      string `json:"code"`
+	PartyID   string `json:"partyId"`
+	Enabled   bool   `json:"enabled"`
+}
+
+var SupplierTopic = approval.MustTopic[SupplierPayload]("dcl.supplier.approval")
+
 var SalesPartnerTopic = approval.MustTopic[SalesPartnerPayload]("dcl.sales-partner.approval")

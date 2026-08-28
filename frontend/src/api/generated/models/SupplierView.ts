@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { SupplierPurchaserSnapshot } from './SupplierPurchaserSnapshot';
 import type { SupplierSettlementSnapshot } from './SupplierSettlementSnapshot';
 export type SupplierView = {
   contactName?: string | null;
@@ -12,4 +13,5 @@ export type SupplierView = {
   settlementMethodId?: string | null;
   defaultPurchaserEmployeeId?: string | null;
   settlementMethod: SupplierSettlementSnapshot | null;
+  defaultPurchaser: SupplierPurchaserSnapshot | null;
 };

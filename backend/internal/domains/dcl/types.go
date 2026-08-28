@@ -17,6 +17,7 @@ const (
 	EntityEmployee        = "employee"
 	EntityOtherUnit       = "other-unit"
 	EntitySalesPartner    = "sales-partner"
+	EntitySupplier        = "supplier"
 )
 
 // Relationship declarations own mutable commercial data. The Party and
@@ -44,6 +45,123 @@ type SalesPartnerData struct {
 	Email        string   `json:"email,omitempty"`
 	Address      string   `json:"address,omitempty"`
 	Remark       string   `json:"remark,omitempty"`
+}
+
+// SupplierData is the DCL-owned mutable supplier declaration. Party identity
+// and the operating entity are immutable BOB relationship facts.
+type SupplierData struct {
+	ShortName        string                            `json:"shortName,omitempty"`
+	TaxNumber        string                            `json:"taxNumber,omitempty"`
+	ContactName      string                            `json:"contactName,omitempty"`
+	ContactPhone     string                            `json:"contactPhone,omitempty"`
+	Email            string                            `json:"email,omitempty"`
+	Address          string                            `json:"address,omitempty"`
+	Remark           string                            `json:"remark,omitempty"`
+	SettlementMethod *SupplierSettlementMethodSnapshot `json:"settlementMethod,omitempty"`
+	DefaultPurchaser *SupplierEmployeeSnapshot         `json:"defaultPurchaser,omitempty"`
+
+	// Stable selection IDs are the input surface; nested fields are the exact
+	// snapshots returned after resolution.
+	SettlementMethodID              string `json:"settlementMethodId,omitempty"`
+	SettlementMethodApprovalEntryID string `json:"-"`
+	SettlementMethodCode            string `json:"-"`
+	SettlementMethodName            string `json:"-"`
+	SettlementTermCode              string `json:"-"`
+	SettlementRuleType              string `json:"-"`
+	SettlementMonthOffset           int32  `json:"-"`
+	SettlementDayOfMonth            int32  `json:"-"`
+	SettlementDayOffset             int32  `json:"-"`
+	DefaultPurchaserEmployeeID      string `json:"defaultPurchaserEmployeeId,omitempty"`
+	DefaultPurchaserApprovalEntryID string `json:"-"`
+	DefaultPurchaserCode            string `json:"-"`
+	DefaultPurchaserName            string `json:"-"`
+}
+type SupplierSettlementMethodSnapshot struct {
+	SourceObjectID  string `json:"sourceObjectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
+	TermCode        string `json:"termCode"`
+	RuleType        string `json:"ruleType"`
+	MonthOffset     int32  `json:"monthOffset"`
+	DayOfMonth      int32  `json:"dayOfMonth"`
+	DayOffset       int32  `json:"dayOffset"`
+}
+type SupplierEmployeeSnapshot struct {
+	SourceObjectID  string `json:"sourceObjectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
+}
+type SupplierCreateInput struct {
+	PartyID           string                     `json:"partyId,omitempty"`
+	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
+	OperatingEntityID string                     `json:"operatingEntityId"`
+	Data              SupplierData               `json:"data"`
+}
+type SupplierSaveInput struct {
+	ObjectID         string       `json:"objectId"`
+	ApprovalEntryID  string       `json:"approvalEntryId"`
+	ApprovalRevision int64        `json:"approvalRevision"`
+	Enabled          bool         `json:"enabled"`
+	Data             SupplierData `json:"data"`
+}
+type SupplierVersionInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+type SupplierReviewInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	Reason           string `json:"reason"`
+}
+type SupplierDeleteInput = SupplierVersionInput
+type SupplierGetInput struct {
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+}
+type SupplierQueryFilters struct {
+	Keyword           string            `json:"keyword,omitempty"`
+	Status            []approval.Status `json:"status,omitempty"`
+	Enabled           *bool             `json:"enabled,omitempty"`
+	OperatingEntityID string            `json:"operatingEntityId,omitempty"`
+}
+type SupplierQueryInput struct {
+	Page     int                       `json:"page"`
+	PageSize int                       `json:"pageSize"`
+	Filters  SupplierQueryFilters      `json:"filters"`
+	Sort     []OperatingEntitySortItem `json:"sort"`
+}
+type SupplierHistoryInput = OperatingEntityHistoryInput
+type SupplierMutation struct {
+	ObjectID       string               `json:"objectId"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	PartyID        string               `json:"partyId"`
+	Approval       approval.VersionMeta `json:"approval"`
+}
+type SupplierView struct {
+	RelationshipIdentityView
+	OperatingEntityApprovalEntryID string       `json:"operatingEntityApprovalEntryId"`
+	OperatingEntityCode            string       `json:"operatingEntityCode"`
+	OperatingEntityName            string       `json:"operatingEntityName"`
+	Data                           SupplierData `json:"data"`
+	UpdatedAt                      time.Time    `json:"updatedAt"`
+}
+type SupplierVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Enabled  bool                 `json:"enabled"`
+	Data     SupplierData         `json:"data"`
+}
+type SupplierQueryItem struct {
+	RelationshipIdentityView
+	OperatingEntityCode string               `json:"operatingEntityCode"`
+	OperatingEntityName string               `json:"operatingEntityName"`
+	LatestApproved      *SupplierVersionView `json:"latestApproved,omitempty"`
+	OpenVersion         *SupplierVersionView `json:"openVersion,omitempty"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 type OtherUnitCreateInput struct {
 	PartyID           string                     `json:"partyId,omitempty"`

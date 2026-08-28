@@ -144,7 +144,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		}
 		var status string
 		approvalDomain := "bob"
-		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee || item.entity == bob.EntityOtherUnit || item.entity == bob.EntitySalesPartner {
+		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee || item.entity == bob.EntitySupplier || item.entity == bob.EntityOtherUnit || item.entity == bob.EntitySalesPartner {
 			approvalDomain = "dcl"
 		}
 		if err = pool.QueryRow(t.Context(), `
@@ -180,7 +180,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 	payloadTables := map[string]string{
 		bob.EntityCustomer: "bob_customer_relationship_versions", bob.EntityCustomerAccount: "bob_customer_versions",
-		bob.EntitySupplier: "bob_supplier_versions", bob.EntityOtherUnit: "dcl_other_unit_versions",
+		bob.EntitySupplier: "dcl_supplier_versions", bob.EntityOtherUnit: "dcl_other_unit_versions",
 		bob.EntityEmployee: "dcl_employee_versions", bob.EntitySalesPartner: "dcl_sales_partner_versions",
 		bob.EntityProduct: "dcl_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",
 		bob.EntityVehicle: "dcl_vehicle_versions", bob.EntityFundAccount: "dcl_fund_account_versions",
@@ -188,7 +188,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 	for _, entity := range allEntities {
 		approvalDomain := "bob"
-		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntityOtherUnit || entity == bob.EntitySalesPartner {
+		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntitySupplier || entity == bob.EntityOtherUnit || entity == bob.EntitySalesPartner {
 			approvalDomain = "dcl"
 		}
 		var objectCount, entryCount, payloadCount int

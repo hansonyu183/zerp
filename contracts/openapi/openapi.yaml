@@ -4288,6 +4288,483 @@
                 },
             },
         },
+      '/dcl/supplier/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询供应商申报列表',
+              'operationId': 'dclSupplierQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商申报列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取供应商申报',
+              'operationId': 'dclSupplierGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商申报。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建供应商申报草稿',
+              'operationId': 'dclSupplierCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存供应商申报草稿',
+              'operationId': 'dclSupplierSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交供应商申报审核',
+              'operationId': 'dclSupplierSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回供应商申报审核',
+              'operationId': 'dclSupplierUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回供应商申报',
+              'operationId': 'dclSupplierReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准供应商申报',
+              'operationId': 'dclSupplierApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批供应商申报',
+              'operationId': 'dclSupplierUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除供应商申报草稿',
+              'operationId': 'dclSupplierDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/supplier/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询供应商申报版本',
+              'operationId': 'dclSupplierVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商申报版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/supplier/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询供应商申报审核历史',
+              'operationId': 'dclSupplierAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclSupplierHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商申报审核历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclSupplierAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/dcl/sales-partner/create':
         {
           'post':
@@ -7917,73 +8394,6 @@
                         },
                     },
                 },
-            },
-        },
-      '/bob/supplier/create':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '创建供应商草稿',
-              'operationId': 'supplierCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SupplierCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '已创建的供应商关系。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/SupplierCreateResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/supplier/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '保存供应商草稿或候选版本',
-              'operationId': 'supplierSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SupplierSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/BobMutation' } },
             },
         },
       '/bob/reference/query':

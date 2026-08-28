@@ -108,23 +108,8 @@ func approveWorkflowReference(t *testing.T, service *bobdomain.Service, entity s
 		}
 		return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 	}
-	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, workflowActor(t, "wfl-reference-create"))
-	if err != nil {
-		t.Fatalf("create %s: %v", entity, err)
-	}
-	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{
-		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
-	}, workflowActor(t, "wfl-reference-submit"))
-	if err != nil {
-		t.Fatalf("submit %s: %v", entity, err)
-	}
-	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{
-		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
-	}, workflowActor(t, "wfl-reference-approve"))
-	if err != nil {
-		t.Fatalf("approve %s: %v", entity, err)
-	}
-	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	t.Fatalf("unsupported workflow reference entity %q", entity)
+	return voudomain.ReferenceInput{}
 }
 
 func createApprovedReimbursement(t *testing.T, service *voudomain.Service, employee voudomain.ReferenceInput, actorID, requestID string) voudomain.MutationResult {

@@ -92,19 +92,8 @@ func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service,
 		}
 		return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 	}
-	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, trustedAccountingActor(t, "acc-posting-reference-create"))
-	if err != nil {
-		t.Fatalf("create %s reference: %v", entity, err)
-	}
-	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedAccountingActor(t, "acc-posting-reference-submit"))
-	if err != nil {
-		t.Fatalf("submit %s reference: %v", entity, err)
-	}
-	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, trustedAccountingActor(t, "acc-posting-reference-approve"))
-	if err != nil {
-		t.Fatalf("approve %s reference: %v", entity, err)
-	}
-	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	t.Fatalf("unsupported accounting reference entity %q", entity)
+	return voudomain.ReferenceInput{}
 }
 
 func createApprovedAccountingEmployee(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, bus *txevent.Bus, operatingEntityID, name, requestPrefix string) voudomain.ReferenceInput {

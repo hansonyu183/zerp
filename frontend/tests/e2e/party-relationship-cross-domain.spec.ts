@@ -1216,6 +1216,7 @@ test(
       await partyRow
         .getByRole('button', {
           name: new RegExp(`查看 E2E 跨域主体 ${suffix}`),
+          exact: true,
         })
         .click()
       const partyDialog = page

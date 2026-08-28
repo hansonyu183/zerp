@@ -5,14 +5,16 @@ import { getErrorMessage } from '@/api/types'
 import type {
   VoucherDraftForm,
   VoucherEntityConfig,
+  VoucherAuxiliaryReference,
   VoucherProductLineDraft,
   VoucherProductionOutputDraft,
+  VoucherSelectableReference,
   VoucherReference,
 } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
 
 interface ReferenceState {
-  options: VoucherReference[]
+  options: VoucherSelectableReference[]
   loading: boolean
   errorMessage: string | null
   sequence: number
@@ -55,7 +57,11 @@ export function useVoucherReferences(
     return references[key]
   }
 
-  function referenceOptions(key: string): readonly VoucherReference[] {
+  function referenceOptions(
+    key: 'settlementMethod',
+  ): readonly VoucherAuxiliaryReference[]
+  function referenceOptions(key: string): readonly VoucherReference[]
+  function referenceOptions(key: string): readonly VoucherSelectableReference[] {
     return referenceState(key).options
   }
 
@@ -138,7 +144,7 @@ export function useVoucherReferences(
     const result: VoucherReference[] = []
     for (const value of Object.values(form.value)) {
       if (value && typeof value === 'object' && 'objectId' in value) {
-        result.push(value as VoucherReference)
+        if ('approvalEntryId' in value) result.push(value as VoucherReference)
       } else if (Array.isArray(value)) {
         for (const item of value as Array<
           VoucherProductLineDraft | VoucherProductionOutputDraft
@@ -176,7 +182,6 @@ export function useVoucherReferences(
         })
         state.options = data.map((item) => ({
           ...item,
-          approvalEntryId: item.approvalEntryId,
           entity: 'settlement-method',
         }))
       } catch (error) {

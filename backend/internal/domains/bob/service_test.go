@@ -139,10 +139,10 @@ func TestValidateProductDraftAllowsIncompleteConfiguration(t *testing.T) {
 
 func TestValidateCompleteProductConfiguration(t *testing.T) {
 	t.Parallel()
-	unit := MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011", ApprovalEntryID: "01JAVX00000000000000000012", Code: "UNT-0001", Name: "千克", Symbol: "kg"}
+	unit := MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011", Code: "UNT-0001", Name: "千克", Symbol: "kg"}
 	valid := DetailView{
 		Name: "固定配方成品", ProductTypeID: "01JPTY00000000000000000003",
-		ProductTypeApprovalEntryID: "01JPTY00000000000000000004", ProductTypeCode: "PTY-0002",
+		ProductTypeCode: "PTY-0002",
 		ProductTypeName: "标准成品", BehaviorProfile: ProductBehaviorStandardFinished,
 		DefaultInputUnitID: unit.ObjectID, PricingUnitID: unit.ObjectID,
 		UnitConversions:      []ProductUnitConversion{{Unit: unit, Factor: "1"}},

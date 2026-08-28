@@ -16,7 +16,7 @@ export const operatingEntityConfig = defineBobEntityConfig({
   nameLabel: '法定公司名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     shortName: '',
     taxNumber: '',
     address: '',
@@ -26,7 +26,7 @@ export const operatingEntityConfig = defineBobEntityConfig({
   fields: (context) => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -67,9 +67,9 @@ export const operatingEntityConfig = defineBobEntityConfig({
       value: (row) => row.objectId,
     },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

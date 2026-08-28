@@ -8,7 +8,7 @@ export const employeeConfig = defineBobEntityConfig({
   nameLabel: '主体名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     operatingEntityName: '',
     employeeCategoryName: '',
     departmentName: '',
@@ -21,7 +21,7 @@ export const employeeConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },

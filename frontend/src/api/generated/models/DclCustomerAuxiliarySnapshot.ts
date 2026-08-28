@@ -2,16 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type VouSettlementMethodSnapshotView = {
-  objectId: string;
+export type DclCustomerAuxiliarySnapshot = {
+  sourceObjectId: string;
   code: string;
   name: string;
-  ruleType: 'DUE_DAYS' | 'MONTH_END' | 'RELATIVE_DAYS' | 'FIXED_DAY';
-  monthOffset: number;
-  dayOfMonth?: number;
-  dayOffset: number;
+  termCode?: string;
+  ruleType?: string;
   dueDays?: number;
+  monthOffset?: number;
   cutoffDay?: number;
   defaultSalesSurcharge?: string;
-  description?: string;
 };

@@ -169,6 +169,19 @@ func validateReference(ref *ReferenceInput, field string, required bool) error {
 	return nil
 }
 
+func validateAuxiliaryReference(ref *ReferenceInput, field string, required bool) error {
+	if ref == nil {
+		if required {
+			return domainError(ErrorValidation, field+" is required", nil, nil)
+		}
+		return nil
+	}
+	if !validID(ref.ObjectID) {
+		return domainError(ErrorValidation, "invalid "+field, nil, nil)
+	}
+	return nil
+}
+
 func validateProductReference(ref ProductReferenceInput) error {
 	if !validID(ref.ObjectID) {
 		return domainError(ErrorValidation, "invalid product", nil, nil)

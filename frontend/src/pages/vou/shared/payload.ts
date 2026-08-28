@@ -3,6 +3,7 @@ import type {
   VoucherEntityConfig,
 } from '@/components/voucher'
 import {
+  inputAuxiliaryReference,
   inputProductReference,
   inputReference,
   type DraftPayload,
@@ -39,7 +40,7 @@ export function buildVoucherDraftPayload(
     payload.counterpartyType = counterpartyType
     payload.counterparty = inputReference(value.counterparty)
     payload.handler = inputReference(value.handler)
-    payload.settlementMethod = inputReference(value.settlementMethod)
+    payload.settlementMethod = inputAuxiliaryReference(value.settlementMethod)
     payload.serviceContract = {
       ...(value.serviceContract.capabilities.length
         ? { capabilities: [...value.serviceContract.capabilities] }
@@ -207,11 +208,11 @@ export function buildVoucherDraftPayload(
       ...(line.specification.trim()
         ? { specification: line.specification.trim() }
         : {}),
-      category: inputReference(line.category)!,
+      category: inputAuxiliaryReference(line.category)!,
       originalValue: line.originalValue.trim(),
       usefulLifeMonths: Number(line.usefulLifeMonths),
       residualRate: line.residualRate.trim(),
-      department: inputReference(line.department)!,
+      department: inputAuxiliaryReference(line.department)!,
       ...(line.custodian ? { custodian: inputReference(line.custodian) } : {}),
       ...(line.location.trim() ? { location: line.location.trim() } : {}),
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),

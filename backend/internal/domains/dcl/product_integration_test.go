@@ -44,9 +44,9 @@ func TestProductDeclarationPersistsCompleteSnapshotAndControlsBOBCurrentIntegrat
 	if err != nil {
 		t.Fatalf("get BOB current product: %v", err)
 	}
-	if len(current.Data.UnitConversions) != 2 || current.Data.UnitConversions[0].Unit.ApprovalEntryID == "" ||
+	if len(current.Data.UnitConversions) != 2 || current.Data.UnitConversions[0].Unit.ObjectID == "" ||
 		current.Data.Formula == nil || len(current.Data.Formula.Components) != 1 ||
-		current.Data.Formula.Output.EnteredUnit.ApprovalEntryID == "" ||
+		current.Data.Formula.Output.EnteredUnit.ObjectID == "" ||
 		current.Data.Formula.Components[0].Material.ApprovalEntryID != raw.Approval.ApprovalEntryID ||
 		current.Data.Formula.Components[0].Quantity.BaseQuantity != "25500" {
 		t.Fatalf("BOB product did not read the complete DCL source snapshot: %+v", current.Data)
@@ -201,7 +201,7 @@ func TestProductSubmitRejectsFormulaMaterialSourceDriftIntegration(t *testing.T)
 	assertApprovalState(t, pool, finishedDraft.Approval.ApprovalEntryID, approval.StatusDraft, finishedDraft.Approval.Revision)
 }
 
-func TestProductSubmitRejectsAuxiliarySourceDriftIntegration(t *testing.T) {
+func TestProductAuxiliaryStableIdentityAllowsRenameIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	ensureProductAuxiliaries(t, pool)
@@ -222,13 +222,15 @@ func TestProductSubmitRejectsAuxiliarySourceDriftIntegration(t *testing.T) {
 		t.Fatalf("save draft with stale AUX source: %v", err)
 	}
 	saved, err := service.Get(t.Context(), ProductGetInput{ObjectID: savedDraft.ObjectID, ApprovalEntryID: savedDraft.Approval.ApprovalEntryID}, creator)
-	if err != nil || saved.Data.ProductTypeApprovalEntryID != original.Data.ProductTypeApprovalEntryID || saved.Data.ProductTypeName != original.Data.ProductTypeName {
-		t.Fatalf("draft source evidence changed on save: original=%+v saved=%+v err=%v", original.Data, saved.Data, err)
+	if err != nil || saved.Data.ProductTypeID != original.Data.ProductTypeID || saved.Data.ProductTypeName != "原材料 V2" {
+		t.Fatalf("stable AUX identity did not refresh current display snapshot: original=%+v saved=%+v err=%v", original.Data, saved.Data, err)
 	}
 
-	_, err = service.Submit(t.Context(), ProductVersionInput{ObjectID: savedDraft.ObjectID, ApprovalEntryID: savedDraft.Approval.ApprovalEntryID, ApprovalRevision: savedDraft.Approval.Revision}, dclActor(t, creator.ID(), "aux-drift-submit"))
-	assertProductReferenceDrift(t, err)
-	assertApprovalState(t, pool, savedDraft.Approval.ApprovalEntryID, approval.StatusDraft, savedDraft.Approval.Revision)
+	submitted, err := service.Submit(t.Context(), ProductVersionInput{ObjectID: savedDraft.ObjectID, ApprovalEntryID: savedDraft.Approval.ApprovalEntryID, ApprovalRevision: savedDraft.Approval.Revision}, dclActor(t, creator.ID(), "aux-stable-submit"))
+	if err != nil {
+		t.Fatalf("submit stable AUX reference after rename: %v", err)
+	}
+	assertApprovalState(t, pool, submitted.Approval.ApprovalEntryID, approval.StatusPending, submitted.Approval.Revision)
 }
 
 func TestApprovedProductKeepsMeasurementUnitQuantityScaleSnapshotIntegration(t *testing.T) {
@@ -265,7 +267,7 @@ func TestApprovedProductKeepsMeasurementUnitQuantityScaleSnapshotIntegration(t *
 func newProductIntegrationServices(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus, current productCurrentWriter) (*bobdomain.Service, *ProductService) {
 	t.Helper()
 	authorizer := authorization.Func(nil)
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	if current == nil {
 		current = business
@@ -284,33 +286,18 @@ func ensureProductAuxiliaries(t *testing.T, pool *pgxpool.Pool) {
 		{productTonUnitID, "measurement-unit", "UNT-0006", `{"name":"吨","symbol":"t","quantityScale":6}`},
 		{productCategoryID, "product-category", "CAT-0001", `{"name":"测试分类"}`},
 	} {
-		if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,created_by,updated_by) VALUES($1,$2,$3,$4,$4) ON CONFLICT (id) DO NOTHING`, fixture.objectID, fixture.entity, fixture.code, "01J00000000000000000000000"); err != nil {
+		if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by) VALUES($1,$2,$3,$4::jsonb,$5,$5) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data`, fixture.objectID, fixture.entity, fixture.code, fixture.data, "01J00000000000000000000000"); err != nil {
 			t.Fatalf("insert %s object fixture: %v", fixture.entity, err)
-		}
-		entryID := ulid.Make().String()
-		if _, err := pool.Exec(t.Context(), `
-			INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
-			VALUES($1,'aux',$2,$3,1,'APPROVED',1,$4,now(),$4,now(),$4,now(),$5,now())`, entryID, fixture.entity, fixture.objectID, "01J00000000000000000000000", "01J00000000000000000000001"); err != nil {
-			t.Fatalf("insert %s approval fixture: %v", fixture.entity, err)
-		}
-		if _, err := pool.Exec(t.Context(), `INSERT INTO aux_version_payloads(approval_entry_id,object_id,entity,data) VALUES($1,$2,$3,$4::jsonb)`, entryID, fixture.objectID, fixture.entity, fixture.data); err != nil {
-			t.Fatalf("insert %s payload fixture: %v", fixture.entity, err)
 		}
 	}
 }
 
 func insertApprovedProductAuxiliaryV2(t *testing.T, pool *pgxpool.Pool, objectID, entity, data string) string {
 	t.Helper()
-	entryID := ulid.Make().String()
-	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
-		VALUES($1,'aux',$2,$3,2,'APPROVED',1,$4,now(),$4,now(),$4,now(),$5,now())`, entryID, entity, objectID, "01J00000000000000000000000", "01J00000000000000000000001"); err != nil {
-		t.Fatalf("insert %s V2 approval fixture: %v", entity, err)
+	if _, err := pool.Exec(t.Context(), `UPDATE aux_objects SET data=$3::jsonb,revision=revision+1 WHERE id=$1 AND entity=$2`, objectID, entity, data); err != nil {
+		t.Fatalf("update %s current payload: %v", entity, err)
 	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_version_payloads(approval_entry_id,object_id,entity,data) VALUES($1,$2,$3,$4::jsonb)`, entryID, objectID, entity, data); err != nil {
-		t.Fatalf("insert %s V2 payload fixture: %v", entity, err)
-	}
-	return entryID
+	return ""
 }
 
 func assertProductReferenceDrift(t *testing.T, err error) {

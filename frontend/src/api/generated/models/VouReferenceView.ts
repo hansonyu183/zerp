@@ -14,7 +14,6 @@ export type VouReferenceView = {
   plateNumber?: string;
   behaviorProfile?: 'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING';
   productTypeObjectId?: string;
-  productTypeApprovalEntryId?: string;
   productTypeCode?: string;
   productTypeName?: string;
   defaultInputUnitId?: string;

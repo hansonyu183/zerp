@@ -63,7 +63,7 @@ func supplierVersionInput(i SupplierReviewInput) SupplierVersionInput {
 
 func normalizeSupplierData(data SupplierData) SupplierData {
 	if data.SettlementMethod != nil {
-		data.SettlementMethodID, data.SettlementMethodApprovalEntryID = data.SettlementMethod.SourceObjectID, data.SettlementMethod.ApprovalEntryID
+		data.SettlementMethodID = data.SettlementMethod.SourceObjectID
 		data.SettlementMethodCode, data.SettlementMethodName = data.SettlementMethod.Code, data.SettlementMethod.Name
 		data.SettlementTermCode, data.SettlementRuleType = data.SettlementMethod.TermCode, data.SettlementMethod.RuleType
 		data.SettlementMonthOffset, data.SettlementDayOfMonth, data.SettlementDayOffset = data.SettlementMethod.MonthOffset, data.SettlementMethod.DayOfMonth, data.SettlementMethod.DayOffset
@@ -82,7 +82,7 @@ func supplierSnapshots(data SupplierData) SupplierData {
 	if data.SettlementMethodID == "" {
 		data.SettlementMethod = nil
 	} else {
-		data.SettlementMethod = &SupplierSettlementMethodSnapshot{SourceObjectID: data.SettlementMethodID, ApprovalEntryID: data.SettlementMethodApprovalEntryID, Code: data.SettlementMethodCode, Name: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOfMonth: data.SettlementDayOfMonth, DayOffset: data.SettlementDayOffset}
+		data.SettlementMethod = &SupplierSettlementMethodSnapshot{SourceObjectID: data.SettlementMethodID, Code: data.SettlementMethodCode, Name: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOfMonth: data.SettlementDayOfMonth, DayOffset: data.SettlementDayOffset}
 	}
 	if data.DefaultPurchaserEmployeeID == "" {
 		data.DefaultPurchaser = nil
@@ -99,13 +99,13 @@ func validateSupplierData(data SupplierData) (SupplierData, error) {
 	data = normalizeSupplierData(data)
 	// Inputs select by stable ID; exact entry IDs are populated by resolution.
 	// A caller may not submit an orphan exact snapshot entry.
-	if (data.SettlementMethodApprovalEntryID != "" && data.SettlementMethodID == "") || (data.DefaultPurchaserApprovalEntryID != "" && data.DefaultPurchaserEmployeeID == "") || (data.SettlementMethodID != "" && !validID(data.SettlementMethodID)) || (data.DefaultPurchaserEmployeeID != "" && !validID(data.DefaultPurchaserEmployeeID)) {
+	if (data.DefaultPurchaserApprovalEntryID != "" && data.DefaultPurchaserEmployeeID == "") || (data.SettlementMethodID != "" && !validID(data.SettlementMethodID)) || (data.DefaultPurchaserEmployeeID != "" && !validID(data.DefaultPurchaserEmployeeID)) {
 		return SupplierData{}, newError(ErrorValidation, "validation_failed", "invalid supplier declaration data", nil, nil)
 	}
 	return supplierSnapshots(data), nil
 }
 func supplierDetail(data SupplierData) bobdomain.DetailView {
-	d := bobdomain.DetailView{ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark, SettlementMethodID: data.SettlementMethodID, SettlementMethodApprovalEntryID: data.SettlementMethodApprovalEntryID, SettlementMethodCode: data.SettlementMethodCode, SettlementMethodName: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOffset: data.SettlementDayOffset}
+	d := bobdomain.DetailView{ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark, SettlementMethodID: data.SettlementMethodID, SettlementMethodCode: data.SettlementMethodCode, SettlementMethodName: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOffset: data.SettlementDayOffset}
 	if data.SettlementDayOfMonth > 0 {
 		day := data.SettlementDayOfMonth
 		d.DayOfMonth = &day
@@ -113,7 +113,7 @@ func supplierDetail(data SupplierData) bobdomain.DetailView {
 	return d
 }
 func supplierFromDetail(data SupplierData, d bobdomain.DetailView) SupplierData {
-	data.SettlementMethodID, data.SettlementMethodApprovalEntryID = d.SettlementMethodID, d.SettlementMethodApprovalEntryID
+	data.SettlementMethodID = d.SettlementMethodID
 	data.SettlementMethodCode, data.SettlementMethodName = d.SettlementMethodCode, d.SettlementMethodName
 	data.SettlementTermCode, data.SettlementRuleType = d.TermCode, d.RuleType
 	data.SettlementMonthOffset, data.SettlementDayOffset = d.MonthOffset, d.DayOffset
@@ -124,14 +124,14 @@ func supplierFromDetail(data SupplierData, d bobdomain.DetailView) SupplierData 
 	return supplierSnapshots(data)
 }
 func supplierStored(row dbsqlc.GetDCLSupplierVersionRow) SupplierData {
-	return supplierSnapshots(SupplierData{ShortName: stringValue(row.ShortName), TaxNumber: stringValue(row.TaxNumber), ContactName: stringValue(row.ContactName), ContactPhone: stringValue(row.ContactPhone), Email: stringValue(row.Email), Address: stringValue(row.Address), Remark: stringValue(row.Remark), SettlementMethodID: stringValue(row.SettlementMethodID), SettlementMethodApprovalEntryID: stringValue(row.SettlementMethodApprovalEntryID), SettlementMethodCode: stringValue(row.SettlementMethodCode), SettlementMethodName: stringValue(row.SettlementMethodName), SettlementTermCode: stringValue(row.SettlementTermCode), SettlementRuleType: stringValue(row.SettlementRuleType), SettlementMonthOffset: row.SettlementMonthOffset, SettlementDayOfMonth: row.SettlementDayOfMonth, SettlementDayOffset: row.SettlementDayOffset, DefaultPurchaserEmployeeID: stringValue(row.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: stringValue(row.DefaultPurchaserEmployeeApprovalEntryID), DefaultPurchaserCode: stringValue(row.DefaultPurchaserEmployeeCode), DefaultPurchaserName: stringValue(row.DefaultPurchaserEmployeeName)})
+	return supplierSnapshots(SupplierData{ShortName: stringValue(row.ShortName), TaxNumber: stringValue(row.TaxNumber), ContactName: stringValue(row.ContactName), ContactPhone: stringValue(row.ContactPhone), Email: stringValue(row.Email), Address: stringValue(row.Address), Remark: stringValue(row.Remark), SettlementMethodID: stringValue(row.SettlementMethodID), SettlementMethodCode: stringValue(row.SettlementMethodCode), SettlementMethodName: stringValue(row.SettlementMethodName), SettlementTermCode: stringValue(row.SettlementTermCode), SettlementRuleType: stringValue(row.SettlementRuleType), SettlementMonthOffset: row.SettlementMonthOffset, SettlementDayOfMonth: row.SettlementDayOfMonth, SettlementDayOffset: row.SettlementDayOffset, DefaultPurchaserEmployeeID: stringValue(row.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: stringValue(row.DefaultPurchaserEmployeeApprovalEntryID), DefaultPurchaserCode: stringValue(row.DefaultPurchaserEmployeeCode), DefaultPurchaserName: stringValue(row.DefaultPurchaserEmployeeName)})
 }
 func supplierParams(id string, enabled bool, data SupplierData) dbsqlc.UpdateDCLSupplierVersionParams {
-	return dbsqlc.UpdateDCLSupplierVersionParams{ApprovalEntryID: id, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(data.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.SettlementTermCode), SettlementRuleType: nilIfEmpty(data.SettlementRuleType), SettlementMonthOffset: data.SettlementMonthOffset, SettlementDayOfMonth: data.SettlementDayOfMonth, SettlementDayOffset: data.SettlementDayOffset, DefaultPurchaserEmployeeID: nilIfEmpty(data.DefaultPurchaserEmployeeID), DefaultPurchaserEmployeeApprovalEntryID: nilIfEmpty(data.DefaultPurchaserApprovalEntryID), DefaultPurchaserEmployeeCode: nilIfEmpty(data.DefaultPurchaserCode), DefaultPurchaserEmployeeName: nilIfEmpty(data.DefaultPurchaserName), Enabled: enabled}
+	return dbsqlc.UpdateDCLSupplierVersionParams{ApprovalEntryID: id, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.SettlementTermCode), SettlementRuleType: nilIfEmpty(data.SettlementRuleType), SettlementMonthOffset: data.SettlementMonthOffset, SettlementDayOfMonth: data.SettlementDayOfMonth, SettlementDayOffset: data.SettlementDayOffset, DefaultPurchaserEmployeeID: nilIfEmpty(data.DefaultPurchaserEmployeeID), DefaultPurchaserEmployeeApprovalEntryID: nilIfEmpty(data.DefaultPurchaserApprovalEntryID), DefaultPurchaserEmployeeCode: nilIfEmpty(data.DefaultPurchaserCode), DefaultPurchaserEmployeeName: nilIfEmpty(data.DefaultPurchaserName), Enabled: enabled}
 }
 func supplierInsert(id string, enabled bool, data SupplierData) dbsqlc.InsertDCLSupplierVersionParams {
 	p := supplierParams(id, enabled, data)
-	return dbsqlc.InsertDCLSupplierVersionParams{ApprovalEntryID: p.ApprovalEntryID, ShortName: p.ShortName, TaxNumber: p.TaxNumber, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, Remark: p.Remark, SettlementMethodID: p.SettlementMethodID, SettlementMethodApprovalEntryID: p.SettlementMethodApprovalEntryID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, DefaultPurchaserEmployeeID: p.DefaultPurchaserEmployeeID, DefaultPurchaserEmployeeApprovalEntryID: p.DefaultPurchaserEmployeeApprovalEntryID, DefaultPurchaserEmployeeCode: p.DefaultPurchaserEmployeeCode, DefaultPurchaserEmployeeName: p.DefaultPurchaserEmployeeName, Enabled: p.Enabled}
+	return dbsqlc.InsertDCLSupplierVersionParams{ApprovalEntryID: p.ApprovalEntryID, ShortName: p.ShortName, TaxNumber: p.TaxNumber, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, Remark: p.Remark, SettlementMethodID: p.SettlementMethodID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, DefaultPurchaserEmployeeID: p.DefaultPurchaserEmployeeID, DefaultPurchaserEmployeeApprovalEntryID: p.DefaultPurchaserEmployeeApprovalEntryID, DefaultPurchaserEmployeeCode: p.DefaultPurchaserEmployeeCode, DefaultPurchaserEmployeeName: p.DefaultPurchaserEmployeeName, Enabled: p.Enabled}
 }
 func (s *SupplierService) resolve(ctx context.Context, tx pgx.Tx, data SupplierData, exact bool) (SupplierData, error) {
 	detail, err := s.current.ResolveOtherUnitDeclaration(ctx, tx, supplierDetail(data), exact)

@@ -64,7 +64,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
+	auxiliary := auxdomain.NewService(pool)
 	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
@@ -225,7 +225,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	t.Cleanup(pool.Close)
 
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	service := dcldomain.NewWarehouseService(pool, business, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
@@ -410,7 +410,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	}
 }
 
-func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
+func TestBobAuxiliaryCurrentReferenceBoundaryIntegration(t *testing.T) {
 	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
 	databaseName := strings.TrimSpace(os.Getenv("TEST_POSTGRES_DB"))
 	if databaseURL == "" || !strings.HasSuffix(databaseName, "_test") {
@@ -423,7 +423,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 	t.Cleanup(pool.Close)
 
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
+	auxiliary := auxdomain.NewService(pool)
 	bobService := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	productService := dcldomain.NewProductService(pool, bobService, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
@@ -437,28 +437,14 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 		}
 		return result
 	}
-	createApprovedAuxiliary := func(entity string, data map[string]any, label string) auxdomain.MutationResult {
+	createAuxiliary := func(entity string, data map[string]any, label string) auxdomain.MutationResult {
 		created, createErr := auxiliary.Create(t.Context(), entity, auxdomain.CreateInput{
 			Data: auxdomain.CreateData{Data: data},
 		}, actor(label+"-create"))
 		if createErr != nil {
 			t.Fatalf("create %s: %v", label, createErr)
 		}
-		pending, submitErr := auxiliary.Submit(t.Context(), entity, auxdomain.ApprovalRevisionInput{
-			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
-			ApprovalRevision: created.Approval.Revision,
-		}, actor(label+"-submit"))
-		if submitErr != nil {
-			t.Fatalf("submit %s: %v", label, submitErr)
-		}
-		approved, approveErr := auxiliary.Approve(t.Context(), entity, auxdomain.ApprovalRevisionInput{
-			ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
-			ApprovalRevision: pending.Approval.Revision,
-		}, actor(label+"-approve"))
-		if approveErr != nil {
-			t.Fatalf("approve %s: %v", label, approveErr)
-		}
-		return approved
+		return created
 	}
 	approveProduct := func(created bob.MutationResult, label string) bob.MutationResult {
 		pending, submitErr := productService.Submit(t.Context(), dcldomain.ProductVersionInput{
@@ -479,7 +465,7 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 	}
 
 	suffix := ulid.Make().String()
-	productType := createApprovedAuxiliary(auxdomain.EntityProductType, map[string]any{
+	productType := createAuxiliary(auxdomain.EntityProductType, map[string]any{
 		"name": "PR3 原材料类型-" + suffix, "behaviorProfile": "RAW_MATERIAL",
 	}, "product-type-"+suffix)
 	unit, err := auxiliary.ResolveCode(t.Context(), nil, auxdomain.EntityMeasurementUnit, "UNT-0001")
@@ -499,10 +485,9 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 		return productMutation(created)
 	}
 
-	// A pending BOB candidate is not a formal reference, so it must not block
-	// AUX unapprove. The subsequent BOB approve must revalidate its frozen AUX
-	// approval-entry snapshot and reject the now-unavailable category.
-	candidateCategory := createApprovedAuxiliary(auxdomain.EntityProductCategory, map[string]any{
+	// AUX data is current-state only. Updating it while a BOB candidate is
+	// pending keeps the stable object reference valid for the candidate approve.
+	candidateCategory := createAuxiliary(auxdomain.EntityProductCategory, map[string]any{
 		"name": "PR3 候选分类-" + suffix,
 	}, "candidate-category-"+suffix)
 	candidateProduct := newProduct(candidateCategory.ObjectID, "PR3 候选产品-"+suffix)
@@ -513,81 +498,37 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit candidate product: %v", err)
 	}
-	reason := "verify candidate reference boundary"
-	if _, err = auxiliary.Unapprove(t.Context(), auxdomain.EntityProductCategory, auxdomain.ReviewInput{
-		ApprovalRevisionInput: auxdomain.ApprovalRevisionInput{
-			ObjectID: candidateCategory.ObjectID, ApprovalEntryID: candidateCategory.Approval.ApprovalEntryID,
-			ApprovalRevision: candidateCategory.Approval.Revision,
-		}, Reason: &reason,
-	}, actor("candidate-category-unapprove-"+suffix)); err != nil {
-		t.Fatalf("pending BOB candidate incorrectly blocked AUX unapprove: %s", errorChain(err))
+	if _, err = auxiliary.Save(t.Context(), auxdomain.EntityProductCategory, auxdomain.SaveInput{
+		ObjectID: candidateCategory.ObjectID, ObjectRevision: candidateCategory.ObjectRevision,
+		Data: map[string]any{"name": "PR3 候选分类 V2-" + suffix},
+	}, actor("candidate-category-save-"+suffix)); err != nil {
+		t.Fatalf("save candidate category current data: %v", err)
 	}
 	if _, err = productService.Approve(t.Context(), dcldomain.ProductVersionInput{
 		ObjectID: candidatePending.ObjectID, ApprovalEntryID: candidatePending.Approval.ApprovalEntryID,
 		ApprovalRevision: candidatePending.Approval.Revision,
-	}, actor("candidate-product-approve-"+suffix)); err == nil {
-		t.Fatal("BOB approve accepted an AUX snapshot that was no longer latest approved")
+	}, actor("candidate-product-approve-"+suffix)); err != nil {
+		t.Fatalf("approve candidate product with current AUX reference: %v", err)
 	}
 
-	// A latest APPROVED BOB version is a formal reference and must block AUX
-	// unapprove. Querying by the same category also exercises the SQL-side
-	// filter/count path so pagination totals cannot be distorted post-page.
-	formalCategory := createApprovedAuxiliary(auxdomain.EntityProductCategory, map[string]any{
+	// A BOB current projection keeps its own snapshot, while its persisted AUX
+	// reference blocks destructive deletion of the current object.
+	formalCategory := createAuxiliary(auxdomain.EntityProductCategory, map[string]any{
 		"name": "PR3 正式分类-" + suffix,
 	}, "formal-category-"+suffix)
 	formalName := "PR3 正式产品-" + suffix
 	formalProduct := approveProduct(newProduct(formalCategory.ObjectID, formalName), "formal-product-"+suffix)
 	formalCategoryV2, err := auxiliary.Save(t.Context(), auxdomain.EntityProductCategory, auxdomain.SaveInput{
-		ObjectID: formalCategory.ObjectID, ApprovalEntryID: formalCategory.Approval.ApprovalEntryID,
-		ApprovalRevision: formalCategory.Approval.Revision,
-		Data:             map[string]any{"name": "PR3 正式分类 V2-" + suffix},
+		ObjectID: formalCategory.ObjectID, ObjectRevision: formalCategory.ObjectRevision,
+		Data: map[string]any{"name": "PR3 正式分类 V2-" + suffix},
 	}, actor("formal-category-v2-save-"+suffix))
 	if err != nil {
-		t.Fatalf("create formal category V2: %v", err)
-	}
-	formalCategoryV2, err = auxiliary.Submit(t.Context(), auxdomain.EntityProductCategory, auxdomain.ApprovalRevisionInput{
-		ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
-		ApprovalRevision: formalCategoryV2.Approval.Revision,
-	}, actor("formal-category-v2-submit-"+suffix))
-	if err != nil {
-		t.Fatalf("submit formal category V2: %v", err)
-	}
-	formalCategoryV2, err = auxiliary.Approve(t.Context(), auxdomain.EntityProductCategory, auxdomain.ApprovalRevisionInput{
-		ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
-		ApprovalRevision: formalCategoryV2.Approval.Revision,
-	}, actor("formal-category-v2-approve-"+suffix))
-	if err != nil {
-		t.Fatalf("approve formal category V2: %v", err)
-	}
-	formalCategoryV2, err = auxiliary.Unapprove(t.Context(), auxdomain.EntityProductCategory, auxdomain.ReviewInput{
-		ApprovalRevisionInput: auxdomain.ApprovalRevisionInput{
-			ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
-			ApprovalRevision: formalCategoryV2.Approval.Revision,
-		}, Reason: &reason,
-	}, actor("formal-category-v2-unapprove-"+suffix))
-	if err != nil {
-		t.Fatalf("V1 BOB snapshot incorrectly blocked AUX V2 unapprove: %v", err)
-	}
-	formalCategoryV2, err = auxiliary.Unsubmit(t.Context(), auxdomain.EntityProductCategory, auxdomain.ApprovalRevisionInput{
-		ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
-		ApprovalRevision: formalCategoryV2.Approval.Revision,
-	}, actor("formal-category-v2-unsubmit-"+suffix))
-	if err != nil {
-		t.Fatalf("unsubmit formal category V2: %v", err)
+		t.Fatalf("save formal category current data: %v", err)
 	}
 	if err = auxiliary.Delete(t.Context(), auxdomain.EntityProductCategory, auxdomain.DeleteInput{
-		ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
-		ApprovalRevision: formalCategoryV2.Approval.Revision,
-	}, actor("formal-category-v2-delete-"+suffix)); err != nil {
-		t.Fatalf("delete formal category V2: %v", err)
-	}
-	if _, err = auxiliary.Unapprove(t.Context(), auxdomain.EntityProductCategory, auxdomain.ReviewInput{
-		ApprovalRevisionInput: auxdomain.ApprovalRevisionInput{
-			ObjectID: formalCategory.ObjectID, ApprovalEntryID: formalCategory.Approval.ApprovalEntryID,
-			ApprovalRevision: formalCategory.Approval.Revision,
-		}, Reason: &reason,
-	}, actor("formal-category-unapprove-"+suffix)); err == nil {
-		t.Fatal("latest APPROVED BOB reference did not block AUX unapprove")
+		ObjectID: formalCategoryV2.ObjectID, ObjectRevision: formalCategoryV2.ObjectRevision,
+	}, actor("formal-category-delete-"+suffix)); err == nil {
+		t.Fatal("persisted BOB reference did not block AUX deletion")
 	}
 	page, err := bobService.Query(t.Context(), bob.EntityProduct, bob.QueryInput{
 		Page: 1, PageSize: 20,
@@ -614,7 +555,7 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 	t.Cleanup(pool.Close)
 
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	service := dcldomain.NewWarehouseService(pool, business, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {

@@ -866,10 +866,7 @@ const explicitBobQueryEntities = [
   .map((match) => match[1])
   .filter((entity) => openapiSource.includes(`'/bob/${entity}/get':`))
 compareSets('frontend BOB 页面注册', registeredEntities('bob'), [
-  ...new Set([
-    ...bobReadableEntities,
-    ...explicitBobQueryEntities,
-  ]),
+  ...new Set([...bobReadableEntities, ...explicitBobQueryEntities]),
 ])
 
 const auxSchemaSource = fs.readFileSync(

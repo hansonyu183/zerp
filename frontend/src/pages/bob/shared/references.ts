@@ -170,10 +170,10 @@ export function useBobReferences(
                 {
                   title: formatReferenceLabel({
                     code: item.code,
-                    name: item.latestApproved?.data.name ?? '',
+                    name: item.data.name ?? '',
                   }),
                   value,
-                  metadata: { ...item.latestApproved?.data },
+                  metadata: { ...item.data },
                 },
               ]
               return
@@ -237,10 +237,10 @@ export function useBobReferences(
               {
                 title: formatReferenceLabel({
                   code: data.code,
-                  name: data.latestApproved?.data.name ?? '',
+                  name: data.data.name ?? '',
                 }),
                 value,
-                metadata: { ...data.latestApproved?.data },
+                metadata: { ...data.data },
               },
             ]
             return
@@ -322,10 +322,10 @@ export function useBobReferences(
         ).data.items.map((item) => ({
           title: formatReferenceLabel({
             code: item.code,
-            name: item.latestApproved?.data.name ?? '',
+            name: item.data.name ?? '',
           }),
           value: reference.value === 'code' ? item.code : item.objectId,
-          metadata: { ...item.latestApproved?.data },
+          metadata: { ...item.data },
         }))
       } else if (reference.entity === 'other-unit') {
         loaded = (

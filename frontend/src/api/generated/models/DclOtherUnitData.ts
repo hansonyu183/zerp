@@ -4,7 +4,6 @@
 /* eslint-disable */
 import type { DclOtherUnitInput } from './DclOtherUnitInput';
 export type DclOtherUnitData = (DclOtherUnitInput & {
-  settlementMethodApprovalEntryId?: string;
   settlementMethodCode?: string;
   settlementMethodName?: string;
   settlementTermCode?: string;

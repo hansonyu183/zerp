@@ -90,7 +90,7 @@ func New(
 		return nil, errors.New("production demo seed pool is required")
 	}
 	events := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, events)
+	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	vouchers, err := voudomain.NewService(

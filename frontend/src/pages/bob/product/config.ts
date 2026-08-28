@@ -8,7 +8,7 @@ export const productConfig = defineBobEntityConfig({
   nameLabel: '产品名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     productTypeId: '',
     behaviorProfile: '',
     defaultInputUnitId: '',
@@ -26,7 +26,7 @@ export const productConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -75,9 +75,9 @@ export const productConfig = defineBobEntityConfig({
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

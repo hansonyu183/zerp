@@ -133,7 +133,7 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 
 客户版本保存默认运输政策：`defaultTransportMethodCode`、`defaultTransportMethodName` 和 `defaultTransportSurcharge`。运输方式和客户约定运输加价是两个独立事实，不使用 OIT/KY 的混合字段名；加价为非负、最多两位小数的元/kg 定点字符串。客户草稿可以暂缺，提交和审核时必须完整。新销售订单默认带入，允许按单修改，并保存最终运输方式和加价快照。
 
-客户通过 `paymentMethodId` 选择当前启用的 AUX 收款方式。客户版本直接保存 `paymentMethodId`、来源 `approvalEntryId`、`paymentMethodCode`、`paymentMethodName` 和 `paymentMethodSalesSurcharge`。收款方式回答“使用什么付款媒介”，结算方式回答“何时应付款”；两组快照独立保存、独立影响销售价格，不得合并。客户草稿可以暂缺收款方式，提交和审核时必须完整，且所存 entry 必须仍是来源对象的 latest approved。
+客户通过 `paymentMethodId` 选择当前启用的 AUX 收款方式。客户版本直接保存 `paymentMethodId`、`paymentMethodCode`、`paymentMethodName` 和 `paymentMethodSalesSurcharge`，不保存 AUX Approval Entry。收款方式回答“使用什么付款媒介”，结算方式回答“何时应付款”；两组快照独立保存、独立影响销售价格，不得合并。客户草稿可以暂缺收款方式，提交和审核时必须保证自身快照完整，不因 AUX current 后续改变而重解释。
 
 客户价格政策把偏离基础报价的金额严格分为销售成本组成、销售溢价和销售优惠。`pricingPolicy.defaultPremiumUnitPrice` 和 `pricingPolicy.defaultDiscountUnitPrice` 是策略内两个互相独立的顶层字段；两者均为非负、最多两位小数的单位价格并默认 `0.00`，允许同时为正数。两项都进入自动价格并由新销售订单分别带入：前者自动增加默认溢价，后者自动给出默认优惠。`defaultDiscountUnitPrice` 同时就是该客户免批优惠单价，不另设审批阈值字段；订单最终优惠单价超过它时必须特殊批准，等于时不触发。整单优惠总额、成本和溢价均不触发该优惠审批。成本组成必须以具名来源单独保存，不进入溢价或优惠字段。
 
@@ -153,7 +153,7 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 
 OIT/KY 的 `payday`（可延期天数）不迁移。它不叠加到应付款日期，也不改名保留为回款宽限字段；应付款日期只按客户结算快照和实际业务日期计算。OIT/KY 的 `print_sq` 仍有单据展示用途，但不属于客户主数据：销售订单自行保存可编辑的打印数期，并从同一客户结算子账户的上一张合格订单取得默认值；上一单选择和无历史订单默认值属于单据域规则。`file_memo` 同样不作为客户字段；资料摘要必须由实际客户附件事实生成，不维护可漂移的重复说明。
 
-主体和客户关系都可拥有附件：营业执照、税务资料等身份附件归主体；合同、价格、开票和交付约定等客户业务附件归客户关系或对应结算子账户。主体附件随 DCL Party 候选版本复制并进入同一 Approval 审计；关系及子账户附件随对应候选版本复制，只有候选 `DRAFT` 版本可以新增、移除或改类，`APPROVED` 和历史版本附件只读且不得被候选变化覆盖。每个附件最多 10 MiB。每个客户业务附件必须选择 AUX“客户资料类别”字典项，并在关联上保存字典对象、`approvalEntryId`、编码和名称快照；新增附件或重新分类只能选择当前启用且存在 latest approved 版本的类别，复制到候选版本的既有附件保留原类别快照，类别后续改名或停用不改写历史。没有附件或缺少某一类别不阻止保存、提交、审核或交易。
+主体和客户关系都可拥有附件：营业执照、税务资料等身份附件归主体；合同、价格、开票和交付约定等客户业务附件归客户关系或对应结算子账户。主体附件随 DCL Party 候选版本复制并进入同一 Approval 审计；关系及子账户附件随对应候选版本复制，只有候选 `DRAFT` 版本可以新增、移除或改类，`APPROVED` 和历史版本附件只读且不得被候选变化覆盖。每个附件最多 10 MiB。每个客户业务附件必须选择当前启用的 AUX“客户资料类别”字典项，并在关联上保存字典 stable ID、编码和名称快照；复制到候选版本的既有附件保留原类别快照，类别后续改名或停用不改写历史。没有附件或缺少某一类别不阻止保存、提交、审核或交易。
 
 服务相关附件分三层保存：营业执照、税务资料等身份文件归主体；只证明合作资格或关系约定、但不属于某份正式合同的资料归服务关系版本；正式合同、补充协议、履约证据和验收材料归对应 VOU 单据。服务关系候选版本复制关系附件，已批准和历史版本附件只读；任何一层都不得复制另两层附件形成第二份事实。
 
@@ -161,9 +161,9 @@ OIT/KY 销售单据中的“品牌”并非商品品牌，其真实业务含义�
 
 ### 2.2 客户与供应商结算方式快照
 
-结算方式辅助对象及 11 种固定规则由 [AUX 领域](aux.md#33-结算方式)维护。客户选择当前启用的 AUX 结算方式时，客户版本直接保存 `settlementMethodId`、来源 `approvalEntryId`、`settlementMethodCode`、`settlementMethodName`、`settlementTermCode`、`settlementRuleType`、`settlementMonthOffset`、`settlementDayOfMonth`、`settlementDayOffset` 和 `settlementSalesSurcharge`。供应商保存相同的来源、名称、术语和到期参数，但不保存或使用客户销售加价。
+结算方式辅助对象及 11 种固定规则由 [AUX 领域](aux.md#33-结算方式)维护。客户选择当前启用的 AUX 结算方式时，客户版本直接保存 `settlementMethodId`、`settlementMethodCode`、`settlementMethodName`、`settlementTermCode`、`settlementRuleType`、`settlementMonthOffset`、`settlementDayOfMonth`、`settlementDayOffset` 和 `settlementSalesSurcharge`，不保存 AUX Approval Entry。供应商保存相同的 stable ID、名称、术语和到期参数，但不保存或使用客户销售加价。
 
-上述字段作为一组由后端原子复制和校验的结算快照，客户端不能分别拼装或覆盖其中参数。客户、供应或服务关系显式重新选择结算方式时才整体替换；AUX 来源后续改名、调价、停用或产生新版本均不追溯改变既有版本。引用方提交和审核时既校验快照内部完整与参数组合，也按已存 `approvalEntryId` 确认来源对象仍当前启用且该 entry 仍是 latest approved；服务关系没有默认快照时不执行完整性校验。
+上述字段作为一组由后端原子复制和校验的结算快照，客户端不能分别拼装或覆盖其中参数。客户、供应或服务关系显式重新选择结算方式时才整体替换；AUX 来源后续改名、调价或停用均不追溯改变既有版本。引用方提交和审核只校验自身快照内部完整与参数组合，不运行时回查 AUX current；服务关系没有默认快照时不执行完整性校验。
 
 客户的 `primarySalesAttribution` 必填并按本章 2.1 节引用当前启用且存在 latest approved 版本的雇佣关系或销售合作关系；创建时必须传入完整的类型、关系和 `approvalEntryId`，保存时省略表示保持，显式 `null` 或空字符串无效。供应关系 DCL candidate 使用 `defaultPurchaserEmployeeId` 引用任意当前启用且存在 latest approved 版本的雇佣关系且不附加岗位限制，并保存 stable ID、精确 Approval Entry、编码和名称 snapshot；草稿可以暂缺，提交和审核时必填。该字段只表示我方默认采购员，不表示供应方联系人。
 
@@ -209,9 +209,9 @@ BOB current row 是可重建投影而非版本权威；它只可由对应 DCL ap
 
 ### 2.5 辅助对象与业务对象引用
 
-`productTypeId`、`categoryId`、`employeeCategoryId`、`departmentId` 和 `positionId` 分别引用 AUX 的产品类型、产品分类、人员类别、部门和岗位；`managerEmployeeId` 和供应关系 `defaultPurchaserEmployeeId` 引用 BOB employee current。客户、供应、雇佣、服务和销售合作关系以及资金账户均引用一个 BOB 经营主体。创建、保存、提交和审核时，这些被引用对象必须存在、处于可引用状态且类型匹配。关系的经营主体在创建后不可转移。`settlementMethodId` 记录结算方式辅助对象的稳定对象和来源 `approvalEntryId`：选择或更换时来源必须当前启用并把关键值复制进引用方版本，提交和审核时必须重新确认已存 entry 仍是 latest approved；已有正式版本和交易单据继续使用自身快照，不追溯改写。
+`productTypeId`、`categoryId`、`employeeCategoryId`、`departmentId` 和 `positionId` 分别引用 AUX 的产品类型、产品分类、人员类别、部门和岗位；`managerEmployeeId` 和供应关系 `defaultPurchaserEmployeeId` 引用 BOB employee current。客户、供应、雇佣、服务和销售合作关系以及资金账户均引用一个 BOB 经营主体。AUX 新选择必须存在、启用且 entity 匹配，并把需要的 typed 值复制进引用方版本；提交和审核只校验引用方 snapshot。关系的经营主体在创建后不可转移。已有正式版本和交易单据继续使用自身快照，不追溯改写。
 
-产品分类只允许用于产品，不再为客户、供应商、员工、服务、仓库、车辆、资金账户等对象提供含义宽泛的通用分类。AUX 对象停用或修改后不会追溯改变已经生效的申报版本；新的草稿和审核操作必须按当时状态重新校验。车辆与承运归属对象的严格递归有效性规则仍按 2.4 节执行。
+产品分类只允许用于产品，不再为客户、供应商、员工、服务、仓库、车辆、资金账户等对象提供含义宽泛的通用分类。AUX 对象停用或修改后不会追溯改变已经保存的申报版本；只有用户新选择或更换 AUX 对象时才校验当时的 current 状态，后续审核只校验引用方快照完整性。车辆与承运归属对象的严格递归有效性规则仍按 2.4 节执行。
 
 ## 3. 聚合模型
 
@@ -389,7 +389,7 @@ VOU 已保存的 `objectId + approvalEntryId` 快照在对象产生新批准版�
 
 解析车辆正式引用时，从 BOB current 取得 DCL 来源 `approvalEntryId` 和完整车辆快照，并在同一事务内按 `carrierAffiliation.type` 确认经营主体或服务关系仍存在可用 current。车辆和承运归属对象的共享锁保持到消费方事务结束，防止校验后承运归属立即失效；已有业务使用精确车辆 Approval Entry 校验历史正式快照，不回读当前车型或承运归属重写历史。
 
-AUX 产品分类、部门、岗位，以及 BOB 经营主体、负责人、主要业务归属和默认采购员引用在引用方的创建、保存、提交和审核阶段校验。结算方式只在用户选择或更换时校验来源并复制关键值，后续不形成版本依赖。VOU 使用客户关系的经营主体、客户主要业务归属或供应关系默认采购员创建新单据时，会在同一事务内解析对应对象的 latest approved 版本。最终经营主体与资金账户必须引用同一经营主体对象；资金账户引用投影不返回完整账号。
+AUX 产品分类、部门、岗位和结算方式只在用户选择或更换时校验 current stable object 并复制关键值，后续不形成 current 依赖；BOB 经营主体、负责人、主要业务归属和默认采购员仍按 DCL Approval Entry 在引用方的创建、保存、提交和审核阶段校验。VOU 使用客户关系的经营主体、客户主要业务归属或供应关系默认采购员创建新单据时，会在同一事务内解析对应对象的 latest approved 版本。最终经营主体与资金账户必须引用同一经营主体对象；资金账户引用投影不返回完整账号。
 
 引用候选在读取时有效不构成写入保证。为避免“校验后、交易写入前”发生编辑失效，交易事务应对对象行取得与 BOB 编辑更新互斥的共享锁，或采用经验证的等效数据库约束/串行化方案。
 
@@ -403,7 +403,7 @@ AUX 产品分类、部门、岗位，以及 BOB 经营主体、负责人、主�
 2. **实体校验**：各实体字段组合、精度、编码规则和条件必填；
 3. **领域校验**：状态、提交人与审核人分离、唯一性、关联对象有效性和并发版本。
 
-`code` 在同一实体的稳定对象间唯一。主体强标识按标识类型和规范化值在未合并主体中唯一；已合并来源主体的强标识保留用于审计和解析，但不允许据此新建主体。条码、VIN、资金账号和车牌由 latest approved 与唯一开放候选共同占用，旧批准版本释放占用。分类和部门属于 AUX；其父级有效性、同类约束与无环约束由 AUX Service 在批准事务中串行校验。数据库触发器只保留普通 `UNIQUE` 无法表达、且必须抵御并发写入的版本化标识占用约束；约束冲突统一映射为领域数据冲突。
+`code` 在同一实体的稳定对象间唯一。主体强标识按标识类型和规范化值在未合并主体中唯一；已合并来源主体的强标识保留用于审计和解析，但不允许据此新建主体。条码、VIN、资金账号和车牌由 latest approved 与唯一开放候选共同占用，旧批准版本释放占用。分类和部门属于 AUX；其父级有效性、同类约束与无环约束由 AUX Service 在 direct save 事务中串行校验。数据库触发器只保留普通 `UNIQUE` 无法表达、且必须抵御并发写入的版本化标识占用约束；约束冲突统一映射为领域数据冲突。
 
 ## 10. 权限与审计
 

@@ -119,10 +119,10 @@ func (s *CustomerAccountService) resolve(ctx context.Context, tx pgx.Tx, relatio
 	}
 	result := CustomerAccountData{CustomerAccountDataInput: data, OperatingEntityID: op.ObjectID, OperatingEntity: &CustomerSnapshot{SourceObjectID: op.ObjectID, ApprovalEntryID: op.ApprovalEntryID, Code: op.Code, Name: op.Data.Name, TaxNumber: op.Data.TaxNumber, Address: op.Data.Address, Phone: op.Data.Phone}, PrimarySalesAttribution: CustomerSalesAttributionSnapshot{CustomerSalesAttributionInput: data.PrimarySalesAttribution, SubjectApprovalEntryID: sales.ApprovalEntryID, SubjectCode: sales.Code, SubjectName: sales.Data.Name}}
 	if data.SettlementMethodID != "" {
-		result.SettlementMethod = &CustomerSnapshot{SourceObjectID: settlement.ObjectID, ApprovalEntryID: settlement.ApprovalEntryID, Code: settlement.Code, Name: settlement.Data.Name, TermCode: settlement.Data.TermCode, RuleType: settlement.Data.RuleType, DueDays: settlement.Data.DueDays, MonthOffset: settlement.Data.MonthOffset, DefaultSalesSurcharge: settlement.Data.DefaultSalesSurcharge}
+		result.SettlementMethod = &CustomerAuxiliarySnapshot{SourceObjectID: settlement.ObjectID, Code: settlement.Code, Name: settlement.Data.Name, TermCode: settlement.Data.TermCode, RuleType: settlement.Data.RuleType, DueDays: settlement.Data.DueDays, MonthOffset: settlement.Data.MonthOffset, DefaultSalesSurcharge: settlement.Data.DefaultSalesSurcharge}
 	}
 	if data.PaymentMethodID != "" {
-		result.PaymentMethod = &CustomerSnapshot{SourceObjectID: payment.ObjectID, ApprovalEntryID: payment.ApprovalEntryID, Code: payment.Code, Name: payment.Data.Name, DefaultSalesSurcharge: payment.Data.DefaultSalesSurcharge}
+		result.PaymentMethod = &CustomerAuxiliarySnapshot{SourceObjectID: payment.ObjectID, Code: payment.Code, Name: payment.Data.Name, DefaultSalesSurcharge: payment.Data.DefaultSalesSurcharge}
 	}
 	return result, nil
 }
@@ -144,7 +144,6 @@ func accountParams(entryID string, enabled bool, data CustomerAccountData) (dbsq
 	if data.SettlementMethod != nil {
 		x := data.SettlementMethod
 		p.SettlementMethodID = nilIfEmpty(x.SourceObjectID)
-		p.SettlementMethodApprovalEntryID = nilIfEmpty(x.ApprovalEntryID)
 		p.SettlementMethodCode = nilIfEmpty(x.Code)
 		p.SettlementMethodName = nilIfEmpty(x.Name)
 		p.SettlementTermCode = nilIfEmpty(x.TermCode)
@@ -157,7 +156,6 @@ func accountParams(entryID string, enabled bool, data CustomerAccountData) (dbsq
 	if data.PaymentMethod != nil {
 		x := data.PaymentMethod
 		p.PaymentMethodID = nilIfEmpty(x.SourceObjectID)
-		p.PaymentMethodApprovalEntryID = nilIfEmpty(x.ApprovalEntryID)
 		p.PaymentMethodCode = nilIfEmpty(x.Code)
 		p.PaymentMethodName = nilIfEmpty(x.Name)
 		p.PaymentSalesSurchargeCents = paymentSurcharge
@@ -171,8 +169,8 @@ func accountUpdateParams(entryID string, enabled bool, data CustomerAccountData)
 	}
 	return dbsqlc.UpdateDCLCustomerAccountVersionParams{
 		Name: p.Name, CustomerType: p.CustomerType, ShortName: p.ShortName, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address,
-		SettlementMethodID: p.SettlementMethodID, SettlementMethodApprovalEntryID: p.SettlementMethodApprovalEntryID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementDueDays: p.SettlementDueDays, SettlementMonthOffset: p.SettlementMonthOffset, SettlementCutoffDay: p.SettlementCutoffDay, SettlementSalesSurchargeCents: p.SettlementSalesSurchargeCents,
-		PaymentMethodID: p.PaymentMethodID, PaymentMethodApprovalEntryID: p.PaymentMethodApprovalEntryID, PaymentMethodCode: p.PaymentMethodCode, PaymentMethodName: p.PaymentMethodName, PaymentSalesSurchargeCents: p.PaymentSalesSurchargeCents,
+		SettlementMethodID: p.SettlementMethodID, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementDueDays: p.SettlementDueDays, SettlementMonthOffset: p.SettlementMonthOffset, SettlementCutoffDay: p.SettlementCutoffDay, SettlementSalesSurchargeCents: p.SettlementSalesSurchargeCents,
+		PaymentMethodID: p.PaymentMethodID, PaymentMethodName: p.PaymentMethodName, PaymentSalesSurchargeCents: p.PaymentSalesSurchargeCents,
 		OperatingEntityID: p.OperatingEntityID, OperatingEntityApprovalEntryID: p.OperatingEntityApprovalEntryID, OperatingEntityCode: p.OperatingEntityCode, OperatingEntityName: p.OperatingEntityName, OperatingEntityTaxNumber: p.OperatingEntityTaxNumber, OperatingEntityAddress: p.OperatingEntityAddress, OperatingEntityPhone: p.OperatingEntityPhone,
 		DefaultTransportMethodCode: p.DefaultTransportMethodCode, DefaultTransportMethodName: p.DefaultTransportMethodName, TransportSurchargeCents: p.TransportSurchargeCents, PricingPolicy: p.PricingPolicy,
 		PrimarySalesAttributionType: p.PrimarySalesAttributionType, PrimarySalesSubjectID: p.PrimarySalesSubjectID, PrimarySalesSubjectApprovalEntryID: p.PrimarySalesSubjectApprovalEntryID, PrimarySalesSubjectCode: p.PrimarySalesSubjectCode, PrimarySalesSubjectName: p.PrimarySalesSubjectName, InternalReminder: p.InternalReminder, DefaultSalesOrderRemark: p.DefaultSalesOrderRemark, Enabled: p.Enabled, ApprovalEntryID: entryID,
@@ -391,7 +389,7 @@ func (s *CustomerAccountService) transition(ctx context.Context, in CustomerAcco
 			return CustomerAccountMutation{}, translateError(identityErr)
 		}
 		if _, err = s.current.ValidateApprovedSnapshotReference(ctx, tx, bobdomain.EntityOperatingEntity, stored.OperatingEntityID, stored.OperatingEntityApprovalEntryID); err == nil {
-			err = s.current.ValidateCustomerAccountReferences(ctx, tx, customer.PartyID, stringValue(stored.SettlementMethodID), stringValue(stored.SettlementMethodApprovalEntryID), stringValue(stored.PaymentMethodID), stringValue(stored.PaymentMethodApprovalEntryID), stringValue(stored.PrimarySalesAttributionType), stringValue(stored.PrimarySalesSubjectID), stringValue(stored.PrimarySalesSubjectApprovalEntryID))
+			err = s.current.ValidateCustomerAccountReferences(ctx, tx, customer.PartyID, stringValue(stored.SettlementMethodID), "", stringValue(stored.PaymentMethodID), "", stringValue(stored.PrimarySalesAttributionType), stringValue(stored.PrimarySalesSubjectID), stringValue(stored.PrimarySalesSubjectApprovalEntryID))
 		}
 		if err != nil {
 			return CustomerAccountMutation{}, translateError(err)

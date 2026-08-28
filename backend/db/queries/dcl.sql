@@ -277,15 +277,15 @@ LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 -- Supplier keeps its Party-to-operating-entity relationship in BOB. DCL owns
 -- all mutable commercial facts and the exact snapshots used by purchasing.
 -- name: InsertDCLSupplierVersion :exec
-INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
-VALUES(sqlc.arg(approval_entry_id),sqlc.narg(short_name),sqlc.narg(tax_number),sqlc.narg(contact_name),sqlc.narg(contact_phone),sqlc.narg(email),sqlc.narg(address),sqlc.narg(remark),sqlc.narg(settlement_method_id),sqlc.narg(settlement_method_approval_entry_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.arg(settlement_month_offset),sqlc.arg(settlement_day_of_month),sqlc.arg(settlement_day_offset),sqlc.narg(default_purchaser_employee_id),sqlc.narg(default_purchaser_employee_approval_entry_id),sqlc.narg(default_purchaser_employee_code),sqlc.narg(default_purchaser_employee_name),sqlc.arg(enabled));
+INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
+VALUES(sqlc.arg(approval_entry_id),sqlc.narg(short_name),sqlc.narg(tax_number),sqlc.narg(contact_name),sqlc.narg(contact_phone),sqlc.narg(email),sqlc.narg(address),sqlc.narg(remark),sqlc.narg(settlement_method_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.arg(settlement_month_offset),sqlc.arg(settlement_day_of_month),sqlc.arg(settlement_day_offset),sqlc.narg(default_purchaser_employee_id),sqlc.narg(default_purchaser_employee_approval_entry_id),sqlc.narg(default_purchaser_employee_code),sqlc.narg(default_purchaser_employee_name),sqlc.arg(enabled));
 
 -- name: CopyDCLSupplierVersion :execrows
-INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
-SELECT sqlc.arg(new_approval_entry_id),source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_approval_entry_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.default_purchaser_employee_id,source.default_purchaser_employee_approval_entry_id,source.default_purchaser_employee_code,source.default_purchaser_employee_name,source.enabled FROM dcl_supplier_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
+SELECT sqlc.arg(new_approval_entry_id),source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.default_purchaser_employee_id,source.default_purchaser_employee_approval_entry_id,source.default_purchaser_employee_code,source.default_purchaser_employee_name,source.enabled FROM dcl_supplier_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 
 -- name: UpdateDCLSupplierVersion :execrows
-UPDATE dcl_supplier_versions SET short_name=sqlc.narg(short_name),tax_number=sqlc.narg(tax_number),contact_name=sqlc.narg(contact_name),contact_phone=sqlc.narg(contact_phone),email=sqlc.narg(email),address=sqlc.narg(address),remark=sqlc.narg(remark),settlement_method_id=sqlc.narg(settlement_method_id),settlement_method_approval_entry_id=sqlc.narg(settlement_method_approval_entry_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),settlement_term_code=sqlc.narg(settlement_term_code),settlement_rule_type=sqlc.narg(settlement_rule_type),settlement_month_offset=sqlc.arg(settlement_month_offset),settlement_day_of_month=sqlc.arg(settlement_day_of_month),settlement_day_offset=sqlc.arg(settlement_day_offset),default_purchaser_employee_id=sqlc.narg(default_purchaser_employee_id),default_purchaser_employee_approval_entry_id=sqlc.narg(default_purchaser_employee_approval_entry_id),default_purchaser_employee_code=sqlc.narg(default_purchaser_employee_code),default_purchaser_employee_name=sqlc.narg(default_purchaser_employee_name),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+UPDATE dcl_supplier_versions SET short_name=sqlc.narg(short_name),tax_number=sqlc.narg(tax_number),contact_name=sqlc.narg(contact_name),contact_phone=sqlc.narg(contact_phone),email=sqlc.narg(email),address=sqlc.narg(address),remark=sqlc.narg(remark),settlement_method_id=sqlc.narg(settlement_method_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),settlement_term_code=sqlc.narg(settlement_term_code),settlement_rule_type=sqlc.narg(settlement_rule_type),settlement_month_offset=sqlc.arg(settlement_month_offset),settlement_day_of_month=sqlc.arg(settlement_day_of_month),settlement_day_offset=sqlc.arg(settlement_day_offset),default_purchaser_employee_id=sqlc.narg(default_purchaser_employee_id),default_purchaser_employee_approval_entry_id=sqlc.narg(default_purchaser_employee_approval_entry_id),default_purchaser_employee_code=sqlc.narg(default_purchaser_employee_code),default_purchaser_employee_name=sqlc.narg(default_purchaser_employee_name),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
 -- name: GetDCLSupplierVersion :one
 SELECT snapshot.*,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name
@@ -446,32 +446,28 @@ ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_o
 -- this DCL declaration stores only its versioned employment facts.
 -- name: InsertDCLEmployeeVersion :exec
 INSERT INTO dcl_employee_versions(
-  approval_entry_id,employee_category_id,employee_category_approval_entry_id,
-  employee_category_code,employee_category_name,department_id,department_approval_entry_id,
-  department_code,department_name,position_id,position_approval_entry_id,position_code,
+  approval_entry_id,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
   position_name,phone,email,hire_date,remark,enabled
 ) VALUES(
   sqlc.arg(approval_entry_id),sqlc.narg(employee_category_id),
-  sqlc.narg(employee_category_approval_entry_id),sqlc.narg(employee_category_code),
+  sqlc.narg(employee_category_code),
   sqlc.narg(employee_category_name),sqlc.narg(department_id),
-  sqlc.narg(department_approval_entry_id),sqlc.narg(department_code),
+  sqlc.narg(department_code),
   sqlc.narg(department_name),sqlc.narg(position_id),
-  sqlc.narg(position_approval_entry_id),sqlc.narg(position_code),
+  sqlc.narg(position_code),
   sqlc.narg(position_name),sqlc.narg(phone),sqlc.narg(email),sqlc.narg(hire_date),
   sqlc.narg(remark),sqlc.arg(enabled)
 );
 
 -- name: CopyDCLEmployeeVersion :execrows
 INSERT INTO dcl_employee_versions(
-  approval_entry_id,employee_category_id,employee_category_approval_entry_id,
-  employee_category_code,employee_category_name,department_id,department_approval_entry_id,
-  department_code,department_name,position_id,position_approval_entry_id,position_code,
+  approval_entry_id,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
   position_name,phone,email,hire_date,remark,enabled
 )
 SELECT sqlc.arg(new_approval_entry_id),source.employee_category_id,
-  source.employee_category_approval_entry_id,source.employee_category_code,source.employee_category_name,
-  source.department_id,source.department_approval_entry_id,source.department_code,source.department_name,
-  source.position_id,source.position_approval_entry_id,source.position_code,source.position_name,source.phone,source.email,
+  source.employee_category_code,source.employee_category_name,
+  source.department_id,source.department_code,source.department_name,
+  source.position_id,source.position_code,source.position_name,source.phone,source.email,
   source.hire_date,source.remark,source.enabled
 FROM dcl_employee_versions source
 WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
@@ -479,14 +475,10 @@ WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- name: UpdateDCLEmployeeVersion :execrows
 UPDATE dcl_employee_versions SET
   employee_category_id=sqlc.narg(employee_category_id),
-  employee_category_approval_entry_id=sqlc.narg(employee_category_approval_entry_id),
-  employee_category_code=sqlc.narg(employee_category_code),
-  employee_category_name=sqlc.narg(employee_category_name),
+  employee_category_code=sqlc.narg(employee_category_code),employee_category_name=sqlc.narg(employee_category_name),
   department_id=sqlc.narg(department_id),
-  department_approval_entry_id=sqlc.narg(department_approval_entry_id),
   department_code=sqlc.narg(department_code),department_name=sqlc.narg(department_name),
   position_id=sqlc.narg(position_id),
-  position_approval_entry_id=sqlc.narg(position_approval_entry_id),
   position_code=sqlc.narg(position_code),position_name=sqlc.narg(position_name),
   phone=sqlc.narg(phone),email=sqlc.narg(email),hire_date=sqlc.narg(hire_date),
   remark=sqlc.narg(remark),enabled=sqlc.arg(enabled)
@@ -521,13 +513,13 @@ WHERE snapshot.approval_entry_id=sqlc.arg(approval_entry_id)
 DELETE FROM dcl_employee_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
 -- name: InsertDCLOtherUnitVersion :exec
-INSERT INTO dcl_other_unit_versions(approval_entry_id,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark,enabled)
-VALUES(sqlc.arg(approval_entry_id),sqlc.narg(contact_name),sqlc.narg(contact_phone),sqlc.narg(email),sqlc.narg(address),sqlc.narg(settlement_method_id),sqlc.narg(settlement_method_approval_entry_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.arg(settlement_month_offset),sqlc.arg(settlement_day_of_month),sqlc.arg(settlement_day_offset),sqlc.narg(remark),sqlc.arg(enabled));
+INSERT INTO dcl_other_unit_versions(approval_entry_id,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark,enabled)
+VALUES(sqlc.arg(approval_entry_id),sqlc.narg(contact_name),sqlc.narg(contact_phone),sqlc.narg(email),sqlc.narg(address),sqlc.narg(settlement_method_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.arg(settlement_month_offset),sqlc.arg(settlement_day_of_month),sqlc.arg(settlement_day_offset),sqlc.narg(remark),sqlc.arg(enabled));
 -- name: CopyDCLOtherUnitVersion :execrows
-INSERT INTO dcl_other_unit_versions(approval_entry_id,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark,enabled)
-SELECT sqlc.arg(new_approval_entry_id),source.contact_name,source.contact_phone,source.email,source.address,source.settlement_method_id,source.settlement_method_approval_entry_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.remark,source.enabled FROM dcl_other_unit_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+INSERT INTO dcl_other_unit_versions(approval_entry_id,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark,enabled)
+SELECT sqlc.arg(new_approval_entry_id),source.contact_name,source.contact_phone,source.email,source.address,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.remark,source.enabled FROM dcl_other_unit_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- name: UpdateDCLOtherUnitVersion :execrows
-UPDATE dcl_other_unit_versions SET contact_name=sqlc.narg(contact_name),contact_phone=sqlc.narg(contact_phone),email=sqlc.narg(email),address=sqlc.narg(address),settlement_method_id=sqlc.narg(settlement_method_id),settlement_method_approval_entry_id=sqlc.narg(settlement_method_approval_entry_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),settlement_term_code=sqlc.narg(settlement_term_code),settlement_rule_type=sqlc.narg(settlement_rule_type),settlement_month_offset=sqlc.arg(settlement_month_offset),settlement_day_of_month=sqlc.arg(settlement_day_of_month),settlement_day_offset=sqlc.arg(settlement_day_offset),remark=sqlc.narg(remark),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+UPDATE dcl_other_unit_versions SET contact_name=sqlc.narg(contact_name),contact_phone=sqlc.narg(contact_phone),email=sqlc.narg(email),address=sqlc.narg(address),settlement_method_id=sqlc.narg(settlement_method_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),settlement_term_code=sqlc.narg(settlement_term_code),settlement_rule_type=sqlc.narg(settlement_rule_type),settlement_month_offset=sqlc.arg(settlement_month_offset),settlement_day_of_month=sqlc.arg(settlement_day_of_month),settlement_day_offset=sqlc.arg(settlement_day_offset),remark=sqlc.narg(remark),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: GetDCLOtherUnitVersion :one
 SELECT * FROM dcl_other_unit_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: DeleteDCLOtherUnitVersion :execrows
@@ -754,11 +746,11 @@ INSERT INTO dcl_warehouse_versions(
 
 -- name: CopyDCLWarehouseVersion :execrows
 INSERT INTO dcl_warehouse_versions(
-  approval_entry_id,category_id,category_approval_entry_id,category_entity,name,address,
+  approval_entry_id,category_id,category_entity,name,address,
   contact_name,contact_phone,manager_employee_id,manager_employee_approval_entry_id,
   manager_employee_entity,remark,enabled
 )
-SELECT sqlc.arg(new_approval_entry_id),category_id,category_approval_entry_id,category_entity,
+SELECT sqlc.arg(new_approval_entry_id),category_id,category_entity,
   name,address,contact_name,contact_phone,manager_employee_id,manager_employee_approval_entry_id,
   manager_employee_entity,remark,enabled
 FROM dcl_warehouse_versions WHERE dcl_warehouse_versions.approval_entry_id=sqlc.arg(source_approval_entry_id);
@@ -840,13 +832,13 @@ FROM approval_events WHERE domain='dcl' AND entity='warehouse' AND subject_id=sq
 ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: InsertDCLVehicleVersion :exec
-INSERT INTO dcl_vehicle_versions(approval_entry_id,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,bulk_liquid_capable,enabled)
-VALUES(sqlc.arg(approval_entry_id),sqlc.arg(name),sqlc.arg(plate_number),sqlc.arg(vehicle_type),sqlc.arg(vehicle_type_object_id),sqlc.arg(vehicle_type_approval_entry_id),sqlc.arg(vehicle_type_name),sqlc.narg(vin),sqlc.narg(engine_number),sqlc.narg(load_capacity_kg),sqlc.narg(remark),sqlc.arg(carrier_affiliation_type),sqlc.narg(carrier_operating_entity_id),sqlc.narg(carrier_operating_entity_approval_entry_id),sqlc.narg(carrier_service_relationship_object_id),sqlc.narg(carrier_service_relationship_approval_entry_id),sqlc.arg(bulk_liquid_capable),sqlc.arg(enabled));
+INSERT INTO dcl_vehicle_versions(approval_entry_id,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_name,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,bulk_liquid_capable,enabled)
+VALUES(sqlc.arg(approval_entry_id),sqlc.arg(name),sqlc.arg(plate_number),sqlc.arg(vehicle_type),sqlc.arg(vehicle_type_object_id),sqlc.arg(vehicle_type_name),sqlc.narg(vin),sqlc.narg(engine_number),sqlc.narg(load_capacity_kg),sqlc.narg(remark),sqlc.arg(carrier_affiliation_type),sqlc.narg(carrier_operating_entity_id),sqlc.narg(carrier_operating_entity_approval_entry_id),sqlc.narg(carrier_service_relationship_object_id),sqlc.narg(carrier_service_relationship_approval_entry_id),sqlc.arg(bulk_liquid_capable),sqlc.arg(enabled));
 -- name: CopyDCLVehicleVersion :execrows
-INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name,vehicle_type_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable,enabled)
-SELECT sqlc.arg(new_approval_entry_id),source.entity,source.name,source.plate_number,source.vehicle_type,source.vehicle_type_object_id,source.vehicle_type_approval_entry_id,source.vehicle_type_name,source.vehicle_type_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_service_relationship_object_id,source.carrier_service_relationship_approval_entry_id,source.carrier_service_relationship_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_name,vehicle_type_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable,enabled)
+SELECT sqlc.arg(new_approval_entry_id),source.entity,source.name,source.plate_number,source.vehicle_type,source.vehicle_type_object_id,source.vehicle_type_name,source.vehicle_type_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_service_relationship_object_id,source.carrier_service_relationship_approval_entry_id,source.carrier_service_relationship_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- name: UpdateDCLVehicleVersion :execrows
-UPDATE dcl_vehicle_versions SET name=sqlc.arg(name),plate_number=sqlc.arg(plate_number),vehicle_type=sqlc.arg(vehicle_type),vehicle_type_object_id=sqlc.arg(vehicle_type_object_id),vehicle_type_approval_entry_id=sqlc.arg(vehicle_type_approval_entry_id),vehicle_type_name=sqlc.arg(vehicle_type_name),vin=sqlc.narg(vin),engine_number=sqlc.narg(engine_number),load_capacity_kg=sqlc.narg(load_capacity_kg),remark=sqlc.narg(remark),carrier_affiliation_type=sqlc.arg(carrier_affiliation_type),carrier_operating_entity_id=sqlc.narg(carrier_operating_entity_id),carrier_operating_entity_approval_entry_id=sqlc.narg(carrier_operating_entity_approval_entry_id),carrier_service_relationship_object_id=sqlc.narg(carrier_service_relationship_object_id),carrier_service_relationship_approval_entry_id=sqlc.narg(carrier_service_relationship_approval_entry_id),bulk_liquid_capable=sqlc.arg(bulk_liquid_capable),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+UPDATE dcl_vehicle_versions SET name=sqlc.arg(name),plate_number=sqlc.arg(plate_number),vehicle_type=sqlc.arg(vehicle_type),vehicle_type_object_id=sqlc.arg(vehicle_type_object_id),vehicle_type_name=sqlc.arg(vehicle_type_name),vin=sqlc.narg(vin),engine_number=sqlc.narg(engine_number),load_capacity_kg=sqlc.narg(load_capacity_kg),remark=sqlc.narg(remark),carrier_affiliation_type=sqlc.arg(carrier_affiliation_type),carrier_operating_entity_id=sqlc.narg(carrier_operating_entity_id),carrier_operating_entity_approval_entry_id=sqlc.narg(carrier_operating_entity_approval_entry_id),carrier_service_relationship_object_id=sqlc.narg(carrier_service_relationship_object_id),carrier_service_relationship_approval_entry_id=sqlc.narg(carrier_service_relationship_approval_entry_id),bulk_liquid_capable=sqlc.arg(bulk_liquid_capable),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: GetDCLVehicleVersion :one
 SELECT * FROM dcl_vehicle_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 

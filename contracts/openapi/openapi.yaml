@@ -8459,7 +8459,7 @@
           'post':
             {
               'tags': ['aux'],
-              'summary': '创建辅助对象 V1 草稿',
+              'summary': '创建辅助对象并立即生效',
               'operationId': 'auxcreate',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
@@ -8499,7 +8499,7 @@
           'post':
             {
               'tags': ['aux'],
-              'summary': '保存辅助对象草稿；编辑已批准版本时创建候选版本',
+              'summary': '保存辅助对象 current data',
               'operationId': 'auxsave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
@@ -8520,212 +8520,6 @@
                   '200':
                     {
                       'description': '辅助对象变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/aux/{entity}/submit':
-        {
-          'post':
-            {
-              'tags': ['aux'],
-              'summary': '提交辅助对象候选版本',
-              'operationId': 'auxsubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '辅助对象审批变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/aux/{entity}/unsubmit':
-        {
-          'post':
-            {
-              'tags': ['aux'],
-              'summary': '撤回辅助对象候选版本提交',
-              'operationId': 'auxunsubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '辅助对象审批变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/aux/{entity}/approve':
-        {
-          'post':
-            {
-              'tags': ['aux'],
-              'summary': '批准辅助对象候选版本',
-              'operationId': 'auxapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '辅助对象审批变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/aux/{entity}/reject':
-        {
-          'post':
-            {
-              'tags': ['aux'],
-              'summary': '驳回辅助对象候选版本',
-              'operationId': 'auxreject',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/aux.yaml#/AuxReviewRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '辅助对象审批变更响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/aux/{entity}/unapprove':
-        {
-          'post':
-            {
-              'tags': ['aux'],
-              'summary': '反批辅助对象最新批准版本',
-              'operationId': 'auxunapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/aux.yaml#/AuxReviewRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '辅助对象审批变更响应。',
                       'content':
                         {
                           'application/json':
@@ -8842,93 +8636,13 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest',
+                              '$ref': './schemas/aux.yaml#/AuxObjectRevisionRequest',
                             },
                         },
                     },
                 },
               'responses':
                 { '200': { '$ref': '#/components/responses/Empty' } },
-            },
-        },
-      '/aux/{entity}/versions':
-        {
-          'post':
-            {
-              'tags': ['aux'],
-              'summary': '查询辅助对象版本',
-              'operationId': 'auxversions',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/aux.yaml#/AuxHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '辅助对象版本分页响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/aux.yaml#/AuxVersionPageResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/aux/{entity}/audit-history':
-        {
-          'post':
-            {
-              'tags': ['aux'],
-              'summary': '查询辅助对象变更记录',
-              'operationId': 'auxaudithistory',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/aux.yaml#/AuxHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '辅助对象审计分页响应。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/aux.yaml#/AuxAuditEventPageResponse',
-                                },
-                            },
-                        },
-                    },
-                },
             },
         },
       '/bob/party/query':
@@ -9403,7 +9117,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/ReferenceQueryResponse',
+                                  '$ref': './schemas/aux.yaml#/AuxReferenceQueryResponse',
                                 },
                             },
                         },

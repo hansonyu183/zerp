@@ -17,7 +17,7 @@
 
 ## 3. 单位换算与固定配方
 
-1. 单位换算随产品版本整体维护。每项选择一个当前启用的 AUX 计量单位并填写大于零的定点换算系数；后端把来源 Entry、code、name、symbol、`quantityScale` 保存进产品 snapshot。换算项重复与默认引用完整性按 [BOB 产品业务字段](../../domains/bob.md#21-业务字段) 检查。
+1. 单位换算随产品版本整体维护。每项选择一个当前启用的 AUX 计量单位并填写大于零的定点换算系数；后端把 stable ID、code、name、symbol、`quantityScale` 保存进产品 snapshot，不保存 AUX Approval Entry。换算项重复与默认引用完整性按 [BOB 产品业务字段](../../domains/bob.md#21-业务字段) 检查。
 2. 页面只按“录入数量 × 换算系数”显示建议基准数量，用户确认的基准数量才是权威事实。删除默认单位对应换算项时，经确认同步清空选择；取消时保持输入。
 3. 自制成品固定配方随同一 snapshot 保存。输出和每行原料同时保存录入数量、包含 `quantityScale` 的单位审计快照与已确认基准数量；原料只允许当前启用且 latest approved 行为为原材料的产品，同一原料不得重复。
 4. 从 latest approved 创建候选时，服务端按原料 stable ID 更新到其 latest approved entry，同时保持原有基准产量与基准用量。不可用原料保留为待处理，不自动删除；更新后的录入单位与数量必须重新确认后才能提交。
@@ -26,7 +26,7 @@
 
 1. 页面在提交前用统一前端检查定位产品类型、默认包装规格、单位配置与固定配方问题；后端在提交和批准时独立重复完整校验。
 2. V1 批准后原子创建 BOB current；后续版本批准原子切换 current source；反批后原子回落到上一 approved snapshot，反批首版后移除 current。BOB 由 current source 读取同一完整 DCL snapshot，不复制第二份单位或配方事实。
-3. latest approved 与唯一 open candidate 共同占用非空条码。条码冲突、并发候选、revision 冲突、AUX/原料来源漂移、正式业务引用 blocker 或投影失败均返回稳定错误，且 DCL snapshot、Approval、占用与 BOB current 全部保持原状。
+3. latest approved 与唯一 open candidate 共同占用非空条码。条码冲突、并发候选、revision 冲突、原料来源漂移、正式业务引用 blocker 或投影失败均返回稳定错误，且 DCL snapshot、Approval、占用与 BOB current 全部保持原状；AUX current 后续变化不使已存 snapshot 漂移。
 4. 任一库存、订单、生产或其他正式业务事实精确引用目标 Approval Entry 时禁止反批。产品后续改版不重算历史数量、配方、金额、库存或 ACC 事实。
 
 ## 5. 查询、历史与异常恢复

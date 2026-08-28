@@ -14,7 +14,7 @@ export const warehouseConfig = defineBobEntityConfig({
   nameLabel: '仓库名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     address: '',
     contactName: '',
     contactPhone: '',
@@ -24,7 +24,7 @@ export const warehouseConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -64,9 +64,9 @@ export const warehouseConfig = defineBobEntityConfig({
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

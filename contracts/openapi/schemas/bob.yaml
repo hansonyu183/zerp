@@ -128,7 +128,8 @@
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
-          'sourceVersionNo': { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'data': { '$ref': '#/BobDetailView' },
           'relationship': { '$ref': '#/BobRelationshipIdentityView' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
@@ -171,10 +172,7 @@
       'type': 'object',
       'required': ['objectId'],
       'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-        },
+      'properties': { 'objectId': { 'type': 'string' } },
     },
   'BobDetailData':
     {
@@ -218,10 +216,8 @@
           'operatingEntityId': { 'type': 'string' },
           'settlementMethodId': { 'type': 'string', 'nullable': true },
           'termCode': { 'type': 'string', 'nullable': true },
-          'defaultSalesSurcharge':
-            { 'type': 'string', 'nullable': true },
-          'salespersonEmployeeId':
-            { 'type': 'string', 'nullable': true },
+          'defaultSalesSurcharge': { 'type': 'string', 'nullable': true },
+          'salespersonEmployeeId': { 'type': 'string', 'nullable': true },
           'productTypeId': { 'type': 'string', 'nullable': true },
           'defaultInputUnitId': { 'type': 'string', 'nullable': true },
           'inventoryUnitId': { 'type': 'string', 'nullable': true },
@@ -272,13 +268,11 @@
   'BobMeasurementUnitSnapshot':
     {
       'type': 'object',
-      'required':
-        ['objectId', 'approvalEntryId', 'code', 'name', 'symbol', 'quantityScale'],
+      'required': ['objectId', 'code', 'name', 'symbol', 'quantityScale'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'symbol': { 'type': 'string' },
@@ -494,7 +488,6 @@
           'sha256',
           'status',
           'categoryObjectId',
-          'categoryApprovalEntryId',
           'categoryCode',
           'categoryName',
           'createdAt',
@@ -514,7 +507,6 @@
           'sha256': { 'type': 'string' },
           'status': { 'type': 'string', 'enum': ['READY'] },
           'categoryObjectId': { 'type': 'string' },
-          'categoryApprovalEntryId': { 'type': 'string' },
           'categoryCode': { 'type': 'string' },
           'categoryName': { 'type': 'string' },
           'storedAt': { 'type': 'string', 'format': 'date-time' },
@@ -719,7 +711,6 @@
       'required':
         [
           'sourceObjectId',
-          'approvalEntryId',
           'code',
           'name',
           'termCode',
@@ -732,7 +723,6 @@
       'properties':
         {
           'sourceObjectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'termCode': { 'type': 'string' },
@@ -1895,7 +1885,8 @@
               'type': 'string',
               'description': 'DCL current 投影的精确来源 Approval Entry。',
             },
-          'sourceVersionNo': { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
           'data': { '$ref': '#/BobDetailView' },
           'relationship': { '$ref': '#/BobRelationshipIdentityView' },

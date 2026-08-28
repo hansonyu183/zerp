@@ -8,7 +8,7 @@ export const vehicleConfig = defineBobEntityConfig({
   nameLabel: '车辆名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     plateNumber: '',
     vehicleType: '',
     carrierAffiliation: null,
@@ -21,7 +21,7 @@ export const vehicleConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -88,9 +88,9 @@ export const vehicleConfig = defineBobEntityConfig({
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

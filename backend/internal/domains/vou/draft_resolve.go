@@ -94,20 +94,11 @@ func (s *Service) resolveSelectedAuxiliaryReference(
 	if input == nil {
 		return nil, nil
 	}
-	var ref bobdomain.AuxiliaryReference
-	var err error
-	if !newDocument && preserved != nil && input.ObjectID == preserved.ObjectID && input.ApprovalEntryID == preserved.ApprovalEntryID {
-		ref, err = s.auxResolver.ValidateApprovedAuxiliarySnapshotReference(ctx, tx, entity, input.ObjectID, input.ApprovalEntryID)
-	} else {
-		ref, err = s.auxResolver.ResolveLatestApprovedAuxiliaryReference(ctx, tx, entity, input.ObjectID)
-		if err == nil && input.ApprovalEntryID != "" && input.ApprovalEntryID != ref.ApprovalEntryID {
-			return nil, domainError(ErrorConflict, entity+" reference does not match the latest approved version", nil, nil)
-		}
-	}
+	ref, err := s.auxResolver.ResolveCurrentAuxiliaryReference(ctx, tx, entity, input.ObjectID)
 	if err != nil {
 		return nil, domainError(ErrorConflict, entity+" reference is not approved", nil, err)
 	}
-	return &bobdomain.EffectiveReference{ObjectID: ref.ObjectID, ApprovalEntryID: ref.ApprovalEntryID,
+	return &bobdomain.EffectiveReference{ObjectID: ref.ObjectID,
 		Entity: ref.Entity, Code: ref.Code, Data: bobdomain.DetailView{
 			Name: auxiliaryString(ref.Data, "name"), TermCode: auxiliaryString(ref.Data, "termCode"),
 			RuleType: auxiliaryString(ref.Data, "ruleType"), MonthOffset: auxiliaryInt32(ref.Data, "monthOffset"),

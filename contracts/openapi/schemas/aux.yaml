@@ -158,62 +158,18 @@ AuxCreateRequest:
 AuxSaveRequest:
   type: object
   additionalProperties: false
-  required: [objectId, approvalEntryId, approvalRevision, data]
+  required: [objectId, objectRevision, data]
   properties:
     objectId:
       type: string
       minLength: 26
       maxLength: 26
-    approvalEntryId:
-      type: string
-      minLength: 26
-      maxLength: 26
-    approvalRevision:
+    objectRevision:
       type: integer
       format: int64
       minimum: 1
     data:
       $ref: '#/AuxData'
-
-AuxApprovalRevisionRequest:
-  type: object
-  additionalProperties: false
-  required: [objectId, approvalEntryId, approvalRevision]
-  properties:
-    objectId:
-      type: string
-      minLength: 26
-      maxLength: 26
-    approvalEntryId:
-      type: string
-      minLength: 26
-      maxLength: 26
-    approvalRevision:
-      type: integer
-      format: int64
-      minimum: 1
-
-AuxReviewRequest:
-  type: object
-  additionalProperties: false
-  required: [objectId, approvalEntryId, approvalRevision, reason]
-  properties:
-    objectId:
-      type: string
-      minLength: 26
-      maxLength: 26
-    approvalEntryId:
-      type: string
-      minLength: 26
-      maxLength: 26
-    approvalRevision:
-      type: integer
-      format: int64
-      minimum: 1
-    reason:
-      type: string
-      nullable: true
-      maxLength: 1000
 
 AuxObjectRevisionRequest:
   type: object
@@ -238,10 +194,6 @@ AuxGetRequest:
       type: string
       minLength: 26
       maxLength: 26
-    approvalEntryId:
-      type: string
-      minLength: 26
-      maxLength: 26
 
 AuxQueryRequest:
   type: object
@@ -261,10 +213,6 @@ AuxQueryRequest:
       properties:
         keyword: { type: string }
         enabled: { type: boolean }
-        status:
-          type: array
-          items:
-            $ref: './common.yaml#/ApprovalStatus'
         behaviorProfile:
           $ref: '#/ProductBehaviorProfile'
         parentId: { type: string }
@@ -283,27 +231,10 @@ AuxQueryRequest:
         properties:
           field:
             type: string
-            enum: [updatedAt, code, name, versionNo]
+            enum: [updatedAt, code, name]
           order:
             type: string
             enum: [asc, desc]
-
-AuxHistoryRequest:
-  type: object
-  additionalProperties: false
-  required: [objectId, page, pageSize]
-  properties:
-    objectId:
-      type: string
-      minLength: 26
-      maxLength: 26
-    page:
-      type: integer
-      minimum: 1
-    pageSize:
-      type: integer
-      minimum: 1
-      maximum: 200
 
 AuxReferenceQueryRequest:
   type: object
@@ -320,15 +251,28 @@ AuxReferenceQueryRequest:
       type: string
       maxLength: 32
 
-AuxVersionView:
+AuxReferenceCandidate:
   type: object
   additionalProperties: false
-  required: [approval, data]
+  required: [objectId, code, name]
   properties:
-    approval:
-      $ref: './common.yaml#/ApprovalVersionMeta'
+    objectId: { type: string }
+    code: { type: string }
+    name: { type: string }
+
+AuxReferenceQueryResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
     data:
-      $ref: '#/AuxData'
+      type: array
+      items:
+        $ref: '#/AuxReferenceCandidate'
+    requestId: { type: string }
 
 AuxObjectView:
   type: object
@@ -340,8 +284,7 @@ AuxObjectView:
       code,
       enabled,
       objectRevision,
-      latestApproved,
-      openVersion,
+      data,
       updatedAt,
       updatedBy,
     ]
@@ -352,16 +295,8 @@ AuxObjectView:
     code: { type: string }
     enabled: { type: boolean }
     objectRevision: { type: integer, format: int64 }
-    latestApproved:
-      type: object
-      allOf:
-        - $ref: '#/AuxVersionView'
-      nullable: true
-    openVersion:
-      type: object
-      allOf:
-        - $ref: '#/AuxVersionView'
-      nullable: true
+    data:
+      $ref: '#/AuxData'
     updatedAt: { type: string, format: date-time }
     updatedBy: { type: string }
 
@@ -381,42 +316,11 @@ AuxObjectPage:
 AuxMutationResult:
   type: object
   additionalProperties: false
-  required: [objectId, objectRevision, enabled, approval]
+  required: [objectId, objectRevision, enabled]
   properties:
     objectId: { type: string }
     objectRevision: { type: integer, format: int64 }
     enabled: { type: boolean }
-    approval:
-      $ref: './common.yaml#/ApprovalVersionMeta'
-
-AuxVersionPage:
-  type: object
-  additionalProperties: false
-  required: [items, total, page, pageSize]
-  properties:
-    items:
-      type: array
-      items:
-        $ref: '#/AuxVersionView'
-    total: { type: integer, format: int64 }
-    page: { type: integer }
-    pageSize: { type: integer }
-
-AuxAuditEventView:
-  $ref: './common.yaml#/ApprovalEventView'
-
-AuxAuditEventPage:
-  type: object
-  additionalProperties: false
-  required: [items, total, page, pageSize]
-  properties:
-    items:
-      type: array
-      items:
-        $ref: '#/AuxAuditEventView'
-    total: { type: integer, format: int64 }
-    page: { type: integer }
-    pageSize: { type: integer }
 
 AuxQueryResponse:
   type: object
@@ -460,35 +364,5 @@ AuxMutationResponse:
       type: object
       allOf:
         - $ref: '#/AuxMutationResult'
-      nullable: true
-    requestId: { type: string }
-
-AuxVersionPageResponse:
-  type: object
-  additionalProperties: false
-  required: [code, errorKey, message, data, requestId]
-  properties:
-    code: { type: integer, format: int32 }
-    errorKey: { type: string }
-    message: { type: string }
-    data:
-      type: object
-      allOf:
-        - $ref: '#/AuxVersionPage'
-      nullable: true
-    requestId: { type: string }
-
-AuxAuditEventPageResponse:
-  type: object
-  additionalProperties: false
-  required: [code, errorKey, message, data, requestId]
-  properties:
-    code: { type: integer, format: int32 }
-    errorKey: { type: string }
-    message: { type: string }
-    data:
-      type: object
-      allOf:
-        - $ref: '#/AuxAuditEventPage'
       nullable: true
     requestId: { type: string }

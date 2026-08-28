@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type AuxApprovalRevisionRequest = {
+export type AuxReferenceCandidate = {
   objectId: string;
-  approvalEntryId: string;
-  approvalRevision: number;
+  code: string;
+  name: string;
 };

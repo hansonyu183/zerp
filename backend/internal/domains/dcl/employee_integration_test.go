@@ -21,7 +21,7 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	resetDCLIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	partyReader := bobdomain.NewPartyCurrentReader(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), partyReader, bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
@@ -37,9 +37,9 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 		t.Fatalf("create operating entity: %v", err)
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), reviewer("owner-approve"))
-	categoryID, categoryEntryID := approveEmployeeAuxiliary(t, auxiliary, auxdomain.EntityEmployeeCategory, "正式员工", creator("category-create"), reviewer("category-approve"))
-	departmentID, departmentEntryID := approveEmployeeAuxiliary(t, auxiliary, auxdomain.EntityDepartment, "销售部", creator("department-create"), reviewer("department-approve"))
-	positionID, positionEntryID := approveEmployeeAuxiliary(t, auxiliary, auxdomain.EntityPosition, "销售经理", creator("position-create"), reviewer("position-approve"))
+	categoryID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityEmployeeCategory, "正式员工", creator("category-create"))
+	departmentID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityDepartment, "销售部", creator("department-create"))
+	positionID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityPosition, "销售经理", creator("position-create"))
 
 	v1, err := employees.Create(t.Context(), EmployeeCreateInput{
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "张三", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierPersonID, Value: "110101199001010011"}}},
@@ -60,7 +60,7 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	if view.PartyDisplayName != "张三" || view.OperatingEntityID != owner.ObjectID {
 		t.Fatalf("Employee identity view = %+v", view)
 	}
-	if view.Data.EmployeeCategoryApprovalEntryID != categoryEntryID || view.Data.DepartmentApprovalEntryID != departmentEntryID || view.Data.PositionApprovalEntryID != positionEntryID {
+	if view.Data.EmployeeCategoryID != categoryID || view.Data.DepartmentID != departmentID || view.Data.PositionID != positionID {
 		t.Fatalf("Employee AUX snapshots = %+v", view.Data)
 	}
 
@@ -107,21 +107,13 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	assertEmployeeCurrent(t, business, v1.ObjectID, v1.Approval.ApprovalEntryID, "张三", "13800138000", true)
 }
 
-func approveEmployeeAuxiliary(t *testing.T, service *auxdomain.Service, entity, name string, creator, reviewer approval.Actor) (string, string) {
+func createEmployeeAuxiliary(t *testing.T, service *auxdomain.Service, entity, name string, creator approval.Actor) string {
 	t.Helper()
 	created, err := service.Create(t.Context(), entity, auxdomain.CreateInput{Data: auxdomain.CreateData{Data: map[string]any{"name": name, "description": "Employee snapshot test"}}}, creator)
 	if err != nil {
 		t.Fatalf("create %s: %v", entity, err)
 	}
-	pending, err := service.Submit(t.Context(), entity, auxdomain.ApprovalRevisionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, creator)
-	if err != nil {
-		t.Fatalf("submit %s: %v", entity, err)
-	}
-	approved, err := service.Approve(t.Context(), entity, auxdomain.ApprovalRevisionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer)
-	if err != nil {
-		t.Fatalf("approve %s: %v", entity, err)
-	}
-	return approved.ObjectID, approved.Approval.ApprovalEntryID
+	return created.ObjectID
 }
 
 func submitAndApproveEmployee(t *testing.T, service *EmployeeService, mutation EmployeeMutation, submitter, reviewer approval.Actor) EmployeeMutation {

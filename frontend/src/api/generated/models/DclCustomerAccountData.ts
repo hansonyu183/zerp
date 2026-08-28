@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { DclCustomerAuxiliarySnapshot } from './DclCustomerAuxiliarySnapshot';
 import type { DclCustomerCreditLimit } from './DclCustomerCreditLimit';
 import type { DclCustomerPricingPolicy } from './DclCustomerPricingPolicy';
 import type { DclCustomerSalesAttributionSnapshot } from './DclCustomerSalesAttributionSnapshot';
@@ -23,8 +24,8 @@ export type DclCustomerAccountData = {
   pricingPolicy: DclCustomerPricingPolicy;
   creditLimits: Array<DclCustomerCreditLimit>;
   operatingEntity: DclCustomerSnapshot | null;
-  settlementMethod: DclCustomerSnapshot | null;
-  paymentMethod: DclCustomerSnapshot | null;
+  settlementMethod: DclCustomerAuxiliarySnapshot | null;
+  paymentMethod: DclCustomerAuxiliarySnapshot | null;
   primarySalesAttribution: DclCustomerSalesAttributionSnapshot;
   internalReminder?: string | null;
   defaultSalesOrderRemark?: string | null;

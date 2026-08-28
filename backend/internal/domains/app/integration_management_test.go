@@ -224,8 +224,7 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 		"income-expense-type", "asset-category",
 	}
 	auxActions := []string{
-		"query", "get", "create", "save", "submit", "unsubmit", "approve",
-		"reject", "unapprove", "enable", "disable", "delete", "versions", "audit-history",
+		"query", "get", "create", "save", "enable", "disable", "delete",
 	}
 	expected := make(map[string]struct{}, len(auxEntities)*len(auxActions))
 	for _, entity := range auxEntities {

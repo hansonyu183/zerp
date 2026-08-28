@@ -41,7 +41,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	}
 	authorizer := appAuthorizer{service: appService, cfg: cfg}
 	eventBus := txevent.NewBus()
-	auxService := auxdomain.NewService(db, authorizer, eventBus)
+	auxService := auxdomain.NewService(db)
 	auxiliaryResolver := auxiliaryrefs.New(auxService)
 	partyCurrentWriter := bobdomain.NewPartyCurrentWriter(db)
 	partyCurrentReader := bobdomain.NewPartyCurrentReader(db)

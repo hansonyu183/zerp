@@ -16,35 +16,16 @@ type RelationshipIdentity struct {
 	ObjectRevision                             int64
 }
 
-func (s *Service) ResolveOtherUnitDeclaration(ctx context.Context, tx pgx.Tx, data DetailView, exact bool) (DetailView, error) {
+func (s *Service) ResolveOtherUnitDeclaration(ctx context.Context, tx pgx.Tx, data DetailView, _ bool) (DetailView, error) {
 	if data.SettlementMethodID == "" {
 		return validateDetailData(EntityOtherUnit, data)
 	}
-	if !exact {
-		resolved, err := s.resolveSettlementSnapshot(ctx, tx, data)
-		if err != nil {
-			return DetailView{}, err
-		}
-		resolved.DefaultSalesSurcharge = ""
-		return validateDetailData(EntityOtherUnit, resolved)
-	}
-	validated, err := validateDetailData(EntityOtherUnit, data)
+	resolved, err := s.resolveSettlementSnapshot(ctx, tx, data)
 	if err != nil {
 		return DetailView{}, err
 	}
-	if exact {
-		if !validID(validated.SettlementMethodApprovalEntryID) {
-			return DetailView{}, domainError(ErrorConflict, "Other Unit settlement snapshot is missing", nil, nil)
-		}
-		reference, e := s.resolveAuxiliaryReference(ctx, tx, "settlement-method", validated.SettlementMethodID, validated.SettlementMethodApprovalEntryID)
-		if e != nil {
-			return DetailView{}, e
-		}
-		validated.SettlementMethodApprovalEntryID, validated.SettlementMethodCode, validated.SettlementMethodName = reference.ApprovalEntryID, reference.Code, reference.Data.Name
-		validated.TermCode, validated.RuleType, validated.MonthOffset, validated.DayOfMonth, validated.DayOffset = reference.Data.TermCode, reference.Data.RuleType, reference.Data.MonthOffset, reference.Data.DayOfMonth, reference.Data.DayOffset
-		return validated, nil
-	}
-	return validated, nil
+	resolved.DefaultSalesSurcharge = ""
+	return validateDetailData(EntityOtherUnit, resolved)
 }
 
 func (s *Service) ReserveOtherUnitIdentity(ctx context.Context, tx pgx.Tx, partyID, operatingEntityID, actorID string) (RelationshipIdentity, error) {
@@ -352,7 +333,7 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 	var settlement, payment EffectiveReference
 	var err error
 	if settlementID != "" {
-		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID, "")
+		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID)
 		err = e
 		settlement = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), TermCode: mapString(r.Data, "termCode"), RuleType: mapString(r.Data, "ruleType"), DueDays: int32(mapInt(r.Data, "dayOffset")), MonthOffset: int32(mapInt(r.Data, "monthOffset")), CutoffDay: int32(mapInt(r.Data, "dayOfMonth")), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
 		if err != nil {
@@ -360,7 +341,7 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 		}
 	}
 	if paymentID != "" {
-		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID, "")
+		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID)
 		err = e
 		payment = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
 		if err != nil {
@@ -397,18 +378,12 @@ func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.
 		return domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
 	}
 	if settlementID != "" {
-		if !validID(settlementEntryID) {
-			return domainError(ErrorConflict, "settlement-method approval snapshot is missing", nil, nil)
-		}
-		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID, settlementEntryID); err != nil {
+		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID); err != nil {
 			return err
 		}
 	}
 	if paymentID != "" {
-		if !validID(paymentEntryID) {
-			return domainError(ErrorConflict, "payment-method approval snapshot is missing", nil, nil)
-		}
-		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID, paymentEntryID); err != nil {
+		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID); err != nil {
 			return err
 		}
 	}
@@ -613,7 +588,7 @@ func (s *Service) EnsureSalesPartnerUnapproveAllowed(ctx context.Context, tx pgx
 
 func otherUnitCurrentView(r dbsqlc.GetBobOtherUnitCurrentRow) ObjectView {
 	e := dbsqlc.ApprovalEntry{ID: r.ApprovalEntryID, Domain: r.Domain, Entity: EntityOtherUnit, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.UpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, Approval: approvalMeta(e), UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, Data: DetailView{ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset}}
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, Approval: approvalMeta(e), UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, Data: DetailView{ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset}}
 }
 func (s *Service) getOtherUnitCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
 	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
@@ -702,7 +677,7 @@ func (s *Service) validateOtherUnitSnapshotReference(ctx context.Context, q *dbs
 	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: o.Code, ApprovalEntryID: entryID, Data: otherUnitDetail(d)}, nil
 }
 func otherUnitDetail(d dbsqlc.DclOtherUnitVersion) DetailView {
-	return DetailView{ContactName: deref(d.ContactName), ContactPhone: deref(d.ContactPhone), Email: deref(d.Email), Address: deref(d.Address), SettlementMethodID: deref(d.SettlementMethodID), SettlementMethodApprovalEntryID: deref(d.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(d.SettlementMethodCode), SettlementMethodName: deref(d.SettlementMethodName), TermCode: deref(d.SettlementTermCode), RuleType: deref(d.SettlementRuleType), MonthOffset: d.SettlementMonthOffset, DayOffset: d.SettlementDayOffset, Remark: deref(d.Remark)}
+	return DetailView{ContactName: deref(d.ContactName), ContactPhone: deref(d.ContactPhone), Email: deref(d.Email), Address: deref(d.Address), SettlementMethodID: deref(d.SettlementMethodID), SettlementMethodCode: deref(d.SettlementMethodCode), SettlementMethodName: deref(d.SettlementMethodName), TermCode: deref(d.SettlementTermCode), RuleType: deref(d.SettlementRuleType), MonthOffset: d.SettlementMonthOffset, DayOffset: d.SettlementDayOffset, Remark: deref(d.Remark)}
 }
 func (s *Service) validateSalesPartnerSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntitySalesPartner})

@@ -22,7 +22,7 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)

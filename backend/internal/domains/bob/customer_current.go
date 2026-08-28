@@ -23,19 +23,18 @@ const (
 // CustomerAttachmentView remains the read DTO shared by BOB current views.
 // Ownership and mutation live exclusively in DCL.
 type CustomerAttachmentView struct {
-	FileID                  string     `json:"fileId"`
-	FileName                string     `json:"fileName"`
-	ContentType             string     `json:"contentType"`
-	Size                    int64      `json:"size"`
-	SHA256                  string     `json:"sha256"`
-	Status                  string     `json:"status"`
-	StoredAt                *time.Time `json:"storedAt,omitempty"`
-	CategoryObjectID        string     `json:"categoryObjectId"`
-	CategoryApprovalEntryID string     `json:"categoryApprovalEntryId"`
-	CategoryCode            string     `json:"categoryCode"`
-	CategoryName            string     `json:"categoryName"`
-	CreatedAt               time.Time  `json:"createdAt"`
-	CreatedBy               string     `json:"createdBy"`
+	FileID           string     `json:"fileId"`
+	FileName         string     `json:"fileName"`
+	ContentType      string     `json:"contentType"`
+	Size             int64      `json:"size"`
+	SHA256           string     `json:"sha256"`
+	Status           string     `json:"status"`
+	StoredAt         *time.Time `json:"storedAt,omitempty"`
+	CategoryObjectID string     `json:"categoryObjectId"`
+	CategoryCode     string     `json:"categoryCode"`
+	CategoryName     string     `json:"categoryName"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	CreatedBy        string     `json:"createdBy"`
 }
 
 // CustomerSnapshot and CustomerAccountData are read-only wire shapes shared
@@ -55,6 +54,17 @@ type CustomerSnapshot struct {
 	TaxNumber             string `json:"taxNumber,omitempty"`
 	Address               string `json:"address,omitempty"`
 	Phone                 string `json:"phone,omitempty"`
+}
+type CustomerAuxiliarySnapshot struct {
+	SourceObjectID        string `json:"sourceObjectId"`
+	Code                  string `json:"code"`
+	Name                  string `json:"name"`
+	TermCode              string `json:"termCode,omitempty"`
+	RuleType              string `json:"ruleType,omitempty"`
+	DueDays               int32  `json:"dueDays,omitempty"`
+	MonthOffset           int32  `json:"monthOffset,omitempty"`
+	CutoffDay             int32  `json:"cutoffDay,omitempty"`
+	DefaultSalesSurcharge string `json:"defaultSalesSurcharge,omitempty"`
 }
 
 type CustomerSalesAttributionInput struct {
@@ -94,8 +104,8 @@ type CustomerAccountData struct {
 	InternalReminder           string                        `json:"internalReminder,omitempty"`
 	DefaultSalesOrderRemark    string                        `json:"defaultSalesOrderRemark,omitempty"`
 	OperatingEntity            *CustomerSnapshot             `json:"operatingEntity,omitempty"`
-	SettlementMethod           *CustomerSnapshot             `json:"settlementMethod,omitempty"`
-	PaymentMethod              *CustomerSnapshot             `json:"paymentMethod,omitempty"`
+	SettlementMethod           *CustomerAuxiliarySnapshot    `json:"settlementMethod,omitempty"`
+	PaymentMethod              *CustomerAuxiliarySnapshot    `json:"paymentMethod,omitempty"`
 	SalesAttribution           CustomerSalesAttributionView  `json:"-"`
 }
 
@@ -325,10 +335,10 @@ func bobCustomerAccountData(row dbsqlc.DclCustomerAccountVersion, q *dbsqlc.Quer
 	}
 	data := CustomerAccountData{Name: row.Name, ShortName: stringValue(row.ShortName), CustomerTypeCode: row.CustomerType, ContactName: stringValue(row.ContactName), ContactPhone: stringValue(row.ContactPhone), Email: stringValue(row.Email), Address: stringValue(row.Address), OperatingEntityID: row.OperatingEntityID, SettlementMethodID: stringValue(row.SettlementMethodID), PaymentMethodID: stringValue(row.PaymentMethodID), DefaultTransportMethodCode: stringValue(row.DefaultTransportMethodCode), DefaultTransportMethodName: stringValue(row.DefaultTransportMethodName), TransportSurcharge: fixeddecimal.Format(row.TransportSurchargeCents, 2, false), PricingPolicy: policy, InternalReminder: stringValue(row.InternalReminder), DefaultSalesOrderRemark: stringValue(row.DefaultSalesOrderRemark), OperatingEntity: &CustomerSnapshot{SourceObjectID: row.OperatingEntityID, ApprovalEntryID: row.OperatingEntityApprovalEntryID, Code: row.OperatingEntityCode, Name: row.OperatingEntityName, TaxNumber: stringValue(row.OperatingEntityTaxNumber), Address: stringValue(row.OperatingEntityAddress), Phone: stringValue(row.OperatingEntityPhone)}, SalesAttribution: CustomerSalesAttributionView{CustomerSalesAttributionInput: CustomerSalesAttributionInput{Type: stringValue(row.PrimarySalesAttributionType), SubjectObjectID: stringValue(row.PrimarySalesSubjectID)}, SubjectApprovalEntryID: stringValue(row.PrimarySalesSubjectApprovalEntryID), SubjectCode: stringValue(row.PrimarySalesSubjectCode), SubjectName: stringValue(row.PrimarySalesSubjectName)}}
 	if data.SettlementMethodID != "" {
-		data.SettlementMethod = &CustomerSnapshot{SourceObjectID: data.SettlementMethodID, ApprovalEntryID: stringValue(row.SettlementMethodApprovalEntryID), Code: stringValue(row.SettlementMethodCode), Name: stringValue(row.SettlementMethodName), TermCode: stringValue(row.SettlementTermCode), RuleType: stringValue(row.SettlementRuleType), DueDays: row.SettlementDueDays, MonthOffset: row.SettlementMonthOffset, CutoffDay: row.SettlementCutoffDay, DefaultSalesSurcharge: fixeddecimal.Format(row.SettlementSalesSurchargeCents, 2, false)}
+		data.SettlementMethod = &CustomerAuxiliarySnapshot{SourceObjectID: data.SettlementMethodID, Code: stringValue(row.SettlementMethodCode), Name: stringValue(row.SettlementMethodName), TermCode: stringValue(row.SettlementTermCode), RuleType: stringValue(row.SettlementRuleType), DueDays: row.SettlementDueDays, MonthOffset: row.SettlementMonthOffset, CutoffDay: row.SettlementCutoffDay, DefaultSalesSurcharge: fixeddecimal.Format(row.SettlementSalesSurchargeCents, 2, false)}
 	}
 	if data.PaymentMethodID != "" {
-		data.PaymentMethod = &CustomerSnapshot{SourceObjectID: data.PaymentMethodID, ApprovalEntryID: stringValue(row.PaymentMethodApprovalEntryID), Code: stringValue(row.PaymentMethodCode), Name: stringValue(row.PaymentMethodName), DefaultSalesSurcharge: fixeddecimal.Format(row.PaymentSalesSurchargeCents, 2, false)}
+		data.PaymentMethod = &CustomerAuxiliarySnapshot{SourceObjectID: data.PaymentMethodID, Code: stringValue(row.PaymentMethodCode), Name: stringValue(row.PaymentMethodName), DefaultSalesSurcharge: fixeddecimal.Format(row.PaymentSalesSurchargeCents, 2, false)}
 	}
 	data.CreditLimits = make([]CustomerCreditLimit, 0, len(credits))
 	for _, credit := range credits {
@@ -344,7 +354,7 @@ func bobDCLCustomerAccountAttachments(ctx context.Context, q *dbsqlc.Queries, en
 	}
 	items := make([]CustomerAttachmentView, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, CustomerAttachmentView{FileID: row.FileID, FileName: row.OriginalName, ContentType: row.ContentType, Size: row.DeclaredSize, SHA256: row.Sha256Hex, Status: row.Status, StoredAt: nullableTime(row.StoredAt), CategoryObjectID: row.CategoryObjectID, CategoryApprovalEntryID: row.CategoryApprovalEntryID, CategoryCode: row.CategoryCode, CategoryName: row.CategoryName, CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy})
+		items = append(items, CustomerAttachmentView{FileID: row.FileID, FileName: row.OriginalName, ContentType: row.ContentType, Size: row.DeclaredSize, SHA256: row.Sha256Hex, Status: row.Status, StoredAt: nullableTime(row.StoredAt), CategoryObjectID: row.CategoryObjectID, CategoryCode: row.CategoryCode, CategoryName: row.CategoryName, CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy})
 	}
 	return items, nil
 }
@@ -400,7 +410,7 @@ func (s *Service) customerAccountEffectiveReference(ctx context.Context, q *dbsq
 		detail.OperatingEntityApprovalEntryID, detail.OperatingEntityCode, detail.OperatingEntityName = data.OperatingEntity.ApprovalEntryID, data.OperatingEntity.Code, data.OperatingEntity.Name
 	}
 	if data.SettlementMethod != nil {
-		detail.SettlementMethodID, detail.SettlementMethodApprovalEntryID, detail.SettlementMethodCode, detail.SettlementMethodName = data.SettlementMethodID, data.SettlementMethod.ApprovalEntryID, data.SettlementMethod.Code, data.SettlementMethod.Name
+		detail.SettlementMethodID, detail.SettlementMethodCode, detail.SettlementMethodName = data.SettlementMethodID, data.SettlementMethod.Code, data.SettlementMethod.Name
 		detail.TermCode, detail.RuleType, detail.DueDays, detail.MonthOffset, detail.CutoffDay, detail.DefaultSalesSurcharge = data.SettlementMethod.TermCode, data.SettlementMethod.RuleType, data.SettlementMethod.DueDays, data.SettlementMethod.MonthOffset, data.SettlementMethod.CutoffDay, data.SettlementMethod.DefaultSalesSurcharge
 	}
 	return EffectiveReference{ObjectID: objectID, Entity: EntityCustomerAccount, Code: code, ApprovalEntryID: approvalEntryID, Data: detail}, nil

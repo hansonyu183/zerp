@@ -300,7 +300,7 @@ type Querier interface {
 	GetAppUserRoleIDs(ctx context.Context, userID string) ([]string, error)
 	GetApprovalEntry(ctx context.Context, arg GetApprovalEntryParams) (ApprovalEntry, error)
 	GetAutomaticAccountingVoucher(ctx context.Context, arg GetAutomaticAccountingVoucherParams) (GetAutomaticAccountingVoucherRow, error)
-	GetAuxVersionData(ctx context.Context, arg GetAuxVersionDataParams) ([]byte, error)
+	GetAuxObjectData(ctx context.Context, arg GetAuxObjectDataParams) ([]byte, error)
 	GetBobCustomerAccountCurrent(ctx context.Context, objectID string) (GetBobCustomerAccountCurrentRow, error)
 	GetBobCustomerAccountCurrentReference(ctx context.Context, objectID string) (GetBobCustomerAccountCurrentReferenceRow, error)
 	GetBobCustomerAccountRelationship(ctx context.Context, objectID string) (BobCustomerAccount, error)
@@ -524,8 +524,6 @@ type Querier interface {
 	InsertVouServiceAcceptanceDetail(ctx context.Context, arg InsertVouServiceAcceptanceDetailParams) error
 	InsertVouServiceContractDetail(ctx context.Context, arg InsertVouServiceContractDetailParams) error
 	IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error)
-	IsAuxApprovalEntryReferenced(ctx context.Context, approvalEntryID string) (bool, error)
-	IsBobCustomerPaymentMethodReferenced(ctx context.Context, objectID string) (bool, error)
 	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
 	IsVouSaleDeliveryReady(ctx context.Context, documentID string) (*bool, error)
 	IsVouSaleOutboundReady(ctx context.Context, documentID string) (*bool, error)
@@ -744,6 +742,8 @@ type Querier interface {
 	NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	Ping(ctx context.Context) (int32, error)
+	// AUX is stable-ID current data. These queries intentionally expose no
+	// Approval entry, candidate, version, or historical payload identity.
 	QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxReferenceCandidatesParams) ([]QueryAuxReferenceCandidatesRow, error)
 	QueryBobProductReferenceCandidates(ctx context.Context, arg QueryBobProductReferenceCandidatesParams) ([]QueryBobProductReferenceCandidatesRow, error)
 	QueryBobReferenceCandidates(ctx context.Context, arg QueryBobReferenceCandidatesParams) ([]QueryBobReferenceCandidatesRow, error)

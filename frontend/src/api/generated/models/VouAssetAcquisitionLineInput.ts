@@ -3,6 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { VouAssetReferenceInput } from './VouAssetReferenceInput';
+import type { VouVersionedReferenceInput } from './VouVersionedReferenceInput';
 export type VouAssetAcquisitionLineInput = {
   assetName: string;
   specification?: string;
@@ -11,7 +12,7 @@ export type VouAssetAcquisitionLineInput = {
   usefulLifeMonths: number;
   residualRate: string;
   department: VouAssetReferenceInput;
-  custodian?: VouAssetReferenceInput;
+  custodian?: VouVersionedReferenceInput;
   location?: string;
   remark?: string;
 };

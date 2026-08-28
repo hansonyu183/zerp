@@ -137,7 +137,7 @@ func New(
 	}
 	cfg.AttachmentStorageRoot = attachmentRoot
 	events := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, seedAuthorizer{}, events)
+	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), seedAuthorizer{}, events)
 	business := bobdomain.NewService(pool, auxiliaryResolver)

@@ -8,7 +8,7 @@ export const salesPartnerConfig = defineBobEntityConfig({
   nameLabel: '主体名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     operatingEntityName: '',
     capabilities: '',
     contactName: '',
@@ -20,7 +20,7 @@ export const salesPartnerConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },

@@ -53,6 +53,17 @@ type CustomerSnapshot struct {
 	Address               string `json:"address,omitempty"`
 	Phone                 string `json:"phone,omitempty"`
 }
+type CustomerAuxiliarySnapshot struct {
+	SourceObjectID        string `json:"sourceObjectId"`
+	Code                  string `json:"code"`
+	Name                  string `json:"name"`
+	TermCode              string `json:"termCode,omitempty"`
+	RuleType              string `json:"ruleType,omitempty"`
+	DueDays               int32  `json:"dueDays,omitempty"`
+	MonthOffset           int32  `json:"monthOffset,omitempty"`
+	CutoffDay             int32  `json:"cutoffDay,omitempty"`
+	DefaultSalesSurcharge string `json:"defaultSalesSurcharge,omitempty"`
+}
 type CustomerSalesAttributionInput struct {
 	Type            string `json:"type"`
 	SubjectObjectID string `json:"subjectObjectId"`
@@ -89,8 +100,8 @@ type CustomerAccountData struct {
 	CustomerAccountDataInput
 	OperatingEntityID       string                           `json:"operatingEntityId"`
 	OperatingEntity         *CustomerSnapshot                `json:"operatingEntity"`
-	SettlementMethod        *CustomerSnapshot                `json:"settlementMethod,omitempty"`
-	PaymentMethod           *CustomerSnapshot                `json:"paymentMethod,omitempty"`
+	SettlementMethod        *CustomerAuxiliarySnapshot       `json:"settlementMethod,omitempty"`
+	PaymentMethod           *CustomerAuxiliarySnapshot       `json:"paymentMethod,omitempty"`
 	PrimarySalesAttribution CustomerSalesAttributionSnapshot `json:"primarySalesAttribution"`
 }
 type CustomerAccountCreateInput struct {

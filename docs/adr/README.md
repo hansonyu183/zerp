@@ -28,6 +28,7 @@
 | [ADR-0040](0040-other-unit-and-sales-partner-declarations-are-dcl-owned.md)           | 2026-08-28 | 服务关系与销售合作关系申报由 DCL 拥有                           |
 | [ADR-0041](0041-supplier-declarations-are-dcl-owned.md)                               | 2026-08-28 | 供应商申报由 DCL 拥有并投影到 BOB 当前业务面                    |
 | [ADR-0042](0042-customer-declarations-are-dcl-owned.md)                               | 2026-08-28 | 客户与客户结算子账户申报由 DCL 拥有并投影到 BOB 当前业务面      |
+| [ADR-0043](0043-aux-stable-id-direct-crud.md)                                         | 2026-08-28 | AUX 使用 Stable-ID Direct CRUD 与采用方快照                     |
 
 ## Superseded
 

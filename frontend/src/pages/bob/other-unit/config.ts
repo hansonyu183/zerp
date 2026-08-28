@@ -8,7 +8,7 @@ export const otherUnitConfig = defineBobEntityConfig({
   nameLabel: '主体名称',
   defaults: {
     objectId: '',
-    approvalEntryId: '',
+    sourceApprovalEntryId: '',
     operatingEntityName: '',
     contactName: '',
     contactPhone: '',
@@ -20,7 +20,7 @@ export const otherUnitConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },

@@ -25,7 +25,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
@@ -112,7 +112,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_files(id,storage_key,original_name,content_type,declared_size,sha256_hex,status,upload_token_hash,upload_expires_at,created_by) VALUES($1,$2,'account.pdf','application/pdf',1,$3,'PENDING',$4,$5,$6)`, fileID, "customer/"+fileID, strings.Repeat("a", 64), strings.Repeat("b", 64), time.Now().Add(time.Hour), creatorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_account_attachments(approval_entry_id,file_id,category_object_id,category_approval_entry_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,'CONTRACT','合同',$5)`, account.Approval.ApprovalEntryID, fileID, ulid.Make().String(), ulid.Make().String(), creatorID); err != nil {
+	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_account_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,'CONTRACT','合同',$4)`, account.Approval.ApprovalEntryID, fileID, ulid.Make().String(), creatorID); err != nil {
 		t.Fatal(err)
 	}
 	type saveResult struct {
@@ -235,7 +235,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 		if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_files(id,storage_key,original_name,content_type,declared_size,sha256_hex,status,upload_token_hash,upload_expires_at,created_by) VALUES($1,$2,$3,'application/pdf',1,$4,'PENDING',$5,$6,$7)`, partnerFiles[n], "customer/"+partnerFiles[n], "partner-"+partnerFiles[n]+".pdf", strings.Repeat("a", 64), fmt.Sprintf("%064x", n+1), time.Now().Add(time.Hour), creatorID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_account_attachments(approval_entry_id,file_id,category_object_id,category_approval_entry_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,'CONTRACT','合同',$5)`, partnerAccount.Approval.ApprovalEntryID, partnerFiles[n], ulid.Make().String(), ulid.Make().String(), creatorID); err != nil {
+		if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_account_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,'CONTRACT','合同',$4)`, partnerAccount.Approval.ApprovalEntryID, partnerFiles[n], ulid.Make().String(), creatorID); err != nil {
 			t.Fatal(err)
 		}
 	}

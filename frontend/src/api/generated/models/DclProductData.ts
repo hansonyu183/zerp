@@ -7,7 +7,6 @@ import type { DclProductFormulaSnapshot } from './DclProductFormulaSnapshot';
 export type DclProductData = {
   name: string;
   categoryId?: string | null;
-  categoryApprovalEntryId?: string | null;
   categoryCode?: string | null;
   categoryName?: string | null;
   specification?: string | null;
@@ -15,14 +14,11 @@ export type DclProductData = {
   barcode?: string | null;
   remark?: string | null;
   productTypeId?: string | null;
-  productTypeApprovalEntryId?: string | null;
   productTypeCode?: string | null;
   productTypeName?: string | null;
   behaviorProfile?: 'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING' | null;
   defaultInputUnitId?: string | null;
-  defaultInputUnitApprovalEntryId?: string | null;
   pricingUnitId?: string | null;
-  pricingUnitApprovalEntryId?: string | null;
   unitConversions: Array<BobProductUnitConversionSnapshot>;
   returnable: boolean;
   defaultPackagingSpec?: string | null;

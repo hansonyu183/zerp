@@ -71,7 +71,7 @@ func TestOperatingEntityDeclarationControlsBOBCurrentDataIntegration(t *testing.
 	resetDCLIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewOperatingEntityService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
@@ -349,7 +349,7 @@ func newDCLIntegrationServices(
 ) (*bobdomain.Service, *OperatingEntityService) {
 	t.Helper()
 	authorizer := authorization.Func(nil)
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	if current == nil {
 		current = business

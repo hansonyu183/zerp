@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { AuxVersionPage } from './AuxVersionPage';
-export type AuxVersionPageResponse = {
+import type { AuxReferenceCandidate } from './AuxReferenceCandidate';
+export type AuxReferenceQueryResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: AuxVersionPage | null;
+  data: Array<AuxReferenceCandidate>;
   requestId: string;
 };

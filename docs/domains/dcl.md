@@ -51,9 +51,9 @@ VOU 收付款、费用支付、其他收入和票据资金行继续保存 fund a
 
 ## 3.4 产品申报
 
-产品 stable ID、`PRD-*` 编码和抽象基准单位跨全部版本不变。`dcl_product_versions` 以 `approvalEntryId` 为主键，保存完整的名称、产品类型、产品分类、规格、型号、条码、计价单位、默认录入单位、默认包装规格、可回收标志、备注和 `enabled`；类型、分类和单位均同时保存来源 stable ID、精确 Approval Entry 及必要名称快照。每个计量单位 snapshot 还必须保存当时的 `quantityScale`，单位换算和固定配方中的单位不得在读取或制单时回查 AUX 精度。单位换算与固定配方是同一产品版本的强类型明细，不是独立对象、独立 API 或独立生命周期；每个版本始终保存完整 snapshot，不保存 diff。
+产品 stable ID、`PRD-*` 编码和抽象基准单位跨全部版本不变。`dcl_product_versions` 以 `approvalEntryId` 为主键，保存完整的名称、产品类型、产品分类、规格、型号、条码、计价单位、默认录入单位、默认包装规格、可回收标志、备注和 `enabled`；类型、分类和单位均同时保存来源 AUX stable ID 及必要名称和 typed 参数快照，不保存 AUX Approval Entry。每个计量单位 snapshot 还必须保存当时的 `quantityScale`，单位换算和固定配方中的单位不得在读取或制单时回查 AUX 精度。单位换算与固定配方是同一产品版本的强类型明细，不是独立对象、独立 API 或独立生命周期；每个版本始终保存完整 snapshot，不保存 diff。
 
-创建或保存时解析当前可用 AUX 来源，并按配方原料 stable ID 解析其 latest approved 产品版本；从正式版本创建候选时，原料 entry 自动前移但权威基准用量不变，需要确认的行保持显式待处理。提交和批准使用同一套完整性规则，并重新校验产品类型、分类、计量单位和配方原料的已存精确 entry 仍为 latest approved。条码在全部产品的 latest approved 与唯一开放候选之间大小写不敏感唯一；并发候选和条码占用由同一事务保证。
+创建或保存时解析当前启用且 entity 匹配的 AUX stable object，并按配方原料 stable ID 解析其 latest approved 产品版本；从正式版本创建候选时，原料 entry 自动前移但权威基准用量不变，需要确认的行保持显式待处理。提交和批准使用同一套完整性规则：AUX 快照只校验完整性与 stable identity，不回查来源 current，也不因来源后续改名、修改或停用而漂移；配方原料的已存精确 DCL entry 仍须为 latest approved。条码在全部产品的 latest approved 与唯一开放候选之间大小写不敏感唯一；并发候选和条码占用由同一事务保证。
 
 `/dcl/product` 是唯一维护入口，`/bob/product` 只提供当前正式档案的 `query/get/reference`。批准或反批在同一事务原子创建、替换、回落或移除 `bob_products` current source；BOB 由该 source 读取对应的完整 DCL snapshot，不复制第二份单位换算或固定配方事实。失败时 DCL snapshot、Approval、标识占用和 BOB current 全部回滚。库存、销售、采购、生产和 ACC 历史继续保存 product stable ID、实际采用的 Approval Entry、数量、名称及各自所需业务快照；任何后续产品版本都不得重算历史数量、配方、金额或库存事实。任一正式业务事实精确引用某产品 Approval Entry 时，该版本不得反批。
 
@@ -67,7 +67,7 @@ Party stable root 永久保存身份 ID 与合并状态；`dcl_party_versions` �
 
 员工 stable root 固定为 `bob_objects(entity=employee)`，而 `bob_employment_relationships` 保留员工、Party 与经营主体的不可变雇佣边界。`dcl_employee_versions` 以 `approvalEntryId` 保存完整 employee snapshot：人员类别、部门、岗位、工作电话、工作邮箱、入职日期、备注与 `enabled`；它不复制 Party identity 或姓名。人员类别、部门、岗位与经营主体均同时保存 stable ID、精确 Approval Entry、编码及名称快照。
 
-`/dcl/employee` 是员工唯一维护入口，`/bob/employee` 只提供 current `query|get|reference`。创建请求必须选择已有 Party，或提交 `newParty`；新 Party 时同一 transaction 建立 Party root、DCL Party V1 candidate、员工 root、雇佣边界和员工 V1 candidate。employee 的 submit 与 approve 都要求 Party current approved；候选创建和保存按 latest approved 解析 AUX 与经营主体来源，submit/approve 时重新校验所有已保存精确来源仍是 latest approved。V1 的 `enabled` 默认为 `true`；后续启停通过包含 `enabled` 的完整 DCL candidate 保存，不存在 BOB 直接 `enable/disable`。
+`/dcl/employee` 是员工唯一维护入口，`/bob/employee` 只提供 current `query|get|reference`。创建请求必须选择已有 Party，或提交 `newParty`；新 Party 时同一 transaction 建立 Party root、DCL Party V1 candidate、员工 root、雇佣边界和员工 V1 candidate。employee 的 submit 与 approve 都要求 Party current approved；候选创建和保存从 AUX current 复制 stable ID、code、name 等快照，并按 latest approved 解析经营主体来源；submit/approve 只重新校验经营主体等 DCL 精确来源，AUX 只校验已存快照完整性与 stable identity。V1 的 `enabled` 默认为 `true`；后续启停通过包含 `enabled` 的完整 DCL candidate 保存，不存在 BOB 直接 `enable/disable`。
 
 批准或反批在同一 transaction 创建、替换、回落或移除 BOB employee current source。BOB current 明确返回来源 Approval Entry；VOU/ACC 与其他正式事实继续保存 employee stable ID、精确 Approval Entry 以及各自所需 snapshot。任一正式事实精确引用目标 employee entry 时，反批必须返回 blocker；新 employee candidate 和后续批准版本不改写历史。
 
@@ -113,4 +113,4 @@ DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`�
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖 V1/V2 正式投影切换与回落、V1 反批后不可引用、草稿删除后候选号复用、同一主体唯一开放候选、并发保存最多一个成功、只反批 latest approved，以及 subscriber 或 BOB current 写入失败时整笔事务回滚。客户还必须覆盖已有 Party 复用、客户创建原子建立默认账户、关系和账户独立 candidate、V2 不影响 current、关系/账户附件各自复制与只读、账户完整来源 snapshot、正式销售事实 blocker、V1 历史 exact entry 在 V2 切换后仍可校验，以及 current 投影失败时整笔事务回滚。员工、供应商、其他单位与销售合作方还必须覆盖 Party approved 前 submit/approve blocker、经营主体精确来源、current source、正式引用 blocker、反批回落和 VOU/ACC 历史快照不变；供应商还必须覆盖结算方式与默认采购员的精确来源、采购事实 blocker 及无供应商类别的 cutover 拒绝；销售合作方还必须覆盖能力移除 blocker。仓库还必须覆盖四类停用 blocker 与 VOU 精确版本引用 blocker；车辆还必须覆盖承运归属两种来源、车型与承运方漂移、VOU 精确版本引用 blocker 和历史运输快照不变；资金账户还必须覆盖经营主体来源漂移、账号正式版与候选版共同占用及回落冲突、VOU 精确版本 blocker、VOU 快照不变，以及 ACC 通过不可变 VOU 来源保持可追溯；产品还必须覆盖完整单位/配方 snapshot、AUX 与原料来源漂移、条码占用、current 切换与回落、正式引用 blocker、VOU/库存/生产/ACC 历史不变。HTTP 与前端验收必须证明旧 BOB 写路由与权限不存在、DCL 页面独占 DCL 候选及生命周期编排、BOB 页面只读取当前正式投影、APP 深链进入 DCL，以及 BOB 引用仍能校验精确历史快照。
+真实 PostgreSQL 验收必须覆盖 V1/V2 正式投影切换与回落、V1 反批后不可引用、草稿删除后候选号复用、同一主体唯一开放候选、并发保存最多一个成功、只反批 latest approved，以及 subscriber 或 BOB current 写入失败时整笔事务回滚。客户还必须覆盖已有 Party 复用、客户创建原子建立默认账户、关系和账户独立 candidate、V2 不影响 current、关系/账户附件各自复制与只读、账户完整来源 snapshot、正式销售事实 blocker、V1 历史 exact entry 在 V2 切换后仍可校验，以及 current 投影失败时整笔事务回滚。员工、供应商、其他单位与销售合作方还必须覆盖 Party approved 前 submit/approve blocker、经营主体精确来源、current source、正式引用 blocker、反批回落和 VOU/ACC 历史快照不变；供应商还必须覆盖结算方式 stable-ID 快照、默认采购员精确来源、采购事实 blocker 及无供应商类别的 cutover 拒绝；销售合作方还必须覆盖能力移除 blocker。仓库还必须覆盖四类停用 blocker 与 VOU 精确版本引用 blocker；车辆还必须覆盖承运归属两种来源、车型 stable-ID 快照与承运方漂移、VOU 精确版本引用 blocker 和历史运输快照不变；资金账户还必须覆盖经营主体来源漂移、账号正式版与候选版共同占用及回落冲突、VOU 精确版本 blocker、VOU 快照不变，以及 ACC 通过不可变 VOU 来源保持可追溯；产品还必须覆盖完整单位/配方 snapshot、AUX current 后续变更不改写历史、原料来源漂移、条码占用、current 切换与回落、正式引用 blocker、VOU/库存/生产/ACC 历史不变。HTTP 与前端验收必须证明旧 BOB 写路由与权限不存在、DCL 页面独占 DCL 候选及生命周期编排、BOB 页面只读取当前正式投影、APP 深链进入 DCL，以及 BOB 引用仍能校验精确历史快照。

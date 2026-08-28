@@ -34,8 +34,7 @@ func trustedAccountingActor(t *testing.T, requestID string) approval.Actor {
 }
 
 func newAccountingIntegrationBOBService(pool *pgxpool.Pool, bus *txevent.Bus) *bobdomain.Service {
-	authorizer := authorization.Func(nil)
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 }
 
@@ -168,7 +167,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
-	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newAccountingIntegrationBOBService(pool, bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "自动记账经营主体"})
 	handler := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "自动记账经办人", "acc-posting-employee")
@@ -429,7 +428,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
-	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newAccountingIntegrationBOBService(pool, bus)
 	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
@@ -437,12 +436,9 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	employee := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "服务验收经办人", "service-acceptance-employee")
 	var settlementID string
 	if err = pool.QueryRow(t.Context(), `
-		SELECT object.id
-		FROM aux_objects object
-		JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity AND entry.subject_id=object.id AND entry.status='APPROVED'
-		JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
-		WHERE object.entity='settlement-method' AND object.enabled AND payload.data->>'termCode'=$1
-		ORDER BY entry.version_no DESC LIMIT 1
+		SELECT object.id FROM aux_objects object
+		WHERE object.entity='settlement-method' AND object.enabled AND object.data->>'termCode'=$1
+		ORDER BY object.code LIMIT 1
 	`, bobdomain.SettlementTermMonthly30).Scan(&settlementID); err != nil {
 		t.Fatalf("load monthly settlement method: %v", err)
 	}

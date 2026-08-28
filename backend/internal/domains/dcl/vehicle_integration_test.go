@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
@@ -23,10 +22,10 @@ import (
 func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
-	typeObjectID, typeEntryID := seedVehicleTypeApproval(t, pool)
+	typeObjectID := seedVehicleType(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
 	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
@@ -49,12 +48,12 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create V1: %v", err)
 	}
-	var storedTypeObjectID, storedTypeEntryID, storedTypeName string
-	if err = pool.QueryRow(t.Context(), `SELECT vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name FROM dcl_vehicle_versions WHERE approval_entry_id=$1`, v1.Approval.ApprovalEntryID).Scan(&storedTypeObjectID, &storedTypeEntryID, &storedTypeName); err != nil {
+	var storedTypeObjectID, storedTypeName string
+	if err = pool.QueryRow(t.Context(), `SELECT vehicle_type_object_id,vehicle_type_name FROM dcl_vehicle_versions WHERE approval_entry_id=$1`, v1.Approval.ApprovalEntryID).Scan(&storedTypeObjectID, &storedTypeName); err != nil {
 		t.Fatalf("read vehicle type snapshot: %v", err)
 	}
-	if storedTypeObjectID != typeObjectID || storedTypeEntryID != typeEntryID || storedTypeName != "厢式货车" {
-		t.Fatalf("vehicle type snapshot = (%s,%s,%s)", storedTypeObjectID, storedTypeEntryID, storedTypeName)
+	if storedTypeObjectID != typeObjectID || storedTypeName != "厢式货车" {
+		t.Fatalf("vehicle type snapshot = (%s,%s)", storedTypeObjectID, storedTypeName)
 	}
 	if _, err = business.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: v1.ObjectID}); err == nil {
 		t.Fatal("BOB get exposed a vehicle candidate")
@@ -152,10 +151,10 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 func TestVehicleDeclarationIdentifierClaimsAndReferenceDriftIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
-	typeObjectID, typeV1EntryID := seedVehicleTypeApproval(t, pool)
+	typeObjectID := seedVehicleType(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
@@ -213,19 +212,16 @@ func TestVehicleDeclarationIdentifierClaimsAndReferenceDriftIntegration(t *testi
 	_, err = service.Save(t.Context(), VehicleSaveInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision, Enabled: true, Data: data}, creator("save-stale-revision"))
 	assertDCLVehicleErrorKey(t, err, "approval_stale_revision")
 
-	typeV2EntryID := ulid.Make().String()
-	now := time.Now().UTC()
-	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'aux','dictionary-item',$2,2,'APPROVED',1,$3,$4,$3,$4,$3,$4,$5,$4)`, typeV2EntryID, typeObjectID, creatorID, now, reviewerID); err != nil {
-		t.Fatalf("insert vehicle type V2 approval: %v", err)
+	typeView, err := auxiliary.Get(t.Context(), auxdomain.EntityDictionaryItem, auxdomain.GetInput{ObjectID: typeObjectID}, creator("get-vehicle-type"))
+	if err != nil {
+		t.Fatalf("get vehicle type current data: %v", err)
 	}
-	if _, err = pool.Exec(t.Context(), `INSERT INTO aux_version_payloads(approval_entry_id,object_id,entity,data) VALUES($1,$2,'dictionary-item',$3::jsonb)`, typeV2EntryID, typeObjectID, `{"name":"厢式货车 V2","sortOrder":10,"dictionaryTypeCode":"DCT-0002"}`); err != nil {
-		t.Fatalf("insert vehicle type V2 payload: %v", err)
+	if _, err = auxiliary.Save(t.Context(), auxdomain.EntityDictionaryItem, auxdomain.SaveInput{
+		ObjectID: typeObjectID, ObjectRevision: typeView.ObjectRevision,
+		Data: map[string]any{"name": "厢式货车 V2", "sortOrder": 10, "dictionaryTypeCode": "DCT-0002"},
+	}, creator("save-vehicle-type-v2")); err != nil {
+		t.Fatalf("save vehicle type current data: %v", err)
 	}
-	if typeV1EntryID == typeV2EntryID {
-		t.Fatal("vehicle type source entries unexpectedly equal")
-	}
-	_, err = service.Submit(t.Context(), VehicleVersionInput{ObjectID: saved.ObjectID, ApprovalEntryID: saved.Approval.ApprovalEntryID, ApprovalRevision: saved.Approval.Revision}, creator("submit-stale-type"))
-	assertDCLVehicleErrorKey(t, err, "vehicle_type_reference_stale")
 	refreshed, err := service.Save(t.Context(), VehicleSaveInput{ObjectID: saved.ObjectID, ApprovalEntryID: saved.Approval.ApprovalEntryID, ApprovalRevision: saved.Approval.Revision, Enabled: true, Data: data}, creator("refresh-type"))
 	if err != nil {
 		t.Fatalf("refresh vehicle type source: %v", err)
@@ -249,10 +245,10 @@ func TestVehicleDeclarationIdentifierClaimsAndReferenceDriftIntegration(t *testi
 func TestVehicleIdentifierClaimsAcrossApprovedAndOpenVersionsIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
-	seedVehicleTypeApproval(t, pool)
+	seedVehicleType(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
@@ -348,10 +344,10 @@ func (writer failingVehicleCurrentWriter) ApplyVehicleCurrent(ctx context.Contex
 func TestVehicleCurrentApplyFailureRollsBackIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
-	seedVehicleTypeApproval(t, pool)
+	seedVehicleType(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -390,21 +386,16 @@ func TestVehicleCurrentApplyFailureRollsBackIntegration(t *testing.T) {
 	}
 }
 
-func seedVehicleTypeApproval(t *testing.T, pool *pgxpool.Pool) (string, string) {
+func seedVehicleType(t *testing.T, pool *pgxpool.Pool) string {
 	t.Helper()
 	const objectID = "01JAVX00000000000000000009"
-	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,created_by,updated_by) VALUES($1,'dictionary-item','DIT-0003',$2,$2) ON CONFLICT (id) DO NOTHING`, objectID, "01J00000000000000000000000"); err != nil {
+	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by) VALUES('01JAVX00000000000000000003','dictionary-type','DCT-0002',$1::jsonb,$2,$2) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data`, `{"name":"车辆类型","description":"车辆展示和筛选类型"}`, "01J00000000000000000000000"); err != nil {
+		t.Fatalf("insert vehicle dictionary type fixture: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by) VALUES($1,'dictionary-item','DIT-0003',$2::jsonb,$3,$3) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data`, objectID, `{"name":"厢式货车","sortOrder":10,"dictionaryTypeCode":"DCT-0002"}`, "01J00000000000000000000000"); err != nil {
 		t.Fatalf("insert vehicle type object fixture: %v", err)
 	}
-	entryID, creatorID, reviewerID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
-	now := time.Now().UTC()
-	if _, err := pool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'aux','dictionary-item',$2,1,'APPROVED',1,$3,$4,$3,$4,$3,$4,$5,$4)`, entryID, objectID, creatorID, now, reviewerID); err != nil {
-		t.Fatalf("seed vehicle type approval: %v", err)
-	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_version_payloads(approval_entry_id,object_id,entity,data) VALUES($1,$2,'dictionary-item',$3::jsonb)`, entryID, objectID, `{"name":"厢式货车","sortOrder":10,"dictionaryTypeCode":"DCT-0002"}`); err != nil {
-		t.Fatalf("seed vehicle type payload: %v", err)
-	}
-	return objectID, entryID
+	return objectID
 }
 
 func assertDCLVehicleErrorKey(t *testing.T, err error, want string) {

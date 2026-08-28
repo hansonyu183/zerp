@@ -554,7 +554,7 @@ func validateProductComplete(input DetailView) error {
 	if err := validateProductDraft(input); err != nil {
 		return err
 	}
-	if !validID(input.ProductTypeID) || !validID(input.ProductTypeApprovalEntryID) || input.ProductTypeCode == "" || input.ProductTypeName == "" || !validProductBehavior(input.BehaviorProfile) {
+	if !validID(input.ProductTypeID) || input.ProductTypeCode == "" || input.ProductTypeName == "" || !validProductBehavior(input.BehaviorProfile) {
 		return domainError(ErrorValidation, "product type is required", nil, nil)
 	}
 	if len(input.UnitConversions) == 0 || input.DefaultInputUnitID == "" || input.PricingUnitID == "" {
@@ -562,7 +562,7 @@ func validateProductComplete(input DetailView) error {
 	}
 	byUnit := make(map[string]ProductUnitConversion, len(input.UnitConversions))
 	for _, conversion := range input.UnitConversions {
-		if conversion.Unit.ApprovalEntryID == "" || conversion.Unit.Code == "" || conversion.Unit.Name == "" || conversion.Unit.Symbol == "" {
+		if !validID(conversion.Unit.ObjectID) || conversion.Unit.Code == "" || conversion.Unit.Name == "" || conversion.Unit.Symbol == "" {
 			return domainError(ErrorValidation, "unit conversion snapshot is incomplete", nil, nil)
 		}
 		byUnit[conversion.Unit.ObjectID] = conversion

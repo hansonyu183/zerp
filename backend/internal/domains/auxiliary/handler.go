@@ -18,16 +18,9 @@ type applicationService interface {
 	Get(context.Context, string, GetInput, approval.Actor) (ObjectView, error)
 	Create(context.Context, string, CreateInput, approval.Actor) (MutationResult, error)
 	Save(context.Context, string, SaveInput, approval.Actor) (MutationResult, error)
-	Submit(context.Context, string, ApprovalRevisionInput, approval.Actor) (MutationResult, error)
-	Unsubmit(context.Context, string, ApprovalRevisionInput, approval.Actor) (MutationResult, error)
-	Approve(context.Context, string, ApprovalRevisionInput, approval.Actor) (MutationResult, error)
-	Reject(context.Context, string, ReviewInput, approval.Actor) (MutationResult, error)
-	Unapprove(context.Context, string, ReviewInput, approval.Actor) (MutationResult, error)
 	Enable(context.Context, string, ObjectRevisionInput, approval.Actor) (MutationResult, error)
 	Disable(context.Context, string, ObjectRevisionInput, approval.Actor) (MutationResult, error)
 	Delete(context.Context, string, DeleteInput, approval.Actor) error
-	Versions(context.Context, string, HistoryInput, approval.Actor) (Page[VersionView], error)
-	AuditHistory(context.Context, string, HistoryInput, approval.Actor) (Page[AuditEventView], error)
 	QueryReferenceCandidates(context.Context, ReferenceQueryInput, approval.Actor) ([]ReferenceCandidate, error)
 }
 
@@ -47,16 +40,9 @@ var actionRoutes = [...]actionRoute{
 	{"get", (*Handler).get},
 	{"create", (*Handler).create},
 	{"save", (*Handler).save},
-	{"submit", (*Handler).submit},
-	{"unsubmit", (*Handler).unsubmit},
-	{"approve", (*Handler).approve},
-	{"reject", (*Handler).reject},
-	{"unapprove", (*Handler).unapprove},
 	{"enable", (*Handler).enable},
 	{"disable", (*Handler).disable},
 	{"delete", (*Handler).delete},
-	{"versions", (*Handler).versions},
-	{"audit-history", (*Handler).auditHistory},
 }
 
 func NewHandler(service applicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
@@ -150,51 +136,6 @@ func (h *Handler) save(c *gin.Context, entity string) {
 	}
 }
 
-func (h *Handler) submit(c *gin.Context, entity string) {
-	var input ApprovalRevisionInput
-	if h.bind(c, &input) {
-		h.withActorResult(c, func(actor approval.Actor) (MutationResult, error) {
-			return h.service.Submit(c.Request.Context(), entity, input, actor)
-		})
-	}
-}
-
-func (h *Handler) unsubmit(c *gin.Context, entity string) {
-	var input ApprovalRevisionInput
-	if h.bind(c, &input) {
-		h.withActorResult(c, func(actor approval.Actor) (MutationResult, error) {
-			return h.service.Unsubmit(c.Request.Context(), entity, input, actor)
-		})
-	}
-}
-
-func (h *Handler) approve(c *gin.Context, entity string) {
-	var input ApprovalRevisionInput
-	if h.bind(c, &input) {
-		h.withActorResult(c, func(actor approval.Actor) (MutationResult, error) {
-			return h.service.Approve(c.Request.Context(), entity, input, actor)
-		})
-	}
-}
-
-func (h *Handler) reject(c *gin.Context, entity string) {
-	var input ReviewInput
-	if h.bind(c, &input) {
-		h.withActorResult(c, func(actor approval.Actor) (MutationResult, error) {
-			return h.service.Reject(c.Request.Context(), entity, input, actor)
-		})
-	}
-}
-
-func (h *Handler) unapprove(c *gin.Context, entity string) {
-	var input ReviewInput
-	if h.bind(c, &input) {
-		h.withActorResult(c, func(actor approval.Actor) (MutationResult, error) {
-			return h.service.Unapprove(c.Request.Context(), entity, input, actor)
-		})
-	}
-}
-
 func (h *Handler) enable(c *gin.Context, entity string) {
 	var input ObjectRevisionInput
 	if h.bind(c, &input) {
@@ -224,30 +165,6 @@ func (h *Handler) delete(c *gin.Context, entity string) {
 	}
 }
 
-func (h *Handler) versions(c *gin.Context, entity string) {
-	var input HistoryInput
-	if h.bind(c, &input) {
-		actor, ok := h.actor(c)
-		if !ok {
-			return
-		}
-		result, err := h.service.Versions(c.Request.Context(), entity, input, actor)
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) auditHistory(c *gin.Context, entity string) {
-	var input HistoryInput
-	if h.bind(c, &input) {
-		actor, ok := h.actor(c)
-		if !ok {
-			return
-		}
-		result, err := h.service.AuditHistory(c.Request.Context(), entity, input, actor)
-		h.result(c, result, err)
-	}
-}
-
 func (h *Handler) bind(c *gin.Context, target any) bool {
 	if err := requestbody.DecodeJSON(c, target); err != nil {
 		h.writeError(c, domainError(ErrorValidation, "invalid request", nil, err))
@@ -259,7 +176,7 @@ func (h *Handler) bind(c *gin.Context, target any) bool {
 func (h *Handler) actor(c *gin.Context) (approval.Actor, bool) {
 	actor, err := approval.UserActor(authmiddleware.Principal(c), response.RequestID(c))
 	if err != nil {
-		h.writeError(c, mapApprovalError(err))
+		h.writeError(c, domainError(ErrorValidation, "invalid request actor", nil, err))
 		return approval.Actor{}, false
 	}
 	return actor, true

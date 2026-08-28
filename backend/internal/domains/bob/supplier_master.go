@@ -205,7 +205,7 @@ func loadSupplierVersionWithQueries(ctx context.Context, q *dbsqlc.Queries, entr
 		data.DefaultPurchaser = &SupplierPurchaserSnapshot{SourceObjectID: data.DefaultPurchaserEmployeeID, ApprovalEntryID: data.DefaultPurchaserApprovalID, Code: stringValue(payload.DefaultPurchaserEmployeeCode), Name: stringValue(payload.DefaultPurchaserEmployeeName)}
 	}
 	if data.SettlementMethodID != "" {
-		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: data.SettlementMethodID, ApprovalEntryID: stringValue(payload.SettlementMethodApprovalEntryID),
+		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: data.SettlementMethodID,
 			Code: stringValue(payload.SettlementMethodCode), Name: stringValue(payload.SettlementMethodName), TermCode: stringValue(payload.SettlementTermCode),
 			RuleType: stringValue(payload.SettlementRuleType), MonthOffset: payload.SettlementMonthOffset,
 			DayOfMonth: payload.SettlementDayOfMonth, DayOffset: payload.SettlementDayOffset}

@@ -3,20 +3,11 @@ import { apiClient, type AuxApiEntity } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import type { BusinessObjectField } from '@/components/business-object'
-import { type ApprovalAction, visibleApprovalActions } from '@/shared/approval'
 import { useSessionStore } from '@/stores/session'
 import { formatReferenceLabel } from '@/utils/reference-label'
 import type { AuxEntityConfig } from './config'
 
-export type AuxVersion = components['schemas']['AuxVersionView']
 export type AuxListItem = components['schemas']['AuxObjectView']
-export type AuxAuditEvent = components['schemas']['ApprovalEventView']
-
-export function auxListActiveVersion(
-  item: Pick<AuxListItem, 'latestApproved' | 'openVersion'>,
-): AuxVersion | null {
-  return item.openVersion ?? item.latestApproved
-}
 
 interface ReferenceOption {
   title: string
@@ -38,7 +29,6 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   })
   const loading = ref(false)
   const saving = ref(false)
-  const actionLoading = ref<ApprovalAction | null>(null)
   const errorMessage = ref<string | null>(null)
   const editorOpen = ref(false)
   const editorResetKey = ref(0)
@@ -59,25 +49,6 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     session.can(`/aux/${config.entity}/disable`),
   )
   const canDelete = computed(() => session.can(`/aux/${config.entity}/delete`))
-  const canVersions = computed(() =>
-    session.can(`/aux/${config.entity}/versions`),
-  )
-  const canAuditHistory = computed(() =>
-    session.can(`/aux/${config.entity}/audit-history`),
-  )
-  const versionsOpen = ref(false)
-  const versionsLoading = ref(false)
-  const versions = ref<AuxVersion[]>([])
-  const versionsPage = ref(1)
-  const versionsPageSize = ref(20)
-  const versionsTotal = ref(0)
-  const historyObject = ref<AuxListItem | null>(null)
-  const auditOpen = ref(false)
-  const auditLoading = ref(false)
-  const auditEvents = ref<AuxAuditEvent[]>([])
-  const auditPage = ref(1)
-  const auditPageSize = ref(20)
-  const auditTotal = ref(0)
   const editorFields = computed<
     readonly BusinessObjectField<Record<string, unknown>>[]
   >(() => [
@@ -117,16 +88,9 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
       | 'query'
       | 'create'
       | 'save'
-      | 'submit'
-      | 'unsubmit'
-      | 'approve'
-      | 'reject'
-      | 'unapprove'
       | 'enable'
       | 'disable'
-      | 'delete'
-      | 'versions'
-      | 'audit-history',
+      | 'delete',
   >(
     action: Action,
   ): `aux/${AuxApiEntity}/${Action}` => `aux/${config.entity}/${action}`
@@ -185,18 +149,13 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   }
 
   function referenceOption(
-    item: Pick<
-      AuxListItem,
-      'objectId' | 'code' | 'latestApproved' | 'openVersion'
-    >,
+    item: Pick<AuxListItem, 'objectId' | 'code' | 'data'>,
     valueKind: 'objectId' | 'code',
-  ): ReferenceOption | null {
-    const version = auxListActiveVersion(item)
-    if (!version) return null
+  ): ReferenceOption {
     return {
       title: formatReferenceLabel({
         code: item.code,
-        name: version.data.name,
+        name: item.data.name,
       }),
       value: valueKind === 'code' ? item.code : item.objectId,
     }
@@ -271,8 +230,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
       if (referenceSequences.get(field.key) !== sequence) return
       const fetched = result.data.items.flatMap((item) => {
         if (item.objectId === editing.value?.objectId) return []
-        const option = referenceOption(item, reference.value)
-        return option ? [option] : []
+        return [referenceOption(item, reference.value)]
       })
       referenceOptions[field.key] = selected
         ? [
@@ -326,137 +284,15 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
 
   function openEdit(row: AuxListItem): void {
     if (!canSave.value) return
-    const version = auxListActiveVersion(row)
-    if (!version || version.approval.status === 'PENDING') return
     editing.value = row
     editorModel.value = {
       code: row.code,
       ...config.defaults(),
-      ...version.data,
+      ...row.data,
     }
     editorResetKey.value += 1
     editorOpen.value = true
     void loadReferences()
-  }
-
-  function approvalActions(row: AuxListItem): ApprovalAction[] {
-    const version = auxListActiveVersion(row)
-    if (!version || !session.user?.id) return []
-    return visibleApprovalActions(version.approval, session.user.id, (action) =>
-      session.can(`/aux/${config.entity}/${action}`),
-    )
-  }
-
-  async function runApprovalAction(
-    row: AuxListItem,
-    action: ApprovalAction,
-    reason = '',
-  ): Promise<boolean> {
-    const version = auxListActiveVersion(row)
-    if (
-      !version ||
-      actionLoading.value ||
-      !approvalActions(row).includes(action)
-    ) {
-      return false
-    }
-    const normalizedReason = reason.trim()
-    if ((action === 'reject' || action === 'unapprove') && !normalizedReason) {
-      errorMessage.value = '请填写操作原因。'
-      return false
-    }
-    actionLoading.value = action
-    errorMessage.value = null
-    const base = {
-      objectId: row.objectId,
-      approvalEntryId: version.approval.approvalEntryId,
-      approvalRevision: version.approval.revision,
-    }
-    try {
-      if (action === 'reject' || action === 'unapprove') {
-        await apiClient.postContract(path(action), {
-          ...base,
-          reason: normalizedReason,
-        })
-      } else {
-        await apiClient.postContract(path(action), base)
-      }
-      await query()
-      return true
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-      return false
-    } finally {
-      actionLoading.value = null
-    }
-  }
-
-  async function loadVersions(): Promise<void> {
-    const object = historyObject.value
-    if (!object) return
-    versionsLoading.value = true
-    try {
-      const result = await apiClient.postContract(path('versions'), {
-        objectId: object.objectId,
-        page: versionsPage.value,
-        pageSize: versionsPageSize.value,
-      })
-      versions.value = result.data.items
-      versionsTotal.value = result.data.total
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    } finally {
-      versionsLoading.value = false
-    }
-  }
-
-  async function openVersions(row: AuxListItem): Promise<void> {
-    if (!canVersions.value) return
-    historyObject.value = row
-    versions.value = []
-    versionsPage.value = 1
-    versionsOpen.value = true
-    await loadVersions()
-  }
-
-  async function changeVersionsPage(nextPage: number): Promise<void> {
-    if (nextPage < 1 || nextPage === versionsPage.value) return
-    versionsPage.value = nextPage
-    await loadVersions()
-  }
-
-  async function loadAuditHistory(): Promise<void> {
-    const object = historyObject.value
-    if (!object) return
-    auditLoading.value = true
-    try {
-      const result = await apiClient.postContract(path('audit-history'), {
-        objectId: object.objectId,
-        page: auditPage.value,
-        pageSize: auditPageSize.value,
-      })
-      auditEvents.value = result.data.items
-      auditTotal.value = result.data.total
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    } finally {
-      auditLoading.value = false
-    }
-  }
-
-  async function openAuditHistory(row: AuxListItem): Promise<void> {
-    if (!canAuditHistory.value) return
-    historyObject.value = row
-    auditEvents.value = []
-    auditPage.value = 1
-    auditOpen.value = true
-    await loadAuditHistory()
-  }
-
-  async function changeAuditPage(nextPage: number): Promise<void> {
-    if (nextPage < 1 || nextPage === auditPage.value) return
-    auditPage.value = nextPage
-    await loadAuditHistory()
   }
 
   function closeEditor(): void {
@@ -474,12 +310,9 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
         Object.entries(value).filter(([key]) => key !== 'code'),
       )
       if (editing.value) {
-        const version = auxListActiveVersion(editing.value)
-        if (!version) throw new Error('资料没有可编辑的开放版本或已批准版本。')
         await apiClient.postContract(path('save'), {
           objectId: editing.value.objectId,
-          approvalEntryId: version.approval.approvalEntryId,
-          approvalRevision: version.approval.revision,
+          objectRevision: editing.value.objectRevision,
           data,
         })
       } else {
@@ -514,12 +347,9 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     if (!canDelete.value) return
     errorMessage.value = null
     try {
-      const version = auxListActiveVersion(row)
-      if (!version) throw new Error('资料没有可删除的开放版本或已批准版本。')
       await apiClient.postContract(path('delete'), {
         objectId: row.objectId,
-        approvalEntryId: version.approval.approvalEntryId,
-        approvalRevision: version.approval.revision,
+        objectRevision: row.objectRevision,
       })
       await query()
     } catch (error) {
@@ -546,7 +376,6 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     sort,
     loading,
     saving,
-    actionLoading,
     errorMessage,
     editorOpen,
     editorResetKey,
@@ -560,21 +389,6 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     canEnable,
     canDisable,
     canDelete,
-    canVersions,
-    canAuditHistory,
-    versionsOpen,
-    versionsLoading,
-    versions,
-    versionsPage,
-    versionsPageSize,
-    versionsTotal,
-    historyObject,
-    auditOpen,
-    auditLoading,
-    auditEvents,
-    auditPage,
-    auditPageSize,
-    auditTotal,
     query,
     search,
     resetFilters,
@@ -582,12 +396,6 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     changePage,
     openCreate,
     openEdit,
-    approvalActions,
-    runApprovalAction,
-    openVersions,
-    changeVersionsPage,
-    openAuditHistory,
-    changeAuditPage,
     closeEditor,
     searchEditorReference,
     save,

@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type AuxReviewRequest = {
+export type VouAuxiliaryReferenceView = {
   objectId: string;
-  approvalEntryId: string;
-  approvalRevision: number;
-  reason: string | null;
+  entity: string;
+  code: string;
+  name: string;
 };

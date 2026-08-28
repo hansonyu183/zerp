@@ -54,14 +54,14 @@ func productDeclarationData(data ProductInput) bobdomain.DetailView {
 }
 func productDCLData(data bobdomain.DetailView) ProductData {
 	return ProductData{
-		Name: data.Name, CategoryID: data.CategoryID, CategoryApprovalEntryID: data.CategoryApprovalEntryID,
+		Name: data.Name, CategoryID: data.CategoryID,
 		CategoryCode: data.CategoryCode, CategoryName: data.CategoryName,
 		Specification: data.Specification, Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
-		ProductTypeID: data.ProductTypeID, ProductTypeApprovalEntryID: data.ProductTypeApprovalEntryID,
+		ProductTypeID:   data.ProductTypeID,
 		ProductTypeCode: data.ProductTypeCode, ProductTypeName: data.ProductTypeName, BehaviorProfile: data.BehaviorProfile,
-		DefaultInputUnitID: data.DefaultInputUnitID, DefaultInputUnitApprovalEntryID: data.DefaultInputUnitApprovalEntryID,
-		PricingUnitID: data.PricingUnitID, PricingUnitApprovalEntryID: data.PricingUnitApprovalEntryID,
-		UnitConversions: data.UnitConversions, Returnable: data.Returnable,
+		DefaultInputUnitID: data.DefaultInputUnitID,
+		PricingUnitID:      data.PricingUnitID,
+		UnitConversions:    data.UnitConversions, Returnable: data.Returnable,
 		DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
 	}
 }
@@ -105,19 +105,15 @@ func carryProductFormulaCandidateSources(next *bobdomain.DetailView, previous bo
 // carried entry and is resolved to the current approved source by BOB.
 func carryProductDraftSources(next *bobdomain.DetailView, previous bobdomain.DetailView) {
 	if next.CategoryID == previous.CategoryID {
-		next.CategoryApprovalEntryID = previous.CategoryApprovalEntryID
 		next.CategoryCode, next.CategoryName = previous.CategoryCode, previous.CategoryName
 	}
 	if next.ProductTypeID == previous.ProductTypeID {
-		next.ProductTypeApprovalEntryID = previous.ProductTypeApprovalEntryID
 		next.ProductTypeCode, next.ProductTypeName = previous.ProductTypeCode, previous.ProductTypeName
 		next.BehaviorProfile = previous.BehaviorProfile
 	}
 	if next.DefaultInputUnitID == previous.DefaultInputUnitID {
-		next.DefaultInputUnitApprovalEntryID = previous.DefaultInputUnitApprovalEntryID
 	}
 	if next.PricingUnitID == previous.PricingUnitID {
-		next.PricingUnitApprovalEntryID = previous.PricingUnitApprovalEntryID
 	}
 	units := make(map[string]bobdomain.MeasurementUnitSnapshot, len(previous.UnitConversions))
 	for _, conversion := range previous.UnitConversions {

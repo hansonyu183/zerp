@@ -45,7 +45,7 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
@@ -120,7 +120,7 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 		t.Fatalf("insert attachment file: %v", err)
 	}
 	for _, entryID := range []string{v1.Approval.ApprovalEntryID, v2.Approval.ApprovalEntryID} {
-		if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_attachments(approval_entry_id,file_id,category_object_id,category_approval_entry_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,'CONTRACT','合同',$5)`, entryID, fileID, ulid.Make().String(), ulid.Make().String(), creatorID); err != nil {
+		if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_customer_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,'CONTRACT','合同',$4)`, entryID, fileID, ulid.Make().String(), creatorID); err != nil {
 			t.Fatalf("copy attachment into %s: %v", entryID, err)
 		}
 	}

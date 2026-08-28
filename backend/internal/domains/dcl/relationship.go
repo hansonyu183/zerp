@@ -60,7 +60,7 @@ func NewRelationshipService(pool *pgxpool.Pool, current relationshipCurrentWrite
 	return &RelationshipService{pool: pool, queries: dbsqlc.New(pool), current: current, parties: parties, partyReader: partyReader, other: c, sales: s}
 }
 func otherDetail(data OtherUnitData) bobdomain.DetailView {
-	result := bobdomain.DetailView{ContactName: strings.TrimSpace(data.ContactName), ContactPhone: strings.TrimSpace(data.ContactPhone), Email: strings.TrimSpace(data.Email), Address: strings.TrimSpace(data.Address), SettlementMethodID: strings.TrimSpace(data.SettlementMethodID), SettlementMethodApprovalEntryID: strings.TrimSpace(data.SettlementMethodApprovalEntryID), SettlementMethodCode: data.SettlementMethodCode, SettlementMethodName: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOffset: data.SettlementDayOffset, Remark: strings.TrimSpace(data.Remark)}
+	result := bobdomain.DetailView{ContactName: strings.TrimSpace(data.ContactName), ContactPhone: strings.TrimSpace(data.ContactPhone), Email: strings.TrimSpace(data.Email), Address: strings.TrimSpace(data.Address), SettlementMethodID: strings.TrimSpace(data.SettlementMethodID), SettlementMethodCode: data.SettlementMethodCode, SettlementMethodName: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOffset: data.SettlementDayOffset, Remark: strings.TrimSpace(data.Remark)}
 	if data.SettlementDayOfMonth > 0 {
 		day := data.SettlementDayOfMonth
 		result.DayOfMonth = &day
@@ -317,11 +317,11 @@ func insertOther(ctx context.Context, q *dbsqlc.Queries, id string, enabled bool
 	return q.InsertDCLOtherUnitVersion(ctx, p)
 }
 func otherInsert(id string, enabled bool, d bobdomain.DetailView) dbsqlc.InsertDCLOtherUnitVersionParams {
-	return dbsqlc.InsertDCLOtherUnitVersionParams{ApprovalEntryID: id, ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(d.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementMonthOffset: d.MonthOffset, SettlementDayOfMonth: day(d.DayOfMonth), SettlementDayOffset: d.DayOffset, Remark: nilIfEmpty(d.Remark), Enabled: enabled}
+	return dbsqlc.InsertDCLOtherUnitVersionParams{ApprovalEntryID: id, ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementMonthOffset: d.MonthOffset, SettlementDayOfMonth: day(d.DayOfMonth), SettlementDayOffset: d.DayOffset, Remark: nilIfEmpty(d.Remark), Enabled: enabled}
 }
 func otherUpdate(id string, enabled bool, d bobdomain.DetailView) dbsqlc.UpdateDCLOtherUnitVersionParams {
 	p := otherInsert(id, enabled, d)
-	return dbsqlc.UpdateDCLOtherUnitVersionParams{ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, SettlementMethodID: p.SettlementMethodID, SettlementMethodApprovalEntryID: p.SettlementMethodApprovalEntryID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, Remark: p.Remark, Enabled: enabled, ApprovalEntryID: id}
+	return dbsqlc.UpdateDCLOtherUnitVersionParams{ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, SettlementMethodID: p.SettlementMethodID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, Remark: p.Remark, Enabled: enabled, ApprovalEntryID: id}
 }
 func day(v *int32) int32 {
 	if v == nil {
@@ -330,7 +330,7 @@ func day(v *int32) int32 {
 	return *v
 }
 func otherDataFromStored(r dbsqlc.DclOtherUnitVersion) OtherUnitData {
-	return OtherUnitData{ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodApprovalEntryID: stringValue(r.SettlementMethodApprovalEntryID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), SettlementTermCode: stringValue(r.SettlementTermCode), SettlementRuleType: stringValue(r.SettlementRuleType), SettlementMonthOffset: r.SettlementMonthOffset, SettlementDayOfMonth: r.SettlementDayOfMonth, SettlementDayOffset: r.SettlementDayOffset, Remark: stringValue(r.Remark)}
+	return OtherUnitData{ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), SettlementTermCode: stringValue(r.SettlementTermCode), SettlementRuleType: stringValue(r.SettlementRuleType), SettlementMonthOffset: r.SettlementMonthOffset, SettlementDayOfMonth: r.SettlementDayOfMonth, SettlementDayOffset: r.SettlementDayOffset, Remark: stringValue(r.Remark)}
 }
 
 func normalizedSales(data SalesPartnerData) (SalesPartnerData, error) {

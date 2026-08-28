@@ -196,9 +196,7 @@ func (service relationshipAwareLifecycleService) Create(
 
 func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context.Context, actor approval.Actor) (string, error) {
 	var objectID string
-	err := service.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
-		WHERE domain='aux' AND entity='payment-method' AND request_id='seed-bob-DEMO-PAY-001-create'
-		  AND action='CREATED' ORDER BY created_at,id LIMIT 1`).Scan(&objectID)
+	err := service.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity='payment-method' AND data->>'name'='演示银行转账' ORDER BY id LIMIT 1`).Scan(&objectID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return "", err
 	}
@@ -215,30 +213,7 @@ func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context
 	if getErr != nil {
 		return "", getErr
 	}
-	if view.LatestApproved != nil {
-		return objectID, nil
-	}
-	if view.OpenVersion == nil {
-		return "", errors.New("payment method has no approval entry")
-	}
-	current := view.OpenVersion.Approval
-	if current.Status == approval.StatusDraft {
-		pending, submitErr := service.auxiliary.Submit(ctx, auxdomain.EntityPaymentMethod, auxdomain.ApprovalRevisionInput{
-			ObjectID: objectID, ApprovalEntryID: current.ApprovalEntryID, ApprovalRevision: current.Revision,
-		}, actor)
-		if submitErr != nil {
-			return "", submitErr
-		}
-		current = pending.Approval
-	}
-	if current.Status != approval.StatusPending {
-		return "", fmt.Errorf("cannot approve payment method from %s", current.Status)
-	}
-	if _, approveErr := service.auxiliary.Approve(ctx, auxdomain.EntityPaymentMethod, auxdomain.ApprovalRevisionInput{
-		ObjectID: objectID, ApprovalEntryID: current.ApprovalEntryID, ApprovalRevision: current.Revision,
-	}, mustReviewerActor("seed-bob-DEMO-PAY-001-approve")); approveErr != nil {
-		return "", approveErr
-	}
+	_ = view
 	return objectID, nil
 }
 
@@ -1106,10 +1081,15 @@ func (l queryLookup) Find(ctx context.Context, entity, code string) (string, boo
 		return id, err == nil, err
 	}
 	if auxiliaryEntity, ok := auxiliarySeedEntity(entity); ok {
+		seedName := code
+		for _, item := range samples {
+			if item.entity == entity && item.data.Code == code {
+				seedName = item.data.Name
+				break
+			}
+		}
 		var id string
-		err := l.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
-			WHERE domain='aux' AND entity=$1 AND request_id=$2 AND action='CREATED'
-			ORDER BY created_at,id LIMIT 1`, auxiliaryEntity, requestID(code, "create")).Scan(&id)
+		err := l.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity=$1 AND (code=$2 OR data->>'name'=$3) ORDER BY id LIMIT 1`, auxiliaryEntity, code, seedName).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
 		}
@@ -1117,13 +1097,7 @@ func (l queryLookup) Find(ctx context.Context, entity, code string) (string, boo
 	}
 	if entity == auxdomain.EntitySettlementMethod {
 		var id string
-		err := l.pool.QueryRow(ctx, `SELECT object.id FROM aux_objects object
-			JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity
-			  AND entry.subject_id=object.id AND entry.status='APPROVED'
-			JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
-			WHERE object.entity='settlement-method' AND object.enabled
-			  AND payload.data->>'termCode'=$1
-			ORDER BY entry.version_no DESC`, code).Scan(&id)
+		err := l.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity='settlement-method' AND enabled AND data->>'termCode'=$1 ORDER BY id LIMIT 1`, code).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
 		}
@@ -1148,7 +1122,7 @@ type Seeder struct {
 
 func New(pool *pgxpool.Pool) *Seeder {
 	authorizer := authorization.Func(nil)
-	auxiliary := auxdomain.NewService(pool, authorizer, txevent.NewBus())
+	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	bus := txevent.NewBus()
 	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorizer, bus)
@@ -1415,13 +1389,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		}
 		if s.pool == nil {
 			item.data.ProductTypeID = demoProductTypeID(profile)
-		} else if err := s.pool.QueryRow(ctx, `
-			SELECT object.id FROM aux_objects object
-			JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity
-			  AND entry.subject_id=object.id AND entry.status='APPROVED'
-			JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
-			WHERE object.entity='product-type' AND object.enabled AND payload.data->>'behaviorProfile'=$1
-			ORDER BY entry.version_no DESC, object.code LIMIT 1`, profile).Scan(&item.data.ProductTypeID); err != nil {
+		} else if err := s.pool.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity='product-type' AND enabled AND data->>'behaviorProfile'=$1 ORDER BY code LIMIT 1`, profile).Scan(&item.data.ProductTypeID); err != nil {
 			return 0, fmt.Errorf("resolve demo product type: %w", err)
 		}
 		if s.pool != nil {
@@ -1592,41 +1560,14 @@ func (s *Seeder) seedAuxiliaryOne(
 		}
 		objectID, created = result.ObjectID, true
 	}
-	view, getErr := s.auxiliary.Get(ctx, entity, auxdomain.GetInput{ObjectID: objectID}, mustSeedActor(requestID(item.data.Code, "get")))
+	_, getErr := s.auxiliary.Get(ctx, entity, auxdomain.GetInput{ObjectID: objectID}, mustSeedActor(requestID(item.data.Code, "get")))
 	if getErr != nil {
 		return 0, getErr
-	}
-	if view.LatestApproved != nil {
-		if created {
-			return outcomeCreated, nil
-		}
-		return outcomeSkipped, nil
-	}
-	if view.OpenVersion == nil {
-		return 0, fmt.Errorf("auxiliary object has no approval entry")
-	}
-	current := view.OpenVersion.Approval
-	if current.Status == approval.StatusDraft {
-		pending, submitErr := s.auxiliary.Submit(ctx, entity, auxdomain.ApprovalRevisionInput{
-			ObjectID: objectID, ApprovalEntryID: current.ApprovalEntryID, ApprovalRevision: current.Revision,
-		}, mustSeedActor(requestID(item.data.Code, "submit")))
-		if submitErr != nil {
-			return 0, submitErr
-		}
-		current = pending.Approval
-	}
-	if current.Status != approval.StatusPending {
-		return 0, fmt.Errorf("cannot approve auxiliary object from %s", current.Status)
-	}
-	if _, approveErr := s.auxiliary.Approve(ctx, entity, auxdomain.ApprovalRevisionInput{
-		ObjectID: objectID, ApprovalEntryID: current.ApprovalEntryID, ApprovalRevision: current.Revision,
-	}, mustReviewerActor(requestID(item.data.Code, "approve"))); approveErr != nil {
-		return 0, approveErr
 	}
 	if created {
 		return outcomeCreated, nil
 	}
-	return outcomeResumed, nil
+	return outcomeSkipped, nil
 }
 
 func demoProductTypeID(profile string) string {

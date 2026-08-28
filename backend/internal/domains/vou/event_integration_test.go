@@ -43,7 +43,7 @@ func integrationServiceWithEvents(t *testing.T, pool *pgxpool.Pool, events *txev
 	service, err := NewService(
 		pool,
 		newBOBIntegrationService(pool),
-		auxiliaryrefs.New(auxdomain.NewService(pool, authorization.Func(nil), txevent.NewBus())),
+		auxiliaryrefs.New(auxdomain.NewService(pool)),
 		events,
 		AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),

@@ -36,13 +36,10 @@ func businessMutation(view bobdomain.ObjectView) (bobdomain.MutationResult, erro
 }
 
 func unitSnapshot(view auxdomain.ObjectView) bobdomain.MeasurementUnitSnapshot {
-	if view.LatestApproved == nil {
-		panic("test seed requires an approved AUX measurement unit")
-	}
-	data := view.LatestApproved.Data
+	data := view.Data
 	name, _ := data["name"].(string)
 	symbol, _ := data["symbol"].(string)
-	return bobdomain.MeasurementUnitSnapshot{ObjectID: view.ObjectID, ApprovalEntryID: view.LatestApproved.Approval.ApprovalEntryID, Code: view.Code, Name: name, Symbol: symbol}
+	return bobdomain.MeasurementUnitSnapshot{ObjectID: view.ObjectID, Code: view.Code, Name: name, Symbol: symbol}
 }
 
 func productUnits(input, pricing auxdomain.ObjectView, pricingFactor string) []bobdomain.ProductUnitConversion {
@@ -61,12 +58,8 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		var objectID string
 		if err := s.pool.QueryRow(ctx, `SELECT object.id
 			FROM aux_objects object
-			JOIN approval_entries entry ON entry.domain='aux' AND entry.entity='settlement-method'
-			  AND entry.subject_id=object.id AND entry.status='APPROVED'
-			JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
 			WHERE object.entity='settlement-method' AND object.enabled
-			  AND payload.data->>'termCode'=$1
-			  AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='aux' AND newer.entity=entry.entity AND newer.subject_id=entry.subject_id AND newer.status='APPROVED' AND newer.version_no>entry.version_no)`,
+			  AND object.data->>'termCode'=$1`,
 			termCode).Scan(&objectID); err != nil {
 			return fmt.Errorf("load fixed settlement method %s: %w", termCode, err)
 		}

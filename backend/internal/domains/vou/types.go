@@ -606,30 +606,28 @@ type AttachmentRemoveInput struct {
 }
 
 type ReferenceView struct {
-	ObjectID                   string                            `json:"objectId"`
-	ApprovalEntryID            string                            `json:"approvalEntryId"`
-	Entity                     string                            `json:"entity"`
-	Code                       string                            `json:"code"`
-	Name                       string                            `json:"name"`
-	Unit                       string                            `json:"unit,omitempty"`
-	Currency                   string                            `json:"currency,omitempty"`
-	PlateNumber                string                            `json:"plateNumber,omitempty"`
-	BehaviorProfile            string                            `json:"behaviorProfile,omitempty"`
-	ProductTypeObjectID        string                            `json:"productTypeObjectId,omitempty"`
-	ProductTypeApprovalEntryID string                            `json:"productTypeApprovalEntryId,omitempty"`
-	ProductTypeCode            string                            `json:"productTypeCode,omitempty"`
-	ProductTypeName            string                            `json:"productTypeName,omitempty"`
-	DefaultInputUnitID         string                            `json:"defaultInputUnitId,omitempty"`
-	PricingUnitID              string                            `json:"pricingUnitId,omitempty"`
-	UnitConversions            []bobdomain.ProductUnitConversion `json:"unitConversions,omitempty"`
+	ObjectID            string                            `json:"objectId"`
+	ApprovalEntryID     string                            `json:"approvalEntryId"`
+	Entity              string                            `json:"entity"`
+	Code                string                            `json:"code"`
+	Name                string                            `json:"name"`
+	Unit                string                            `json:"unit,omitempty"`
+	Currency            string                            `json:"currency,omitempty"`
+	PlateNumber         string                            `json:"plateNumber,omitempty"`
+	BehaviorProfile     string                            `json:"behaviorProfile,omitempty"`
+	ProductTypeObjectID string                            `json:"productTypeObjectId,omitempty"`
+	ProductTypeCode     string                            `json:"productTypeCode,omitempty"`
+	ProductTypeName     string                            `json:"productTypeName,omitempty"`
+	DefaultInputUnitID  string                            `json:"defaultInputUnitId,omitempty"`
+	PricingUnitID       string                            `json:"pricingUnitId,omitempty"`
+	UnitConversions     []bobdomain.ProductUnitConversion `json:"unitConversions,omitempty"`
 }
 
 type UnitSnapshotView struct {
-	ObjectID        string `json:"objectId"`
-	ApprovalEntryID string `json:"approvalEntryId"`
-	Code            string `json:"code"`
-	Name            string `json:"name"`
-	Symbol          string `json:"symbol"`
+	ObjectID string `json:"objectId"`
+	Code     string `json:"code"`
+	Name     string `json:"name"`
+	Symbol   string `json:"symbol"`
 }
 
 type ProductLineView struct {
@@ -914,7 +912,6 @@ type BillCashLineView struct {
 
 type SettlementMethodSnapshotView struct {
 	ObjectID              string `json:"objectId"`
-	ApprovalEntryID       string `json:"approvalEntryId,omitempty"`
 	Code                  string `json:"code"`
 	Name                  string `json:"name"`
 	RuleType              string `json:"ruleType"`

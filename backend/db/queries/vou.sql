@@ -30,13 +30,12 @@ DELETE FROM vou_inventory_count_lines WHERE document_id=sqlc.arg(document_id);
 -- name: InsertVouInventoryCountLine :exec
 INSERT INTO vou_inventory_count_lines(
     id,document_id,line_no,product_object_id,product_approval_entry_id,product_code,
-    product_name,entered_quantity_micros,entered_unit_object_id,entered_unit_approval_entry_id,
-    entered_unit_code,entered_unit_name,entered_unit_symbol,actual_base_quantity_micros,remark
+    product_name,entered_quantity_micros,entered_unit_object_id,entered_unit_code,entered_unit_name,entered_unit_symbol,actual_base_quantity_micros,remark
 ) VALUES (
     sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(product_object_id),
     sqlc.arg(product_approval_entry_id),sqlc.arg(product_code),sqlc.arg(product_name),
     sqlc.arg(entered_quantity_micros),sqlc.arg(entered_unit_object_id),
-    sqlc.arg(entered_unit_approval_entry_id),sqlc.arg(entered_unit_code),sqlc.arg(entered_unit_name),
+    sqlc.arg(entered_unit_code),sqlc.arg(entered_unit_name),
     sqlc.arg(entered_unit_symbol),sqlc.arg(actual_base_quantity_micros),sqlc.narg(remark)
 );
 
@@ -126,12 +125,12 @@ DELETE FROM vou_asset_acquisition_lines WHERE document_id=sqlc.arg(document_id);
 
 -- name: InsertVouAssetAcquisitionLine :exec
 INSERT INTO vou_asset_acquisition_lines(id,document_id,line_no,asset_name,specification,
- category_object_id,category_approval_entry_id,category_code,category_name,category_default_useful_life_months,category_default_residual_rate_bps,original_value_cents,useful_life_months,residual_rate_bps,
- department_object_id,department_approval_entry_id,department_code,department_name,
+ category_object_id,category_code,category_name,category_default_useful_life_months,category_default_residual_rate_bps,original_value_cents,useful_life_months,residual_rate_bps,
+ department_object_id,department_code,department_name,
  custodian_object_id,custodian_approval_entry_id,custodian_code,custodian_name,location,remark)
 VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(asset_name),sqlc.arg(specification),
- sqlc.arg(category_object_id),sqlc.arg(category_approval_entry_id),sqlc.arg(category_code),sqlc.arg(category_name),sqlc.arg(category_default_useful_life_months),sqlc.arg(category_default_residual_rate_bps),sqlc.arg(original_value_cents),sqlc.arg(useful_life_months),sqlc.arg(residual_rate_bps),
- sqlc.arg(department_object_id),sqlc.arg(department_approval_entry_id),sqlc.arg(department_code),sqlc.arg(department_name),
+ sqlc.arg(category_object_id),sqlc.arg(category_code),sqlc.arg(category_name),sqlc.arg(category_default_useful_life_months),sqlc.arg(category_default_residual_rate_bps),sqlc.arg(original_value_cents),sqlc.arg(useful_life_months),sqlc.arg(residual_rate_bps),
+ sqlc.arg(department_object_id),sqlc.arg(department_code),sqlc.arg(department_name),
  sqlc.narg(custodian_object_id),sqlc.narg(custodian_approval_entry_id),sqlc.narg(custodian_code),sqlc.narg(custodian_name),sqlc.arg(location),sqlc.narg(remark));
 
 -- name: ListVouAssetAcquisitionLines :many
@@ -237,14 +236,13 @@ DELETE FROM vou_price_lines WHERE document_id=sqlc.arg(document_id);
 INSERT INTO vou_price_lines(
     id,document_id,document_entity,line_no,product_object_id,product_approval_entry_id,
     product_code,product_name,default_input_unit_symbol,behavior_profile,
-    product_type_object_id,product_type_approval_entry_id,product_type_code,product_type_name,
+    product_type_object_id,product_type_code,product_type_name,
     unit_price_cents,remark
 ) VALUES (
     sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(document_entity),sqlc.arg(line_no),
     sqlc.arg(product_object_id),sqlc.arg(product_approval_entry_id),sqlc.arg(product_code),
     sqlc.arg(product_name),sqlc.arg(default_input_unit_symbol),sqlc.arg(behavior_profile),
-    sqlc.arg(product_type_object_id),sqlc.arg(product_type_approval_entry_id),
-    sqlc.arg(product_type_code),sqlc.arg(product_type_name),
+    sqlc.arg(product_type_object_id),sqlc.arg(product_type_code),sqlc.arg(product_type_name),
     sqlc.arg(unit_price_cents),sqlc.narg(remark)
 );
 
@@ -504,8 +502,7 @@ INSERT INTO vou_sale_order_details (
     sales_attribution_subject_code, sales_attribution_subject_name,
     warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name,
     contact_name, contact_phone, delivery_address,
-    settlement_method_object_id, settlement_method_approval_entry_id,
-    settlement_method_code, settlement_method_name, settlement_rule_type,
+    settlement_method_object_id, settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
     settlement_default_sales_surcharge_cents, settlement_term_code,
@@ -521,8 +518,7 @@ INSERT INTO vou_sale_order_details (
     sqlc.arg(warehouse_object_id), sqlc.arg(warehouse_approval_entry_id),
     sqlc.arg(warehouse_code), sqlc.arg(warehouse_name),
     sqlc.narg(contact_name), sqlc.narg(contact_phone), sqlc.narg(delivery_address),
-    sqlc.arg(settlement_method_object_id), sqlc.arg(settlement_method_approval_entry_id),
-    sqlc.arg(settlement_method_code), sqlc.arg(settlement_method_name),
+    sqlc.arg(settlement_method_object_id), sqlc.arg(settlement_method_code), sqlc.arg(settlement_method_name),
     sqlc.arg(settlement_rule_type), sqlc.arg(settlement_month_offset),
     sqlc.narg(settlement_day_of_month), sqlc.arg(settlement_day_offset),
     sqlc.narg(settlement_due_days), sqlc.narg(settlement_cutoff_day),
@@ -548,8 +544,6 @@ SET customer_object_id = sqlc.arg(customer_object_id), customer_approval_entry_i
     contact_name = sqlc.narg(contact_name), contact_phone = sqlc.narg(contact_phone),
     delivery_address = sqlc.narg(delivery_address),
     settlement_method_object_id = sqlc.arg(settlement_method_object_id),
-    settlement_method_approval_entry_id = sqlc.arg(settlement_method_approval_entry_id),
-    settlement_method_code = sqlc.arg(settlement_method_code),
     settlement_method_name = sqlc.arg(settlement_method_name),
     settlement_rule_type = sqlc.arg(settlement_rule_type),
     settlement_month_offset = sqlc.arg(settlement_month_offset),
@@ -572,8 +566,7 @@ INSERT INTO vou_purchase_order_details (
     purchaser_object_id, purchaser_approval_entry_id, purchaser_code, purchaser_name,
     warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name,
     contact_name, contact_phone,
-    settlement_method_object_id, settlement_method_approval_entry_id,
-    settlement_method_code, settlement_method_name, settlement_rule_type,
+    settlement_method_object_id, settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
     settlement_default_sales_surcharge_cents, settlement_term_code,
@@ -586,8 +579,7 @@ INSERT INTO vou_purchase_order_details (
     sqlc.arg(warehouse_object_id), sqlc.arg(warehouse_approval_entry_id),
     sqlc.arg(warehouse_code), sqlc.arg(warehouse_name),
     sqlc.narg(contact_name), sqlc.narg(contact_phone),
-    sqlc.arg(settlement_method_object_id), sqlc.arg(settlement_method_approval_entry_id),
-    sqlc.arg(settlement_method_code), sqlc.arg(settlement_method_name),
+    sqlc.arg(settlement_method_object_id), sqlc.arg(settlement_method_code), sqlc.arg(settlement_method_name),
     sqlc.arg(settlement_rule_type), sqlc.arg(settlement_month_offset),
     sqlc.narg(settlement_day_of_month), sqlc.arg(settlement_day_offset),
     sqlc.narg(settlement_due_days), sqlc.narg(settlement_cutoff_day),
@@ -607,8 +599,6 @@ SET supplier_object_id = sqlc.arg(supplier_object_id), supplier_approval_entry_i
     warehouse_code = sqlc.arg(warehouse_code), warehouse_name = sqlc.arg(warehouse_name),
     contact_name = sqlc.narg(contact_name), contact_phone = sqlc.narg(contact_phone),
     settlement_method_object_id = sqlc.arg(settlement_method_object_id),
-    settlement_method_approval_entry_id = sqlc.arg(settlement_method_approval_entry_id),
-    settlement_method_code = sqlc.arg(settlement_method_code),
     settlement_method_name = sqlc.arg(settlement_method_name),
     settlement_rule_type = sqlc.arg(settlement_rule_type),
     settlement_month_offset = sqlc.arg(settlement_month_offset),
@@ -827,9 +817,9 @@ DELETE FROM vou_product_lines WHERE document_id = sqlc.arg(document_id);
 INSERT INTO vou_product_lines (
     id, document_id, document_entity, line_no, product_object_id, product_approval_entry_id,
     product_code, product_name, entered_quantity_micros,
-    entered_unit_object_id, entered_unit_approval_entry_id, entered_unit_code,
+    entered_unit_object_id, entered_unit_code,
     entered_unit_name, entered_unit_symbol, base_quantity_micros,
-    product_type_object_id, product_type_approval_entry_id, product_type_code,
+    product_type_object_id, product_type_code,
     product_type_name, behavior_profile, default_packaging_spec_micros,
     base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
     line_amount_cents, purchase_unit_price_cents, remark,
@@ -839,11 +829,9 @@ INSERT INTO vou_product_lines (
     sqlc.arg(id), sqlc.arg(document_id), sqlc.arg(document_entity), sqlc.arg(line_no),
     sqlc.arg(product_object_id), sqlc.arg(product_approval_entry_id), sqlc.arg(product_code),
     sqlc.arg(product_name), sqlc.arg(entered_quantity_micros),
-    sqlc.arg(entered_unit_object_id), sqlc.arg(entered_unit_approval_entry_id),
-    sqlc.arg(entered_unit_code), sqlc.arg(entered_unit_name),
+    sqlc.arg(entered_unit_object_id), sqlc.arg(entered_unit_code), sqlc.arg(entered_unit_name),
     sqlc.arg(entered_unit_symbol), sqlc.arg(base_quantity_micros),
-    sqlc.arg(product_type_object_id), sqlc.arg(product_type_approval_entry_id),
-    sqlc.arg(product_type_code), sqlc.arg(product_type_name),
+    sqlc.arg(product_type_object_id), sqlc.arg(product_type_code), sqlc.arg(product_type_name),
     sqlc.arg(behavior_profile), sqlc.narg(default_packaging_spec_micros),
     sqlc.arg(base_unit_price_cents), sqlc.arg(settlement_surcharge_cents),
     sqlc.arg(unit_price_cents), sqlc.arg(line_amount_cents),
@@ -860,13 +848,13 @@ SELECT * FROM vou_product_lines WHERE document_id = sqlc.arg(document_id) ORDER 
 INSERT INTO vou_sale_order_formulas (
     product_line_id, source_type, source_document_id, source_document_no,
     output_entered_quantity_micros, output_entered_unit_object_id,
-    output_entered_unit_approval_entry_id, output_entered_unit_code,
+    output_entered_unit_code,
     output_entered_unit_name, output_entered_unit_symbol, output_base_quantity_micros
 ) VALUES (
     sqlc.arg(product_line_id), sqlc.arg(source_type),
     sqlc.narg(source_document_id), sqlc.narg(source_document_no),
     sqlc.arg(output_entered_quantity_micros), sqlc.arg(output_entered_unit_object_id),
-    sqlc.arg(output_entered_unit_approval_entry_id), sqlc.arg(output_entered_unit_code),
+    sqlc.arg(output_entered_unit_code),
     sqlc.arg(output_entered_unit_name), sqlc.arg(output_entered_unit_symbol),
     sqlc.arg(output_base_quantity_micros)
 );
@@ -875,21 +863,20 @@ INSERT INTO vou_sale_order_formulas (
 INSERT INTO vou_sale_order_formula_lines (
     product_line_id, line_no, material_object_id, material_approval_entry_id,
     material_code, material_name, entered_quantity_micros,
-    entered_unit_object_id, entered_unit_approval_entry_id, entered_unit_code,
+    entered_unit_object_id, entered_unit_code,
     entered_unit_name, entered_unit_symbol, base_quantity_micros
 ) VALUES (
     sqlc.arg(product_line_id), sqlc.arg(line_no), sqlc.arg(material_object_id),
     sqlc.arg(material_approval_entry_id), sqlc.arg(material_code),
     sqlc.arg(material_name), sqlc.arg(entered_quantity_micros),
-    sqlc.arg(entered_unit_object_id), sqlc.arg(entered_unit_approval_entry_id),
-    sqlc.arg(entered_unit_code), sqlc.arg(entered_unit_name),
+    sqlc.arg(entered_unit_object_id), sqlc.arg(entered_unit_code), sqlc.arg(entered_unit_name),
     sqlc.arg(entered_unit_symbol), sqlc.arg(base_quantity_micros)
 );
 
 -- name: GetVouSaleOrderFormula :one
 SELECT product_line_id, source_type, source_document_id, source_document_no,
        output_entered_quantity_micros, output_entered_unit_object_id,
-       output_entered_unit_approval_entry_id, output_entered_unit_code,
+       output_entered_unit_code,
        output_entered_unit_name, output_entered_unit_symbol, output_base_quantity_micros
 FROM vou_sale_order_formulas
 WHERE product_line_id = sqlc.arg(product_line_id);
@@ -897,7 +884,7 @@ WHERE product_line_id = sqlc.arg(product_line_id);
 -- name: ListVouSaleOrderFormulaLines :many
 SELECT line_no, material_object_id, material_approval_entry_id, material_code,
        material_name, entered_quantity_micros, entered_unit_object_id,
-       entered_unit_approval_entry_id, entered_unit_code, entered_unit_name,
+       entered_unit_code, entered_unit_name,
        entered_unit_symbol, base_quantity_micros
 FROM vou_sale_order_formula_lines
 WHERE product_line_id = sqlc.arg(product_line_id)

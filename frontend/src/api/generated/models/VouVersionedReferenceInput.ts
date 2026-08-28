@@ -2,8 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type AuxHistoryRequest = {
+export type VouVersionedReferenceInput = {
   objectId: string;
-  page: number;
-  pageSize: number;
+  approvalEntryId: string;
 };

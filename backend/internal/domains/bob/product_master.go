@@ -102,8 +102,8 @@ func (s *Service) loadProductListEnrichments(
 	for _, row := range conversionRows {
 		unitConversions[row.ProductApprovalEntryID] = append(unitConversions[row.ProductApprovalEntryID], ProductUnitConversion{
 			Unit: MeasurementUnitSnapshot{
-				ObjectID: row.UnitObjectID, ApprovalEntryID: row.UnitApprovalEntryID,
-				Code: row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol,
+				ObjectID: row.UnitObjectID,
+				Code:     row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol,
 				QuantityScale: row.UnitQuantityScale,
 			},
 			Factor: formatMicros(row.FactorMicros),
@@ -120,8 +120,8 @@ func (s *Service) loadProductListEnrichments(
 				EnteredQuantity: formatMicros(row.OutputEnteredQuantityMicros),
 				BaseQuantity:    formatMicros(row.OutputBaseQuantityMicros),
 				EnteredUnit: MeasurementUnitSnapshot{
-					ObjectID: row.OutputUnitObjectID, ApprovalEntryID: row.OutputUnitApprovalEntryID,
-					Code: row.OutputUnitCode, Name: row.OutputUnitName, Symbol: row.OutputUnitSymbol,
+					ObjectID: row.OutputUnitObjectID,
+					Code:     row.OutputUnitCode, Name: row.OutputUnitName, Symbol: row.OutputUnitSymbol,
 					QuantityScale: row.OutputUnitQuantityScale,
 				},
 			},
@@ -147,8 +147,8 @@ func (s *Service) loadProductListEnrichments(
 				EnteredQuantity: formatMicros(row.EnteredQuantityMicros),
 				BaseQuantity:    formatMicros(row.BaseQuantityMicros),
 				EnteredUnit: MeasurementUnitSnapshot{
-					ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
-					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
+					ObjectID: row.EnteredUnitObjectID,
+					Code:     row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
 					QuantityScale: row.EnteredUnitQuantityScale,
 				},
 			},
@@ -160,26 +160,22 @@ func (s *Service) loadProductListEnrichments(
 
 func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data DetailView, resolveFormula, preserveSources bool) (DetailView, error) {
 	if data.CategoryID != "" {
-		if preserveSources && data.CategoryApprovalEntryID != "" {
-			// The complete stored snapshot remains authoritative until submit.
-		} else {
-			category, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-category", data.CategoryID, "")
+		{
+			category, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-category", data.CategoryID)
 			if err != nil {
 				return DetailView{}, err
 			}
-			data.CategoryApprovalEntryID, data.CategoryCode = category.ApprovalEntryID, category.Code
+			data.CategoryCode = category.Code
 			data.CategoryName = mapString(category.Data, "name")
 		}
 	}
 	if data.ProductTypeID != "" {
-		if preserveSources && data.ProductTypeApprovalEntryID != "" {
-			// Preserve the exact type snapshot already held by this draft.
-		} else {
-			typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID, "")
+		{
+			typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID)
 			if err != nil {
 				return DetailView{}, err
 			}
-			data.ProductTypeApprovalEntryID, data.ProductTypeCode = typeRef.ApprovalEntryID, typeRef.Code
+			data.ProductTypeCode = typeRef.Code
 			data.ProductTypeName = mapString(typeRef.Data, "name")
 			data.BehaviorProfile = mapString(typeRef.Data, "behaviorProfile")
 			if !validProductBehavior(data.BehaviorProfile) {
@@ -188,14 +184,11 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 		}
 	}
 	resolveUnit := func(snapshot *MeasurementUnitSnapshot) error {
-		if preserveSources && snapshot.ApprovalEntryID != "" {
-			return nil
-		}
-		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", snapshot.ObjectID, "")
+		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", snapshot.ObjectID)
 		if err != nil {
 			return err
 		}
-		snapshot.ApprovalEntryID, snapshot.Code = unit.ApprovalEntryID, unit.Code
+		snapshot.Code = unit.Code
 		snapshot.Name, snapshot.Symbol = mapString(unit.Data, "name"), mapString(unit.Data, "symbol")
 		snapshot.QuantityScale = int32(mapInt(unit.Data, "quantityScale"))
 		if snapshot.QuantityScale < 0 || snapshot.QuantityScale > 6 {
@@ -203,25 +196,20 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 		}
 		return nil
 	}
-	resolveUnitEntry := func(objectID string, entryID *string) error {
+	resolveUnitEntry := func(objectID string) error {
 		if objectID == "" {
-			*entryID = ""
 			return nil
 		}
-		if preserveSources && *entryID != "" {
-			return nil
-		}
-		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", objectID, "")
+		_, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", objectID)
 		if err != nil {
 			return err
 		}
-		*entryID = unit.ApprovalEntryID
 		return nil
 	}
-	if err := resolveUnitEntry(data.DefaultInputUnitID, &data.DefaultInputUnitApprovalEntryID); err != nil {
+	if err := resolveUnitEntry(data.DefaultInputUnitID); err != nil {
 		return DetailView{}, err
 	}
-	if err := resolveUnitEntry(data.PricingUnitID, &data.PricingUnitApprovalEntryID); err != nil {
+	if err := resolveUnitEntry(data.PricingUnitID); err != nil {
 		return DetailView{}, err
 	}
 	for index := range data.UnitConversions {

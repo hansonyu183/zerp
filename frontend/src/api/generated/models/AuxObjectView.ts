@@ -2,16 +2,15 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { AuxData } from './AuxData';
 import type { AuxEntity } from './AuxEntity';
-import type { AuxVersionView } from './AuxVersionView';
 export type AuxObjectView = {
   objectId: string;
   entity: AuxEntity;
   code: string;
   enabled: boolean;
   objectRevision: number;
-  latestApproved: AuxVersionView | null;
-  openVersion: AuxVersionView | null;
+  data: AuxData;
   updatedAt: string;
   updatedBy: string;
 };

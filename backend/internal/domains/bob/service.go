@@ -27,8 +27,7 @@ type PartyDeclarationCreator interface {
 }
 
 type AuxiliaryResolver interface {
-	ResolveLatestApprovedAuxiliaryReference(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
-	ValidateApprovedAuxiliarySnapshotReference(context.Context, pgx.Tx, string, string, string) (AuxiliaryReference, error)
+	ResolveCurrentAuxiliaryReference(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
 	ResolveAuxiliaryCode(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
 }
 
@@ -319,55 +318,46 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 		*approvalEntryID = reference.ApprovalEntryID
 		return nil
 	}
-	resolveAux := func(referenceEntity, referenceObjectID string, approvalEntryID *string) error {
+	resolveAux := func(referenceEntity, referenceObjectID string) error {
 		if referenceObjectID == "" {
-			*approvalEntryID = ""
 			return nil
 		}
-		requestedEntryID := ""
-		if exact {
-			requestedEntryID = *approvalEntryID
-			if requestedEntryID == "" {
-				return domainError(ErrorConflict, referenceEntity+" approval snapshot is missing", nil, nil)
-			}
-		}
-		reference, err := s.resolveNamedAuxiliaryReference(ctx, tx, referenceEntity, referenceObjectID, requestedEntryID)
+		_, err := s.resolveNamedAuxiliaryReference(ctx, tx, referenceEntity, referenceObjectID)
 		if err != nil {
 			return err
 		}
-		*approvalEntryID = reference.ApprovalEntryID
 		return nil
 	}
 
 	if entity == EntityEmployee {
-		if err := resolveAux("department", data.DepartmentID, &data.DepartmentApprovalEntryID); err != nil {
+		if err := resolveAux("department", data.DepartmentID); err != nil {
 			return DetailView{}, err
 		}
-		if err := resolveAux("position", data.PositionID, &data.PositionApprovalEntryID); err != nil {
+		if err := resolveAux("position", data.PositionID); err != nil {
 			return DetailView{}, err
 		}
 	}
 	if entity == EntityProduct {
-		if err := resolveAux("product-category", data.CategoryID, &data.CategoryApprovalEntryID); err != nil {
+		if err := resolveAux("product-category", data.CategoryID); err != nil {
 			return DetailView{}, err
 		}
-		if err := resolveAux("product-type", data.ProductTypeID, &data.ProductTypeApprovalEntryID); err != nil {
+		if err := resolveAux("product-type", data.ProductTypeID); err != nil {
 			return DetailView{}, err
 		}
-		if err := resolveAux("measurement-unit", data.DefaultInputUnitID, &data.DefaultInputUnitApprovalEntryID); err != nil {
+		if err := resolveAux("measurement-unit", data.DefaultInputUnitID); err != nil {
 			return DetailView{}, err
 		}
-		if err := resolveAux("measurement-unit", data.PricingUnitID, &data.PricingUnitApprovalEntryID); err != nil {
+		if err := resolveAux("measurement-unit", data.PricingUnitID); err != nil {
 			return DetailView{}, err
 		}
 		for index := range data.UnitConversions {
 			unit := &data.UnitConversions[index].Unit
-			if err := resolveAux("measurement-unit", unit.ObjectID, &unit.ApprovalEntryID); err != nil {
+			if err := resolveAux("measurement-unit", unit.ObjectID); err != nil {
 				return DetailView{}, err
 			}
 		}
 		if data.Formula != nil {
-			if err := resolveAux("measurement-unit", data.Formula.Output.EnteredUnit.ObjectID, &data.Formula.Output.EnteredUnit.ApprovalEntryID); err != nil {
+			if err := resolveAux("measurement-unit", data.Formula.Output.EnteredUnit.ObjectID); err != nil {
 				return DetailView{}, err
 			}
 			for index := range data.Formula.Components {
@@ -375,7 +365,7 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 				if err := resolveBob(EntityProduct, component.Material.ObjectID, &component.Material.ApprovalEntryID); err != nil {
 					return DetailView{}, err
 				}
-				if err := resolveAux("measurement-unit", component.Quantity.EnteredUnit.ObjectID, &component.Quantity.EnteredUnit.ApprovalEntryID); err != nil {
+				if err := resolveAux("measurement-unit", component.Quantity.EnteredUnit.ObjectID); err != nil {
 					return DetailView{}, err
 				}
 			}
@@ -387,7 +377,7 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 		}
 	}
 	if entity == EntityOtherUnit {
-		if err := resolveAux("settlement-method", data.SettlementMethodID, &data.SettlementMethodApprovalEntryID); err != nil {
+		if err := resolveAux("settlement-method", data.SettlementMethodID); err != nil {
 			return DetailView{}, err
 		}
 	}
@@ -410,11 +400,10 @@ func (s *Service) resolveSettlementSnapshot(ctx context.Context, tx pgx.Tx, data
 	if data.SettlementMethodID == "" {
 		return data, nil
 	}
-	reference, err := s.resolveAuxiliaryReference(ctx, tx, "settlement-method", data.SettlementMethodID, "")
+	reference, err := s.resolveAuxiliaryReference(ctx, tx, "settlement-method", data.SettlementMethodID)
 	if err != nil {
 		return DetailView{}, err
 	}
-	data.SettlementMethodApprovalEntryID = reference.ApprovalEntryID
 	data.SettlementMethodCode, data.SettlementMethodName = reference.Code, reference.Data.Name
 	data.TermCode, data.RuleType = reference.Data.TermCode, reference.Data.RuleType
 	data.MonthOffset, data.DayOfMonth, data.DayOffset = reference.Data.MonthOffset, reference.Data.DayOfMonth, reference.Data.DayOffset
@@ -422,8 +411,8 @@ func (s *Service) resolveSettlementSnapshot(ctx context.Context, tx pgx.Tx, data
 	return data, nil
 }
 
-func (s *Service) resolveAuxiliaryReference(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (EffectiveReference, error) {
-	reference, err := s.resolveAuxiliaryReferenceBySemantics(ctx, tx, entity, objectID, approvalEntryID)
+func (s *Service) resolveAuxiliaryReference(ctx context.Context, tx pgx.Tx, entity, objectID string) (EffectiveReference, error) {
+	reference, err := s.resolveAuxiliaryReferenceBySemantics(ctx, tx, entity, objectID)
 	if err != nil {
 		return EffectiveReference{}, domainError(ErrorConflict, entity+" reference is unavailable", nil, err)
 	}
@@ -435,19 +424,16 @@ func (s *Service) resolveAuxiliaryReference(ctx context.Context, tx pgx.Tx, enti
 	return EffectiveReference{ObjectID: reference.ObjectID, Entity: entity, Code: reference.Code, ApprovalEntryID: reference.ApprovalEntryID, Data: DetailView{Name: mapString(reference.Data, "name"), ParentID: mapString(reference.Data, "parentId"), Description: mapString(reference.Data, "description"), TermCode: mapString(reference.Data, "termCode"), RuleType: mapString(reference.Data, "ruleType"), MonthOffset: int32(mapInt(reference.Data, "monthOffset")), DayOfMonth: dayOfMonthPointer, DayOffset: int32(mapInt(reference.Data, "dayOffset")), DueDays: int32(mapInt(reference.Data, "dayOffset")), CutoffDay: int32(mapInt(reference.Data, "dayOfMonth")), DefaultSalesSurcharge: mapString(reference.Data, "defaultSalesSurcharge")}}, nil
 }
 
-func (s *Service) resolveNamedAuxiliaryReference(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (AuxiliaryReference, error) {
-	reference, err := s.resolveAuxiliaryReferenceBySemantics(ctx, tx, entity, objectID, approvalEntryID)
+func (s *Service) resolveNamedAuxiliaryReference(ctx context.Context, tx pgx.Tx, entity, objectID string) (AuxiliaryReference, error) {
+	reference, err := s.resolveAuxiliaryReferenceBySemantics(ctx, tx, entity, objectID)
 	if err != nil {
 		return AuxiliaryReference{}, domainError(ErrorConflict, entity+" reference is unavailable", nil, err)
 	}
 	return reference, nil
 }
 
-func (s *Service) resolveAuxiliaryReferenceBySemantics(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (AuxiliaryReference, error) {
-	if approvalEntryID == "" {
-		return s.auxiliaryResolver.ResolveLatestApprovedAuxiliaryReference(ctx, tx, entity, objectID)
-	}
-	return s.auxiliaryResolver.ValidateApprovedAuxiliarySnapshotReference(ctx, tx, entity, objectID, approvalEntryID)
+func (s *Service) resolveAuxiliaryReferenceBySemantics(ctx context.Context, tx pgx.Tx, entity, objectID string) (AuxiliaryReference, error) {
+	return s.auxiliaryResolver.ResolveCurrentAuxiliaryReference(ctx, tx, entity, objectID)
 }
 
 func mapString(data map[string]any, key string) string { value, _ := data[key].(string); return value }

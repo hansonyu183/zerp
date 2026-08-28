@@ -7,6 +7,7 @@ export const fundAccountConfig = defineBobEntityConfig({
   codeLabel: '账户编码',
   nameLabel: '账户名称',
   defaults: {
+    sourceApprovalEntryId: '',
     currency: 'CNY',
     operatingEntityId: '',
     accountName: '',
@@ -18,7 +19,7 @@ export const fundAccountConfig = defineBobEntityConfig({
   fields: () => [
     { key: 'objectId', label: 'Stable ID', type: 'readonly' },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
       type: 'readonly',
     },
@@ -58,9 +59,9 @@ export const fundAccountConfig = defineBobEntityConfig({
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {
-      key: 'approvalEntryId',
+      key: 'sourceApprovalEntryId',
       label: '来源 Approval Entry ID',
-      value: (row) => row.latestApproved?.approval.approvalEntryId ?? '',
+      value: (row) => row.sourceApprovalEntryId,
     },
     {
       key: 'enabled',

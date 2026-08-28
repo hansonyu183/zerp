@@ -256,12 +256,11 @@ type FormulaMaterialReference struct {
 }
 
 type MeasurementUnitSnapshot struct {
-	ObjectID        string `json:"objectId"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
-	Code            string `json:"code,omitempty"`
-	Name            string `json:"name,omitempty"`
-	Symbol          string `json:"symbol,omitempty"`
-	QuantityScale   int32  `json:"quantityScale"`
+	ObjectID      string `json:"objectId"`
+	Code          string `json:"code,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Symbol        string `json:"symbol,omitempty"`
+	QuantityScale int32  `json:"quantityScale"`
 }
 
 type ProductUnitConversion struct {
@@ -439,7 +438,6 @@ type DetailView struct {
 	TargetEntity                    string                  `json:"targetEntity,omitempty"`
 	ShortName                       string                  `json:"shortName,omitempty"`
 	CategoryID                      string                  `json:"categoryId,omitempty"`
-	CategoryApprovalEntryID         string                  `json:"-"`
 	CategoryCode                    string                  `json:"-"`
 	CategoryName                    string                  `json:"-"`
 	TaxNumber                       string                  `json:"taxNumber,omitempty"`
@@ -449,9 +447,7 @@ type DetailView struct {
 	Address                         string                  `json:"address,omitempty"`
 	Remark                          string                  `json:"remark,omitempty"`
 	DepartmentID                    string                  `json:"departmentId,omitempty"`
-	DepartmentApprovalEntryID       string                  `json:"-"`
 	PositionID                      string                  `json:"positionId,omitempty"`
-	PositionApprovalEntryID         string                  `json:"-"`
 	Phone                           string                  `json:"phone,omitempty"`
 	HireDate                        string                  `json:"hireDate,omitempty"`
 	Specification                   string                  `json:"specification,omitempty"`
@@ -477,7 +473,6 @@ type DetailView struct {
 	SalespersonEmployeeID           string                  `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID      string                  `json:"defaultPurchaserEmployeeId,omitempty"`
 	DefaultPurchaserApprovalEntryID string                  `json:"-"`
-	SettlementMethodApprovalEntryID string                  `json:"-"`
 	SettlementMethodCode            string                  `json:"-"`
 	SettlementMethodName            string                  `json:"-"`
 	RuleType                        string                  `json:"ruleType,omitempty"`
@@ -489,14 +484,11 @@ type DetailView struct {
 	DefaultSalesSurcharge           string                  `json:"defaultSalesSurcharge,omitempty"`
 	TermCode                        string                  `json:"termCode,omitempty"`
 	ProductTypeID                   string                  `json:"productTypeId,omitempty"`
-	ProductTypeApprovalEntryID      string                  `json:"-"`
 	ProductTypeCode                 string                  `json:"productTypeCode,omitempty"`
 	ProductTypeName                 string                  `json:"productTypeName,omitempty"`
 	BehaviorProfile                 string                  `json:"behaviorProfile,omitempty"`
 	DefaultInputUnitID              string                  `json:"defaultInputUnitId,omitempty"`
-	DefaultInputUnitApprovalEntryID string                  `json:"-"`
 	PricingUnitID                   string                  `json:"pricingUnitId,omitempty"`
-	PricingUnitApprovalEntryID      string                  `json:"-"`
 	UnitConversions                 []ProductUnitConversion `json:"unitConversions,omitempty"`
 	Returnable                      bool                    `json:"returnable"`
 	DefaultPackagingSpec            string                  `json:"defaultPackagingSpec,omitempty"`

@@ -9,7 +9,8 @@ export interface VoucherReferenceInput {
   approvalEntryId: string
 }
 
-export interface VoucherReference extends VoucherReferenceInput {
+export interface VoucherReferenceBase {
+  objectId: string
   entity: string
   code: string
   name: string
@@ -27,6 +28,15 @@ export interface VoucherReference extends VoucherReferenceInput {
   pricingUnitId?: string
   unitConversions?: VoucherUnitConversion[]
 }
+
+export interface VoucherReference
+  extends VoucherReferenceBase, VoucherReferenceInput {}
+
+export interface VoucherAuxiliaryReference extends VoucherReferenceBase {}
+
+export type VoucherSelectableReference =
+  | VoucherReference
+  | VoucherAuxiliaryReference
 
 export type ProductBehaviorProfile =
   'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
@@ -102,8 +112,8 @@ export interface VoucherAssetLineDraft {
   assetNo: string
   assetName: string
   specification: string
-  category: VoucherReference | null
-  department: VoucherReference | null
+  category: VoucherAuxiliaryReference | null
+  department: VoucherAuxiliaryReference | null
   custodian: VoucherReference | null
   originalValue: string
   usefulLifeMonths: string
@@ -176,7 +186,7 @@ export interface VoucherDraftForm {
   counterpartyType:
     '' | 'customer' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner'
   counterparty: VoucherReference | null
-  settlementMethod: VoucherReference | null
+  settlementMethod: VoucherAuxiliaryReference | null
   otherCategory: '' | 'COMMISSION' | 'INTERMEDIARY'
   employee: VoucherReference | null
   salesperson: VoucherReference | null
@@ -295,7 +305,6 @@ export interface VoucherProductionOutputView {
 
 export interface SettlementMethodSnapshot {
   objectId: string
-  approvalEntryId: string
   code: string
   name: string
   ruleType: 'DUE_DAYS' | 'MONTH_END' | 'RELATIVE_DAYS' | 'FIXED_DAY'
@@ -537,8 +546,8 @@ export interface VoucherAssetLineView {
   assetNo?: string
   assetName: string
   specification?: string
-  category?: VoucherReferenceView
-  department?: VoucherReferenceView
+  category?: VoucherAuxiliaryReference
+  department?: VoucherAuxiliaryReference
   custodian?: VoucherReferenceView
   originalValue?: string
   usefulLifeMonths?: number

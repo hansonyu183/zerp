@@ -75,6 +75,7 @@ type AccBillBookValue struct {
 type AccBook struct {
 	ID              string             `db:"id" json:"id"`
 	Code            string             `db:"code" json:"code"`
+	Data            []byte             `db:"data" json:"data"`
 	Name            string             `db:"name" json:"name"`
 	Description     string             `db:"description" json:"description"`
 	StartMonth      pgtype.Date        `db:"start_month" json:"start_month"`
@@ -507,19 +508,13 @@ type AuxObject struct {
 	ID        string             `db:"id" json:"id"`
 	Entity    string             `db:"entity" json:"entity"`
 	Code      string             `db:"code" json:"code"`
+	Data      []byte             `db:"data" json:"data"`
 	Enabled   bool               `db:"enabled" json:"enabled"`
 	Revision  int64              `db:"revision" json:"revision"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy string             `db:"created_by" json:"created_by"`
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy string             `db:"updated_by" json:"updated_by"`
-}
-
-type AuxVersionPayload struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	ObjectID        string `db:"object_id" json:"object_id"`
-	Entity          string `db:"entity" json:"entity"`
-	Data            []byte `db:"data" json:"data"`
 }
 
 type BobCustomer struct {
@@ -771,7 +766,6 @@ type BobVehicle struct {
 	PlateNumber                               string             `db:"plate_number" json:"plate_number"`
 	VehicleType                               string             `db:"vehicle_type" json:"vehicle_type"`
 	VehicleTypeObjectID                       string             `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeApprovalEntryID                string             `db:"vehicle_type_approval_entry_id" json:"vehicle_type_approval_entry_id"`
 	VehicleTypeName                           string             `db:"vehicle_type_name" json:"vehicle_type_name"`
 	Vin                                       *string            `db:"vin" json:"vin"`
 	EngineNumber                              *string            `db:"engine_number" json:"engine_number"`
@@ -792,7 +786,6 @@ type BobWarehouse struct {
 	ObjectID                       string             `db:"object_id" json:"object_id"`
 	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
 	CategoryID                     *string            `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID        *string            `db:"category_approval_entry_id" json:"category_approval_entry_id"`
 	Name                           string             `db:"name" json:"name"`
 	Address                        *string            `db:"address" json:"address"`
 	ContactName                    *string            `db:"contact_name" json:"contact_name"`
@@ -806,14 +799,13 @@ type BobWarehouse struct {
 }
 
 type DclCustomerAccountAttachment struct {
-	ApprovalEntryID         string             `db:"approval_entry_id" json:"approval_entry_id"`
-	FileID                  string             `db:"file_id" json:"file_id"`
-	CategoryObjectID        string             `db:"category_object_id" json:"category_object_id"`
-	CategoryApprovalEntryID string             `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryCode            string             `db:"category_code" json:"category_code"`
-	CategoryName            string             `db:"category_name" json:"category_name"`
-	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy               string             `db:"created_by" json:"created_by"`
+	ApprovalEntryID  string             `db:"approval_entry_id" json:"approval_entry_id"`
+	FileID           string             `db:"file_id" json:"file_id"`
+	CategoryObjectID string             `db:"category_object_id" json:"category_object_id"`
+	CategoryCode     string             `db:"category_code" json:"category_code"`
+	CategoryName     string             `db:"category_name" json:"category_name"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy        string             `db:"created_by" json:"created_by"`
 }
 
 type DclCustomerAccountCreditLimit struct {
@@ -835,7 +827,6 @@ type DclCustomerAccountVersion struct {
 	Address                            *string `db:"address" json:"address"`
 	Remark                             *string `db:"remark" json:"remark"`
 	SettlementMethodID                 *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodApprovalEntryID    *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
 	SettlementMethodCode               *string `db:"settlement_method_code" json:"settlement_method_code"`
 	SettlementMethodName               *string `db:"settlement_method_name" json:"settlement_method_name"`
 	SettlementTermCode                 *string `db:"settlement_term_code" json:"settlement_term_code"`
@@ -845,7 +836,6 @@ type DclCustomerAccountVersion struct {
 	SettlementCutoffDay                int32   `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementSalesSurchargeCents      int64   `db:"settlement_sales_surcharge_cents" json:"settlement_sales_surcharge_cents"`
 	PaymentMethodID                    *string `db:"payment_method_id" json:"payment_method_id"`
-	PaymentMethodApprovalEntryID       *string `db:"payment_method_approval_entry_id" json:"payment_method_approval_entry_id"`
 	PaymentMethodCode                  *string `db:"payment_method_code" json:"payment_method_code"`
 	PaymentMethodName                  *string `db:"payment_method_name" json:"payment_method_name"`
 	PaymentSalesSurchargeCents         int64   `db:"payment_sales_surcharge_cents" json:"payment_sales_surcharge_cents"`
@@ -871,14 +861,13 @@ type DclCustomerAccountVersion struct {
 }
 
 type DclCustomerAttachment struct {
-	ApprovalEntryID         string             `db:"approval_entry_id" json:"approval_entry_id"`
-	FileID                  string             `db:"file_id" json:"file_id"`
-	CategoryObjectID        string             `db:"category_object_id" json:"category_object_id"`
-	CategoryApprovalEntryID string             `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryCode            string             `db:"category_code" json:"category_code"`
-	CategoryName            string             `db:"category_name" json:"category_name"`
-	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy               string             `db:"created_by" json:"created_by"`
+	ApprovalEntryID  string             `db:"approval_entry_id" json:"approval_entry_id"`
+	FileID           string             `db:"file_id" json:"file_id"`
+	CategoryObjectID string             `db:"category_object_id" json:"category_object_id"`
+	CategoryCode     string             `db:"category_code" json:"category_code"`
+	CategoryName     string             `db:"category_name" json:"category_name"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy        string             `db:"created_by" json:"created_by"`
 }
 
 type DclCustomerDownloadToken struct {
@@ -915,24 +904,21 @@ type DclCustomerVersion struct {
 }
 
 type DclEmployeeVersion struct {
-	ApprovalEntryID                 string      `db:"approval_entry_id" json:"approval_entry_id"`
-	EmployeeCategoryID              *string     `db:"employee_category_id" json:"employee_category_id"`
-	EmployeeCategoryApprovalEntryID *string     `db:"employee_category_approval_entry_id" json:"employee_category_approval_entry_id"`
-	EmployeeCategoryCode            *string     `db:"employee_category_code" json:"employee_category_code"`
-	EmployeeCategoryName            *string     `db:"employee_category_name" json:"employee_category_name"`
-	DepartmentID                    *string     `db:"department_id" json:"department_id"`
-	DepartmentApprovalEntryID       *string     `db:"department_approval_entry_id" json:"department_approval_entry_id"`
-	DepartmentCode                  *string     `db:"department_code" json:"department_code"`
-	DepartmentName                  *string     `db:"department_name" json:"department_name"`
-	PositionID                      *string     `db:"position_id" json:"position_id"`
-	PositionApprovalEntryID         *string     `db:"position_approval_entry_id" json:"position_approval_entry_id"`
-	PositionCode                    *string     `db:"position_code" json:"position_code"`
-	PositionName                    *string     `db:"position_name" json:"position_name"`
-	Phone                           *string     `db:"phone" json:"phone"`
-	Email                           *string     `db:"email" json:"email"`
-	HireDate                        pgtype.Date `db:"hire_date" json:"hire_date"`
-	Remark                          *string     `db:"remark" json:"remark"`
-	Enabled                         bool        `db:"enabled" json:"enabled"`
+	ApprovalEntryID      string      `db:"approval_entry_id" json:"approval_entry_id"`
+	EmployeeCategoryID   *string     `db:"employee_category_id" json:"employee_category_id"`
+	EmployeeCategoryCode *string     `db:"employee_category_code" json:"employee_category_code"`
+	EmployeeCategoryName *string     `db:"employee_category_name" json:"employee_category_name"`
+	DepartmentID         *string     `db:"department_id" json:"department_id"`
+	DepartmentCode       *string     `db:"department_code" json:"department_code"`
+	DepartmentName       *string     `db:"department_name" json:"department_name"`
+	PositionID           *string     `db:"position_id" json:"position_id"`
+	PositionCode         *string     `db:"position_code" json:"position_code"`
+	PositionName         *string     `db:"position_name" json:"position_name"`
+	Phone                *string     `db:"phone" json:"phone"`
+	Email                *string     `db:"email" json:"email"`
+	HireDate             pgtype.Date `db:"hire_date" json:"hire_date"`
+	Remark               *string     `db:"remark" json:"remark"`
+	Enabled              bool        `db:"enabled" json:"enabled"`
 }
 
 type DclFundAccountIdentifierClaim struct {
@@ -971,22 +957,21 @@ type DclOperatingEntityVersion struct {
 }
 
 type DclOtherUnitVersion struct {
-	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
-	ContactName                     *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                    *string `db:"contact_phone" json:"contact_phone"`
-	Email                           *string `db:"email" json:"email"`
-	Address                         *string `db:"address" json:"address"`
-	SettlementMethodID              *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodApprovalEntryID *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
-	SettlementMethodCode            *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName            *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode              *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType              *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset           int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth            int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset             int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
-	Remark                          *string `db:"remark" json:"remark"`
-	Enabled                         bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID       string  `db:"approval_entry_id" json:"approval_entry_id"`
+	ContactName           *string `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
+	Email                 *string `db:"email" json:"email"`
+	Address               *string `db:"address" json:"address"`
+	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                *string `db:"remark" json:"remark"`
+	Enabled               bool    `db:"enabled" json:"enabled"`
 }
 
 type DclPartyIdentifierClaim struct {
@@ -1029,7 +1014,6 @@ type DclProductFormula struct {
 	OutputBaseQuantityMicros    int64  `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
 	OutputEnteredQuantityMicros int64  `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
 	OutputUnitObjectID          string `db:"output_unit_object_id" json:"output_unit_object_id"`
-	OutputUnitApprovalEntryID   string `db:"output_unit_approval_entry_id" json:"output_unit_approval_entry_id"`
 	OutputUnitCode              string `db:"output_unit_code" json:"output_unit_code"`
 	OutputUnitName              string `db:"output_unit_name" json:"output_unit_name"`
 	OutputUnitSymbol            string `db:"output_unit_symbol" json:"output_unit_symbol"`
@@ -1037,26 +1021,24 @@ type DclProductFormula struct {
 }
 
 type DclProductFormulaLine struct {
-	ProductApprovalEntryID     string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
-	LineNo                     int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID           string `db:"material_object_id" json:"material_object_id"`
-	MaterialApprovalEntryID    string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
-	BaseQuantityMicros         int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
-	EnteredQuantityMicros      int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
-	EnteredUnitObjectID        string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitApprovalEntryID string `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
-	EnteredUnitCode            string `db:"entered_unit_code" json:"entered_unit_code"`
-	EnteredUnitName            string `db:"entered_unit_name" json:"entered_unit_name"`
-	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	EnteredUnitQuantityScale   int32  `db:"entered_unit_quantity_scale" json:"entered_unit_quantity_scale"`
-	ResolutionStatus           string `db:"resolution_status" json:"resolution_status"`
-	RequiresConfirmation       bool   `db:"requires_confirmation" json:"requires_confirmation"`
+	ProductApprovalEntryID   string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	LineNo                   int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID         string `db:"material_object_id" json:"material_object_id"`
+	MaterialApprovalEntryID  string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
+	BaseQuantityMicros       int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
+	EnteredQuantityMicros    int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID      string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitCode          string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName          string `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol        string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	EnteredUnitQuantityScale int32  `db:"entered_unit_quantity_scale" json:"entered_unit_quantity_scale"`
+	ResolutionStatus         string `db:"resolution_status" json:"resolution_status"`
+	RequiresConfirmation     bool   `db:"requires_confirmation" json:"requires_confirmation"`
 }
 
 type DclProductUnitConversion struct {
 	ProductApprovalEntryID string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
 	UnitObjectID           string `db:"unit_object_id" json:"unit_object_id"`
-	UnitApprovalEntryID    string `db:"unit_approval_entry_id" json:"unit_approval_entry_id"`
 	UnitCode               string `db:"unit_code" json:"unit_code"`
 	UnitName               string `db:"unit_name" json:"unit_name"`
 	UnitSymbol             string `db:"unit_symbol" json:"unit_symbol"`
@@ -1065,30 +1047,26 @@ type DclProductUnitConversion struct {
 }
 
 type DclProductVersion struct {
-	ApprovalEntryID                 string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                          string  `db:"entity" json:"entity"`
-	Name                            string  `db:"name" json:"name"`
-	CategoryID                      *string `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID         *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryCode                    *string `db:"category_code" json:"category_code"`
-	CategoryName                    *string `db:"category_name" json:"category_name"`
-	CategoryEntity                  string  `db:"category_entity" json:"category_entity"`
-	Specification                   *string `db:"specification" json:"specification"`
-	Model                           *string `db:"model" json:"model"`
-	Barcode                         *string `db:"barcode" json:"barcode"`
-	Remark                          *string `db:"remark" json:"remark"`
-	PricingUnitID                   *string `db:"pricing_unit_id" json:"pricing_unit_id"`
-	PricingUnitApprovalEntryID      *string `db:"pricing_unit_approval_entry_id" json:"pricing_unit_approval_entry_id"`
-	Returnable                      bool    `db:"returnable" json:"returnable"`
-	DefaultPackagingSpecMicros      *int64  `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
-	ProductTypeID                   *string `db:"product_type_id" json:"product_type_id"`
-	ProductTypeApprovalEntryID      *string `db:"product_type_approval_entry_id" json:"product_type_approval_entry_id"`
-	ProductTypeCode                 *string `db:"product_type_code" json:"product_type_code"`
-	ProductTypeName                 *string `db:"product_type_name" json:"product_type_name"`
-	BehaviorProfile                 *string `db:"behavior_profile" json:"behavior_profile"`
-	DefaultInputUnitID              *string `db:"default_input_unit_id" json:"default_input_unit_id"`
-	DefaultInputUnitApprovalEntryID *string `db:"default_input_unit_approval_entry_id" json:"default_input_unit_approval_entry_id"`
-	Enabled                         bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID            string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Entity                     string  `db:"entity" json:"entity"`
+	Name                       string  `db:"name" json:"name"`
+	CategoryID                 *string `db:"category_id" json:"category_id"`
+	CategoryCode               *string `db:"category_code" json:"category_code"`
+	CategoryName               *string `db:"category_name" json:"category_name"`
+	CategoryEntity             string  `db:"category_entity" json:"category_entity"`
+	Specification              *string `db:"specification" json:"specification"`
+	Model                      *string `db:"model" json:"model"`
+	Barcode                    *string `db:"barcode" json:"barcode"`
+	Remark                     *string `db:"remark" json:"remark"`
+	PricingUnitID              *string `db:"pricing_unit_id" json:"pricing_unit_id"`
+	Returnable                 bool    `db:"returnable" json:"returnable"`
+	DefaultPackagingSpecMicros *int64  `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
+	ProductTypeID              *string `db:"product_type_id" json:"product_type_id"`
+	ProductTypeCode            *string `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName            *string `db:"product_type_name" json:"product_type_name"`
+	BehaviorProfile            *string `db:"behavior_profile" json:"behavior_profile"`
+	DefaultInputUnitID         *string `db:"default_input_unit_id" json:"default_input_unit_id"`
+	Enabled                    bool    `db:"enabled" json:"enabled"`
 }
 
 type DclSalesPartnerVersion struct {
@@ -1119,7 +1097,6 @@ type DclSupplierVersion struct {
 	Address                                 *string `db:"address" json:"address"`
 	Remark                                  *string `db:"remark" json:"remark"`
 	SettlementMethodID                      *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodApprovalEntryID         *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
 	SettlementMethodCode                    *string `db:"settlement_method_code" json:"settlement_method_code"`
 	SettlementMethodName                    *string `db:"settlement_method_name" json:"settlement_method_name"`
 	SettlementTermCode                      *string `db:"settlement_term_code" json:"settlement_term_code"`
@@ -1149,7 +1126,6 @@ type DclVehicleVersion struct {
 	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
 	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
 	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeApprovalEntryID                string         `db:"vehicle_type_approval_entry_id" json:"vehicle_type_approval_entry_id"`
 	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
 	VehicleTypeEntity                         string         `db:"vehicle_type_entity" json:"vehicle_type_entity"`
 	Vin                                       *string        `db:"vin" json:"vin"`
@@ -1170,7 +1146,6 @@ type DclVehicleVersion struct {
 type DclWarehouseVersion struct {
 	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
 	CategoryID                     *string `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID        *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
 	CategoryEntity                 string  `db:"category_entity" json:"category_entity"`
 	Name                           string  `db:"name" json:"name"`
 	Address                        *string `db:"address" json:"address"`
@@ -1246,7 +1221,6 @@ type VouAssetAcquisitionLine struct {
 	AssetName                       string  `db:"asset_name" json:"asset_name"`
 	Specification                   string  `db:"specification" json:"specification"`
 	CategoryObjectID                string  `db:"category_object_id" json:"category_object_id"`
-	CategoryApprovalEntryID         string  `db:"category_approval_entry_id" json:"category_approval_entry_id"`
 	CategoryCode                    string  `db:"category_code" json:"category_code"`
 	CategoryName                    string  `db:"category_name" json:"category_name"`
 	CategoryDefaultUsefulLifeMonths int32   `db:"category_default_useful_life_months" json:"category_default_useful_life_months"`
@@ -1255,7 +1229,6 @@ type VouAssetAcquisitionLine struct {
 	UsefulLifeMonths                int32   `db:"useful_life_months" json:"useful_life_months"`
 	ResidualRateBps                 int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
 	DepartmentObjectID              string  `db:"department_object_id" json:"department_object_id"`
-	DepartmentApprovalEntryID       string  `db:"department_approval_entry_id" json:"department_approval_entry_id"`
 	DepartmentCode                  string  `db:"department_code" json:"department_code"`
 	DepartmentName                  string  `db:"department_name" json:"department_name"`
 	CustodianObjectID               *string `db:"custodian_object_id" json:"custodian_object_id"`
@@ -1537,7 +1510,6 @@ type VouInventoryCountLine struct {
 	Remark                       *string `db:"remark" json:"remark"`
 	EnteredQuantityMicros        int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
 	EnteredUnitObjectID          string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitApprovalEntryID   string  `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
 	EnteredUnitCode              string  `db:"entered_unit_code" json:"entered_unit_code"`
 	EnteredUnitName              string  `db:"entered_unit_name" json:"entered_unit_name"`
 }
@@ -1587,22 +1559,21 @@ type VouPaymentDetail struct {
 }
 
 type VouPriceLine struct {
-	ID                         string  `db:"id" json:"id"`
-	DocumentID                 string  `db:"document_id" json:"document_id"`
-	DocumentEntity             string  `db:"document_entity" json:"document_entity"`
-	LineNo                     int32   `db:"line_no" json:"line_no"`
-	ProductObjectID            string  `db:"product_object_id" json:"product_object_id"`
-	ProductApprovalEntryID     string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
-	ProductCode                string  `db:"product_code" json:"product_code"`
-	ProductName                string  `db:"product_name" json:"product_name"`
-	DefaultInputUnitSymbol     string  `db:"default_input_unit_symbol" json:"default_input_unit_symbol"`
-	BehaviorProfile            string  `db:"behavior_profile" json:"behavior_profile"`
-	UnitPriceCents             int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	Remark                     *string `db:"remark" json:"remark"`
-	ProductTypeObjectID        string  `db:"product_type_object_id" json:"product_type_object_id"`
-	ProductTypeApprovalEntryID string  `db:"product_type_approval_entry_id" json:"product_type_approval_entry_id"`
-	ProductTypeCode            string  `db:"product_type_code" json:"product_type_code"`
-	ProductTypeName            string  `db:"product_type_name" json:"product_type_name"`
+	ID                     string  `db:"id" json:"id"`
+	DocumentID             string  `db:"document_id" json:"document_id"`
+	DocumentEntity         string  `db:"document_entity" json:"document_entity"`
+	LineNo                 int32   `db:"line_no" json:"line_no"`
+	ProductObjectID        string  `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode            string  `db:"product_code" json:"product_code"`
+	ProductName            string  `db:"product_name" json:"product_name"`
+	DefaultInputUnitSymbol string  `db:"default_input_unit_symbol" json:"default_input_unit_symbol"`
+	BehaviorProfile        string  `db:"behavior_profile" json:"behavior_profile"`
+	UnitPriceCents         int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	Remark                 *string `db:"remark" json:"remark"`
+	ProductTypeObjectID    string  `db:"product_type_object_id" json:"product_type_object_id"`
+	ProductTypeCode        string  `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName        string  `db:"product_type_name" json:"product_type_name"`
 }
 
 type VouProductLine struct {
@@ -1635,11 +1606,9 @@ type VouProductLine struct {
 	ReferenceLineID            *string     `db:"reference_line_id" json:"reference_line_id"`
 	EnteredQuantityMicros      int64       `db:"entered_quantity_micros" json:"entered_quantity_micros"`
 	EnteredUnitObjectID        string      `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitApprovalEntryID string      `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
 	EnteredUnitCode            string      `db:"entered_unit_code" json:"entered_unit_code"`
 	EnteredUnitName            string      `db:"entered_unit_name" json:"entered_unit_name"`
 	ProductTypeObjectID        string      `db:"product_type_object_id" json:"product_type_object_id"`
-	ProductTypeApprovalEntryID string      `db:"product_type_approval_entry_id" json:"product_type_approval_entry_id"`
 	ProductTypeCode            string      `db:"product_type_code" json:"product_type_code"`
 	ProductTypeName            string      `db:"product_type_name" json:"product_type_name"`
 	DefaultPackagingSpecMicros *int64      `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
@@ -1660,50 +1629,48 @@ type VouProductionDetail struct {
 }
 
 type VouProductionMaterialLine struct {
-	ID                               string  `db:"id" json:"id"`
-	OutputLineID                     string  `db:"output_line_id" json:"output_line_id"`
-	LineNo                           int32   `db:"line_no" json:"line_no"`
-	FormulaMaterialObjectID          string  `db:"formula_material_object_id" json:"formula_material_object_id"`
-	FormulaMaterialApprovalEntryID   string  `db:"formula_material_approval_entry_id" json:"formula_material_approval_entry_id"`
-	FormulaMaterialCode              string  `db:"formula_material_code" json:"formula_material_code"`
-	FormulaMaterialName              string  `db:"formula_material_name" json:"formula_material_name"`
-	FormulaEnteredUnitSymbol         string  `db:"formula_entered_unit_symbol" json:"formula_entered_unit_symbol"`
-	FormulaBaseQuantityMicros        int64   `db:"formula_base_quantity_micros" json:"formula_base_quantity_micros"`
-	SuggestedBaseQuantityMicros      int64   `db:"suggested_base_quantity_micros" json:"suggested_base_quantity_micros"`
-	ActualMaterialObjectID           string  `db:"actual_material_object_id" json:"actual_material_object_id"`
-	ActualMaterialApprovalEntryID    string  `db:"actual_material_approval_entry_id" json:"actual_material_approval_entry_id"`
-	ActualMaterialCode               string  `db:"actual_material_code" json:"actual_material_code"`
-	ActualMaterialName               string  `db:"actual_material_name" json:"actual_material_name"`
-	ActualEnteredUnitSymbol          string  `db:"actual_entered_unit_symbol" json:"actual_entered_unit_symbol"`
-	ActualBaseQuantityMicros         int64   `db:"actual_base_quantity_micros" json:"actual_base_quantity_micros"`
-	AdjustmentReason                 *string `db:"adjustment_reason" json:"adjustment_reason"`
-	ActualEnteredQuantityMicros      int64   `db:"actual_entered_quantity_micros" json:"actual_entered_quantity_micros"`
-	ActualEnteredUnitObjectID        string  `db:"actual_entered_unit_object_id" json:"actual_entered_unit_object_id"`
-	ActualEnteredUnitApprovalEntryID string  `db:"actual_entered_unit_approval_entry_id" json:"actual_entered_unit_approval_entry_id"`
-	ActualEnteredUnitCode            string  `db:"actual_entered_unit_code" json:"actual_entered_unit_code"`
-	ActualEnteredUnitName            string  `db:"actual_entered_unit_name" json:"actual_entered_unit_name"`
+	ID                             string  `db:"id" json:"id"`
+	OutputLineID                   string  `db:"output_line_id" json:"output_line_id"`
+	LineNo                         int32   `db:"line_no" json:"line_no"`
+	FormulaMaterialObjectID        string  `db:"formula_material_object_id" json:"formula_material_object_id"`
+	FormulaMaterialApprovalEntryID string  `db:"formula_material_approval_entry_id" json:"formula_material_approval_entry_id"`
+	FormulaMaterialCode            string  `db:"formula_material_code" json:"formula_material_code"`
+	FormulaMaterialName            string  `db:"formula_material_name" json:"formula_material_name"`
+	FormulaEnteredUnitSymbol       string  `db:"formula_entered_unit_symbol" json:"formula_entered_unit_symbol"`
+	FormulaBaseQuantityMicros      int64   `db:"formula_base_quantity_micros" json:"formula_base_quantity_micros"`
+	SuggestedBaseQuantityMicros    int64   `db:"suggested_base_quantity_micros" json:"suggested_base_quantity_micros"`
+	ActualMaterialObjectID         string  `db:"actual_material_object_id" json:"actual_material_object_id"`
+	ActualMaterialApprovalEntryID  string  `db:"actual_material_approval_entry_id" json:"actual_material_approval_entry_id"`
+	ActualMaterialCode             string  `db:"actual_material_code" json:"actual_material_code"`
+	ActualMaterialName             string  `db:"actual_material_name" json:"actual_material_name"`
+	ActualEnteredUnitSymbol        string  `db:"actual_entered_unit_symbol" json:"actual_entered_unit_symbol"`
+	ActualBaseQuantityMicros       int64   `db:"actual_base_quantity_micros" json:"actual_base_quantity_micros"`
+	AdjustmentReason               *string `db:"adjustment_reason" json:"adjustment_reason"`
+	ActualEnteredQuantityMicros    int64   `db:"actual_entered_quantity_micros" json:"actual_entered_quantity_micros"`
+	ActualEnteredUnitObjectID      string  `db:"actual_entered_unit_object_id" json:"actual_entered_unit_object_id"`
+	ActualEnteredUnitCode          string  `db:"actual_entered_unit_code" json:"actual_entered_unit_code"`
+	ActualEnteredUnitName          string  `db:"actual_entered_unit_name" json:"actual_entered_unit_name"`
 }
 
 type VouProductionOutputLine struct {
-	ID                         string  `db:"id" json:"id"`
-	DocumentID                 string  `db:"document_id" json:"document_id"`
-	LineNo                     int32   `db:"line_no" json:"line_no"`
-	SourceOrderLineID          *string `db:"source_order_line_id" json:"source_order_line_id"`
-	ProductObjectID            string  `db:"product_object_id" json:"product_object_id"`
-	ProductApprovalEntryID     string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
-	ProductCode                string  `db:"product_code" json:"product_code"`
-	ProductName                string  `db:"product_name" json:"product_name"`
-	EnteredUnitSymbol          string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BehaviorProfile            string  `db:"behavior_profile" json:"behavior_profile"`
-	BaseQuantityMicros         int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
-	LossRateMicros             int64   `db:"loss_rate_micros" json:"loss_rate_micros"`
-	FormulaBaseQuantityMicros  int64   `db:"formula_base_quantity_micros" json:"formula_base_quantity_micros"`
-	Remark                     *string `db:"remark" json:"remark"`
-	EnteredQuantityMicros      int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
-	EnteredUnitObjectID        string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitApprovalEntryID string  `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
-	EnteredUnitCode            string  `db:"entered_unit_code" json:"entered_unit_code"`
-	EnteredUnitName            string  `db:"entered_unit_name" json:"entered_unit_name"`
+	ID                        string  `db:"id" json:"id"`
+	DocumentID                string  `db:"document_id" json:"document_id"`
+	LineNo                    int32   `db:"line_no" json:"line_no"`
+	SourceOrderLineID         *string `db:"source_order_line_id" json:"source_order_line_id"`
+	ProductObjectID           string  `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID    string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode               string  `db:"product_code" json:"product_code"`
+	ProductName               string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol         string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BehaviorProfile           string  `db:"behavior_profile" json:"behavior_profile"`
+	BaseQuantityMicros        int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	LossRateMicros            int64   `db:"loss_rate_micros" json:"loss_rate_micros"`
+	FormulaBaseQuantityMicros int64   `db:"formula_base_quantity_micros" json:"formula_base_quantity_micros"`
+	Remark                    *string `db:"remark" json:"remark"`
+	EnteredQuantityMicros     int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID       string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitCode           string  `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName           string  `db:"entered_unit_name" json:"entered_unit_name"`
 }
 
 type VouPurchaseInboundDetail struct {
@@ -1763,7 +1730,6 @@ type VouPurchaseOrderDetail struct {
 	ContactName                          *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
 	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodApprovalEntryID      *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
 	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
 	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
 	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
@@ -1870,7 +1836,6 @@ type VouSaleOrderDetail struct {
 	ContactPhone                           *string `db:"contact_phone" json:"contact_phone"`
 	DeliveryAddress                        *string `db:"delivery_address" json:"delivery_address"`
 	SettlementMethodObjectID               *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodApprovalEntryID        *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
 	SettlementMethodCode                   *string `db:"settlement_method_code" json:"settlement_method_code"`
 	SettlementMethodName                   *string `db:"settlement_method_name" json:"settlement_method_name"`
 	SettlementRuleType                     *string `db:"settlement_rule_type" json:"settlement_rule_type"`
@@ -1896,33 +1861,31 @@ type VouSaleOrderDetail struct {
 }
 
 type VouSaleOrderFormula struct {
-	ProductLineID                    string  `db:"product_line_id" json:"product_line_id"`
-	SourceType                       string  `db:"source_type" json:"source_type"`
-	SourceDocumentID                 *string `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo                 *string `db:"source_document_no" json:"source_document_no"`
-	OutputBaseQuantityMicros         int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
-	OutputEnteredQuantityMicros      int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
-	OutputEnteredUnitObjectID        string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
-	OutputEnteredUnitApprovalEntryID string  `db:"output_entered_unit_approval_entry_id" json:"output_entered_unit_approval_entry_id"`
-	OutputEnteredUnitCode            string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
-	OutputEnteredUnitName            string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
-	OutputEnteredUnitSymbol          string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
+	ProductLineID               string  `db:"product_line_id" json:"product_line_id"`
+	SourceType                  string  `db:"source_type" json:"source_type"`
+	SourceDocumentID            *string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo            *string `db:"source_document_no" json:"source_document_no"`
+	OutputBaseQuantityMicros    int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
+	OutputEnteredQuantityMicros int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputEnteredUnitObjectID   string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
+	OutputEnteredUnitCode       string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
+	OutputEnteredUnitName       string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
+	OutputEnteredUnitSymbol     string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
 }
 
 type VouSaleOrderFormulaLine struct {
-	ProductLineID              string `db:"product_line_id" json:"product_line_id"`
-	LineNo                     int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID           string `db:"material_object_id" json:"material_object_id"`
-	MaterialApprovalEntryID    string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
-	MaterialCode               string `db:"material_code" json:"material_code"`
-	MaterialName               string `db:"material_name" json:"material_name"`
-	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BaseQuantityMicros         int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
-	EnteredQuantityMicros      int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
-	EnteredUnitObjectID        string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitApprovalEntryID string `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
-	EnteredUnitCode            string `db:"entered_unit_code" json:"entered_unit_code"`
-	EnteredUnitName            string `db:"entered_unit_name" json:"entered_unit_name"`
+	ProductLineID           string `db:"product_line_id" json:"product_line_id"`
+	LineNo                  int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID        string `db:"material_object_id" json:"material_object_id"`
+	MaterialApprovalEntryID string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
+	MaterialCode            string `db:"material_code" json:"material_code"`
+	MaterialName            string `db:"material_name" json:"material_name"`
+	EnteredUnitSymbol       string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros      int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
+	EnteredQuantityMicros   int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID     string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitCode         string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName         string `db:"entered_unit_name" json:"entered_unit_name"`
 }
 
 type VouSaleOutboundDetail struct {
@@ -2042,36 +2005,35 @@ type VouServiceAcceptanceDetail struct {
 }
 
 type VouServiceContractDetail struct {
-	DocumentID                      string      `db:"document_id" json:"document_id"`
-	Entity                          string      `db:"entity" json:"entity"`
-	CounterpartyEntity              string      `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID            string      `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyApprovalEntryID     string      `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
-	CounterpartyCode                string      `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName                string      `db:"counterparty_name" json:"counterparty_name"`
-	PartyID                         string      `db:"party_id" json:"party_id"`
-	PartyName                       string      `db:"party_name" json:"party_name"`
-	OperatingEntityObjectID         string      `db:"operating_entity_object_id" json:"operating_entity_object_id"`
-	OperatingEntityApprovalEntryID  string      `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode             string      `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName             string      `db:"operating_entity_name" json:"operating_entity_name"`
-	HandlerObjectID                 string      `db:"handler_object_id" json:"handler_object_id"`
-	HandlerApprovalEntryID          string      `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
-	HandlerCode                     string      `db:"handler_code" json:"handler_code"`
-	HandlerName                     string      `db:"handler_name" json:"handler_name"`
-	SettlementMethodObjectID        *string     `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodApprovalEntryID *string     `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
-	SettlementMethodCode            *string     `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName            *string     `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode              *string     `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType              *string     `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset           *int32      `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth            *int32      `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset             *int32      `db:"settlement_day_offset" json:"settlement_day_offset"`
-	Capabilities                    []string    `db:"capabilities" json:"capabilities"`
-	ApplicableFrom                  pgtype.Date `db:"applicable_from" json:"applicable_from"`
-	ApplicableTo                    pgtype.Date `db:"applicable_to" json:"applicable_to"`
-	ContractTerms                   string      `db:"contract_terms" json:"contract_terms"`
+	DocumentID                     string      `db:"document_id" json:"document_id"`
+	Entity                         string      `db:"entity" json:"entity"`
+	CounterpartyEntity             string      `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID           string      `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID    string      `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode               string      `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName               string      `db:"counterparty_name" json:"counterparty_name"`
+	PartyID                        string      `db:"party_id" json:"party_id"`
+	PartyName                      string      `db:"party_name" json:"party_name"`
+	OperatingEntityObjectID        string      `db:"operating_entity_object_id" json:"operating_entity_object_id"`
+	OperatingEntityApprovalEntryID string      `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string      `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string      `db:"operating_entity_name" json:"operating_entity_name"`
+	HandlerObjectID                string      `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID         string      `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                    string      `db:"handler_code" json:"handler_code"`
+	HandlerName                    string      `db:"handler_name" json:"handler_name"`
+	SettlementMethodObjectID       *string     `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodCode           *string     `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName           *string     `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode             *string     `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType             *string     `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset          *int32      `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth           *int32      `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset            *int32      `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Capabilities                   []string    `db:"capabilities" json:"capabilities"`
+	ApplicableFrom                 pgtype.Date `db:"applicable_from" json:"applicable_from"`
+	ApplicableTo                   pgtype.Date `db:"applicable_to" json:"applicable_to"`
+	ContractTerms                  string      `db:"contract_terms" json:"contract_terms"`
 }
 
 type WflActionExecution struct {

@@ -1718,46 +1718,6 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
     };
   };
-  "/aux/{entity}/submit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxApprovalRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
-    };
-  };
-  "/aux/{entity}/unsubmit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxApprovalRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
-    };
-  };
-  "/aux/{entity}/approve": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxApprovalRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
-    };
-  };
-  "/aux/{entity}/reject": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
-    };
-  };
-  "/aux/{entity}/unapprove": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
-    };
-  };
   "/aux/{entity}/enable": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1778,24 +1738,8 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxApprovalRevisionRequest } };
+      requestBody: { content: { 'application/json': Models.AuxObjectRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
-    };
-  };
-  "/aux/{entity}/versions": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.AuxVersionPageResponse } } };
-    };
-  };
-  "/aux/{entity}/audit-history": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.AuxAuditEventPageResponse } } };
     };
   };
   "/bob/party/query": {
@@ -1891,7 +1835,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.AuxReferenceQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.ReferenceQueryResponse } } };
+      responses: { 200: { content: { 'application/json': Models.AuxReferenceQueryResponse } } };
     };
   };
   "/bob/sales-partner/query": {
@@ -2655,6 +2599,7 @@ export interface components {
       "DclCustomerVersionPageResponse": Models.DclCustomerVersionPageResponse;
       "DclCustomerAccountQueryRequest": Models.DclCustomerAccountQueryRequest;
       "DclCustomerSnapshot": Models.DclCustomerSnapshot;
+      "DclCustomerAuxiliarySnapshot": Models.DclCustomerAuxiliarySnapshot;
       "DclCustomerSalesAttributionSnapshot": Models.DclCustomerSalesAttributionSnapshot;
       "DclCustomerAccountData": Models.DclCustomerAccountData;
       "DclCustomerAccountVersionView": Models.DclCustomerAccountVersionView;
@@ -2811,7 +2756,6 @@ export interface components {
       "ProductBehaviorProfile": Models.ProductBehaviorProfile;
       "AuxQueryRequest": Models.AuxQueryRequest;
       "AuxData": Models.AuxData;
-      "AuxVersionView": Models.AuxVersionView;
       "AuxObjectView": Models.AuxObjectView;
       "AuxObjectPage": Models.AuxObjectPage;
       "AuxQueryResponse": Models.AuxQueryResponse;
@@ -2822,14 +2766,7 @@ export interface components {
       "AuxMutationResult": Models.AuxMutationResult;
       "AuxMutationResponse": Models.AuxMutationResponse;
       "AuxSaveRequest": Models.AuxSaveRequest;
-      "AuxApprovalRevisionRequest": Models.AuxApprovalRevisionRequest;
-      "AuxReviewRequest": Models.AuxReviewRequest;
       "AuxObjectRevisionRequest": Models.AuxObjectRevisionRequest;
-      "AuxHistoryRequest": Models.AuxHistoryRequest;
-      "AuxVersionPage": Models.AuxVersionPage;
-      "AuxVersionPageResponse": Models.AuxVersionPageResponse;
-      "AuxAuditEventPage": Models.AuxAuditEventPage;
-      "AuxAuditEventPageResponse": Models.AuxAuditEventPageResponse;
       "PartyQueryRequest": Models.PartyQueryRequest;
       "PartyListItem": Models.PartyListItem;
       "PartyQueryResponse": Models.PartyQueryResponse;
@@ -2865,6 +2802,8 @@ export interface components {
       "ReferenceCandidate": Models.ReferenceCandidate;
       "ReferenceQueryResponse": Models.ReferenceQueryResponse;
       "AuxReferenceQueryRequest": Models.AuxReferenceQueryRequest;
+      "AuxReferenceCandidate": Models.AuxReferenceCandidate;
+      "AuxReferenceQueryResponse": Models.AuxReferenceQueryResponse;
       "SalesPartnerQueryRequest": Models.SalesPartnerQueryRequest;
       "SalesPartnerListVersion": Models.SalesPartnerListVersion;
       "SalesPartnerListItem": Models.SalesPartnerListItem;
@@ -2903,6 +2842,7 @@ export interface components {
       "VouProductionMaterialView": Models.VouProductionMaterialView;
       "VouProductionOutputView": Models.VouProductionOutputView;
       "VouInventoryCountLineView": Models.VouInventoryCountLineView;
+      "VouAuxiliaryReferenceView": Models.VouAuxiliaryReferenceView;
       "VouAssetLineView": Models.VouAssetLineView;
       "VouIntermediaryReference": Models.VouIntermediaryReference;
       "VouIntermediarySalesContractSnapshot": Models.VouIntermediarySalesContractSnapshot;
@@ -2949,6 +2889,7 @@ export interface components {
       "VouProductionMaterialInput": Models.VouProductionMaterialInput;
       "VouProductionOutputInput": Models.VouProductionOutputInput;
       "VouAssetReferenceInput": Models.VouAssetReferenceInput;
+      "VouVersionedReferenceInput": Models.VouVersionedReferenceInput;
       "VouAssetAcquisitionLineInput": Models.VouAssetAcquisitionLineInput;
       "VouAssetSaleLineInput": Models.VouAssetSaleLineInput;
       "VouAssetLiquidationLineInput": Models.VouAssetLiquidationLineInput;

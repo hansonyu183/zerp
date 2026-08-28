@@ -446,6 +446,7 @@ CREATE TABLE public.acc_book_user_scopes (
 CREATE TABLE public.acc_books (
     id character varying(26) NOT NULL,
     code character varying(64) NOT NULL,
+    data jsonb NOT NULL DEFAULT '{}'::jsonb,
     name character varying(200) NOT NULL,
     description character varying(1000) DEFAULT ''::character varying NOT NULL,
     start_month date NOT NULL,
@@ -1085,6 +1086,7 @@ CREATE TABLE public.aux_objects (
     id character varying(26) NOT NULL,
     entity character varying(32) NOT NULL,
     code character varying(64) NOT NULL,
+    data jsonb NOT NULL DEFAULT '{}'::jsonb,
     enabled boolean DEFAULT true NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1094,19 +1096,7 @@ CREATE TABLE public.aux_objects (
     CONSTRAINT aux_objects_code_check CHECK (((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)),
     CONSTRAINT aux_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['product-category'::character varying, 'product-type'::character varying, 'employee-category'::character varying, 'department'::character varying, 'position'::character varying, 'settlement-method'::character varying, 'payment-method'::character varying, 'dictionary-type'::character varying, 'dictionary-item'::character varying, 'measurement-unit'::character varying, 'income-expense-type'::character varying, 'asset-category'::character varying])::text[]))),
     CONSTRAINT aux_objects_revision_check CHECK ((revision >= 1))
-);
-
-
---
--- Name: aux_version_payloads; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.aux_version_payloads (
-    approval_entry_id character varying(26) NOT NULL,
-    object_id character varying(26) NOT NULL,
-    entity character varying(64) NOT NULL,
-    data jsonb NOT NULL,
-    CONSTRAINT aux_version_payloads_data_object CHECK ((jsonb_typeof(data) = 'object'::text))
+    ,CONSTRAINT aux_objects_data_object_check CHECK ((jsonb_typeof(data) = 'object'::text))
 );
 
 
@@ -1195,15 +1185,12 @@ CREATE TABLE public.dcl_operating_entity_versions (
 CREATE TABLE public.dcl_employee_versions (
     approval_entry_id character varying(26) NOT NULL,
     employee_category_id character varying(26),
-    employee_category_approval_entry_id character varying(26),
     employee_category_code character varying(64),
     employee_category_name character varying(200),
     department_id character varying(26),
-    department_approval_entry_id character varying(26),
     department_code character varying(64),
     department_name character varying(200),
     position_id character varying(26),
-    position_approval_entry_id character varying(26),
     position_code character varying(64),
     position_name character varying(200),
     phone character varying(32),
@@ -1212,9 +1199,9 @@ CREATE TABLE public.dcl_employee_versions (
     remark character varying(1000),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_employee_versions_pkey PRIMARY KEY (approval_entry_id),
-    CONSTRAINT dcl_employee_versions_employee_category_snapshot_check CHECK (((employee_category_id IS NULL) = (employee_category_approval_entry_id IS NULL)) AND ((employee_category_id IS NULL) = (employee_category_code IS NULL)) AND ((employee_category_id IS NULL) = (employee_category_name IS NULL))),
-    CONSTRAINT dcl_employee_versions_department_snapshot_check CHECK (((department_id IS NULL) = (department_approval_entry_id IS NULL)) AND ((department_id IS NULL) = (department_code IS NULL)) AND ((department_id IS NULL) = (department_name IS NULL))),
-    CONSTRAINT dcl_employee_versions_position_snapshot_check CHECK (((position_id IS NULL) = (position_approval_entry_id IS NULL)) AND ((position_id IS NULL) = (position_code IS NULL)) AND ((position_id IS NULL) = (position_name IS NULL)))
+    CONSTRAINT dcl_employee_versions_employee_category_snapshot_check CHECK (((employee_category_id IS NULL) = (employee_category_code IS NULL)) AND ((employee_category_id IS NULL) = (employee_category_name IS NULL))),
+    CONSTRAINT dcl_employee_versions_department_snapshot_check CHECK (((department_id IS NULL) = (department_code IS NULL)) AND ((department_id IS NULL) = (department_name IS NULL))),
+    CONSTRAINT dcl_employee_versions_position_snapshot_check CHECK (((position_id IS NULL) = (position_code IS NULL)) AND ((position_id IS NULL) = (position_name IS NULL)))
 );
 
 -- Other Unit and Sales Partner keep their immutable Party-to-operating-entity
@@ -1226,7 +1213,6 @@ CREATE TABLE public.dcl_other_unit_versions (
     email character varying(254),
     address character varying(500),
     settlement_method_id character varying(26),
-    settlement_method_approval_entry_id character varying(26),
     settlement_method_code character varying(32),
     settlement_method_name character varying(200),
     settlement_term_code character varying(32),
@@ -1237,7 +1223,7 @@ CREATE TABLE public.dcl_other_unit_versions (
     remark character varying(1000),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_other_unit_versions_pkey PRIMARY KEY (approval_entry_id),
-    CONSTRAINT dcl_other_unit_settlement_ck CHECK (((settlement_method_id IS NULL) = (settlement_method_approval_entry_id IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_method_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_method_name IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_term_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_rule_type IS NULL)) AND ((settlement_method_id IS NOT NULL) OR ((settlement_month_offset = 0) AND (settlement_day_of_month = 0) AND (settlement_day_offset = 0)))),
+    CONSTRAINT dcl_other_unit_settlement_ck CHECK (((settlement_method_id IS NULL) = (settlement_method_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_method_name IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_term_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_rule_type IS NULL)) AND ((settlement_method_id IS NOT NULL) OR ((settlement_month_offset = 0) AND (settlement_day_of_month = 0) AND (settlement_day_offset = 0)))),
     CONSTRAINT dcl_other_unit_day_of_month_ck CHECK ((settlement_day_of_month >= 0) AND (settlement_day_of_month <= 31)),
     CONSTRAINT dcl_other_unit_day_offset_ck CHECK (settlement_day_offset >= 0),
     CONSTRAINT dcl_other_unit_month_offset_ck CHECK (settlement_month_offset >= 0)
@@ -1261,7 +1247,7 @@ CREATE TABLE public.dcl_supplier_versions (
     short_name character varying(100), tax_number character varying(50),
     contact_name character varying(100), contact_phone character varying(32), email character varying(254),
     address character varying(500), remark character varying(1000),
-    settlement_method_id character varying(26), settlement_method_approval_entry_id character varying(26),
+    settlement_method_id character varying(26),
     settlement_method_code character varying(32), settlement_method_name character varying(200),
     settlement_term_code character varying(32), settlement_rule_type character varying(32),
     settlement_month_offset integer NOT NULL DEFAULT 0, settlement_day_of_month integer NOT NULL DEFAULT 0,
@@ -1271,8 +1257,7 @@ CREATE TABLE public.dcl_supplier_versions (
     enabled boolean NOT NULL,
     CONSTRAINT dcl_supplier_versions_pkey PRIMARY KEY (approval_entry_id),
     CONSTRAINT dcl_supplier_settlement_snapshot_ck CHECK (
-      (settlement_method_id IS NULL)=(settlement_method_approval_entry_id IS NULL)
-      AND (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
+      (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
       AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
       AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
       AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
@@ -1333,7 +1318,6 @@ CREATE TABLE public.dcl_warehouse_versions (
     -- Retained only for the #279 in-place cutover. Warehouse no longer
     -- exposes category as a writable declaration field.
 	category_id character varying(26),
-	category_approval_entry_id character varying(26),
 	category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     address character varying(500),
@@ -1418,8 +1402,8 @@ CREATE TABLE public.dcl_customer_account_versions (
     name character varying(200) NOT NULL,
     customer_type character varying(16) DEFAULT 'DIT-0001'::character varying NOT NULL,
     short_name character varying(100), tax_number character varying(50), contact_name character varying(100), contact_phone character varying(32), email character varying(254), address character varying(500), remark character varying(1000),
-    settlement_method_id character varying(26), settlement_method_approval_entry_id character varying(26), settlement_method_code character varying(32), settlement_method_name character varying(200), settlement_term_code character varying(32), settlement_rule_type character varying(32), settlement_due_days integer DEFAULT 0 NOT NULL, settlement_month_offset integer DEFAULT 0 NOT NULL, settlement_cutoff_day integer DEFAULT 0 NOT NULL, settlement_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
-    payment_method_id character varying(26), payment_method_approval_entry_id character varying(26), payment_method_code character varying(32), payment_method_name character varying(200), payment_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
+    settlement_method_id character varying(26), settlement_method_code character varying(32), settlement_method_name character varying(200), settlement_term_code character varying(32), settlement_rule_type character varying(32), settlement_due_days integer DEFAULT 0 NOT NULL, settlement_month_offset integer DEFAULT 0 NOT NULL, settlement_cutoff_day integer DEFAULT 0 NOT NULL, settlement_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
+    payment_method_id character varying(26), payment_method_code character varying(32), payment_method_name character varying(200), payment_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
     operating_entity_id character varying(26) NOT NULL, operating_entity_approval_entry_id character varying(26) NOT NULL, operating_entity_code character varying(16) NOT NULL, operating_entity_name character varying(200) NOT NULL, operating_entity_tax_number character varying(100), operating_entity_address character varying(500), operating_entity_phone character varying(100),
     default_transport_method_code character varying(32), default_transport_method_name character varying(100), transport_surcharge_cents bigint DEFAULT 0 NOT NULL,
     pricing_policy jsonb DEFAULT '{"costItems": [], "defaultPremiumUnitPrice": "0.00", "defaultDiscountUnitPrice": "0.00", "thirdPartyIntermediaryFixedUnitCost": "0.00", "thirdPartyIntermediaryVariableUnitCost": "0.00"}'::jsonb NOT NULL,
@@ -1446,7 +1430,6 @@ CREATE TABLE public.dcl_customer_attachments (
     approval_entry_id character varying(26) NOT NULL,
     file_id character varying(26) NOT NULL,
     category_object_id character varying(26) NOT NULL,
-    category_approval_entry_id character varying(26) NOT NULL,
     category_code character varying(16) NOT NULL,
     category_name character varying(100) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1458,7 +1441,6 @@ CREATE TABLE public.dcl_customer_account_attachments (
     approval_entry_id character varying(26) NOT NULL,
     file_id character varying(26) NOT NULL,
     category_object_id character varying(26) NOT NULL,
-    category_approval_entry_id character varying(26) NOT NULL,
     category_code character varying(16) NOT NULL,
     category_name character varying(100) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1697,7 +1679,6 @@ CREATE TABLE public.bob_warehouses (
     object_id character varying(26) NOT NULL,
     source_approval_entry_id character varying(26) NOT NULL,
     category_id character varying(26),
-    category_approval_entry_id character varying(26),
     name character varying(200) NOT NULL,
     address character varying(500),
     contact_name character varying(100),
@@ -1720,7 +1701,6 @@ CREATE TABLE public.bob_vehicles (
     plate_number character varying(32) NOT NULL,
     vehicle_type character varying(64) NOT NULL,
     vehicle_type_object_id character varying(26) NOT NULL,
-    vehicle_type_approval_entry_id character varying(26) NOT NULL,
     vehicle_type_name character varying(200) NOT NULL,
     vin character varying(17),
     engine_number character varying(200),
@@ -1958,7 +1938,6 @@ CREATE TABLE public.dcl_product_formula_lines (
     base_quantity_micros bigint CONSTRAINT dcl_product_formula_lines_quantity_micros_not_null NOT NULL,
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) NOT NULL,
@@ -1981,7 +1960,6 @@ CREATE TABLE public.dcl_product_formulas (
     output_base_quantity_micros bigint CONSTRAINT dcl_product_formulas_base_output_quantity_micros_not_null NOT NULL,
     output_entered_quantity_micros bigint NOT NULL,
     output_unit_object_id character varying(26) NOT NULL,
-    output_unit_approval_entry_id character varying(26) NOT NULL,
     output_unit_code character varying(64) NOT NULL,
     output_unit_name character varying(200) NOT NULL,
     output_unit_symbol character varying(32) NOT NULL,
@@ -1998,7 +1976,6 @@ CREATE TABLE public.dcl_product_formulas (
 CREATE TABLE public.dcl_product_unit_conversions (
     product_approval_entry_id character varying(26) NOT NULL,
     unit_object_id character varying(26) NOT NULL,
-    unit_approval_entry_id character varying(26) NOT NULL,
     unit_code character varying(64) NOT NULL,
     unit_name character varying(200) NOT NULL,
     unit_symbol character varying(32) NOT NULL,
@@ -2018,7 +1995,6 @@ CREATE TABLE public.dcl_product_versions (
     entity character varying(16) DEFAULT 'product'::character varying NOT NULL,
     name character varying(200) NOT NULL,
 	category_id character varying(26),
-	category_approval_entry_id character varying(26),
 	category_code character varying(64),
 	category_name character varying(200),
 	category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
@@ -2027,16 +2003,13 @@ CREATE TABLE public.dcl_product_versions (
     barcode character varying(64),
     remark character varying(1000),
     pricing_unit_id character varying(26),
-    pricing_unit_approval_entry_id character varying(26),
     returnable boolean DEFAULT false NOT NULL,
     default_packaging_spec_micros bigint,
     product_type_id character varying(26),
-    product_type_approval_entry_id character varying(26),
     product_type_code character varying(64),
     product_type_name character varying(200),
     behavior_profile character varying(32),
     default_input_unit_id character varying(26),
-    default_input_unit_approval_entry_id character varying(26),
     enabled boolean DEFAULT true NOT NULL,
     CONSTRAINT dcl_product_default_packaging_spec_ck CHECK (((default_packaging_spec_micros IS NULL) OR (((behavior_profile)::text <> 'PACKAGING'::text) AND (default_packaging_spec_micros > 0)))),
     CONSTRAINT dcl_product_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
@@ -2064,7 +2037,6 @@ CREATE TABLE public.dcl_vehicle_versions (
     plate_number character varying(32) NOT NULL,
     vehicle_type character varying(64) NOT NULL,
     vehicle_type_object_id character varying(26) NOT NULL,
-    vehicle_type_approval_entry_id character varying(26) NOT NULL,
     vehicle_type_name character varying(200) NOT NULL,
     vehicle_type_entity character varying(32) DEFAULT 'dictionary-item'::character varying NOT NULL,
     vin character varying(17),
@@ -2208,7 +2180,6 @@ CREATE TABLE public.vou_asset_acquisition_lines (
     asset_name character varying(200) NOT NULL,
     specification character varying(200) DEFAULT ''::character varying NOT NULL,
     category_object_id character varying(26) NOT NULL,
-    category_approval_entry_id character varying(26) NOT NULL,
     category_code character varying(64) NOT NULL,
     category_name character varying(200) NOT NULL,
     category_default_useful_life_months integer NOT NULL,
@@ -2217,7 +2188,6 @@ CREATE TABLE public.vou_asset_acquisition_lines (
     useful_life_months integer NOT NULL,
     residual_rate_bps integer NOT NULL,
     department_object_id character varying(26) NOT NULL,
-    department_approval_entry_id character varying(26) NOT NULL,
     department_code character varying(64) NOT NULL,
     department_name character varying(200) NOT NULL,
     custodian_object_id character varying(26),
@@ -2703,7 +2673,6 @@ CREATE TABLE public.vou_inventory_count_lines (
     remark character varying(1000),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     CONSTRAINT vou_inventory_count_lines_actual_quantity_micros_check CHECK ((actual_base_quantity_micros >= 0)),
@@ -2801,7 +2770,6 @@ CREATE TABLE public.vou_price_lines (
     unit_price_cents bigint NOT NULL,
     remark character varying(1000),
     product_type_object_id character varying(26) NOT NULL,
-    product_type_approval_entry_id character varying(26) NOT NULL,
     product_type_code character varying(64) NOT NULL,
     product_type_name character varying(200) NOT NULL,
     CONSTRAINT vou_price_lines_document_entity_check CHECK (((document_entity)::text = ANY ((ARRAY['sale-pricing'::character varying, 'purchase-inquiry'::character varying])::text[]))),
@@ -2844,11 +2812,9 @@ CREATE TABLE public.vou_product_lines (
     reference_line_id character varying(26),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     product_type_object_id character varying(26) NOT NULL,
-    product_type_approval_entry_id character varying(26) NOT NULL,
     product_type_code character varying(64) NOT NULL,
     product_type_name character varying(200) NOT NULL,
     default_packaging_spec_micros bigint,
@@ -2918,7 +2884,6 @@ CREATE TABLE public.vou_production_material_lines (
     adjustment_reason character varying(1000),
     actual_entered_quantity_micros bigint CONSTRAINT vou_production_material_lin_actual_entered_quantity_mi_not_null NOT NULL,
     actual_entered_unit_object_id character varying(26) CONSTRAINT vou_production_material_lin_actual_entered_unit_object_not_null NOT NULL,
-    actual_entered_unit_approval_entry_id character varying(26) CONSTRAINT vou_production_material_line_actual_unit_entry_not_null NOT NULL,
     actual_entered_unit_code character varying(64) NOT NULL,
     actual_entered_unit_name character varying(200) NOT NULL,
     CONSTRAINT vou_production_material_adjustment_ck CHECK (((((formula_material_object_id)::text = (actual_material_object_id)::text) AND ((formula_material_approval_entry_id)::text = (actual_material_approval_entry_id)::text) AND (suggested_base_quantity_micros = actual_base_quantity_micros)) OR (length(btrim((COALESCE(adjustment_reason, ''::character varying))::text)) > 0))),
@@ -2950,7 +2915,6 @@ CREATE TABLE public.vou_production_output_lines (
     remark character varying(1000),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     CONSTRAINT vou_production_output_lines_formula_base_output_quantity__check CHECK ((formula_base_quantity_micros > 0)),
@@ -3043,7 +3007,6 @@ CREATE TABLE public.vou_purchase_order_details (
     contact_name character varying(100),
     contact_phone character varying(32),
     settlement_method_object_id character varying(26),
-    settlement_method_approval_entry_id character varying(26),
     settlement_method_code character varying(64),
     settlement_method_name character varying(200),
     settlement_rule_type character varying(32),
@@ -3059,7 +3022,7 @@ CREATE TABLE public.vou_purchase_order_details (
     CONSTRAINT vou_purchase_order_details_entity_check CHECK (((entity)::text = 'purchase-order'::text)),
     CONSTRAINT vou_purchase_order_fulfillment_status_ck CHECK (((fulfillment_status)::text = ANY ((ARRAY['OPEN'::character varying, 'FULFILLED'::character varying])::text[]))),
     CONSTRAINT vou_purchase_order_purchaser_ck CHECK ((((purchaser_object_id IS NULL) AND (purchaser_approval_entry_id IS NULL) AND (purchaser_code IS NULL) AND (purchaser_name IS NULL)) OR ((purchaser_object_id IS NOT NULL) AND (purchaser_approval_entry_id IS NOT NULL) AND (purchaser_code IS NOT NULL) AND (purchaser_name IS NOT NULL)))),
-    CONSTRAINT vou_purchase_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_approval_entry_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
+    CONSTRAINT vou_purchase_order_settlement_ck CHECK ((settlement_method_object_id IS NULL) = (settlement_method_code IS NULL) AND (settlement_method_object_id IS NULL) = (settlement_method_name IS NULL)),
     CONSTRAINT vou_purchase_order_warehouse_ck CHECK (((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL)))
 );
 
@@ -3195,7 +3158,6 @@ CREATE TABLE public.vou_sale_order_details (
     contact_phone character varying(32),
     delivery_address character varying(500),
     settlement_method_object_id character varying(26),
-    settlement_method_approval_entry_id character varying(26),
     settlement_method_code character varying(64),
     settlement_method_name character varying(200),
     settlement_rule_type character varying(32),
@@ -3222,7 +3184,7 @@ CREATE TABLE public.vou_sale_order_details (
     CONSTRAINT vou_sale_order_fulfillment_status_ck CHECK (((fulfillment_status)::text = ANY ((ARRAY['OPEN'::character varying, 'FULFILLED'::character varying])::text[]))),
     CONSTRAINT vou_sale_order_sales_attribution_ck CHECK ((((sales_attribution_type)::text = 'INTERNAL_EMPLOYEE'::text) OR ((sales_attribution_type)::text = ANY ((ARRAY['EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying])::text[])))),
     CONSTRAINT vou_sale_order_salesperson_ck CHECK ((((salesperson_object_id IS NULL) AND (salesperson_approval_entry_id IS NULL) AND (salesperson_code IS NULL) AND (salesperson_name IS NULL)) OR ((salesperson_object_id IS NOT NULL) AND (salesperson_approval_entry_id IS NOT NULL) AND (salesperson_code IS NOT NULL) AND (salesperson_name IS NOT NULL)))),
-    CONSTRAINT vou_sale_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_approval_entry_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
+    CONSTRAINT vou_sale_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
     CONSTRAINT vou_sale_order_warehouse_ck CHECK ((((warehouse_object_id IS NULL) AND (warehouse_approval_entry_id IS NULL) AND (warehouse_code IS NULL) AND (warehouse_name IS NULL)) OR ((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL))))
 );
 
@@ -3242,7 +3204,6 @@ CREATE TABLE public.vou_sale_order_formula_lines (
     base_quantity_micros bigint CONSTRAINT vou_sale_order_formula_lines_quantity_micros_not_null NOT NULL,
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     CONSTRAINT vou_sale_order_formula_lines_line_no_check CHECK ((line_no >= 1)),
@@ -3262,7 +3223,6 @@ CREATE TABLE public.vou_sale_order_formulas (
     output_base_quantity_micros bigint CONSTRAINT vou_sale_order_formulas_base_output_quantity_micros_not_null NOT NULL,
     output_entered_quantity_micros bigint NOT NULL,
     output_entered_unit_object_id character varying(26) NOT NULL,
-    output_entered_unit_approval_entry_id character varying(26) NOT NULL,
     output_entered_unit_code character varying(64) NOT NULL,
     output_entered_unit_name character varying(200) NOT NULL,
     output_entered_unit_symbol character varying(32) NOT NULL,
@@ -3479,7 +3439,6 @@ CREATE TABLE public.vou_service_contract_details (
     handler_code character varying(64) NOT NULL,
     handler_name character varying(200) NOT NULL,
     settlement_method_object_id character varying(26),
-    settlement_method_approval_entry_id character varying(26),
     settlement_method_code character varying(64),
     settlement_method_name character varying(200),
     settlement_term_code character varying(32),
@@ -3492,8 +3451,8 @@ CREATE TABLE public.vou_service_contract_details (
     applicable_to date,
     contract_terms text DEFAULT ''::text NOT NULL,
     CONSTRAINT vou_service_contract_details_capabilities_check CHECK ((capabilities <@ ARRAY['EXTERNAL_PART_TIME'::character varying(32), 'CHANNEL_PARTNER'::character varying(32)])),
-    CONSTRAINT vou_service_contract_details_check CHECK (((((counterparty_entity)::text = 'other-unit'::text) AND (cardinality(capabilities) = 0) AND (applicable_from IS NULL) AND (applicable_to IS NULL)) OR (((counterparty_entity)::text = 'sales-partner'::text) AND (cardinality(capabilities) > 0) AND (applicable_from IS NOT NULL) AND ((applicable_to IS NULL) OR (applicable_to >= applicable_from)) AND (settlement_method_object_id IS NULL) AND (settlement_method_approval_entry_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_term_code IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL)))),
-    CONSTRAINT vou_service_contract_details_check1 CHECK (((((counterparty_entity)::text = 'other-unit'::text) AND (settlement_method_object_id IS NOT NULL) AND (settlement_method_approval_entry_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND (settlement_term_code IS NOT NULL) AND (settlement_rule_type IS NOT NULL) AND (settlement_month_offset IS NOT NULL) AND (settlement_day_offset IS NOT NULL)) OR ((counterparty_entity)::text = 'sales-partner'::text))),
+    CONSTRAINT vou_service_contract_details_check CHECK (((((counterparty_entity)::text = 'other-unit'::text) AND (cardinality(capabilities) = 0) AND (applicable_from IS NULL) AND (applicable_to IS NULL)) OR (((counterparty_entity)::text = 'sales-partner'::text) AND (cardinality(capabilities) > 0) AND (applicable_from IS NOT NULL) AND ((applicable_to IS NULL) OR (applicable_to >= applicable_from)) AND (settlement_method_object_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_term_code IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL)))),
+    CONSTRAINT vou_service_contract_details_check1 CHECK (((((counterparty_entity)::text = 'other-unit'::text) AND (settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND (settlement_term_code IS NOT NULL) AND (settlement_rule_type IS NOT NULL) AND (settlement_month_offset IS NOT NULL) AND (settlement_day_offset IS NOT NULL)) OR ((counterparty_entity)::text = 'sales-partner'::text))),
     CONSTRAINT vou_service_contract_details_contract_terms_check CHECK ((length(btrim(contract_terms)) <= 10000)),
     CONSTRAINT vou_service_contract_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['other-unit'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT vou_service_contract_details_entity_check CHECK (((entity)::text = 'service-contract'::text))
@@ -4022,24 +3981,18 @@ INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000024', '/aux/p
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000025', '/aux/product-category/enable', 'aux', 'product-category', 'enable', '启用产品分类', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000026', '/aux/product-category/disable', 'aux', 'product-category', 'disable', '停用产品分类', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000027', '/aux/product-category/delete', 'aux', 'product-category', 'delete', '删除产品分类', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000028', '/aux/product-category/versions', 'aux', 'product-category', 'versions', '查看版本产品分类', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000029', '/aux/product-category/audit-history', 'aux', 'product-category', 'audit-history', '查看变更记录产品分类', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000042', '/aux/department/get', 'aux', 'department', 'get', '查看部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000043', '/aux/department/create', 'aux', 'department', 'create', '创建部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000044', '/aux/department/save', 'aux', 'department', 'save', '保存部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000045', '/aux/department/enable', 'aux', 'department', 'enable', '启用部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000046', '/aux/department/disable', 'aux', 'department', 'disable', '停用部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000047', '/aux/department/delete', 'aux', 'department', 'delete', '删除部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000048', '/aux/department/versions', 'aux', 'department', 'versions', '查看版本部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000049', '/aux/department/audit-history', 'aux', 'department', 'audit-history', '查看变更记录部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000062', '/aux/position/get', 'aux', 'position', 'get', '查看岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000063', '/aux/position/create', 'aux', 'position', 'create', '创建岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000064', '/aux/position/save', 'aux', 'position', 'save', '保存岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000065', '/aux/position/enable', 'aux', 'position', 'enable', '启用岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000066', '/aux/position/disable', 'aux', 'position', 'disable', '停用岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000067', '/aux/position/delete', 'aux', 'position', 'delete', '删除岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000068', '/aux/position/versions', 'aux', 'position', 'versions', '查看版本岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000069', '/aux/position/audit-history', 'aux', 'position', 'audit-history', '查看变更记录岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000021', '/aux/product-category/query', 'aux', 'product-category', 'query', '查询产品分类', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, 10);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000041', '/aux/department/query', 'aux', 'department', 'query', '查询部门', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, 20);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000102', '/aux/dictionary-type/get', 'aux', 'dictionary-type', 'get', '查看字典类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
@@ -4048,32 +4001,24 @@ INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000104', '/aux/d
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000105', '/aux/dictionary-type/enable', 'aux', 'dictionary-type', 'enable', '启用字典类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000106', '/aux/dictionary-type/disable', 'aux', 'dictionary-type', 'disable', '停用字典类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000107', '/aux/dictionary-type/delete', 'aux', 'dictionary-type', 'delete', '删除字典类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000108', '/aux/dictionary-type/versions', 'aux', 'dictionary-type', 'versions', '查看版本字典类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000109', '/aux/dictionary-type/audit-history', 'aux', 'dictionary-type', 'audit-history', '查看变更记录字典类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000122', '/aux/dictionary-item/get', 'aux', 'dictionary-item', 'get', '查看字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000123', '/aux/dictionary-item/create', 'aux', 'dictionary-item', 'create', '创建字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000124', '/aux/dictionary-item/save', 'aux', 'dictionary-item', 'save', '保存字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000125', '/aux/dictionary-item/enable', 'aux', 'dictionary-item', 'enable', '启用字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000126', '/aux/dictionary-item/disable', 'aux', 'dictionary-item', 'disable', '停用字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000127', '/aux/dictionary-item/delete', 'aux', 'dictionary-item', 'delete', '删除字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000128', '/aux/dictionary-item/versions', 'aux', 'dictionary-item', 'versions', '查看版本字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000129', '/aux/dictionary-item/audit-history', 'aux', 'dictionary-item', 'audit-history', '查看变更记录字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000142', '/aux/measurement-unit/get', 'aux', 'measurement-unit', 'get', '查看计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000143', '/aux/measurement-unit/create', 'aux', 'measurement-unit', 'create', '创建计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000144', '/aux/measurement-unit/save', 'aux', 'measurement-unit', 'save', '保存计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000145', '/aux/measurement-unit/enable', 'aux', 'measurement-unit', 'enable', '启用计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000146', '/aux/measurement-unit/disable', 'aux', 'measurement-unit', 'disable', '停用计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000147', '/aux/measurement-unit/delete', 'aux', 'measurement-unit', 'delete', '删除计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000148', '/aux/measurement-unit/versions', 'aux', 'measurement-unit', 'versions', '查看版本计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000149', '/aux/measurement-unit/audit-history', 'aux', 'measurement-unit', 'audit-history', '查看变更记录计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000162', '/aux/income-expense-type/get', 'aux', 'income-expense-type', 'get', '查看收支类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000163', '/aux/income-expense-type/create', 'aux', 'income-expense-type', 'create', '创建收支类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000164', '/aux/income-expense-type/save', 'aux', 'income-expense-type', 'save', '保存收支类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000165', '/aux/income-expense-type/enable', 'aux', 'income-expense-type', 'enable', '启用收支类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000166', '/aux/income-expense-type/disable', 'aux', 'income-expense-type', 'disable', '停用收支类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000167', '/aux/income-expense-type/delete', 'aux', 'income-expense-type', 'delete', '删除收支类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000168', '/aux/income-expense-type/versions', 'aux', 'income-expense-type', 'versions', '查看版本收支类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000169', '/aux/income-expense-type/audit-history', 'aux', 'income-expense-type', 'audit-history', '查看变更记录收支类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000141', '/aux/measurement-unit/query', 'aux', 'measurement-unit', 'query', '查询计量单位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, 50);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000101', '/aux/dictionary-type/query', 'aux', 'dictionary-type', 'query', '查询字典类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, 60);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000121', '/aux/dictionary-item/query', 'aux', 'dictionary-item', 'query', '查询字典项', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, 70);
@@ -4084,8 +4029,6 @@ INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000204', '/aux/p
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000205', '/aux/product-type/enable', 'aux', 'product-type', 'enable', '启用产品类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000206', '/aux/product-type/disable', 'aux', 'product-type', 'disable', '停用产品类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000207', '/aux/product-type/delete', 'aux', 'product-type', 'delete', '删除产品类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000208', '/aux/product-type/versions', 'aux', 'product-type', 'versions', '查看版本产品类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000209', '/aux/product-type/audit-history', 'aux', 'product-type', 'audit-history', '查看变更记录产品类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000149', '/vou/sale-order/formula-default', 'vou', 'sale-order', 'formula-default', '解析销售订单默认配方', 'ENABLED', '2026-08-24 15:23:49.383111+00', NULL, '2026-08-24 15:23:49.383111+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('SR2e3f53fb55b6f0c87524c566', '/vou/sale-return/get', 'vou', 'sale-return', 'get', '查看销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('SR14074cf0ec69a8d22bfcad1b', '/vou/sale-return/create', 'vou', 'sale-return', 'create', '创建销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
@@ -4307,8 +4250,6 @@ INSERT INTO public.app_permissions VALUES ('FA191e8bf32c35b796790a0387', '/aux/a
 INSERT INTO public.app_permissions VALUES ('FA1cea6f4036a871113d7ab4e2', '/aux/asset-category/enable', 'aux', 'asset-category', 'enable', '启用资产类别', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FA7663c7387d23b863bf054179', '/aux/asset-category/disable', 'aux', 'asset-category', 'disable', '停用资产类别', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FA28b5d1a0401791ba3f34666e', '/aux/asset-category/delete', 'aux', 'asset-category', 'delete', '删除资产类别', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('FAcd8abfeab2af719d9aba4067', '/aux/asset-category/versions', 'aux', 'asset-category', 'versions', '查看资产类别版本', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('FAec1657d1e0142d6965502b99', '/aux/asset-category/audit-history', 'aux', 'asset-category', 'audit-history', '查看资产类别审计', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FV268cd66e0d84485a309c5b3f', '/vou/asset-acquisition/get', 'vou', 'asset-acquisition', 'get', '查看资产购置', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FVdfd888005612e6510d5193e8', '/vou/asset-sale/get', 'vou', 'asset-sale', 'get', '查看资产出让', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FV95a60809edd06e22cd114a2b', '/vou/asset-liquidation/get', 'vou', 'asset-liquidation', 'get', '查看资产清算', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
@@ -4560,10 +4501,6 @@ INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000916', '/aux/s
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000926', '/aux/payment-method/disable', 'aux', 'payment-method', 'disable', '停用收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000917', '/aux/settlement-method/delete', 'aux', 'settlement-method', 'delete', '删除结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000927', '/aux/payment-method/delete', 'aux', 'payment-method', 'delete', '删除收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000918', '/aux/settlement-method/versions', 'aux', 'settlement-method', 'versions', '查看版本结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000928', '/aux/payment-method/versions', 'aux', 'payment-method', 'versions', '查看版本收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000919', '/aux/settlement-method/audit-history', 'aux', 'settlement-method', 'audit-history', '查看变更记录结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000929', '/aux/payment-method/audit-history', 'aux', 'payment-method', 'audit-history', '查看变更记录收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000001', '/dcl/operating-entity/approve', 'dcl', 'operating-entity', 'approve', '审核经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000002', '/dcl/operating-entity/audit-history', 'dcl', 'operating-entity', 'audit-history', '查看经营主体审计', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000003', '/dcl/operating-entity/create', 'dcl', 'operating-entity', 'create', '创建经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
@@ -4642,61 +4579,6 @@ INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000019', '/vou/s
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000020', '/vou/service-acceptance/audit-history', 'vou', 'service-acceptance', 'audit-history', '查看履约验收审计', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000001', '/bob/customer-account/query', 'bob', 'customer-account', 'query', '查询客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000002', '/bob/customer-account/get', 'bob', 'customer-account', 'get', '查看客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000001', '/aux/product-category/submit', 'aux', 'product-category', 'submit', '提交产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000002', '/aux/product-category/unsubmit', 'aux', 'product-category', 'unsubmit', '撤回产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000003', '/aux/product-category/approve', 'aux', 'product-category', 'approve', '审核产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000004', '/aux/product-category/reject', 'aux', 'product-category', 'reject', '驳回产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000005', '/aux/product-category/unapprove', 'aux', 'product-category', 'unapprove', '反审核产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000006', '/aux/product-type/submit', 'aux', 'product-type', 'submit', '提交产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000007', '/aux/product-type/unsubmit', 'aux', 'product-type', 'unsubmit', '撤回产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000008', '/aux/product-type/approve', 'aux', 'product-type', 'approve', '审核产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000009', '/aux/product-type/reject', 'aux', 'product-type', 'reject', '驳回产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000010', '/aux/product-type/unapprove', 'aux', 'product-type', 'unapprove', '反审核产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000011', '/aux/department/submit', 'aux', 'department', 'submit', '提交部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000012', '/aux/department/unsubmit', 'aux', 'department', 'unsubmit', '撤回部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000013', '/aux/department/approve', 'aux', 'department', 'approve', '审核部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000014', '/aux/department/reject', 'aux', 'department', 'reject', '驳回部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000015', '/aux/department/unapprove', 'aux', 'department', 'unapprove', '反审核部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000016', '/aux/position/submit', 'aux', 'position', 'submit', '提交职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000017', '/aux/position/unsubmit', 'aux', 'position', 'unsubmit', '撤回职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000018', '/aux/position/approve', 'aux', 'position', 'approve', '审核职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000019', '/aux/position/reject', 'aux', 'position', 'reject', '驳回职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000020', '/aux/position/unapprove', 'aux', 'position', 'unapprove', '反审核职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000021', '/aux/settlement-method/submit', 'aux', 'settlement-method', 'submit', '提交结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000022', '/aux/settlement-method/unsubmit', 'aux', 'settlement-method', 'unsubmit', '撤回结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000023', '/aux/settlement-method/approve', 'aux', 'settlement-method', 'approve', '审核结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000024', '/aux/settlement-method/reject', 'aux', 'settlement-method', 'reject', '驳回结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000025', '/aux/settlement-method/unapprove', 'aux', 'settlement-method', 'unapprove', '反审核结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000026', '/aux/payment-method/submit', 'aux', 'payment-method', 'submit', '提交收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000027', '/aux/payment-method/unsubmit', 'aux', 'payment-method', 'unsubmit', '撤回收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000028', '/aux/payment-method/approve', 'aux', 'payment-method', 'approve', '审核收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000029', '/aux/payment-method/reject', 'aux', 'payment-method', 'reject', '驳回收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000030', '/aux/payment-method/unapprove', 'aux', 'payment-method', 'unapprove', '反审核收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000031', '/aux/dictionary-type/submit', 'aux', 'dictionary-type', 'submit', '提交字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000032', '/aux/dictionary-type/unsubmit', 'aux', 'dictionary-type', 'unsubmit', '撤回字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000033', '/aux/dictionary-type/approve', 'aux', 'dictionary-type', 'approve', '审核字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000034', '/aux/dictionary-type/reject', 'aux', 'dictionary-type', 'reject', '驳回字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000035', '/aux/dictionary-type/unapprove', 'aux', 'dictionary-type', 'unapprove', '反审核字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000036', '/aux/dictionary-item/submit', 'aux', 'dictionary-item', 'submit', '提交字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000037', '/aux/dictionary-item/unsubmit', 'aux', 'dictionary-item', 'unsubmit', '撤回字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000038', '/aux/dictionary-item/approve', 'aux', 'dictionary-item', 'approve', '审核字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000039', '/aux/dictionary-item/reject', 'aux', 'dictionary-item', 'reject', '驳回字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000040', '/aux/dictionary-item/unapprove', 'aux', 'dictionary-item', 'unapprove', '反审核字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000041', '/aux/measurement-unit/submit', 'aux', 'measurement-unit', 'submit', '提交计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000042', '/aux/measurement-unit/unsubmit', 'aux', 'measurement-unit', 'unsubmit', '撤回计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000043', '/aux/measurement-unit/approve', 'aux', 'measurement-unit', 'approve', '审核计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000044', '/aux/measurement-unit/reject', 'aux', 'measurement-unit', 'reject', '驳回计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000045', '/aux/measurement-unit/unapprove', 'aux', 'measurement-unit', 'unapprove', '反审核计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000046', '/aux/income-expense-type/submit', 'aux', 'income-expense-type', 'submit', '提交收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000047', '/aux/income-expense-type/unsubmit', 'aux', 'income-expense-type', 'unsubmit', '撤回收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000048', '/aux/income-expense-type/approve', 'aux', 'income-expense-type', 'approve', '审核收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000049', '/aux/income-expense-type/reject', 'aux', 'income-expense-type', 'reject', '驳回收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000050', '/aux/income-expense-type/unapprove', 'aux', 'income-expense-type', 'unapprove', '反审核收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000051', '/aux/asset-category/submit', 'aux', 'asset-category', 'submit', '提交资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000052', '/aux/asset-category/unsubmit', 'aux', 'asset-category', 'unsubmit', '撤回资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000053', '/aux/asset-category/approve', 'aux', 'asset-category', 'approve', '审核资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000054', '/aux/asset-category/reject', 'aux', 'asset-category', 'reject', '驳回资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000055', '/aux/asset-category/unapprove', 'aux', 'asset-category', 'unapprove', '反审核资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000002', '/dcl/other-unit/unapprove', 'dcl', 'other-unit', 'unapprove', '反审核其他单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/dcl/sales-partner/unapprove', 'dcl', 'sales-partner', 'unapprove', '反审核销售合作关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 
@@ -4792,44 +4674,46 @@ INSERT INTO public.aux_objects (id, entity, code, enabled, revision, created_at,
     ('01JCDT00000000000000000011', 'dictionary-item', 'DIT-0008', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
     ('01JCDT00000000000000000013', 'dictionary-item', 'DIT-0009', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
     ('01JCDT00000000000000000015', 'dictionary-item', 'DIT-0010', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
--- Data for Name: aux_version_payloads; Type: TABLE DATA; Schema: public; Owner: -
---
-
-INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, data) VALUES
-    ('01JAVX00000000000000000002', '01JAVX00000000000000000001', 'dictionary-type', '{"name": "客户类型", "description": "客户展示和筛选类型"}'),
-    ('01JAVX00000000000000000004', '01JAVX00000000000000000003', 'dictionary-type', '{"name": "车辆类型", "description": "车辆展示和筛选类型"}'),
-    ('01JAVX00000000000000000012', '01JAVX00000000000000000011', 'measurement-unit', '{"name": "千克", "symbol": "kg", "quantityScale": 6}'),
-    ('01JAVX00000000000000000014', '01JAVX00000000000000000013', 'measurement-unit', '{"name": "件", "symbol": "件", "quantityScale": 0}'),
-    ('01JAVX00000000000000000016', '01JAVX00000000000000000015', 'measurement-unit', '{"name": "年", "symbol": "年", "quantityScale": 6}'),
-    ('01JAVX00000000000000000018', '01JAVX00000000000000000017', 'measurement-unit', '{"name": "次", "symbol": "次", "quantityScale": 6}'),
-    ('01JAVX00000000000000000026', '01JAVX00000000000000000025', 'measurement-unit', '{"name": "小时", "symbol": "h", "quantityScale": 6}'),
-    ('01JAVX00000000000000000028', '01JAVX00000000000000000027', 'measurement-unit', '{"name": "吨", "symbol": "t", "quantityScale": 6}'),
-    ('01JAVX00000000000000000006', '01JAVX00000000000000000005', 'dictionary-item', '{"name": "终端客户", "sortOrder": 10, "dictionaryTypeCode": "DCT-0001"}'),
-    ('01JAVX00000000000000000008', '01JAVX00000000000000000007', 'dictionary-item', '{"name": "经销商", "sortOrder": 20, "dictionaryTypeCode": "DCT-0001"}'),
-    ('01JAVX00000000000000000010', '01JAVX00000000000000000009', 'dictionary-item', '{"name": "厢式货车", "sortOrder": 10, "dictionaryTypeCode": "DCT-0002"}'),
-    ('01JPTP00000000000000000002', '01JPTP00000000000000000001', 'product-type', '{"name": "原材料", "description": "系统初始产品类型", "behaviorProfile": "RAW_MATERIAL"}'),
-    ('01JPTP00000000000000000004', '01JPTP00000000000000000003', 'product-type', '{"name": "标准成品", "description": "系统初始产品类型", "behaviorProfile": "STANDARD_FINISHED"}'),
-    ('01JPTP00000000000000000006', '01JPTP00000000000000000005', 'product-type', '{"name": "定制成品", "description": "系统初始产品类型", "behaviorProfile": "CUSTOM_FINISHED"}'),
-    ('01JPTP00000000000000000008', '01JPTP00000000000000000007', 'product-type', '{"name": "包装物", "description": "系统初始产品类型", "behaviorProfile": "PACKAGING"}'),
-    ('01JSMT00000000000000000002', '01JSMT00000000000000000001', 'settlement-method', '{"name": "预付", "ruleType": "RELATIVE_DAYS", "termCode": "PREPAID", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
-    ('01JSMT00000000000000000004', '01JSMT00000000000000000003', 'settlement-method', '{"name": "现结", "ruleType": "RELATIVE_DAYS", "termCode": "CASH_ON_DELIVERY", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
-    ('01JSMT00000000000000000006', '01JSMT00000000000000000005', 'settlement-method', '{"name": "货到3天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_3", "dayOffset": 3, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
-    ('01JSMT00000000000000000008', '01JSMT00000000000000000007', 'settlement-method', '{"name": "货到5天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_5", "dayOffset": 5, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
-    ('01JSMT00000000000000000010', '01JSMT00000000000000000009', 'settlement-method', '{"name": "货到7天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_7", "dayOffset": 7, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
-    ('01JSMT00000000000000000012', '01JSMT00000000000000000011', 'settlement-method', '{"name": "货到15天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_15", "dayOffset": 15, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
-    ('01JSMT00000000000000000014', '01JSMT00000000000000000013', 'settlement-method', '{"name": "货到30天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_30", "dayOffset": 30, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.10"}'),
-    ('01JSMT00000000000000000016', '01JSMT00000000000000000015', 'settlement-method', '{"name": "当月结", "ruleType": "MONTH_END", "termCode": "MONTHLY_CURRENT", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.05"}'),
-    ('01JSMT00000000000000000018', '01JSMT00000000000000000017', 'settlement-method', '{"name": "月结30天", "ruleType": "MONTH_END", "termCode": "MONTHLY_30", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 1, "defaultSalesSurcharge": "0.10"}'),
-    ('01JSMT00000000000000000020', '01JSMT00000000000000000019', 'settlement-method', '{"name": "月结60天", "ruleType": "MONTH_END", "termCode": "MONTHLY_60", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 2, "defaultSalesSurcharge": "0.20"}'),
-    ('01JSMT00000000000000000022', '01JSMT00000000000000000021', 'settlement-method', '{"name": "月结90天", "ruleType": "MONTH_END", "termCode": "MONTHLY_90", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 3, "defaultSalesSurcharge": "0.30"}'),
-    ('01JCDT00000000000000000002', '01JCDT00000000000000000001', 'dictionary-type', '{"name": "客户资料类别", "description": "客户集团与结算子账户附件分类"}'),
-    ('01JCDT00000000000000000004', '01JCDT00000000000000000003', 'dictionary-item', '{"name": "营业执照", "sortOrder": 10, "dictionaryTypeCode": "DCT-0003"}'),
-    ('01JCDT00000000000000000006', '01JCDT00000000000000000005', 'dictionary-item', '{"name": "税务资料", "sortOrder": 20, "dictionaryTypeCode": "DCT-0003"}'),
-    ('01JCDT00000000000000000008', '01JCDT00000000000000000007', 'dictionary-item', '{"name": "开票资料", "sortOrder": 30, "dictionaryTypeCode": "DCT-0003"}'),
-    ('01JCDT00000000000000000010', '01JCDT00000000000000000009', 'dictionary-item', '{"name": "合同", "sortOrder": 40, "dictionaryTypeCode": "DCT-0003"}'),
-    ('01JCDT00000000000000000012', '01JCDT00000000000000000011', 'dictionary-item', '{"name": "价格约定", "sortOrder": 50, "dictionaryTypeCode": "DCT-0003"}'),
-    ('01JCDT00000000000000000014', '01JCDT00000000000000000013', 'dictionary-item', '{"name": "交付约定", "sortOrder": 60, "dictionaryTypeCode": "DCT-0003"}'),
-    ('01JCDT00000000000000000016', '01JCDT00000000000000000015', 'dictionary-item', '{"name": "其他", "sortOrder": 70, "dictionaryTypeCode": "DCT-0003"}');
+-- AUX current payload baseline.
+UPDATE public.aux_objects object
+SET data=payload.data
+FROM (VALUES
+    ('01JAVX00000000000000000001','dictionary-type', '{"name": "客户类型", "description": "客户展示和筛选类型"}'::jsonb),
+    ('01JAVX00000000000000000003','dictionary-type', '{"name": "车辆类型", "description": "车辆展示和筛选类型"}'::jsonb),
+    ('01JAVX00000000000000000011','measurement-unit', '{"name": "千克", "symbol": "kg", "quantityScale": 6}'::jsonb),
+    ('01JAVX00000000000000000013','measurement-unit', '{"name": "件", "symbol": "件", "quantityScale": 0}'::jsonb),
+    ('01JAVX00000000000000000015','measurement-unit', '{"name": "年", "symbol": "年", "quantityScale": 6}'::jsonb),
+    ('01JAVX00000000000000000017','measurement-unit', '{"name": "次", "symbol": "次", "quantityScale": 6}'::jsonb),
+    ('01JAVX00000000000000000025','measurement-unit', '{"name": "小时", "symbol": "h", "quantityScale": 6}'::jsonb),
+    ('01JAVX00000000000000000027','measurement-unit', '{"name": "吨", "symbol": "t", "quantityScale": 6}'::jsonb),
+    ('01JAVX00000000000000000005','dictionary-item', '{"name": "终端客户", "sortOrder": 10, "dictionaryTypeCode": "DCT-0001"}'::jsonb),
+    ('01JAVX00000000000000000007','dictionary-item', '{"name": "经销商", "sortOrder": 20, "dictionaryTypeCode": "DCT-0001"}'::jsonb),
+    ('01JAVX00000000000000000009','dictionary-item', '{"name": "厢式货车", "sortOrder": 10, "dictionaryTypeCode": "DCT-0002"}'::jsonb),
+    ('01JPTP00000000000000000001','product-type', '{"name": "原材料", "description": "系统初始产品类型", "behaviorProfile": "RAW_MATERIAL"}'::jsonb),
+    ('01JPTP00000000000000000003','product-type', '{"name": "标准成品", "description": "系统初始产品类型", "behaviorProfile": "STANDARD_FINISHED"}'::jsonb),
+    ('01JPTP00000000000000000005','product-type', '{"name": "定制成品", "description": "系统初始产品类型", "behaviorProfile": "CUSTOM_FINISHED"}'::jsonb),
+    ('01JPTP00000000000000000007','product-type', '{"name": "包装物", "description": "系统初始产品类型", "behaviorProfile": "PACKAGING"}'::jsonb),
+    ('01JSMT00000000000000000001','settlement-method', '{"name": "预付", "ruleType": "RELATIVE_DAYS", "termCode": "PREPAID", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'::jsonb),
+    ('01JSMT00000000000000000003','settlement-method', '{"name": "现结", "ruleType": "RELATIVE_DAYS", "termCode": "CASH_ON_DELIVERY", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'::jsonb),
+    ('01JSMT00000000000000000005','settlement-method', '{"name": "货到3天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_3", "dayOffset": 3, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'::jsonb),
+    ('01JSMT00000000000000000007','settlement-method', '{"name": "货到5天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_5", "dayOffset": 5, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'::jsonb),
+    ('01JSMT00000000000000000009','settlement-method', '{"name": "货到7天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_7", "dayOffset": 7, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'::jsonb),
+    ('01JSMT00000000000000000011','settlement-method', '{"name": "货到15天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_15", "dayOffset": 15, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'::jsonb),
+    ('01JSMT00000000000000000013','settlement-method', '{"name": "货到30天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_30", "dayOffset": 30, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.10"}'::jsonb),
+    ('01JSMT00000000000000000015','settlement-method', '{"name": "当月结", "ruleType": "MONTH_END", "termCode": "MONTHLY_CURRENT", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.05"}'::jsonb),
+    ('01JSMT00000000000000000017','settlement-method', '{"name": "月结30天", "ruleType": "MONTH_END", "termCode": "MONTHLY_30", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 1, "defaultSalesSurcharge": "0.10"}'::jsonb),
+    ('01JSMT00000000000000000019','settlement-method', '{"name": "月结60天", "ruleType": "MONTH_END", "termCode": "MONTHLY_60", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 2, "defaultSalesSurcharge": "0.20"}'::jsonb),
+    ('01JSMT00000000000000000021','settlement-method', '{"name": "月结90天", "ruleType": "MONTH_END", "termCode": "MONTHLY_90", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 3, "defaultSalesSurcharge": "0.30"}'::jsonb),
+    ('01JCDT00000000000000000001','dictionary-type', '{"name": "客户资料类别", "description": "客户集团与结算子账户附件分类"}'::jsonb),
+    ('01JCDT00000000000000000003','dictionary-item', '{"name": "营业执照", "sortOrder": 10, "dictionaryTypeCode": "DCT-0003"}'::jsonb),
+    ('01JCDT00000000000000000005','dictionary-item', '{"name": "税务资料", "sortOrder": 20, "dictionaryTypeCode": "DCT-0003"}'::jsonb),
+    ('01JCDT00000000000000000007','dictionary-item', '{"name": "开票资料", "sortOrder": 30, "dictionaryTypeCode": "DCT-0003"}'::jsonb),
+    ('01JCDT00000000000000000009','dictionary-item', '{"name": "合同", "sortOrder": 40, "dictionaryTypeCode": "DCT-0003"}'::jsonb),
+    ('01JCDT00000000000000000011','dictionary-item', '{"name": "价格约定", "sortOrder": 50, "dictionaryTypeCode": "DCT-0003"}'::jsonb),
+    ('01JCDT00000000000000000013','dictionary-item', '{"name": "交付约定", "sortOrder": 60, "dictionaryTypeCode": "DCT-0003"}'::jsonb),
+    ('01JCDT00000000000000000015','dictionary-item', '{"name": "其他", "sortOrder": 70, "dictionaryTypeCode": "DCT-0003"}'::jsonb)
+) AS payload(object_id,entity,data)
+WHERE payload.object_id=object.id AND payload.entity=object.entity;
 -- Data for Name: bob_customer_accounts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -6252,13 +6136,6 @@ ALTER TABLE ONLY public.aux_objects
 ALTER TABLE ONLY public.aux_objects
     ADD CONSTRAINT aux_objects_pkey PRIMARY KEY (id);
 
-
---
--- Name: aux_version_payloads aux_version_payloads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_version_payloads
-    ADD CONSTRAINT aux_version_payloads_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -9911,76 +9788,6 @@ SELECT
     '01JAPPSYST3MACTR0000000000', payload.updated_at
 FROM public.wfl_definition_versions AS payload;
 
-INSERT INTO public.approval_events (
-    id, entry_id, domain, entity, subject_id, version_no, action,
-    from_status, to_status, from_revision, to_revision, actor_id, reason, request_id, created_at
-)
-SELECT
-    substr(md5(payload.approval_entry_id || ':CREATED'), 1, 26), payload.approval_entry_id,
-    'wfl', 'process-definition', payload.definition_id, 1, 'CREATED',
-    NULL, 'DRAFT', NULL, 1, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-wfl-v1', payload.created_at
-FROM public.wfl_definition_versions AS payload;
-
-ALTER TABLE ONLY public.rpt_versions
-    ADD CONSTRAINT rpt_versions_approval_entry_id_fkey
-    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.wfl_definition_versions
-    ADD CONSTRAINT wfl_definition_versions_approval_entry_id_fkey
-    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
--- AUX baseline subjects are trusted system V1 approvals. Payloads remain
--- domain-owned, while this central history is the only lifecycle record.
-INSERT INTO public.approval_entries (
-    id, domain, entity, subject_id, version_no, status, revision,
-    created_by, created_at, updated_by, updated_at,
-    submitted_by, submitted_at, approved_by, approved_at
-)
-SELECT
-    payload.approval_entry_id, 'aux', payload.entity, payload.object_id, 1, 'APPROVED', 3,
-    '01JAPPSYST3MACTR0000000000', TIMESTAMPTZ '2026-08-24 15:23:50.195722+00',
-    '01JAPPSYST3MACTR0000000000', TIMESTAMPTZ '2026-08-24 15:23:50.195722+00',
-    '00000000000000000000000000', TIMESTAMPTZ '2026-08-24 15:23:50.195722+00',
-    '01JAPPSYST3MACTR0000000000', TIMESTAMPTZ '2026-08-24 15:23:50.195722+00'
-FROM public.aux_version_payloads AS payload;
-
-INSERT INTO public.approval_events (
-    id, entry_id, domain, entity, subject_id, version_no, action,
-    from_status, to_status, from_revision, to_revision, actor_id, reason, request_id, created_at
-)
-SELECT
-    substr(md5(payload.approval_entry_id || ':CREATED'), 1, 26), payload.approval_entry_id,
-    'aux', payload.entity, payload.object_id, 1, 'CREATED',
-    NULL, 'DRAFT', NULL, 1, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-aux-v1',
-    TIMESTAMPTZ '2026-08-24 15:23:50.195722+00'
-FROM public.aux_version_payloads AS payload
-UNION ALL
-SELECT
-    substr(md5(payload.approval_entry_id || ':SUBMITTED'), 1, 26), payload.approval_entry_id,
-    'aux', payload.entity, payload.object_id, 1, 'SUBMITTED',
-    'DRAFT', 'PENDING', 1, 2, '00000000000000000000000000', NULL, 'baseline-aux-v1',
-    TIMESTAMPTZ '2026-08-24 15:23:50.195722+00'
-FROM public.aux_version_payloads AS payload
-UNION ALL
-SELECT
-    substr(md5(payload.approval_entry_id || ':APPROVED'), 1, 26), payload.approval_entry_id,
-    'aux', payload.entity, payload.object_id, 1, 'APPROVED',
-    'PENDING', 'APPROVED', 2, 3, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-aux-v1',
-    TIMESTAMPTZ '2026-08-24 15:23:50.195722+00'
-FROM public.aux_version_payloads AS payload;
-
-ALTER TABLE ONLY public.aux_version_payloads
-    ADD CONSTRAINT aux_version_payloads_approval_entry_id_fkey
-    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.aux_version_payloads
-    ADD CONSTRAINT aux_version_payloads_object_id_entity_fkey
-    FOREIGN KEY (object_id, entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_product_unit_conversions
-    ADD CONSTRAINT dcl_product_unit_conversions_unit_approval_entry_id_fkey
-    FOREIGN KEY (unit_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
 ALTER TABLE ONLY public.dcl_employee_versions
     ADD CONSTRAINT dcl_employee_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
@@ -9988,20 +9795,11 @@ ALTER TABLE ONLY public.dcl_employee_versions
     ADD CONSTRAINT dcl_employee_versions_employee_category_id_fkey
     FOREIGN KEY (employee_category_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_employee_versions
-    ADD CONSTRAINT dcl_employee_versions_employee_category_approval_entry_id_fkey
-    FOREIGN KEY (employee_category_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_employee_versions
     ADD CONSTRAINT dcl_employee_versions_department_id_fkey
     FOREIGN KEY (department_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_employee_versions
-    ADD CONSTRAINT dcl_employee_versions_department_approval_entry_id_fkey
-    FOREIGN KEY (department_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_employee_versions
     ADD CONSTRAINT dcl_employee_versions_position_id_fkey
     FOREIGN KEY (position_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_employee_versions
-    ADD CONSTRAINT dcl_employee_versions_position_approval_entry_id_fkey
-    FOREIGN KEY (position_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.bob_employees
     ADD CONSTRAINT bob_employees_object_id_fkey
     FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
@@ -10015,18 +9813,12 @@ ALTER TABLE ONLY public.dcl_other_unit_versions
 ALTER TABLE ONLY public.dcl_other_unit_versions
     ADD CONSTRAINT dcl_other_unit_versions_settlement_method_id_fkey
     FOREIGN KEY (settlement_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_other_unit_versions
-    ADD CONSTRAINT dcl_other_unit_versions_settlement_method_entry_id_fkey
-    FOREIGN KEY (settlement_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_supplier_versions
     ADD CONSTRAINT dcl_supplier_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_supplier_versions
     ADD CONSTRAINT dcl_supplier_versions_settlement_method_id_fkey
     FOREIGN KEY (settlement_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_supplier_versions
-    ADD CONSTRAINT dcl_supplier_versions_settlement_method_entry_id_fkey
-    FOREIGN KEY (settlement_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_supplier_versions
     ADD CONSTRAINT dcl_supplier_versions_default_purchaser_id_fkey
     FOREIGN KEY (default_purchaser_employee_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
@@ -10053,14 +9845,8 @@ ALTER TABLE ONLY public.dcl_customer_account_versions
     ADD CONSTRAINT dcl_customer_account_versions_settlement_method_id_fkey
     FOREIGN KEY (settlement_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_customer_account_versions
-    ADD CONSTRAINT dcl_customer_account_versions_settlement_method_entry_id_fkey
-    FOREIGN KEY (settlement_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_customer_account_versions
     ADD CONSTRAINT dcl_customer_account_versions_payment_method_id_fkey
     FOREIGN KEY (payment_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_customer_account_versions
-    ADD CONSTRAINT dcl_customer_account_versions_payment_method_entry_id_fkey
-    FOREIGN KEY (payment_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_customer_account_versions
     ADD CONSTRAINT dcl_customer_account_versions_operating_entity_entry_id_fkey
     FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;

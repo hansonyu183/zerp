@@ -27,7 +27,7 @@ func TestSupplierDraftRequiresExactPurchasingSnapshotsAtSubmitIntegration(t *tes
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
@@ -57,7 +57,7 @@ func TestSupplierLifecycleCurrentProjectionAndPurchaseBlockerIntegration(t *test
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	auxiliary := auxdomain.NewService(pool)
 	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
@@ -71,10 +71,10 @@ func TestSupplierLifecycleCurrentProjectionAndPurchaseBlockerIntegration(t *test
 		t.Fatal(err)
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), reviewer("owner-approve"))
-	categoryID := insertApprovedSupplierAux(t, pool, auxdomain.EntityEmployeeCategory, "CAT-0001", map[string]any{"name": "采购员工"}, creatorID, reviewerID)
-	departmentID := insertApprovedSupplierAux(t, pool, auxdomain.EntityDepartment, "DEP-0001", map[string]any{"name": "采购部"}, creatorID, reviewerID)
-	positionID := insertApprovedSupplierAux(t, pool, auxdomain.EntityPosition, "POS-0001", map[string]any{"name": "采购员"}, creatorID, reviewerID)
-	settlementID := insertApprovedSupplierAux(t, pool, auxdomain.EntitySettlementMethod, "SET-0001", map[string]any{"name": "月结30天", "termCode": "MONTHLY_30", "ruleType": "MONTH_END", "monthOffset": 1, "dayOfMonth": 0, "dayOffset": 0}, creatorID, reviewerID)
+	categoryID := insertSupplierAux(t, pool, auxdomain.EntityEmployeeCategory, "CAT-0001", map[string]any{"name": "采购员工"}, creatorID)
+	departmentID := insertSupplierAux(t, pool, auxdomain.EntityDepartment, "DEP-0001", map[string]any{"name": "采购部"}, creatorID)
+	positionID := insertSupplierAux(t, pool, auxdomain.EntityPosition, "POS-0001", map[string]any{"name": "采购员"}, creatorID)
+	settlementID := insertSupplierAux(t, pool, auxdomain.EntitySettlementMethod, "SET-0001", map[string]any{"name": "月结30天", "termCode": "MONTHLY_30", "ruleType": "MONTH_END", "monthOffset": 1, "dayOfMonth": 0, "dayOffset": 0}, creatorID)
 	purchaser, err := employees.Create(t.Context(), EmployeeCreateInput{NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "采购员甲", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierPersonID, Value: "110101199001010012"}}}, OperatingEntityID: owner.ObjectID, Data: EmployeeInput{EmployeeCategoryID: categoryID, DepartmentID: departmentID, PositionID: positionID, HireDate: "2026-08-01"}}, creator("purchaser-create"))
 	if err != nil {
 		t.Fatal(err)
@@ -161,9 +161,9 @@ func (f failingSupplierCurrent) ApplySupplierCurrent(context.Context, pgx.Tx, bo
 	return bobdomain.RelationshipIdentity{}, errors.New("forced supplier current failure")
 }
 
-func insertApprovedSupplierAux(t *testing.T, pool *pgxpool.Pool, entity, code string, data map[string]any, creatorID, reviewerID string) string {
+func insertSupplierAux(t *testing.T, pool *pgxpool.Pool, entity, code string, data map[string]any, creatorID string) string {
 	t.Helper()
-	objectID, entryID := ulid.Make().String(), ulid.Make().String()
+	objectID := ulid.Make().String()
 	raw, err := json.Marshal(data)
 	if err != nil {
 		t.Fatal(err)
@@ -173,18 +173,12 @@ func insertApprovedSupplierAux(t *testing.T, pool *pgxpool.Pool, entity, code st
 		t.Fatal(err)
 	}
 	defer tx.Rollback(t.Context()) //nolint:errcheck
-	_, err = tx.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,created_by,updated_by) VALUES($1,$2,$3,$4,$4)`, objectID, entity, code, creatorID)
-	if err == nil {
-		_, err = tx.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'aux',$2,$3,1,'APPROVED',1,$4,now(),$4,now(),$4,now(),$5,now())`, entryID, entity, objectID, creatorID, reviewerID)
-	}
-	if err == nil {
-		_, err = tx.Exec(t.Context(), `INSERT INTO aux_version_payloads(approval_entry_id,object_id,entity,data) VALUES($1,$2,$3,$4)`, entryID, objectID, entity, raw)
-	}
+	_, err = tx.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5)`, objectID, entity, code, raw, creatorID)
 	if err == nil {
 		err = tx.Commit(t.Context())
 	}
 	if err != nil {
-		t.Fatalf("insert approved %s: %v", entity, err)
+		t.Fatalf("insert %s AUX fixture: %v", entity, err)
 	}
 	return objectID
 }

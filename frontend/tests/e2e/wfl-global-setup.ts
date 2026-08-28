@@ -104,9 +104,7 @@ interface DclCustomerAccountListItem {
 
 interface AuxQueryItem {
   objectId: string
-  latestApproved: {
-    data: { termCode?: string }
-  }
+  data: { termCode?: string }
 }
 
 interface BobReferenceQueryItem {
@@ -154,10 +152,8 @@ const accMappingEntities = new Set([
 
 interface AuxMutation {
   objectId: string
-  approval: {
-    approvalEntryId: string
-    revision: number
-  }
+  objectRevision: number
+  enabled: boolean
 }
 
 interface VouMutation {
@@ -360,7 +356,6 @@ const bobReviewerActions = new Set([
   '/acc/opening/approve',
   '/acc/mapping/approve',
   '/wfl/process-definition/approve',
-  '/aux/payment-method/approve',
   '/bob/customer/query',
   '/bob/customer/get',
   '/bob/customer-account/query',
@@ -588,7 +583,7 @@ async function fixedSettlementMethod(
     },
   )
   const item = page.items.find(
-    (candidate) => candidate.latestApproved.data.termCode === 'MONTHLY_CURRENT',
+    (candidate) => candidate.data.termCode === 'MONTHLY_CURRENT',
   )
   if (!item) throw new Error('WFL 预置未找到系统固定当月结结算方式。')
   return { objectId: item.objectId }
@@ -614,7 +609,6 @@ async function fixedOperatingEntity(operator: RealApi): Promise<string> {
 
 async function createPaymentMethod(
   operator: RealApi,
-  reviewer: RealApi,
   name: string,
 ): Promise<string> {
   const created = await operator.post<AuxMutation>(
@@ -623,23 +617,7 @@ async function createPaymentMethod(
       data: { name, defaultSalesSurcharge: '0.00', description: 'E2E 测试' },
     },
   )
-  const submitted = await operator.post<AuxMutation>(
-    'aux/payment-method/submit',
-    {
-      objectId: created.objectId,
-      approvalEntryId: created.approval.approvalEntryId,
-      approvalRevision: created.approval.revision,
-    },
-  )
-  const approved = await reviewer.post<AuxMutation>(
-    'aux/payment-method/approve',
-    {
-      objectId: submitted.objectId,
-      approvalEntryId: submitted.approval.approvalEntryId,
-      approvalRevision: submitted.approval.revision,
-    },
-  )
-  return approved.objectId
+  return created.objectId
 }
 
 async function createEffectiveCustomer(
@@ -1419,7 +1397,6 @@ export async function createWflWorkerState(options: {
     }
     const paymentMethodId = await createPaymentMethod(
       operatorSession.api,
-      reviewerSession.api,
       `WFL 银行转账 ${suffix}`,
     )
     const customer = await createEffectiveCustomer(

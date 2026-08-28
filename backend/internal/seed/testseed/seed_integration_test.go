@@ -171,7 +171,7 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 		SELECT
 			(SELECT count(*) FROM wfl_process_definitions definition WHERE EXISTS(
 				SELECT 1 FROM approval_entries approval
-				WHERE approval.domain='wfl' AND approval.entity='process-definition'
+				WHERE approval.domain='dcl' AND approval.entity='wfl-process-definition'
 					AND approval.subject_id=definition.id AND approval.status='DRAFT'
 			)),
 			(SELECT count(*) FROM wfl_definition_instances)

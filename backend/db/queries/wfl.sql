@@ -1,106 +1,41 @@
 -- Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
 -- approval_entries; this table owns only identity, enabled and object revision.
--- name: CountWorkflowDefinitions :one
+
+-- name: CountCurrentWorkflowDefinitions :one
 SELECT count(*)
 FROM wfl_process_definitions definition
 JOIN LATERAL (
-  SELECT candidate.id,candidate.status
-  FROM approval_entries candidate
-  WHERE candidate.subject_id=definition.id
-    AND candidate.domain='wfl' AND candidate.entity='process-definition'
-    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
-           candidate.version_no DESC
+  SELECT id
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition'
+    AND subject_id=definition.id AND status='APPROVED'
+  ORDER BY version_no DESC
   LIMIT 1
 ) approval ON true
-JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE (sqlc.arg(keyword)::text = '' OR definition.code ILIKE '%' || sqlc.arg(keyword)::text || '%' OR version.compiled->>'name' ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(approval_statuses)::text[]), 0) = 0 OR approval.status = ANY(sqlc.arg(approval_statuses)::text[]))
-  AND (sqlc.narg(enabled)::boolean IS NULL OR definition.enabled=sqlc.narg(enabled)::boolean);
+JOIN dcl_wfl_process_definition_versions version ON version.approval_entry_id=approval.id
+WHERE (sqlc.arg(enabled_filter)::integer=-1 OR definition.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (sqlc.arg(keyword)::text='' OR definition.code ILIKE '%'||sqlc.arg(keyword)||'%'
+       OR version.compiled->>'name' ILIKE '%'||sqlc.arg(keyword)||'%');
 
--- name: ListWorkflowDefinitions :many
-SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,definition.enabled,definition.revision,
-       approval.id approval_entry_id,approval.version_no,approval.status,approval.revision approval_revision,
-       approval.created_by approval_created_by,approval.created_at approval_created_at,
-       approval.updated_by approval_updated_by,approval.updated_at approval_updated_at,
-       approval.submitted_by,approval.submitted_at,approval.approved_by,approval.approved_at,
+-- name: ListCurrentWorkflowDefinitions :many
+SELECT definition.id AS definition_id,definition.code,definition.enabled,
+       definition.revision AS object_revision,approval.id AS approval_entry_id,
        version.compiled,approval.updated_at
 FROM wfl_process_definitions definition
 JOIN LATERAL (
-  SELECT candidate.id,candidate.version_no,candidate.status,candidate.revision,
-         candidate.created_by,candidate.created_at,candidate.updated_by,candidate.updated_at,
-         candidate.submitted_by,candidate.submitted_at,candidate.approved_by,candidate.approved_at
-  FROM approval_entries candidate
-  WHERE candidate.subject_id=definition.id
-    AND candidate.domain='wfl' AND candidate.entity='process-definition'
-    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
-           candidate.version_no DESC
+  SELECT id,updated_at
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition'
+    AND subject_id=definition.id AND status='APPROVED'
+  ORDER BY version_no DESC
   LIMIT 1
 ) approval ON true
-JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE (sqlc.arg(keyword)::text = '' OR definition.code ILIKE '%' || sqlc.arg(keyword)::text || '%' OR version.compiled->>'name' ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(approval_statuses)::text[]), 0) = 0 OR approval.status = ANY(sqlc.arg(approval_statuses)::text[]))
-  AND (sqlc.narg(enabled)::boolean IS NULL OR definition.enabled=sqlc.narg(enabled)::boolean)
-ORDER BY approval.updated_at DESC,definition.id DESC
-LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
-
--- name: GetWorkflowDefinitionVersion :one
-SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,definition.enabled,definition.revision,
-       approval.id approval_entry_id,approval.version_no,approval.status,approval.revision approval_revision,
-       approval.created_by approval_created_by,approval.created_at approval_created_at,
-       approval.updated_by approval_updated_by,approval.updated_at approval_updated_at,
-       approval.submitted_by,approval.submitted_at,approval.approved_by,approval.approved_at,
-       version.script,version.diagnostic,version.compiled,version.last_trial_approval_revision,definition.updated_at
-FROM wfl_process_definitions definition
-JOIN approval_entries approval ON approval.subject_id=definition.id
-  AND approval.domain='wfl' AND approval.entity='process-definition'
-JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE definition.id=sqlc.arg(definition_id) AND approval.id=sqlc.arg(approval_entry_id);
-
--- name: GetWorkflowLatestApprovedVersion :one
-SELECT approval.id
-FROM approval_entries approval
-WHERE approval.domain='wfl' AND approval.entity='process-definition'
-  AND approval.subject_id=$1 AND approval.status='APPROVED'
-ORDER BY approval.version_no DESC LIMIT 1;
-
--- name: GetWorkflowOpenVersion :one
-SELECT approval.id
-FROM approval_entries approval
-WHERE approval.domain='wfl' AND approval.entity='process-definition'
-  AND approval.subject_id=$1 AND approval.status IN ('DRAFT','PENDING')
-ORDER BY approval.version_no DESC LIMIT 1;
-
--- name: LockWorkflowDefinition :one
-SELECT id,code,enabled,revision FROM wfl_process_definitions WHERE id=$1 FOR UPDATE;
-
--- name: CreateWorkflowDefinition :exec
-INSERT INTO wfl_process_definitions(id,code,enabled,created_by,updated_by)
-VALUES($1,$2,false,$3,$3);
-
--- name: CreateWorkflowDefinitionVersion :exec
-INSERT INTO wfl_definition_versions(approval_entry_id,definition_id,script,diagnostic,compiled,last_trial_approval_revision,created_by,updated_by)
-VALUES($1,$2,$3,$4,$5,NULL,$6,$6);
-
--- name: SaveWorkflowDefinitionVersion :execrows
-UPDATE wfl_definition_versions
-SET script=$1,diagnostic=$2,compiled=$3,last_trial_approval_revision=NULL,updated_at=now(),updated_by=$4
-WHERE approval_entry_id=$5;
-
--- name: DeleteWorkflowDefinitionVersion :execrows
-DELETE FROM wfl_definition_versions
-WHERE approval_entry_id=sqlc.arg(approval_entry_id)
-  AND definition_id=sqlc.arg(definition_id);
-
--- name: RecordWorkflowDefinitionTrial :execrows
-UPDATE wfl_definition_versions SET last_trial_approval_revision=$1,updated_at=now()
-WHERE approval_entry_id=$2;
-
--- name: SetWorkflowDefinitionEnabled :execrows
-UPDATE wfl_process_definitions
-SET enabled=$1,revision=revision+1,updated_at=now(),updated_by=$2
-WHERE id=$3 AND revision=$4;
+JOIN dcl_wfl_process_definition_versions version ON version.approval_entry_id=approval.id
+WHERE (sqlc.arg(enabled_filter)::integer=-1 OR definition.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (sqlc.arg(keyword)::text='' OR definition.code ILIKE '%'||sqlc.arg(keyword)||'%'
+       OR version.compiled->>'name' ILIKE '%'||sqlc.arg(keyword)||'%')
+ORDER BY definition.code
+OFFSET sqlc.arg(page_offset) LIMIT sqlc.arg(page_size);
 
 -- name: CountDefinitionInstances :one
 SELECT count(*)
@@ -278,9 +213,6 @@ VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(definition_approval_entry_i
 -- name: WorkflowDefinitionHasInstances :one
 SELECT EXISTS(SELECT 1 FROM wfl_definition_instances WHERE definition_id=$1);
 
--- name: DeleteWorkflowDefinition :exec
-DELETE FROM wfl_process_definitions WHERE id=$1;
-
 -- name: UpsertWorkflowDefinitionPermission :exec
 INSERT INTO app_permissions(id,path,domain,entity,action,description,status,created_by,updated_by)
 VALUES(sqlc.arg(id),sqlc.arg(path),'wfl',sqlc.arg(entity),sqlc.arg(action),sqlc.arg(description),'ENABLED',sqlc.arg(actor_id),sqlc.arg(actor_id))
@@ -311,22 +243,6 @@ SELECT count(*) FROM wfl_runtime_audit_events WHERE process_id=$1;
 SELECT id,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary,occurred_at
 FROM wfl_runtime_audit_events WHERE process_id=sqlc.arg(process_id)
 ORDER BY occurred_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
-
--- name: ListEnabledWorkflowDefinitionsForShare :many
-SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,approval.id approval_entry_id,version.script
-FROM wfl_process_definitions definition
-JOIN LATERAL (
-  SELECT candidate.id
-  FROM approval_entries candidate
-  WHERE candidate.subject_id=definition.id
-    AND candidate.domain='wfl' AND candidate.entity='process-definition'
-    AND candidate.status='APPROVED'
-  ORDER BY candidate.version_no DESC
-  LIMIT 1
-) approval ON true
-JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE definition.enabled
-ORDER BY definition.id FOR SHARE OF definition;
 
 -- name: LockWorkflowRootInstance :one
 SELECT instance.id process_id,node.id node_id
@@ -435,3 +351,36 @@ SELECT definition_id,definition_approval_entry_id FROM wfl_definition_instances 
 -- name: CreateWorkflowRuntimeAudit :exec
 INSERT INTO wfl_runtime_audit_events(id,process_id,definition_id,definition_approval_entry_id,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary)
 VALUES(sqlc.arg(id),sqlc.narg(process_id),sqlc.arg(definition_id),sqlc.arg(definition_approval_entry_id),sqlc.arg(event_type),sqlc.narg(node_instance_id),sqlc.narg(document_id),sqlc.narg(document_no),sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.arg(summary));
+
+-- name: GetWorkflowLatestApprovedDefinitionPayload :one
+SELECT v.script, v.compiled
+FROM approval_entries e
+JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
+WHERE e.domain='dcl' AND e.entity='wfl-process-definition'
+  AND e.subject_id=sqlc.arg(definition_id) AND e.status='APPROVED'
+ORDER BY e.version_no DESC LIMIT 1;
+
+-- name: GetWorkflowDefinitionPayloadByEntry :one
+SELECT v.script, v.diagnostic, v.compiled
+FROM dcl_wfl_process_definition_versions v
+WHERE v.approval_entry_id=sqlc.arg(approval_entry_id) AND v.definition_id=sqlc.arg(definition_id);
+
+-- name: ListEnabledWorkflowDefinitionIDsForShare :many
+SELECT id
+FROM wfl_process_definitions
+WHERE enabled
+ORDER BY id;
+
+-- name: GetEnabledWorkflowDefinitionForShare :one
+SELECT d.id, d.code, e.id AS approval_entry_id, v.compiled->>'name' name, v.script
+FROM wfl_process_definitions d
+JOIN LATERAL (
+  SELECT id
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition'
+    AND subject_id=d.id AND status='APPROVED'
+  ORDER BY version_no DESC
+  LIMIT 1
+) e ON true
+JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
+WHERE d.id=sqlc.arg(definition_id) AND d.enabled;

@@ -30,6 +30,8 @@
 | [ADR-0042](0042-customer-declarations-are-dcl-owned.md)                               | 2026-08-28 | 客户与客户结算子账户申报由 DCL 拥有并投影到 BOB 当前业务面      |
 | [ADR-0043](0043-aux-stable-id-direct-crud.md)                                         | 2026-08-28 | AUX 使用 Stable-ID Direct CRUD 与采用方快照                     |
 | [ADR-0044](0044-acc-mapping-declarations-are-dcl-owned.md)                            | 2026-08-28 | 会计映射申报由 DCL 拥有并投影到 ACC 当前记账解释                |
+| [ADR-0045](0045-wfl-process-definition-declarations-are-dcl-owned.md)                 | 2026-08-29 | 流程定义申报由 DCL 拥有并投影到 WFL 当前执行面                  |
+| [ADR-0046](0046-dcl-is-the-only-approval-version-writer.md)                           | 2026-08-29 | DCL 是申报版本的唯一写入方                                      |
 
 ## Superseded
 

@@ -217,6 +217,14 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () =>
       import('@/pages/dcl/rpt-definition/RptDefinition.vue'),
   }),
+  registerPage('dcl', {
+    entity: 'wfl-process-definition',
+    entityTitle: '流程定义申报',
+    icon: 'mdi-source-branch',
+    order: 90,
+    component: () =>
+      import('@/pages/dcl/wfl-process-definition/WflProcessDefinition.vue'),
+  }),
   registerPage('acc', {
     entity: 'book',
     entityTitle: '会计账簿',

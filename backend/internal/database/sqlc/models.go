@@ -1178,6 +1178,19 @@ type DclWarehouseVersion struct {
 	Enabled                        bool    `db:"enabled" json:"enabled"`
 }
 
+type DclWflProcessDefinitionVersion struct {
+	ApprovalEntryID           string             `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID              string             `db:"definition_id" json:"definition_id"`
+	Script                    string             `db:"script" json:"script"`
+	Diagnostic                *string            `db:"diagnostic" json:"diagnostic"`
+	Compiled                  []byte             `db:"compiled" json:"compiled"`
+	LastTrialApprovalRevision *int64             `db:"last_trial_approval_revision" json:"last_trial_approval_revision"`
+	CreatedAt                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy                 string             `db:"created_by" json:"created_by"`
+	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                 string             `db:"updated_by" json:"updated_by"`
+}
+
 type ObjectNumberCounter struct {
 	Domain    string `db:"domain" json:"domain"`
 	Entity    string `db:"entity" json:"entity"`
@@ -2075,19 +2088,6 @@ type WflDefinitionInstance struct {
 	DefinitionApprovalEntryID string             `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
 	Revision                  int64              `db:"revision" json:"revision"`
 	RootDeletedAt             pgtype.Timestamptz `db:"root_deleted_at" json:"root_deleted_at"`
-	CreatedAt                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy                 string             `db:"created_by" json:"created_by"`
-	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy                 string             `db:"updated_by" json:"updated_by"`
-}
-
-type WflDefinitionVersion struct {
-	ApprovalEntryID           string             `db:"approval_entry_id" json:"approval_entry_id"`
-	DefinitionID              string             `db:"definition_id" json:"definition_id"`
-	Script                    string             `db:"script" json:"script"`
-	Diagnostic                *string            `db:"diagnostic" json:"diagnostic"`
-	Compiled                  []byte             `db:"compiled" json:"compiled"`
-	LastTrialApprovalRevision *int64             `db:"last_trial_approval_revision" json:"last_trial_approval_revision"`
 	CreatedAt                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy                 string             `db:"created_by" json:"created_by"`
 	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`

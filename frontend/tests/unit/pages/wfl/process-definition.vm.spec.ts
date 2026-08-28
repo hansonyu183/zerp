@@ -3,7 +3,6 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
-import { ApiError } from '@/api/types'
 import {
   useProcessDefinitionViewModel,
   type DefinitionListItem,
@@ -15,29 +14,31 @@ vi.mock('@/api/client', () => ({
   apiClient: { postContract: vi.fn(), setCsrfToken: vi.fn() },
 }))
 const mockedPost = vi.mocked(apiClient.postContract)
+
 const listItem: DefinitionListItem = {
   definitionId: '01J00000000000000000000001',
   code: 'editor-flow',
   name: '编辑流程',
-	approval: {
-		approvalEntryId: '01J00000000000000000000002',
-		versionNo: 1,
-		status: 'DRAFT',
-		revision: 1,
-		createdBy: '01J00000000000000000000003',
-		createdAt: '2026-08-03T00:00:00Z',
-		updatedBy: '01J00000000000000000000003',
-		updatedAt: '2026-08-03T00:00:00Z',
-		submittedBy: null,
-		submittedAt: null,
-		approvedBy: null,
-		approvedAt: null,
-	},
+  approval: {
+    approvalEntryId: '01J00000000000000000000002',
+    versionNo: 1,
+    status: 'APPROVED',
+    revision: 1,
+    createdBy: '01J00000000000000000000003',
+    createdAt: '2026-08-03T00:00:00Z',
+    updatedBy: '01J00000000000000000000003',
+    updatedAt: '2026-08-03T00:00:00Z',
+    submittedBy: null,
+    submittedAt: null,
+    approvedBy: null,
+    approvedAt: null,
+  },
   revision: 1,
   rootEntity: 'sale-order',
   nodeCount: 2,
   updatedAt: '2026-08-03T00:00:00Z',
 }
+
 const definition = (): DefinitionView => ({
   ...listItem,
   script: 'workflow(code="editor-flow", name="编辑流程", root=root)',
@@ -58,8 +59,6 @@ async function mountViewModel(
   permissions = [
     '/wfl/process-definition/query',
     '/wfl/process-definition/get',
-    '/wfl/process-definition/create',
-    '/wfl/process-definition/save',
   ],
 ): Promise<{
   vm: ReturnType<typeof useProcessDefinitionViewModel>
@@ -82,7 +81,7 @@ async function mountViewModel(
   return { vm: vm!, wrapper }
 }
 
-describe('Starlark process definition view model', () => {
+describe('WFL process-definition view model (read-only)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockedPost.mockImplementation(async (path) => {
@@ -93,117 +92,91 @@ describe('Starlark process definition view model', () => {
     })
   })
 
-  it('creates and saves only Starlark source', async () => {
-    mockedPost.mockImplementation(async (path, body) => {
-      if (path === 'wfl/process-definition/query')
-        return { data: { items: [listItem] } }
-      if (path === 'wfl/process-definition/create') {
-        expect(body).toEqual({
-          script: expect.stringContaining('sale_outbound'),
-        })
-        return {
-          data: { ...definition(), definitionId: listItem.definitionId },
-        }
-      }
-      throw new Error(`unexpected API path: ${path}`)
-    })
+  it('queries current definitions via wfl/process-definition/query', async () => {
     const { vm, wrapper } = await mountViewModel()
-    vm.create()
-    await vm.save()
-    expect(mockedPost).toHaveBeenCalledWith('wfl/process-definition/create', {
-      script: expect.stringContaining('workflow('),
-    })
-    wrapper.unmount()
-  })
-
-  it('sends an existing VOU reference instead of editable source JSON for trial', async () => {
-    mockedPost.mockImplementation(async (path, body) => {
-      if (path === 'wfl/process-definition/query')
-        return { data: { items: [listItem] } }
-      if (path === 'wfl/process-definition/get') return { data: definition() }
-      if (path === 'wfl/process-definition/trial') {
-        expect(body).toEqual({
-          definitionId: listItem.definitionId,
-		  approvalEntryId: listItem.approval.approvalEntryId,
-          revision: 1,
-          source: {
-            entity: 'sale-order',
-            documentId: '01J00000000000000000000088',
-          },
-        })
-        return {
-          data: {
-            matched: true,
-            trace: [{ kind: 'ROOT_MATCHED', nodeKey: 'root' }],
-          },
-        }
-      }
-      throw new Error(`unexpected API path: ${path}`)
-    })
-    const { vm, wrapper } = await mountViewModel()
-    await vm.open(listItem)
-    expect(vm.trialEntityText.value).toBe('销售订单')
-    vm.trialDocumentId.value = '01J00000000000000000000088'
-    await vm.trial()
-    expect(vm.trialResult.value?.matched).toBe(true)
-    wrapper.unmount()
-  })
-
-  it('does not trial without the shared save permission', async () => {
-    const { vm, wrapper } = await mountViewModel([
-      '/wfl/process-definition/query',
-      '/wfl/process-definition/get',
-    ])
-    await vm.open(listItem)
-    vm.trialDocumentId.value = '01J00000000000000000000088'
-    await vm.trial()
-    expect(mockedPost).not.toHaveBeenCalledWith(
-      'wfl/process-definition/trial',
-      expect.anything(),
-    )
-    wrapper.unmount()
-  })
-
-  it('queries and resets the selected definition status', async () => {
-    const { vm, wrapper } = await mountViewModel()
-    vi.clearAllMocks()
-
-    vm.keyword.value = '待清除'
-	vm.status.value = 'APPROVED'
     await vm.query()
-    expect(mockedPost).toHaveBeenLastCalledWith(
+    expect(mockedPost).toHaveBeenCalledWith(
       'wfl/process-definition/query',
-		  expect.objectContaining({ approvalStatuses: ['APPROVED'] }),
+      expect.objectContaining({ page: 1, pageSize: 100 }),
     )
+    expect(vm.definitions.value).toHaveLength(1)
+    expect(vm.definitions.value[0]!.code).toBe('editor-flow')
+    wrapper.unmount()
+  })
 
+  it('opens a definition via wfl/process-definition/get with definitionId', async () => {
+    const { vm, wrapper } = await mountViewModel()
+    await vm.open(listItem)
+    expect(mockedPost).toHaveBeenCalledWith(
+      'wfl/process-definition/get',
+      expect.objectContaining({ definitionId: listItem.definitionId }),
+    )
+    expect(vm.selected.value?.code).toBe('editor-flow')
+    wrapper.unmount()
+  })
+
+  it('only calls query and get — no lifecycle or trial endpoints', async () => {
+    const { vm, wrapper } = await mountViewModel()
+    await vm.query()
+    await vm.open(listItem)
+    vm.resetFilters()
+    await flushPromises()
+
+    const allPaths = mockedPost.mock.calls.map(([path]) => String(path))
+    const forbidden = allPaths.filter(
+      (p) =>
+        p.includes('trial') ||
+        p.includes('create') ||
+        p.includes('save') ||
+        p.includes('submit') ||
+        p.includes('approve') ||
+        p.includes('reject') ||
+        p.includes('unsubmit') ||
+        p.includes('enable') ||
+        p.includes('disable'),
+    )
+    expect(forbidden).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('does not pass approval-status or candidate parameters to query', async () => {
+    const { vm, wrapper } = await mountViewModel()
+    vm.keyword.value = 'editor'
+    await vm.query()
+
+    const queryCalls = mockedPost.mock.calls.filter(
+      ([path]) => String(path) === 'wfl/process-definition/query',
+    )
+    expect(queryCalls.length).toBeGreaterThanOrEqual(1)
+    const lastBody = queryCalls[queryCalls.length - 1]![1] as Record<string, unknown>
+    expect(lastBody).not.toHaveProperty('approvalStatuses')
+    expect(lastBody).not.toHaveProperty('approvalStatus')
+    expect(lastBody).not.toHaveProperty('candidate')
+    expect(lastBody).toEqual({ page: 1, pageSize: 100, keyword: 'editor' })
+    wrapper.unmount()
+  })
+
+  it('exposes no lifecycle or trial methods on the view model', async () => {
+    const { vm, wrapper } = await mountViewModel()
+    expect(vm).not.toHaveProperty('create')
+    expect(vm).not.toHaveProperty('save')
+    expect(vm).not.toHaveProperty('trial')
+    expect(vm).not.toHaveProperty('run')
+    expect(vm).not.toHaveProperty('scriptDiagnostic')
+    expect(vm).not.toHaveProperty('status')
+    wrapper.unmount()
+  })
+
+  it('resets keyword and re-queries without extra parameters', async () => {
+    const { vm, wrapper } = await mountViewModel()
+    vm.keyword.value = 'something'
     vm.resetFilters()
     await flushPromises()
     expect(vm.keyword.value).toBe('')
-    expect(vm.status.value).toBeNull()
     expect(mockedPost).toHaveBeenLastCalledWith(
       'wfl/process-definition/query',
       { page: 1, pageSize: 100 },
     )
-    wrapper.unmount()
-  })
-
-  it('surfaces a script location after compilation fails', async () => {
-    mockedPost.mockImplementation(async (path) => {
-      if (path === 'wfl/process-definition/query')
-        return { data: { items: [listItem] } }
-      if (path === 'wfl/process-definition/create')
-        throw new ApiError('business', '流程脚本编译失败。', {
-          code: 2001,
-          details: {
-            diagnostic: 'workflow.star:7:13: workflow edge is invalid',
-          },
-        })
-      throw new Error(`unexpected API path: ${path}`)
-    })
-    const { vm, wrapper } = await mountViewModel()
-    vm.create()
-    await vm.save()
-    expect(vm.scriptDiagnostic.value).toMatchObject({ line: 7, column: 13 })
     wrapper.unmount()
   })
 })

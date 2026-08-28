@@ -2,6 +2,6 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WflDefinitionDeleteResult = {
-  definitionId: string;
+export type DclWflProcessDefinitionCreateRequest = {
+  script: string;
 };

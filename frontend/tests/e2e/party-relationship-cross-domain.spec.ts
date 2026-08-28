@@ -139,6 +139,7 @@ interface ReferenceMutation {
 
 interface WflDefinition {
   definitionId: string
+  code: string
   revision: number
   enabled: boolean
   approval: {
@@ -657,16 +658,16 @@ async function createEnabledWorkflow(
   trialDocumentId: string,
 ): Promise<void> {
   const created = await operator.ok<WflDefinition>(
-    'wfl/process-definition/create',
+    'dcl/wfl-process-definition/create',
     { script },
   )
   expect(created.approval.status).toBe('DRAFT')
   const saved = await operator.ok<WflDefinition>(
-    'wfl/process-definition/save',
+    'dcl/wfl-process-definition/save',
     {
-      definitionId: created.definitionId,
+      code: created.code,
       approvalEntryId: created.approval.approvalEntryId,
-      revision: created.approval.revision,
+      approvalRevision: created.approval.revision,
       script: `${script}\n`,
     },
   )
@@ -682,26 +683,26 @@ async function createEnabledWorkflow(
   expect(trial.matched).toBe(true)
   expect(trial.plannedActions).toHaveLength(1)
   const submitted = await operator.ok<WflDefinition>(
-    'wfl/process-definition/submit',
+    'dcl/wfl-process-definition/submit',
     {
-      definitionId: saved.definitionId,
+      code: saved.code,
       approvalEntryId: saved.approval.approvalEntryId,
-      revision: saved.approval.revision,
+      approvalRevision: saved.approval.revision,
     },
   )
   const approved = await reviewer.ok<WflDefinition>(
-    'wfl/process-definition/approve',
+    'dcl/wfl-process-definition/approve',
     {
-      definitionId: submitted.definitionId,
+      code: submitted.code,
       approvalEntryId: submitted.approval.approvalEntryId,
-      revision: submitted.approval.revision,
+      approvalRevision: submitted.approval.revision,
     },
   )
   expect(approved.approval.status).toBe('APPROVED')
   const enabled = await operator.ok<WflDefinition>(
-    'wfl/process-definition/enable',
+    'dcl/wfl-process-definition/enable',
     {
-      definitionId: approved.definitionId,
+      code: approved.code,
       revision: approved.revision,
     },
   )

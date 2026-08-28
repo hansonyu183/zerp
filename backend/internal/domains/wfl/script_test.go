@@ -63,7 +63,7 @@ burn()`,
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := compileDefinitionScript(test.script)
+			_, err := CompileDefinitionScript(test.script)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("compile error = %v, want substring %q", err, test.want)
 			}
@@ -73,7 +73,7 @@ burn()`,
 
 func TestCompileDefinitionScriptProducesRootDefinition(t *testing.T) {
 	t.Parallel()
-	compiled, err := compileDefinitionScript(`root = node(key="root", name="销售订单", entity="sale-order")
+	compiled, err := CompileDefinitionScript(`root = node(key="root", name="销售订单", entity="sale-order")
 child = node(key="outbound", name="销售出库", entity="sale-outbound")
 workflow(
     code="safe-flow",
@@ -94,7 +94,7 @@ workflow(
 
 func TestWorkflowDiagnosticIncludesScriptLocation(t *testing.T) {
 	t.Parallel()
-	_, err := compileDefinitionScript("root = node(\n")
+	_, err := CompileDefinitionScript("root = node(\n")
 	if err == nil {
 		t.Fatal("invalid workflow compiled")
 	}
@@ -125,7 +125,7 @@ child = node(key="child", name="下级", entity="` + test.target + `")
 workflow(code="typed-actions", name="类型化动作", root=root, edges=[
     edge(source=root, target=child, relation="generated", action=` + test.action + `),
 ])`
-			compiled, err := compileDefinitionScript(script)
+			compiled, err := CompileDefinitionScript(script)
 			if err != nil {
 				t.Fatalf("compile typed workflow action: %v", err)
 			}
@@ -135,7 +135,7 @@ workflow(code="typed-actions", name="类型化动作", root=root, edges=[
 		})
 	}
 
-	_, err := compileDefinitionScript(`root = node(key="root", name="来源", entity="expense-reimbursement")
+	_, err := CompileDefinitionScript(`root = node(key="root", name="来源", entity="expense-reimbursement")
 child = node(key="child", name="下级", entity="expense-payment")
 workflow(code="dynamic-action", name="动态动作", root=root, edges=[
     edge(source=root, target=child, relation="generated", action=call_action(name="expense_payment")),

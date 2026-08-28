@@ -186,6 +186,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		dcldomain.NewRelationshipHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewAccMappingHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewRptDefinitionHandler(nil, nil, testLogger()).Register(router)
+		dcldomain.NewWflProcessDefinitionHandler(nil, nil, testLogger()).Register(router)
 		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
 		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)
 		rptdomain.NewHandler(nil, nil, testLogger()).Register(router)

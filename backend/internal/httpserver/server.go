@@ -77,10 +77,11 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	if err != nil {
 		return nil, err
 	}
-	wflService, err := wfldomain.NewService(db, authorizer, eventBus, workflowactions.New(vouService), logger)
+	wflService, err := wfldomain.NewService(db, eventBus, workflowactions.New(vouService), logger)
 	if err != nil {
 		return nil, err
 	}
+	dclWflProcessDefinitionService := dcldomain.NewWflProcessDefinitionService(db, wflDefinitionCompiler{}, authorizer, eventBus)
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, err
 	}
@@ -101,6 +102,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		dcldomain.NewRelationshipHandler(dclRelationshipService, authorizer, logger).Register(router)
 		dcldomain.NewAccMappingHandler(dclAccMappingService, authorizer, logger).Register(router)
 		dcldomain.NewRptDefinitionHandler(dclRptDefinitionService, authorizer, logger).Register(router)
+		dcldomain.NewWflProcessDefinitionHandler(dclWflProcessDefinitionService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)

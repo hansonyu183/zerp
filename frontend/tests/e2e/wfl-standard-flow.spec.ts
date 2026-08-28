@@ -6,6 +6,8 @@ import {
 
 interface DefinitionMutation {
   definitionId: string
+  code: string
+  revision: number
   approval: {
     approvalEntryId: string
     revision: number
@@ -41,10 +43,10 @@ workflow(code="purchase-fulfillment", name="采购履约", root=purchase, when=l
 }
 
 async function openDefinition(page: Page, code: string) {
-  await page.goto('/wfl/process-definition')
+  await page.goto('/dcl/wfl-process-definition')
   await page
     .getByRole('textbox', {
-      name: '流程编码或名称',
+      name: '编码搜索',
       exact: true,
     })
     .fill(code)
@@ -91,44 +93,52 @@ test('标准采购脚本经编辑、试算和批准后支持手工重建下级 @
 
   const definition = await openDefinition(page, standardPurchaseCode)
   await definition
-    .getByLabel('流程脚本', { exact: true })
+    .getByLabel('Starlark 脚本', { exact: true })
     .fill(standardPurchaseScript(workerState))
   const saveButton = definition.getByRole('button', {
     name: '保存草稿',
     exact: true,
   })
   const saveResponsePromise = page.waitForResponse((response) =>
-    response.url().endsWith('/wfl/process-definition/save'),
+    response.url().endsWith('/dcl/wfl-process-definition/save'),
   )
   await saveButton.click()
   const saveResponse = await saveResponsePromise
   expect(saveResponse.ok()).toBe(true)
   await expect(saveButton).toBeEnabled()
+  await expect(
+    page.getByText('流程定义草稿已保存。', { exact: true }),
+  ).toBeVisible()
   await expect(definition.getByText('采购入库', { exact: true })).toBeVisible()
 
-  await definition
-    .getByLabel('已有源单据 ID', { exact: true })
-    .fill(workerState.fixtures.purchaseTrialDocumentId)
-  await definition
-    .getByRole('button', { name: '试算当前草稿', exact: true })
-    .click()
-  await expect(
-    definition.getByText('试算完成（零写入）', { exact: true }),
-  ).toBeVisible()
+  const trialDocumentId = definition.getByLabel('源单据 ID', { exact: true })
+  await trialDocumentId.fill(workerState.fixtures.purchaseTrialDocumentId)
+  await expect(trialDocumentId).toHaveValue(
+    workerState.fixtures.purchaseTrialDocumentId,
+  )
+  const trialResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/wfl/process-definition/trial'),
+  )
+  await definition.getByRole('button', { name: '试运行', exact: true }).click()
+  const trialResponse = await trialResponsePromise
+  expect(trialResponse.ok()).toBe(true)
+  await expect(definition.getByText('匹配：是', { exact: true })).toBeVisible()
   const submitResponsePromise = page.waitForResponse((response) =>
-    response.url().endsWith('/wfl/process-definition/submit'),
+    response.url().endsWith('/dcl/wfl-process-definition/submit'),
   )
   await definition.getByRole('button', { name: '提交', exact: true }).click()
   const submitEnvelope = (await (
     await submitResponsePromise
   ).json()) as Envelope<DefinitionMutation>
   expect(String(submitEnvelope.code), submitEnvelope.message).toBe('0')
-  await expect(definition.getByText('待批准', { exact: true })).toBeVisible()
+  await expect(
+    definition.locator('.definition-editor__sidebar .text-caption').first(),
+  ).toContainText('待批准')
   await approveWorkflowDefinitionAsReviewer(
     process.env.E2E_API_BASE_URL!,
     workerState.reviewer,
     {
-      definitionId: submitEnvelope.data.definitionId,
+      code: submitEnvelope.data.code,
       approvalEntryId: submitEnvelope.data.approval.approvalEntryId,
       revision: submitEnvelope.data.approval.revision,
     },
@@ -138,13 +148,33 @@ test('标准采购脚本经编辑、试算和批准后支持手工重建下级 @
 
   const approvedDefinition = await openDefinition(page, standardPurchaseCode)
   await expect(
-    approvedDefinition.getByText('已批准', { exact: true }),
-  ).toBeVisible()
+    approvedDefinition
+      .locator('.definition-editor__sidebar .text-caption')
+      .first(),
+  ).toContainText('已批准')
   await approvedDefinition
     .getByRole('button', { name: '启用', exact: true })
     .click()
   await approvedDefinition.locator('.v-toolbar button').first().click()
   await expect(approvedDefinition).toBeHidden()
+
+  await page.goto('/wfl/process-definition')
+  await page
+    .getByRole('textbox', { name: '流程编码或名称', exact: true })
+    .fill(standardPurchaseCode)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const currentRow = page
+    .locator('tbody tr')
+    .filter({ hasText: standardPurchaseCode })
+  await expect(currentRow).toHaveCount(1)
+  await currentRow.getByRole('button', { name: '维护', exact: true }).click()
+  await expect(page).toHaveURL(
+    new RegExp(`/dcl/wfl-process-definition\\?code=${standardPurchaseCode}$`),
+  )
+  const maintenanceDialog = page.getByRole('dialog')
+  await expect(maintenanceDialog).toBeVisible()
+  await maintenanceDialog.locator('.v-toolbar button').first().click()
+  await expect(maintenanceDialog).toBeHidden()
 
   await workerState.grantWorkflowPermissions([standardPurchaseCode])
   await signInAgain(page, workerState)

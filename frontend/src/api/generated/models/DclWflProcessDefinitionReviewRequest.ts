@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WflDefinitionSaveRequest = {
-  definitionId: string;
+export type DclWflProcessDefinitionReviewRequest = {
+  code: string;
   approvalEntryId: string;
-  revision: number;
-  script: string;
+  approvalRevision: number;
+  reason?: string | null;
 };

@@ -63,7 +63,7 @@ type scriptCompiler struct {
 	nodes      []*starlark.Dict
 }
 
-func compileDefinitionScript(source string) (compiledScriptDefinition, error) {
+func CompileDefinitionScript(source string) (compiledScriptDefinition, error) {
 	if strings.TrimSpace(source) == "" {
 		return compiledScriptDefinition{}, fmt.Errorf("workflow script is required")
 	}

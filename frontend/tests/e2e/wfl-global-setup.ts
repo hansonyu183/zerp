@@ -295,7 +295,7 @@ export async function approveWorkflowDefinitionAsReviewer(
   baseURL: string,
   credentials: E2ECredentials,
   definition: {
-    definitionId: string
+    code: string
     approvalEntryId: string
     revision: number
   },
@@ -307,8 +307,12 @@ export async function approveWorkflowDefinitionAsReviewer(
   )
   try {
     await session.api.post<WflDefinitionView>(
-      'wfl/process-definition/approve',
-      definition,
+      'dcl/wfl-process-definition/approve',
+      {
+        code: definition.code,
+        approvalEntryId: definition.approvalEntryId,
+        approvalRevision: definition.revision,
+      },
     )
   } finally {
     await session.context.dispose()
@@ -355,7 +359,7 @@ const bobReviewerActions = new Set([
   '/acc/book/save',
   '/acc/opening/approve',
   '/dcl/acc-mapping/approve',
-  '/wfl/process-definition/approve',
+  '/dcl/wfl-process-definition/approve',
   '/bob/customer/query',
   '/bob/customer/get',
   '/bob/customer-account/query',
@@ -742,18 +746,18 @@ async function createEnabledWorkflowDefinition(
   },
 ): Promise<WflDefinitionView> {
   const created = await operator.post<WflDefinitionView>(
-    'wfl/process-definition/create',
+    'dcl/wfl-process-definition/create',
     { script: options.script },
   )
   if (created.approval.status !== 'DRAFT') {
     throw new Error(`WFL 预置流程定义 ${options.code} 未以草稿创建。`)
   }
   const edited = await operator.post<WflDefinitionView>(
-    'wfl/process-definition/save',
+    'dcl/wfl-process-definition/save',
     {
-      definitionId: created.definitionId,
+      code: created.code,
       approvalEntryId: created.approval.approvalEntryId,
-      revision: created.approval.revision,
+      approvalRevision: created.approval.revision,
       script: `${options.script}\n`,
     },
   )
@@ -770,27 +774,27 @@ async function createEnabledWorkflowDefinition(
     throw new Error(`WFL 预置流程定义 ${options.code} 试算未生成预期动作。`)
   }
   const submitted = await operator.post<WflDefinitionView>(
-    'wfl/process-definition/submit',
+    'dcl/wfl-process-definition/submit',
     {
-      definitionId: edited.definitionId,
+      code: edited.code,
       approvalEntryId: edited.approval.approvalEntryId,
-      revision: edited.approval.revision,
+      approvalRevision: edited.approval.revision,
     },
   )
   const approved = await reviewer.post<WflDefinitionView>(
-    'wfl/process-definition/approve',
+    'dcl/wfl-process-definition/approve',
     {
-      definitionId: submitted.definitionId,
+      code: submitted.code,
       approvalEntryId: submitted.approval.approvalEntryId,
-      revision: submitted.approval.revision,
+      approvalRevision: submitted.approval.revision,
     },
   )
   if (approved.approval.status !== 'APPROVED') {
     throw new Error(`WFL 预置流程定义 ${options.code} 未批准。`)
   }
   const enabled = await operator.post<WflDefinitionView>(
-    'wfl/process-definition/enable',
-    { definitionId: approved.definitionId, revision: approved.revision },
+    'dcl/wfl-process-definition/enable',
+    { code: approved.code, revision: approved.revision },
   )
   if (!enabled.enabled) {
     throw new Error(`WFL 预置流程定义 ${options.code} 未启用。`)

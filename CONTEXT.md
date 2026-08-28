@@ -22,8 +22,8 @@ _Avoid_: 领域自定义审批状态机
 _Authority_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 
 **Approval Version（审批版本）**:
-中央 Approval 为需要候选和历史的稳定业务主体管理的版本化审批记录。
-_Avoid_: Domain 版本头、领域自有版本管理、分支或合并
+中央 Approval 为 DCL stable subject 管理的版本化审批记录；DCL 是申报版本的唯一业务写入方。
+_Avoid_: 非 DCL Approval Version consumer、Domain 版本头、领域自有版本管理、分支或合并
 _Authority_: [Approval Version](docs/domains/approval.md#6-approval-version)
 
 **Approval Metadata（审批元数据）**:

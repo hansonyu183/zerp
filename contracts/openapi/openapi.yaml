@@ -10873,6 +10873,622 @@
                 },
             },
         },
+      '/dcl/wfl-process-definition/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建流程定义首个草稿版本',
+              'operationId': 'dclWflProcessDefinitionCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的流程定义草稿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/create-next':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '创建流程定义下一草稿版本',
+              'operationId': 'dclWflProcessDefinitionCreateNext',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的流程定义下一草稿版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存流程定义草稿',
+              'operationId': 'dclWflProcessDefinitionSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的流程定义草稿。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交流程定义版本审核',
+              'operationId': 'dclWflProcessDefinitionSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '提交后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回流程定义版本审核',
+              'operationId': 'dclWflProcessDefinitionUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '撤回后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回流程定义版本',
+              'operationId': 'dclWflProcessDefinitionReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '驳回后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准流程定义版本',
+              'operationId': 'dclWflProcessDefinitionApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批准后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批准流程定义版本',
+              'operationId': 'dclWflProcessDefinitionUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '反批准后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/delete-version':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除流程定义草稿版本',
+              'operationId': 'dclWflProcessDefinitionDeleteVersion',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionDeleteRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '已删除流程定义草稿版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/enable':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '启用流程定义',
+              'operationId': 'dclWflProcessDefinitionEnable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionEnableRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '启用后的流程定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/disable':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '停用流程定义',
+              'operationId': 'dclWflProcessDefinitionDisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionEnableRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '停用后的流程定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询流程定义声明',
+              'operationId': 'dclWflProcessDefinitionQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '流程定义声明分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取流程定义声明',
+              'operationId': 'dclWflProcessDefinitionGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '流程定义声明详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询流程定义声明版本历史',
+              'operationId': 'dclWflProcessDefinitionVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '流程定义声明版本历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/wfl-process-definition/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询流程定义声明审核历史',
+              'operationId': 'dclWflProcessDefinitionAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '流程定义声明审核历史分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl-wfl-process-definition.yaml#/DclWflProcessDefinitionAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
       '/wfl/process-definition/query':
         {
           'post':
@@ -10955,88 +11571,6 @@
                 },
             },
         },
-      '/wfl/process-definition/create':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '新建流程定义',
-              'operationId': 'wflProcessDefinitionCreate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '创建后的定义。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/save':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '保存流程定义',
-              'operationId': 'wflProcessDefinitionSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '保存后的定义及诊断。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
       '/wfl/process-definition/trial':
         {
           'post':
@@ -11071,416 +11605,6 @@
                               'schema':
                                 {
                                   '$ref': './schemas/wfl.yaml#/WflDefinitionTrialResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/create-version':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '创建流程定义下一草稿版本',
-              'operationId': 'wflProcessDefinitionCreateVersion',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionVersionCreateRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '创建后的流程定义候选。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/versions':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '查询流程定义版本历史',
-              'operationId': 'wflProcessDefinitionVersions',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionVersionsRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '流程定义版本历史。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionQueryResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/delete-version':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '删除流程定义草稿版本',
-              'operationId': 'wflProcessDefinitionDeleteVersion',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '已删除流程定义草稿版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionDeleteResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/submit':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '提交流程定义版本审批',
-              'operationId': 'wflProcessDefinitionSubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '提交后的流程定义版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/unsubmit':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '撤回流程定义版本审批',
-              'operationId': 'wflProcessDefinitionUnsubmit',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '撤回后的流程定义版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/reject':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '驳回流程定义版本审批',
-              'operationId': 'wflProcessDefinitionReject',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionReasonActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '驳回后的流程定义版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/approve':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '批准流程定义版本',
-              'operationId': 'wflProcessDefinitionApprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '批准后的流程定义版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/unapprove':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '反批准流程定义版本',
-              'operationId': 'wflProcessDefinitionUnapprove',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionReasonActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '反批准后的流程定义版本。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/enable':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '启用流程定义',
-              'operationId': 'wflProcessDefinitionEnable',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionToggleRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '启用后的定义。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/disable':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '停用流程定义',
-              'operationId': 'wflProcessDefinitionDisable',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionToggleRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '停用后的定义。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
                                 },
                             },
                         },

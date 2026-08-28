@@ -7,7 +7,7 @@ import (
 
 func TestExecuteCompiledWorkflowPlansTypedActionsAndUncoveredBranches(t *testing.T) {
 	t.Parallel()
-	compiled, err := compileDefinitionScript(`
+	compiled, err := CompileDefinitionScript(`
 root = node(key="expense", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
 ignored = node(key="ignored", name="未命中付款", entity="expense-payment")

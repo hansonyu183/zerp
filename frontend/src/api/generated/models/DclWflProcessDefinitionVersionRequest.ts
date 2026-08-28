@@ -2,6 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WflDefinitionVersionCreateRequest = {
-  definitionId: string;
+export type DclWflProcessDefinitionVersionRequest = {
+  code: string;
+  approvalEntryId: string;
+  approvalRevision: number;
 };

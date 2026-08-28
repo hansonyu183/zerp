@@ -167,12 +167,6 @@ func rptDefinitionDataFromRow(row dbsqlc.DclRptGetVersionPayloadRow) RptDefiniti
 	}
 }
 
-func rptDefinitionData(row dbsqlc.DclRptDefinitionVersion) RptDefinitionData {
-	return RptDefinitionData{
-		SQL: row.SqlText, Parameters: row.Parameters, Columns: row.Columns,
-	}
-}
-
 func rptDefinitionViewFromParts(code string, defID string, enabled bool, revision int64, entry approval.Entry, version dbsqlc.DclRptGetVersionPayloadRow) RptDefinitionView {
 	return RptDefinitionView{
 		Code:         code,

@@ -11,7 +11,7 @@ import {
   text,
   textarea,
 } from '@/pages/bob/shared/config-helpers'
-import { dclApprovalStatusText } from '@/pages/dcl/shared/declaration'
+import { approvalStatusPresentation } from '@/shared/approval'
 import { dclProductActiveVersion } from './types'
 import type { DclProductConfig, DclProductListItem } from './types'
 
@@ -146,10 +146,12 @@ const sharedProductConfig = defineBobEntityConfig({
       label: '状态',
       type: 'select',
       multiple: true,
-      options: Object.entries(dclApprovalStatusText).map(([value, title]) => ({
-        title,
-        value,
-      })),
+      options: Object.entries(approvalStatusPresentation).map(
+        ([value, presentation]) => ({
+          title: presentation.label,
+          value,
+        }),
+      ),
     },
     {
       key: 'enabled',

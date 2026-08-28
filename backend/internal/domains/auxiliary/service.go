@@ -179,16 +179,19 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput, actor 
 	if !validEntity(entity) || !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid object", nil, nil)
 	}
-	row := s.pool.QueryRow(ctx, `SELECT `+auxObjectReadColumns()+` `+auxObjectReadFrom()+`
-		WHERE o.id=$1 AND o.entity=$2`, input.ObjectID, entity)
-	view, err := scanAuxObject(row)
+	row, err := s.queries.GetAuxObject(ctx, dbsqlc.GetAuxObjectParams{ObjectID: input.ObjectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ObjectView{}, domainError(ErrorValidation, "object not found", nil, nil)
 	}
 	if err != nil {
 		return ObjectView{}, s.internal("get auxiliary object", err)
 	}
-	return view, nil
+	var data map[string]any
+	if err = json.Unmarshal(row.Data, &data); err != nil {
+		return ObjectView{}, s.internal("decode auxiliary object", err)
+	}
+	return ObjectView{ObjectID: row.ID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled,
+		ObjectRevision: row.Revision, Data: data, UpdatedAt: row.UpdatedAt.Time, UpdatedBy: row.UpdatedBy}, nil
 }
 
 func (s *Service) Create(ctx context.Context, entity string, input CreateInput, actor approval.Actor) (MutationResult, error) {
@@ -207,13 +210,8 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
 		return MutationResult{}, s.internal("lock auxiliary writes", err)
 	}
-	var counter int32
-	err = tx.QueryRow(ctx, `INSERT INTO object_number_counters(domain,entity,last_value)
-		VALUES('aux',$1,1)
-		ON CONFLICT(domain,entity) DO UPDATE
-		SET last_value=object_number_counters.last_value+1
-		WHERE object_number_counters.last_value<9999
-		RETURNING last_value`, entity).Scan(&counter)
+	queries := s.queries.WithTx(tx)
+	counter, err := queries.AllocateAuxObjectNumber(ctx, entity)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MutationResult{}, domainError(ErrorConflict, "object number exhausted", nil, nil)
 	}
@@ -226,9 +224,9 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, err)
 	}
 	raw, _ := json.Marshal(data)
-	if _, err = tx.Exec(ctx, `INSERT INTO aux_objects
-		(id,entity,code,data,created_by,updated_by)
-		VALUES($1,$2,$3,$4,$5,$5)`, objectID, entity, code, raw, actor.ID()); err != nil {
+	if err = queries.InsertAuxObject(ctx, dbsqlc.InsertAuxObjectParams{
+		ID: objectID, Entity: entity, Code: code, Data: raw, ActorID: actor.ID(),
+	}); err != nil {
 		return MutationResult{}, s.writeError("insert auxiliary object", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -249,27 +247,22 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
 		return MutationResult{}, s.internal("lock auxiliary writes", err)
 	}
-	var object struct {
-		code     string
-		enabled  bool
-		revision int64
-	}
-	var currentRaw []byte
-	err = tx.QueryRow(ctx, `SELECT code,enabled,revision,data
-		FROM aux_objects WHERE id=$1 AND entity=$2 FOR UPDATE`, input.ObjectID, entity).
-		Scan(&object.code, &object.enabled, &object.revision, &currentRaw)
+	queries := s.queries.WithTx(tx)
+	object, err := queries.GetAuxObjectForUpdate(ctx, dbsqlc.GetAuxObjectForUpdateParams{
+		ObjectID: input.ObjectID, Entity: entity,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MutationResult{}, domainError(ErrorValidation, "object not found", nil, nil)
 	}
 	if err != nil {
 		return MutationResult{}, s.internal("lock auxiliary object", err)
 	}
-	if object.revision != input.ObjectRevision {
-		return MutationResult{}, domainError(ErrorConflict, "object changed before save", map[string]any{"objectRevision": object.revision}, nil)
+	if object.Revision != input.ObjectRevision {
+		return MutationResult{}, domainError(ErrorConflict, "object changed before save", map[string]any{"objectRevision": object.Revision}, nil)
 	}
 	var currentData map[string]any
 	if entity == EntitySettlementMethod || entity == EntityProductType {
-		if err = json.Unmarshal(currentRaw, &currentData); err != nil {
+		if err = json.Unmarshal(object.Data, &currentData); err != nil {
 			return MutationResult{}, s.internal("decode current settlement method", err)
 		}
 	}
@@ -294,15 +287,17 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		}
 	}
 	raw, _ := json.Marshal(data)
-	if _, err = tx.Exec(ctx, `UPDATE aux_objects SET data=$1,revision=revision+1,updated_at=now(),updated_by=$2
-		WHERE id=$3 AND entity=$4`, raw, actor.ID(), input.ObjectID, entity); err != nil {
+	rows, err := queries.UpdateAuxObjectData(ctx, dbsqlc.UpdateAuxObjectDataParams{
+		Data: raw, ActorID: actor.ID(), ObjectID: input.ObjectID, Entity: entity,
+	})
+	if err != nil || rows != 1 {
 		return MutationResult{}, s.writeError("touch auxiliary object", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit auxiliary save", err)
 	}
 	return MutationResult{
-		ObjectID: input.ObjectID, ObjectRevision: object.revision + 1, Enabled: object.enabled,
+		ObjectID: input.ObjectID, ObjectRevision: object.Revision + 1, Enabled: object.Enabled,
 	}, nil
 }
 
@@ -334,23 +329,23 @@ func (s *Service) setEnabled(ctx context.Context, entity string, input ObjectRev
 	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
 		return MutationResult{}, s.internal("lock auxiliary writes", err)
 	}
-	var current bool
-	var revision int64
-	err = tx.QueryRow(ctx, `SELECT enabled,revision
-		FROM aux_objects WHERE id=$1 AND entity=$2 FOR UPDATE`, input.ObjectID, entity).
-		Scan(&current, &revision)
+	queries := s.queries.WithTx(tx)
+	state, err := queries.GetAuxObjectStateForUpdate(ctx, dbsqlc.GetAuxObjectStateForUpdateParams{
+		ObjectID: input.ObjectID, Entity: entity,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MutationResult{}, domainError(ErrorValidation, "object not found", nil, nil)
 	}
 	if err != nil {
 		return MutationResult{}, s.internal("lock auxiliary object", err)
 	}
-	if revision != input.ObjectRevision || current == enabled {
-		return MutationResult{}, domainError(ErrorConflict, "object state changed", map[string]any{"objectRevision": revision, "enabled": current}, nil)
+	if state.Revision != input.ObjectRevision || state.Enabled == enabled {
+		return MutationResult{}, domainError(ErrorConflict, "object state changed", map[string]any{"objectRevision": state.Revision, "enabled": state.Enabled}, nil)
 	}
-	tag, err := tx.Exec(ctx, `UPDATE aux_objects SET enabled=$1,revision=revision+1,updated_at=now(),updated_by=$2
-		WHERE id=$3 AND entity=$4 AND revision=$5`, enabled, actor.ID(), input.ObjectID, entity, input.ObjectRevision)
-	if err != nil || tag.RowsAffected() != 1 {
+	rows, err := queries.UpdateAuxObjectState(ctx, dbsqlc.UpdateAuxObjectStateParams{
+		Enabled: enabled, ActorID: actor.ID(), ObjectID: input.ObjectID, Entity: entity, ObjectRevision: input.ObjectRevision,
+	})
+	if err != nil || rows != 1 {
 		return MutationResult{}, s.writeError("change auxiliary state", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -375,8 +370,11 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput, 
 	if err = lockAuxiliaryWrites(ctx, tx); err != nil {
 		return s.internal("lock auxiliary writes", err)
 	}
-	var revision int64
-	if err = tx.QueryRow(ctx, `SELECT revision FROM aux_objects WHERE id=$1 AND entity=$2 FOR UPDATE`, input.ObjectID, entity).Scan(&revision); errors.Is(err, pgx.ErrNoRows) {
+	queries := s.queries.WithTx(tx)
+	revision, err := queries.GetAuxObjectRevisionForUpdate(ctx, dbsqlc.GetAuxObjectRevisionForUpdateParams{
+		ObjectID: input.ObjectID, Entity: entity,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return domainError(ErrorValidation, "object not found", nil, nil)
 	}
 	if err != nil {
@@ -390,61 +388,27 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput, 
 	} else if len(blocked) != 0 {
 		return domainError(ErrorConflict, "auxiliary object has persisted references", map[string]any{"blockers": blocked}, nil)
 	}
-	if _, err = tx.Exec(ctx, `DELETE FROM aux_objects WHERE id=$1 AND entity=$2`, input.ObjectID, entity); err != nil {
+	rows, err := queries.DeleteAuxObject(ctx, dbsqlc.DeleteAuxObjectParams{ObjectID: input.ObjectID, Entity: entity})
+	if err != nil || rows != 1 {
 		return s.internal("delete auxiliary object", err)
 	}
 	return tx.Commit(ctx)
 }
 
 func auxObjectDeleteBlockers(ctx context.Context, q dbtx, objectID string) ([]map[string]any, error) {
-	// Each source is deliberately named: deletion is blocked by any persisted
-	// snapshot, irrespective of its DCL or VOU lifecycle state.
-	checks := []struct{ source, query string }{
-		{"aux_objects", `SELECT count(*) FROM aux_objects WHERE data->>'parentId'=$1 OR data->>'dictionaryTypeId'=$1`},
-		{"dcl_employee_versions", `SELECT count(*) FROM dcl_employee_versions WHERE employee_category_id=$1 OR department_id=$1 OR position_id=$1`},
-		{"dcl_product_versions", `SELECT count(*) FROM dcl_product_versions WHERE category_id=$1 OR pricing_unit_id=$1 OR product_type_id=$1 OR default_input_unit_id=$1`},
-		{"dcl_product_formulas", `SELECT count(*) FROM dcl_product_formulas WHERE output_unit_object_id=$1`},
-		{"dcl_product_formula_lines", `SELECT count(*) FROM dcl_product_formula_lines WHERE entered_unit_object_id=$1`},
-		{"dcl_product_unit_conversions", `SELECT count(*) FROM dcl_product_unit_conversions WHERE unit_object_id=$1`},
-		{"dcl_supplier_versions", `SELECT count(*) FROM dcl_supplier_versions WHERE settlement_method_id=$1`},
-		{"dcl_other_unit_versions", `SELECT count(*) FROM dcl_other_unit_versions WHERE settlement_method_id=$1`},
-		{"dcl_customer_account_versions", `SELECT count(*) FROM dcl_customer_account_versions WHERE customer_type=$1 OR settlement_method_id=$1 OR payment_method_id=$1`},
-		{"dcl_vehicle_versions", `SELECT count(*) FROM dcl_vehicle_versions WHERE vehicle_type_object_id=$1`},
-		{"dcl_warehouse_versions", `SELECT count(*) FROM dcl_warehouse_versions WHERE category_id=$1`},
-		{"dcl_customer_attachments", `SELECT count(*) FROM dcl_customer_attachments WHERE category_object_id=$1`},
-		{"dcl_customer_account_attachments", `SELECT count(*) FROM dcl_customer_account_attachments WHERE category_object_id=$1`},
-		{"bob_warehouses", `SELECT count(*) FROM bob_warehouses WHERE category_id=$1`},
-		{"bob_vehicles", `SELECT count(*) FROM bob_vehicles WHERE vehicle_type_object_id=$1`},
-		{"vou_asset_acquisition_lines", `SELECT count(*) FROM vou_asset_acquisition_lines WHERE category_object_id=$1 OR department_object_id=$1`},
-		{"vou_inventory_count_lines", `SELECT count(*) FROM vou_inventory_count_lines WHERE entered_unit_object_id=$1`},
-		{"vou_price_lines", `SELECT count(*) FROM vou_price_lines WHERE product_type_object_id=$1`},
-		{"vou_product_lines", `SELECT count(*) FROM vou_product_lines WHERE entered_unit_object_id=$1 OR product_type_object_id=$1`},
-		{"vou_production_material_lines", `SELECT count(*) FROM vou_production_material_lines WHERE actual_entered_unit_object_id=$1`},
-		{"vou_production_output_lines", `SELECT count(*) FROM vou_production_output_lines WHERE entered_unit_object_id=$1`},
-		{"vou_purchase_order_details", `SELECT count(*) FROM vou_purchase_order_details WHERE settlement_method_object_id=$1`},
-		{"vou_sale_order_details", `SELECT count(*) FROM vou_sale_order_details WHERE settlement_method_object_id=$1`},
-		{"vou_sale_order_formula_lines", `SELECT count(*) FROM vou_sale_order_formula_lines WHERE entered_unit_object_id=$1`},
-		{"vou_sale_order_formulas", `SELECT count(*) FROM vou_sale_order_formulas WHERE output_entered_unit_object_id=$1`},
-		{"vou_service_contract_details", `SELECT count(*) FROM vou_service_contract_details WHERE settlement_method_object_id=$1`},
-		{"acc_assets", `SELECT count(*) FROM acc_assets WHERE category_id=$1 OR department_id=$1`},
-		{"acc_opening_assets", `SELECT count(*) FROM acc_opening_assets WHERE category_id=$1 OR department_id=$1`},
+	rows, err := dbsqlc.New(q).ListAuxObjectDeleteBlockers(ctx, objectID)
+	if err != nil {
+		return nil, err
 	}
-	blockers := make([]map[string]any, 0)
-	for _, check := range checks {
-		var count int64
-		if err := q.QueryRow(ctx, check.query, objectID).Scan(&count); err != nil {
-			return nil, err
-		}
-		if count > 0 {
-			blockers = append(blockers, map[string]any{"source": check.source, "count": count})
-		}
+	blockers := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		blockers = append(blockers, map[string]any{"source": row.Source, "count": row.Count})
 	}
 	return blockers, nil
 }
 
 func lockAuxiliaryWrites(ctx context.Context, tx pgx.Tx) error {
-	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, auxiliaryWriteLockKey)
-	return err
+	return dbsqlc.New(tx).AcquireAuxiliaryWriteLock(ctx, auxiliaryWriteLockKey)
 }
 
 func (s *Service) ResolveCurrentReference(ctx context.Context, q dbtx, entity, objectID string) (Reference, error) {
@@ -454,16 +418,17 @@ func (s *Service) ResolveCurrentReference(ctx context.Context, q dbtx, entity, o
 	if !validEntity(entity) || !validID(objectID) {
 		return Reference{}, domainError(ErrorValidation, "invalid auxiliary reference", nil, nil)
 	}
-	var result Reference
-	var raw []byte
-	err := q.QueryRow(ctx, `SELECT id,entity,code,data FROM aux_objects WHERE id=$1 AND entity=$2 AND enabled FOR SHARE`, objectID, entity).Scan(&result.ObjectID, &result.Entity, &result.Code, &raw)
+	row, err := dbsqlc.New(q).GetEnabledAuxCurrentReference(ctx, dbsqlc.GetEnabledAuxCurrentReferenceParams{
+		ObjectID: objectID, Entity: entity,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Reference{}, domainError(ErrorConflict, "auxiliary reference is unavailable", nil, nil)
 	}
 	if err != nil {
 		return Reference{}, s.internal("resolve auxiliary reference", err)
 	}
-	if err = json.Unmarshal(raw, &result.Data); err != nil {
+	result := Reference{ObjectID: row.ID, Entity: row.Entity, Code: row.Code}
+	if err = json.Unmarshal(row.Data, &result.Data); err != nil {
 		return Reference{}, s.internal("decode auxiliary reference", err)
 	}
 	return result, nil
@@ -476,13 +441,14 @@ func (s *Service) ResolveCode(ctx context.Context, q dbtx, entity, code string) 
 	if q == nil {
 		q = s.pool
 	}
-	var reference Reference
-	var raw []byte
-	err := q.QueryRow(ctx, `SELECT id,entity,code,data FROM aux_objects WHERE entity=$1 AND upper(code)=upper($2) AND enabled FOR SHARE`, entity, strings.TrimSpace(code)).Scan(&reference.ObjectID, &reference.Entity, &reference.Code, &raw)
+	row, err := dbsqlc.New(q).GetEnabledAuxReferenceByCode(ctx, dbsqlc.GetEnabledAuxReferenceByCodeParams{
+		Entity: entity, Code: strings.TrimSpace(code),
+	})
 	if err != nil {
 		return Reference{}, err
 	}
-	if err = json.Unmarshal(raw, &reference.Data); err != nil {
+	reference := Reference{ObjectID: row.ID, Entity: row.Entity, Code: row.Code}
+	if err = json.Unmarshal(row.Data, &reference.Data); err != nil {
 		return Reference{}, err
 	}
 	return reference, nil
@@ -546,17 +512,16 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 		if !validID(typeID) {
 			return nil, errors.New("dictionaryTypeId is required")
 		}
-		var typeCode, typeName string
-		if err := q.QueryRow(ctx, `SELECT code,COALESCE(data->>'name','') FROM aux_objects
-			WHERE id=$1 AND entity='dictionary-type' AND enabled`, typeID).Scan(&typeCode, &typeName); err != nil {
+		typeView, err := dbsqlc.New(q).GetEnabledDictionaryType(ctx, typeID)
+		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, errors.New("dictionary type is unavailable")
 			}
 			return nil, err
 		}
 		data["dictionaryTypeId"] = typeID
-		data["dictionaryTypeCode"] = typeCode
-		data["dictionaryTypeName"] = typeName
+		data["dictionaryTypeCode"] = typeView.Code
+		data["dictionaryTypeName"] = typeView.Name
 		if _, ok := intValue(data["sortOrder"]); !ok {
 			return nil, errors.New("sortOrder must be an integer")
 		}
@@ -628,9 +593,11 @@ func (s *Service) validateParent(ctx context.Context, q dbtx, entity, objectID, 
 		q = s.pool
 	}
 	current := parentID
+	queries := dbsqlc.New(q)
 	for depth := 0; depth < 100; depth++ {
-		var next string
-		err := q.QueryRow(ctx, `SELECT COALESCE(data->>'parentId','') FROM aux_objects WHERE id=$1 AND entity=$2 AND enabled`, current, entity).Scan(&next)
+		next, err := queries.GetEnabledAuxParentID(ctx, dbsqlc.GetEnabledAuxParentIDParams{
+			ObjectID: current, Entity: entity,
+		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errors.New("parent is unavailable")
 		}
@@ -654,8 +621,10 @@ func (s *Service) enabledObjectData(
 	if q == nil {
 		q = s.pool
 	}
-	var raw []byte
-	if err := q.QueryRow(ctx, `SELECT data FROM aux_objects WHERE entity=$1 AND id=$2 AND enabled`, entity, objectID).Scan(&raw); err != nil {
+	raw, err := dbsqlc.New(q).GetEnabledAuxObjectData(ctx, dbsqlc.GetEnabledAuxObjectDataParams{
+		Entity: entity, ObjectID: objectID,
+	})
+	if err != nil {
 		return nil, err
 	}
 	var data map[string]any
@@ -666,11 +635,7 @@ func (s *Service) enabledObjectData(
 }
 
 func productTypeReferenced(ctx context.Context, q dbtx, objectID string) (bool, error) {
-	var referenced bool
-	err := q.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM dcl_product_versions WHERE product_type_id=$1
-	)`, objectID).Scan(&referenced)
-	return referenced, err
+	return dbsqlc.New(q).IsAuxProductTypeReferenced(ctx, objectID)
 }
 
 func validateReferencedProductTypeUpdate(current, updated map[string]any) error {

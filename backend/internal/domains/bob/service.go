@@ -219,6 +219,9 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 		if referenceObjectID == "" {
 			return nil
 		}
+		if exact {
+			return nil
+		}
 		_, err := s.resolveNamedAuxiliaryReference(ctx, tx, referenceEntity, referenceObjectID)
 		if err != nil {
 			return err

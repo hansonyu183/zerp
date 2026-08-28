@@ -24,11 +24,13 @@ type Querier interface {
 	AccountingPeriodHasUnfinishedVOU(ctx context.Context, arg AccountingPeriodHasUnfinishedVOUParams) (bool, error)
 	AccountingTrialBalanceFails(ctx context.Context, arg AccountingTrialBalanceFailsParams) (bool, error)
 	AcquireAppAuthorizationLock(ctx context.Context) error
+	AcquireAuxiliaryWriteLock(ctx context.Context, lockKey int64) error
 	AcquireWorkflowCreateChildLock(ctx context.Context, hashtextextended string) error
 	ActorHasEnabledSuperadminRole(ctx context.Context, userID string) (bool, error)
 	ActorHoldsAppRole(ctx context.Context, arg ActorHoldsAppRoleParams) (bool, error)
 	AddAccountingAssetDepreciation(ctx context.Context, arg AddAccountingAssetDepreciationParams) error
 	AdvanceAppMenuRevision(ctx context.Context, arg AdvanceAppMenuRevisionParams) (AppMenuSetting, error)
+	AllocateAuxObjectNumber(ctx context.Context, entity string) (int32, error)
 	ApprovalVersionsExist(ctx context.Context, arg ApprovalVersionsExistParams) (bool, error)
 	BuildAccountingPeriodBalances(ctx context.Context, arg BuildAccountingPeriodBalancesParams) error
 	ClearAccountingOpeningVoucher(ctx context.Context, arg ClearAccountingOpeningVoucherParams) error
@@ -175,6 +177,7 @@ type Querier interface {
 	DeleteAppUserRoles(ctx context.Context, userID string) error
 	DeleteApprovalEntry(ctx context.Context, arg DeleteApprovalEntryParams) (ApprovalEntry, error)
 	DeleteAutomaticAccountingVoucher(ctx context.Context, arg DeleteAutomaticAccountingVoucherParams) ([]string, error)
+	DeleteAuxObject(ctx context.Context, arg DeleteAuxObjectParams) (int64, error)
 	DeleteAvailableAccountingBillsBySource(ctx context.Context, documentID string) error
 	DeleteBobCustomerAccountCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobCustomerCurrent(ctx context.Context, objectID string) (int64, error)
@@ -297,7 +300,10 @@ type Querier interface {
 	GetAppUserRoleIDs(ctx context.Context, userID string) ([]string, error)
 	GetApprovalEntry(ctx context.Context, arg GetApprovalEntryParams) (ApprovalEntry, error)
 	GetAutomaticAccountingVoucher(ctx context.Context, arg GetAutomaticAccountingVoucherParams) (GetAutomaticAccountingVoucherRow, error)
-	GetAuxObjectData(ctx context.Context, arg GetAuxObjectDataParams) ([]byte, error)
+	GetAuxObject(ctx context.Context, arg GetAuxObjectParams) (GetAuxObjectRow, error)
+	GetAuxObjectForUpdate(ctx context.Context, arg GetAuxObjectForUpdateParams) (GetAuxObjectForUpdateRow, error)
+	GetAuxObjectRevisionForUpdate(ctx context.Context, arg GetAuxObjectRevisionForUpdateParams) (int64, error)
+	GetAuxObjectStateForUpdate(ctx context.Context, arg GetAuxObjectStateForUpdateParams) (GetAuxObjectStateForUpdateRow, error)
 	GetBobCustomerAccountCurrent(ctx context.Context, objectID string) (GetBobCustomerAccountCurrentRow, error)
 	GetBobCustomerAccountCurrentReference(ctx context.Context, objectID string) (GetBobCustomerAccountCurrentReferenceRow, error)
 	GetBobCustomerAccountRelationship(ctx context.Context, objectID string) (BobCustomerAccount, error)
@@ -355,6 +361,11 @@ type Querier interface {
 	GetDCLVehicleVersion(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error)
 	GetDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (DclWarehouseVersion, error)
 	GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error)
+	GetEnabledAuxCurrentReference(ctx context.Context, arg GetEnabledAuxCurrentReferenceParams) (GetEnabledAuxCurrentReferenceRow, error)
+	GetEnabledAuxObjectData(ctx context.Context, arg GetEnabledAuxObjectDataParams) ([]byte, error)
+	GetEnabledAuxParentID(ctx context.Context, arg GetEnabledAuxParentIDParams) (string, error)
+	GetEnabledAuxReferenceByCode(ctx context.Context, arg GetEnabledAuxReferenceByCodeParams) (GetEnabledAuxReferenceByCodeRow, error)
+	GetEnabledDictionaryType(ctx context.Context, objectID string) (GetEnabledDictionaryTypeRow, error)
 	GetLatestApprovedDCLEmployeeVersionExcluding(ctx context.Context, arg GetLatestApprovedDCLEmployeeVersionExcludingParams) (ApprovalEntry, error)
 	GetLatestApprovedDCLVehicleVersionExcluding(ctx context.Context, arg GetLatestApprovedDCLVehicleVersionExcludingParams) (ApprovalEntry, error)
 	GetLatestApprovedDCLWarehouseVersionExcluding(ctx context.Context, arg GetLatestApprovedDCLWarehouseVersionExcludingParams) (ApprovalEntry, error)
@@ -427,6 +438,7 @@ type Querier interface {
 	InsertAppUser(ctx context.Context, arg InsertAppUserParams) error
 	InsertAppUserRole(ctx context.Context, arg InsertAppUserRoleParams) error
 	InsertApprovalEvent(ctx context.Context, arg InsertApprovalEventParams) error
+	InsertAuxObject(ctx context.Context, arg InsertAuxObjectParams) error
 	InsertBobCustomerAccountRelationship(ctx context.Context, arg InsertBobCustomerAccountRelationshipParams) error
 	InsertBobCustomerRelationship(ctx context.Context, arg InsertBobCustomerRelationshipParams) error
 	InsertBobEmployeeRelationship(ctx context.Context, arg InsertBobEmployeeRelationshipParams) error
@@ -517,6 +529,7 @@ type Querier interface {
 	InsertVouServiceAcceptanceDetail(ctx context.Context, arg InsertVouServiceAcceptanceDetailParams) error
 	InsertVouServiceContractDetail(ctx context.Context, arg InsertVouServiceContractDetailParams) error
 	IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error)
+	IsAuxProductTypeReferenced(ctx context.Context, objectID string) (bool, error)
 	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
 	IsVouSaleDeliveryReady(ctx context.Context, documentID string) (*bool, error)
 	IsVouSaleOutboundReady(ctx context.Context, documentID string) (*bool, error)
@@ -552,6 +565,7 @@ type Querier interface {
 	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error)
+	ListAuxObjectDeleteBlockers(ctx context.Context, objectID string) ([]ListAuxObjectDeleteBlockersRow, error)
 	// Exact BOB Approval-entry blocker projection. Only the latest APPROVED
 	// payload of each referencing object is a current formal reference; each row
 	// is matched by the immutable snapshot entry rather than the stable object.
@@ -812,6 +826,8 @@ type Querier interface {
 	UpdateAppUser(ctx context.Context, arg UpdateAppUserParams) (int64, error)
 	UpdateAppUserPassword(ctx context.Context, arg UpdateAppUserPasswordParams) (int64, error)
 	UpdateApprovalEntry(ctx context.Context, arg UpdateApprovalEntryParams) (ApprovalEntry, error)
+	UpdateAuxObjectData(ctx context.Context, arg UpdateAuxObjectDataParams) (int64, error)
+	UpdateAuxObjectState(ctx context.Context, arg UpdateAuxObjectStateParams) (int64, error)
 	UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCurrentAppUserProfileParams) (AppUser, error)
 	UpdateDCLCustomerAccountVersion(ctx context.Context, arg UpdateDCLCustomerAccountVersionParams) (int64, error)
 	UpdateDCLCustomerVersion(ctx context.Context, arg UpdateDCLCustomerVersionParams) (int64, error)

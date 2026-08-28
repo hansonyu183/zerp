@@ -37,10 +37,16 @@ func ValidateVehicleData(input VehicleData) (VehicleData, error) {
 	return VehicleData{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, VehicleTypeObjectID: strings.TrimSpace(input.VehicleTypeObjectID), VehicleTypeName: strings.TrimSpace(input.VehicleTypeName), VIN: d.VIN, EngineNumber: d.EngineNumber, LoadCapacityKG: d.LoadCapacityKG, Remark: d.Remark, CarrierAffiliation: d.CarrierAffiliation, BulkLiquidCapable: d.BulkLiquidCapable}, nil
 }
 
-func (s *Service) ResolveVehicleType(ctx context.Context, tx pgx.Tx, d VehicleData, _ bool) (VehicleData, error) {
+func (s *Service) ResolveVehicleType(ctx context.Context, tx pgx.Tx, d VehicleData, exact bool) (VehicleData, error) {
 	const dictionaryTypeCode = "DCT-0002"
 	if strings.TrimSpace(d.VehicleTypeObjectID) == "" && strings.TrimSpace(d.VehicleType) == "" {
 		return VehicleData{}, domainErrorWithKey(ErrorValidation, "vehicle_type_reference_unavailable", "vehicle type is required", nil, nil)
+	}
+	if exact {
+		if !validID(strings.TrimSpace(d.VehicleTypeObjectID)) || strings.TrimSpace(d.VehicleType) == "" || strings.TrimSpace(d.VehicleTypeName) == "" {
+			return VehicleData{}, domainErrorWithKey(ErrorConflict, "vehicle_type_reference_unavailable", "vehicle type snapshot is incomplete", nil, nil)
+		}
+		return d, nil
 	}
 	var ref AuxiliaryReference
 	var err error

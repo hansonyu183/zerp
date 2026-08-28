@@ -61,37 +61,11 @@ func (s *Service) ResolveProductDeclaration(ctx context.Context, tx pgx.Tx, d De
 	return s.resolveDetailReferenceSnapshots(ctx, tx, EntityProduct, "", r, false)
 }
 func (s *Service) EnsureProductDeclarationReferencesCurrent(ctx context.Context, tx pgx.Tx, d DetailView) error {
-	checkAux := func(entity, objectID string) error {
-		if objectID == "" {
-			return nil
-		}
-		_, err := s.resolveNamedAuxiliaryReference(ctx, tx, entity, objectID)
-		if err != nil {
-			return domainError(ErrorConflict, "product reference drift", nil, err)
-		}
-		return nil
-	}
-	for _, r := range [][2]string{{"product-category", d.CategoryID}, {"product-type", d.ProductTypeID}, {"measurement-unit", d.DefaultInputUnitID}, {"measurement-unit", d.PricingUnitID}} {
-		if err := checkAux(r[0], r[1]); err != nil {
-			return err
-		}
-	}
-	for _, c := range d.UnitConversions {
-		if err := checkAux("measurement-unit", c.Unit.ObjectID); err != nil {
-			return err
-		}
-	}
 	if d.Formula != nil {
-		if err := checkAux("measurement-unit", d.Formula.Output.EnteredUnit.ObjectID); err != nil {
-			return err
-		}
 		for _, c := range d.Formula.Components {
 			latest, err := s.ResolveLatestApprovedReference(ctx, tx, EntityProduct, c.Material.ObjectID)
 			if err != nil || latest.ApprovalEntryID != c.Material.ApprovalEntryID {
 				return domainError(ErrorConflict, "product reference drift", nil, err)
-			}
-			if err = checkAux("measurement-unit", c.Quantity.EnteredUnit.ObjectID); err != nil {
-				return err
 			}
 		}
 	}

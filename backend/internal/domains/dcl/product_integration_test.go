@@ -225,12 +225,23 @@ func TestProductAuxiliaryStableIdentityAllowsRenameIntegration(t *testing.T) {
 	if err != nil || saved.Data.ProductTypeID != original.Data.ProductTypeID || saved.Data.ProductTypeName != "原材料 V2" {
 		t.Fatalf("stable AUX identity did not refresh current display snapshot: original=%+v saved=%+v err=%v", original.Data, saved.Data, err)
 	}
+	if _, err = pool.Exec(t.Context(), `UPDATE aux_objects SET enabled=false,revision=revision+1 WHERE id=$1 AND entity='product-type'`, productRawTypeID); err != nil {
+		t.Fatalf("disable saved AUX reference: %v", err)
+	}
 
 	submitted, err := service.Submit(t.Context(), ProductVersionInput{ObjectID: savedDraft.ObjectID, ApprovalEntryID: savedDraft.Approval.ApprovalEntryID, ApprovalRevision: savedDraft.Approval.Revision}, dclActor(t, creator.ID(), "aux-stable-submit"))
 	if err != nil {
-		t.Fatalf("submit stable AUX reference after rename: %v", err)
+		t.Fatalf("submit saved AUX snapshot after source disable: %v", err)
 	}
 	assertApprovalState(t, pool, submitted.Approval.ApprovalEntryID, approval.StatusPending, submitted.Approval.Revision)
+	approved, err := service.Approve(t.Context(), ProductVersionInput{ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, dclActor(t, ulid.Make().String(), "aux-stable-approve"))
+	if err != nil {
+		t.Fatalf("approve saved AUX snapshot after source disable: %v", err)
+	}
+	view, err := service.Get(t.Context(), ProductGetInput{ObjectID: approved.ObjectID}, creator)
+	if err != nil || view.Data.ProductTypeID != productRawTypeID || view.Data.ProductTypeCode != "PTP-0001" || view.Data.ProductTypeName != "原材料 V2" {
+		t.Fatalf("approved AUX snapshot changed after source disable: data=%+v err=%v", view.Data, err)
+	}
 }
 
 func TestApprovedProductKeepsMeasurementUnitQuantityScaleSnapshotIntegration(t *testing.T) {

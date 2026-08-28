@@ -36,6 +36,10 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(request string) approval.Actor { return dclActor(t, creatorID, request) }
 	reviewer := func(request string) approval.Actor { return dclActor(t, reviewerID, request) }
+	settlementV1 := insertSupplierAux(t, pool, auxdomain.EntitySettlementMethod, "SET-0001", map[string]any{"name": "现结", "termCode": "PREPAID", "ruleType": "RELATIVE_DAYS", "monthOffset": 0, "dayOfMonth": 0, "dayOffset": 0}, creatorID)
+	settlementV2 := insertSupplierAux(t, pool, auxdomain.EntitySettlementMethod, "SET-0002", map[string]any{"name": "月结30天", "termCode": "MONTHLY_30", "ruleType": "MONTH_END", "monthOffset": 1, "dayOfMonth": 0, "dayOffset": 0}, creatorID)
+	paymentV1 := insertSupplierAux(t, pool, auxdomain.EntityPaymentMethod, "PMT-0001", map[string]any{"name": "现金", "defaultSalesSurcharge": "0.00"}, creatorID)
+	paymentV2 := insertSupplierAux(t, pool, auxdomain.EntityPaymentMethod, "PMT-0002", map[string]any{"name": "转账", "defaultSalesSurcharge": "0.00"}, creatorID)
 	owner, err := operating.Create(t.Context(), OperatingEntityCreateInput{Data: bobdomain.OperatingEntityData{Name: "账户生命周期主体"}}, creator("owner-create"))
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +62,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 		t.Fatal(err)
 	}
 	employee = submitAndApproveEmployee(t, employees, employee, creator("employee-submit"), reviewer("employee-approve"))
-	input := CustomerAccountDataInput{Name: "账户 V1", CustomerTypeID: bobdomain.CustomerTypeEndUserID, PricingPolicy: CustomerPricingPolicy{DefaultPremiumUnitPrice: "0", DefaultDiscountUnitPrice: "0", ThirdPartyIntermediaryFixedUnitCost: "0", ThirdPartyIntermediaryVariableUnitCost: "0", CostItems: []CustomerPricingCostItem{}}, CreditLimits: []CustomerCreditLimit{{Currency: "CNY", Amount: "100"}}, PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: employee.ObjectID}}
+	input := CustomerAccountDataInput{Name: "账户 V1", CustomerTypeID: bobdomain.CustomerTypeEndUserID, SettlementMethodID: settlementV1, PaymentMethodID: paymentV1, PricingPolicy: CustomerPricingPolicy{DefaultPremiumUnitPrice: "0", DefaultDiscountUnitPrice: "0", ThirdPartyIntermediaryFixedUnitCost: "0", ThirdPartyIntermediaryVariableUnitCost: "0", CostItems: []CustomerPricingCostItem{}}, CreditLimits: []CustomerCreditLimit{{Currency: "CNY", Amount: "100"}}, PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: employee.ObjectID}}
 	customer, err := customers.Create(t.Context(), CustomerCreateInput{PartyID: party.ID, OperatingEntityID: owner.ObjectID, DefaultAccount: input}, creator("customer-create"))
 	if err != nil {
 		t.Fatal(err)
@@ -121,6 +125,8 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	}
 	v2Input := input
 	v2Input.Name = "账户 V2"
+	v2Input.SettlementMethodID = settlementV2
+	v2Input.PaymentMethodID = paymentV2
 	start := make(chan struct{})
 	saves := make(chan saveResult, 2)
 	for _, saveActor := range []approval.Actor{creator("account-save-concurrent-one"), creator("account-save-concurrent-two")} {
@@ -145,6 +151,16 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	}
 	if successes != 1 {
 		t.Fatalf("concurrent saves succeeded=%d errors=%v, want exactly one", successes, saveErrors)
+	}
+	var settlementID, settlementCode, settlementName, paymentID, paymentCode, paymentName string
+	if err = pool.QueryRow(t.Context(), `SELECT settlement_method_id,settlement_method_code,settlement_method_name,payment_method_id,payment_method_code,payment_method_name FROM dcl_customer_account_versions WHERE approval_entry_id=$1`, v2.Approval.ApprovalEntryID).Scan(&settlementID, &settlementCode, &settlementName, &paymentID, &paymentCode, &paymentName); err != nil {
+		t.Fatalf("read switched AUX snapshots: %v", err)
+	}
+	if settlementID != settlementV2 || settlementCode != "SET-0002" || settlementName != "月结30天" || paymentID != paymentV2 || paymentCode != "PMT-0002" || paymentName != "转账" {
+		t.Fatalf("switched AUX snapshots are inconsistent: settlement=(%s,%s,%s) payment=(%s,%s,%s)", settlementID, settlementCode, settlementName, paymentID, paymentCode, paymentName)
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE aux_objects SET enabled=false,revision=revision+1 WHERE id=$1 OR id=$2`, settlementV2, paymentV2); err != nil {
+		t.Fatalf("disable saved account AUX sources: %v", err)
 	}
 	var copies int
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_customer_account_attachments WHERE file_id=$1`, fileID).Scan(&copies); err != nil || copies != 2 {

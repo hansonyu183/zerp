@@ -236,19 +236,12 @@ FROM bob_objects object
 JOIN bob_operating_entities current ON current.object_id=object.id
 JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
   AND approved.domain='dcl' AND approved.entity='operating-entity'
-LEFT JOIN LATERAL (
-  SELECT id,status FROM approval_entries
-  WHERE domain='dcl' AND entity='operating-entity' AND subject_id=object.id
-    AND status IN ('DRAFT','PENDING')
-  ORDER BY version_no DESC LIMIT 1
-) candidate ON true
 WHERE object.entity='operating-entity'
   AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
        OR current.legal_name ILIKE '%'||$1::text||'%')
   AND ($2::integer=-1 OR current.enabled=($2::integer=1))
   AND (cardinality($3::text[])=0
-       OR approved.status=ANY($3::text[])
-       OR candidate.status=ANY($3::text[]))
+       OR approved.status=ANY($3::text[]))
 `
 
 type CountBobOperatingEntitiesParams struct {
@@ -3349,24 +3342,17 @@ const listBobOperatingEntities = `-- name: ListBobOperatingEntities :many
 SELECT object.id AS object_id, object.entity, object.code,
        object.revision AS object_revision, current.enabled, current.updated_at,
        approved.id AS approval_entry_id,
-       COALESCE(candidate.id,'')::text AS open_approval_entry_id
+       ''::text AS open_approval_entry_id
 FROM bob_objects object
 JOIN bob_operating_entities current ON current.object_id=object.id
 JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
   AND approved.domain='dcl' AND approved.entity='operating-entity'
-LEFT JOIN LATERAL (
-  SELECT id,status,version_no FROM approval_entries
-  WHERE domain='dcl' AND entity='operating-entity' AND subject_id=object.id
-    AND status IN ('DRAFT','PENDING')
-  ORDER BY version_no DESC LIMIT 1
-) candidate ON true
 WHERE object.entity='operating-entity'
   AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
        OR current.legal_name ILIKE '%'||$1::text||'%')
   AND ($2::integer=-1 OR current.enabled=($2::integer=1))
   AND (cardinality($3::text[])=0
-       OR approved.status=ANY($3::text[])
-       OR candidate.status=ANY($3::text[]))
+       OR approved.status=ANY($3::text[]))
 ORDER BY
   CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN current.updated_at END ASC,
   CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN current.updated_at END DESC,
@@ -3374,10 +3360,10 @@ ORDER BY
   CASE WHEN $4::text='code' AND $5::text='desc' THEN object.code END DESC,
   CASE WHEN $4::text='name' AND $5::text='asc' THEN current.legal_name END ASC,
   CASE WHEN $4::text='name' AND $5::text='desc' THEN current.legal_name END DESC,
-  CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(candidate.status,approved.status) END ASC,
-  CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(candidate.status,approved.status) END DESC,
-  CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(candidate.version_no,approved.version_no) END ASC,
-  CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(candidate.version_no,approved.version_no) END DESC,
+  CASE WHEN $4::text='status' AND $5::text='asc' THEN approved.status END ASC,
+  CASE WHEN $4::text='status' AND $5::text='desc' THEN approved.status END DESC,
+  CASE WHEN $4::text='version' AND $5::text='asc' THEN approved.version_no END ASC,
+  CASE WHEN $4::text='version' AND $5::text='desc' THEN approved.version_no END DESC,
   object.id DESC
 LIMIT $7 OFFSET $6
 `
@@ -5355,7 +5341,7 @@ func (q *Queries) TouchBobObject(ctx context.Context, arg TouchBobObjectParams) 
 }
 
 const updateDCLCustomerAccountVersion = `-- name: UpdateDCLCustomerAccountVersion :execrows
-UPDATE dcl_customer_account_versions SET name=$1,customer_type=$2,customer_type_code=$3,customer_type_name=$4,short_name=$5,contact_name=$6,contact_phone=$7,email=$8,address=$9,settlement_method_id=$10,settlement_method_name=$11,settlement_term_code=$12,settlement_rule_type=$13,settlement_due_days=$14,settlement_month_offset=$15,settlement_cutoff_day=$16,settlement_sales_surcharge_cents=$17,payment_method_id=$18,payment_method_name=$19,payment_sales_surcharge_cents=$20,operating_entity_id=$21,operating_entity_approval_entry_id=$22,operating_entity_code=$23,operating_entity_name=$24,operating_entity_tax_number=$25,operating_entity_address=$26,operating_entity_phone=$27,default_transport_method_code=$28,default_transport_method_name=$29,transport_surcharge_cents=$30,pricing_policy=$31,primary_sales_attribution_type=$32,primary_sales_subject_id=$33,primary_sales_subject_approval_entry_id=$34,primary_sales_subject_code=$35,primary_sales_subject_name=$36,internal_reminder=$37,default_sales_order_remark=$38,enabled=$39 WHERE approval_entry_id=$40
+UPDATE dcl_customer_account_versions SET name=$1,customer_type=$2,customer_type_code=$3,customer_type_name=$4,short_name=$5,contact_name=$6,contact_phone=$7,email=$8,address=$9,settlement_method_id=$10,settlement_method_code=$11,settlement_method_name=$12,settlement_term_code=$13,settlement_rule_type=$14,settlement_due_days=$15,settlement_month_offset=$16,settlement_cutoff_day=$17,settlement_sales_surcharge_cents=$18,payment_method_id=$19,payment_method_code=$20,payment_method_name=$21,payment_sales_surcharge_cents=$22,operating_entity_id=$23,operating_entity_approval_entry_id=$24,operating_entity_code=$25,operating_entity_name=$26,operating_entity_tax_number=$27,operating_entity_address=$28,operating_entity_phone=$29,default_transport_method_code=$30,default_transport_method_name=$31,transport_surcharge_cents=$32,pricing_policy=$33,primary_sales_attribution_type=$34,primary_sales_subject_id=$35,primary_sales_subject_approval_entry_id=$36,primary_sales_subject_code=$37,primary_sales_subject_name=$38,internal_reminder=$39,default_sales_order_remark=$40,enabled=$41 WHERE approval_entry_id=$42
 `
 
 type UpdateDCLCustomerAccountVersionParams struct {
@@ -5369,6 +5355,7 @@ type UpdateDCLCustomerAccountVersionParams struct {
 	Email                              *string `db:"email" json:"email"`
 	Address                            *string `db:"address" json:"address"`
 	SettlementMethodID                 *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode               *string `db:"settlement_method_code" json:"settlement_method_code"`
 	SettlementMethodName               *string `db:"settlement_method_name" json:"settlement_method_name"`
 	SettlementTermCode                 *string `db:"settlement_term_code" json:"settlement_term_code"`
 	SettlementRuleType                 *string `db:"settlement_rule_type" json:"settlement_rule_type"`
@@ -5377,6 +5364,7 @@ type UpdateDCLCustomerAccountVersionParams struct {
 	SettlementCutoffDay                int32   `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
 	SettlementSalesSurchargeCents      int64   `db:"settlement_sales_surcharge_cents" json:"settlement_sales_surcharge_cents"`
 	PaymentMethodID                    *string `db:"payment_method_id" json:"payment_method_id"`
+	PaymentMethodCode                  *string `db:"payment_method_code" json:"payment_method_code"`
 	PaymentMethodName                  *string `db:"payment_method_name" json:"payment_method_name"`
 	PaymentSalesSurchargeCents         int64   `db:"payment_sales_surcharge_cents" json:"payment_sales_surcharge_cents"`
 	OperatingEntityID                  string  `db:"operating_entity_id" json:"operating_entity_id"`
@@ -5413,6 +5401,7 @@ func (q *Queries) UpdateDCLCustomerAccountVersion(ctx context.Context, arg Updat
 		arg.Email,
 		arg.Address,
 		arg.SettlementMethodID,
+		arg.SettlementMethodCode,
 		arg.SettlementMethodName,
 		arg.SettlementTermCode,
 		arg.SettlementRuleType,
@@ -5421,6 +5410,7 @@ func (q *Queries) UpdateDCLCustomerAccountVersion(ctx context.Context, arg Updat
 		arg.SettlementCutoffDay,
 		arg.SettlementSalesSurchargeCents,
 		arg.PaymentMethodID,
+		arg.PaymentMethodCode,
 		arg.PaymentMethodName,
 		arg.PaymentSalesSurchargeCents,
 		arg.OperatingEntityID,

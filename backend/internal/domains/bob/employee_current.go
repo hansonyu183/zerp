@@ -72,7 +72,7 @@ func employeeAuxiliarySnapshot(reference AuxiliaryReference) (EmployeeReferenceS
 	return snapshot, nil
 }
 
-func (s *Service) ResolveEmployeeAuxiliaryReferences(ctx context.Context, tx pgx.Tx, data EmployeeData, _ bool) (EmployeeData, error) {
+func (s *Service) ResolveEmployeeAuxiliaryReferences(ctx context.Context, tx pgx.Tx, data EmployeeData, exact bool) (EmployeeData, error) {
 	validated, err := ValidateEmployeeData(data)
 	if err != nil {
 		return EmployeeData{}, err
@@ -90,6 +90,12 @@ func (s *Service) ResolveEmployeeAuxiliaryReferences(ctx context.Context, tx pgx
 			continue
 		}
 		input := **target.value
+		if exact {
+			if input.Code == "" || input.Name == "" {
+				return EmployeeData{}, domainError(ErrorConflict, "Employee auxiliary snapshot is incomplete", nil, nil)
+			}
+			continue
+		}
 		var reference AuxiliaryReference
 		reference, err = s.auxiliaryResolver.ResolveCurrentAuxiliaryReference(ctx, tx, target.entity, input.ObjectID)
 		if err != nil {

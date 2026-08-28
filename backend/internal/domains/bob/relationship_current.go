@@ -16,8 +16,14 @@ type RelationshipIdentity struct {
 	ObjectRevision                             int64
 }
 
-func (s *Service) ResolveOtherUnitDeclaration(ctx context.Context, tx pgx.Tx, data DetailView, _ bool) (DetailView, error) {
+func (s *Service) ResolveOtherUnitDeclaration(ctx context.Context, tx pgx.Tx, data DetailView, exact bool) (DetailView, error) {
 	if data.SettlementMethodID == "" {
+		return validateDetailData(EntityOtherUnit, data)
+	}
+	if exact {
+		if data.SettlementMethodCode == "" || data.SettlementMethodName == "" {
+			return DetailView{}, domainError(ErrorConflict, "settlement method snapshot is incomplete", nil, nil)
+		}
 		return validateDetailData(EntityOtherUnit, data)
 	}
 	resolved, err := s.resolveSettlementSnapshot(ctx, tx, data)
@@ -373,19 +379,9 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 
 // ValidateCustomerAccountReferences proves a stored declaration still names
 // exact approved snapshots before it can be submitted or approved.
-func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerPartyID, settlementID, settlementEntryID, paymentID, paymentEntryID, attributionType, attributionID, attributionEntryID string) error {
+func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerPartyID, _, _, _, _, attributionType, attributionID, attributionEntryID string) error {
 	if tx == nil || !validID(customerPartyID) || !validID(attributionID) || !validID(attributionEntryID) {
 		return domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
-	}
-	if settlementID != "" {
-		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID); err != nil {
-			return err
-		}
-	}
-	if paymentID != "" {
-		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID); err != nil {
-			return err
-		}
 	}
 	entity := EntitySalesPartner
 	if attributionType == "INTERNAL_EMPLOYEE" {

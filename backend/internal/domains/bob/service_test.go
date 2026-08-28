@@ -41,6 +41,34 @@ func TestPartyQueryRequiresFixedPageSize(t *testing.T) {
 	}
 }
 
+func TestExactAuxiliarySnapshotsDoNotRequireCurrentSource(t *testing.T) {
+	t.Parallel()
+	service := &Service{}
+	const objectID = "01JAVX00000000000000000011"
+
+	employee, err := service.ResolveEmployeeAuxiliaryReferences(t.Context(), nil, EmployeeData{
+		Department: &EmployeeReferenceSnapshot{ObjectID: objectID, Code: "DEP-0001", Name: "生产部"},
+	}, true)
+	if err != nil || employee.Department == nil || employee.Department.Name != "生产部" {
+		t.Fatalf("exact employee snapshot = %+v, err = %v", employee, err)
+	}
+
+	other, err := service.ResolveOtherUnitDeclaration(t.Context(), nil, DetailView{
+		SettlementMethodID: objectID, SettlementMethodCode: "SET-0001", SettlementMethodName: "预付",
+		TermCode: SettlementTermPrepaid, RuleType: SettlementRuleRelativeDays,
+	}, true)
+	if err != nil || other.SettlementMethodName != "预付" {
+		t.Fatalf("exact settlement snapshot = %+v, err = %v", other, err)
+	}
+
+	vehicle, err := service.ResolveVehicleType(t.Context(), nil, VehicleData{
+		Name: "车辆", PlateNumber: "粤A12345", VehicleTypeObjectID: objectID, VehicleType: "DIT-0001", VehicleTypeName: "厢式货车",
+	}, true)
+	if err != nil || vehicle.VehicleTypeName != "厢式货车" {
+		t.Fatalf("exact vehicle type snapshot = %+v, err = %v", vehicle, err)
+	}
+}
+
 func TestPartyTaxNumberHasSinglePublicSource(t *testing.T) {
 	t.Parallel()
 	_, _, err := validatePartyData(PartyCreateData{

@@ -112,6 +112,7 @@ async function changeDclOperatingEntityEnabled(
 
 export const dclOperatingEntityLifecyclePort: DclDeclarationLifecyclePort<DclOperatingEntityListItem> =
   {
+    unsubmitReasonRequired: true,
     run: runDclOperatingEntityLifecycle,
     changeEnabled: changeDclOperatingEntityEnabled,
   }

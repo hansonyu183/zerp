@@ -17,7 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const reasonTarget = ref<{
   row: components['schemas']['DclPartyListItem']
-  action: 'unsubmit' | 'reject' | 'unapprove'
+  action: 'reject' | 'unapprove'
 } | null>(null)
 const reason = ref('')
 type DclPartyListItem = components['schemas']['DclPartyListItem']
@@ -178,11 +178,8 @@ function selectAction(action: string, row: DclPartyListItem): void {
   else if (action === 'edit') void vm.open(row, 'edit')
   else if (action === 'versions') void vm.openVersions(row)
   else if (action === 'audit') void vm.openAudit(row)
-  else if (
-    action === 'unsubmit' ||
-    action === 'reject' ||
-    action === 'unapprove'
-  ) {
+  else if (action === 'unsubmit') void vm.runAction(row, 'unsubmit')
+  else if (action === 'reject' || action === 'unapprove') {
     reasonTarget.value = { row, action }
     reason.value = ''
   } else if (action === 'delete') {
@@ -572,9 +569,7 @@ watch(
         :title="
           reasonTarget?.action === 'reject'
             ? '审核驳回'
-            : reasonTarget?.action === 'unapprove'
-              ? '撤销批准'
-              : '撤回提交'
+            : '撤销批准'
         "
         ><v-card-text
           ><v-textarea

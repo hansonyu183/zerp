@@ -35,7 +35,6 @@ const versionsLength = computed(() =>
 const auditLength = computed(() =>
   Math.max(1, Math.ceil(vm.auditTotal / vm.auditPageSize)),
 )
-void vm.query()
 watch(
   () => [route.query.objectId, route.query.mode] as const,
   ([objectId, mode]) => {
@@ -137,9 +136,11 @@ function selectAction(action: string, row: DclRelationshipListItem): void {
   else if (action === 'reject') {
     reviewTarget.value = row
     reviewComment.value = ''
-  } else if (action === 'unsubmit' || action === 'unapprove') {
+  } else if (action === 'unsubmit') {
+    void vm.reverse(row, 'unsubmit', '')
+  } else if (action === 'unapprove') {
     reverseTarget.value = row
-    reverseAction.value = action
+    reverseAction.value = 'unapprove'
     reverseReason.value = ''
   } else if (action === 'toggle-enabled') void vm.changeEnabled(row)
   else if (action === 'versions') void vm.openVersions(row)

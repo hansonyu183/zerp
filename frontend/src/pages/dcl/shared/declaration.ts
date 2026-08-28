@@ -62,6 +62,7 @@ export interface DclDeclarationActionAvailability {
 }
 
 export type DclDeclarationLifecyclePort<TItem> = {
+  unsubmitReasonRequired?: boolean
   run: (
     item: TItem,
     action: DclDeclarationWireAction,
@@ -250,7 +251,10 @@ export function useDclDeclarationLifecycle<TItem>(
   ): Promise<boolean> {
     if (!actionAvailability(item)[action] || actionLoading.value) return false
     const normalizedReason = reason.trim()
-    if (!normalizedReason) {
+    if (
+      (action === 'unapprove' || port.unsubmitReasonRequired) &&
+      !normalizedReason
+    ) {
       errorMessage.value = '反向操作原因不能为空。'
       return false
     }

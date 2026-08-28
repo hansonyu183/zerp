@@ -137,4 +137,29 @@ describe('DCL relationship view model', () => {
       reason: '业务调整',
     })
   })
+
+  it('unsubmits without collecting or sending a reason', async () => {
+    useSessionStore().permissions = ['/dcl/other-unit/unsubmit']
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    const pending = {
+      ...otherUnitRow,
+      openVersion: {
+        ...otherUnitRow.latestApproved!,
+        approval: {
+          ...otherUnitRow.latestApproved!.approval,
+          status: 'PENDING' as const,
+        },
+      },
+    }
+    const vm = useDclRelationshipViewModel('other-unit')
+
+    await expect(vm.reverse(pending, 'unsubmit', '')).resolves.toBe(true)
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/other-unit/unsubmit', {
+      objectId: 'OUT-1',
+      approvalEntryId: 'REL-V1',
+      approvalRevision: 2,
+    })
+  })
 })

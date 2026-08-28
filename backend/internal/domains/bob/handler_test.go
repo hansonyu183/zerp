@@ -315,6 +315,52 @@ func TestHandlerDoesNotRegisterCustomerWritePaths(t *testing.T) {
 	}
 }
 
+func TestCurrentObjectViewExposesDCLSource(t *testing.T) {
+	view := ObjectView{
+		Approval: approval.VersionMeta{
+			ApprovalEntryID: "01J00000000000000000000010",
+			VersionNo:       7,
+		},
+	}
+	payload, err := json.Marshal(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields["sourceApprovalEntryId"] != "01J00000000000000000000010" {
+		t.Fatalf("sourceApprovalEntryId = %#v", fields["sourceApprovalEntryId"])
+	}
+	if fields["sourceVersionNo"] != float64(7) {
+		t.Fatalf("sourceVersionNo = %#v", fields["sourceVersionNo"])
+	}
+}
+
+func TestCurrentQueryItemExposesDCLSourceInsteadOfApprovalSummary(t *testing.T) {
+	item := QueryItem{
+		LatestApproved: &VersionSummary{Approval: approval.VersionMeta{
+			ApprovalEntryID: "01J00000000000000000000010",
+			VersionNo:       7,
+		}},
+	}
+	payload, err := json.Marshal(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if fields["sourceApprovalEntryId"] != "01J00000000000000000000010" || fields["sourceVersionNo"] != float64(7) {
+		t.Fatalf("current source = %#v", fields)
+	}
+	if _, exists := fields["latestApproved"]; exists {
+		t.Fatalf("legacy approval summary is public: %#v", fields)
+	}
+}
+
 func TestHandlerUsesExactPermissionPathAndPrincipal(t *testing.T) {
 	service := &serviceStub{}
 	var permission string

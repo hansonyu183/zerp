@@ -149,8 +149,8 @@ export const dclProductConfig: DclProductConfig = defineBobEntityConfig({
       key: 'defaultInputUnit',
       label: '默认录入单位',
       value: (row) =>
-        row.openVersion?.summary.defaultInputUnitName ??
-        row.latestApproved?.summary.defaultInputUnitName ??
+        row.openVersion?.summary.defaultInputUnitId ??
+        row.latestApproved?.summary.defaultInputUnitId ??
         '',
     },
     {

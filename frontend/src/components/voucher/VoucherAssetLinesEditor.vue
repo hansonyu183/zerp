@@ -77,14 +77,12 @@ function auxReference(
 function employeeReference(
   row: components['schemas']['BobListItem'],
 ): SelectReference | null {
-  const version = row.openVersion ?? row.latestApproved
-  if (!version) return null
   return {
     objectId: row.objectId,
-    approvalEntryId: version.approval.approvalEntryId,
+    approvalEntryId: row.sourceApprovalEntryId,
     entity: row.entity,
     code: row.code,
-    name: String(version.summary.name ?? ''),
+    name: String(row.data.name ?? ''),
   }
 }
 async function loadReference(

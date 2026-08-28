@@ -1120,37 +1120,29 @@ describe('shared VOU entity view model', () => {
             {
               objectId: 'MATCHING',
               code: 'VEH-1',
-              latestApproved: {
-                approval: {
-                  approvalEntryId: 'VER-1',
-                  status: 'APPROVED',
+              sourceApprovalEntryId: 'VER-1',
+              sourceVersionNo: 1,
+              data: {
+                name: '匹配车辆',
+                carrierAffiliation: {
+                  type: 'EXTERNAL',
+                  serviceRelationshipObjectId: 'CARRIER',
                 },
-                summary: {
-                  name: '匹配车辆',
-                  carrierAffiliation: {
-                    type: 'EXTERNAL',
-                    serviceRelationshipObjectId: 'CARRIER',
-                  },
-                  bulkLiquidCapable: true,
-                },
+                bulkLiquidCapable: true,
               },
             },
             {
               objectId: 'OTHER',
               code: 'VEH-2',
-              latestApproved: {
-                approval: {
-                  approvalEntryId: 'VER-2',
-                  status: 'APPROVED',
+              sourceApprovalEntryId: 'VER-2',
+              sourceVersionNo: 1,
+              data: {
+                name: '其它车辆',
+                carrierAffiliation: {
+                  type: 'INTERNAL',
+                  operatingEntityId: 'OPERATING',
                 },
-                summary: {
-                  name: '其它车辆',
-                  carrierAffiliation: {
-                    type: 'INTERNAL',
-                    operatingEntityId: 'OPERATING',
-                  },
-                  bulkLiquidCapable: false,
-                },
+                bulkLiquidCapable: false,
               },
             },
           ],

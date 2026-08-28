@@ -47,7 +47,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	partyCurrentReader := bobdomain.NewPartyCurrentReader(db)
 	partyMergeEngine := bobdomain.NewPartyMergeEngine(db)
 	dclPartyService := dcldomain.NewPartyService(db, partyCurrentWriter, partyCurrentReader, partyMergeEngine, authorizer, eventBus)
-	bobService := bobdomain.NewService(db, auxiliaryResolver, authorizer, eventBus)
+	bobService := bobdomain.NewService(db, auxiliaryResolver)
 	dclOperatingEntityService := dcldomain.NewOperatingEntityService(db, bobService, authorizer, eventBus)
 	dclWarehouseService := dcldomain.NewWarehouseService(db, bobService, authorizer, eventBus)
 	dclVehicleService := dcldomain.NewVehicleService(db, bobService, authorizer, eventBus)

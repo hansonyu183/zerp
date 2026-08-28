@@ -493,7 +493,7 @@ func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 }
 
 type vouCustomerAuxiliaryResolver struct{}
@@ -546,7 +546,7 @@ func createApprovedCustomer(
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
 	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
-	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{}, authorizer, bus)
+	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{})
 	accounts := dcldomain.NewCustomerAccountService(pool, service, authorizer, bus)
 	customers := dcldomain.NewCustomerService(pool, service, parties, bobdomain.NewPartyCurrentReader(pool), accounts, authorizer, bus)
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{

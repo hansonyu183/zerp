@@ -36,7 +36,7 @@ func trustedAccountingActor(t *testing.T, requestID string) approval.Actor {
 func newAccountingIntegrationBOBService(pool *pgxpool.Pool, bus *txevent.Bus) *bobdomain.Service {
 	authorizer := authorization.Func(nil)
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 }
 
 func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput) voudomain.ReferenceInput {

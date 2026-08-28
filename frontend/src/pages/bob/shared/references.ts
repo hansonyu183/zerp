@@ -219,7 +219,7 @@ export function useBobReferences(
                   name:
                     'partyDisplayName' in item
                       ? item.partyDisplayName
-                      : (item.latestApproved?.summary.name ?? ''),
+                      : (item.data.name ?? ''),
                 }),
                 value,
               },

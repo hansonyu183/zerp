@@ -2,7 +2,6 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { BobDetailView } from './BobDetailView';
 import type { BobEntity } from './BobEntity';
 import type { BobRelationshipIdentityView } from './BobRelationshipIdentityView';
@@ -13,11 +12,11 @@ export type BobObjectView = {
   objectRevision: number;
   enabled: boolean;
   /**
-   * DCL current 投影的精确来源 Approval Entry；employee 必须返回该值。
+   * DCL current 投影的精确来源 Approval Entry。
    */
-  sourceApprovalEntryId?: string | null;
+  sourceApprovalEntryId: string;
+  sourceVersionNo: number;
   updatedAt: string;
-  approval: ApprovalVersionMeta;
   data: BobDetailView;
   relationship?: BobRelationshipIdentityView;
 };

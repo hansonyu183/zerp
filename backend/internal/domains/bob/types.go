@@ -80,13 +80,6 @@ var publicEntities = [...]string{
 	EntityOperatingEntity,
 }
 
-var publicApprovalEntities = [...]string{
-	EntityCustomer,
-	EntityCustomerAccount,
-	EntityOtherUnit,
-	EntitySalesPartner,
-}
-
 type ErrorKind int
 
 const (
@@ -535,6 +528,31 @@ type ObjectView struct {
 	Relationship   *RelationshipIdentityView `json:"relationship,omitempty"`
 }
 
+// MarshalJSON keeps the DCL Approval entry as an internal source pointer.
+// BOB exposes the current projection only; it never exposes an independent
+// BOB approval lifecycle to callers.
+func (view ObjectView) MarshalJSON() ([]byte, error) {
+	type currentView struct {
+		ObjectID              string                    `json:"objectId"`
+		Entity                string                    `json:"entity"`
+		Code                  string                    `json:"code"`
+		ObjectRevision        int64                     `json:"objectRevision"`
+		Enabled               bool                      `json:"enabled"`
+		SourceApprovalEntryID string                    `json:"sourceApprovalEntryId"`
+		SourceVersionNo       int32                     `json:"sourceVersionNo"`
+		Data                  DetailView                `json:"data"`
+		UpdatedAt             time.Time                 `json:"updatedAt"`
+		Relationship          *RelationshipIdentityView `json:"relationship,omitempty"`
+	}
+	return json.Marshal(currentView{
+		ObjectID: view.ObjectID, Entity: view.Entity, Code: view.Code,
+		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		SourceApprovalEntryID: view.Approval.ApprovalEntryID,
+		SourceVersionNo:       view.Approval.VersionNo,
+		Data:                  view.Data, UpdatedAt: view.UpdatedAt, Relationship: view.Relationship,
+	})
+}
+
 type RelationshipIdentityView struct {
 	PartyID             string `json:"partyId"`
 	PartyKind           string `json:"partyKind"`
@@ -564,6 +582,38 @@ type QueryItem struct {
 	OpenVersion    *VersionSummary           `json:"openVersion"`
 	UpdatedAt      time.Time                 `json:"updatedAt"`
 	Relationship   *RelationshipIdentityView `json:"relationship,omitempty"`
+}
+
+// MarshalJSON exposes the current DCL projection rather than the internal
+// approval summary that was formerly used by BOB's retired lifecycle.
+func (item QueryItem) MarshalJSON() ([]byte, error) {
+	type currentItem struct {
+		ObjectID              string                    `json:"objectId"`
+		Entity                string                    `json:"entity"`
+		Code                  string                    `json:"code"`
+		ObjectRevision        int64                     `json:"objectRevision"`
+		Enabled               bool                      `json:"enabled"`
+		SourceApprovalEntryID string                    `json:"sourceApprovalEntryId"`
+		SourceVersionNo       int32                     `json:"sourceVersionNo"`
+		Data                  DetailView                `json:"data"`
+		UpdatedAt             time.Time                 `json:"updatedAt"`
+		Relationship          *RelationshipIdentityView `json:"relationship,omitempty"`
+	}
+	current := item.LatestApproved
+	if current == nil {
+		return json.Marshal(currentItem{
+			ObjectID: item.ObjectID, Entity: item.Entity, Code: item.Code,
+			ObjectRevision: item.ObjectRevision, Enabled: item.Enabled,
+			UpdatedAt: item.UpdatedAt, Relationship: item.Relationship,
+		})
+	}
+	return json.Marshal(currentItem{
+		ObjectID: item.ObjectID, Entity: item.Entity, Code: item.Code,
+		ObjectRevision: item.ObjectRevision, Enabled: item.Enabled,
+		SourceApprovalEntryID: current.Approval.ApprovalEntryID,
+		SourceVersionNo:       current.Approval.VersionNo,
+		Data:                  current.Summary, UpdatedAt: item.UpdatedAt, Relationship: item.Relationship,
+	})
 }
 
 type Page[T any] struct {

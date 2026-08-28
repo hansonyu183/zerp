@@ -792,25 +792,8 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	return input, nil
 }
 
-func validWriteInput(entity, objectID, versionID string, revision int64, actorID, requestID string) bool {
-	return approvalEntity(entity) && validID(objectID) && validID(versionID) && revision >= 1 && validActorAndRequest(actorID, requestID)
-}
-
-func validDeleteInput(entity string, input DeleteInput) bool {
-	return approvalEntity(entity) &&
-		validID(input.ObjectID) &&
-		validID(input.ApprovalEntryID) &&
-		input.ObjectRevision >= 1 &&
-		input.ApprovalRevision >= 1
-}
-
 func validActorAndRequest(actorID, requestID string) bool {
 	return validID(actorID) && requestID != "" && len(requestID) <= 128
-}
-
-func validHistoryInput(entity string, input HistoryInput) bool {
-	_, validPage := pageOffset(input.Page, input.PageSize)
-	return approvalEntity(entity) && validID(input.ObjectID) && validPage
 }
 
 func pageOffset(page, pageSize int) (int32, bool) {
@@ -823,11 +806,6 @@ func pageOffset(page, pageSize int) (int32, bool) {
 	}
 	offset := pageIndex * int64(pageSize)
 	return int32(offset), true
-}
-
-func mustPageOffset(page, pageSize int) int32 {
-	offset, _ := pageOffset(page, pageSize)
-	return offset
 }
 
 func validEntity(entity string) bool { return slices.Contains(entities[:], entity) }

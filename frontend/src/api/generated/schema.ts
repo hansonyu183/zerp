@@ -2876,13 +2876,12 @@ export interface components {
       "SalesPartnerGetResponse": Models.SalesPartnerGetResponse;
       "BobReadableEntity": Models.BobReadableEntity;
       "BobQueryRequest": Models.BobQueryRequest;
-      "BobVersionSummary": Models.BobVersionSummary;
+      "BobDetailData": Models.BobDetailData;
+      "BobDetailView": Models.BobDetailView;
+      "BobRelationshipIdentityView": Models.BobRelationshipIdentityView;
       "BobListItem": Models.BobListItem;
       "BobListPage": Models.BobListPage;
       "BobQueryResponse": Models.BobQueryResponse;
-      "data": Models.data;
-      "BobDetailView": Models.BobDetailView;
-      "BobRelationshipIdentityView": Models.BobRelationshipIdentityView;
       "BobObjectView": Models.BobObjectView;
       "BobObjectResponse": Models.BobObjectResponse;
       "VouQueryRequest": Models.VouQueryRequest;

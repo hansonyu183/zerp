@@ -234,20 +234,10 @@ export async function queryEmployeeReference(
         sort: [{ field: 'name', order: 'asc' }],
       },
     )
-    return data.items.flatMap((item) => {
-      const version = item.latestApproved
-      return version
-        ? [
-            {
-              value: item.objectId,
-              title: formatReferenceLabel({
-                code: item.code,
-                name: String(version.summary.name ?? ''),
-              }),
-            },
-          ]
-        : []
-    })
+    return data.items.map((item) => ({
+      value: item.objectId,
+      title: formatReferenceLabel({ code: item.code, name: String(item.data.name ?? '') }),
+    }))
   }
   const { data } = await apiClient.postContract(`aux/${entity}/query`, {
     page: 1,

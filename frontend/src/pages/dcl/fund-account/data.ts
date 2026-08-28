@@ -130,19 +130,10 @@ export async function queryDclFundAccountOperatingEntities(
     },
     sort: [{ field: 'name', order: 'asc' }],
   })
-  return data.items.flatMap((item) => {
-    const version = item.latestApproved
-    if (!version) return []
-    return [
-      {
-        title: formatReferenceLabel({
-          code: item.code,
-          name: String(version.summary.name ?? ''),
-        }),
-        value: item.objectId,
-      },
-    ]
-  })
+  return data.items.map((item) => ({
+    title: formatReferenceLabel({ code: item.code, name: String(item.data.name ?? '') }),
+    value: item.objectId,
+  }))
 }
 
 export async function createDclFundAccount(

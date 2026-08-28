@@ -429,6 +429,7 @@ async function createEffectiveBob(
   data: Record<string, unknown>,
 ): Promise<BobMutation> {
   if (
+    entity === 'operating-entity' ||
     entity === 'warehouse' ||
     entity === 'vehicle' ||
     entity === 'fund-account' ||
@@ -467,10 +468,7 @@ async function createEffectiveBob(
     })
     return { ...approved, code: view.code }
   }
-  const created = await operator.post<BobMutation>(`bob/${entity}/create`, {
-    data,
-  })
-  return approveBob(operator, reviewer, entity, created)
+  throw new Error(`Unsupported DCL seed entity: ${entity}`)
 }
 
 async function createEffectiveEmployment(
@@ -575,34 +573,6 @@ async function createEffectiveOtherUnit(
     objectId: approved.objectId,
   })
   return { ...approved, code: view.code }
-}
-
-async function approveBob(
-  operator: RealApi,
-  reviewer: RealApi,
-  entity: string,
-  created: BobMutation,
-): Promise<BobMutation> {
-  const submitted = await operator.post<BobMutation>(`bob/${entity}/submit`, {
-    objectId: created.objectId,
-    approvalEntryId: created.approval.approvalEntryId,
-    approvalRevision: created.approval.revision,
-  })
-  const approved = await reviewer.post<BobMutation>(`bob/${entity}/approve`, {
-    objectId: submitted.objectId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
-  const effective = approved.enabled
-    ? approved
-    : await operator.post<BobMutation>(`bob/${entity}/enable`, {
-        objectId: approved.objectId,
-        objectRevision: approved.objectRevision,
-      })
-  const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
-    objectId: effective.objectId,
-  })
-  return { ...effective, code: view.code }
 }
 
 async function fixedSettlementMethod(

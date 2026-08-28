@@ -24,7 +24,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
-	bobService := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	bobService := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	declarations := dcldomain.NewOperatingEntityService(pool, bobService, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, bobService, authorizer, bus)
 	fundAccounts := dcldomain.NewFundAccountService(pool, bobService, authorizer, bus)

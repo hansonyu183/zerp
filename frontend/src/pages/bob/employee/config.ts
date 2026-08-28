@@ -48,23 +48,23 @@ export const employeeConfig = defineBobEntityConfig({
       key: 'operatingEntity',
       label: '经营主体',
       value: (row) =>
-        bobListActiveVersion(row).summary.operatingEntityName ?? '—',
+        row.relationship?.operatingEntityName ?? '—',
     },
     {
       key: 'employeeCategory',
       label: '人员类别',
       value: (row) =>
-        bobListActiveVersion(row).summary.employeeCategoryName ?? '—',
+        bobListActiveVersion(row).summary.categoryId ?? '—',
     },
     {
       key: 'department',
       label: '部门',
-      value: (row) => bobListActiveVersion(row).summary.departmentName ?? '—',
+      value: (row) => bobListActiveVersion(row).summary.departmentId ?? '—',
     },
     {
       key: 'position',
       label: '岗位',
-      value: (row) => bobListActiveVersion(row).summary.positionName ?? '—',
+      value: (row) => bobListActiveVersion(row).summary.positionId ?? '—',
     },
     {
       key: 'enabled',

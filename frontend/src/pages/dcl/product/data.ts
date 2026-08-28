@@ -29,20 +29,20 @@ function listItem(
     value
       ? {
           approval: value.approval,
-          summary: { ...value.data },
+          summary: { ...value.data } as never,
         }
       : null
   return {
     ...item,
     latestApproved: version(item.latestApproved),
     openVersion: version(item.openVersion),
-  }
+  } as unknown as DclProductListItem
 }
 
 function productView(
   value: components['schemas']['DclProductView'],
 ): DclProductView {
-  return { ...value, data: { ...value.data } as DclProductView['data'] }
+  return { ...value, data: { ...value.data } as DclProductView['data'] } as unknown as DclProductView
 }
 
 export async function queryDclProducts(request: {

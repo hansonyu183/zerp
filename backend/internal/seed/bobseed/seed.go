@@ -72,7 +72,6 @@ type lifecycleService interface {
 }
 
 type relationshipAwareLifecycleService struct {
-	lifecycleService
 	relationships     *dcldomain.RelationshipService
 	business          *bob.Service
 	customers         *dcldomain.CustomerService
@@ -192,7 +191,7 @@ func (service relationshipAwareLifecycleService) Create(
 			Enabled: account.Enabled, Approval: account.OpenVersion.Approval,
 		}, nil
 	}
-	return service.lifecycleService.Create(ctx, entity, input, actor)
+	return bob.MutationResult{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 }
 
 func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context.Context, actor approval.Actor) (string, error) {
@@ -409,7 +408,7 @@ func (service relationshipAwareLifecycleService) Save(
 	if entity == bob.EntityCustomerAccount {
 		return bob.MutationResult{}, errors.New("seed customer account reconciliation is not supported")
 	}
-	return service.lifecycleService.Save(ctx, entity, input, actor)
+	return bob.MutationResult{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 }
 
 func (service relationshipAwareLifecycleService) Get(
@@ -456,7 +455,7 @@ func (service relationshipAwareLifecycleService) Get(
 		return customerAccountView(view), err
 	}
 	if entity != bob.EntityOtherUnit {
-		return service.lifecycleService.Get(ctx, entity, input)
+		return bob.ObjectView{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 	}
 	view, err := service.relationships.GetOtherUnit(ctx, dcldomain.RelationshipGetInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID}, mustSeedActor("seed-bob-other-unit-get"))
 	if err != nil {
@@ -569,7 +568,7 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 		return warehouseMutation(result), err
 	}
 	if entity != bob.EntityOperatingEntity {
-		return service.lifecycleService.Submit(ctx, entity, input, actor)
+		return bob.MutationResult{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 	}
 	result, err := service.operatingEntities.Submit(ctx, dcldomain.OperatingEntityVersionInput{
 		ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision,
@@ -698,7 +697,7 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 		return warehouseMutation(result), err
 	}
 	if entity != bob.EntityOperatingEntity {
-		return service.lifecycleService.Unsubmit(ctx, entity, input, actor)
+		return bob.MutationResult{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 	}
 	result, err := service.operatingEntities.Unsubmit(ctx, dcldomain.OperatingEntityReviewInput{
 		ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
@@ -743,7 +742,7 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 		return warehouseMutation(result), err
 	}
 	if entity != bob.EntityOperatingEntity {
-		return service.lifecycleService.Approve(ctx, entity, input, actor)
+		return bob.MutationResult{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 	}
 	result, err := service.operatingEntities.Approve(ctx, dcldomain.OperatingEntityVersionInput{
 		ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision,
@@ -794,7 +793,7 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 		return warehouseMutation(result), err
 	}
 	if entity != bob.EntityOperatingEntity {
-		return service.lifecycleService.Unapprove(ctx, entity, input, actor)
+		return bob.MutationResult{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 	}
 	result, err := service.operatingEntities.Unapprove(ctx, dcldomain.OperatingEntityReviewInput{
 		ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
@@ -878,7 +877,7 @@ func (service relationshipAwareLifecycleService) Reject(ctx context.Context, ent
 		return warehouseMutation(result), err
 	}
 	if entity != bob.EntityOperatingEntity {
-		return service.lifecycleService.Reject(ctx, entity, input, actor)
+		return bob.MutationResult{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 	}
 	reason := ""
 	if input.Reason != nil {
@@ -1153,7 +1152,7 @@ func New(pool *pgxpool.Pool) *Seeder {
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	bus := txevent.NewBus()
 	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorizer, bus)
-	service := bob.NewService(pool, auxiliaryResolver, authorizer, bus)
+	service := bob.NewService(pool, auxiliaryResolver)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, service, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, service, authorizer, bus)
 	vehicles := dcldomain.NewVehicleService(pool, service, authorizer, bus)
@@ -1165,7 +1164,7 @@ func New(pool *pgxpool.Pool) *Seeder {
 	accounts := dcldomain.NewCustomerAccountService(pool, service, authorizer, bus)
 	customers := dcldomain.NewCustomerService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), accounts, authorizer, bus)
 	return &Seeder{
-		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: relationships,
+		service: relationshipAwareLifecycleService{relationships: relationships,
 			business: service, customers: customers, customerAccounts: accounts, auxiliary: auxiliary, pool: pool, operatingEntities: operatingEntities, warehouses: warehouses,
 			vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees,
 			suppliers: suppliers, parties: partyDeclarations},

@@ -16,17 +16,44 @@ export type BobForm = {
 }
 
 export type BobDetail = components['schemas']['BobDetailView']
-export type BobVersionSummary = components['schemas']['BobVersionSummary']
-export type BobListItem = components['schemas']['BobListItem']
+export type BobVersionSummary = {
+  approval: components['schemas']['ApprovalVersionMeta']
+  summary: BobDetail
+}
+// DCL list adapters retain their own lifecycle meta while BOB current rows
+// expose only sourceApprovalEntryId/sourceVersionNo.  Keep the adapter shape
+// local so DCL never depends on the BOB HTTP DTO for lifecycle state.
+export type BobListItem = components['schemas']['BobListItem'] & {
+  latestApproved: BobVersionSummary | null
+  openVersion: BobVersionSummary | null
+}
 
 export function bobListActiveVersion(item: BobListItem): BobVersionSummary {
   const version = item.openVersion ?? item.latestApproved
-  if (!version) throw new Error('业务对象缺少已批准版本和开放候选版本。')
-  return version
+  if (version) return version
+  return {
+    approval: {
+      approvalEntryId: item.sourceApprovalEntryId,
+      versionNo: item.sourceVersionNo,
+      status: 'APPROVED',
+      revision: 0,
+      createdBy: '',
+      createdAt: item.updatedAt,
+      updatedBy: '',
+      updatedAt: item.updatedAt,
+      submittedBy: null,
+      submittedAt: null,
+      approvedBy: null,
+      approvedAt: null,
+    },
+    summary: item.data,
+  }
 }
 
 export type BobVersionMeta = components['schemas']['ApprovalVersionMeta']
-export type BobObjectView = components['schemas']['BobObjectView']
+export type BobObjectView = components['schemas']['BobObjectView'] & {
+  approval: components['schemas']['ApprovalVersionMeta']
+}
 export type BobVersionHistoryItem = BobVersionMeta & {
   summary: Record<string, unknown>
 }

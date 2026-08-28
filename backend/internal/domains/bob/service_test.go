@@ -6,29 +6,11 @@ import (
 	"math"
 	"strings"
 	"testing"
-
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 func errorIsKind(err error, kind ErrorKind) bool {
 	var target *DomainError
 	return errors.As(err, &target) && target.Kind == kind
-}
-
-func TestObjectPrefixes(t *testing.T) {
-	t.Parallel()
-	expected := map[string]string{
-		EntityCustomer: "CUS", EntityCustomerAccount: "CUA", EntitySupplier: "SUP", EntityOtherUnit: "OTU", EntityEmployee: "EMP",
-		EntitySalesPartner: "SLP",
-		EntityProduct:      "PRD", EntityWarehouse: "WHS",
-		EntityVehicle: "VEH", EntityFundAccount: "FAC",
-		EntityOperatingEntity: "OPE",
-	}
-	for entity, prefix := range expected {
-		if actual := objectPrefix(entity); actual != prefix {
-			t.Fatalf("objectPrefix(%q) = %q, want %q", entity, actual, prefix)
-		}
-	}
 }
 
 func TestSalesPartnerCapabilitiesAreClosedAndRequiredForSubmission(t *testing.T) {
@@ -48,25 +30,6 @@ func TestSalesPartnerCapabilitiesAreClosedAndRequiredForSubmission(t *testing.T)
 	}
 	if err = validateEffectiveSalesPartnerCapabilities(nil); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("empty effective capabilities error = %v", err)
-	}
-}
-
-func TestGenericCreateRejectsOtherUnitWithoutPartyRelationship(t *testing.T) {
-	t.Parallel()
-	service := &Service{}
-	_, err := service.Create(t.Context(), EntityOtherUnit, CreateInput{}, approval.Actor{})
-	if !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("Create(other-unit) error = %v, want dedicated-operation validation", err)
-	}
-}
-
-func TestGenericSaveRejectsTypedRelationshipEntities(t *testing.T) {
-	t.Parallel()
-	service := &Service{}
-	for _, entity := range []string{EntityCustomer, EntityCustomerAccount, EntitySupplier, EntityOtherUnit, EntitySalesPartner} {
-		if _, err := service.Save(t.Context(), entity, SaveInput{}, approval.Actor{}); !errorIsKind(err, ErrorValidation) {
-			t.Fatalf("Save(%s) error = %v, want dedicated-operation validation", entity, err)
-		}
 	}
 }
 

@@ -5,7 +5,7 @@
 import type { BobProductFormulaInput } from './BobProductFormulaInput';
 import type { BobProductUnitConversionInput } from './BobProductUnitConversionInput';
 import type { VehicleCarrierAffiliation } from './VehicleCarrierAffiliation';
-export type data = {
+export type BobDetailData = {
   name?: string | null;
   unit?: string | null;
   currency?: string | null;

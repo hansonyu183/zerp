@@ -92,7 +92,7 @@ func New(
 	events := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, events)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.FailClosed{}, events)
+	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,

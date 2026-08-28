@@ -239,24 +239,6 @@ async function selectValue(
   await page.getByRole('option', { name: text, exact: true }).click()
 }
 
-async function approve(
-  operator: Api,
-  reviewer: Api,
-  entity: string,
-  mutation: Mutation,
-): Promise<Mutation> {
-  const submitted = await operator.ok<Mutation>(`bob/${entity}/submit`, {
-    objectId: mutation.objectId,
-    approvalEntryId: mutation.approval.approvalEntryId,
-    approvalRevision: mutation.approval.revision,
-  })
-  return reviewer.ok<Mutation>(`bob/${entity}/approve`, {
-    objectId: submitted.objectId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
-}
-
 async function approveDcl(
   operator: Api,
   reviewer: Api,
@@ -936,11 +918,7 @@ async function createApprovedBob(
       approvalEntryId: approved.approval.approvalEntryId,
     })
   }
-  const created = await operator.ok<Mutation>(`bob/${entity}/create`, { data })
-  const approved = await approve(operator, reviewer, entity, created)
-  return operator.ok<BobView>(`bob/${entity}/get`, {
-    objectId: approved.objectId,
-  })
+  throw new Error(`Unsupported DCL test entity: ${entity}`)
 }
 
 async function createApprovedEmployee(

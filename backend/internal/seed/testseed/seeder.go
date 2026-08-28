@@ -140,7 +140,7 @@ func New(
 	auxiliary := auxdomain.NewService(pool, seedAuthorizer{}, events)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), seedAuthorizer{}, events)
-	business := bobdomain.NewService(pool, auxiliaryResolver, seedAuthorizer{}, events)
+	business := bobdomain.NewService(pool, auxiliaryResolver)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, business, seedAuthorizer{}, events)
 	warehouses := dcldomain.NewWarehouseService(pool, business, seedAuthorizer{}, events)
 	vehicles := dcldomain.NewVehicleService(pool, business, seedAuthorizer{}, events)

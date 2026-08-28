@@ -66,7 +66,7 @@ export const productConfig = defineBobEntityConfig({
     {
       key: 'defaultInputUnit',
       label: '默认录入单位',
-      value: (row) => bobListActiveVersion(row).summary.defaultInputUnitName,
+      value: (row) => bobListActiveVersion(row).summary.defaultInputUnitId,
     },
     {
       key: 'model',

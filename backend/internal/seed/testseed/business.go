@@ -522,8 +522,7 @@ func (s *Seeder) ensureBusiness(
 			}
 			createErr = relationshipErr
 		default:
-			result, createErr = s.business.Create(ctx, sample.entity,
-				bobdomain.CreateInput{Data: data}, createActor)
+			createErr = fmt.Errorf("unsupported DCL seed entity %q", sample.entity)
 		}
 		if createErr != nil {
 			return bobdomain.ObjectView{}, 0, createErr
@@ -763,7 +762,7 @@ func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) 
 		return dclOtherUnitObjectView(view), getErr
 	}
 	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse && entity != bobdomain.EntityVehicle && entity != bobdomain.EntityFundAccount && entity != bobdomain.EntityProduct && entity != bobdomain.EntityEmployee {
-		return s.business.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
+		return bobdomain.ObjectView{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 	}
 	actor, err := seedActor(actorID, requestID(key, "get"))
 	if err != nil {
@@ -905,9 +904,7 @@ func (s *Seeder) advanceBusiness(
 			}, actor)
 			current = dclBusinessMutation(submitted)
 		} else {
-			current, err = s.business.Submit(ctx, sample.entity, bobdomain.VersionRevisionInput{
-				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision,
-			}, actor)
+			err = fmt.Errorf("unsupported DCL seed entity %q", sample.entity)
 		}
 		if err != nil {
 			return err
@@ -917,7 +914,6 @@ func (s *Seeder) advanceBusiness(
 	case string(current.Approval.Status) == sample.status:
 		return nil
 	case current.Approval.Status == approval.StatusPending && sample.status == approvedStatus:
-		comment := "测试数据：审核通过"
 		actor, actorErr := seedActor(reviewerID, requestID(sample.key, "approve"))
 		if actorErr != nil {
 			return actorErr
@@ -948,10 +944,7 @@ func (s *Seeder) advanceBusiness(
 				ApprovalRevision: current.Approval.Revision,
 			}, actor)
 		} else {
-			_, err = s.business.Approve(ctx, sample.entity, bobdomain.ReviewInput{
-				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
-				ApprovalRevision: current.Approval.Revision, Reason: &comment,
-			}, actor)
+			err = fmt.Errorf("unsupported DCL seed entity %q", sample.entity)
 		}
 	default:
 		return fmt.Errorf("cannot advance status %s to %s", current.Approval.Status, sample.status)

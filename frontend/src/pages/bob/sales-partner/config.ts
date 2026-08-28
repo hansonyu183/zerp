@@ -46,7 +46,7 @@ export const salesPartnerConfig = defineBobEntityConfig({
       key: 'operatingEntity',
       label: '经营主体',
       value: (row) =>
-        bobListActiveVersion(row).summary.operatingEntityName ?? '—',
+        row.relationship?.operatingEntityName ?? '—',
     },
     {
       key: 'enabled',

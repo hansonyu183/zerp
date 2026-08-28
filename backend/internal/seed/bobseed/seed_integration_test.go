@@ -20,7 +20,7 @@ import (
 )
 
 func newIntegrationBOBService(pool *pgxpool.Pool, resolver bob.AuxiliaryResolver, authorizer approval.Authorizer, bus *txevent.Bus) *bob.Service {
-	return bob.NewService(pool, resolver, authorizer, bus)
+	return bob.NewService(pool, resolver)
 }
 
 func TestSeedDemoDataIntegration(t *testing.T) {

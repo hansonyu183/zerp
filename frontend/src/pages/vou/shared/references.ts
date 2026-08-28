@@ -245,18 +245,13 @@ export function useVoucherReferences(
             { signal: controller.signal },
           )
           return (data.items ?? []).flatMap((item): VoucherReference[] => {
-            if (
-              item.latestApproved?.approval.status !== 'APPROVED' ||
-              !item.latestApproved.summary.name
-            ) {
-              return []
-            }
-            const summary = item.latestApproved.summary
+            if (!item.data.name) return []
+            const summary = item.data
             const behaviorProfile = summary.behaviorProfile
             return [
               {
                 objectId: item.objectId,
-                approvalEntryId: item.latestApproved.approval.approvalEntryId,
+                approvalEntryId: item.sourceApprovalEntryId,
                 entity,
                 code: item.code,
                 name: String(summary.name),

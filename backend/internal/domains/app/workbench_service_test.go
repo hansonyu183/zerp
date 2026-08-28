@@ -52,11 +52,12 @@ func TestWorkbenchIncludesDCLDeclarationLifecycles(t *testing.T) {
 		"/dcl/sales-partner/query", "/dcl/sales-partner/submit",
 		"/dcl/customer/query", "/dcl/customer/submit",
 		"/dcl/customer-account/query", "/dcl/customer-account/submit",
+		"/dcl/acc-mapping/query", "/dcl/acc-mapping/submit",
 	})
 	entities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "submit")
 	})
-	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account"}) {
+	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account", "acc-mapping"}) {
 		t.Fatalf("DCL submit entities = %v", entities)
 	}
 	legacyScope := newWorkbenchPermissionScope([]string{"/bob/party/query", "/bob/party/submit"})
@@ -160,5 +161,29 @@ func TestWorkbenchDocumentItemSerializesEmptyRequiredStrings(t *testing.T) {
 		if _, exists := fields[field]; exists {
 			t.Fatalf("BOB item unexpectedly contains %s", field)
 		}
+	}
+}
+
+func TestWorkbenchMappingItemSerializesTypedDeepLinkCoordinates(t *testing.T) {
+	payload, err := json.Marshal(WorkbenchItem{
+		Category: WorkbenchCategoryBob, Entity: "acc-mapping", ObjectID: "mapping-1",
+		ApprovalEntryID: "entry-1", BookID: "book-1", VouEntity: "sale-order",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for field, want := range map[string]string{
+		"versionId": "entry-1", "bookId": "book-1", "vouEntity": "sale-order",
+	} {
+		if fields[field] != want {
+			t.Fatalf("%s = %#v, want %q", field, fields[field], want)
+		}
+	}
+	if _, exists := fields["approvalEntryId"]; exists {
+		t.Fatal("workbench item leaked the non-contract approvalEntryId field")
 	}
 }

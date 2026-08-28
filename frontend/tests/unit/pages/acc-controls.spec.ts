@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { effectScope } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
-import { createAccountingMappingViewModel } from '@/pages/acc/mapping/vm'
+import { createCurrentAccountingMappingViewModel } from '@/pages/acc/mapping/vm'
 import mappingSource from '@/pages/acc/mapping/Mapping.vue?raw'
 import { createAccountingOpeningViewModel } from '@/pages/acc/opening/vm'
 import openingSource from '@/pages/acc/opening/Opening.vue?raw'
@@ -23,23 +23,22 @@ describe('ACC mapping and period controls', () => {
     vi.clearAllMocks()
   })
 
-  it('requires complete query and reference permissions for mapping actions', () => {
+  it('keeps ACC mapping access read-only and requires complete detail permissions', () => {
     const session = useSessionStore()
     session.permissions = [
       '/acc/book/query',
       '/acc/mapping/query',
-      '/acc/mapping/create',
     ]
-    const vm = createAccountingMappingViewModel()
+    const vm = createCurrentAccountingMappingViewModel()
     vm.selectedBookId = '01JACC00000000000000000001'
-    expect(vm.canCreate).toBe(false)
+    expect(vm.canQuery).toBe(true)
+    expect(vm.canView).toBe(false)
 
     session.permissions.push('/acc/mapping/catalog')
-    expect(vm.canCreate).toBe(true)
-    expect(vm.canEdit).toBe(false)
+    expect(vm.canView).toBe(false)
 
-    session.permissions.push('/acc/mapping/get', '/acc/mapping/save')
-    expect(vm.canEdit).toBe(true)
+    session.permissions.push('/acc/mapping/get')
+    expect(vm.canView).toBe(true)
   })
 
   it('ignores mapping list responses after scope disposal', async () => {
@@ -51,7 +50,7 @@ describe('ACC mapping and period controls', () => {
       }) as ReturnType<typeof apiClient.postContract>,
     )
     const scope = effectScope()
-    const vm = scope.run(() => createAccountingMappingViewModel())!
+    const vm = scope.run(() => createCurrentAccountingMappingViewModel())!
     vm.selectedBookId = '01JACC00000000000000000001'
     const pending = vm.query()
     scope.stop()
@@ -70,7 +69,7 @@ describe('ACC mapping and period controls', () => {
   it('never shows mappings from the previous book after a query failure', async () => {
     useSessionStore().permissions = ['/acc/book/query', '/acc/mapping/query']
     mockedPost.mockRejectedValueOnce(new Error('target book failed'))
-    const vm = createAccountingMappingViewModel()
+    const vm = createCurrentAccountingMappingViewModel()
     vm.selectedBookId = '01JACC00000000000000000001'
     vm.rows = [{ mappingId: 'old-book-mapping' }] as typeof vm.rows
     vm.total = 1
@@ -88,7 +87,7 @@ describe('ACC mapping and period controls', () => {
     mockedPost.mockResolvedValue({
       data: { items: [], total: 0, page: 1, pageSize: 20 },
     })
-    const vm = createAccountingMappingViewModel()
+    const vm = createCurrentAccountingMappingViewModel()
     vm.selectedBookId = '01JACC00000000000000000001'
     vm.entityFilter = 'sale-order'
     vm.page = 3

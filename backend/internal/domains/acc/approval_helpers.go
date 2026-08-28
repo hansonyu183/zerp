@@ -44,3 +44,13 @@ func readACCApprovalEntry(ctx context.Context, q interface {
 		FROM approval_entries WHERE domain='acc' AND entity=$1 AND subject_id=$2`+filter+`
 		ORDER BY (status IN ('DRAFT','PENDING')) DESC,version_no DESC NULLS LAST LIMIT 1`, args...))
 }
+
+// readDCLApprovalEntry reads a DCL-owned approval entry by ID.
+// Used after cutover when ACC mapping approval entries moved to DCL domain.
+func readDCLApprovalEntry(ctx context.Context, q interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, entryID string) (approval.Entry, error) {
+	return scanACCApprovalEntry(q.QueryRow(ctx, `SELECT id,domain,entity,subject_id,version_no,status,revision,
+		created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+		FROM approval_entries WHERE id=$1 AND domain='dcl' AND entity='acc-mapping'`, entryID))
+}

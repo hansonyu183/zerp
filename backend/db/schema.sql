@@ -563,20 +563,16 @@ CREATE TABLE public.acc_mappings (
 
 
 --
--- Name: acc_mapping_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_acc_mapping_versions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.acc_mapping_versions (
+CREATE TABLE public.dcl_acc_mapping_versions (
     approval_entry_id character varying(26) NOT NULL,
     mapping_id character varying(26) NOT NULL,
     default_result character varying(7) NOT NULL,
     definition jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT acc_mapping_versions_default_result_check CHECK (((default_result)::text = ANY ((ARRAY['POST'::character varying, 'UN_POST'::character varying])::text[]))),
-    CONSTRAINT acc_mapping_versions_definition_check CHECK ((jsonb_typeof(definition) = 'object'::text))
+    CONSTRAINT dcl_acc_mapping_versions_default_result_check CHECK (((default_result)::text = ANY ((ARRAY['POST'::character varying, 'UN_POST'::character varying])::text[]))),
+    CONSTRAINT dcl_acc_mapping_versions_definition_check CHECK ((jsonb_typeof(definition) = 'object'::text))
 );
 
 
@@ -1164,7 +1160,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying, 'acc-mapping'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -3661,7 +3657,7 @@ CREATE TABLE public.wfl_runtime_audit_events (
 
 
 --
--- Data for Name: acc_mapping_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_acc_mapping_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -3972,9 +3968,9 @@ INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000201', '/acc/o
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000202', '/acc/opening/unsubmit', 'acc', 'opening', 'unsubmit', '撤回账簿期初', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000203', '/acc/opening/reject', 'acc', 'opening', 'reject', '驳回账簿期初', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000204', '/acc/opening/create', 'acc', 'opening', 'create', '建立账簿期初审批', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000110', '/acc/mapping/query', 'acc', 'mapping', 'query', '查询会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, 40);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000111', '/acc/mapping/get', 'acc', 'mapping', 'get', '查看会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000112', '/acc/mapping/create', 'acc', 'mapping', 'create', '创建会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000110', '/acc/mapping/query', 'acc', 'mapping', 'query', '查询当前会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, 40);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000111', '/acc/mapping/get', 'acc', 'mapping', 'get', '查看当前会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000112', '/dcl/acc-mapping/create', 'dcl', 'acc-mapping', 'create', '创建会计映射声明', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000084', '/vou/expense-reimbursement/attachment-remove', 'vou', 'expense-reimbursement', 'attachment-remove', '移除附件费用报销', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000098', '/vou/other-income/attachment-remove', 'vou', 'other-income', 'attachment-remove', '移除附件其他收入', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000022', '/aux/product-category/get', 'aux', 'product-category', 'get', '查看产品分类', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, NULL);
@@ -4213,17 +4209,19 @@ INSERT INTO public.app_permissions VALUES ('PSc6ff6c06b8b9dd33c88ba55b', '/vou/p
 INSERT INTO public.app_permissions VALUES ('PS11ae625eb752937b178c6bea', '/vou/sales-receipt/attachment-remove', 'vou', 'sales-receipt', 'attachment-remove', '移除附件往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS468d8138ce6b47ea734c2513', '/vou/purchase-payment/attachment-remove', 'vou', 'purchase-payment', 'attachment-remove', '移除附件往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS9e0997ec2b6ae4e8b3c8a58e', '/vou/sales-refund/attachment-remove', 'vou', 'sales-refund', 'attachment-remove', '移除附件往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000113', '/acc/mapping/save', 'acc', 'mapping', 'save', '保存会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000114', '/acc/mapping/approve', 'acc', 'mapping', 'approve', '批准会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000115', '/acc/mapping/unapprove', 'acc', 'mapping', 'unapprove', '反批准会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000113', '/dcl/acc-mapping/save', 'dcl', 'acc-mapping', 'save', '保存会计映射声明草稿', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000114', '/dcl/acc-mapping/approve', 'dcl', 'acc-mapping', 'approve', '审核通过会计映射声明', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000115', '/dcl/acc-mapping/unapprove', 'dcl', 'acc-mapping', 'unapprove', '反审核会计映射声明', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000116', '/acc/mapping/catalog', 'acc', 'mapping', 'catalog', '查看 VOU 映射字段目录', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000211', '/acc/mapping/versions', 'acc', 'mapping', 'versions', '查看会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000212', '/acc/mapping/delete', 'acc', 'mapping', 'delete', '删除会计映射草稿', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000213', '/acc/mapping/submit', 'acc', 'mapping', 'submit', '提交会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000214', '/acc/mapping/unsubmit', 'acc', 'mapping', 'unsubmit', '撤回会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000215', '/acc/mapping/reject', 'acc', 'mapping', 'reject', '驳回会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000216', '/acc/mapping/create-next', 'acc', 'mapping', 'create-next', '创建下一会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000217', '/acc/mapping/delete-version', 'acc', 'mapping', 'delete-version', '删除会计映射草稿版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000211', '/dcl/acc-mapping/versions', 'dcl', 'acc-mapping', 'versions', '查看会计映射声明版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000213', '/dcl/acc-mapping/submit', 'dcl', 'acc-mapping', 'submit', '提交会计映射声明审核', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000214', '/dcl/acc-mapping/unsubmit', 'dcl', 'acc-mapping', 'unsubmit', '撤回会计映射声明审核', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000215', '/dcl/acc-mapping/reject', 'dcl', 'acc-mapping', 'reject', '审核驳回会计映射声明', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000216', '/dcl/acc-mapping/create-next', 'dcl', 'acc-mapping', 'create-next', '创建下一会计映射声明版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000217', '/dcl/acc-mapping/delete-version', 'dcl', 'acc-mapping', 'delete-version', '删除会计映射声明草稿版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000218', '/dcl/acc-mapping/query', 'dcl', 'acc-mapping', 'query', '查询会计映射声明', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000219', '/dcl/acc-mapping/get', 'dcl', 'acc-mapping', 'get', '查看会计映射声明', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000220', '/dcl/acc-mapping/audit-history', 'dcl', 'acc-mapping', 'audit-history', '查看会计映射声明审核记录', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000117', '/acc/period/query', 'acc', 'period', 'query', '查询会计期间', 'ENABLED', '2026-08-24 15:23:49.803268+00', NULL, '2026-08-24 15:23:49.803268+00', NULL, 1, 50);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000118', '/acc/period/lock', 'acc', 'period', 'lock', '锁定会计期间', 'ENABLED', '2026-08-24 15:23:49.803268+00', NULL, '2026-08-24 15:23:49.803268+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000119', '/acc/period/unlock', 'acc', 'period', 'unlock', '解锁会计期间', 'ENABLED', '2026-08-24 15:23:49.803268+00', NULL, '2026-08-24 15:23:49.803268+00', NULL, 1, NULL);
@@ -5811,11 +5809,11 @@ ALTER TABLE ONLY public.acc_mappings
 
 
 --
--- Name: acc_mapping_versions acc_mapping_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_acc_mapping_versions dcl_acc_mapping_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_pkey PRIMARY KEY (approval_entry_id);
+ALTER TABLE ONLY public.dcl_acc_mapping_versions
+    ADD CONSTRAINT dcl_acc_mapping_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -8140,19 +8138,19 @@ ALTER TABLE ONLY public.acc_mappings
 
 
 --
--- Name: acc_mapping_versions acc_mapping_versions_mapping_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_acc_mapping_versions dcl_acc_mapping_versions_mapping_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_mapping_id_fkey FOREIGN KEY (mapping_id) REFERENCES public.acc_mappings(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_acc_mapping_versions
+    ADD CONSTRAINT dcl_acc_mapping_versions_mapping_id_fkey FOREIGN KEY (mapping_id) REFERENCES public.acc_mappings(id) ON DELETE CASCADE;
 
 
 --
--- Name: acc_mapping_versions acc_mapping_versions_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_acc_mapping_versions dcl_acc_mapping_versions_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_acc_mapping_versions
+    ADD CONSTRAINT dcl_acc_mapping_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -8353,7 +8351,7 @@ ALTER TABLE ONLY public.acc_vouchers
 --
 
 ALTER TABLE ONLY public.acc_vouchers
-    ADD CONSTRAINT acc_vouchers_mapping_approval_entry_fk FOREIGN KEY (mapping_approval_entry_id) REFERENCES public.acc_mapping_versions(approval_entry_id) ON DELETE RESTRICT;
+    ADD CONSTRAINT acc_vouchers_mapping_approval_entry_fk FOREIGN KEY (mapping_approval_entry_id) REFERENCES public.dcl_acc_mapping_versions(approval_entry_id) ON DELETE RESTRICT;
 
 
 --

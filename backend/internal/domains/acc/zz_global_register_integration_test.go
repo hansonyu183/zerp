@@ -21,7 +21,7 @@ func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *test
 			t.Fatal(err)
 		}
 		createApprovedZeroOpening(t, service, book)
-		mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{
+		mapping, err := createDCLIntegrationMapping(t, service, dclMappingFixtureInput{
 			BookID: book.ID, VouEntity: voudomain.EntityAssetAcquisition,
 			DefaultResult: MappingResultUnpost,
 			Definition:    MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}},

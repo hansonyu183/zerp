@@ -2,6 +2,8 @@
 SELECT count(*)
 FROM approval_entries entry
 LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
+LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -16,11 +18,12 @@ CROSS JOIN LATERAL (
     WHEN 'vehicle' THEN (SELECT payload.name FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'fund-account' THEN (SELECT payload.name FROM dcl_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
@@ -37,12 +40,15 @@ WHERE entry.domain='dcl'
   AND (
     sqlc.arg(keyword)::text = ''
     OR object.code ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR mapping.vou_entity ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR mapping_book.name ILIKE '%' || sqlc.arg(keyword) || '%'
     OR named.name ILIKE '%' || sqlc.arg(keyword) || '%'
   );
 
 -- name: ListWorkbenchBobItems :many
-SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, '') AS code,
+SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, mapping.vou_entity, '') AS code,
        named.name,
+       COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
        COALESCE(object.revision, 1) AS object_revision,
        entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision, COALESCE(object.updated_at, entry.updated_at) AS object_updated_at,
        CASE
@@ -51,6 +57,8 @@ SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, '') AS
        END AS is_submitted_by_actor
 FROM approval_entries entry
 LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
+LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -65,11 +73,12 @@ CROSS JOIN LATERAL (
     WHEN 'vehicle' THEN (SELECT payload.name FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'fund-account' THEN (SELECT payload.name FROM dcl_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
@@ -86,9 +95,11 @@ WHERE entry.domain='dcl'
   AND (
     sqlc.arg(keyword)::text = ''
     OR object.code ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR mapping.vou_entity ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR mapping_book.name ILIKE '%' || sqlc.arg(keyword) || '%'
     OR named.name ILIKE '%' || sqlc.arg(keyword) || '%'
   )
-ORDER BY object.updated_at DESC, entry.subject_id ASC
+ORDER BY COALESCE(object.updated_at,mapping.updated_at,entry.updated_at) DESC, entry.subject_id ASC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: CountWorkbenchVouItems :one

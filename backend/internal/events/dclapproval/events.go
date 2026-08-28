@@ -91,3 +91,11 @@ var CustomerTopic = approval.MustTopic[CustomerPayload]("dcl.customer.approval")
 var CustomerAccountTopic = approval.MustTopic[CustomerAccountPayload]("dcl.customer-account.approval")
 
 var SalesPartnerTopic = approval.MustTopic[SalesPartnerPayload]("dcl.sales-partner.approval")
+
+type AccMappingPayload struct {
+	SubjectID string `json:"subjectId"`
+	BookID    string `json:"bookId"`
+	VouEntity string `json:"vouEntity"`
+}
+
+var AccMappingTopic = approval.MustTopic[AccMappingPayload]("dcl.acc-mapping.approval")

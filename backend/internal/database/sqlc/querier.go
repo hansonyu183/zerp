@@ -17,7 +17,6 @@ type Querier interface {
 	AccountingBillIsAvailable(ctx context.Context, billID string) (bool, error)
 	AccountingBookExists(ctx context.Context) (bool, error)
 	AccountingBookHasLaterFacts(ctx context.Context, bookID string) (bool, error)
-	AccountingMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error)
 	AccountingOpeningObjectsReferencedByOtherBooks(ctx context.Context, bookID string) (bool, error)
 	AccountingPeriodHasMissingMappings(ctx context.Context, arg AccountingPeriodHasMissingMappingsParams) (bool, error)
 	AccountingPeriodHasNegativeInventory(ctx context.Context, arg AccountingPeriodHasNegativeInventoryParams) (bool, error)
@@ -40,6 +39,7 @@ type Querier interface {
 	ConsumeCustomerDownloadToken(ctx context.Context, tokenHash string) (ConsumeCustomerDownloadTokenRow, error)
 	ConsumePartyMergePreflight(ctx context.Context, arg ConsumePartyMergePreflightParams) (int64, error)
 	ConsumeVouDownloadToken(ctx context.Context, tokenHash string) (ConsumeVouDownloadTokenRow, error)
+	CopyDCLAccMappingVersion(ctx context.Context, arg CopyDCLAccMappingVersionParams) (int64, error)
 	CopyDCLCustomerAccountAttachments(ctx context.Context, arg CopyDCLCustomerAccountAttachmentsParams) error
 	CopyDCLCustomerAccountCreditLimits(ctx context.Context, arg CopyDCLCustomerAccountCreditLimitsParams) error
 	CopyDCLCustomerAccountVersion(ctx context.Context, arg CopyDCLCustomerAccountVersionParams) (int64, error)
@@ -76,6 +76,8 @@ type Querier interface {
 	CountBobSuppliersCurrent(ctx context.Context, arg CountBobSuppliersCurrentParams) (int64, error)
 	CountBobVehicles(ctx context.Context, arg CountBobVehiclesParams) (int64, error)
 	CountBobWarehouses(ctx context.Context, arg CountBobWarehousesParams) (int64, error)
+	CountDCLAccMappingApprovalEvents(ctx context.Context, subjectID string) (int64, error)
+	CountDCLAccMappings(ctx context.Context, arg CountDCLAccMappingsParams) (int64, error)
 	CountDCLCustomerAccountApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLCustomerAccountAttachments(ctx context.Context, approvalEntryID string) (int64, error)
 	CountDCLCustomerAccounts(ctx context.Context, arg CountDCLCustomerAccountsParams) (int64, error)
@@ -133,8 +135,6 @@ type Querier interface {
 	CreateAccountingBook(ctx context.Context, arg CreateAccountingBookParams) error
 	CreateAccountingBookScope(ctx context.Context, arg CreateAccountingBookScopeParams) error
 	CreateAccountingContainerEntry(ctx context.Context, arg CreateAccountingContainerEntryParams) error
-	CreateAccountingMappingSubject(ctx context.Context, arg CreateAccountingMappingSubjectParams) error
-	CreateAccountingMappingVersion(ctx context.Context, arg CreateAccountingMappingVersionParams) error
 	CreateAccountingOpening(ctx context.Context, arg CreateAccountingOpeningParams) error
 	CreateAccountingOpeningContainerBalances(ctx context.Context, bookID string) error
 	CreateAccountingVoucher(ctx context.Context, arg CreateAccountingVoucherParams) error
@@ -151,6 +151,7 @@ type Querier interface {
 	CreateWorkflowDefinitionVersion(ctx context.Context, arg CreateWorkflowDefinitionVersionParams) error
 	CreateWorkflowRootNodeInstance(ctx context.Context, arg CreateWorkflowRootNodeInstanceParams) error
 	CreateWorkflowRuntimeAudit(ctx context.Context, arg CreateWorkflowRuntimeAuditParams) error
+	DCLAccMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error)
 	DeleteAccountingAssetBookValues(ctx context.Context, bookID string) error
 	DeleteAccountingBillBookValues(ctx context.Context, bookID string) error
 	DeleteAccountingBook(ctx context.Context, bookID string) error
@@ -159,8 +160,6 @@ type Querier interface {
 	DeleteAccountingDepreciationEntries(ctx context.Context, arg DeleteAccountingDepreciationEntriesParams) error
 	DeleteAccountingGlobalEvent(ctx context.Context, arg DeleteAccountingGlobalEventParams) (int64, error)
 	DeleteAccountingInventoryCostAllocations(ctx context.Context, arg DeleteAccountingInventoryCostAllocationsParams) error
-	DeleteAccountingMappingSubjectIfEmpty(ctx context.Context, mappingID string) error
-	DeleteAccountingMappingVersion(ctx context.Context, approvalEntryID string) error
 	DeleteAccountingOpeningAssets(ctx context.Context, bookID string) error
 	DeleteAccountingOpeningBills(ctx context.Context, bookID string) error
 	DeleteAccountingOpeningContainerBalances(ctx context.Context, bookID string) error
@@ -195,6 +194,8 @@ type Querier interface {
 	DeleteBobSupplierCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobVehicleCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobWarehouseCurrent(ctx context.Context, objectID string) (int64, error)
+	DeleteDCLAccMappingSubjectIfEmpty(ctx context.Context, mappingID string) (int64, error)
+	DeleteDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLCustomerAccountAttachment(ctx context.Context, arg DeleteDCLCustomerAccountAttachmentParams) (int64, error)
 	DeleteDCLCustomerAccountCreditLimits(ctx context.Context, approvalEntryID string) error
 	DeleteDCLCustomerAccountVersion(ctx context.Context, approvalEntryID string) (int64, error)
@@ -280,7 +281,6 @@ type Querier interface {
 	GetAccountingBookUserScope(ctx context.Context, arg GetAccountingBookUserScopeParams) (GetAccountingBookUserScopeRow, error)
 	GetAccountingControlBookForVou(ctx context.Context) (GetAccountingControlBookForVouRow, error)
 	GetAccountingInventoryQuantity(ctx context.Context, arg GetAccountingInventoryQuantityParams) (int64, error)
-	GetAccountingMappingSubject(ctx context.Context, arg GetAccountingMappingSubjectParams) (GetAccountingMappingSubjectRow, error)
 	GetAccountingMappingVersion(ctx context.Context, arg GetAccountingMappingVersionParams) (GetAccountingMappingVersionRow, error)
 	GetAccountingOpening(ctx context.Context, bookID string) (GetAccountingOpeningRow, error)
 	GetAccountingPartyBalance(ctx context.Context, arg GetAccountingPartyBalanceParams) (int64, error)
@@ -348,6 +348,8 @@ type Querier interface {
 	GetBobWarehouseCurrent(ctx context.Context, objectID string) (GetBobWarehouseCurrentRow, error)
 	GetBobWarehouseCurrentReference(ctx context.Context, objectID string) (GetBobWarehouseCurrentReferenceRow, error)
 	GetCurrentApprovedAccountingMapping(ctx context.Context, arg GetCurrentApprovedAccountingMappingParams) (GetCurrentApprovedAccountingMappingRow, error)
+	GetDCLAccMappingSubject(ctx context.Context, arg GetDCLAccMappingSubjectParams) (GetDCLAccMappingSubjectRow, error)
+	GetDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (DclAccMappingVersion, error)
 	GetDCLCustomerAccountIdentity(ctx context.Context, objectID string) (string, error)
 	GetDCLCustomerAccountVersion(ctx context.Context, approvalEntryID string) (DclCustomerAccountVersion, error)
 	GetDCLCustomerIdentity(ctx context.Context, objectID string) (GetDCLCustomerIdentityRow, error)
@@ -457,6 +459,10 @@ type Querier interface {
 	InsertBobSupplierRelationship(ctx context.Context, arg InsertBobSupplierRelationshipParams) error
 	InsertCustomerDownloadToken(ctx context.Context, arg InsertCustomerDownloadTokenParams) error
 	InsertCustomerFile(ctx context.Context, arg InsertCustomerFileParams) error
+	// ACC mapping declarations are DCL-owned. The stable subject (bookId, vouEntity)
+	// lives in acc_mappings; typed full snapshots live here.
+	InsertDCLAccMappingSubject(ctx context.Context, arg InsertDCLAccMappingSubjectParams) error
+	InsertDCLAccMappingVersion(ctx context.Context, arg InsertDCLAccMappingVersionParams) error
 	InsertDCLCustomerAccountAttachment(ctx context.Context, arg InsertDCLCustomerAccountAttachmentParams) error
 	InsertDCLCustomerAccountCreditLimit(ctx context.Context, arg InsertDCLCustomerAccountCreditLimitParams) error
 	// #287 Customer Account is a distinct DCL Approval subject. BOB owns only
@@ -598,6 +604,8 @@ type Querier interface {
 	// action, while a newly approved payload becomes visible atomically.
 	ListCustomerSalesReferencesForEmployee(ctx context.Context, sourceObjectID *string) ([]ListCustomerSalesReferencesForEmployeeRow, error)
 	ListCustomerSalesReferencesForSalesPartner(ctx context.Context, sourceObjectID *string) ([]ListCustomerSalesReferencesForSalesPartnerRow, error)
+	ListDCLAccMappingApprovalEvents(ctx context.Context, arg ListDCLAccMappingApprovalEventsParams) ([]ApprovalEvent, error)
+	ListDCLAccMappings(ctx context.Context, arg ListDCLAccMappingsParams) ([]ListDCLAccMappingsRow, error)
 	ListDCLCustomerAccountApprovalEvents(ctx context.Context, arg ListDCLCustomerAccountApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLCustomerAccountAttachments(ctx context.Context, approvalEntryID string) ([]ListDCLCustomerAccountAttachmentsRow, error)
 	ListDCLCustomerAccountCreditLimits(ctx context.Context, approvalEntryID string) ([]DclCustomerAccountCreditLimit, error)
@@ -693,6 +701,7 @@ type Querier interface {
 	LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error)
 	LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error)
 	LockApprovalVersionSubject(ctx context.Context, arg LockApprovalVersionSubjectParams) error
+	LockApprovedAccountingMappingVersion(ctx context.Context, approvalEntryID string) (string, error)
 	LockBobCustomerAccountRelationship(ctx context.Context, objectID string) (BobCustomerAccount, error)
 	LockBobCustomerRelationship(ctx context.Context, objectID string) (BobCustomerRelationship, error)
 	LockBobEmployeeRelationship(ctx context.Context, objectID string) (BobEmploymentRelationship, error)
@@ -827,7 +836,6 @@ type Querier interface {
 	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) (TouchBobObjectRow, error)
 	UnlockAccountingPeriodRow(ctx context.Context, arg UnlockAccountingPeriodRowParams) (int64, error)
 	UpdateAccountingBook(ctx context.Context, arg UpdateAccountingBookParams) (int64, error)
-	UpdateAccountingMappingVersion(ctx context.Context, arg UpdateAccountingMappingVersionParams) error
 	UpdateAccountingSubject(ctx context.Context, arg UpdateAccountingSubjectParams) (int64, error)
 	UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppMenuSetting, error)
 	UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (int64, error)
@@ -838,6 +846,7 @@ type Querier interface {
 	UpdateAuxObjectData(ctx context.Context, arg UpdateAuxObjectDataParams) (int64, error)
 	UpdateAuxObjectState(ctx context.Context, arg UpdateAuxObjectStateParams) (int64, error)
 	UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCurrentAppUserProfileParams) (AppUser, error)
+	UpdateDCLAccMappingVersion(ctx context.Context, arg UpdateDCLAccMappingVersionParams) (int64, error)
 	UpdateDCLCustomerAccountVersion(ctx context.Context, arg UpdateDCLCustomerAccountVersionParams) (int64, error)
 	UpdateDCLCustomerVersion(ctx context.Context, arg UpdateDCLCustomerVersionParams) (int64, error)
 	UpdateDCLEmployeeVersion(ctx context.Context, arg UpdateDCLEmployeeVersionParams) (int64, error)

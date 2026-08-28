@@ -3,15 +3,15 @@
  * Do not make direct changes to the file.
  */
 
-export const contractMetaSourceHash = '5f6c0f21c8623e680020dcf58d40b08601a8fc83a25bf2eda59b7fd7d353b1f6'
+export const contractMetaSourceHash = '3a1a4ff31cf5c7139d1cbd5c647ae4a48e5bdc576cb9454dc4c6decdc52c6e98'
 
 export const nullSuccessContractPaths = [
   "/acc/book/delete",
-  "/acc/mapping/delete-version",
   "/acc/subject/delete",
   "/app/user/change-password",
   "/app/user/signout",
   "/aux/{entity}/delete",
+  "/dcl/acc-mapping/delete-version",
   "/dcl/employee/delete",
   "/dcl/operating-entity/delete",
   "/dcl/other-unit/delete",

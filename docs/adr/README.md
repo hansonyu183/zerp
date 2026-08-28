@@ -29,6 +29,7 @@
 | [ADR-0041](0041-supplier-declarations-are-dcl-owned.md)                               | 2026-08-28 | 供应商申报由 DCL 拥有并投影到 BOB 当前业务面                    |
 | [ADR-0042](0042-customer-declarations-are-dcl-owned.md)                               | 2026-08-28 | 客户与客户结算子账户申报由 DCL 拥有并投影到 BOB 当前业务面      |
 | [ADR-0043](0043-aux-stable-id-direct-crud.md)                                         | 2026-08-28 | AUX 使用 Stable-ID Direct CRUD 与采用方快照                     |
+| [ADR-0044](0044-acc-mapping-declarations-are-dcl-owned.md)                            | 2026-08-28 | 会计映射申报由 DCL 拥有并投影到 ACC 当前记账解释                |
 
 ## Superseded
 

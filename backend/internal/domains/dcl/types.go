@@ -1,6 +1,7 @@
 package dcl
 
 import (
+	"encoding/json"
 	"time"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
@@ -20,6 +21,7 @@ const (
 	EntitySupplier        = "supplier"
 	EntityCustomer        = "customer"
 	EntityCustomerAccount = "customer-account"
+	EntityAccMapping      = "acc-mapping"
 )
 
 // Customer is the DCL declaration for the immutable Party-to-operating-
@@ -922,4 +924,100 @@ type Page[T any] struct {
 	Total    int64 `json:"total"`
 	Page     int   `json:"page"`
 	PageSize int   `json:"pageSize"`
+}
+
+// AccMappingData is the DCL-owned accounting mapping snapshot. It reuses the
+// ACC MappingDefinition wire shape so posting and validation stay identical.
+type AccMappingData struct {
+	DefaultResult string          `json:"defaultResult"`
+	Definition    json.RawMessage `json:"definition"`
+}
+
+type AccMappingCreateInput struct {
+	BookID    string         `json:"bookId"`
+	VouEntity string         `json:"vouEntity"`
+	Data      AccMappingData `json:"data"`
+}
+
+type AccMappingSaveInput struct {
+	BookID           string         `json:"bookId"`
+	VouEntity        string         `json:"vouEntity"`
+	ApprovalEntryID  string         `json:"approvalEntryId"`
+	ApprovalRevision int64          `json:"approvalRevision"`
+	Data             AccMappingData `json:"data"`
+}
+
+type AccMappingVersionInput struct {
+	BookID           string `json:"bookId"`
+	VouEntity        string `json:"vouEntity"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+
+type AccMappingReviewInput struct {
+	BookID           string `json:"bookId"`
+	VouEntity        string `json:"vouEntity"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	Reason           string `json:"reason"`
+}
+
+type AccMappingDeleteInput = AccMappingVersionInput
+
+type AccMappingGetInput struct {
+	BookID          string `json:"bookId"`
+	VouEntity       string `json:"vouEntity"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+}
+
+type AccMappingQueryFilters struct {
+	VouEntity string            `json:"vouEntity,omitempty"`
+	Status    []approval.Status `json:"status,omitempty"`
+}
+
+type AccMappingSortItem struct {
+	Field string `json:"field"`
+	Order string `json:"order"`
+}
+
+type AccMappingQueryInput struct {
+	BookID   string                 `json:"bookId"`
+	Page     int                    `json:"page"`
+	PageSize int                    `json:"pageSize"`
+	Filters  AccMappingQueryFilters `json:"filters"`
+	Sort     []AccMappingSortItem   `json:"sort"`
+}
+
+type AccMappingHistoryInput struct {
+	BookID    string `json:"bookId"`
+	VouEntity string `json:"vouEntity"`
+	Page      int    `json:"page"`
+	PageSize  int    `json:"pageSize"`
+}
+
+type AccMappingMutation struct {
+	BookID    string               `json:"bookId"`
+	VouEntity string               `json:"vouEntity"`
+	Approval  approval.VersionMeta `json:"approval"`
+}
+
+type AccMappingView struct {
+	BookID    string               `json:"bookId"`
+	VouEntity string               `json:"vouEntity"`
+	Approval  approval.VersionMeta `json:"approval"`
+	Data      AccMappingData       `json:"data"`
+}
+
+type AccMappingListItem struct {
+	BookID    string               `json:"bookId"`
+	VouEntity string               `json:"vouEntity"`
+	Approval  approval.VersionMeta `json:"approval"`
+	Data      AccMappingData       `json:"data"`
+}
+
+type AccMappingVersionView struct {
+	BookID    string               `json:"bookId"`
+	VouEntity string               `json:"vouEntity"`
+	Approval  approval.VersionMeta `json:"approval"`
+	Data      AccMappingData       `json:"data"`
 }

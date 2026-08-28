@@ -63,13 +63,13 @@ WITH selected AS (
   FROM dcl_subjects subject
   JOIN bob_parties party ON party.id=subject.id
   LEFT JOIN LATERAL (
-    SELECT id FROM approval_entries
+    SELECT id,status FROM approval_entries
     WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
       AND status IN ('DRAFT','PENDING')
     ORDER BY version_no DESC LIMIT 1
   ) open_entry ON true
   LEFT JOIN LATERAL (
-    SELECT id FROM approval_entries
+    SELECT id,status FROM approval_entries
     WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
       AND status='APPROVED'
     ORDER BY version_no DESC LIMIT 1
@@ -964,3 +964,109 @@ WITH selected AS (SELECT id,status FROM approval_entries WHERE domain='dcl' AND 
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='product' AND subject_id=sqlc.arg(object_id);
 -- name: ListDCLProductApprovalEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='product' AND subject_id=sqlc.arg(object_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- ACC mapping declarations are DCL-owned. The stable subject (bookId, vouEntity)
+-- lives in acc_mappings; typed full snapshots live here.
+
+-- name: InsertDCLAccMappingSubject :exec
+INSERT INTO acc_mappings(id, book_id, vou_entity, created_by, updated_by)
+VALUES(sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(vou_entity), sqlc.arg(actor_id), sqlc.arg(actor_id));
+
+-- name: GetDCLAccMappingSubject :one
+SELECT id, book_id, vou_entity
+FROM acc_mappings
+WHERE book_id=sqlc.arg(book_id) AND vou_entity=sqlc.arg(vou_entity);
+
+-- name: DeleteDCLAccMappingSubjectIfEmpty :execrows
+DELETE FROM acc_mappings mapping
+WHERE mapping.id=sqlc.arg(mapping_id)
+  AND NOT EXISTS(SELECT 1 FROM dcl_acc_mapping_versions payload WHERE payload.mapping_id=mapping.id);
+
+-- name: InsertDCLAccMappingVersion :exec
+INSERT INTO dcl_acc_mapping_versions(approval_entry_id, mapping_id, default_result, definition)
+VALUES(sqlc.arg(approval_entry_id), sqlc.arg(mapping_id), sqlc.arg(default_result), sqlc.arg(definition));
+
+-- name: CopyDCLAccMappingVersion :execrows
+INSERT INTO dcl_acc_mapping_versions(approval_entry_id, mapping_id, default_result, definition)
+SELECT sqlc.arg(new_approval_entry_id), source.mapping_id, source.default_result, source.definition
+FROM dcl_acc_mapping_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+
+-- name: UpdateDCLAccMappingVersion :execrows
+UPDATE dcl_acc_mapping_versions SET
+  default_result = sqlc.arg(default_result), definition = sqlc.arg(definition)
+WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: GetDCLAccMappingVersion :one
+SELECT approval_entry_id, mapping_id, default_result, definition
+FROM dcl_acc_mapping_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: DeleteDCLAccMappingVersion :execrows
+DELETE FROM dcl_acc_mapping_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: DCLAccMappingVersionReferenced :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_vouchers voucher
+  WHERE voucher.mapping_approval_entry_id=sqlc.arg(approval_entry_id)
+);
+
+-- name: CountDCLAccMappings :one
+WITH selected AS (
+  SELECT mapping.id
+  FROM acc_mappings mapping
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='acc-mapping' AND subject_id=mapping.id
+      AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+  ) open_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='acc-mapping' AND subject_id=mapping.id
+      AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) approved_entry ON true
+  WHERE mapping.book_id=sqlc.arg(book_id)
+    AND (sqlc.arg(vou_entity)::text='' OR mapping.vou_entity=sqlc.arg(vou_entity)::text)
+    AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY(sqlc.arg(status_filter)::text[]))
+)
+SELECT count(*) FROM selected;
+
+-- name: ListDCLAccMappings :many
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       COALESCE(approved_entry.id,'')::text AS approved_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM acc_mappings mapping
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='acc-mapping' AND subject_id=mapping.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='acc-mapping' AND subject_id=mapping.id
+    AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+WHERE mapping.book_id=sqlc.arg(book_id)
+  AND (sqlc.arg(vou_entity)::text='' OR mapping.vou_entity=sqlc.arg(vou_entity)::text)
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(open_entry.updated_at,approved_entry.updated_at) END ASC,
+         CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(open_entry.updated_at,approved_entry.updated_at) END DESC,
+         CASE WHEN sqlc.arg(sort_field)::text='vouEntity' AND sqlc.arg(sort_order)::text='asc' THEN mapping.vou_entity END ASC,
+         CASE WHEN sqlc.arg(sort_field)::text='vouEntity' AND sqlc.arg(sort_order)::text='desc' THEN mapping.vou_entity END DESC,
+         CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(open_entry.status,approved_entry.status) END ASC,
+         CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(open_entry.status,approved_entry.status) END DESC,
+         CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(open_entry.version_no,approved_entry.version_no) END ASC,
+         CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(open_entry.version_no,approved_entry.version_no) END DESC,
+         mapping.id DESC
+OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
+
+-- name: CountDCLAccMappingApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='acc-mapping'
+  AND subject_id=sqlc.arg(subject_id);
+
+-- name: ListDCLAccMappingApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='acc-mapping'
+  AND subject_id=sqlc.arg(subject_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);

@@ -146,6 +146,11 @@ func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Q
 	if err != nil {
 		return databaseError("get approved accounting mapping", err)
 	}
+	if _, err = q.LockApprovedAccountingMappingVersion(ctx, mapping.ApprovalEntryID); errors.Is(err, pgx.ErrNoRows) {
+		return domainError(ErrorConflict, "approved accounting mapping changed", err)
+	} else if err != nil {
+		return databaseError("lock approved accounting mapping", err)
+	}
 	definition := MappingDefinition{}
 	if err = json.Unmarshal(mapping.Definition, &definition); err != nil {
 		return domainError(ErrorInternal, "invalid stored accounting mapping", err)

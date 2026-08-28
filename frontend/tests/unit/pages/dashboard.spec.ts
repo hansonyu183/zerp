@@ -9,6 +9,7 @@ import Dashboard from '@/pages/home/dashboard/Dashboard.vue'
 import {
   type WorkbenchItem,
   workbenchItemPath,
+  workbenchItemQuery,
   useDashboardViewModel,
 } from '@/pages/home/dashboard/vm'
 import { useSessionStore } from '@/stores/session'
@@ -100,6 +101,22 @@ describe('Dashboard workbench', () => {
         workbenchItemPath({ ...objectItem, entity } as WorkbenchItem),
       ).toBe(`/dcl/${entity}`)
     }
+  })
+
+  it('routes accounting mapping tasks to the DCL declaration page', () => {
+    const item = {
+      ...objectItem,
+      entity: 'acc-mapping',
+      bookId: '01JACC00000000000000000001',
+      vouEntity: 'sale-order',
+    } as WorkbenchItem
+    expect(workbenchItemPath(item)).toBe('/dcl/acc-mapping')
+    expect(workbenchItemQuery(item, 'edit')).toEqual({
+      bookId: item.bookId,
+      vouEntity: item.vouEntity,
+      approvalEntryId: item.versionId,
+      mode: 'edit',
+    })
   })
 
   it('初始查询失败时不显示空状态', async () => {

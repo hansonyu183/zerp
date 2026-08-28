@@ -151,7 +151,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 	createApprovedZeroOpening(t, accounting, book)
 	templateID := "other-income-standard"
-	mapping, err := accounting.CreateMapping(t.Context(), CreateMappingInput{
+	mapping, err := createDCLIntegrationMapping(t, accounting, dclMappingFixtureInput{
 		BookID: book.ID, VouEntity: voudomain.EntityOtherIncome, DefaultResult: MappingResultPost,
 		Definition: MappingDefinition{DefaultTemplateID: &templateID, Rules: []MappingRule{}, Templates: []PostingTemplate{{ID: templateID, Lines: []PostingLineTemplate{
 			{SubjectSource: "FIXED", SubjectValue: debit.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionFundAccount: "fundAccount.objectId"}},
@@ -392,7 +392,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	}
 	createApprovedZeroOpening(t, accounting, book)
 	payableTemplateID, receivableTemplateID := "service-acceptance-payable", "service-acceptance-receivable"
-	mapping, err := accounting.CreateMapping(t.Context(), CreateMappingInput{
+	mapping, err := createDCLIntegrationMapping(t, accounting, dclMappingFixtureInput{
 		BookID: book.ID, VouEntity: voudomain.EntityServiceAcceptance, DefaultResult: MappingResultUnpost,
 		Definition: MappingDefinition{
 			Rules: []MappingRule{
@@ -415,7 +415,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		t.Fatalf("create service acceptance mapping: %v", err)
 	}
 	approveIntegrationMapping(t, accounting, book.ID, voudomain.EntityServiceAcceptance, mapping)
-	contractMapping, err := accounting.CreateMapping(t.Context(), CreateMappingInput{
+	contractMapping, err := createDCLIntegrationMapping(t, accounting, dclMappingFixtureInput{
 		BookID: book.ID, VouEntity: voudomain.EntityServiceContract, DefaultResult: MappingResultUnpost,
 		Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}},
 	}, integrationACCActor(t, adminID, "acc-service-contract-mapping-create"))

@@ -158,86 +158,6 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
     };
   };
-  "/acc/mapping/create": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
-    };
-  };
-  "/acc/mapping/create-next": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingCreateNextRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
-    };
-  };
-  "/acc/mapping/versions": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingVersionsRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingPageEnvelope } } };
-    };
-  };
-  "/acc/mapping/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
-    };
-  };
-  "/acc/mapping/approve": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingApprovalActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
-    };
-  };
-  "/acc/mapping/unapprove": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingReasonActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
-    };
-  };
-  "/acc/mapping/submit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingApprovalActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
-    };
-  };
-  "/acc/mapping/unsubmit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingApprovalActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
-    };
-  };
-  "/acc/mapping/reject": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingReasonActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
-    };
-  };
-  "/acc/mapping/delete-version": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingApprovalActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
-    };
-  };
   "/acc/mapping/catalog": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1478,6 +1398,110 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
     };
   };
+  "/dcl/acc-mapping/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/create-next": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingSaveResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/delete-version": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingQueryResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingViewResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclAccMappingVersionPageResponse } } };
+    };
+  };
+  "/dcl/acc-mapping/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclAccMappingHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
+    };
+  };
   "/app/workbench/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -2449,12 +2473,6 @@ export interface components {
       "MappingPageEnvelope": Models.MappingPageEnvelope;
       "MappingGetRequest": Models.MappingGetRequest;
       "MappingEnvelope": Models.MappingEnvelope;
-      "MappingCreateRequest": Models.MappingCreateRequest;
-      "MappingCreateNextRequest": Models.MappingCreateNextRequest;
-      "MappingVersionsRequest": Models.MappingVersionsRequest;
-      "MappingSaveRequest": Models.MappingSaveRequest;
-      "MappingApprovalActionRequest": Models.MappingApprovalActionRequest;
-      "MappingReasonActionRequest": Models.MappingReasonActionRequest;
       "MappingCatalogRequest": Models.MappingCatalogRequest;
       "MappingCatalog": Models.MappingCatalog;
       "MappingCatalogEnvelope": Models.MappingCatalogEnvelope;
@@ -2686,10 +2704,28 @@ export interface components {
       "DclOperatingEntityQueryResponse": Models.DclOperatingEntityQueryResponse;
       "DclOperatingEntityVersionPage": Models.DclOperatingEntityVersionPage;
       "DclOperatingEntityVersionPageResponse": Models.DclOperatingEntityVersionPageResponse;
+      "DclAccMappingData": Models.DclAccMappingData;
+      "DclAccMappingCreateRequest": Models.DclAccMappingCreateRequest;
+      "DclAccMappingMutation": Models.DclAccMappingMutation;
+      "DclAccMappingMutationResponse": Models.DclAccMappingMutationResponse;
+      "DclAccMappingVersionRequest": Models.DclAccMappingVersionRequest;
+      "DclAccMappingSaveRequest": Models.DclAccMappingSaveRequest;
+      "DclAccMappingView": Models.DclAccMappingView;
+      "DclAccMappingSaveResponse": Models.DclAccMappingSaveResponse;
+      "DclAccMappingReviewRequest": Models.DclAccMappingReviewRequest;
+      "DclAccMappingQueryRequest": Models.DclAccMappingQueryRequest;
+      "DclAccMappingListItem": Models.DclAccMappingListItem;
+      "DclAccMappingQueryPage": Models.DclAccMappingQueryPage;
+      "DclAccMappingQueryResponse": Models.DclAccMappingQueryResponse;
+      "DclAccMappingGetRequest": Models.DclAccMappingGetRequest;
+      "DclAccMappingViewResponse": Models.DclAccMappingViewResponse;
+      "DclAccMappingHistoryRequest": Models.DclAccMappingHistoryRequest;
+      "DclAccMappingVersionPage": Models.DclAccMappingVersionPage;
+      "DclAccMappingVersionPageResponse": Models.DclAccMappingVersionPageResponse;
       "WorkbenchCategory": Models.WorkbenchCategory;
       "WorkbenchPendingStage": Models.WorkbenchPendingStage;
       "WorkbenchQueryRequest": Models.WorkbenchQueryRequest;
-      "BobEntity": Models.BobEntity;
+      "WorkbenchObjectEntity": Models.WorkbenchObjectEntity;
       "WorkbenchAction": Models.WorkbenchAction;
       "WorkbenchObjectItem": Models.WorkbenchObjectItem;
       "WorkbenchDocumentItem": Models.WorkbenchDocumentItem;
@@ -2774,6 +2810,7 @@ export interface components {
       "PartyView": Models.PartyView;
       "PartyGetResponse": Models.PartyGetResponse;
       "BobQueryRequest": Models.BobQueryRequest;
+      "BobEntity": Models.BobEntity;
       "BobDetailData": Models.BobDetailData;
       "BobDetailView": Models.BobDetailView;
       "BobRelationshipIdentityView": Models.BobRelationshipIdentityView;

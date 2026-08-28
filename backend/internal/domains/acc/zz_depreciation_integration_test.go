@@ -32,7 +32,7 @@ func TestZZPeriodDepreciationBalancesAndUnlockIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	createApprovedZeroOpening(t, service, book)
-	mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntityAssetAcquisition, DefaultResult: MappingResultUnpost, Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}, AssetConfiguration: &AssetAccountingConfiguration{
+	mapping, err := createDCLIntegrationMapping(t, service, dclMappingFixtureInput{BookID: book.ID, VouEntity: voudomain.EntityAssetAcquisition, DefaultResult: MappingResultUnpost, Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}, AssetConfiguration: &AssetAccountingConfiguration{
 		AssetSubjectID: asset.ID, AssetDimensions: map[string]string{DimensionAsset: "lineId"}, AccumulatedDepreciationSubjectID: accumulated.ID, AccumulatedDepreciationDimensions: map[string]string{DimensionAsset: "lineId"}, DepreciationExpenseSubjectID: expense.ID, DepreciationExpenseDimensions: map[string]string{DimensionDepartment: "department.objectId"},
 	}}}, integrationACCActor(t, adminID, "acc-depreciation-mapping-create"))
 	if err != nil {

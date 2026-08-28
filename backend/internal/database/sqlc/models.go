@@ -158,17 +158,6 @@ type AccMapping struct {
 	UpdatedBy string             `db:"updated_by" json:"updated_by"`
 }
 
-type AccMappingVersion struct {
-	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
-	MappingID       string             `db:"mapping_id" json:"mapping_id"`
-	DefaultResult   string             `db:"default_result" json:"default_result"`
-	Definition      []byte             `db:"definition" json:"definition"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy       string             `db:"created_by" json:"created_by"`
-	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
-}
-
 type AccOpening struct {
 	BookID    string             `db:"book_id" json:"book_id"`
 	VoucherID *string            `db:"voucher_id" json:"voucher_id"`
@@ -796,6 +785,13 @@ type BobWarehouse struct {
 	Enabled                        bool               `db:"enabled" json:"enabled"`
 	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
+}
+
+type DclAccMappingVersion struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	MappingID       string `db:"mapping_id" json:"mapping_id"`
+	DefaultResult   string `db:"default_result" json:"default_result"`
+	Definition      []byte `db:"definition" json:"definition"`
 }
 
 type DclCustomerAccountAttachment struct {

@@ -80,20 +80,6 @@ func (q *Queries) AccountingBookHasLaterFacts(ctx context.Context, bookID string
 	return exists, err
 }
 
-const accountingMappingVersionReferenced = `-- name: AccountingMappingVersionReferenced :one
-SELECT EXISTS(
-  SELECT 1 FROM acc_vouchers voucher
-  WHERE voucher.mapping_approval_entry_id=$1
-)
-`
-
-func (q *Queries) AccountingMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error) {
-	row := q.db.QueryRow(ctx, accountingMappingVersionReferenced, approvalEntryID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const accountingOpeningObjectsReferencedByOtherBooks = `-- name: AccountingOpeningObjectsReferencedByOtherBooks :one
 SELECT (EXISTS(
   SELECT 1 FROM acc_opening_assets opening
@@ -126,7 +112,7 @@ SELECT EXISTS(
       SELECT 1
       FROM acc_mappings mapping
       JOIN approval_entries mapping_approval
-        ON mapping_approval.domain='acc' AND mapping_approval.entity='mapping'
+        ON mapping_approval.domain='dcl' AND mapping_approval.entity='acc-mapping'
        AND mapping_approval.subject_id=mapping.id AND mapping_approval.status='APPROVED'
       WHERE mapping.book_id=$3 AND mapping.vou_entity=document.entity
     )
@@ -541,57 +527,6 @@ func (q *Queries) CreateAccountingContainerEntry(ctx context.Context, arg Create
 	return err
 }
 
-const createAccountingMappingSubject = `-- name: CreateAccountingMappingSubject :exec
-INSERT INTO acc_mappings(id, book_id, vou_entity, created_by, updated_by)
-VALUES($1, $2, $3, $4, $4)
-`
-
-type CreateAccountingMappingSubjectParams struct {
-	ID        string `db:"id" json:"id"`
-	BookID    string `db:"book_id" json:"book_id"`
-	VouEntity string `db:"vou_entity" json:"vou_entity"`
-	ActorID   string `db:"actor_id" json:"actor_id"`
-}
-
-func (q *Queries) CreateAccountingMappingSubject(ctx context.Context, arg CreateAccountingMappingSubjectParams) error {
-	_, err := q.db.Exec(ctx, createAccountingMappingSubject,
-		arg.ID,
-		arg.BookID,
-		arg.VouEntity,
-		arg.ActorID,
-	)
-	return err
-}
-
-const createAccountingMappingVersion = `-- name: CreateAccountingMappingVersion :exec
-INSERT INTO acc_mapping_versions (
-  approval_entry_id, mapping_id, default_result, definition,
-  created_by, updated_by
-) VALUES (
-  $1, $2, $3, $4,
-  $5, $5
-)
-`
-
-type CreateAccountingMappingVersionParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	MappingID       string `db:"mapping_id" json:"mapping_id"`
-	DefaultResult   string `db:"default_result" json:"default_result"`
-	Definition      []byte `db:"definition" json:"definition"`
-	ActorID         string `db:"actor_id" json:"actor_id"`
-}
-
-func (q *Queries) CreateAccountingMappingVersion(ctx context.Context, arg CreateAccountingMappingVersionParams) error {
-	_, err := q.db.Exec(ctx, createAccountingMappingVersion,
-		arg.ApprovalEntryID,
-		arg.MappingID,
-		arg.DefaultResult,
-		arg.Definition,
-		arg.ActorID,
-	)
-	return err
-}
-
 const createAccountingOpening = `-- name: CreateAccountingOpening :exec
 INSERT INTO acc_openings (book_id, created_by, updated_by)
 VALUES ($1, $2, $2)
@@ -783,26 +718,6 @@ type DeleteAccountingInventoryCostAllocationsParams struct {
 
 func (q *Queries) DeleteAccountingInventoryCostAllocations(ctx context.Context, arg DeleteAccountingInventoryCostAllocationsParams) error {
 	_, err := q.db.Exec(ctx, deleteAccountingInventoryCostAllocations, arg.BookID, arg.PeriodMonth)
-	return err
-}
-
-const deleteAccountingMappingSubjectIfEmpty = `-- name: DeleteAccountingMappingSubjectIfEmpty :exec
-DELETE FROM acc_mappings mapping
-WHERE mapping.id=$1
-  AND NOT EXISTS(SELECT 1 FROM acc_mapping_versions payload WHERE payload.mapping_id=mapping.id)
-`
-
-func (q *Queries) DeleteAccountingMappingSubjectIfEmpty(ctx context.Context, mappingID string) error {
-	_, err := q.db.Exec(ctx, deleteAccountingMappingSubjectIfEmpty, mappingID)
-	return err
-}
-
-const deleteAccountingMappingVersion = `-- name: DeleteAccountingMappingVersion :exec
-DELETE FROM acc_mapping_versions WHERE approval_entry_id=$1
-`
-
-func (q *Queries) DeleteAccountingMappingVersion(ctx context.Context, approvalEntryID string) error {
-	_, err := q.db.Exec(ctx, deleteAccountingMappingVersion, approvalEntryID)
 	return err
 }
 
@@ -1184,34 +1099,10 @@ func (q *Queries) GetAccountingInventoryQuantity(ctx context.Context, arg GetAcc
 	return column_1, err
 }
 
-const getAccountingMappingSubject = `-- name: GetAccountingMappingSubject :one
-SELECT id, book_id, vou_entity
-FROM acc_mappings
-WHERE book_id=$1 AND vou_entity=$2
-`
-
-type GetAccountingMappingSubjectParams struct {
-	BookID    string `db:"book_id" json:"book_id"`
-	VouEntity string `db:"vou_entity" json:"vou_entity"`
-}
-
-type GetAccountingMappingSubjectRow struct {
-	ID        string `db:"id" json:"id"`
-	BookID    string `db:"book_id" json:"book_id"`
-	VouEntity string `db:"vou_entity" json:"vou_entity"`
-}
-
-func (q *Queries) GetAccountingMappingSubject(ctx context.Context, arg GetAccountingMappingSubjectParams) (GetAccountingMappingSubjectRow, error) {
-	row := q.db.QueryRow(ctx, getAccountingMappingSubject, arg.BookID, arg.VouEntity)
-	var i GetAccountingMappingSubjectRow
-	err := row.Scan(&i.ID, &i.BookID, &i.VouEntity)
-	return i, err
-}
-
 const getAccountingMappingVersion = `-- name: GetAccountingMappingVersion :one
 SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        payload.approval_entry_id, payload.default_result, payload.definition
-FROM acc_mapping_versions payload
+FROM dcl_acc_mapping_versions payload
 JOIN acc_mappings mapping ON mapping.id=payload.mapping_id
 WHERE mapping.book_id=$1 AND mapping.vou_entity=$2
   AND payload.approval_entry_id=$3
@@ -1492,9 +1383,9 @@ SELECT payload.approval_entry_id, mapping.id AS mapping_id, mapping.book_id,
        mapping.vou_entity, payload.default_result, payload.definition
 FROM acc_mappings mapping
 JOIN approval_entries entry
-  ON entry.domain='acc' AND entry.entity='mapping' AND entry.subject_id=mapping.id
+  ON entry.domain='dcl' AND entry.entity='acc-mapping' AND entry.subject_id=mapping.id
  AND entry.status='APPROVED'
-JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+JOIN dcl_acc_mapping_versions payload ON payload.approval_entry_id=entry.id
 WHERE mapping.book_id=$1 AND mapping.vou_entity=$2
 ORDER BY entry.version_no DESC
 LIMIT 1
@@ -1615,15 +1506,14 @@ SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        entry.id AS approval_entry_id, payload.default_result, payload.definition
 FROM acc_mappings mapping
 JOIN LATERAL (
-  SELECT candidate.id
-  FROM approval_entries candidate
-  WHERE candidate.domain='acc' AND candidate.entity='mapping' AND candidate.subject_id=mapping.id
-    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
-           candidate.version_no DESC
+  SELECT approved.id
+  FROM approval_entries approved
+  WHERE approved.domain='dcl' AND approved.entity='acc-mapping' AND approved.subject_id=mapping.id
+    AND approved.status='APPROVED'
+  ORDER BY approved.version_no DESC
   LIMIT 1
 ) entry ON true
-JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+JOIN dcl_acc_mapping_versions payload ON payload.approval_entry_id=entry.id
 WHERE mapping.book_id=$1 AND mapping.vou_entity=$2
 `
 
@@ -2424,8 +2314,8 @@ SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        payload.default_result, payload.definition, count(*) OVER() AS total
 FROM acc_mappings mapping
 JOIN approval_entries entry
-  ON entry.domain='acc' AND entry.entity='mapping' AND entry.subject_id=mapping.id
-JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+  ON entry.domain='dcl' AND entry.entity='acc-mapping' AND entry.subject_id=mapping.id
+JOIN dcl_acc_mapping_versions payload ON payload.approval_entry_id=entry.id
 WHERE mapping.book_id=$1 AND mapping.vou_entity=$2
 ORDER BY entry.version_no DESC
 OFFSET $3 LIMIT $4
@@ -2511,15 +2401,14 @@ SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        payload.default_result, payload.definition, count(*) OVER() AS total
 FROM acc_mappings mapping
 JOIN LATERAL (
-  SELECT candidate.id, candidate.domain, candidate.entity, candidate.subject_id, candidate.version_no, candidate.status, candidate.revision, candidate.created_by, candidate.created_at, candidate.updated_by, candidate.updated_at, candidate.submitted_by, candidate.submitted_at, candidate.approved_by, candidate.approved_at
-  FROM approval_entries candidate
-  WHERE candidate.domain='acc' AND candidate.entity='mapping' AND candidate.subject_id=mapping.id
-    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
-           candidate.version_no DESC
+  SELECT approved.id, approved.domain, approved.entity, approved.subject_id, approved.version_no, approved.status, approved.revision, approved.created_by, approved.created_at, approved.updated_by, approved.updated_at, approved.submitted_by, approved.submitted_at, approved.approved_by, approved.approved_at
+  FROM approval_entries approved
+  WHERE approved.domain='dcl' AND approved.entity='acc-mapping' AND approved.subject_id=mapping.id
+    AND approved.status='APPROVED'
+  ORDER BY approved.version_no DESC
   LIMIT 1
 ) entry ON true
-JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+JOIN dcl_acc_mapping_versions payload ON payload.approval_entry_id=entry.id
 WHERE mapping.book_id = $1
   AND ($2::text = '' OR mapping.vou_entity = $2)
 ORDER BY mapping.vou_entity
@@ -3238,6 +3127,23 @@ func (q *Queries) LockAccountingPeriodRow(ctx context.Context, arg LockAccountin
 	return i, err
 }
 
+const lockApprovedAccountingMappingVersion = `-- name: LockApprovedAccountingMappingVersion :one
+SELECT id
+FROM approval_entries
+WHERE id=$1
+  AND domain='dcl'
+  AND entity='acc-mapping'
+  AND status='APPROVED'
+FOR SHARE
+`
+
+func (q *Queries) LockApprovedAccountingMappingVersion(ctx context.Context, approvalEntryID string) (string, error) {
+	row := q.db.QueryRow(ctx, lockApprovedAccountingMappingVersion, approvalEntryID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const nextAccountingBookNumber = `-- name: NextAccountingBookNumber :one
 INSERT INTO object_number_counters (domain, entity, last_value)
 VALUES ('acc', 'book', 1)
@@ -3442,30 +3348,6 @@ func (q *Queries) UpdateAccountingBook(ctx context.Context, arg UpdateAccounting
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err
-}
-
-const updateAccountingMappingVersion = `-- name: UpdateAccountingMappingVersion :exec
-UPDATE acc_mapping_versions SET
-  default_result = $1, definition = $2,
-  updated_at = now(), updated_by = $3
-WHERE approval_entry_id=$4
-`
-
-type UpdateAccountingMappingVersionParams struct {
-	DefaultResult   string `db:"default_result" json:"default_result"`
-	Definition      []byte `db:"definition" json:"definition"`
-	ActorID         string `db:"actor_id" json:"actor_id"`
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateAccountingMappingVersion(ctx context.Context, arg UpdateAccountingMappingVersionParams) error {
-	_, err := q.db.Exec(ctx, updateAccountingMappingVersion,
-		arg.DefaultResult,
-		arg.Definition,
-		arg.ActorID,
-		arg.ApprovalEntryID,
-	)
-	return err
 }
 
 const updateAccountingSubject = `-- name: UpdateAccountingSubject :one

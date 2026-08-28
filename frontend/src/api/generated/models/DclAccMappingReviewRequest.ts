@@ -2,7 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type MappingCreateNextRequest = {
+export type DclAccMappingReviewRequest = {
   bookId: string;
   vouEntity: string;
+  approvalEntryId: string;
+  approvalRevision: number;
+  reason: string | null;
 };

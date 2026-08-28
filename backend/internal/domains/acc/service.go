@@ -29,7 +29,6 @@ type Service struct {
 	pool            *pgxpool.Pool
 	queries         *dbsqlc.Queries
 	openingApproval *approval.Coordinator[accapproval.Payload]
-	mappingApproval *approval.Coordinator[accapproval.Payload]
 }
 
 func NewService(pool *pgxpool.Pool, authorizer authorization.Authorizer, bus *txevent.Bus) *Service {
@@ -40,11 +39,7 @@ func NewService(pool *pgxpool.Pool, authorizer authorization.Authorizer, bus *tx
 	if err != nil {
 		panic(err)
 	}
-	mapping, err := approval.NewCoordinator("acc", "mapping", authorizer, bus, accapproval.Topic("mapping"))
-	if err != nil {
-		panic(err)
-	}
-	return &Service{pool: pool, queries: dbsqlc.New(pool), openingApproval: opening, mappingApproval: mapping}
+	return &Service{pool: pool, queries: dbsqlc.New(pool), openingApproval: opening}
 }
 
 func mapApprovalError(err error) error {

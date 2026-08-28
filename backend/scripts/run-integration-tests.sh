@@ -165,6 +165,59 @@ verify_issue_290_cutover() {
 		 "SELECT CASE WHEN to_regclass('"'"'public.aux_version_payloads'"'"') IS NULL AND NOT EXISTS (SELECT 1 FROM approval_entries WHERE domain='"'"'aux'"'"') AND NOT EXISTS (SELECT 1 FROM dcl_customer_account_versions WHERE length(customer_type)<>26 OR customer_type_code='"'"''"'"' OR customer_type_name='"'"''"'"') AND NOT EXISTS (SELECT 1 FROM aux_objects WHERE entity='"'"'dictionary-item'"'"' AND (length(data->>'"'"'dictionaryTypeId'"'"')<>26 OR COALESCE(data->>'"'"'dictionaryTypeCode'"'"','"'"''"'"')='"'"''"'"' OR COALESCE(data->>'"'"'dictionaryTypeName'"'"','"'"''"'"')='"'"''"'"')) THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
 }
 
+seed_issue_291_mapping_fixture() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' <<'SQL'
+INSERT INTO app_users(id,username,display_name,password_hash,status,password_changed_at,created_by,updated_by) VALUES
+  ('01Z29100000000000000000001','issue-291-creator','Issue 291 Creator','hash','ENABLED',now(),'01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000'),
+  ('01Z29100000000000000000002','issue-291-reviewer','Issue 291 Reviewer','hash','ENABLED',now(),'01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000');
+INSERT INTO acc_books(id,code,name,start_month,base_currency,control_book,created_by,updated_by)
+VALUES('01Z29100000000000000000003','ACC-0291','Issue 291 book','2026-08-01','CNY',true,'01Z29100000000000000000001','01Z29100000000000000000001');
+INSERT INTO acc_mappings(id,book_id,vou_entity,created_by,updated_by)
+VALUES('01Z29100000000000000000004','01Z29100000000000000000003','sale-order','01Z29100000000000000000001','01Z29100000000000000000001');
+INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
+VALUES('01Z29100000000000000000005','acc','mapping','01Z29100000000000000000004',1,'APPROVED',3,'01Z29100000000000000000001',now(),'01Z29100000000000000000002',now(),'01Z29100000000000000000001',now(),'01Z29100000000000000000002',now());
+INSERT INTO acc_mapping_versions(approval_entry_id,mapping_id,default_result,definition,created_by,updated_by)
+VALUES('01Z29100000000000000000005','01Z29100000000000000000004','UN_POST','{"rules":[],"templates":[]}'::jsonb,'01Z29100000000000000000001','01Z29100000000000000000002');
+INSERT INTO approval_events(id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,request_id,created_at)
+VALUES('01Z29100000000000000000006','01Z29100000000000000000005','acc','mapping','01Z29100000000000000000004',1,'APPROVED','PENDING','APPROVED',2,3,'01Z29100000000000000000002','issue-291-cutover',now());
+INSERT INTO acc_vouchers(id,book_id,source_type,source_id,business_date,created_by,mapping_approval_entry_id,source_entity,source_revision,source_document_no)
+VALUES('01Z29100000000000000000007','01Z29100000000000000000003','VOU','01Z29100000000000000000009','2026-08-28','01Z29100000000000000000001','01Z29100000000000000000005','sale-order',1,'SO-291');
+INSERT INTO app_roles(id,code,name,status,created_by,updated_by)
+VALUES('01Z29100000000000000000008','ROL-0291','Issue 291 role','ENABLED','01Z29100000000000000000001','01Z29100000000000000000001');
+INSERT INTO app_role_permissions(role_id,permission_id,created_by)
+VALUES
+  ('01Z29100000000000000000008','01JACC00000000000000000110','01Z29100000000000000000001'),
+  ('01Z29100000000000000000008','01JACC00000000000000000111','01Z29100000000000000000001'),
+  ('01Z29100000000000000000008','01JACC00000000000000000211','01Z29100000000000000000001'),
+  ('01Z29100000000000000000008','01JACC00000000000000000212','01Z29100000000000000000001'),
+  ('01Z29100000000000000000008','01JACC00000000000000000217','01Z29100000000000000000001');
+SQL
+}
+
+run_issue_291_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-291-dcl-acc-mapping.sql
+}
+
+verify_issue_291_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.acc_mapping_versions'"'"') IS NULL
+		 AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z29100000000000000000004'"'"' AND entity='"'"'acc-mapping'"'"')
+		 AND EXISTS (SELECT 1 FROM dcl_acc_mapping_versions WHERE approval_entry_id='"'"'01Z29100000000000000000005'"'"' AND mapping_id='"'"'01Z29100000000000000000004'"'"' AND default_result='"'"'UN_POST'"'"' AND definition='"'"'{\"rules\":[],\"templates\":[]}'"'"'::jsonb)
+		 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z29100000000000000000005'"'"' AND domain='"'"'dcl'"'"' AND entity='"'"'acc-mapping'"'"' AND version_no=1 AND revision=3)
+		 AND EXISTS (SELECT 1 FROM approval_events WHERE id='"'"'01Z29100000000000000000006'"'"' AND entry_id='"'"'01Z29100000000000000000005'"'"' AND domain='"'"'dcl'"'"' AND entity='"'"'acc-mapping'"'"')
+		 AND EXISTS (SELECT 1 FROM acc_vouchers WHERE id='"'"'01Z29100000000000000000007'"'"' AND mapping_approval_entry_id='"'"'01Z29100000000000000000005'"'"')
+		 AND NOT EXISTS (SELECT 1 FROM app_permissions WHERE id='"'"'01JACC00000000000000000212'"'"')
+		 AND (SELECT count(*) FROM app_role_permissions WHERE role_id='"'"'01Z29100000000000000000008'"'"' AND permission_id IN ('"'"'01JACC00000000000000000217'"'"','"'"'01JACC00000000000000000218'"'"','"'"'01JACC00000000000000000219'"'"','"'"'01JACC00000000000000000220'"'"'))=4
+		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 wait_for_packages() {
 	local failed=0
 	local index exit_code status
@@ -252,6 +305,9 @@ run_issue_289_cutover "$cutover_database"
 verify_issue_289_cutover "$cutover_database"
 run_issue_290_cutover "$cutover_database"
 verify_issue_290_cutover "$cutover_database"
+seed_issue_291_mapping_fixture "$cutover_database"
+run_issue_291_cutover "$cutover_database"
+verify_issue_291_cutover "$cutover_database"
 
 recreate_database "$cutover_database"
 initialize_pre_cutover_schema "$cutover_database"

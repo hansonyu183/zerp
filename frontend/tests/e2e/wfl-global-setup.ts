@@ -354,7 +354,7 @@ const bobReviewerActions = new Set([
   '/acc/book/get',
   '/acc/book/save',
   '/acc/opening/approve',
-  '/acc/mapping/approve',
+  '/dcl/acc-mapping/approve',
   '/wfl/process-definition/approve',
   '/bob/customer/query',
   '/bob/customer/get',
@@ -1067,8 +1067,14 @@ async function ensureAccountingControlBook(
 
   for (const vouEntity of vouEntities) {
     const mappings = await api.post<Page<AccountingMappingView>>(
-      'acc/mapping/query',
-      { bookId: book.bookId, vouEntity, page: 1, pageSize: 200 },
+      'dcl/acc-mapping/query',
+      {
+        bookId: book.bookId,
+        page: 1,
+        pageSize: 100,
+        filters: { vouEntity },
+        sort: [{ field: 'vouEntity', order: 'asc' }],
+      },
     )
     if (mappings.items.some((item) => item.approval.status === 'APPROVED'))
       continue
@@ -1235,25 +1241,24 @@ async function ensureAccountingControlBook(
     const defaultResult = vouEntity in postDefinitions ? 'POST' : 'UN_POST'
     let candidate =
       mappings.items.find((item) => item.approval.status !== 'APPROVED') ??
-      (await api.post<AccountingMappingView>('acc/mapping/create', {
+      (await api.post<AccountingMappingView>('dcl/acc-mapping/create', {
         bookId: book.bookId,
         vouEntity,
-        defaultResult,
-        definition,
+        data: { defaultResult, definition },
       }))
     if (candidate.approval.status === 'DRAFT') {
-      candidate = await api.post<AccountingMappingView>('acc/mapping/submit', {
+      candidate = await api.post<AccountingMappingView>('dcl/acc-mapping/submit', {
         bookId: book.bookId,
         vouEntity,
         approvalEntryId: candidate.approval.approvalEntryId,
-        revision: candidate.approval.revision,
+        approvalRevision: candidate.approval.revision,
       })
     }
-    await reviewer.post<AccountingMappingView>('acc/mapping/approve', {
+    await reviewer.post<AccountingMappingView>('dcl/acc-mapping/approve', {
       bookId: book.bookId,
       vouEntity,
       approvalEntryId: candidate.approval.approvalEntryId,
-      revision: candidate.approval.revision,
+      approvalRevision: candidate.approval.revision,
     })
   }
 }

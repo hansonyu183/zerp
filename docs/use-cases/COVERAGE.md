@@ -4,9 +4,9 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：89
-- 已覆盖入口：37
-- 已登记用例：36
+- 页面入口：90
+- 已覆盖入口：38
+- 已登记用例：37
 - 缺少用例：52
 - 孤儿用例：0
 
@@ -39,6 +39,7 @@
 | 客户结算子账户申报 | `/dcl/customer-account` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer-account.md) |
 | 供应商申报         | `/dcl/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/supplier.md)         |
 | 产品申报           | `/dcl/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)          |
+| 会计映射申报       | `/dcl/acc-mapping`      | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/acc-mapping.md)      |
 
 ## RPT
 
@@ -49,13 +50,13 @@
 
 ## ACC
 
-| 页面         | 路由           | 来源                                                | 状态     |
-| ------------ | -------------- | --------------------------------------------------- | -------- |
-| 会计账簿     | `/acc/book`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 会计科目     | `/acc/subject` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 账簿期初     | `/acc/opening` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| VOU 会计映射 | `/acc/mapping` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 会计期间     | `/acc/period`  | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 页面              | 路由           | 来源                                                | 状态     |
+| ----------------- | -------------- | --------------------------------------------------- | -------- |
+| 会计账簿          | `/acc/book`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 会计科目          | `/acc/subject` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 账簿期初          | `/acc/opening` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 当前 VOU 会计映射 | `/acc/mapping` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 会计期间          | `/acc/period`  | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
 
 ## BOB
 

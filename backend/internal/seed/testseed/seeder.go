@@ -87,6 +87,7 @@ type Seeder struct {
 	parties           *dcldomain.PartyService
 	vouchers          *voudomain.Service
 	accounting        *accdomain.Service
+	accountMappings   *dcldomain.AccMappingService
 	auxRefs           map[string]auxdomain.ObjectView
 	bobRefs           map[string]seedBusinessView
 }
@@ -149,6 +150,7 @@ func New(
 	employees := dcldomain.NewEmployeeService(pool, business, partyDeclarations, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
 	relationships := dcldomain.NewRelationshipService(pool, business, partyDeclarations, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
 	accounting := accdomain.NewService(pool, seedAuthorizer{}, events)
+	accountMappings := dcldomain.NewAccMappingService(pool, accounting, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(
 		pool,
 		business,
@@ -172,7 +174,7 @@ func New(
 	return &Seeder{
 		pool: pool, queries: dbsqlc.New(pool), app: appdomain.NewService(pool, cfg, logger), accounts: accounts,
 		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, relationships: relationships, parties: partyDeclarations,
-		vouchers: vouchers, accounting: accounting,
+		vouchers: vouchers, accounting: accounting, accountMappings: accountMappings,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]seedBusinessView),
 	}, nil

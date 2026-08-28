@@ -11,6 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const copyDCLAccMappingVersion = `-- name: CopyDCLAccMappingVersion :execrows
+INSERT INTO dcl_acc_mapping_versions(approval_entry_id, mapping_id, default_result, definition)
+SELECT $1, source.mapping_id, source.default_result, source.definition
+FROM dcl_acc_mapping_versions source WHERE source.approval_entry_id=$2
+`
+
+type CopyDCLAccMappingVersionParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLAccMappingVersion(ctx context.Context, arg CopyDCLAccMappingVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, copyDCLAccMappingVersion, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const copyDCLEmployeeVersion = `-- name: CopyDCLEmployeeVersion :execrows
 INSERT INTO dcl_employee_versions(
   approval_entry_id,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
@@ -211,6 +230,54 @@ func (q *Queries) CopyDCLWarehouseVersion(ctx context.Context, arg CopyDCLWareho
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const countDCLAccMappingApprovalEvents = `-- name: CountDCLAccMappingApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='acc-mapping'
+  AND subject_id=$1
+`
+
+func (q *Queries) CountDCLAccMappingApprovalEvents(ctx context.Context, subjectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLAccMappingApprovalEvents, subjectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLAccMappings = `-- name: CountDCLAccMappings :one
+WITH selected AS (
+  SELECT mapping.id
+  FROM acc_mappings mapping
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='acc-mapping' AND subject_id=mapping.id
+      AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+  ) open_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='acc-mapping' AND subject_id=mapping.id
+      AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) approved_entry ON true
+  WHERE mapping.book_id=$1
+    AND ($2::text='' OR mapping.vou_entity=$2::text)
+    AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
+)
+SELECT count(*) FROM selected
+`
+
+type CountDCLAccMappingsParams struct {
+	BookID       string   `db:"book_id" json:"book_id"`
+	VouEntity    string   `db:"vou_entity" json:"vou_entity"`
+	StatusFilter []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountDCLAccMappings(ctx context.Context, arg CountDCLAccMappingsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLAccMappings, arg.BookID, arg.VouEntity, arg.StatusFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countDCLCustomerApprovalEvents = `-- name: CountDCLCustomerApprovalEvents :one
@@ -443,13 +510,13 @@ WITH selected AS (
   FROM dcl_subjects subject
   JOIN bob_parties party ON party.id=subject.id
   LEFT JOIN LATERAL (
-    SELECT id FROM approval_entries
+    SELECT id,status FROM approval_entries
     WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
       AND status IN ('DRAFT','PENDING')
     ORDER BY version_no DESC LIMIT 1
   ) open_entry ON true
   LEFT JOIN LATERAL (
-    SELECT id FROM approval_entries
+    SELECT id,status FROM approval_entries
     WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
       AND status='APPROVED'
     ORDER BY version_no DESC LIMIT 1
@@ -706,6 +773,46 @@ func (q *Queries) CountDCLWarehouses(ctx context.Context, arg CountDCLWarehouses
 	return count, err
 }
 
+const dCLAccMappingVersionReferenced = `-- name: DCLAccMappingVersionReferenced :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_vouchers voucher
+  WHERE voucher.mapping_approval_entry_id=$1
+)
+`
+
+func (q *Queries) DCLAccMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error) {
+	row := q.db.QueryRow(ctx, dCLAccMappingVersionReferenced, approvalEntryID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const deleteDCLAccMappingSubjectIfEmpty = `-- name: DeleteDCLAccMappingSubjectIfEmpty :execrows
+DELETE FROM acc_mappings mapping
+WHERE mapping.id=$1
+  AND NOT EXISTS(SELECT 1 FROM dcl_acc_mapping_versions payload WHERE payload.mapping_id=mapping.id)
+`
+
+func (q *Queries) DeleteDCLAccMappingSubjectIfEmpty(ctx context.Context, mappingID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLAccMappingSubjectIfEmpty, mappingID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDCLAccMappingVersion = `-- name: DeleteDCLAccMappingVersion :execrows
+DELETE FROM dcl_acc_mapping_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLAccMappingVersion, approvalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteDCLEmployeeVersion = `-- name: DeleteDCLEmployeeVersion :execrows
 DELETE FROM dcl_employee_versions WHERE approval_entry_id=$1
 `
@@ -914,6 +1021,47 @@ func (q *Queries) FindDCLVehicleIdentifierConflict(ctx context.Context, objectID
 	row := q.db.QueryRow(ctx, findDCLVehicleIdentifierConflict, objectID)
 	var i FindDCLVehicleIdentifierConflictRow
 	err := row.Scan(&i.IdentifierKind, &i.NormalizedValue)
+	return i, err
+}
+
+const getDCLAccMappingSubject = `-- name: GetDCLAccMappingSubject :one
+SELECT id, book_id, vou_entity
+FROM acc_mappings
+WHERE book_id=$1 AND vou_entity=$2
+`
+
+type GetDCLAccMappingSubjectParams struct {
+	BookID    string `db:"book_id" json:"book_id"`
+	VouEntity string `db:"vou_entity" json:"vou_entity"`
+}
+
+type GetDCLAccMappingSubjectRow struct {
+	ID        string `db:"id" json:"id"`
+	BookID    string `db:"book_id" json:"book_id"`
+	VouEntity string `db:"vou_entity" json:"vou_entity"`
+}
+
+func (q *Queries) GetDCLAccMappingSubject(ctx context.Context, arg GetDCLAccMappingSubjectParams) (GetDCLAccMappingSubjectRow, error) {
+	row := q.db.QueryRow(ctx, getDCLAccMappingSubject, arg.BookID, arg.VouEntity)
+	var i GetDCLAccMappingSubjectRow
+	err := row.Scan(&i.ID, &i.BookID, &i.VouEntity)
+	return i, err
+}
+
+const getDCLAccMappingVersion = `-- name: GetDCLAccMappingVersion :one
+SELECT approval_entry_id, mapping_id, default_result, definition
+FROM dcl_acc_mapping_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) GetDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (DclAccMappingVersion, error) {
+	row := q.db.QueryRow(ctx, getDCLAccMappingVersion, approvalEntryID)
+	var i DclAccMappingVersion
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.MappingID,
+		&i.DefaultResult,
+		&i.Definition,
+	)
 	return i, err
 }
 
@@ -1482,6 +1630,53 @@ func (q *Queries) GetLatestApprovedDCLWarehouseVersionExcluding(ctx context.Cont
 	return i, err
 }
 
+const insertDCLAccMappingSubject = `-- name: InsertDCLAccMappingSubject :exec
+
+INSERT INTO acc_mappings(id, book_id, vou_entity, created_by, updated_by)
+VALUES($1, $2, $3, $4, $4)
+`
+
+type InsertDCLAccMappingSubjectParams struct {
+	ID        string `db:"id" json:"id"`
+	BookID    string `db:"book_id" json:"book_id"`
+	VouEntity string `db:"vou_entity" json:"vou_entity"`
+	ActorID   string `db:"actor_id" json:"actor_id"`
+}
+
+// ACC mapping declarations are DCL-owned. The stable subject (bookId, vouEntity)
+// lives in acc_mappings; typed full snapshots live here.
+func (q *Queries) InsertDCLAccMappingSubject(ctx context.Context, arg InsertDCLAccMappingSubjectParams) error {
+	_, err := q.db.Exec(ctx, insertDCLAccMappingSubject,
+		arg.ID,
+		arg.BookID,
+		arg.VouEntity,
+		arg.ActorID,
+	)
+	return err
+}
+
+const insertDCLAccMappingVersion = `-- name: InsertDCLAccMappingVersion :exec
+INSERT INTO dcl_acc_mapping_versions(approval_entry_id, mapping_id, default_result, definition)
+VALUES($1, $2, $3, $4)
+`
+
+type InsertDCLAccMappingVersionParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	MappingID       string `db:"mapping_id" json:"mapping_id"`
+	DefaultResult   string `db:"default_result" json:"default_result"`
+	Definition      []byte `db:"definition" json:"definition"`
+}
+
+func (q *Queries) InsertDCLAccMappingVersion(ctx context.Context, arg InsertDCLAccMappingVersionParams) error {
+	_, err := q.db.Exec(ctx, insertDCLAccMappingVersion,
+		arg.ApprovalEntryID,
+		arg.MappingID,
+		arg.DefaultResult,
+		arg.Definition,
+	)
+	return err
+}
+
 const insertDCLEmployeeVersion = `-- name: InsertDCLEmployeeVersion :exec
 INSERT INTO dcl_employee_versions(
   approval_entry_id,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
@@ -1909,6 +2104,140 @@ func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWa
 		arg.Enabled,
 	)
 	return err
+}
+
+const listDCLAccMappingApprovalEvents = `-- name: ListDCLAccMappingApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='acc-mapping'
+  AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDCLAccMappingApprovalEventsParams struct {
+	SubjectID string `db:"subject_id" json:"subject_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLAccMappingApprovalEvents(ctx context.Context, arg ListDCLAccMappingApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLAccMappingApprovalEvents, arg.SubjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLAccMappings = `-- name: ListDCLAccMappings :many
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       COALESCE(approved_entry.id,'')::text AS approved_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM acc_mappings mapping
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='acc-mapping' AND subject_id=mapping.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='acc-mapping' AND subject_id=mapping.id
+    AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+WHERE mapping.book_id=$1
+  AND ($2::text='' OR mapping.vou_entity=$2::text)
+  AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
+ORDER BY CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(open_entry.updated_at,approved_entry.updated_at) END ASC,
+         CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(open_entry.updated_at,approved_entry.updated_at) END DESC,
+         CASE WHEN $4::text='vouEntity' AND $5::text='asc' THEN mapping.vou_entity END ASC,
+         CASE WHEN $4::text='vouEntity' AND $5::text='desc' THEN mapping.vou_entity END DESC,
+         CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(open_entry.status,approved_entry.status) END ASC,
+         CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(open_entry.status,approved_entry.status) END DESC,
+         CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(open_entry.version_no,approved_entry.version_no) END ASC,
+         CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(open_entry.version_no,approved_entry.version_no) END DESC,
+         mapping.id DESC
+OFFSET $6 LIMIT $7
+`
+
+type ListDCLAccMappingsParams struct {
+	BookID       string   `db:"book_id" json:"book_id"`
+	VouEntity    string   `db:"vou_entity" json:"vou_entity"`
+	StatusFilter []string `db:"status_filter" json:"status_filter"`
+	SortField    string   `db:"sort_field" json:"sort_field"`
+	SortOrder    string   `db:"sort_order" json:"sort_order"`
+	RowOffset    int32    `db:"row_offset" json:"row_offset"`
+	RowLimit     int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLAccMappingsRow struct {
+	MappingID       string             `db:"mapping_id" json:"mapping_id"`
+	BookID          string             `db:"book_id" json:"book_id"`
+	VouEntity       string             `db:"vou_entity" json:"vou_entity"`
+	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListDCLAccMappings(ctx context.Context, arg ListDCLAccMappingsParams) ([]ListDCLAccMappingsRow, error) {
+	rows, err := q.db.Query(ctx, listDCLAccMappings,
+		arg.BookID,
+		arg.VouEntity,
+		arg.StatusFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLAccMappingsRow{}
+	for rows.Next() {
+		var i ListDCLAccMappingsRow
+		if err := rows.Scan(
+			&i.MappingID,
+			&i.BookID,
+			&i.VouEntity,
+			&i.ApprovedEntryID,
+			&i.OpenEntryID,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDCLCustomerApprovalEvents = `-- name: ListDCLCustomerApprovalEvents :many
@@ -3529,6 +3858,26 @@ DELETE FROM dcl_party_version_identifiers WHERE approval_entry_id=$1
 
 func (q *Queries) ReplaceDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) (int64, error) {
 	result, err := q.db.Exec(ctx, replaceDCLPartyVersionIdentifiers, approvalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateDCLAccMappingVersion = `-- name: UpdateDCLAccMappingVersion :execrows
+UPDATE dcl_acc_mapping_versions SET
+  default_result = $1, definition = $2
+WHERE approval_entry_id=$3
+`
+
+type UpdateDCLAccMappingVersionParams struct {
+	DefaultResult   string `db:"default_result" json:"default_result"`
+	Definition      []byte `db:"definition" json:"definition"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) UpdateDCLAccMappingVersion(ctx context.Context, arg UpdateDCLAccMappingVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateDCLAccMappingVersion, arg.DefaultResult, arg.Definition, arg.ApprovalEntryID)
 	if err != nil {
 		return 0, err
 	}

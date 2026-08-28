@@ -239,7 +239,7 @@ func assertAccountingAndReportFacts(t *testing.T, pool *pgxpool.Pool) {
 		SELECT
 			(SELECT count(*) FROM acc_books WHERE description=$1),
 			(SELECT count(*) FROM approval_entries approval JOIN acc_books book ON book.id=approval.subject_id WHERE book.description=$1 AND approval.domain='acc' AND approval.entity='opening' AND approval.version_no IS NULL AND approval.status='APPROVED'),
-			(SELECT count(*) FROM approval_entries approval JOIN acc_mappings mapping ON mapping.id=approval.subject_id JOIN acc_books book ON book.id=mapping.book_id WHERE book.description=$1 AND approval.domain='acc' AND approval.entity='mapping' AND approval.status='APPROVED'),
+			(SELECT count(*) FROM approval_entries approval JOIN acc_mappings mapping ON mapping.id=approval.subject_id JOIN acc_books book ON book.id=mapping.book_id WHERE book.description=$1 AND approval.domain='dcl' AND approval.entity='acc-mapping' AND approval.status='APPROVED'),
 			(SELECT count(*) FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id WHERE voucher.source_entity='other-income')
 	`, testAccountingBookDescription).Scan(&books, &approvedOpenings, &mappings, &postedLines); err != nil {
 		t.Fatalf("read test accounting facts: %v", err)

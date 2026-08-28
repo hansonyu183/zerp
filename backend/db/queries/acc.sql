@@ -180,7 +180,7 @@ SELECT EXISTS(
       SELECT 1
       FROM acc_mappings mapping
       JOIN approval_entries mapping_approval
-        ON mapping_approval.domain='acc' AND mapping_approval.entity='mapping'
+        ON mapping_approval.domain='dcl' AND mapping_approval.entity='acc-mapping'
        AND mapping_approval.subject_id=mapping.id AND mapping_approval.status='APPROVED'
       WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=document.entity
     )
@@ -709,24 +709,6 @@ SELECT EXISTS(
   WHERE opening.book_id = sqlc.arg(book_id) AND approval.status = 'APPROVED'
 );
 
--- name: GetAccountingMappingSubject :one
-SELECT id, book_id, vou_entity
-FROM acc_mappings
-WHERE book_id=sqlc.arg(book_id) AND vou_entity=sqlc.arg(vou_entity);
-
--- name: CreateAccountingMappingSubject :exec
-INSERT INTO acc_mappings(id, book_id, vou_entity, created_by, updated_by)
-VALUES(sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(vou_entity), sqlc.arg(actor_id), sqlc.arg(actor_id));
-
--- name: CreateAccountingMappingVersion :exec
-INSERT INTO acc_mapping_versions (
-  approval_entry_id, mapping_id, default_result, definition,
-  created_by, updated_by
-) VALUES (
-  sqlc.arg(approval_entry_id), sqlc.arg(mapping_id), sqlc.arg(default_result), sqlc.arg(definition),
-  sqlc.arg(actor_id), sqlc.arg(actor_id)
-);
-
 -- name: ListAccountingMappings :many
 SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        entry.id AS approval_entry_id, entry.version_no, entry.status,
@@ -735,15 +717,14 @@ SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        payload.default_result, payload.definition, count(*) OVER() AS total
 FROM acc_mappings mapping
 JOIN LATERAL (
-  SELECT candidate.*
-  FROM approval_entries candidate
-  WHERE candidate.domain='acc' AND candidate.entity='mapping' AND candidate.subject_id=mapping.id
-    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
-           candidate.version_no DESC
+  SELECT approved.*
+  FROM approval_entries approved
+  WHERE approved.domain='dcl' AND approved.entity='acc-mapping' AND approved.subject_id=mapping.id
+    AND approved.status='APPROVED'
+  ORDER BY approved.version_no DESC
   LIMIT 1
 ) entry ON true
-JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+JOIN dcl_acc_mapping_versions payload ON payload.approval_entry_id=entry.id
 WHERE mapping.book_id = sqlc.arg(book_id)
   AND (sqlc.arg(vou_entity)::text = '' OR mapping.vou_entity = sqlc.arg(vou_entity))
 ORDER BY mapping.vou_entity
@@ -757,8 +738,8 @@ SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        payload.default_result, payload.definition, count(*) OVER() AS total
 FROM acc_mappings mapping
 JOIN approval_entries entry
-  ON entry.domain='acc' AND entry.entity='mapping' AND entry.subject_id=mapping.id
-JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+  ON entry.domain='dcl' AND entry.entity='acc-mapping' AND entry.subject_id=mapping.id
+JOIN dcl_acc_mapping_versions payload ON payload.approval_entry_id=entry.id
 WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=sqlc.arg(vou_entity)
 ORDER BY entry.version_no DESC
 OFFSET sqlc.arg(page_offset) LIMIT sqlc.arg(page_size);
@@ -766,7 +747,7 @@ OFFSET sqlc.arg(page_offset) LIMIT sqlc.arg(page_size);
 -- name: GetAccountingMappingVersion :one
 SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        payload.approval_entry_id, payload.default_result, payload.definition
-FROM acc_mapping_versions payload
+FROM dcl_acc_mapping_versions payload
 JOIN acc_mappings mapping ON mapping.id=payload.mapping_id
 WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=sqlc.arg(vou_entity)
   AND payload.approval_entry_id=sqlc.arg(approval_entry_id);
@@ -776,48 +757,36 @@ SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
        entry.id AS approval_entry_id, payload.default_result, payload.definition
 FROM acc_mappings mapping
 JOIN LATERAL (
-  SELECT candidate.id
-  FROM approval_entries candidate
-  WHERE candidate.domain='acc' AND candidate.entity='mapping' AND candidate.subject_id=mapping.id
-    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
-           candidate.version_no DESC
+  SELECT approved.id
+  FROM approval_entries approved
+  WHERE approved.domain='dcl' AND approved.entity='acc-mapping' AND approved.subject_id=mapping.id
+    AND approved.status='APPROVED'
+  ORDER BY approved.version_no DESC
   LIMIT 1
 ) entry ON true
-JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+JOIN dcl_acc_mapping_versions payload ON payload.approval_entry_id=entry.id
 WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=sqlc.arg(vou_entity);
-
--- name: UpdateAccountingMappingVersion :exec
-UPDATE acc_mapping_versions SET
-  default_result = sqlc.arg(default_result), definition = sqlc.arg(definition),
-  updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE approval_entry_id=sqlc.arg(approval_entry_id);
-
--- name: DeleteAccountingMappingVersion :exec
-DELETE FROM acc_mapping_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
-
--- name: DeleteAccountingMappingSubjectIfEmpty :exec
-DELETE FROM acc_mappings mapping
-WHERE mapping.id=sqlc.arg(mapping_id)
-  AND NOT EXISTS(SELECT 1 FROM acc_mapping_versions payload WHERE payload.mapping_id=mapping.id);
-
--- name: AccountingMappingVersionReferenced :one
-SELECT EXISTS(
-  SELECT 1 FROM acc_vouchers voucher
-  WHERE voucher.mapping_approval_entry_id=sqlc.arg(approval_entry_id)
-);
 
 -- name: GetCurrentApprovedAccountingMapping :one
 SELECT payload.approval_entry_id, mapping.id AS mapping_id, mapping.book_id,
        mapping.vou_entity, payload.default_result, payload.definition
 FROM acc_mappings mapping
 JOIN approval_entries entry
-  ON entry.domain='acc' AND entry.entity='mapping' AND entry.subject_id=mapping.id
+  ON entry.domain='dcl' AND entry.entity='acc-mapping' AND entry.subject_id=mapping.id
  AND entry.status='APPROVED'
-JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+JOIN dcl_acc_mapping_versions payload ON payload.approval_entry_id=entry.id
 WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=sqlc.arg(vou_entity)
 ORDER BY entry.version_no DESC
 LIMIT 1;
+
+-- name: LockApprovedAccountingMappingVersion :one
+SELECT id
+FROM approval_entries
+WHERE id=sqlc.arg(approval_entry_id)
+  AND domain='dcl'
+  AND entity='acc-mapping'
+  AND status='APPROVED'
+FOR SHARE;
 
 -- name: ListAccountingPostingBooks :many
 SELECT b.id, b.control_book

@@ -2,12 +2,12 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobEntity } from './BobEntity';
 import type { WorkbenchAction } from './WorkbenchAction';
+import type { WorkbenchObjectEntity } from './WorkbenchObjectEntity';
 import type { WorkbenchPendingStage } from './WorkbenchPendingStage';
 export type WorkbenchObjectItem = {
   category: 'BOB';
-  entity: BobEntity;
+  entity: WorkbenchObjectEntity;
   status: 'DRAFT' | 'PENDING';
   pendingStage: WorkbenchPendingStage;
   availableActions: Array<WorkbenchAction>;
@@ -18,4 +18,6 @@ export type WorkbenchObjectItem = {
   revision: number;
   code: string;
   name: string;
+  bookId?: string;
+  vouEntity?: string;
 };

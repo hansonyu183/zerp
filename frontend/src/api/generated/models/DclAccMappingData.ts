@@ -4,11 +4,7 @@
 /* eslint-disable */
 import type { MappingDefinition } from './MappingDefinition';
 import type { MappingResult } from './MappingResult';
-export type MappingSaveRequest = {
-  bookId: string;
-  vouEntity: string;
-  approvalEntryId: string;
+export type DclAccMappingData = {
   defaultResult: MappingResult;
   definition: MappingDefinition;
-  revision: number;
 };

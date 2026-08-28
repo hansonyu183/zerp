@@ -139,7 +139,7 @@ func includesWorkbenchStage(selected []string, stage string) bool {
 }
 
 func appendDCLWorkbenchEntities(scope workbenchPermissionScope, entities []string, matches func(string, string) bool) []string {
-	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account", "product", "party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account"} {
+	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account", "product", "party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account", "acc-mapping"} {
 		if scope.can("dcl", entity, "query") && matches("dcl", entity) {
 			entities = append(entities, entity)
 		}
@@ -205,6 +205,17 @@ func (s *Service) queryWorkbenchBob(
 			if row.Status == "DRAFT" && scope.can(domain, row.Entity, "save") {
 				actions = append(actions, "edit")
 			}
+		}
+		if row.Entity == "acc-mapping" {
+			items = append(items, WorkbenchItem{
+				Category: WorkbenchCategoryBob, Entity: row.Entity, Status: row.Status,
+				PendingStage:     map[bool]string{true: "SUBMIT", false: "APPROVE"}[row.Status == "DRAFT"],
+				AvailableActions: actions, UpdatedAt: row.ObjectUpdatedAt.Time,
+				ObjectID: row.ObjectID, ObjectRevision: row.ObjectRevision, ApprovalEntryID: row.ApprovalEntryID,
+				Revision: row.ApprovalRevision, Code: row.Code, Name: row.Name,
+				BookID: row.BookID, VouEntity: row.VouEntity,
+			})
+			continue
 		}
 		pendingStage := "APPROVE"
 		if row.Status == "DRAFT" {

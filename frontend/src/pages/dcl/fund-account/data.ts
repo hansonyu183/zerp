@@ -124,7 +124,6 @@ export async function queryDclFundAccountOperatingEntities(
     page: 1,
     pageSize: 20,
     filters: {
-      status: ['APPROVED'],
       enabled: true,
       ...(keyword ? { keyword } : {}),
     },

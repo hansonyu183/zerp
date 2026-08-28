@@ -128,7 +128,7 @@ describe('DCL fund account view model', () => {
       {
         page: 1,
         pageSize: 20,
-        filters: { status: ['APPROVED'], enabled: true },
+        filters: { enabled: true },
         sort: [{ field: 'name', order: 'asc' }],
       },
     )
@@ -312,7 +312,6 @@ describe('DCL fund account view model', () => {
           page: 1,
           pageSize: 20,
           filters: {
-            status: ['APPROVED'],
             enabled: true,
             keyword: '搜索',
           },

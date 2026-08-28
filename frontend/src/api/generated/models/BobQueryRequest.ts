@@ -5,7 +5,27 @@
 export type BobQueryRequest = {
   page: number;
   pageSize: number;
-  filters?: Record<string, any>;
+  filters?: {
+    keyword?: string;
+    kind?: string;
+    merged?: boolean;
+    enabled?: boolean;
+    customerType?: string;
+    operatingEntityId?: string;
+    capability?: string;
+    salesAttributionType?: string;
+    salesAttributionSubjectId?: string;
+    categoryId?: string;
+    departmentId?: string;
+    positionId?: string;
+    salespersonEmployeeId?: string;
+    defaultPurchaserEmployeeId?: string;
+    currency?: string;
+    productTypeId?: string;
+    targetEntity?: string;
+    parentId?: string;
+    rootOnly?: boolean;
+  };
   sort?: Array<{
     field: string;
     order: 'asc' | 'desc';

@@ -248,7 +248,6 @@ export async function querySupplierReference(
         page: 1,
         pageSize: 20,
         filters: {
-          status: ['APPROVED'],
           enabled: true,
           ...(keyword ? { keyword } : {}),
         },

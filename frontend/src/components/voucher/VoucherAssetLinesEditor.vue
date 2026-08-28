@@ -86,7 +86,7 @@ async function loadEmployeeReferences(): Promise<VoucherReference[]> {
   const { data } = await apiClient.postContract('bob/employee/query', {
     page: 1,
     pageSize: 200,
-    filters: { status: ['APPROVED'] },
+    filters: {},
     sort: [{ field: 'name', order: 'asc' }],
   })
   return data.items.map(employeeReference)

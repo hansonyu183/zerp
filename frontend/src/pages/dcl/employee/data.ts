@@ -227,7 +227,6 @@ export async function queryEmployeeReference(
         page: 1,
         pageSize: 20,
         filters: {
-          status: ['APPROVED'],
           enabled: true,
           ...(keyword ? { keyword } : {}),
         },

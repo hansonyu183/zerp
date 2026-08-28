@@ -241,7 +241,6 @@ export function useVoucherReferences(
               page: 1,
               pageSize: 20,
               filters: {
-                status: ['APPROVED'],
                 ...(keyword.trim() && { keyword: keyword.trim() }),
                 ...definition.filters,
               },

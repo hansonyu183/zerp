@@ -345,7 +345,6 @@ export async function queryRelationshipReference(
         page: 1,
         pageSize: 20,
         filters: {
-          status: ['APPROVED'],
           enabled: true,
           ...(keyword ? { keyword } : {}),
         },

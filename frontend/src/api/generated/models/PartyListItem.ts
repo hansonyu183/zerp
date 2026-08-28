@@ -8,5 +8,7 @@ export type PartyListItem = {
   kind: PartyKind;
   legalName: string;
   displayName: string;
+  sourceApprovalEntryId: string;
+  sourceVersionNo: number;
   updatedAt: string;
 };

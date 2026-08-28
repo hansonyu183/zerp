@@ -50,6 +50,14 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 		t.Fatal("BOB exposed unapproved Other Unit")
 	}
 	approveRelationshipParty(t, parties, other.PartyID, creator("other-unit-party-submit"), reviewer("other-unit-party-approve"))
+	partyCurrent, err := business.PartyGet(t.Context(), bobdomain.PartyGetInput{PartyID: other.PartyID}, bobdomain.PartyRelationshipVisibility{})
+	if err != nil || partyCurrent.SourceApprovalEntryID == "" || partyCurrent.SourceVersionNo != 1 {
+		t.Fatalf("BOB Party current source = (%q,%d), err=%v", partyCurrent.SourceApprovalEntryID, partyCurrent.SourceVersionNo, err)
+	}
+	partyPage, err := business.PartyQuery(t.Context(), bobdomain.QueryInput{Page: 1, PageSize: 20, Filters: bobdomain.QueryFilters{Keyword: "测试往来单位"}})
+	if err != nil || len(partyPage.Items) != 1 || partyPage.Items[0].SourceApprovalEntryID != partyCurrent.SourceApprovalEntryID || partyPage.Items[0].SourceVersionNo != 1 {
+		t.Fatalf("BOB Party current query source = %+v, err=%v", partyPage.Items, err)
+	}
 	cards, err := partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
 	if err != nil || len(cards) != 0 {
 		t.Fatalf("BOB Party exposed candidate relationship: cards=%+v err=%v", cards, err)
@@ -57,7 +65,7 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	other = submitAndApproveOtherUnit(t, relationships, other, creator("other-unit-submit"), reviewer("other-unit-approve"))
 	assertRelationshipCurrent(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID, "测试往来单位")
 	cards, err = partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
-	if err != nil || len(cards) != 1 || cards[0].ObjectID != other.ObjectID {
+	if err != nil || len(cards) != 1 || cards[0].ObjectID != other.ObjectID || cards[0].SourceApprovalEntryID != other.Approval.ApprovalEntryID || cards[0].SourceVersionNo != 1 {
 		t.Fatalf("BOB Party current relationships = %+v, err=%v", cards, err)
 	}
 
@@ -70,6 +78,10 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 		t.Fatalf("unapprove Other Unit V2: %v", err)
 	}
 	assertRelationshipCurrent(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID, "测试往来单位")
+	cards, err = partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
+	if err != nil || len(cards) != 1 || cards[0].SourceApprovalEntryID != other.Approval.ApprovalEntryID || cards[0].SourceVersionNo != 1 {
+		t.Fatalf("BOB Party relationship fallback source = %+v, err=%v", cards, err)
+	}
 
 	sales, err := relationships.CreateSalesPartner(t.Context(), SalesPartnerCreateInput{
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "测试销售合作方", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108TESTREL002"}}},

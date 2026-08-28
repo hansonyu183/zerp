@@ -25,6 +25,12 @@ export const dclApprovalStatusText = {
   APPROVED: '已批准',
 } as const
 
+export function getDclApprovalStatusText(
+  status?: keyof typeof dclApprovalStatusText,
+): string {
+  return status ? dclApprovalStatusText[status] : '未标记'
+}
+
 export const dclApprovalEventActionText = {
   CREATED: '创建',
   SAVED: '保存',

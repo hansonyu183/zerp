@@ -10,7 +10,7 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
-import { getStatusText } from '@/pages/bob/shared/config'
+import { getDclApprovalStatusText } from '@/pages/dcl/shared/declaration'
 import { dclProductFormFromView } from './data'
 import type { DclProductViewModel } from './vm'
 import { dclProductActiveVersion, type DclProductListItem } from './types'
@@ -494,7 +494,11 @@ function saveFormula(value: ProductFormulaDraft): void {
       <template #cell-status="{ row }">
         <div class="bob-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
-            {{ getStatusText(dclProductActiveVersion(row).approval.status) }}
+            {{
+              getDclApprovalStatusText(
+                dclProductActiveVersion(row).approval.status,
+              )
+            }}
           </v-chip>
           <v-chip
             v-if="row.latestApproved !== null"
@@ -897,7 +901,9 @@ function saveFormula(value: ProductFormulaDraft): void {
           <tbody>
             <tr v-for="item in vm.versions" :key="item.approvalEntryId">
               <td data-label="版本">V{{ item.versionNo }}</td>
-              <td data-label="状态">{{ getStatusText(item.status) }}</td>
+              <td data-label="状态">
+                {{ getDclApprovalStatusText(item.status) }}
+              </td>
               <td data-label="名称">{{ item.summary.name }}</td>
               <td data-label="更新">
                 {{ formatLocalDateTime(item.updatedAt) }}
@@ -958,9 +964,17 @@ function saveFormula(value: ProductFormulaDraft): void {
             <tr v-for="event in vm.auditEvents" :key="event.id">
               <td data-label="事件">{{ event.action }}</td>
               <td data-label="变化">
-                {{ event.fromStatus ? getStatusText(event.fromStatus) : '—' }}
+                {{
+                  event.fromStatus
+                    ? getDclApprovalStatusText(event.fromStatus)
+                    : '—'
+                }}
                 →
-                {{ event.toStatus ? getStatusText(event.toStatus) : '—' }}
+                {{
+                  event.toStatus
+                    ? getDclApprovalStatusText(event.toStatus)
+                    : '—'
+                }}
               </td>
               <td data-label="操作人">{{ event.actorId }}</td>
               <td data-label="时间">

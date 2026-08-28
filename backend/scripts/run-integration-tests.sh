@@ -151,6 +151,13 @@ run_issue_290_cutover() {
 		<db/cutovers/issue-290-aux-direct-crud.sql
 }
 
+verify_issue_290_order_guard() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.aux_version_payloads'"'"') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='"'"'public'"'"' AND table_name='"'"'aux_objects'"'"' AND column_name='"'"'data'"'"') THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 verify_issue_290_cutover() {
 	local database="$1"
 	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
@@ -230,6 +237,14 @@ mkdir -p "$work_root"
 
 cutover_database="$(database_name "_issues_289_290_cutover_${run_id}_test")"
 clone_databases+=("$cutover_database")
+recreate_database "$cutover_database"
+initialize_pre_cutover_schema "$cutover_database"
+seed_issue_289_snapshot_fixture "$cutover_database"
+if run_issue_290_cutover "$cutover_database" >/dev/null 2>&1; then
+	fail "issue-290 cutover accepted execution before issue-289"
+fi
+verify_issue_290_order_guard "$cutover_database"
+
 recreate_database "$cutover_database"
 initialize_pre_cutover_schema "$cutover_database"
 seed_issue_289_snapshot_fixture "$cutover_database"

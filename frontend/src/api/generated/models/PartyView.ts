@@ -10,6 +10,8 @@ export type PartyView = {
   kind: PartyKind;
   legalName: string;
   displayName: string;
+  sourceApprovalEntryId: string;
+  sourceVersionNo: number;
   taxNumber?: string;
   strongIdentifiers: Array<PartyIdentifier>;
   phone?: string;

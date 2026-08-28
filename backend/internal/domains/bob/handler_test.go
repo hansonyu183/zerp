@@ -286,6 +286,30 @@ func TestCurrentQueryItemExposesDCLSourceInsteadOfApprovalSummary(t *testing.T) 
 	}
 }
 
+func TestPartyCurrentResponsesExposeDCLSource(t *testing.T) {
+	values := []any{
+		PartyListItem{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
+		PartyView{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
+		PartyRelationshipCard{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
+	}
+	for _, value := range values {
+		payload, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]any
+		if err = json.Unmarshal(payload, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if fields["sourceApprovalEntryId"] != "01J00000000000000000000010" || fields["sourceVersionNo"] != float64(7) {
+			t.Fatalf("Party current source = %#v", fields)
+		}
+		if _, exists := fields["approval"]; exists {
+			t.Fatalf("legacy approval metadata is public: %#v", fields)
+		}
+	}
+}
+
 func TestHandlerUsesExactPermissionPathAndPrincipal(t *testing.T) {
 	service := &serviceStub{}
 	var permission string

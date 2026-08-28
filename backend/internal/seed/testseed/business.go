@@ -79,12 +79,8 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		"settlement-month-end": "MONTHLY_CURRENT",
 		"settlement-due-days":  "ARRIVAL_30",
 	} {
-		var objectID string
-		if err := s.pool.QueryRow(ctx, `SELECT object.id
-			FROM aux_objects object
-			WHERE object.entity='settlement-method' AND object.enabled
-			  AND object.data->>'termCode'=$1`,
-			termCode).Scan(&objectID); err != nil {
+		objectID, err := s.queries.FindEnabledSettlementMethodByTermCode(ctx, termCode)
+		if err != nil {
 			return fmt.Errorf("load fixed settlement method %s: %w", termCode, err)
 		}
 		actor, actorErr := seedActor(actorID, requestID(key, "get"))

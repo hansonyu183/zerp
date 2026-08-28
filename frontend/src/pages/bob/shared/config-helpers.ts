@@ -6,25 +6,9 @@ import type {
 import type {
   BobEntityConfig,
   BobFieldContext,
-  BobFilterField,
   BobForm,
   BobListItem,
 } from './types'
-import type { components } from '@/api/generated/schema'
-
-type BobStatus = components['schemas']['ApprovalVersionMeta']['status']
-
-export const statusText: Record<BobStatus, string> = {
-  DRAFT: '草稿',
-  PENDING: '待批准',
-  APPROVED: '已批准',
-}
-
-export const statusOptions: readonly BusinessObjectFieldOption[] = [
-  { title: '草稿', value: 'DRAFT' },
-  { title: '待批准', value: 'PENDING' },
-  { title: '已批准', value: 'APPROVED' },
-]
 
 export const customerTypeOptions: readonly BusinessObjectFieldOption[] = [
   { title: '终端客户', value: 'DIT-0001' },
@@ -162,30 +146,6 @@ export function reference(
   }
 }
 
-export function baseFilters(
-  extra: readonly BobFilterField[] = [],
-): BobFilterField[] {
-  return [
-    {
-      key: 'status',
-      label: '状态',
-      type: 'select',
-      multiple: true,
-      options: statusOptions,
-    },
-    {
-      key: 'enabled',
-      label: '启停状态',
-      type: 'select',
-      options: [
-        { title: '启用', value: true },
-        { title: '禁用', value: false },
-      ],
-    },
-    ...extra,
-  ]
-}
-
 export function baseColumns(
   codeLabel: string,
   nameLabel: string,
@@ -252,8 +212,4 @@ export function defineBobEntityConfig(
     }),
     detailKeys,
   }
-}
-
-export function getStatusText(status?: BobStatus): string {
-  return status ? (statusText[status] ?? status) : '未标记'
 }

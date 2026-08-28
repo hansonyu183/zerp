@@ -8,7 +8,6 @@
           'customer-account',
           'supplier',
           'employee',
-          'supplier',
           'other-unit',
           'sales-partner',
           'product',
@@ -924,6 +923,8 @@
           'objectId',
           'entity',
           'code',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
           'operatingEntityId',
           'operatingEntityCode',
           'operatingEntityName',
@@ -946,6 +947,9 @@
                 ],
             },
           'code': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'operatingEntityId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
@@ -961,6 +965,8 @@
           'kind',
           'legalName',
           'displayName',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
           'strongIdentifiers',
           'relationships',
           'updatedAt',
@@ -972,6 +978,9 @@
           'kind': { '$ref': '#/PartyKind' },
           'legalName': { 'type': 'string' },
           'displayName': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'taxNumber': { 'type': 'string' },
           'strongIdentifiers':
             { 'type': 'array', 'items': { '$ref': '#/PartyIdentifier' } },
@@ -986,7 +995,16 @@
   'PartyListItem':
     {
       'type': 'object',
-      'required': ['partyId', 'kind', 'legalName', 'displayName', 'updatedAt'],
+      'required':
+        [
+          'partyId',
+          'kind',
+          'legalName',
+          'displayName',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'updatedAt',
+        ],
       'additionalProperties': false,
       'properties':
         {
@@ -994,6 +1012,9 @@
           'kind': { '$ref': '#/PartyKind' },
           'legalName': { 'type': 'string' },
           'displayName': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },

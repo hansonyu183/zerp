@@ -27,7 +27,8 @@ interface ReferenceState {
 function referenceName(item: unknown): string {
   if (!item || typeof item !== 'object') return ''
   const record = item as Record<string, unknown>
-  if (typeof record.partyDisplayName === 'string') return record.partyDisplayName
+  if (typeof record.partyDisplayName === 'string')
+    return record.partyDisplayName
   const relationship = record.relationship
   if (relationship && typeof relationship === 'object') {
     const partyDisplayName = (relationship as Record<string, unknown>)
@@ -201,7 +202,6 @@ export function useBobReferences(
                       filters: {
                         ...resolveReferenceFilters(reference, form),
                         keyword: value,
-                        status: ['APPROVED'],
                         enabled: true,
                       },
                       sort: [{ field: 'name', order: 'asc' }],
@@ -349,7 +349,6 @@ export function useBobReferences(
             filters: {
               ...resolveReferenceFilters(reference, form),
               ...(keywordFilter ? { keyword: keywordFilter } : {}),
-              status: ['APPROVED'],
               enabled: true,
             },
             sort: [{ field: 'name', order: 'asc' }],

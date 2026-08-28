@@ -1,7 +1,9 @@
-import type { BusinessObjectColumn, BusinessObjectField } from '@/components/business-object'
+import type {
+  BusinessObjectColumn,
+  BusinessObjectField,
+} from '@/components/business-object'
 import type { BobForm } from '@/pages/bob/shared/types'
 import {
-  baseFilters,
   commonFields,
   defineBobEntityConfig,
   quantityPattern,
@@ -9,6 +11,7 @@ import {
   text,
   textarea,
 } from '@/pages/bob/shared/config-helpers'
+import { dclApprovalStatusText } from '@/pages/dcl/shared/declaration'
 import { dclProductActiveVersion } from './types'
 import type { DclProductConfig, DclProductListItem } from './types'
 
@@ -137,7 +140,26 @@ const sharedProductConfig = defineBobEntityConfig({
     textarea('remark', '备注'),
   ],
   columns: [],
-  filters: baseFilters([
+  filters: [
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      multiple: true,
+      options: Object.entries(dclApprovalStatusText).map(([value, title]) => ({
+        title,
+        value,
+      })),
+    },
+    {
+      key: 'enabled',
+      label: '启停状态',
+      type: 'select',
+      options: [
+        { title: '启用', value: true },
+        { title: '禁用', value: false },
+      ],
+    },
     {
       key: 'productTypeId',
       label: '产品类型',
@@ -154,16 +176,39 @@ const sharedProductConfig = defineBobEntityConfig({
         label: '产品分类',
       },
     },
-  ]),
+  ],
 })
 
 const productColumns: readonly BusinessObjectColumn<DclProductListItem>[] = [
   { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
-  { key: 'name', label: '名称', value: (row) => dclProductActiveVersion(row).summary.name, sizing: 'fluid' },
-  { key: 'productTypeName', label: '产品类型', value: (row) => dclProductActiveVersion(row).summary.productTypeName ?? '' },
-  { key: 'defaultInputUnit', label: '默认录入单位', value: (row) => dclProductActiveVersion(row).summary.defaultInputUnitId ?? '' },
-  { key: 'model', label: '型号', value: (row) => dclProductActiveVersion(row).summary.model ?? '' },
-  { key: 'status', label: '状态', value: (row) => dclProductActiveVersion(row).approval.status, sizing: 'compact' },
+  {
+    key: 'name',
+    label: '名称',
+    value: (row) => dclProductActiveVersion(row).summary.name,
+    sizing: 'fluid',
+  },
+  {
+    key: 'productTypeName',
+    label: '产品类型',
+    value: (row) => dclProductActiveVersion(row).summary.productTypeName ?? '',
+  },
+  {
+    key: 'defaultInputUnit',
+    label: '默认录入单位',
+    value: (row) =>
+      dclProductActiveVersion(row).summary.defaultInputUnitId ?? '',
+  },
+  {
+    key: 'model',
+    label: '型号',
+    value: (row) => dclProductActiveVersion(row).summary.model ?? '',
+  },
+  {
+    key: 'status',
+    label: '状态',
+    value: (row) => dclProductActiveVersion(row).approval.status,
+    sizing: 'compact',
+  },
 ]
 
 export const dclProductConfig = {

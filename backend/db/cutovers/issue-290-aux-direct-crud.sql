@@ -1,5 +1,44 @@
 BEGIN;
 
+-- Issue #290 is destructive: it retires AUX approval payloads. Refuse to run
+-- until issue #289 has frozen every saved DCL/VOU business snapshot.
+DO $$
+DECLARE missing_columns integer;
+DECLARE missing_constraints integer;
+BEGIN
+  SELECT count(*) INTO missing_columns
+  FROM (VALUES
+    ('dcl_product_unit_conversions','unit_quantity_scale'),
+    ('dcl_product_formulas','output_unit_quantity_scale'),
+    ('dcl_product_formula_lines','entered_unit_quantity_scale'),
+    ('vou_asset_acquisition_lines','category_default_useful_life_months'),
+    ('vou_asset_acquisition_lines','category_default_residual_rate_bps')
+  ) expected(table_name,column_name)
+  LEFT JOIN information_schema.columns actual
+    ON actual.table_schema='public'
+   AND actual.table_name=expected.table_name
+   AND actual.column_name=expected.column_name
+   AND actual.is_nullable='NO'
+  WHERE actual.column_name IS NULL;
+
+  SELECT count(*) INTO missing_constraints
+  FROM (VALUES
+    ('dcl_product_unit_conversions_quantity_scale_check'),
+    ('dcl_product_formulas_quantity_scale_check'),
+    ('dcl_product_formula_lines_quantity_scale_check'),
+    ('vou_asset_acquisition_lines_category_default_useful_life_months'),
+    ('vou_asset_acquisition_lines_category_default_residual_rate_bps_')
+  ) expected(constraint_name)
+  LEFT JOIN pg_constraint actual
+    ON actual.conname=expected.constraint_name
+   AND actual.conrelid<>0
+  WHERE actual.oid IS NULL;
+
+  IF missing_columns<>0 OR missing_constraints<>0 THEN
+    RAISE EXCEPTION 'issue-290: issue-289 snapshot cutover is required first';
+  END IF;
+END $$;
+
 -- AUX current data is the latest approved payload. Draft-only/pending-only
 -- objects deliberately have no current representation after this cutover.
 ALTER TABLE aux_objects ADD COLUMN IF NOT EXISTS data jsonb;

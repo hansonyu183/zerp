@@ -62,7 +62,9 @@ type lifecycleService interface {
 type relationshipAwareLifecycleService struct {
 	lifecycleService
 	relationships     *dcldomain.RelationshipService
-	customerService   *bob.Service
+	business          *bob.Service
+	customers         *dcldomain.CustomerService
+	customerAccounts  *dcldomain.CustomerAccountService
 	auxiliary         *auxdomain.Service
 	pool              *pgxpool.Pool
 	operatingEntities *dcldomain.OperatingEntityService
@@ -143,28 +145,36 @@ func (service relationshipAwareLifecycleService) Create(
 		if input.Data.CustomerType != nil {
 			customerType = *input.Data.CustomerType
 		}
-		result, err := service.customerService.CustomerCreate(ctx, bob.CustomerCreateInput{
-			NewParty: party,
-			Data: bob.CustomerAccountData{Name: input.Data.Name, ShortName: input.Data.ShortName,
+		customer, err := service.customers.Create(ctx, dcldomain.CustomerCreateInput{
+			NewParty:          party,
+			OperatingEntityID: input.Data.OperatingEntityID,
+			DefaultAccount: dcldomain.CustomerAccountDataInput{Name: input.Data.Name, ShortName: input.Data.ShortName,
 				CustomerTypeCode: customerType, ContactName: input.Data.ContactName,
 				ContactPhone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
-				OperatingEntityID: input.Data.OperatingEntityID, SettlementMethodID: input.Data.SettlementMethodID,
-				PaymentMethodID: paymentMethodID, DefaultTransportMethodCode: "DELIVERY",
+				SettlementMethodID: input.Data.SettlementMethodID,
+				PaymentMethodID:    paymentMethodID, DefaultTransportMethodCode: "DELIVERY",
 				DefaultTransportMethodName: "送货",
-				PricingPolicy: bob.PricingPolicy{DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00",
-					CostItems: []bob.PricingCostItem{}, ThirdPartyIntermediaryFixedUnitCost: "0.00",
+				PricingPolicy: dcldomain.CustomerPricingPolicy{DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00",
+					CostItems: []dcldomain.CustomerPricingCostItem{}, ThirdPartyIntermediaryFixedUnitCost: "0.00",
 					ThirdPartyIntermediaryVariableUnitCost: "0.00"},
-				CreditLimits: []bob.CustomerCreditLimit{}, PrimarySalesAttribution: bob.CustomerSalesAttributionInput{
-					Type: bob.SalesAttributionInternalEmployee, SubjectObjectID: input.Data.SalespersonEmployeeID},
+				CreditLimits: []dcldomain.CustomerCreditLimit{}, PrimarySalesAttribution: dcldomain.CustomerSalesAttributionInput{
+					Type: dcldomain.CustomerSalesAttributionInternalEmployee, SubjectObjectID: input.Data.SalespersonEmployeeID},
 				InternalReminder: input.Data.Remark},
-		}, actor, true)
+		}, actor)
 		if err != nil {
 			return bob.MutationResult{}, err
 		}
-		account := result.DefaultAccount
-		if account.OpenVersion == nil {
+		accounts, err := service.customerAccounts.Query(ctx, dcldomain.CustomerAccountQueryInput{
+			Page: 1, PageSize: 20, Filters: dcldomain.CustomerAccountQueryFilters{CustomerRelationshipID: customer.ObjectID},
+			Sort: []dcldomain.CustomerAccountSortItem{{Field: "code", Order: "asc"}},
+		}, actor)
+		if err != nil {
+			return bob.MutationResult{}, err
+		}
+		if len(accounts.Items) != 1 || accounts.Items[0].OpenVersion == nil {
 			return bob.MutationResult{}, errors.New("created customer account has no open approval version")
 		}
+		account := accounts.Items[0]
 		return bob.MutationResult{
 			ObjectID: account.ObjectID, ObjectRevision: account.ObjectRevision,
 			Enabled: account.Enabled, Approval: account.OpenVersion.Approval,
@@ -384,6 +394,9 @@ func (service relationshipAwareLifecycleService) Save(
 		}, actor)
 		return supplierMutation(result), err
 	}
+	if entity == bob.EntityCustomerAccount {
+		return bob.MutationResult{}, errors.New("seed customer account reconciliation is not supported")
+	}
 	return service.lifecycleService.Save(ctx, entity, input, actor)
 }
 
@@ -426,6 +439,10 @@ func (service relationshipAwareLifecycleService) Get(
 		view, err := service.suppliers.Get(ctx, dcldomain.SupplierGetInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID}, mustSeedActor("seed-bob-supplier-get"))
 		return supplierView(view), err
 	}
+	if entity == bob.EntityCustomerAccount {
+		view, err := service.customerAccounts.Get(ctx, dcldomain.CustomerAccountGetInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID}, mustSeedActor("seed-bob-customer-account-get"))
+		return customerAccountView(view), err
+	}
 	if entity != bob.EntityOtherUnit {
 		return service.lifecycleService.Get(ctx, entity, input)
 	}
@@ -442,6 +459,13 @@ func (service relationshipAwareLifecycleService) Get(
 }
 
 func (service relationshipAwareLifecycleService) Submit(ctx context.Context, entity string, input bob.VersionRevisionInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityCustomerAccount {
+		if err := service.approveCustomerRelationship(ctx, input.ObjectID, actor); err != nil {
+			return bob.MutationResult{}, err
+		}
+		result, err := service.customerAccounts.Submit(ctx, dcldomain.CustomerAccountVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return customerAccountMutation(result), err
+	}
 	if entity == bob.EntitySupplier {
 		partyID, err := service.supplierPartyID(ctx, input.ObjectID)
 		if err != nil {
@@ -541,13 +565,61 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 	return operatingEntityMutation(result), err
 }
 
+func (service relationshipAwareLifecycleService) approveCustomerRelationship(ctx context.Context, accountID string, actor approval.Actor) error {
+	account, err := service.customerAccounts.Get(ctx, dcldomain.CustomerAccountGetInput{ObjectID: accountID}, actor)
+	if err != nil {
+		return err
+	}
+	customer, err := service.customers.Get(ctx, dcldomain.CustomerGetInput{ObjectID: account.CustomerRelationshipID}, actor)
+	if err != nil {
+		return err
+	}
+	party, err := service.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: customer.PartyID}, bob.PartyRelationshipVisibility{}, actor)
+	if err != nil {
+		return err
+	}
+	if party.Approval.Status == approval.StatusDraft {
+		pending, submitErr := service.parties.Submit(ctx, dcldomain.PartyVersionInput{
+			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision,
+		}, actor)
+		if submitErr != nil {
+			return submitErr
+		}
+		party.Approval = pending.Approval
+	}
+	if party.Approval.Status == approval.StatusPending {
+		if _, approveErr := service.parties.Approve(ctx, dcldomain.PartyVersionInput{
+			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision,
+		}, mustReviewerActor("seed-bob-"+accountID+"-customer-party-approve")); approveErr != nil {
+			return approveErr
+		}
+	}
+	if customer.Approval.Status == approval.StatusDraft {
+		pending, submitErr := service.customers.Submit(ctx, dcldomain.CustomerVersionInput{
+			ObjectID: customer.ObjectID, ApprovalEntryID: customer.Approval.ApprovalEntryID, ApprovalRevision: customer.Approval.Revision,
+		}, actor)
+		if submitErr != nil {
+			return submitErr
+		}
+		customer.Approval = pending.Approval
+	}
+	if customer.Approval.Status == approval.StatusPending {
+		if _, approveErr := service.customers.Approve(ctx, dcldomain.CustomerVersionInput{
+			ObjectID: customer.ObjectID, ApprovalEntryID: customer.Approval.ApprovalEntryID, ApprovalRevision: customer.Approval.Revision,
+		}, mustReviewerActor("seed-bob-"+accountID+"-customer-approve")); approveErr != nil {
+			return approveErr
+		}
+	}
+	return nil
+}
+
 func (service relationshipAwareLifecycleService) supplierPartyID(ctx context.Context, objectID string) (string, error) {
 	tx, err := service.pool.Begin(ctx)
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	identity, err := service.customerService.GetSupplierIdentity(ctx, tx, objectID)
+	identity, err := service.business.GetSupplierIdentity(ctx, tx, objectID)
 	if err != nil {
 		return "", err
 	}
@@ -555,6 +627,10 @@ func (service relationshipAwareLifecycleService) supplierPartyID(ctx context.Con
 }
 
 func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityCustomerAccount {
+		result, err := service.customerAccounts.Unsubmit(ctx, dcldomain.CustomerAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
+		return customerAccountMutation(result), err
+	}
 	if entity == bob.EntitySupplier {
 		result, err := service.suppliers.Unsubmit(ctx, dcldomain.SupplierReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return supplierMutation(result), err
@@ -603,6 +679,10 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 }
 
 func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityCustomerAccount {
+		result, err := service.customerAccounts.Approve(ctx, dcldomain.CustomerAccountVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return customerAccountMutation(result), err
+	}
 	if entity == bob.EntitySupplier {
 		result, err := service.suppliers.Approve(ctx, dcldomain.SupplierVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return supplierMutation(result), err
@@ -643,6 +723,10 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 }
 
 func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityCustomerAccount {
+		result, err := service.customerAccounts.Unapprove(ctx, dcldomain.CustomerAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
+		return customerAccountMutation(result), err
+	}
 	if entity == bob.EntitySupplier {
 		result, err := service.suppliers.Unapprove(ctx, dcldomain.SupplierReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return supplierMutation(result), err
@@ -691,6 +775,14 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 }
 
 func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityCustomerAccount {
+		reason := ""
+		if input.Reason != nil {
+			reason = *input.Reason
+		}
+		result, err := service.customerAccounts.Reject(ctx, dcldomain.CustomerAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: reason}, actor)
+		return customerAccountMutation(result), err
+	}
 	if entity == bob.EntitySupplier {
 		reason := ""
 		if input.Reason != nil {
@@ -810,6 +902,21 @@ func supplierView(view dcldomain.SupplierView) bob.ObjectView {
 			Remark: view.Data.Remark, SettlementMethodID: view.Data.SettlementMethodID,
 			DefaultPurchaserEmployeeID: view.Data.DefaultPurchaserEmployeeID,
 			OperatingEntityID:          view.OperatingEntityID}, UpdatedAt: view.UpdatedAt}
+}
+
+func customerAccountMutation(result dcldomain.CustomerAccountMutation) bob.MutationResult {
+	return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func customerAccountView(view dcldomain.CustomerAccountView) bob.ObjectView {
+	return bob.ObjectView{ObjectID: view.ObjectID, Entity: bob.EntityCustomerAccount, Code: view.Code,
+		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		Data: bob.DetailView{Name: view.Data.Name, ShortName: view.Data.ShortName,
+			CustomerType: view.Data.CustomerTypeCode, ContactName: view.Data.ContactName,
+			ContactPhone: view.Data.ContactPhone, Email: view.Data.Email, Address: view.Data.Address,
+			OperatingEntityID: view.Data.OperatingEntityID, SettlementMethodID: view.Data.SettlementMethodID,
+			SalespersonEmployeeID: view.Data.PrimarySalesAttribution.SubjectObjectID,
+			Remark:                view.Data.InternalReminder}, UpdatedAt: view.UpdatedAt}
 }
 
 func productInputFromView(data dcldomain.ProductData) dcldomain.ProductInput {
@@ -1026,9 +1133,11 @@ func New(pool *pgxpool.Pool) *Seeder {
 	employees := dcldomain.NewEmployeeService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorizer, bus)
 	suppliers := dcldomain.NewSupplierService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorizer, bus)
 	relationships := dcldomain.NewRelationshipService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorizer, bus)
+	accounts := dcldomain.NewCustomerAccountService(pool, service, authorizer, bus)
+	customers := dcldomain.NewCustomerService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), accounts, authorizer, bus)
 	return &Seeder{
 		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: relationships,
-			customerService: service, auxiliary: auxiliary, pool: pool, operatingEntities: operatingEntities, warehouses: warehouses,
+			business: service, customers: customers, customerAccounts: accounts, auxiliary: auxiliary, pool: pool, operatingEntities: operatingEntities, warehouses: warehouses,
 			vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees,
 			suppliers: suppliers, parties: partyDeclarations},
 		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,

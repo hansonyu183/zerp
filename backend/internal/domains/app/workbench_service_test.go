@@ -8,7 +8,7 @@ import (
 
 func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	scope := newWorkbenchPermissionScope([]string{
-		"/bob/customer/query", "/bob/customer/submit", "/bob/customer/unsubmit",
+		"/bob/customer/query", "/dcl/customer/submit", "/dcl/customer/unsubmit",
 		"/vou/sale-order/query", "/vou/sale-order/submit",
 		"/vou/purchase-payment/query", "/vou/purchase-payment/unsubmit",
 	})
@@ -25,14 +25,14 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 		return scope.can("vou", entity, "submit")
 	})
 
-	if !reflect.DeepEqual(draftBob, []string{"customer"}) {
+	if len(draftBob) != 0 {
 		t.Fatalf("draft BOB entities = %v", draftBob)
 	}
 	pendingVou := scope.entitiesWith("vou", func(entity string) bool {
 		return scope.can("vou", entity, "approve") ||
 			scope.can("vou", entity, "unsubmit")
 	})
-	if !reflect.DeepEqual(pendingBob, []string{"customer"}) {
+	if len(pendingBob) != 0 {
 		t.Fatalf("pending BOB entities = %v", pendingBob)
 	}
 	if !reflect.DeepEqual(pendingVou, []string{"purchase-payment"}) {
@@ -50,11 +50,13 @@ func TestWorkbenchIncludesDCLDeclarationLifecycles(t *testing.T) {
 		"/dcl/supplier/query", "/dcl/supplier/submit",
 		"/dcl/other-unit/query", "/dcl/other-unit/submit",
 		"/dcl/sales-partner/query", "/dcl/sales-partner/submit",
+		"/dcl/customer/query", "/dcl/customer/submit",
+		"/dcl/customer-account/query", "/dcl/customer-account/submit",
 	})
 	entities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "submit")
 	})
-	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner"}) {
+	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account"}) {
 		t.Fatalf("DCL submit entities = %v", entities)
 	}
 	if domain := workbenchApprovalDomain("party"); domain != "dcl" {

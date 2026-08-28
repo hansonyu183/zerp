@@ -330,6 +330,79 @@ SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='supplier' AN
 -- name: ListDCLSupplierApprovalEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='supplier' AND subject_id=sqlc.arg(object_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
+-- Customer is the DCL-owned declaration for the immutable Party x operating
+-- entity relationship.  The stable relationship continues to live in BOB;
+-- only DCL versions are eligible for candidate/list/read hydration.
+-- name: CountDCLCustomers :one
+SELECT count(*)
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='customer'
+JOIN bob_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+LEFT JOIN LATERAL (
+  SELECT id,status,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved ON true
+JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='customer'
+  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id))
+  AND (sqlc.arg(party_id)::text='' OR relationship.party_id=sqlc.arg(party_id))
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
+
+-- name: ListDCLCustomers :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+       relationship.party_id,party.kind AS party_kind,party.display_name,
+       relationship.operating_entity_id,display.operating_entity_code,display.operating_entity_name,
+       display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
+       COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='customer'
+JOIN bob_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+LEFT JOIN LATERAL (
+  SELECT id,status,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved ON true
+JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='customer'
+  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id))
+  AND (sqlc.arg(party_id)::text='' OR relationship.party_id=sqlc.arg(party_id))
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY object.code ASC,object.id ASC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: GetDCLCustomerIdentity :one
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id
+FROM bob_objects object
+JOIN bob_customer_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE object.id=sqlc.arg(object_id) AND object.entity='customer';
+
+-- name: CountDCLCustomerApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=sqlc.arg(object_id);
+
+-- name: ListDCLCustomerApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=sqlc.arg(object_id)
+ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
 -- Employee keeps Party identity in BOB's immutable employment relationship;
 -- this DCL declaration stores only its versioned employment facts.
 -- name: InsertDCLEmployeeVersion :exec

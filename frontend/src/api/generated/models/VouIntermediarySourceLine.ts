@@ -30,12 +30,10 @@ export type VouIntermediarySourceLine = {
   unitPrice: string;
   referenceUnitPrice: string;
   settlementSurcharge: string;
-  rebateUnitPrice: string;
   lineAmount: string;
   settlementTermCode: string;
   specialApproval: boolean;
   returnDocumentNos?: Array<string>;
   adjustmentEmployeeAmount: string;
   adjustmentIntermediaryAmount: string;
-  adjustmentRebateAmount: string;
 };

@@ -21,7 +21,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 	catalogPermissionIDs := permissionIDsByPath(
 		t, pool,
 		"/bob/customer/query", "/bob/customer/get",
-		"/bob/customer/unapprove", "/bob/customer/enable", "/bob/customer/disable",
+		"/dcl/customer/query", "/dcl/customer/get", "/dcl/customer/unapprove",
 		"/aux/department/query", "/aux/asset-category/query",
 		"/vou/sale-order/query", "/vou/sale-order/get",
 		"/wfl/process-instance/query", "/wfl/process-instance/get",

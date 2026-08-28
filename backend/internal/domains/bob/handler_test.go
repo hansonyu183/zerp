@@ -114,32 +114,24 @@ func (s *serviceStub) AuditHistory(_ context.Context, entity string, _ HistoryIn
 	return Page[AuditEventView]{Items: []AuditEventView{}}, nil
 }
 
-func (s *serviceStub) CustomerQuery(_ context.Context, input QueryInput) (Page[CustomerListItem], error) {
+func (s *serviceStub) CustomerCurrentQuery(_ context.Context, input CustomerCurrentQueryInput) (Page[CustomerCurrentListItem], error) {
 	s.record("query", EntityCustomer)
-	return Page[CustomerListItem]{Items: []CustomerListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
+	return Page[CustomerCurrentListItem]{Items: []CustomerCurrentListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *serviceStub) CustomerGet(_ context.Context, _ GetInput) (CustomerDetailView, error) {
+func (s *serviceStub) CustomerCurrentGet(_ context.Context, _ string) (CustomerCurrentView, error) {
 	s.record("get", EntityCustomer)
-	return CustomerDetailView{}, nil
+	return CustomerCurrentView{}, nil
 }
 
-func (s *serviceStub) CustomerCreate(_ context.Context, _ CustomerCreateInput, _ approval.Actor, _ bool) (CustomerCreateResult, error) {
-	s.record("create", EntityCustomer)
-	return CustomerCreateResult{}, nil
+func (s *serviceStub) CustomerAccountCurrentQuery(_ context.Context, input CustomerAccountCurrentQueryInput) (Page[CustomerAccountCurrentListItem], error) {
+	s.record("query", EntityCustomerAccount)
+	return Page[CustomerAccountCurrentListItem]{Items: []CustomerAccountCurrentListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *serviceStub) CustomerAccountAdd(_ context.Context, _ CustomerAccountAddInput, _ approval.Actor) (CustomerAccountView, error) {
-	return CustomerAccountView{}, nil
-}
-
-func (s *serviceStub) CustomerAccountDelete(_ context.Context, _ DeleteInput, _ approval.Actor) error {
-	return nil
-}
-
-func (s *serviceStub) CustomerSave(_ context.Context, _ CustomerSaveInput, _ approval.Actor) (MutationResult, error) {
-	s.record("save", EntityCustomer)
-	return MutationResult{}, nil
+func (s *serviceStub) CustomerAccountCurrentGet(_ context.Context, _ string) (CustomerAccountCurrentView, error) {
+	s.record("get", EntityCustomerAccount)
+	return CustomerAccountCurrentView{}, nil
 }
 
 func (s *serviceStub) SupplierQuery(_ context.Context, input QueryInput) (Page[SupplierListItem], error) {
@@ -175,18 +167,15 @@ func newBOBTestRouter(service applicationService, authorizer authorization.Autho
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(middleware.RequestID())
-	NewHandler(service, nil, authorizer, testBOBLogger()).Register(router)
+	NewHandler(service, authorizer, testBOBLogger()).Register(router)
 	return router
 }
 
 func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
-	expectedEntities := []string{"customer"}
-	expectedActions := []string{
-		"query", "get", "create", "save", "delete", "submit", "unsubmit",
-		"approve", "unapprove", "reject", "enable", "disable", "versions", "audit-history",
-	}
+	expectedEntities := []string{"customer", "customer-account"}
+	expectedActions := []string{"query", "get"}
 	wanted := make(map[string]bool, len(expectedEntities)*len(expectedActions))
 	for _, entity := range expectedEntities {
 		for _, action := range expectedActions {
@@ -209,10 +198,6 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 		"/bob/party/query", "/bob/party/get",
 		"/bob/other-unit/query", "/bob/other-unit/get",
 		"/bob/sales-partner/query", "/bob/sales-partner/get",
-		"/bob/customer-account/submit", "/bob/customer-account/unsubmit",
-		"/bob/customer-account/approve", "/bob/customer-account/reject", "/bob/customer-account/unapprove",
-		"/bob/customer-account/enable", "/bob/customer-account/disable",
-		"/bob/customer-account/versions", "/bob/customer-account/audit-history",
 	} {
 		wanted[path] = false
 	}
@@ -268,9 +253,13 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	const entitySpecificRoutes = 10
-	if len(routes) != len(wanted)+entitySpecificRoutes {
-		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+entitySpecificRoutes)
+	for _, route := range routes {
+		if strings.HasPrefix(route.Path, "/bob/customer/") && route.Path != "/bob/customer/query" && route.Path != "/bob/customer/get" {
+			t.Fatalf("legacy Customer write route remains registered: %s", route.Path)
+		}
+		if strings.HasPrefix(route.Path, "/bob/customer-account/") && route.Path != "/bob/customer-account/query" && route.Path != "/bob/customer-account/get" {
+			t.Fatalf("legacy Customer Account write route remains registered: %s", route.Path)
+		}
 	}
 }
 
@@ -326,61 +315,18 @@ func TestHandlerDispatchesWarehouseCurrentReadActionsOnly(t *testing.T) {
 	}
 }
 
-func TestHandlerRejectsLegacySalespersonField(t *testing.T) {
-	service := &serviceStub{}
-	authorizer := authorization.Func(func(
-		_ context.Context, _ *http.Request, _, _ string,
-	) (authorization.Principal, error) {
-		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
-	})
-	router := newBOBTestRouter(service, authorizer)
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/bob/customer/create",
-		strings.NewReader(`{"data":{"name":"Customer","salespersonId":"01J00000000000000000000010"}}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-
-	var envelope response.Envelope
-	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if envelope.Code != response.CodeValidation {
-		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeValidation)
-	}
-	if len(service.actions) != 0 {
-		t.Fatalf("service calls = %v", service.actions)
-	}
-}
-
-func TestHandlerRejectsClientSuppliedCode(t *testing.T) {
-	service := &serviceStub{}
-	authorizer := authorization.Func(func(
-		_ context.Context, _ *http.Request, _, _ string,
-	) (authorization.Principal, error) {
-		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
-	})
-	router := newBOBTestRouter(service, authorizer)
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/bob/customer/create",
-		strings.NewReader(`{"data":{"code":"CUS-9999","name":"Customer"}}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-
-	var envelope response.Envelope
-	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if envelope.Code != response.CodeValidation {
-		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeValidation)
-	}
-	if len(service.actions) != 0 {
-		t.Fatalf("service calls = %v", service.actions)
+func TestHandlerDoesNotRegisterCustomerWritePaths(t *testing.T) {
+	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
+	for _, path := range []string{
+		"/bob/customer/create", "/bob/customer/save", "/bob/customer/submit", "/bob/customer/attachment-initiate",
+		"/bob/customer-account/create", "/bob/customer-account/save", "/bob/customer-account/approve",
+	} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d, want 404", path, recorder.Code)
+		}
 	}
 }
 
@@ -452,85 +398,6 @@ func TestHandlerDoesNotReadGuessedIDWithoutPermission(t *testing.T) {
 	}
 	if envelope.Code != response.CodeForbidden {
 		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeForbidden)
-	}
-	if len(service.actions) != 0 {
-		t.Fatalf("service calls = %v", service.actions)
-	}
-}
-
-func TestDeleteAuthorizationFailuresDoNotCallService(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		code int
-	}{
-		{
-			name: "session expired",
-			err:  authorization.NewError(authorization.ErrorUnauthenticated, "session expired", nil),
-			code: response.CodeUnauthenticated,
-		},
-		{
-			name: "permission denied",
-			err:  authorization.NewError(authorization.ErrorForbidden, "permission denied", nil),
-			code: response.CodeForbidden,
-		},
-		{
-			name: "csrf rejected",
-			err:  authorization.NewError(authorization.ErrorForbidden, "csrf validation failed", nil),
-			code: response.CodeForbidden,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			service := &serviceStub{}
-			authorizer := authorization.Func(func(_ context.Context, _ *http.Request, _, _ string) (authorization.Principal, error) {
-				return authorization.Principal{}, test.err
-			})
-			router := newBOBTestRouter(service, authorizer)
-			request := httptest.NewRequest(
-				http.MethodPost,
-				"/bob/customer/delete",
-				strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"approvalEntryId":"01J00000000000000000000011","approvalRevision":1}`),
-			)
-			request.Header.Set("Content-Type", "application/json")
-			recorder := httptest.NewRecorder()
-			router.ServeHTTP(recorder, request)
-
-			var envelope response.Envelope
-			if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-				t.Fatalf("decode response: %v", err)
-			}
-			if envelope.Code != test.code {
-				t.Fatalf("code = %d, want %d", envelope.Code, test.code)
-			}
-			if len(service.actions) != 0 {
-				t.Fatalf("service calls = %v", service.actions)
-			}
-		})
-	}
-}
-
-func TestDeleteRejectsUnknownJSONFields(t *testing.T) {
-	service := &serviceStub{}
-	authorizer := authorization.Func(func(_ context.Context, _ *http.Request, _, _ string) (authorization.Principal, error) {
-		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
-	})
-	router := newBOBTestRouter(service, authorizer)
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/bob/customer/delete",
-		strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"approvalEntryId":"01J00000000000000000000011","approvalRevision":1,"unknown":true}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-
-	var envelope response.Envelope
-	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if envelope.Code != response.CodeValidation {
-		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeValidation)
 	}
 	if len(service.actions) != 0 {
 		t.Fatalf("service calls = %v", service.actions)

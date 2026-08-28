@@ -389,12 +389,20 @@ func (s *Seeder) supplierDeclarations() *dcldomain.SupplierService {
 	)
 }
 
+func (s *Seeder) customerDeclarations() (*dcldomain.CustomerService, *dcldomain.CustomerAccountService) {
+	bus := txevent.NewBus()
+	accounts := dcldomain.NewCustomerAccountService(s.pool, s.business, seedAuthorizer{}, bus)
+	return dcldomain.NewCustomerService(
+		s.pool, s.business, s.parties, bobdomain.NewPartyCurrentReader(s.pool), accounts, seedAuthorizer{}, bus,
+	), accounts
+}
+
 func (s *Seeder) ensureBusiness(
 	ctx context.Context,
 	sample bobSample,
 ) (bobdomain.ObjectView, outcome, error) {
 	approvalDomain := "bob"
-	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle || sample.entity == bobdomain.EntityFundAccount || sample.entity == bobdomain.EntityProduct || sample.entity == bobdomain.EntityEmployee || sample.entity == bobdomain.EntitySupplier {
+	if sample.entity == bobdomain.EntityCustomerAccount || sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle || sample.entity == bobdomain.EntityFundAccount || sample.entity == bobdomain.EntityProduct || sample.entity == bobdomain.EntityEmployee || sample.entity == bobdomain.EntitySupplier {
 		approvalDomain = "dcl"
 	}
 	var objectID string
@@ -474,31 +482,39 @@ func (s *Seeder) ensureBusiness(
 			if data.CustomerType != nil {
 				customerType = *data.CustomerType
 			}
-			createdCustomer, relationshipErr := s.business.CustomerCreate(ctx, bobdomain.CustomerCreateInput{
+			customers, accounts := s.customerDeclarations()
+			createdCustomer, relationshipErr := customers.Create(ctx, dcldomain.CustomerCreateInput{
 				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization,
 					LegalName: data.Name, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
 					Phone: data.ContactPhone, Email: data.Email, Address: data.Address},
-				Data: bobdomain.CustomerAccountData{Name: data.Name, ShortName: data.ShortName,
+				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+				DefaultAccount: dcldomain.CustomerAccountDataInput{Name: data.Name, ShortName: data.ShortName,
 					CustomerTypeCode: customerType, ContactName: data.ContactName,
 					ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address,
-					OperatingEntityID:          s.bobRefs["operating-effective"].ObjectID,
 					SettlementMethodID:         data.SettlementMethodID,
 					PaymentMethodID:            s.auxRefs["payment-bank-transfer"].ObjectID,
 					DefaultTransportMethodCode: "DELIVERY", DefaultTransportMethodName: "送货",
-					PricingPolicy: bobdomain.PricingPolicy{DefaultPremiumUnitPrice: "0.00",
-						DefaultDiscountUnitPrice: "0.00", CostItems: []bobdomain.PricingCostItem{},
+					PricingPolicy: dcldomain.CustomerPricingPolicy{DefaultPremiumUnitPrice: "0.00",
+						DefaultDiscountUnitPrice: "0.00", CostItems: []dcldomain.CustomerPricingCostItem{},
 						ThirdPartyIntermediaryFixedUnitCost:    "0.00",
 						ThirdPartyIntermediaryVariableUnitCost: "0.00"},
-					CreditLimits: []bobdomain.CustomerCreditLimit{},
-					PrimarySalesAttribution: bobdomain.CustomerSalesAttributionInput{
-						Type:            bobdomain.SalesAttributionInternalEmployee,
+					CreditLimits: []dcldomain.CustomerCreditLimit{},
+					PrimarySalesAttribution: dcldomain.CustomerSalesAttributionInput{
+						Type:            dcldomain.CustomerSalesAttributionInternalEmployee,
 						SubjectObjectID: data.SalespersonEmployeeID}, InternalReminder: data.Remark},
-			}, createActor, true)
+			}, createActor)
 			if relationshipErr == nil {
-				account := createdCustomer.DefaultAccount
-				if account.OpenVersion == nil {
+				page, queryErr := accounts.Query(ctx, dcldomain.CustomerAccountQueryInput{
+					Page: 1, PageSize: 20, Filters: dcldomain.CustomerAccountQueryFilters{CustomerRelationshipID: createdCustomer.ObjectID},
+					Sort: []dcldomain.CustomerAccountSortItem{{Field: "code", Order: "asc"}},
+				}, createActor)
+				if queryErr != nil {
+					return bobdomain.ObjectView{}, 0, queryErr
+				}
+				if len(page.Items) != 1 || page.Items[0].OpenVersion == nil {
 					return bobdomain.ObjectView{}, 0, errors.New("created customer account has no open approval version")
 				}
+				account := page.Items[0]
 				result = bobdomain.MutationResult{
 					ObjectID: account.ObjectID, ObjectRevision: account.ObjectRevision,
 					Enabled: account.Enabled, Approval: account.OpenVersion.Approval,
@@ -630,6 +646,23 @@ func dclSupplierBusinessView(view dcldomain.SupplierView) bobdomain.ObjectView {
 			OperatingEntityID:          view.OperatingEntityID}, UpdatedAt: view.UpdatedAt}
 }
 
+func dclCustomerAccountBusinessMutation(result dcldomain.CustomerAccountMutation) bobdomain.MutationResult {
+	return bobdomain.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func dclCustomerAccountBusinessView(view dcldomain.CustomerAccountView) bobdomain.ObjectView {
+	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityCustomerAccount,
+		Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name,
+			ShortName: view.Data.ShortName, CustomerType: view.Data.CustomerTypeCode,
+			ContactName: view.Data.ContactName, ContactPhone: view.Data.ContactPhone,
+			Email: view.Data.Email, Address: view.Data.Address,
+			OperatingEntityID:     view.Data.OperatingEntityID,
+			SettlementMethodID:    view.Data.SettlementMethodID,
+			SalespersonEmployeeID: view.Data.PrimarySalesAttribution.SubjectObjectID,
+			Remark:                view.Data.InternalReminder}, UpdatedAt: view.UpdatedAt}
+}
+
 func dclProductBusinessView(view dcldomain.ProductView) bobdomain.ObjectView {
 	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityProduct,
 		Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
@@ -643,6 +676,15 @@ func dclProductBusinessView(view dcldomain.ProductView) bobdomain.ObjectView {
 }
 
 func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) (bobdomain.ObjectView, error) {
+	if entity == bobdomain.EntityCustomerAccount {
+		actor, err := seedActor(actorID, requestID(key, "get"))
+		if err != nil {
+			return bobdomain.ObjectView{}, err
+		}
+		_, accounts := s.customerDeclarations()
+		view, getErr := accounts.Get(ctx, dcldomain.CustomerAccountGetInput{ObjectID: objectID}, actor)
+		return dclCustomerAccountBusinessView(view), getErr
+	}
 	if entity == bobdomain.EntitySupplier {
 		actor, err := seedActor(actorID, requestID(key, "get"))
 		if err != nil {
@@ -734,6 +776,14 @@ func (s *Seeder) advanceBusiness(
 			var submitted dcldomain.RelationshipMutation
 			submitted, err = s.relationships.SubmitOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 			current = bobdomain.MutationResult{ObjectID: submitted.ObjectID, ObjectRevision: submitted.ObjectRevision, Enabled: submitted.Enabled, Approval: submitted.Approval}
+		} else if sample.entity == bobdomain.EntityCustomerAccount {
+			accounts, submitErr := s.submitCustomerAccount(ctx, current.ObjectID, actor, sample.key)
+			if submitErr != nil {
+				return submitErr
+			}
+			var submitted dcldomain.CustomerAccountMutation
+			submitted, err = accounts.Submit(ctx, dcldomain.CustomerAccountVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+			current = dclCustomerAccountBusinessMutation(submitted)
 		} else if sample.entity == bobdomain.EntitySupplier {
 			declarations := s.supplierDeclarations()
 			supplier, getErr := declarations.Get(ctx, dcldomain.SupplierGetInput{ObjectID: current.ObjectID}, actor)
@@ -813,6 +863,9 @@ func (s *Seeder) advanceBusiness(
 		}
 		if sample.entity == bobdomain.EntityOtherUnit {
 			_, err = s.relationships.ApproveOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+		} else if sample.entity == bobdomain.EntityCustomerAccount {
+			_, accounts := s.customerDeclarations()
+			_, err = accounts.Approve(ctx, dcldomain.CustomerAccountVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntitySupplier {
 			_, err = s.supplierDeclarations().Approve(ctx, dcldomain.SupplierVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntityEmployee {
@@ -843,4 +896,61 @@ func (s *Seeder) advanceBusiness(
 		return fmt.Errorf("cannot advance status %s to %s", current.Approval.Status, sample.status)
 	}
 	return err
+}
+
+func (s *Seeder) submitCustomerAccount(ctx context.Context, accountID string, actor approval.Actor, key string) (*dcldomain.CustomerAccountService, error) {
+	customers, accounts := s.customerDeclarations()
+	account, err := accounts.Get(ctx, dcldomain.CustomerAccountGetInput{ObjectID: accountID}, actor)
+	if err != nil {
+		return nil, err
+	}
+	customer, err := customers.Get(ctx, dcldomain.CustomerGetInput{ObjectID: account.CustomerRelationshipID}, actor)
+	if err != nil {
+		return nil, err
+	}
+	party, err := s.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: customer.PartyID}, bobdomain.PartyRelationshipVisibility{}, actor)
+	if err != nil {
+		return nil, err
+	}
+	if party.Approval.Status == approval.StatusDraft {
+		pending, submitErr := s.parties.Submit(ctx, dcldomain.PartyVersionInput{
+			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision,
+		}, actor)
+		if submitErr != nil {
+			return nil, submitErr
+		}
+		party.Approval = pending.Approval
+	}
+	if party.Approval.Status == approval.StatusPending {
+		reviewer, actorErr := seedActor(reviewerID, requestID(key, "customer-party-approve"))
+		if actorErr != nil {
+			return nil, actorErr
+		}
+		if _, approveErr := s.parties.Approve(ctx, dcldomain.PartyVersionInput{
+			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision,
+		}, reviewer); approveErr != nil {
+			return nil, approveErr
+		}
+	}
+	if customer.Approval.Status == approval.StatusDraft {
+		pending, submitErr := customers.Submit(ctx, dcldomain.CustomerVersionInput{
+			ObjectID: customer.ObjectID, ApprovalEntryID: customer.Approval.ApprovalEntryID, ApprovalRevision: customer.Approval.Revision,
+		}, actor)
+		if submitErr != nil {
+			return nil, submitErr
+		}
+		customer.Approval = pending.Approval
+	}
+	if customer.Approval.Status == approval.StatusPending {
+		reviewer, actorErr := seedActor(reviewerID, requestID(key, "customer-approve"))
+		if actorErr != nil {
+			return nil, actorErr
+		}
+		if _, approveErr := customers.Approve(ctx, dcldomain.CustomerVersionInput{
+			ObjectID: customer.ObjectID, ApprovalEntryID: customer.Approval.ApprovalEntryID, ApprovalRevision: customer.Approval.Revision,
+		}, reviewer); approveErr != nil {
+			return nil, approveErr
+		}
+	}
+	return accounts, nil
 }

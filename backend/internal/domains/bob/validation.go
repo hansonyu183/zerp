@@ -36,10 +36,6 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 	if entity == EntityCustomer && monthlyClosingDay == 0 {
 		monthlyClosingDay = 31
 	}
-	rebateUnitPrice := input.RebateUnitPrice
-	if entity == EntityCustomer && rebateUnitPrice == "" {
-		rebateUnitPrice = "0"
-	}
 	data := DetailView{
 		Name: input.Name, Unit: input.Unit, InventoryUnitID: input.InventoryUnitID, Currency: input.Currency,
 		CustomerType: deref(customerType),
@@ -57,7 +53,6 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		SettlementMethodID: input.SettlementMethodID, MonthlyClosingDay: monthlyClosingDay,
 		SalespersonEmployeeID:      input.SalespersonEmployeeID,
 		DefaultPurchaserEmployeeID: input.DefaultPurchaserEmployeeID,
-		RebateUnitPrice:            rebateUnitPrice,
 		RuleType:                   input.RuleType,
 		MonthOffset:                input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
 		ProductTypeID: input.ProductTypeID, DefaultInputUnitID: input.DefaultInputUnitID,
@@ -132,9 +127,6 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	if input.MonthlyClosingDay != nil {
 		result.MonthlyClosingDay = *input.MonthlyClosingDay
 	}
-	if input.RebateUnitPrice != nil {
-		result.RebateUnitPrice = *input.RebateUnitPrice
-	}
 	if input.DefaultSalesSurcharge != nil {
 		result.DefaultSalesSurcharge = *input.DefaultSalesSurcharge
 	}
@@ -160,9 +152,6 @@ func validateDetail(entity string, input DetailInput) (DetailView, error) {
 		current.CustomerType = CustomerTypeEndUser
 		current.MonthlyClosingDay = 31
 	}
-	if entity == EntityCustomer {
-		current.RebateUnitPrice = "0"
-	}
 	return validateDetailData(entity, mergeDetailInput(current, input))
 }
 
@@ -175,7 +164,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	}
 	switch entity {
 	case EntityCustomer:
-		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice")
+		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId")
 	case EntityOtherUnit:
 		allow("contactName", "contactPhone", "email", "address", "remark", "settlementMethodId")
 	case EntityEmployee:
@@ -209,7 +198,6 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		"bankBranch": input.BankBranch.Set, "accountNumber": input.AccountNumber.Set,
 		"parentId": input.ParentID.Set, "settlementMethodId": input.SettlementMethodID.Set,
 		"monthlyClosingDay":          input.MonthlyClosingDay != nil,
-		"rebateUnitPrice":            input.RebateUnitPrice != nil,
 		"defaultSalesSurcharge":      input.DefaultSalesSurcharge != nil,
 		"salespersonEmployeeId":      input.SalespersonEmployeeID.Set,
 		"defaultPurchaserEmployeeId": input.DefaultPurchaserEmployeeID.Set,
@@ -254,7 +242,7 @@ func normalizeDetail(input *DetailView) {
 		&input.Specification, &input.Model, &input.Description, &input.EngineNumber,
 		&input.LoadCapacityKG, &input.AccountName, &input.BankName, &input.BankBranch,
 		&input.VehicleType, &input.ProductTypeID, &input.DefaultInputUnitID, &input.PricingUnitID,
-		&input.DefaultPackagingSpec, &input.DefaultSalesSurcharge, &input.RebateUnitPrice,
+		&input.DefaultPackagingSpec, &input.DefaultSalesSurcharge,
 	} {
 		trim(value)
 	}
@@ -390,7 +378,7 @@ func validateEntityFields(entity string, input DetailView) error {
 	}
 	switch entity {
 	case EntityCustomer:
-		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice")
+		allow("customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId")
 		if !objectCodePattern.MatchString(input.CustomerType) {
 			return domainError(ErrorValidation, "invalid customer type code", nil, nil)
 		}
@@ -399,9 +387,6 @@ func validateEntityFields(entity string, input DetailView) error {
 		}
 		if input.SalespersonEmployeeID == "" {
 			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
-		}
-		if _, err := moneyCents(input.RebateUnitPrice); err != nil {
-			return domainError(ErrorValidation, "invalid rebate unit price", nil, nil)
 		}
 	case EntityOtherUnit:
 		allow("contactName", "contactPhone", "email", "address", "remark", "settlementMethodId",
@@ -475,7 +460,6 @@ func detailFieldValues(input DetailView) map[string]string {
 		"settlementMethodId":    input.SettlementMethodID,
 		"monthlyClosingDay":     numericField(input.MonthlyClosingDay),
 		"salespersonEmployeeId": input.SalespersonEmployeeID,
-		"rebateUnitPrice":       input.RebateUnitPrice,
 		"ruleType":              input.RuleType,
 		"termCode":              input.TermCode,
 		"defaultSalesSurcharge": input.DefaultSalesSurcharge,

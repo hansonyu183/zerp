@@ -32,23 +32,6 @@ SET row_security = off;
 
 
 --
--- Name: bob_delete_unreferenced_customer_file(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.bob_delete_unreferenced_customer_file() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM bob_customer_group_attachments WHERE file_id=OLD.file_id)
-       AND NOT EXISTS(SELECT 1 FROM bob_customer_version_attachments WHERE file_id=OLD.file_id) THEN
-        DELETE FROM bob_customer_files WHERE id=OLD.file_id;
-    END IF;
-    RETURN OLD;
-END;
-$$;
-
-
---
 -- Name: bob_reject_merged_party_relationship(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1191,7 +1174,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -1413,40 +1396,117 @@ CREATE TABLE public.bob_customer_accounts (
     CONSTRAINT bob_customer_accounts_object_entity_check CHECK (((object_entity)::text = 'customer-account'::text))
 );
 
+-- #287 DCL owns the independent customer relationship approval payload. The
+-- stable relationship identity remains bob_customer_relationships.
+CREATE TABLE public.dcl_customer_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    entity character varying(16) DEFAULT 'customer'::character varying NOT NULL,
+    operating_entity_approval_entry_id character varying(26) NOT NULL,
+    operating_entity_code character varying(16) NOT NULL,
+    operating_entity_name character varying(200) NOT NULL,
+    enabled boolean NOT NULL,
+    CONSTRAINT dcl_customer_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_customer_versions_entity_check CHECK (((entity)::text = 'customer'::text))
+);
 
---
--- Name: bob_customer_credit_limits; Type: TABLE; Schema: public; Owner: -
---
+-- #287 DCL owns the complete customer-account approval payload. The account
+-- stable identity remains bob_customer_accounts; this table is intentionally
+-- separate from the BOB current read projection.
+CREATE TABLE public.dcl_customer_account_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    entity character varying(32) DEFAULT 'customer-account'::character varying NOT NULL,
+    name character varying(200) NOT NULL,
+    customer_type character varying(16) DEFAULT 'DIT-0001'::character varying NOT NULL,
+    short_name character varying(100), tax_number character varying(50), contact_name character varying(100), contact_phone character varying(32), email character varying(254), address character varying(500), remark character varying(1000),
+    settlement_method_id character varying(26), settlement_method_approval_entry_id character varying(26), settlement_method_code character varying(32), settlement_method_name character varying(200), settlement_term_code character varying(32), settlement_rule_type character varying(32), settlement_due_days integer DEFAULT 0 NOT NULL, settlement_month_offset integer DEFAULT 0 NOT NULL, settlement_cutoff_day integer DEFAULT 0 NOT NULL, settlement_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
+    payment_method_id character varying(26), payment_method_approval_entry_id character varying(26), payment_method_code character varying(32), payment_method_name character varying(200), payment_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
+    operating_entity_id character varying(26) NOT NULL, operating_entity_approval_entry_id character varying(26) NOT NULL, operating_entity_code character varying(16) NOT NULL, operating_entity_name character varying(200) NOT NULL, operating_entity_tax_number character varying(100), operating_entity_address character varying(500), operating_entity_phone character varying(100),
+    default_transport_method_code character varying(32), default_transport_method_name character varying(100), transport_surcharge_cents bigint DEFAULT 0 NOT NULL,
+    pricing_policy jsonb DEFAULT '{"costItems": [], "defaultPremiumUnitPrice": "0.00", "defaultDiscountUnitPrice": "0.00", "thirdPartyIntermediaryFixedUnitCost": "0.00", "thirdPartyIntermediaryVariableUnitCost": "0.00"}'::jsonb NOT NULL,
+    primary_sales_attribution_type character varying(32), primary_sales_subject_id character varying(26), primary_sales_subject_approval_entry_id character varying(26), primary_sales_subject_code character varying(32), primary_sales_subject_name character varying(200),
+    internal_reminder character varying(1000), default_sales_order_remark character varying(1000), enabled boolean NOT NULL,
+    CONSTRAINT dcl_customer_account_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_customer_account_versions_entity_check CHECK (((entity)::text = 'customer-account'::text)),
+    CONSTRAINT dcl_customer_account_versions_name_check CHECK ((length(btrim((name)::text)) >= 1)),
+    CONSTRAINT dcl_customer_account_versions_pricing_policy_ck CHECK ((jsonb_typeof(pricing_policy) = 'object'::text))
+);
 
-CREATE TABLE public.bob_customer_credit_limits (
+-- Credit limits and attachments are version-owned DCL snapshots.  The file
+-- object itself remains storage infrastructure, not an approval owner.
+CREATE TABLE public.dcl_customer_account_credit_limits (
     approval_entry_id character varying(26) NOT NULL,
     currency character varying(3) NOT NULL,
     amount_cents bigint NOT NULL,
-    CONSTRAINT bob_customer_credit_limits_amount_cents_check CHECK ((amount_cents >= 0)),
-    CONSTRAINT bob_customer_credit_limits_currency_check CHECK (((currency)::text = 'CNY'::text))
+    CONSTRAINT dcl_customer_account_credit_limits_pkey PRIMARY KEY (approval_entry_id, currency),
+    CONSTRAINT dcl_customer_account_credit_limits_amount_cents_check CHECK ((amount_cents >= 0)),
+    CONSTRAINT dcl_customer_account_credit_limits_currency_check CHECK (((currency)::text = 'CNY'::text))
+);
+
+CREATE TABLE public.dcl_customer_attachments (
+    approval_entry_id character varying(26) NOT NULL,
+    file_id character varying(26) NOT NULL,
+    category_object_id character varying(26) NOT NULL,
+    category_approval_entry_id character varying(26) NOT NULL,
+    category_code character varying(16) NOT NULL,
+    category_name character varying(100) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(26) NOT NULL,
+    CONSTRAINT dcl_customer_attachments_pkey PRIMARY KEY (approval_entry_id, file_id)
+);
+
+CREATE TABLE public.dcl_customer_account_attachments (
+    approval_entry_id character varying(26) NOT NULL,
+    file_id character varying(26) NOT NULL,
+    category_object_id character varying(26) NOT NULL,
+    category_approval_entry_id character varying(26) NOT NULL,
+    category_code character varying(16) NOT NULL,
+    category_name character varying(100) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(26) NOT NULL,
+    CONSTRAINT dcl_customer_account_attachments_pkey PRIMARY KEY (approval_entry_id, file_id)
+);
+
+CREATE TABLE public.bob_customers (
+    object_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
+    enabled boolean NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT bob_customers_pkey PRIMARY KEY (object_id),
+    CONSTRAINT bob_customers_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
+);
+
+CREATE TABLE public.bob_customer_account_currents (
+    object_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
+    enabled boolean NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT bob_customer_account_currents_pkey PRIMARY KEY (object_id),
+    CONSTRAINT bob_customer_account_currents_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
 );
 
 
 --
--- Name: bob_customer_download_tokens; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_customer_download_tokens; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_customer_download_tokens (
+CREATE TABLE public.dcl_customer_download_tokens (
     token_hash character(64) NOT NULL,
     file_id character varying(26) NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     used_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
-    CONSTRAINT bob_customer_download_tokens_token_hash_check CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))
+    CONSTRAINT dcl_customer_download_tokens_token_hash_check CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))
 );
 
 
 --
--- Name: bob_customer_files; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_customer_files; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_customer_files (
+CREATE TABLE public.dcl_customer_files (
     id character varying(26) NOT NULL,
     storage_key character varying(255) NOT NULL,
     original_name character varying(255) NOT NULL,
@@ -1459,39 +1519,12 @@ CREATE TABLE public.bob_customer_files (
     stored_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
-    CONSTRAINT bob_customer_files_content_type_check CHECK (((content_type)::text = ANY ((ARRAY['application/pdf'::character varying, 'image/jpeg'::character varying, 'image/png'::character varying])::text[]))),
-    CONSTRAINT bob_customer_files_declared_size_check CHECK (((declared_size >= 1) AND (declared_size <= 10485760))),
-    CONSTRAINT bob_customer_files_sha256_hex_check CHECK ((sha256_hex ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT bob_customer_files_status_check CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'READY'::character varying])::text[]))),
-    CONSTRAINT bob_customer_files_status_ck CHECK (((((status)::text = 'PENDING'::text) AND (stored_at IS NULL)) OR (((status)::text = 'READY'::text) AND (stored_at IS NOT NULL)))),
-    CONSTRAINT bob_customer_files_upload_token_hash_check CHECK ((upload_token_hash ~ '^[0-9a-f]{64}$'::text))
-);
-
-
---
--- Name: bob_customer_relationship_attachments; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_customer_relationship_attachments (
-    customer_relationship_id character varying(26) CONSTRAINT bob_customer_relationship_att_customer_relationship_id_not_null NOT NULL,
-    file_id character varying(26) NOT NULL,
-    category_object_id character varying(26) CONSTRAINT bob_customer_relationship_attachmen_category_object_id_not_null NOT NULL,
-    category_approval_entry_id character varying(26) CONSTRAINT bob_customer_rel_attach_category_entry_nn NOT NULL,
-    category_code character varying(16) NOT NULL,
-    category_name character varying(100) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL
-);
-
-
---
--- Name: bob_customer_relationship_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_customer_relationship_versions (
-    approval_entry_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'customer'::character varying NOT NULL,
-    CONSTRAINT bob_customer_relationship_versions_entity_check CHECK (((entity)::text = 'customer'::text))
+    CONSTRAINT dcl_customer_files_content_type_check CHECK (((content_type)::text = ANY ((ARRAY['application/pdf'::character varying, 'image/jpeg'::character varying, 'image/png'::character varying])::text[]))),
+    CONSTRAINT dcl_customer_files_declared_size_check CHECK (((declared_size >= 1) AND (declared_size <= 10485760))),
+    CONSTRAINT dcl_customer_files_sha256_hex_check CHECK ((sha256_hex ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT dcl_customer_files_status_check CHECK (((status)::text = ANY ((ARRAY['PENDING'::character varying, 'READY'::character varying])::text[]))),
+    CONSTRAINT dcl_customer_files_status_ck CHECK (((((status)::text = 'PENDING'::text) AND (stored_at IS NULL)) OR (((status)::text = 'READY'::text) AND (stored_at IS NOT NULL)))),
+    CONSTRAINT dcl_customer_files_upload_token_hash_check CHECK ((upload_token_hash ~ '^[0-9a-f]{64}$'::text))
 );
 
 
@@ -1512,99 +1545,6 @@ CREATE TABLE public.bob_customer_relationships (
     CONSTRAINT bob_customer_relationship_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text)))),
     CONSTRAINT bob_customer_relationships_object_entity_check CHECK (((object_entity)::text = 'customer'::text)),
     CONSTRAINT bob_customer_relationships_operating_entity_entity_check CHECK (((operating_entity_entity)::text = 'operating-entity'::text))
-);
-
-
---
--- Name: bob_customer_version_attachments; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_customer_version_attachments (
-    approval_entry_id character varying(26) NOT NULL,
-    file_id character varying(26) NOT NULL,
-    category_object_id character varying(26) NOT NULL,
-    category_approval_entry_id character varying(26) NOT NULL,
-    category_code character varying(16) NOT NULL,
-    category_name character varying(100) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL
-);
-
-
---
--- Name: bob_customer_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_customer_versions (
-    approval_entry_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'customer-account'::character varying NOT NULL,
-    name character varying(200) NOT NULL,
-    customer_type character varying(16) DEFAULT 'DIT-0001'::character varying NOT NULL,
-    short_name character varying(100),
-    category_id character varying(26),
-    category_approval_entry_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
-    tax_number character varying(50),
-    contact_name character varying(100),
-    contact_phone character varying(32),
-    email character varying(254),
-    address character varying(500),
-    remark character varying(1000),
-    settlement_method_id character varying(26),
-    settlement_method_approval_entry_id character varying(26),
-    settlement_method_entity character varying(32) DEFAULT 'settlement-method'::character varying NOT NULL,
-    salesperson_employee_id character varying(26),
-    salesperson_employee_approval_entry_id character varying(26),
-    salesperson_employee_entity character varying(32) DEFAULT 'employee'::character varying CONSTRAINT bob_customer_versions_salesperson_entity_not_null NOT NULL,
-    monthly_closing_day integer,
-    rebate_unit_price_cents bigint DEFAULT 0 NOT NULL,
-    operating_entity_id character varying(26),
-    operating_entity_approval_entry_id character varying(26),
-    operating_entity_code character varying(16),
-    operating_entity_name character varying(200),
-    operating_entity_tax_number character varying(100),
-    operating_entity_address character varying(500),
-    operating_entity_phone character varying(100),
-    settlement_method_code character varying(32),
-    settlement_method_name character varying(200),
-    settlement_term_code character varying(32),
-    settlement_rule_type character varying(32),
-    settlement_due_days integer DEFAULT 0 NOT NULL,
-    settlement_month_offset integer DEFAULT 0 NOT NULL,
-    settlement_cutoff_day integer DEFAULT 0 NOT NULL,
-    settlement_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
-    payment_method_id character varying(26),
-    payment_method_approval_entry_id character varying(26),
-    payment_method_code character varying(32),
-    payment_method_name character varying(200),
-    payment_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
-    default_transport_method_code character varying(32),
-    default_transport_method_name character varying(100),
-    transport_surcharge_cents bigint DEFAULT 0 NOT NULL,
-    pricing_policy jsonb DEFAULT '{"costItems": [], "defaultPremiumUnitPrice": "0.00", "defaultDiscountUnitPrice": "0.00", "thirdPartyIntermediaryFixedUnitCost": "0.00", "thirdPartyIntermediaryVariableUnitCost": "0.00"}'::jsonb NOT NULL,
-    primary_sales_attribution_type character varying(32),
-    primary_sales_subject_id character varying(26),
-    primary_sales_subject_approval_entry_id character varying(26),
-    primary_sales_subject_code character varying(32),
-    primary_sales_subject_name character varying(200),
-    internal_reminder character varying(1000),
-    default_sales_order_remark character varying(1000),
-    CONSTRAINT bob_customer_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
-    CONSTRAINT bob_customer_versions_customer_type_check CHECK (((customer_type)::text = ANY ((ARRAY['DIT-0001'::character varying, 'DIT-0002'::character varying])::text[]))),
-    CONSTRAINT bob_customer_versions_entity_check CHECK (((entity)::text = 'customer-account'::text)),
-    CONSTRAINT bob_customer_versions_monthly_closing_day_check CHECK (((monthly_closing_day >= 1) AND (monthly_closing_day <= 31))),
-    CONSTRAINT bob_customer_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
-    CONSTRAINT bob_customer_versions_payment_sales_surcharge_cents_check CHECK ((payment_sales_surcharge_cents >= 0)),
-    CONSTRAINT bob_customer_versions_pricing_policy_ck CHECK (((jsonb_typeof(pricing_policy) = 'object'::text) AND (pricing_policy ?& ARRAY['defaultPremiumUnitPrice'::text, 'defaultDiscountUnitPrice'::text, 'costItems'::text, 'thirdPartyIntermediaryFixedUnitCost'::text, 'thirdPartyIntermediaryVariableUnitCost'::text]) AND ((pricing_policy - ARRAY['defaultPremiumUnitPrice'::text, 'defaultDiscountUnitPrice'::text, 'costItems'::text, 'thirdPartyIntermediaryFixedUnitCost'::text, 'thirdPartyIntermediaryVariableUnitCost'::text]) = '{}'::jsonb) AND (jsonb_typeof((pricing_policy -> 'costItems'::text)) = 'array'::text) AND (jsonb_typeof((pricing_policy -> 'defaultPremiumUnitPrice'::text)) = 'string'::text) AND (jsonb_typeof((pricing_policy -> 'defaultDiscountUnitPrice'::text)) = 'string'::text) AND (jsonb_typeof((pricing_policy -> 'thirdPartyIntermediaryFixedUnitCost'::text)) = 'string'::text) AND (jsonb_typeof((pricing_policy -> 'thirdPartyIntermediaryVariableUnitCost'::text)) = 'string'::text))),
-    CONSTRAINT bob_customer_versions_primary_attribution_ck CHECK ((((primary_sales_attribution_type IS NULL) AND (primary_sales_subject_id IS NULL) AND (primary_sales_subject_approval_entry_id IS NULL) AND (primary_sales_subject_code IS NULL) AND (primary_sales_subject_name IS NULL)) OR (((primary_sales_attribution_type)::text = ANY ((ARRAY['INTERNAL_EMPLOYEE'::character varying, 'EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying])::text[])) AND (primary_sales_subject_id IS NOT NULL) AND (primary_sales_subject_approval_entry_id IS NOT NULL) AND (primary_sales_subject_code IS NOT NULL) AND (primary_sales_subject_name IS NOT NULL)))),
-    CONSTRAINT bob_customer_versions_rebate_unit_price_cents_check CHECK ((rebate_unit_price_cents >= 0)),
-    CONSTRAINT bob_customer_versions_salesperson_entity_check CHECK (((salesperson_employee_entity)::text = 'employee'::text)),
-    CONSTRAINT bob_customer_versions_settlement_cutoff_day_check CHECK (((settlement_cutoff_day >= 0) AND (settlement_cutoff_day <= 31))),
-    CONSTRAINT bob_customer_versions_settlement_due_days_check CHECK ((settlement_due_days >= 0)),
-    CONSTRAINT bob_customer_versions_settlement_method_entity_check CHECK (((settlement_method_entity)::text = 'settlement-method'::text)),
-    CONSTRAINT bob_customer_versions_settlement_month_offset_check CHECK ((settlement_month_offset >= 0)),
-    CONSTRAINT bob_customer_versions_settlement_sales_surcharge_cents_check CHECK ((settlement_sales_surcharge_cents >= 0)),
-    CONSTRAINT bob_customer_versions_transport_surcharge_cents_check CHECK ((transport_surcharge_cents >= 0))
 );
 
 
@@ -2670,7 +2610,6 @@ CREATE TABLE public.vou_intermediary_calculation_lines (
     result jsonb NOT NULL,
     employee_amount_cents bigint CONSTRAINT vou_intermediary_calculation_lin_employee_amount_cents_not_null NOT NULL,
     intermediary_amount_cents bigint CONSTRAINT vou_intermediary_calculation_intermediary_amount_cents_not_null NOT NULL,
-    rebate_amount_cents bigint NOT NULL,
     CONSTRAINT vou_intermediary_calculation_lines_check CHECK (((source_calculation_document_id IS NULL) OR ((source_calculation_document_id)::text <> (document_id)::text))),
     CONSTRAINT vou_intermediary_calculation_lines_line_no_check CHECK ((line_no > 0)),
     CONSTRAINT vou_intermediary_calculation_lines_result_check CHECK ((jsonb_typeof(result) = 'object'::text))
@@ -2693,7 +2632,7 @@ CREATE TABLE public.vou_intermediary_calculation_summaries (
     payee_name character varying(200) NOT NULL,
     amount_cents bigint NOT NULL,
     CONSTRAINT vou_intermediary_calculation_summaries_amount_cents_check CHECK ((amount_cents <> 0)),
-    CONSTRAINT vou_intermediary_calculation_summaries_category_check CHECK (((category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying, 'INTERMEDIARY'::character varying, 'REBATE'::character varying])::text[]))),
+    CONSTRAINT vou_intermediary_calculation_summaries_category_check CHECK (((category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying, 'INTERMEDIARY'::character varying])::text[]))),
     CONSTRAINT vou_intermediary_calculation_summaries_line_no_check CHECK ((line_no > 0)),
     CONSTRAINT vou_intermediary_calculation_summaries_payee_entity_check CHECK (((payee_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'employee'::character varying, 'sales-partner'::character varying, 'other-unit'::character varying])::text[])))
 );
@@ -2828,7 +2767,7 @@ CREATE TABLE public.vou_payment_details (
     CONSTRAINT vou_payment_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT vou_payment_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['sales-refund'::character varying, 'purchase-payment'::character varying, 'other-payment'::character varying, 'employee-loan'::character varying])::text[]))),
     CONSTRAINT vou_payment_details_entity_party_check CHECK (((((entity)::text = 'sales-refund'::text) AND ((counterparty_entity)::text = 'customer-account'::text)) OR (((entity)::text = 'purchase-payment'::text) AND ((counterparty_entity)::text = 'supplier'::text)) OR (((entity)::text = 'other-payment'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))) OR (((entity)::text = 'employee-loan'::text) AND ((counterparty_entity)::text = 'employee'::text)))),
-    CONSTRAINT vou_payment_details_other_category_check CHECK (((other_category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'INTERMEDIARY'::character varying, 'REBATE'::character varying])::text[]))),
+    CONSTRAINT vou_payment_details_other_category_check CHECK (((other_category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'INTERMEDIARY'::character varying])::text[]))),
     CONSTRAINT vou_payment_details_other_category_ck CHECK (((other_category IS NULL) OR ((entity)::text = 'other-payment'::text))),
     CONSTRAINT vou_payment_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
 );
@@ -3188,7 +3127,7 @@ CREATE TABLE public.vou_receipt_details (
     CONSTRAINT vou_receipt_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT vou_receipt_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['sales-receipt'::character varying, 'purchase-refund'::character varying, 'other-receipt'::character varying, 'employee-repayment'::character varying])::text[]))),
     CONSTRAINT vou_receipt_details_entity_party_check CHECK (((((entity)::text = 'sales-receipt'::text) AND ((counterparty_entity)::text = 'customer-account'::text)) OR (((entity)::text = 'purchase-refund'::text) AND ((counterparty_entity)::text = 'supplier'::text)) OR (((entity)::text = 'other-receipt'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))) OR (((entity)::text = 'employee-repayment'::text) AND ((counterparty_entity)::text = 'employee'::text)))),
-    CONSTRAINT vou_receipt_details_other_category_check CHECK (((other_category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'INTERMEDIARY'::character varying, 'REBATE'::character varying])::text[]))),
+    CONSTRAINT vou_receipt_details_other_category_check CHECK (((other_category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'INTERMEDIARY'::character varying])::text[]))),
     CONSTRAINT vou_receipt_details_other_category_ck CHECK (((other_category IS NULL) OR ((entity)::text = 'other-receipt'::text))),
     CONSTRAINT vou_receipt_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
 );
@@ -3882,14 +3821,7 @@ INSERT INTO public.app_permissions VALUES ('01JAPP00000000000000000012', '/app/r
 INSERT INTO public.app_permissions VALUES ('01JAPP00000000000000000013', '/app/role/disable', 'app', 'role', 'disable', '停用角色', 'ENABLED', '2026-08-24 15:23:48.884197+00', NULL, '2026-08-24 15:23:48.884197+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAPP00000000000000000014', '/app/permission/query', 'app', 'permission', 'query', '查询权限目录', 'ENABLED', '2026-08-24 15:23:48.884197+00', NULL, '2026-08-24 15:23:48.884197+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAPP00000000000000000015', '/app/permission/get', 'app', 'permission', 'get', '查看权限', 'ENABLED', '2026-08-24 15:23:48.884197+00', NULL, '2026-08-24 15:23:48.884197+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000001', '/bob/customer/approve', 'bob', 'customer', 'approve', '审核通过客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000002', '/bob/customer/audit-history', 'bob', 'customer', 'audit-history', '查看审核记录客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000003', '/bob/customer/create', 'bob', 'customer', 'create', '创建客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000005', '/bob/customer/get', 'bob', 'customer', 'get', '查看客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000007', '/bob/customer/reject', 'bob', 'customer', 'reject', '审核驳回客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000008', '/bob/customer/save', 'bob', 'customer', 'save', '保存草稿客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000009', '/bob/customer/submit', 'bob', 'customer', 'submit', '提交审核客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000010', '/bob/customer/versions', 'bob', 'customer', 'versions', '查看版本客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000021', '/dcl/employee/approve', 'dcl', 'employee', 'approve', '审核通过员工声明', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000022', '/dcl/employee/audit-history', 'dcl', 'employee', 'audit-history', '查看审核记录员工声明', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000023', '/dcl/employee/create', 'dcl', 'employee', 'create', '创建员工声明', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
@@ -3927,6 +3859,33 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000019', '/dcl/s
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000020', '/dcl/supplier/versions', 'dcl', 'supplier', 'versions', '查看供应商声明版本', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000285', '/dcl/supplier/query', 'dcl', 'supplier', 'query', '查询供应商声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, 20);
 INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000286', '/dcl/supplier/get', 'dcl', 'supplier', 'get', '查看供应商声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000287', '/dcl/customer/create', 'dcl', 'customer', 'create', '创建客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000288', '/dcl/customer/save', 'dcl', 'customer', 'save', '保存客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000289', '/dcl/customer/submit', 'dcl', 'customer', 'submit', '提交客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000290', '/dcl/customer/unsubmit', 'dcl', 'customer', 'unsubmit', '撤回客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000291', '/dcl/customer/reject', 'dcl', 'customer', 'reject', '驳回客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000292', '/dcl/customer/approve', 'dcl', 'customer', 'approve', '批准客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000293', '/dcl/customer/unapprove', 'dcl', 'customer', 'unapprove', '反批客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000294', '/dcl/customer/delete', 'dcl', 'customer', 'delete', '删除客户声明草稿', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000295', '/dcl/customer/query', 'dcl', 'customer', 'query', '查询客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, 20);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000296', '/dcl/customer/get', 'dcl', 'customer', 'get', '查看客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000297', '/dcl/customer/versions', 'dcl', 'customer', 'versions', '查看客户声明版本', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000298', '/dcl/customer/audit-history', 'dcl', 'customer', 'audit-history', '查看客户声明审计', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000299', '/dcl/customer-account/create', 'dcl', 'customer-account', 'create', '创建客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000300', '/dcl/customer-account/save', 'dcl', 'customer-account', 'save', '保存客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000301', '/dcl/customer-account/submit', 'dcl', 'customer-account', 'submit', '提交客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000302', '/dcl/customer-account/unsubmit', 'dcl', 'customer-account', 'unsubmit', '撤回客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000303', '/dcl/customer-account/reject', 'dcl', 'customer-account', 'reject', '驳回客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000304', '/dcl/customer-account/approve', 'dcl', 'customer-account', 'approve', '批准客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000305', '/dcl/customer-account/unapprove', 'dcl', 'customer-account', 'unapprove', '反批客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000306', '/dcl/customer-account/delete', 'dcl', 'customer-account', 'delete', '删除客户账户声明草稿', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000307', '/dcl/customer-account/query', 'dcl', 'customer-account', 'query', '查询客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, 20);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000308', '/dcl/customer-account/get', 'dcl', 'customer-account', 'get', '查看客户账户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000309', '/dcl/customer-account/versions', 'dcl', 'customer-account', 'versions', '查看客户账户声明版本', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000310', '/dcl/customer-account/audit-history', 'dcl', 'customer-account', 'audit-history', '查看客户账户声明审计', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000311', '/dcl/customer/attachment-initiate', 'dcl', 'customer', 'attachment-initiate', '上传客户声明附件', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000312', '/dcl/customer/attachment-download', 'dcl', 'customer', 'attachment-download', '下载客户声明附件', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000313', '/dcl/customer/attachment-remove', 'dcl', 'customer', 'attachment-remove', '移除客户声明附件', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000061', '/dcl/warehouse/approve', 'dcl', 'warehouse', 'approve', '审核通过仓库声明', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000062', '/dcl/warehouse/audit-history', 'dcl', 'warehouse', 'audit-history', '查看仓库声明审核记录', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000063', '/dcl/warehouse/create', 'dcl', 'warehouse', 'create', '创建仓库声明', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
@@ -3947,7 +3906,6 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000016', '/bob/s
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000036', '/bob/product/query', 'bob', 'product', 'query', '查询产品', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 40);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000066', '/bob/warehouse/query', 'bob', 'warehouse', 'query', '查询仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, 60);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000076', '/bob/vehicle/query', 'bob', 'vehicle', 'query', '查询车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, 70);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000081', '/bob/customer/delete', 'bob', 'customer', 'delete', '删除首版草稿客户', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000082', '/dcl/supplier/delete', 'dcl', 'supplier', 'delete', '删除首版草稿供应商声明', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000083', '/dcl/employee/delete', 'dcl', 'employee', 'delete', '删除首版员工声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000084', '/dcl/product/delete', 'dcl', 'product', 'delete', '删除首版草稿产品', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
@@ -4169,10 +4127,6 @@ INSERT INTO public.app_permissions VALUES ('PDb2a98e8fb2cd7eb437a0ed01', '/vou/s
 INSERT INTO public.app_permissions VALUES ('PD36f8ca0b2e755094c9faa2d7', '/vou/self-production/attachment-download', 'vou', 'self-production', 'attachment-download', '下载附件生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PDecc2b00e53ada5195190d933', '/vou/self-production/attachment-remove', 'vou', 'self-production', 'attachment-remove', '删除附件生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PD6ca5f678f658d974c8003eb7', '/vou/self-production/formula-default', 'vou', 'self-production', 'formula-default', '解析生产自制品默认配方', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000133', '/bob/customer/unsubmit', 'bob', 'customer', 'unsubmit', 'unsubmit customer', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000134', '/bob/customer/unapprove', 'bob', 'customer', 'unapprove', 'unapprove customer', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000135', '/bob/customer/enable', 'bob', 'customer', 'enable', 'enable customer', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000136', '/bob/customer/disable', 'bob', 'customer', 'disable', 'disable customer', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000137', '/dcl/supplier/unsubmit', 'dcl', 'supplier', 'unsubmit', '撤回供应商声明审核', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000138', '/dcl/supplier/unapprove', 'dcl', 'supplier', 'unapprove', '反批供应商声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000141', '/dcl/employee/unsubmit', 'dcl', 'employee', 'unsubmit', '撤回员工声明审核', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
@@ -4614,9 +4568,6 @@ INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000011', '/dcl/o
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000012', '/dcl/operating-entity/unapprove', 'dcl', 'operating-entity', 'unapprove', '反审核经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000013', '/dcl/operating-entity/unsubmit', 'dcl', 'operating-entity', 'unsubmit', '撤回经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000014', '/dcl/operating-entity/versions', 'dcl', 'operating-entity', 'versions', '查看经营主体版本', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000001', '/bob/customer/attachment-initiate', 'bob', 'customer', 'attachment-initiate', '上传客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000002', '/bob/customer/attachment-download', 'bob', 'customer', 'attachment-download', '下载客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB83ATT000000000000003', '/bob/customer/attachment-remove', 'bob', 'customer', 'attachment-remove', '移除客户附件', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000001', '/bob/party/query', 'bob', 'party', 'query', '查询主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000002', '/bob/party/get', 'bob', 'party', 'get', '查看主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000003', '/dcl/party/create', 'dcl', 'party', 'create', '随首条关系创建主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
@@ -4677,17 +4628,6 @@ INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000019', '/vou/s
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000020', '/vou/service-acceptance/audit-history', 'vou', 'service-acceptance', 'audit-history', '查看履约验收审计', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000001', '/bob/customer-account/query', 'bob', 'customer-account', 'query', '查询客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000002', '/bob/customer-account/get', 'bob', 'customer-account', 'get', '查看客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000003', '/bob/customer-account/create', 'bob', 'customer-account', 'create', '创建客户关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000004', '/bob/customer-account/save', 'bob', 'customer-account', 'save', '保存客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000005', '/bob/customer-account/delete', 'bob', 'customer-account', 'delete', '删除客户账户草稿', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000006', '/bob/customer-account/submit', 'bob', 'customer-account', 'submit', '提交客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000007', '/bob/customer-account/unsubmit', 'bob', 'customer-account', 'unsubmit', '撤回客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000008', '/bob/customer-account/approve', 'bob', 'customer-account', 'approve', '审核客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000009', '/bob/customer-account/reject', 'bob', 'customer-account', 'reject', '驳回客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000010', '/bob/customer-account/enable', 'bob', 'customer-account', 'enable', '启用客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000011', '/bob/customer-account/disable', 'bob', 'customer-account', 'disable', '停用客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000012', '/bob/customer-account/versions', 'bob', 'customer-account', 'versions', '查看客户账户版本', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000013', '/bob/customer-account/audit-history', 'bob', 'customer-account', 'audit-history', '查看客户账户审计', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000001', '/aux/product-category/submit', 'aux', 'product-category', 'submit', '提交产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000002', '/aux/product-category/unsubmit', 'aux', 'product-category', 'unsubmit', '撤回产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000003', '/aux/product-category/approve', 'aux', 'product-category', 'approve', '审核产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
@@ -4743,7 +4683,6 @@ INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000052', '/aux/a
 INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000053', '/aux/asset-category/approve', 'aux', 'asset-category', 'approve', '审核资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000054', '/aux/asset-category/reject', 'aux', 'asset-category', 'reject', '驳回资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000055', '/aux/asset-category/unapprove', 'aux', 'asset-category', 'unapprove', '反审核资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000001', '/bob/customer-account/unapprove', 'bob', 'customer-account', 'unapprove', '反审核客户结算账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000002', '/dcl/other-unit/unapprove', 'dcl', 'other-unit', 'unapprove', '反审核其他单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/dcl/sales-partner/unapprove', 'dcl', 'sales-partner', 'unapprove', '反审核销售合作关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 
@@ -4883,31 +4822,13 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 
 
 --
--- Data for Name: bob_customer_credit_limits; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_customer_download_tokens; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_customer_download_tokens; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: bob_customer_files; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: bob_customer_relationship_attachments; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: bob_customer_relationship_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_customer_files; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -4915,21 +4836,6 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 --
 -- Data for Name: bob_customer_relationships; Type: TABLE DATA; Schema: public; Owner: -
 --
-
-
-
---
--- Data for Name: bob_customer_version_attachments; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: bob_customer_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
 
 
 
@@ -5489,17 +5395,15 @@ globalThis.calculate = function calculate(input) {
         billLineIds: [],
         employeeAmount: money(-number(line.adjustmentEmployeeAmount)),
         intermediaryAmount: money(-number(line.adjustmentIntermediaryAmount)),
-        rebateAmount: money(-number(line.adjustmentRebateAmount)),
         note: ''跨月退货冲回：'' + (line.returnDocumentNos || []).join(''、'')
       };
     }
     const unitPrice = number(line.unitPrice);
     const referencePrice = number(line.referenceUnitPrice);
     const surcharge = number(line.settlementSurcharge);
-    const rebatePrice = number(line.rebateUnitPrice);
     const pricingQuantity = number(line.pricingQuantity);
 	const standardPieces = number(line.standardPieceQuantity);
-    const premium = unitPrice - referencePrice - surcharge - rebatePrice;
+    const premium = unitPrice - referencePrice - surcharge;
     const special = line.specialApproval === true;
     const lowPrice = special || premium < 0;
     const rates = delayedRates(line.settlementTermCode, Number(line.collectionDelayDays), lowPrice);
@@ -5512,7 +5416,6 @@ globalThis.calculate = function calculate(input) {
     const intermediary = line.intermediary && premium > 0 && rates.premiumAllowed
       ? premium * pricingQuantity / 1.13
       : 0;
-    const rebate = rebatePrice * pricingQuantity;
     const gross = base + low + premiumCommission + maintenance;
     const row = {
       sourceSignoffLineId: line.sourceSignoffLineId,
@@ -5527,7 +5430,6 @@ globalThis.calculate = function calculate(input) {
       billLineIds: [],
       employeeAmount: money(gross),
       intermediaryAmount: money(intermediary),
-      rebateAmount: money(rebate),
       note: [special ? ''特批销售'' : (lowPrice ? ''低价销售'' : ''''),
         line.collectionDelayDays > 0 ? ''延期'' + line.collectionDelayDays + ''天'' : '''',
         line.settlementTermCode === ''MONTHLY_90'' ? ''月结90天需单独审批'' : ''''].filter(Boolean).join(''；'')
@@ -5598,7 +5500,6 @@ globalThis.calculate = function calculate(input) {
     const source = input.lines[index];
     add(source.salesperson, source.salesAttributionType === ''INTERNAL_EMPLOYEE'' ? ''COMMISSION'' : source.salesAttributionType, row.employeeAmount);
     add(source.intermediary, ''INTERMEDIARY'', row.intermediaryAmount);
-    add(source.customer, ''REBATE'', row.rebateAmount);
   });
   return { lines: rows, summaries: Array.from(summaries.values()).filter((item) => number(item.amount) !== 0) };
 };
@@ -6355,67 +6256,35 @@ ALTER TABLE ONLY public.bob_customer_accounts
 
 
 --
--- Name: bob_customer_credit_limits bob_customer_credit_limits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_download_tokens dcl_customer_download_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_customer_credit_limits
-    ADD CONSTRAINT bob_customer_credit_limits_pkey PRIMARY KEY (approval_entry_id, currency);
-
-
---
--- Name: bob_customer_download_tokens bob_customer_download_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_download_tokens
-    ADD CONSTRAINT bob_customer_download_tokens_pkey PRIMARY KEY (token_hash);
+ALTER TABLE ONLY public.dcl_customer_download_tokens
+    ADD CONSTRAINT dcl_customer_download_tokens_pkey PRIMARY KEY (token_hash);
 
 
 --
--- Name: bob_customer_files bob_customer_files_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_files dcl_customer_files_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_customer_files
-    ADD CONSTRAINT bob_customer_files_pkey PRIMARY KEY (id);
-
-
---
--- Name: bob_customer_files bob_customer_files_storage_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_files
-    ADD CONSTRAINT bob_customer_files_storage_key_key UNIQUE (storage_key);
+ALTER TABLE ONLY public.dcl_customer_files
+    ADD CONSTRAINT dcl_customer_files_pkey PRIMARY KEY (id);
 
 
 --
--- Name: bob_customer_files bob_customer_files_upload_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_files dcl_customer_files_storage_key_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_customer_files
-    ADD CONSTRAINT bob_customer_files_upload_token_hash_key UNIQUE (upload_token_hash);
-
-
---
--- Name: bob_customer_relationship_attachments bob_customer_relationship_attachments_file_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_relationship_attachments
-    ADD CONSTRAINT bob_customer_relationship_attachments_file_id_key UNIQUE (file_id);
+ALTER TABLE ONLY public.dcl_customer_files
+    ADD CONSTRAINT dcl_customer_files_storage_key_key UNIQUE (storage_key);
 
 
 --
--- Name: bob_customer_relationship_attachments bob_customer_relationship_attachments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_files dcl_customer_files_upload_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_customer_relationship_attachments
-    ADD CONSTRAINT bob_customer_relationship_attachments_pkey PRIMARY KEY (customer_relationship_id, file_id);
-
-
---
--- Name: bob_customer_relationship_versions bob_customer_relationship_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_relationship_versions
-    ADD CONSTRAINT bob_customer_relationship_versions_pkey PRIMARY KEY (approval_entry_id);
+ALTER TABLE ONLY public.dcl_customer_files
+    ADD CONSTRAINT dcl_customer_files_upload_token_hash_key UNIQUE (upload_token_hash);
 
 
 --
@@ -6424,22 +6293,6 @@ ALTER TABLE ONLY public.bob_customer_relationship_versions
 
 ALTER TABLE ONLY public.bob_customer_relationships
     ADD CONSTRAINT bob_customer_relationships_pkey PRIMARY KEY (object_id);
-
-
---
--- Name: bob_customer_version_attachments bob_customer_version_attachments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_version_attachments
-    ADD CONSTRAINT bob_customer_version_attachments_pkey PRIMARY KEY (approval_entry_id, file_id);
-
-
---
--- Name: bob_customer_versions bob_customer_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_versions
-    ADD CONSTRAINT bob_customer_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -7624,17 +7477,17 @@ CREATE INDEX bob_customer_accounts_relationship_idx ON public.bob_customer_accou
 
 
 --
--- Name: bob_customer_download_tokens_expiry_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_customer_download_tokens_expiry_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_customer_download_tokens_expiry_idx ON public.bob_customer_download_tokens USING btree (expires_at);
+CREATE INDEX dcl_customer_download_tokens_expiry_idx ON public.dcl_customer_download_tokens USING btree (expires_at);
 
 
 --
--- Name: bob_customer_files_pending_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_customer_files_pending_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_customer_files_pending_idx ON public.bob_customer_files USING btree (upload_expires_at) WHERE ((status)::text = 'PENDING'::text);
+CREATE INDEX dcl_customer_files_pending_idx ON public.dcl_customer_files USING btree (upload_expires_at) WHERE ((status)::text = 'PENDING'::text);
 
 
 --
@@ -7642,41 +7495,6 @@ CREATE INDEX bob_customer_files_pending_idx ON public.bob_customer_files USING b
 --
 
 CREATE UNIQUE INDEX bob_customer_relationships_active_party_operating_key ON public.bob_customer_relationships USING btree (party_id, operating_entity_id) WHERE (merged_into_object_id IS NULL);
-
-
---
--- Name: bob_customer_versions_category_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_customer_versions_category_idx ON public.bob_customer_versions USING btree (category_id);
-
-
---
--- Name: bob_customer_versions_operating_entity_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_customer_versions_operating_entity_idx ON public.bob_customer_versions USING btree (operating_entity_id);
-
-
---
--- Name: bob_customer_versions_payment_method_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_customer_versions_payment_method_idx ON public.bob_customer_versions USING btree (payment_method_id);
-
-
---
--- Name: bob_customer_versions_primary_sales_subject_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_customer_versions_primary_sales_subject_idx ON public.bob_customer_versions USING btree (primary_sales_subject_id);
-
-
---
--- Name: bob_customer_versions_salesperson_employee_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_customer_versions_salesperson_employee_idx ON public.bob_customer_versions USING btree (salesperson_employee_id);
 
 
 --
@@ -7988,13 +7806,6 @@ CREATE INDEX wfl_runtime_audit_history_idx ON public.wfl_runtime_audit_events US
 --
 
 CREATE TRIGGER bob_customer_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_customer_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
-
-
---
--- Name: bob_customer_version_attachments bob_customer_version_attachment_orphan_cleanup; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER bob_customer_version_attachment_orphan_cleanup AFTER DELETE ON public.bob_customer_version_attachments FOR EACH ROW EXECUTE FUNCTION public.bob_delete_unreferenced_customer_file();
 
 
 --
@@ -8758,43 +8569,11 @@ ALTER TABLE ONLY public.bob_customer_accounts
 
 
 --
--- Name: bob_customer_credit_limits bob_customer_credit_limits_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_download_tokens dcl_customer_download_tokens_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_customer_credit_limits
-    ADD CONSTRAINT bob_customer_credit_limits_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.bob_customer_versions(approval_entry_id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_customer_download_tokens bob_customer_download_tokens_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_download_tokens
-    ADD CONSTRAINT bob_customer_download_tokens_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.bob_customer_files(id) ON DELETE CASCADE;
-
-
---
--- Name: bob_customer_relationship_attachments bob_customer_relationship_attachm_customer_relationship_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_relationship_attachments
-    ADD CONSTRAINT bob_customer_relationship_attachm_customer_relationship_id_fkey FOREIGN KEY (customer_relationship_id) REFERENCES public.bob_customer_relationships(object_id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_customer_relationship_attachments bob_customer_relationship_attachments_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_relationship_attachments
-    ADD CONSTRAINT bob_customer_relationship_attachments_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.bob_customer_files(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_customer_relationship_versions bob_customer_rel_versions_entry_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_relationship_versions
-    ADD CONSTRAINT bob_customer_rel_versions_entry_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_download_tokens
+    ADD CONSTRAINT dcl_customer_download_tokens_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.dcl_customer_files(id) ON DELETE CASCADE;
 
 
 --
@@ -8827,46 +8606,6 @@ ALTER TABLE ONLY public.bob_customer_relationships
 
 ALTER TABLE ONLY public.bob_customer_relationships
     ADD CONSTRAINT bob_customer_relationships_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_customer_version_attachments bob_customer_version_attachments_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_version_attachments
-    ADD CONSTRAINT bob_customer_version_attachments_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.bob_customer_files(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_customer_version_attachments bob_customer_version_attachments_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_version_attachments
-    ADD CONSTRAINT bob_customer_version_attachments_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE CASCADE;
-
-
---
--- Name: bob_customer_versions bob_customer_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_versions
-    ADD CONSTRAINT bob_customer_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_customer_versions bob_customer_versions_salesperson_id_salesperson_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_versions
-    ADD CONSTRAINT bob_customer_versions_salesperson_id_salesperson_entity_fkey FOREIGN KEY (salesperson_employee_id, salesperson_employee_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_customer_versions bob_customer_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_customer_versions
-    ADD CONSTRAINT bob_customer_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -10286,6 +10025,61 @@ ALTER TABLE ONLY public.bob_suppliers
 ALTER TABLE ONLY public.bob_suppliers
     ADD CONSTRAINT bob_suppliers_source_approval_entry_id_fkey
     FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_customer_versions
+    ADD CONSTRAINT dcl_customer_versions_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_versions
+    ADD CONSTRAINT dcl_customer_versions_operating_entity_entry_id_fkey
+    FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_versions
+    ADD CONSTRAINT dcl_customer_account_versions_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_versions
+    ADD CONSTRAINT dcl_customer_account_versions_settlement_method_id_fkey
+    FOREIGN KEY (settlement_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_versions
+    ADD CONSTRAINT dcl_customer_account_versions_settlement_method_entry_id_fkey
+    FOREIGN KEY (settlement_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_versions
+    ADD CONSTRAINT dcl_customer_account_versions_payment_method_id_fkey
+    FOREIGN KEY (payment_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_versions
+    ADD CONSTRAINT dcl_customer_account_versions_payment_method_entry_id_fkey
+    FOREIGN KEY (payment_method_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_versions
+    ADD CONSTRAINT dcl_customer_account_versions_operating_entity_entry_id_fkey
+    FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_versions
+    ADD CONSTRAINT dcl_customer_account_versions_primary_sales_entry_id_fkey
+    FOREIGN KEY (primary_sales_subject_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_credit_limits
+    ADD CONSTRAINT dcl_customer_account_credit_limits_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_customer_account_versions(approval_entry_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_attachments
+    ADD CONSTRAINT dcl_customer_attachments_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_customer_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_customer_attachments
+    ADD CONSTRAINT dcl_customer_attachments_file_id_fkey
+    FOREIGN KEY (file_id) REFERENCES public.dcl_customer_files(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_account_attachments
+    ADD CONSTRAINT dcl_customer_account_attachments_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_customer_account_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_customer_account_attachments
+    ADD CONSTRAINT dcl_customer_account_attachments_file_id_fkey
+    FOREIGN KEY (file_id) REFERENCES public.dcl_customer_files(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_customers
+    ADD CONSTRAINT bob_customers_object_id_fkey
+    FOREIGN KEY (object_id) REFERENCES public.bob_customer_relationships(object_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_customers
+    ADD CONSTRAINT bob_customers_source_approval_entry_id_fkey
+    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_customer_account_currents
+    ADD CONSTRAINT bob_customer_account_currents_object_id_fkey
+    FOREIGN KEY (object_id) REFERENCES public.bob_customer_accounts(object_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_customer_account_currents
+    ADD CONSTRAINT bob_customer_account_currents_source_approval_entry_id_fkey
+    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_sales_partner_versions
     ADD CONSTRAINT dcl_sales_partner_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
@@ -10314,6 +10108,12 @@ CREATE INDEX dcl_supplier_versions_settlement_method_idx
     ON public.dcl_supplier_versions USING btree (settlement_method_id);
 CREATE INDEX dcl_supplier_versions_default_purchaser_idx
     ON public.dcl_supplier_versions USING btree (default_purchaser_employee_id);
+CREATE INDEX dcl_customer_account_versions_settlement_method_idx
+    ON public.dcl_customer_account_versions USING btree (settlement_method_id);
+CREATE INDEX dcl_customer_account_versions_payment_method_idx
+    ON public.dcl_customer_account_versions USING btree (payment_method_id);
+CREATE INDEX dcl_customer_account_versions_primary_sales_subject_idx
+    ON public.dcl_customer_account_versions USING btree (primary_sales_subject_id);
 
 
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;

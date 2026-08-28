@@ -19,7 +19,7 @@ CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'customer' THEN (SELECT current.display_name FROM bob_customer_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
-    WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'customer-account' THEN (SELECT payload.name FROM dcl_customer_account_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'supplier' THEN (SELECT current.display_name FROM bob_supplier_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'other-unit' THEN (SELECT current.display_name FROM bob_service_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'employee' THEN (SELECT party.display_name FROM bob_employment_relationships relationship JOIN bob_party_currents party ON party.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL)
@@ -32,7 +32,7 @@ CROSS JOIN LATERAL (
     ELSE ''
   END AS name
 ) named
-WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner')))
+WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')))
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($1::text[]))
     OR (
@@ -138,7 +138,7 @@ CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'customer' THEN (SELECT current.display_name FROM bob_customer_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
-    WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'customer-account' THEN (SELECT payload.name FROM dcl_customer_account_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'supplier' THEN (SELECT current.display_name FROM bob_supplier_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'other-unit' THEN (SELECT current.display_name FROM bob_service_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
     WHEN 'employee' THEN (SELECT party.display_name FROM bob_employment_relationships relationship JOIN bob_party_currents party ON party.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL)
@@ -151,7 +151,7 @@ CROSS JOIN LATERAL (
     ELSE ''
   END AS name
 ) named
-WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner')))
+WHERE (entry.domain='bob' OR (entry.domain='dcl' AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account')))
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($2::text[]))
     OR (

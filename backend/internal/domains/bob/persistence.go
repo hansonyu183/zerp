@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/oklog/ulid/v2"
@@ -15,17 +14,10 @@ import (
 
 // BOB payloads are keyed exclusively by the central approval entry.
 func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, data DetailView) error {
-	var err error
-	switch entity {
-	case EntityCustomer:
-		return q.InsertBobCustomerRelationshipPayload(ctx, approvalEntryID)
-	case EntityCustomerAccount:
-		err = q.InsertBobCustomerPayload(ctx, dbsqlc.InsertBobCustomerPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
-	case EntityProduct:
-		err = q.InsertBobProductPayload(ctx, dbsqlc.InsertBobProductPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
-	default:
+	if entity != EntityProduct {
 		return invalidPayloadEntity(entity)
 	}
+	err := q.InsertBobProductPayload(ctx, dbsqlc.InsertBobProductPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
 	if err != nil {
 		return err
 	}
@@ -34,15 +26,6 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 
 func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (DetailView, error) {
 	switch entity {
-	case EntityCustomer:
-		_, err := q.GetBobOpenCustomerRelationshipPayload(ctx, approvalEntryID)
-		return DetailView{}, err
-	case EntityCustomerAccount:
-		r, err := q.GetBobOpenCustomerPayload(ctx, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		return DetailView{Name: r.Name, CustomerType: r.CustomerType, ShortName: deref(r.ShortName), TaxNumber: deref(r.TaxNumber), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), OperatingEntityID: deref(r.OperatingEntityID), OperatingEntityApprovalEntryID: deref(r.OperatingEntityApprovalEntryID), OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: deref(r.OperatingEntityName), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), DueDays: r.SettlementDueDays, MonthOffset: r.SettlementMonthOffset, CutoffDay: r.SettlementCutoffDay, RebateUnitPrice: fixeddecimal.Format(r.RebateUnitPriceCents, 2, false)}, nil
 	case EntityProduct:
 		r, err := q.GetBobOpenProductPayload(ctx, approvalEntryID)
 		if err != nil {
@@ -93,14 +76,6 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 
 func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, d DetailView) (int64, error) {
 	switch entity {
-	case EntityCustomerAccount:
-		rebate, err := moneyCentsOrZero(d.RebateUnitPrice)
-		if err != nil {
-			return 0, err
-		}
-		return q.UpdateBobCustomerPayload(ctx, dbsqlc.UpdateBobCustomerPayloadParams{Name: d.Name, CustomerType: d.CustomerType, ShortName: nilIfEmpty(d.ShortName), TaxNumber: nilIfEmpty(d.TaxNumber), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), OperatingEntityID: nilIfEmpty(d.OperatingEntityID), OperatingEntityApprovalEntryID: nilIfEmpty(d.OperatingEntityApprovalEntryID), OperatingEntityCode: nilIfEmpty(d.OperatingEntityCode), OperatingEntityName: nilIfEmpty(d.OperatingEntityName), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(d.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementDueDays: d.DueDays, SettlementMonthOffset: d.MonthOffset, SettlementCutoffDay: d.CutoffDay, SettlementSalesSurchargeCents: rebate, PricingPolicy: []byte("{}"), ApprovalEntryID: approvalEntryID})
-	case EntityCustomer:
-		return 1, nil
 	case EntityProduct:
 		packaging, err := defaultPackagingSpecMicros(d)
 		if err != nil {
@@ -114,13 +89,6 @@ func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntry
 
 func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntryID, sourceApprovalEntryID string) error {
 	switch entity {
-	case EntityCustomer:
-		return q.CopyBobCustomerRelationshipPayload(ctx, dbsqlc.CopyBobCustomerRelationshipPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
-	case EntityCustomerAccount:
-		if err := q.CopyBobCustomerPayload(ctx, dbsqlc.CopyBobCustomerPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID}); err != nil {
-			return err
-		}
-		return copyCustomerPayloadExtras(ctx, q, newApprovalEntryID, sourceApprovalEntryID)
 	case EntityProduct:
 		if err := q.CopyBobProductPayload(ctx, dbsqlc.CopyBobProductPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID}); err != nil {
 			return err
@@ -144,16 +112,6 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntry
 
 func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (int64, error) {
 	switch entity {
-	case EntityCustomer:
-		return q.DeleteBobCustomerRelationshipPayload(ctx, approvalEntryID)
-	case EntityCustomerAccount:
-		if err := q.DeleteBobCustomerCreditLimits(ctx, approvalEntryID); err != nil {
-			return 0, err
-		}
-		if err := q.DeleteBobCustomerVersionAttachments(ctx, approvalEntryID); err != nil {
-			return 0, err
-		}
-		return q.DeleteBobCustomerPayload(ctx, approvalEntryID)
 	case EntityProduct:
 		if err := q.DeleteBobProductFormula(ctx, approvalEntryID); err != nil {
 			return 0, err
@@ -166,13 +124,6 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 		return 0, invalidPayloadEntity(entity)
 	}
 }
-
-func copyCustomerPayloadExtras(ctx context.Context, q *dbsqlc.Queries, newApprovalEntryID, sourceApprovalEntryID string) error {
-	if err := q.CopyBobCustomerCreditLimits(ctx, dbsqlc.CopyBobCustomerCreditLimitsParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID}); err != nil {
-		return err
-	}
-	return q.CopyBobCustomerVersionAttachments(ctx, dbsqlc.CopyBobCustomerVersionAttachmentsParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
-}
 func defaultPackagingSpecMicros(data DetailView) (*int64, error) {
 	if data.BehaviorProfile == ProductBehaviorPackaging || data.DefaultPackagingSpec == "" {
 		return nil, nil
@@ -184,12 +135,6 @@ func defaultPackagingSpecMicros(data DetailView) (*int64, error) {
 	return &value, nil
 }
 
-func moneyCentsOrZero(value string) (int64, error) {
-	if strings.TrimSpace(value) == "" {
-		return 0, nil
-	}
-	return moneyCents(value)
-}
 func insertProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string, formula *ProductFormula) error {
 	if formula == nil {
 		return nil

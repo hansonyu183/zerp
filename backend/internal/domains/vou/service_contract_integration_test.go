@@ -23,6 +23,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	bus := txevent.NewBus()
 	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, bobService, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
+	accounts := dcldomain.NewCustomerAccountService(pool, bobService, authorization.Func(nil), bus)
 	service := newIntegrationService(t, pool)
 
 	serviceContract := approveServiceContractIntegration(t, service, DraftInput{
@@ -94,19 +95,18 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	if err != nil {
 		t.Fatalf("approve channel relationship: %v", err)
 	}
-	if _, err = bobService.CustomerAccountAdd(t.Context(), bobdomain.CustomerAccountAddInput{
+	if _, err = accounts.Create(t.Context(), dcldomain.CustomerAccountCreateInput{
 		CustomerRelationshipID: customerRelationshipID,
-		Data: bobdomain.CustomerAccountData{
+		Data: dcldomain.CustomerAccountDataInput{
 			Name: "禁止自归属账户", CustomerTypeCode: bobdomain.CustomerTypeEndUser,
-			OperatingEntityID: operatingEntityID,
-			PricingPolicy: bobdomain.PricingPolicy{
+			PricingPolicy: dcldomain.CustomerPricingPolicy{
 				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00",
 				ThirdPartyIntermediaryFixedUnitCost: "0.00", ThirdPartyIntermediaryVariableUnitCost: "0.00",
-				CostItems: []bobdomain.PricingCostItem{},
+				CostItems: []dcldomain.CustomerPricingCostItem{},
 			},
-			CreditLimits: []bobdomain.CustomerCreditLimit{},
-			PrimarySalesAttribution: bobdomain.CustomerSalesAttributionInput{
-				Type: bobdomain.SalesCapabilityChannelPartner, SubjectObjectID: approvedSalesPartner.ObjectID,
+			CreditLimits: []dcldomain.CustomerCreditLimit{},
+			PrimarySalesAttribution: dcldomain.CustomerSalesAttributionInput{
+				Type: dcldomain.CustomerSalesAttributionChannelPartner, SubjectObjectID: approvedSalesPartner.ObjectID,
 			},
 		},
 	}, trustedIntegrationActor(t, "customer-channel-self-attribution")); err == nil {

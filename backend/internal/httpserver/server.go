@@ -55,10 +55,12 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	dclProductService := dcldomain.NewProductService(db, bobService, authorizer, eventBus)
 	dclEmployeeService := dcldomain.NewEmployeeService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
 	dclSupplierService := dcldomain.NewSupplierService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
+	dclCustomerAccountService := dcldomain.NewCustomerAccountService(db, bobService, authorizer, eventBus)
+	dclCustomerService := dcldomain.NewCustomerService(db, bobService, dclPartyService, partyCurrentReader, dclCustomerAccountService, authorizer, eventBus)
 	dclRelationshipService := dcldomain.NewRelationshipService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
-	bobAttachmentService, err := bobdomain.NewCustomerAttachmentService(db, bobdomain.CustomerAttachmentOptions{
+	dclCustomerAttachmentService, err := dcldomain.NewCustomerAttachmentService(db, dcldomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	}, bobService)
+	}, authorizer, eventBus)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	router := newRouter(cfg, db, logger, func(router *gin.Engine) {
 		appdomain.NewHandler(appService, authorizer, cfg, logger).Register(router)
 		accdomain.NewHandler(accService, authorizer, logger).Register(router)
-		bobdomain.NewHandler(bobService, bobAttachmentService, authorizer, logger).Register(router)
+		bobdomain.NewHandler(bobService, authorizer, logger).Register(router)
 		dcldomain.NewHandler(dclOperatingEntityService, authorizer, logger).Register(router)
 		dcldomain.NewWarehouseHandler(dclWarehouseService, authorizer, logger).Register(router)
 		dcldomain.NewVehicleHandler(dclVehicleService, authorizer, logger).Register(router)
@@ -92,6 +94,8 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		dcldomain.NewPartyHandler(dclPartyService, authorizer, logger).Register(router)
 		dcldomain.NewEmployeeHandler(dclEmployeeService, authorizer, logger).Register(router)
 		dcldomain.NewSupplierHandler(dclSupplierService, authorizer, logger).Register(router)
+		dcldomain.NewCustomerHandler(dclCustomerService, dclCustomerAttachmentService, authorizer, logger).Register(router)
+		dcldomain.NewCustomerAccountHandler(dclCustomerAccountService, authorizer, logger).Register(router)
 		dcldomain.NewRelationshipHandler(dclRelationshipService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)

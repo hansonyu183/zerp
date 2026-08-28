@@ -68,6 +68,7 @@ var entities = [...]string{
 
 var publicEntities = [...]string{
 	EntityCustomer,
+	EntityCustomerAccount,
 	EntitySupplier,
 	EntityOtherUnit,
 	EntityEmployee,
@@ -165,7 +166,6 @@ type DetailInput struct {
 	MonthlyClosingDay          *int32                   `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID      OptionalString           `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID OptionalString           `json:"defaultPurchaserEmployeeId,omitempty"`
-	RebateUnitPrice            *string                  `json:"rebateUnitPrice,omitempty"`
 	RuleType                   string                   `json:"ruleType,omitempty"`
 	MonthOffset                int32                    `json:"monthOffset,omitempty"`
 	DayOfMonth                 *int32                   `json:"dayOfMonth,omitempty"`
@@ -227,7 +227,6 @@ type CreateDetailInput struct {
 	MonthlyClosingDay              int32                   `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID          string                  `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID     string                  `json:"defaultPurchaserEmployeeId,omitempty"`
-	RebateUnitPrice                string                  `json:"rebateUnitPrice,omitempty"`
 	RuleType                       string                  `json:"ruleType,omitempty"`
 	MonthOffset                    int32                   `json:"monthOffset,omitempty"`
 	DayOfMonth                     *int32                  `json:"dayOfMonth,omitempty"`
@@ -484,7 +483,6 @@ type DetailView struct {
 	SalespersonEmployeeID           string                  `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID      string                  `json:"defaultPurchaserEmployeeId,omitempty"`
 	DefaultPurchaserApprovalEntryID string                  `json:"-"`
-	RebateUnitPrice                 string                  `json:"rebateUnitPrice,omitempty"`
 	SettlementMethodApprovalEntryID string                  `json:"-"`
 	SettlementMethodCode            string                  `json:"-"`
 	SettlementMethodName            string                  `json:"-"`

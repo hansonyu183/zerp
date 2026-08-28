@@ -46,16 +46,16 @@ func main() {
 		logger.Error("cleanup VOU attachments", "error", err)
 		os.Exit(1)
 	}
-	customerAttachments, err := bobdomain.NewCustomerAttachmentService(pool, bobdomain.CustomerAttachmentOptions{
+	customerAttachments, err := dcldomain.NewCustomerAttachmentService(pool, dcldomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	}, bobService)
+	}, authorizer, events)
 	if err != nil {
 		logger.Error("initialize customer attachment storage", "error", err)
 		os.Exit(1)
 	}
 	customerRemoved, err := customerAttachments.CleanupOrphanFiles(context.Background())
 	if err != nil {
-		logger.Error("cleanup BOB customer attachments", "error", err)
+		logger.Error("cleanup DCL customer attachments", "error", err)
 		os.Exit(1)
 	}
 	logger.Info("attachment cleanup completed", "vouRemoved", removed, "customerRemoved", customerRemoved)

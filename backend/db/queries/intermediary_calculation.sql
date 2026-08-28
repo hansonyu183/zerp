@@ -46,12 +46,11 @@ WHERE document_id=sqlc.arg(document_id);
 -- name: InsertVouIntermediaryCalculationLine :exec
 INSERT INTO vou_intermediary_calculation_lines(
     id,document_id,line_no,source_signoff_line_id,source_calculation_document_id,result,
-    employee_amount_cents,intermediary_amount_cents,rebate_amount_cents
+    employee_amount_cents,intermediary_amount_cents
 ) VALUES (
     sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),
     sqlc.arg(source_signoff_line_id),sqlc.narg(source_calculation_document_id),sqlc.arg(result),
-    sqlc.arg(employee_amount_cents),sqlc.arg(intermediary_amount_cents),
-    sqlc.arg(rebate_amount_cents)
+    sqlc.arg(employee_amount_cents),sqlc.arg(intermediary_amount_cents)
 );
 
 -- name: HasApprovedIntermediaryCalculationDependents :one
@@ -155,7 +154,6 @@ SELECT
     line.unit_price_cents,
     order_line.reference_unit_price_cents,
     order_line.settlement_surcharge_cents,
-    customer_version.rebate_unit_price_cents,
     (line.line_amount_cents-COALESCE(round(
         line.line_amount_cents::numeric*returned.quantity_micros::numeric/
 		NULLIF(line.signed_base_quantity_micros,0)
@@ -171,7 +169,6 @@ JOIN vou_sale_signoff_lines line ON line.document_id=signoff.id
 JOIN vou_documents order_document ON order_document.id=detail.source_order_id
 JOIN vou_sale_order_details order_detail ON order_detail.document_id=order_document.id
 JOIN vou_product_lines order_line ON order_line.id=line.source_order_line_id
-JOIN bob_customer_versions customer_version ON customer_version.approval_entry_id=detail.customer_approval_entry_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
   AND signoff_approval.status = 'APPROVED'
@@ -288,8 +285,7 @@ JOIN LATERAL (
     WHERE calculation_line.source_signoff_line_id=return_line.source_signoff_line_id
       AND calculation_document.business_date < return_document.business_date
       AND (calculation_line.employee_amount_cents>0
-        OR calculation_line.intermediary_amount_cents>0
-        OR calculation_line.rebate_amount_cents>0)
+        OR calculation_line.intermediary_amount_cents>0)
     ORDER BY calculation_document.business_date,calculation_document.document_no
     LIMIT 1
 ) original ON true

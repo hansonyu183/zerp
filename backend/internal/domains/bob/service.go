@@ -675,6 +675,9 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntitySupplier {
 		return s.validateSupplierSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
+	if entity == EntityCustomerAccount {
+		return s.validateCustomerAccountSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
@@ -721,6 +724,9 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	if entity == EntitySupplier {
 		return s.resolveSupplierCurrentReference(ctx, q, objectID)
 	}
+	if entity == EntityCustomerAccount {
+		return s.resolveCustomerAccountCurrentReference(ctx, q, objectID)
+	}
 	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB reference has no latest approved version", nil, nil)
@@ -747,59 +753,6 @@ func (s *Service) entryForObject(ctx context.Context, q *dbsqlc.Queries, entity,
 }
 
 func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity, objectID, entryID string) error {
-	if entity == EntityCustomer {
-		identity, err := q.GetBobCustomerRelationship(ctx, objectID)
-		if err != nil {
-			return s.internal("load customer relationship for validation", err)
-		}
-		_, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, identity.OperatingEntityID)
-		return err
-	}
-	if entity == EntityCustomerAccount {
-		entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "bob", Entity: entity})
-		if err != nil {
-			return s.internal("load customer approval for validation", err)
-		}
-		version, err := s.loadCustomerVersionWithQueries(ctx, q, entry)
-		if err != nil {
-			return err
-		}
-		if _, err = normalizeCustomerAccount(version.Data); err != nil {
-			return domainError(ErrorValidation, "invalid customer account", nil, err)
-		}
-		if version.Data.OperatingEntity == nil || version.Data.SalesAttribution.SubjectApprovalEntryID == "" {
-			return domainError(ErrorValidation, "customer references are incomplete", nil, nil)
-		}
-		if _, err = s.ValidateApprovedSnapshotReference(ctx, tx, EntityOperatingEntity, version.Data.OperatingEntityID, version.Data.OperatingEntity.ApprovalEntryID); err != nil {
-			return err
-		}
-		for _, auxiliary := range []struct {
-			entity   string
-			objectID string
-			snapshot *CustomerSnapshot
-		}{
-			{entity: "settlement-method", objectID: version.Data.SettlementMethodID, snapshot: version.Data.SettlementMethod},
-			{entity: "payment-method", objectID: version.Data.PaymentMethodID, snapshot: version.Data.PaymentMethod},
-		} {
-			if auxiliary.objectID == "" {
-				continue
-			}
-			if auxiliary.snapshot == nil || auxiliary.snapshot.ApprovalEntryID == "" {
-				return domainError(ErrorConflict, auxiliary.entity+" approval snapshot is missing", nil, nil)
-			}
-			if _, err = s.resolveNamedAuxiliaryReference(ctx, tx, auxiliary.entity, auxiliary.objectID, auxiliary.snapshot.ApprovalEntryID); err != nil {
-				return err
-			}
-		}
-		subjectEntity := EntitySalesPartner
-		if version.Data.PrimarySalesAttribution.Type == SalesAttributionInternalEmployee {
-			subjectEntity = EntityEmployee
-		}
-		if _, err = s.ValidateApprovedSnapshotReference(ctx, tx, subjectEntity, version.Data.PrimarySalesAttribution.SubjectObjectID, version.Data.SalesAttribution.SubjectApprovalEntryID); err != nil {
-			return err
-		}
-		return nil
-	}
 	if entity == EntitySalesPartner {
 		data, err := loadDetail(ctx, q, entity, entryID)
 		if err != nil {
@@ -862,6 +815,10 @@ func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q
 	}
 	_, err = s.resolveDetailReferenceSnapshots(ctx, tx, entity, objectID, data, true)
 	return err
+}
+
+func approvalEntry(row dbsqlc.ApprovalEntry) approval.Entry {
+	return approval.Entry{EntryRef: approval.EntryRef{ID: row.ID, Domain: row.Domain, Entity: row.Entity, SubjectID: row.SubjectID, VersionNo: row.VersionNo}, Status: approval.Status(row.Status), Revision: row.Revision, CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt.Time, UpdatedBy: row.UpdatedBy, UpdatedAt: row.UpdatedAt.Time, SubmittedBy: row.SubmittedBy, ApprovedBy: row.ApprovedBy}
 }
 
 func (s *Service) ensureUnapproveAllowed(ctx context.Context, q *dbsqlc.Queries, entryID string) error {

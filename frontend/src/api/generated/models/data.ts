@@ -43,7 +43,6 @@ export type data = {
   termCode?: string | null;
   defaultSalesSurcharge?: string | null;
   salespersonEmployeeId?: string | null;
-  rebateUnitPrice?: string | null;
   productTypeId?: string | null;
   defaultInputUnitId?: string | null;
   inventoryUnitId?: string | null;

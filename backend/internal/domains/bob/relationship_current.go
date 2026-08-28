@@ -112,6 +112,53 @@ func (s *Service) ReserveSupplierIdentity(ctx context.Context, tx pgx.Tx, partyI
 	return id, nil
 }
 
+// ReserveCustomerIdentity reserves the immutable Party-to-operating-entity
+// customer root.  Customer declaration versions are DCL-owned; BOB retains
+// only this stable identity and the approved-current projection.
+func (s *Service) ReserveCustomerIdentity(ctx context.Context, tx pgx.Tx, partyID, operatingEntityID, actorID string) (RelationshipIdentity, error) {
+	if tx == nil || !validID(partyID) || !validID(operatingEntityID) || !validID(actorID) {
+		return RelationshipIdentity{}, domainError(ErrorValidation, "invalid Customer identity request", nil, nil)
+	}
+	q := s.queries.WithTx(tx)
+	counter, err := q.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityCustomer})
+	if err != nil {
+		return RelationshipIdentity{}, s.writeError("allocate Customer number", err)
+	}
+	id := RelationshipIdentity{ObjectID: newID(), Code: fmt.Sprintf("CUR-%04d", counter), PartyID: partyID, OperatingEntityID: operatingEntityID, ObjectRevision: 1}
+	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: id.ObjectID, Entity: EntityCustomer, Code: id.Code, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("reserve Customer identity", err)
+	}
+	if err = q.InsertBobCustomerRelationship(ctx, dbsqlc.InsertBobCustomerRelationshipParams{ObjectID: id.ObjectID, PartyID: partyID, OperatingEntityID: operatingEntityID, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("reserve Customer relationship", err)
+	}
+	return id, nil
+}
+
+// ReserveCustomerAccountIdentity binds a stable account to a stable Customer
+// relationship.  It deliberately accepts no operating entity: that fact is
+// derived from the relationship and copied into the DCL account snapshot.
+func (s *Service) ReserveCustomerAccountIdentity(ctx context.Context, tx pgx.Tx, customerRelationshipID, actorID string) (RelationshipIdentity, error) {
+	if tx == nil || !validID(customerRelationshipID) || !validID(actorID) {
+		return RelationshipIdentity{}, domainError(ErrorValidation, "invalid Customer Account identity request", nil, nil)
+	}
+	q := s.queries.WithTx(tx)
+	if _, err := q.LockBobCustomerRelationship(ctx, customerRelationshipID); err != nil {
+		return RelationshipIdentity{}, s.writeError("lock Customer relationship", err)
+	}
+	counter, err := q.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityCustomerAccount})
+	if err != nil {
+		return RelationshipIdentity{}, s.writeError("allocate Customer Account number", err)
+	}
+	id := RelationshipIdentity{ObjectID: newID(), Code: fmt.Sprintf("CAC-%04d", counter), ObjectRevision: 1}
+	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: id.ObjectID, Entity: EntityCustomerAccount, Code: id.Code, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("reserve Customer Account identity", err)
+	}
+	if err = q.InsertBobCustomerAccountRelationship(ctx, dbsqlc.InsertBobCustomerAccountRelationshipParams{ObjectID: id.ObjectID, CustomerRelationshipID: customerRelationshipID, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("bind Customer Account relationship", err)
+	}
+	return id, nil
+}
+
 func (s *Service) ApplySupplierCurrent(ctx context.Context, tx pgx.Tx, id RelationshipIdentity, entryID string, enabled bool, actorID string) (RelationshipIdentity, error) {
 	q := s.queries.WithTx(tx)
 	if err := q.UpsertBobSupplierCurrent(ctx, dbsqlc.UpsertBobSupplierCurrentParams{ObjectID: id.ObjectID, SourceApprovalEntryID: entryID, Enabled: enabled, ActorID: actorID}); err != nil {
@@ -139,10 +186,86 @@ func (s *Service) RemoveSupplierCurrent(ctx context.Context, tx pgx.Tx, id Relat
 	return id, nil
 }
 
+func (s *Service) ApplyCustomerCurrent(ctx context.Context, tx pgx.Tx, id RelationshipIdentity, entryID string, enabled bool, actorID string) (RelationshipIdentity, error) {
+	q := s.queries.WithTx(tx)
+	if err := q.UpsertBobCustomerCurrent(ctx, dbsqlc.UpsertBobCustomerCurrentParams{ObjectID: id.ObjectID, SourceApprovalEntryID: entryID, Enabled: enabled, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("apply Customer current", err)
+	}
+	rows, err := q.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{ObjectID: id.ObjectID, Entity: EntityCustomer, ObjectRevision: id.ObjectRevision, Enabled: enabled, ActorID: actorID})
+	if err != nil || rows != 1 {
+		return RelationshipIdentity{}, s.writeError("set Customer current enabled", err)
+	}
+	id.ObjectRevision++
+	return id, nil
+}
+
+func (s *Service) RemoveCustomerCurrent(ctx context.Context, tx pgx.Tx, id RelationshipIdentity, actorID string) (RelationshipIdentity, error) {
+	q := s.queries.WithTx(tx)
+	n, err := q.DeleteBobCustomerCurrent(ctx, id.ObjectID)
+	if err != nil || n != 1 {
+		return RelationshipIdentity{}, domainError(ErrorConflict, "Customer current changed", nil, err)
+	}
+	rows, err := q.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{ObjectID: id.ObjectID, Entity: EntityCustomer, ObjectRevision: id.ObjectRevision, Enabled: false, ActorID: actorID})
+	if err != nil || rows != 1 {
+		return RelationshipIdentity{}, s.writeError("set Customer removal", err)
+	}
+	id.ObjectRevision++
+	return id, nil
+}
+
+func (s *Service) ApplyCustomerAccountCurrent(ctx context.Context, tx pgx.Tx, id RelationshipIdentity, entryID string, enabled bool, actorID string) (RelationshipIdentity, error) {
+	q := s.queries.WithTx(tx)
+	if err := q.UpsertBobCustomerAccountCurrent(ctx, dbsqlc.UpsertBobCustomerAccountCurrentParams{ObjectID: id.ObjectID, SourceApprovalEntryID: entryID, Enabled: enabled, ActorID: actorID}); err != nil {
+		return RelationshipIdentity{}, s.writeError("apply Customer Account current", err)
+	}
+	rows, err := q.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{ObjectID: id.ObjectID, Entity: EntityCustomerAccount, ObjectRevision: id.ObjectRevision, Enabled: enabled, ActorID: actorID})
+	if err != nil || rows != 1 {
+		return RelationshipIdentity{}, s.writeError("set Customer Account current enabled", err)
+	}
+	id.ObjectRevision++
+	return id, nil
+}
+
+func (s *Service) RemoveCustomerAccountCurrent(ctx context.Context, tx pgx.Tx, id RelationshipIdentity, actorID string) (RelationshipIdentity, error) {
+	q := s.queries.WithTx(tx)
+	n, err := q.DeleteBobCustomerAccountCurrent(ctx, id.ObjectID)
+	if err != nil || n != 1 {
+		return RelationshipIdentity{}, domainError(ErrorConflict, "Customer Account current changed", nil, err)
+	}
+	rows, err := q.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{ObjectID: id.ObjectID, Entity: EntityCustomerAccount, ObjectRevision: id.ObjectRevision, Enabled: false, ActorID: actorID})
+	if err != nil || rows != 1 {
+		return RelationshipIdentity{}, s.writeError("set Customer Account removal", err)
+	}
+	id.ObjectRevision++
+	return id, nil
+}
+
 // GetSupplierIdentity returns the immutable Supplier Party-to-operating-entity
 // relationship. DCL is the sole owner of the declaration snapshot.
 func (s *Service) GetSupplierIdentity(ctx context.Context, tx pgx.Tx, objectID string) (RelationshipIdentity, error) {
 	return s.getRelationshipIdentity(ctx, tx, objectID, EntitySupplier)
+}
+
+func (s *Service) GetCustomerIdentity(ctx context.Context, tx pgx.Tx, objectID string) (RelationshipIdentity, error) {
+	return s.getRelationshipIdentity(ctx, tx, objectID, EntityCustomer)
+}
+
+func (s *Service) GetCustomerAccountIdentity(ctx context.Context, tx pgx.Tx, objectID string) (RelationshipIdentity, error) {
+	if tx == nil || !validID(objectID) {
+		return RelationshipIdentity{}, domainError(ErrorValidation, "invalid Customer Account identity request", nil, nil)
+	}
+	q := s.queries.WithTx(tx)
+	object, err := q.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: objectID, Entity: EntityCustomerAccount})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return RelationshipIdentity{}, domainError(ErrorValidation, "customer account not found", nil, nil)
+	}
+	if err != nil {
+		return RelationshipIdentity{}, s.internal("lock Customer Account identity", err)
+	}
+	if _, err = q.LockBobCustomerAccountRelationship(ctx, objectID); err != nil {
+		return RelationshipIdentity{}, s.internal("lock Customer Account relationship", err)
+	}
+	return RelationshipIdentity{ObjectID: object.ID, Code: object.Code, ObjectRevision: object.Revision}, nil
 }
 
 func (s *Service) DeleteSupplierIdentity(ctx context.Context, tx pgx.Tx, objectID string, revision int64) error {
@@ -162,11 +285,148 @@ func (s *Service) DeleteSupplierIdentity(ctx context.Context, tx pgx.Tx, objectI
 	return nil
 }
 
+func (s *Service) DeleteCustomerIdentity(ctx context.Context, tx pgx.Tx, objectID string, revision int64) error {
+	if tx == nil || !validID(objectID) || revision < 1 {
+		return domainError(ErrorValidation, "invalid Customer identity deletion", nil, nil)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM bob_customer_relationships WHERE object_id=$1 AND merged_into_object_id IS NULL`, objectID); err != nil {
+		return s.writeError("delete Customer relationship", err)
+	}
+	rows, err := s.queries.WithTx(tx).DeleteBobObject(ctx, dbsqlc.DeleteBobObjectParams{ObjectID: objectID, Entity: EntityCustomer, ObjectRevision: revision})
+	if err != nil {
+		return s.writeError("delete Customer identity", err)
+	}
+	if rows != 1 {
+		return domainError(ErrorConflict, "Customer identity changed", nil, nil)
+	}
+	return nil
+}
+
+func (s *Service) DeleteCustomerAccountIdentity(ctx context.Context, tx pgx.Tx, objectID string, revision int64) error {
+	if tx == nil || !validID(objectID) || revision < 1 {
+		return domainError(ErrorValidation, "invalid Customer Account identity deletion", nil, nil)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM bob_customer_accounts WHERE object_id=$1`, objectID); err != nil {
+		return s.writeError("delete Customer Account relationship", err)
+	}
+	rows, err := s.queries.WithTx(tx).DeleteBobObject(ctx, dbsqlc.DeleteBobObjectParams{ObjectID: objectID, Entity: EntityCustomerAccount, ObjectRevision: revision})
+	if err != nil {
+		return s.writeError("delete Customer Account identity", err)
+	}
+	if rows != 1 {
+		return domainError(ErrorConflict, "Customer Account identity changed", nil, nil)
+	}
+	return nil
+}
+
 func (s *Service) EnsureSupplierUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
 	if tx == nil || !validID(entryID) {
 		return domainError(ErrorValidation, "invalid Supplier unapprove request", nil, nil)
 	}
 	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
+}
+
+func (s *Service) EnsureCustomerUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
+	if tx == nil || !validID(entryID) {
+		return domainError(ErrorValidation, "invalid Customer unapprove request", nil, nil)
+	}
+	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
+}
+
+// EnsureCustomerAccountUnapproveAllowed rejects removal of an approved
+// account snapshot while a formal document still refers to that exact entry.
+func (s *Service) EnsureCustomerAccountUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
+	if tx == nil || !validID(entryID) {
+		return domainError(ErrorValidation, "invalid Customer Account unapprove request", nil, nil)
+	}
+	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
+}
+
+// ResolveCustomerAccountReferences resolves the exact commercial snapshots a
+// DCL account must own. It is a BOB integration primitive, not an account
+// declaration API: callers persist the returned immutable facts in DCL.
+func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.Tx, settlementID, paymentID, attributionType, attributionID string) (EffectiveReference, EffectiveReference, EffectiveReference, error) {
+	if tx == nil || !validID(attributionID) {
+		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
+	}
+	var settlement, payment EffectiveReference
+	var err error
+	if settlementID != "" {
+		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID, "")
+		err = e
+		settlement = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), TermCode: mapString(r.Data, "termCode"), RuleType: mapString(r.Data, "ruleType"), DueDays: int32(mapInt(r.Data, "dayOffset")), MonthOffset: int32(mapInt(r.Data, "monthOffset")), CutoffDay: int32(mapInt(r.Data, "dayOfMonth")), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
+		if err != nil {
+			return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
+		}
+	}
+	if paymentID != "" {
+		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID, "")
+		err = e
+		payment = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
+		if err != nil {
+			return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
+		}
+	}
+	entity := EntitySalesPartner
+	if attributionType == "INTERNAL_EMPLOYEE" {
+		entity = EntityEmployee
+	}
+	sales, err := s.ResolveLatestApprovedReference(ctx, tx, entity, attributionID)
+	if err != nil {
+		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
+	}
+	if entity == EntitySalesPartner {
+		required := SalesCapabilityExternalPartTime
+		if attributionType == "CHANNEL_PARTNER" {
+			required = SalesCapabilityChannelPartner
+		}
+		if !hasSalesCapability(sales.Data.SalesCapabilities, required) {
+			return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, domainError(ErrorConflict, "sales-partner capability is unavailable", nil, nil)
+		}
+	}
+	return settlement, payment, sales, nil
+}
+
+// ValidateCustomerAccountReferences proves a stored declaration still names
+// exact approved snapshots before it can be submitted or approved.
+func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, settlementID, settlementEntryID, paymentID, paymentEntryID, attributionType, attributionID, attributionEntryID string) error {
+	if tx == nil || !validID(attributionID) || !validID(attributionEntryID) {
+		return domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
+	}
+	if settlementID != "" {
+		if !validID(settlementEntryID) {
+			return domainError(ErrorConflict, "settlement-method approval snapshot is missing", nil, nil)
+		}
+		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID, settlementEntryID); err != nil {
+			return err
+		}
+	}
+	if paymentID != "" {
+		if !validID(paymentEntryID) {
+			return domainError(ErrorConflict, "payment-method approval snapshot is missing", nil, nil)
+		}
+		if _, err := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID, paymentEntryID); err != nil {
+			return err
+		}
+	}
+	entity := EntitySalesPartner
+	if attributionType == "INTERNAL_EMPLOYEE" {
+		entity = EntityEmployee
+	}
+	reference, err := s.ValidateApprovedSnapshotReference(ctx, tx, entity, attributionID, attributionEntryID)
+	if err != nil {
+		return err
+	}
+	if entity == EntitySalesPartner {
+		required := SalesCapabilityExternalPartTime
+		if attributionType == "CHANNEL_PARTNER" {
+			required = SalesCapabilityChannelPartner
+		}
+		if !hasSalesCapability(reference.Data.SalesCapabilities, required) {
+			return domainError(ErrorConflict, "sales-partner capability is unavailable", nil, nil)
+		}
+	}
+	return nil
 }
 
 func (s *Service) GetOtherUnitIdentity(ctx context.Context, tx pgx.Tx, objectID string) (RelationshipIdentity, error) {
@@ -197,6 +457,12 @@ func (s *Service) getRelationshipIdentity(ctx context.Context, tx pgx.Tx, object
 		}
 	} else if entity == EntitySalesPartner {
 		r, e := q.LockBobSalesPartnerRelationship(ctx, objectID)
+		err = e
+		if e == nil {
+			partyID, operatingID = r.PartyID, r.OperatingEntityID
+		}
+	} else if entity == EntityCustomer {
+		r, e := q.LockBobCustomerRelationship(ctx, objectID)
 		err = e
 		if e == nil {
 			partyID, operatingID = r.PartyID, r.OperatingEntityID
@@ -454,5 +720,10 @@ func (s *Service) resolveSalesPartnerCurrentReference(ctx context.Context, q *db
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve Sales Partner current", err)
 	}
-	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: r.DisplayName}}, nil
+	reference, err := s.validateSalesPartnerSnapshotReference(ctx, q, r.ObjectID, r.ApprovalEntryID)
+	if err != nil {
+		return EffectiveReference{}, err
+	}
+	reference.Data.Name = r.DisplayName
+	return reference, nil
 }

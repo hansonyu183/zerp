@@ -122,7 +122,7 @@ func TestFilterMenuForPrincipalRequiresEnabledParentAndPermission(t *testing.T) 
 		{ID: parent, Type: MenuItemGroup, Level: 1, DisplayName: "客户", Enabled: false},
 		{ID: "route", ParentID: &parent, Type: MenuItemRoute, Level: 2, DisplayName: "客户", Enabled: true, RouteKey: &key, RoutePath: &path, PermissionCode: &permission},
 	}}
-	principal := Principal{Permissions: []string{"/bob/customer/create"}}
+	principal := Principal{Permissions: []string{"/bob/customer/query"}}
 	if result := filterMenuForPrincipal(tree, catalog, principal); len(result.Items) != 0 {
 		t.Fatalf("disabled parent returned navigation: %+v", result.Items)
 	}

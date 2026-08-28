@@ -1930,6 +1930,999 @@
     },
   'DclEmployeeAuditHistoryResponse':
     { '$ref': '#/DclOperatingEntityAuditHistoryResponse' },
+  'DclCustomerPricingCostItem':
+    {
+      'type': 'object',
+      'required': ['name', 'basis'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 100 },
+          'basis': { 'type': 'string', 'enum': ['UNIT_PRICE', 'ORDER_AMOUNT'] },
+          'unitPrice':
+            {
+              'type': 'string',
+              'pattern': '^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$',
+            },
+          'orderAmount':
+            {
+              'type': 'string',
+              'pattern': '^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$',
+            },
+        },
+      'oneOf':
+        [
+          {
+            'required': ['unitPrice'],
+            'not':
+              {
+                'required': ['orderAmount'],
+                'properties': { 'orderAmount': {} },
+              },
+          },
+          {
+            'required': ['orderAmount'],
+            'not':
+              { 'required': ['unitPrice'], 'properties': { 'unitPrice': {} } },
+          },
+        ],
+    },
+  'DclCustomerPricingPolicy':
+    {
+      'type': 'object',
+      'required':
+        [
+          'defaultPremiumUnitPrice',
+          'defaultDiscountUnitPrice',
+          'costItems',
+          'thirdPartyIntermediaryFixedUnitCost',
+          'thirdPartyIntermediaryVariableUnitCost',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'defaultPremiumUnitPrice': { 'type': 'string' },
+          'defaultDiscountUnitPrice': { 'type': 'string' },
+          'costItems':
+            {
+              'type': 'array',
+              'maxItems': 100,
+              'items': { '$ref': '#/DclCustomerPricingCostItem' },
+            },
+          'thirdPartyIntermediaryFixedUnitCost': { 'type': 'string' },
+          'thirdPartyIntermediaryVariableUnitCost': { 'type': 'string' },
+        },
+    },
+  'DclCustomerCreditLimit':
+    {
+      'type': 'object',
+      'required': ['currency', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'currency': { 'type': 'string', 'enum': ['CNY'] },
+          'amount': { 'type': 'string' },
+        },
+    },
+  'DclCustomerSalesAttributionInput':
+    {
+      'type': 'object',
+      'required': ['type', 'subjectObjectId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'type':
+            {
+              'type': 'string',
+              'enum':
+                ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'],
+            },
+          'subjectObjectId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerSnapshot':
+    {
+      'type': 'object',
+      'required': ['sourceObjectId', 'approvalEntryId', 'code', 'name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceObjectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'termCode': { 'type': 'string' },
+          'ruleType': { 'type': 'string' },
+          'dueDays': { 'type': 'integer', 'format': 'int32' },
+          'monthOffset': { 'type': 'integer', 'format': 'int32' },
+          'cutoffDay': { 'type': 'integer', 'format': 'int32' },
+          'defaultSalesSurcharge': { 'type': 'string' },
+          'taxNumber': { 'type': 'string' },
+          'address': { 'type': 'string' },
+          'phone': { 'type': 'string' },
+        },
+    },
+  'DclCustomerSalesAttributionSnapshot':
+    {
+      'type': 'object',
+      'required':
+        [
+          'type',
+          'subjectObjectId',
+          'subjectApprovalEntryId',
+          'subjectCode',
+          'subjectName',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'type':
+            {
+              'type': 'string',
+              'enum':
+                ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'],
+            },
+          'subjectObjectId': { 'type': 'string' },
+          'subjectApprovalEntryId': { 'type': 'string' },
+          'subjectCode': { 'type': 'string' },
+          'subjectName': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAccountInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'name',
+          'customerTypeCode',
+          'pricingPolicy',
+          'creditLimits',
+          'primarySalesAttribution',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'shortName': { 'type': 'string', 'nullable': true },
+          'customerTypeCode': { 'type': 'string' },
+          'contactName': { 'type': 'string', 'nullable': true },
+          'contactPhone': { 'type': 'string', 'nullable': true },
+          'email': { 'type': 'string', 'nullable': true },
+          'address': { 'type': 'string', 'nullable': true },
+          'settlementMethodId': { 'type': 'string', 'nullable': true },
+          'paymentMethodId': { 'type': 'string', 'nullable': true },
+          'defaultTransportMethodCode':
+            { 'type': 'string', 'nullable': true, 'maxLength': 32 },
+          'defaultTransportMethodName':
+            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'transportSurcharge': { 'type': 'string', 'nullable': true },
+          'pricingPolicy': { '$ref': '#/DclCustomerPricingPolicy' },
+          'creditLimits':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items': { '$ref': '#/DclCustomerCreditLimit' },
+            },
+          'primarySalesAttribution':
+            { '$ref': '#/DclCustomerSalesAttributionInput' },
+          'internalReminder':
+            { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
+          'defaultSalesOrderRemark':
+            { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
+        },
+    },
+  'DclCustomerAccountData':
+    {
+      'type': 'object',
+      'required':
+        [
+          'name',
+          'customerTypeCode',
+          'operatingEntityId',
+          'pricingPolicy',
+          'creditLimits',
+          'operatingEntity',
+          'settlementMethod',
+          'paymentMethod',
+          'primarySalesAttribution',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string' },
+          'shortName': { 'type': 'string', 'nullable': true },
+          'customerTypeCode': { 'type': 'string' },
+          'contactName': { 'type': 'string', 'nullable': true },
+          'contactPhone': { 'type': 'string', 'nullable': true },
+          'email': { 'type': 'string', 'nullable': true },
+          'address': { 'type': 'string', 'nullable': true },
+          'operatingEntityId': { 'type': 'string' },
+          'settlementMethodId': { 'type': 'string', 'nullable': true },
+          'paymentMethodId': { 'type': 'string', 'nullable': true },
+          'defaultTransportMethodCode': { 'type': 'string', 'nullable': true },
+          'defaultTransportMethodName': { 'type': 'string', 'nullable': true },
+          'transportSurcharge': { 'type': 'string', 'nullable': true },
+          'pricingPolicy': { '$ref': '#/DclCustomerPricingPolicy' },
+          'creditLimits':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclCustomerCreditLimit' },
+            },
+          'operatingEntity':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerSnapshot' }],
+              'nullable': true,
+            },
+          'settlementMethod':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerSnapshot' }],
+              'nullable': true,
+            },
+          'paymentMethod':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerSnapshot' }],
+              'nullable': true,
+            },
+          'primarySalesAttribution':
+            { '$ref': '#/DclCustomerSalesAttributionSnapshot' },
+          'internalReminder': { 'type': 'string', 'nullable': true },
+          'defaultSalesOrderRemark': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'DclCustomerAttachmentScope':
+    { 'type': 'string', 'enum': ['CUSTOMER', 'CUSTOMER_ACCOUNT'] },
+  'DclCustomerAttachmentView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'fileId',
+          'fileName',
+          'contentType',
+          'size',
+          'sha256',
+          'status',
+          'categoryObjectId',
+          'categoryApprovalEntryId',
+          'categoryCode',
+          'categoryName',
+          'createdAt',
+          'createdBy',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'fileId': { 'type': 'string' },
+          'fileName': { 'type': 'string' },
+          'contentType':
+            {
+              'type': 'string',
+              'enum': ['application/pdf', 'image/jpeg', 'image/png'],
+            },
+          'size': { 'type': 'integer', 'format': 'int64' },
+          'sha256': { 'type': 'string' },
+          'status': { 'type': 'string', 'enum': ['PENDING', 'READY'] },
+          'categoryObjectId': { 'type': 'string' },
+          'categoryApprovalEntryId': { 'type': 'string' },
+          'categoryCode': { 'type': 'string' },
+          'categoryName': { 'type': 'string' },
+          'storedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'createdBy': { 'type': 'string' },
+        },
+    },
+  'DclCustomerCreateRequest':
+    {
+      'oneOf':
+        [
+          {
+            'type': 'object',
+            'required': ['partyId', 'operatingEntityId', 'defaultAccount'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'partyId': { 'type': 'string' },
+                'operatingEntityId': { 'type': 'string' },
+                'defaultAccount': { '$ref': '#/DclCustomerAccountInput' },
+              },
+          },
+          {
+            'type': 'object',
+            'required': ['newParty', 'operatingEntityId', 'defaultAccount'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'newParty': { '$ref': './bob.yaml#/PartyIdentityData' },
+                'operatingEntityId': { 'type': 'string' },
+                'defaultAccount': { '$ref': '#/DclCustomerAccountInput' },
+              },
+          },
+        ],
+    },
+  'DclCustomerAccountCreateRequest':
+    {
+      'type': 'object',
+      'required': ['customerRelationshipId', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'customerRelationshipId': { 'type': 'string' },
+          'data': { '$ref': '#/DclCustomerAccountInput' },
+        },
+    },
+  'DclCustomerSaveRequest':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'enabled': { 'type': 'boolean' },
+        },
+    },
+  'DclCustomerAccountSaveRequest':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'enabled': { 'type': 'boolean' },
+          'data': { '$ref': '#/DclCustomerAccountInput' },
+        },
+    },
+  'DclCustomerVersionRequest': { '$ref': '#/DclOperatingEntityVersionRequest' },
+  'DclCustomerReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
+  'DclCustomerGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
+  'DclCustomerHistoryRequest': { '$ref': '#/DclOperatingEntityHistoryRequest' },
+  'DclCustomerQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string', 'maxLength': 200 },
+                  'status':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': './common.yaml#/ApprovalStatus' },
+                    },
+                  'enabled': { 'type': 'boolean' },
+                  'operatingEntityId': { 'type': 'string' },
+                  'partyId': { 'type': 'string' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['code'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
+  'DclCustomerAccountVersionRequest':
+    { '$ref': '#/DclOperatingEntityVersionRequest' },
+  'DclCustomerAccountReviewRequest':
+    { '$ref': '#/DclOperatingEntityReviewRequest' },
+  'DclCustomerAccountGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
+  'DclCustomerAccountHistoryRequest':
+    { '$ref': '#/DclOperatingEntityHistoryRequest' },
+  'DclCustomerAccountQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string', 'maxLength': 200 },
+                  'status':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': './common.yaml#/ApprovalStatus' },
+                    },
+                  'enabled': { 'type': 'boolean' },
+                  'customerType': { 'type': 'string' },
+                  'customerRelationshipId': { 'type': 'string' },
+                  'operatingEntityId': { 'type': 'string' },
+                  'salesAttributionType':
+                    {
+                      'type': 'string',
+                      'enum':
+                        [
+                          'INTERNAL_EMPLOYEE',
+                          'EXTERNAL_PART_TIME',
+                          'CHANNEL_PARTNER',
+                        ],
+                    },
+                  'salesAttributionSubjectId': { 'type': 'string' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['code'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
+  'DclCustomerMutationResponse':
+    { '$ref': '#/DclOperatingEntityMutationResponse' },
+  'DclCustomerAccountMutationResponse':
+    { '$ref': '#/DclOperatingEntityMutationResponse' },
+  'DclCustomerView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityApprovalEntryId',
+          'operatingEntityCode',
+          'operatingEntityName',
+          'objectRevision',
+          'enabled',
+          'approval',
+          'attachments',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['customer'] },
+          'code': { 'type': 'string' },
+          'partyId': { 'type': 'string' },
+          'partyKind': { '$ref': './bob.yaml#/PartyKind' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityApprovalEntryId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'attachments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclCustomerAttachmentView' },
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclCustomerAccountView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'customerRelationshipId',
+          'objectRevision',
+          'enabled',
+          'approval',
+          'data',
+          'attachments',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['customer-account'] },
+          'code': { 'type': 'string' },
+          'customerRelationshipId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclCustomerAccountData' },
+          'attachments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclCustomerAttachmentView' },
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclCustomerVersionView':
+    {
+      'type': 'object',
+      'required': ['approval', 'enabled', 'attachments'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'enabled': { 'type': 'boolean' },
+          'attachments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclCustomerAttachmentView' },
+            },
+        },
+    },
+  'DclCustomerAccountVersionView':
+    {
+      'type': 'object',
+      'required': ['approval', 'enabled', 'data', 'attachments'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'enabled': { 'type': 'boolean' },
+          'data': { '$ref': '#/DclCustomerAccountData' },
+          'attachments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclCustomerAttachmentView' },
+            },
+        },
+    },
+  'DclCustomerListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
+          'objectRevision',
+          'enabled',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['customer'] },
+          'code': { 'type': 'string' },
+          'partyId': { 'type': 'string' },
+          'partyKind': { '$ref': './bob.yaml#/PartyKind' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'latestApproved':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerVersionView' }],
+              'nullable': true,
+            },
+          'openVersion':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclCustomerAccountListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'customerRelationshipId',
+          'objectRevision',
+          'enabled',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['customer-account'] },
+          'code': { 'type': 'string' },
+          'customerRelationshipId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'latestApproved':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerAccountVersionView' }],
+              'nullable': true,
+            },
+          'openVersion':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerAccountVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclCustomerQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclCustomerListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclCustomerAccountQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclCustomerAccountListItem' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclCustomerVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclCustomerVersionView' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclCustomerAccountVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclCustomerAccountVersionView' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclCustomerViewResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAccountViewResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerAccountView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAccountQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerAccountQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerVersionPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAccountVersionPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclCustomerAccountVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAuditHistoryResponse':
+    { '$ref': '#/DclOperatingEntityAuditHistoryResponse' },
+  'DclCustomerAccountAuditHistoryResponse':
+    { '$ref': '#/DclOperatingEntityAuditHistoryResponse' },
+  'DclCustomerAttachmentInitiateRequest':
+    {
+      'type': 'object',
+      'required':
+        [
+          'scope',
+          'ownerApprovalEntryId',
+          'approvalRevision',
+          'categoryObjectId',
+          'fileName',
+          'contentType',
+          'size',
+          'sha256',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'scope': { '$ref': '#/DclCustomerAttachmentScope' },
+          'ownerApprovalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'categoryObjectId': { 'type': 'string' },
+          'fileName': { 'type': 'string', 'minLength': 1, 'maxLength': 255 },
+          'contentType':
+            {
+              'type': 'string',
+              'enum': ['application/pdf', 'image/jpeg', 'image/png'],
+            },
+          'size':
+            {
+              'type': 'integer',
+              'format': 'int64',
+              'minimum': 1,
+              'maximum': 10485760,
+            },
+          'sha256': { 'type': 'string', 'pattern': '^[0-9a-f]{64}$' },
+        },
+    },
+  'DclCustomerAttachmentInitiateResult':
+    {
+      'type': 'object',
+      'required': ['fileId', 'uploadUrl', 'expiresAt', 'approvalRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'fileId': { 'type': 'string' },
+          'uploadUrl': { 'type': 'string' },
+          'expiresAt': { 'type': 'string', 'format': 'date-time' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'DclCustomerAttachmentDownloadRequest':
+    {
+      'type': 'object',
+      'required': ['scope', 'ownerApprovalEntryId', 'fileId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'scope': { '$ref': '#/DclCustomerAttachmentScope' },
+          'ownerApprovalEntryId': { 'type': 'string' },
+          'fileId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAttachmentDownloadResult':
+    {
+      'type': 'object',
+      'required': ['downloadUrl', 'expiresAt'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'downloadUrl': { 'type': 'string' },
+          'expiresAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclCustomerAttachmentRemoveRequest':
+    {
+      'type': 'object',
+      'required':
+        ['scope', 'ownerApprovalEntryId', 'approvalRevision', 'fileId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'scope': { '$ref': '#/DclCustomerAttachmentScope' },
+          'ownerApprovalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'fileId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAttachmentMutationResult':
+    {
+      'type': 'object',
+      'required': ['approvalRevision'],
+      'additionalProperties': false,
+      'properties':
+        { 'approvalRevision': { 'type': 'integer', 'format': 'int64' } },
+    },
+  'DclCustomerAttachmentInitiateResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/DclCustomerAttachmentInitiateResult' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAttachmentDownloadResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/DclCustomerAttachmentDownloadResult' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclCustomerAttachmentRemoveResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/DclCustomerAttachmentMutationResult' },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclSupplierInput':
     {
       'type': 'object',

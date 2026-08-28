@@ -215,6 +215,66 @@ func (q *Queries) CopyDCLWarehouseVersion(ctx context.Context, arg CopyDCLWareho
 	return result.RowsAffected(), nil
 }
 
+const countDCLCustomerApprovalEvents = `-- name: CountDCLCustomerApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=$1
+`
+
+func (q *Queries) CountDCLCustomerApprovalEvents(ctx context.Context, objectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLCustomerApprovalEvents, objectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLCustomers = `-- name: CountDCLCustomers :one
+SELECT count(*)
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='customer'
+JOIN bob_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+LEFT JOIN LATERAL (
+  SELECT id,status,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved ON true
+JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='customer'
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($2::text='' OR relationship.operating_entity_id=$2)
+  AND ($3::text='' OR relationship.party_id=$3)
+  AND ($4::integer=-1 OR display.enabled=($4::integer=1))
+  AND (cardinality($5::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($5::text[]))
+`
+
+type CountDCLCustomersParams struct {
+	Keyword           string   `db:"keyword" json:"keyword"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+	PartyID           string   `db:"party_id" json:"party_id"`
+	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter      []string `db:"status_filter" json:"status_filter"`
+}
+
+// Customer is the DCL-owned declaration for the immutable Party x operating
+// entity relationship.  The stable relationship continues to live in BOB;
+// only DCL versions are eligible for candidate/list/read hydration.
+func (q *Queries) CountDCLCustomers(ctx context.Context, arg CountDCLCustomersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLCustomers,
+		arg.Keyword,
+		arg.OperatingEntityID,
+		arg.PartyID,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countDCLEmployeeApprovalEvents = `-- name: CountDCLEmployeeApprovalEvents :one
 SELECT count(*) FROM approval_events
 WHERE domain='dcl' AND entity='employee' AND subject_id=$1
@@ -834,6 +894,40 @@ func (q *Queries) FindDCLVehicleIdentifierConflict(ctx context.Context, objectID
 	row := q.db.QueryRow(ctx, findDCLVehicleIdentifierConflict, objectID)
 	var i FindDCLVehicleIdentifierConflictRow
 	err := row.Scan(&i.IdentifierKind, &i.NormalizedValue)
+	return i, err
+}
+
+const getDCLCustomerIdentity = `-- name: GetDCLCustomerIdentity :one
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id
+FROM bob_objects object
+JOIN bob_customer_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+WHERE object.id=$1 AND object.entity='customer'
+`
+
+type GetDCLCustomerIdentityRow struct {
+	ObjectID          string `db:"object_id" json:"object_id"`
+	Code              string `db:"code" json:"code"`
+	ObjectRevision    int64  `db:"object_revision" json:"object_revision"`
+	PartyID           string `db:"party_id" json:"party_id"`
+	PartyKind         string `db:"party_kind" json:"party_kind"`
+	DisplayName       string `db:"display_name" json:"display_name"`
+	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
+}
+
+func (q *Queries) GetDCLCustomerIdentity(ctx context.Context, objectID string) (GetDCLCustomerIdentityRow, error) {
+	row := q.db.QueryRow(ctx, getDCLCustomerIdentity, objectID)
+	var i GetDCLCustomerIdentityRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.PartyID,
+		&i.PartyKind,
+		&i.DisplayName,
+		&i.OperatingEntityID,
+	)
 	return i, err
 }
 
@@ -1749,6 +1843,153 @@ func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWa
 		arg.Enabled,
 	)
 	return err
+}
+
+const listDCLCustomerApprovalEvents = `-- name: ListDCLCustomerApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=$1
+ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDCLCustomerApprovalEventsParams struct {
+	ObjectID  string `db:"object_id" json:"object_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLCustomerApprovalEvents(ctx context.Context, arg ListDCLCustomerApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerApprovalEvents, arg.ObjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLCustomers = `-- name: ListDCLCustomers :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+       relationship.party_id,party.kind AS party_kind,party.display_name,
+       relationship.operating_entity_id,display.operating_entity_code,display.operating_entity_name,
+       display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
+       COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity='customer'
+JOIN bob_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN bob_party_currents party ON party.party_id=relationship.party_id
+LEFT JOIN LATERAL (
+  SELECT id,status,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved ON true
+JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='customer'
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($2::text='' OR relationship.operating_entity_id=$2)
+  AND ($3::text='' OR relationship.party_id=$3)
+  AND ($4::integer=-1 OR display.enabled=($4::integer=1))
+  AND (cardinality($5::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($5::text[]))
+ORDER BY object.code ASC,object.id ASC
+LIMIT $7 OFFSET $6
+`
+
+type ListDCLCustomersParams struct {
+	Keyword           string   `db:"keyword" json:"keyword"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+	PartyID           string   `db:"party_id" json:"party_id"`
+	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter      []string `db:"status_filter" json:"status_filter"`
+	RowOffset         int32    `db:"row_offset" json:"row_offset"`
+	RowLimit          int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLCustomersRow struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	Code                  string             `db:"code" json:"code"`
+	ObjectRevision        int64              `db:"object_revision" json:"object_revision"`
+	PartyID               string             `db:"party_id" json:"party_id"`
+	PartyKind             string             `db:"party_kind" json:"party_kind"`
+	DisplayName           string             `db:"display_name" json:"display_name"`
+	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	LatestApprovedEntryID string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
+	OpenEntryID           string             `db:"open_entry_id" json:"open_entry_id"`
+}
+
+func (q *Queries) ListDCLCustomers(ctx context.Context, arg ListDCLCustomersParams) ([]ListDCLCustomersRow, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomers,
+		arg.Keyword,
+		arg.OperatingEntityID,
+		arg.PartyID,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLCustomersRow{}
+	for rows.Next() {
+		var i ListDCLCustomersRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.PartyID,
+			&i.PartyKind,
+			&i.DisplayName,
+			&i.OperatingEntityID,
+			&i.OperatingEntityCode,
+			&i.OperatingEntityName,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.LatestApprovedEntryID,
+			&i.OpenEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDCLEmployeeApprovalEvents = `-- name: ListDCLEmployeeApprovalEvents :many

@@ -2,7 +2,7 @@
 
 ## 1. 文档目的
 
-本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界，覆盖经营主体、仓库、车辆、资金账户、产品、员工与供应商的当前业务投影，以及客户等 BOB 自有业务对象。经营主体、仓库、车辆、资金账户、产品、Party、员工与供应商申报由 DCL 管理；产品类型、人员类别、产品分类、部门、岗位、计量单位、字典、结算方式和收支类型由 AUX 领域管理。HTTP 路径和数据结构以根目录 OpenAPI 为准。
+本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界，覆盖经营主体、仓库、车辆、资金账户、产品、员工、客户、客户结算子账户与供应商的 current 业务投影。经营主体、仓库、车辆、资金账户、产品、Party、员工、客户、客户结算子账户与供应商申报由 DCL 管理；产品类型、人员类别、产品分类、部门、岗位、计量单位、字典、结算方式和收支类型由 AUX 领域管理。HTTP 路径和数据结构以根目录 OpenAPI 为准。
 
 BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达的生命周期、引用、并发、审核和业务不变量。
 
@@ -47,11 +47,11 @@ BOB 自有对象列表必须一次返回稳定对象、最新批准版本摘要�
 
 保存主体共享资料候选前，调用方必须明确提示该修改批准后会影响主体之后在全部业务关系中的显示与引用。影响预览只列出当前用户有权查看的关系，不得返回隐藏关系的类型、数量或存在性；即使没有可展示关系，也要使用不泄露数量的通用影响提示。候选批准后新的当前事实用于之后的业务，历史交易快照不变。
 
-Party stable root 只保存永久 ID 与合并状态；共享身份的候选、版本、审批和审计由 DCL 承载，BOB 仅保存 latest approved 的 current projection。客户关系使用 BOB 生命周期；供应、雇佣、服务和销售合作关系的候选、启停和审批分别由 DCL supplier、employee、other-unit 与 sales-partner 承载。停用一条关系不得影响同一主体的其他关系。主体作为永久身份保留，业务退出完全由各关系停用表达；误建重复主体只通过主体合并处理。
+Party stable root 只保存永久 ID 与合并状态；共享身份的候选、版本、审批和审计由 DCL 承载，BOB 仅保存 latest approved 的 current projection。客户、供应、雇佣、服务和销售合作关系的候选、启停和审批分别由 DCL customer、supplier、employee、other-unit 与 sales-partner 承载。停用一条关系不得影响同一主体的其他关系。主体作为永久身份保留，业务退出完全由各关系停用表达；误建重复主体只通过主体合并处理。
 
 主体动作与各关系动作分别授权。拥有客户、供应或其他关系权限，只允许读取页面和交易所需的最小主体投影，不自动获得主体编辑权限；名称、身份标识、税号和通用联系资料的修改必须单独具有主体权限。任何关系模块都不得通过保存关系明细顺带修改主体共享资料。
 
-BOB 提供独立主体 current 查询页面，同时保留客户、供应、雇佣、服务和销售合作等关系页面。主体详情只返回当前用户有权读取的关系卡片并允许跳转；无权关系的类型、数量和存在性均不得进入响应。只有客户页面可以发起 BOB 关系创建；供应、雇佣、服务和销售合作页面的创建、候选和生命周期深链统一进入对应 DCL 页面，并分别校验主体读取或 DCL Party 创建权限、目标关系 DCL 创建权限及经营主体可引用性。共享身份维护和主体合并均进入 DCL Party 页面。
+BOB 提供独立主体及各关系的 current 查询页面。主体详情只返回当前用户有权读取的关系卡片并允许跳转；无权关系的类型、数量和存在性均不得进入响应。客户、客户结算子账户、供应、雇佣、服务和销售合作页面都只读；创建、候选和生命周期深链统一进入对应 DCL 页面，并分别校验主体读取或 DCL Party 创建权限、目标关系 DCL 创建权限及经营主体可引用性。共享身份维护和主体合并均进入 DCL Party 页面。
 
 服务关系的用户页面名称固定为“其他单位”，实体与路径使用 `other-unit`，维护路径为 `/dcl/other-unit`，`/bob/other-unit` 只读 current；领域内部继续使用“服务关系”描述其业务含义。
 
@@ -143,7 +143,7 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 
 客户自动定价中的全部单位价格、整单金额和第三方居间单位值统一保存两位小数。`pricingPolicy` 的四个顶层数值键均必填并默认 `0.00`，`costItems` 必填并默认空数组；任何键均不用 `null` 表示无值。
 
-`bob_customer_versions.pricing_policy` 使用 `jsonb NOT NULL` 保存上述完整值对象，并以完整默认对象初始化。它只承载五类定价数据；结算、收款、运输快照、主要业务归属和其他客户字段继续使用类型化列。OpenAPI 使用封闭对象定义，后端解析成明确的领域结构并拒绝未知键、缺失键、`null`、非法金额、无效成本口径、金额字段组合、零金额成本和重复规范化名称；不得把原始 JSON 映射直接传入领域服务。数据库至少约束值为 JSON object，完整业务约束由同一后端校验器在创建、保存、提交和审核时重复执行。客户版本复制时在同一事务完整复制 `pricing_policy`；历史版本保留自己的不可变策略快照。
+`dcl_customer_account_versions.pricing_policy` 使用 `jsonb NOT NULL` 保存上述完整值对象，并以完整默认对象初始化。它只承载五类定价数据；结算、收款、运输快照、主要业务归属和其他客户字段继续使用类型化列。OpenAPI 使用封闭对象定义，后端解析成明确的领域结构并拒绝未知键、缺失键、`null`、非法金额、无效成本口径、金额字段组合、零金额成本和重复规范化名称；不得把原始 JSON 映射直接传入领域服务。数据库至少约束值为 JSON object，完整业务约束由同一后端校验器在创建、保存、提交和审核时重复执行。客户账户 DCL candidate 复制时在同一事务完整复制 `pricing_policy`；历史版本保留自己的不可变策略快照。
 
 当前 `pricingPolicy` 不保存 `schemaVersion`；客户版本本身已经提供历史边界，只有出现已确认的结构变化时才调整封闭契约并明确处理已有版本，不预设规则版本层。首版不为 `pricing_policy` 建 GIN 索引、表达式索引或金额生成列，客户 `query` 也不按定价策略筛选；完整策略只在 `get`、版本详情和实际消费方读取。出现真实筛选或统计需求前不得增加投机性索引。
 
@@ -245,7 +245,7 @@ TypedBusinessRelationship（稳定业务关系）
   └── AuditEvent 1..n
 ```
 
-主体资料保存使用 revision 并立即形成新的当前事实，不进入关系审核状态机。下述通用 BOB 版本聚合适用于客户、供应、服务和销售合作等强类型关系；员工版本聚合属于 DCL。交易只能引用关系或关系内明确的交易子账户，不能引用裸主体。
+主体资料保存使用 revision 并立即形成新的当前事实，不进入关系审核状态机。客户、客户账户、供应、服务和销售合作等强类型关系的候选与版本聚合都属于 DCL；BOB 仅承载 current projection。交易只能引用关系或关系内明确的交易子账户，不能引用裸主体。
 
 一个 BOB 或 DCL 聚合由稳定对象、中央 Approval entry、类型化业务 payload 和中央 Approval event 组成：
 
@@ -258,25 +258,28 @@ BusinessObject (稳定身份)
 
 中央 Approval 是唯一通用版本头和生命周期审计，并为各实体建立类型化版本明细表：
 
-| 模型                 | 建议表名                            | 用途                                                    |
-| -------------------- | ----------------------------------- | ------------------------------------------------------- |
-| 业务对象             | `bob_objects`                       | 只保存稳定身份、编码、启停和 revision                   |
-| Approval entry       | `approval_entries`                  | 唯一版本号、状态与生命周期元数据                        |
-| Approval event       | `approval_events`                   | 唯一审批动作、状态变化和意见审计                        |
-| 经营主体当前投影     | `bob_operating_entities`            | DCL 最新正式申报的 BOB 业务读取面                       |
-| 客户版本明细         | `bob_customer_versions`             | 客户类型化业务字段，与版本一对一                        |
-| 供应商当前投影       | `bob_suppliers`                     | DCL latest approved 供应关系的精确来源与启停投影               |
-| 供应商申报版本明细   | `dcl_supplier_versions`             | DCL 供应关系完整 snapshot，与 Approval entry 一对一     |
-| 员工当前投影         | `bob_objects(entity=employee)`      | DCL latest approved employee 的 BOB 读取面              |
-| 员工申报版本明细     | `dcl_employee_versions`             | DCL 员工类型化 snapshot，与 Approval entry 一对一       |
-| 产品当前投影         | `bob_products`                      | DCL 最新正式产品及其来源 entry                          |
-| 其他单位当前投影     | `bob_objects(entity=other-unit)`    | DCL latest approved 服务关系的 BOB 读取面               |
-| 其他单位申报版本明细 | `dcl_other_unit_versions`           | DCL 服务关系类型化 snapshot，与 Approval entry 一对一   |
-| 销售合作当前投影     | `bob_objects(entity=sales-partner)` | DCL latest approved 销售合作关系的 BOB 读取面           |
-| 销售合作申报版本明细 | `dcl_sales_partner_versions`        | DCL 销售能力等类型化 snapshot，与 Approval entry 一对一 |
-| 仓库当前投影         | `bob_warehouses`                    | DCL 最新正式仓库申报的业务读取面                        |
-| 车辆当前投影         | `bob_vehicles`                      | DCL 最新正式车辆申报的业务读取面                        |
-| 资金账户当前投影     | `bob_fund_accounts`                 | DCL 最新正式资金账户的业务读取面                        |
+| 模型                 | 建议表名                            | 用途                                                      |
+| -------------------- | ----------------------------------- | --------------------------------------------------------- |
+| 业务对象             | `bob_objects`                       | 只保存稳定身份、编码、启停和 revision                     |
+| Approval entry       | `approval_entries`                  | 唯一版本号、状态与生命周期元数据                          |
+| Approval event       | `approval_events`                   | 唯一审批动作、状态变化和意见审计                          |
+| 经营主体当前投影     | `bob_operating_entities`            | DCL 最新正式申报的 BOB 业务读取面                         |
+| 客户当前投影         | `bob_customers`                     | DCL latest approved 客户关系的精确来源与启停投影          |
+| 客户账户当前投影     | `bob_customer_accounts`             | DCL latest approved 客户账户的精确来源与启停投影          |
+| 客户申报版本明细     | `dcl_customer_versions`             | DCL 客户关系附件与启停 snapshot，与 Approval entry 一对一 |
+| 客户账户申报版本明细 | `dcl_customer_account_versions`     | DCL 客户账户完整业务 snapshot，与 Approval entry 一对一   |
+| 供应商当前投影       | `bob_suppliers`                     | DCL latest approved 供应关系的精确来源与启停投影          |
+| 供应商申报版本明细   | `dcl_supplier_versions`             | DCL 供应关系完整 snapshot，与 Approval entry 一对一       |
+| 员工当前投影         | `bob_objects(entity=employee)`      | DCL latest approved employee 的 BOB 读取面                |
+| 员工申报版本明细     | `dcl_employee_versions`             | DCL 员工类型化 snapshot，与 Approval entry 一对一         |
+| 产品当前投影         | `bob_products`                      | DCL 最新正式产品及其来源 entry                            |
+| 其他单位当前投影     | `bob_objects(entity=other-unit)`    | DCL latest approved 服务关系的 BOB 读取面                 |
+| 其他单位申报版本明细 | `dcl_other_unit_versions`           | DCL 服务关系类型化 snapshot，与 Approval entry 一对一     |
+| 销售合作当前投影     | `bob_objects(entity=sales-partner)` | DCL latest approved 销售合作关系的 BOB 读取面             |
+| 销售合作申报版本明细 | `dcl_sales_partner_versions`        | DCL 销售能力等类型化 snapshot，与 Approval entry 一对一   |
+| 仓库当前投影         | `bob_warehouses`                    | DCL 最新正式仓库申报的业务读取面                          |
+| 车辆当前投影         | `bob_vehicles`                      | DCL 最新正式车辆申报的业务读取面                          |
+| 资金账户当前投影     | `bob_fund_accounts`                 | DCL 最新正式资金账户的业务读取面                          |
 
 业务字段尚未确定前，不应仅为追求通用性把全部正式字段长期存入无约束 JSONB。客户 `pricingPolicy` 是因定价规则结构易变而明确限定的封闭值对象例外，不得扩展为通用客户属性包；共享表只承载所有实体一致的生命周期信息。
 

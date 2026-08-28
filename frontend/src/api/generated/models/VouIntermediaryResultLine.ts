@@ -15,6 +15,5 @@ export type VouIntermediaryResultLine = {
   billLineIds: Array<string>;
   employeeAmount: string;
   intermediaryAmount: string;
-  rebateAmount: string;
   note?: string;
 };

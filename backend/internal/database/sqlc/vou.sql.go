@@ -1540,11 +1540,10 @@ func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID stri
 const getVouSalesAttributionSnapshot = `-- name: GetVouSalesAttributionSnapshot :one
 SELECT primary_sales_attribution_type,primary_sales_subject_id,
        primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name
-FROM bob_customer_versions
-JOIN approval_entries entry ON entry.id=bob_customer_versions.approval_entry_id
-WHERE bob_customer_versions.approval_entry_id=$1
-  AND entry.domain='bob' AND entry.entity='customer-account' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
+FROM dcl_customer_account_versions
+JOIN approval_entries entry ON entry.id=dcl_customer_account_versions.approval_entry_id
+WHERE dcl_customer_account_versions.approval_entry_id=$1
+  AND entry.domain='dcl' AND entry.entity='customer-account' AND entry.status='APPROVED'
 `
 
 type GetVouSalesAttributionSnapshotRow struct {

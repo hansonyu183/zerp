@@ -2,12 +2,9 @@ import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
 import { apiClient } from '@/api/client'
 import {
-  approveBusinessObject,
-  rejectBusinessObject,
-  submitBusinessObject,
-  unsubmitBusinessObject,
-} from '@/api/bob'
-import { isDclDeclarationEntity } from '@/pages/dcl/shared/declaration'
+  isDclDeclarationEntity,
+  type DclDeclarationWireAction,
+} from '@/pages/dcl/shared/declaration'
 import { runDclOperatingEntityAction } from '@/pages/dcl/operating-entity/data'
 import { runDclWarehouseAction } from '@/pages/dcl/warehouse/data'
 import { runDclVehicleAction } from '@/pages/dcl/vehicle/data'
@@ -37,6 +34,56 @@ export function workbenchItemPath(item: WorkbenchItem): string {
   return isDclDeclarationEntity(item.entity)
     ? `/dcl/${item.entity}`
     : `/bob/${item.entity}`
+}
+
+type DclCustomerEntity = 'customer' | 'customer-account'
+type DclCustomerActionRequest = {
+  objectId: string
+  approvalEntryId: string
+  approvalRevision: number
+}
+
+async function runDclCustomerAction(
+  entity: DclCustomerEntity,
+  action: DclDeclarationWireAction,
+  request: DclCustomerActionRequest,
+  reason: string,
+): Promise<void> {
+  if (entity === 'customer') {
+    if (action === 'submit')
+      await apiClient.postContract('dcl/customer/submit', request)
+    else if (action === 'unsubmit')
+      await apiClient.postContract('dcl/customer/unsubmit', request)
+    else if (action === 'approve')
+      await apiClient.postContract('dcl/customer/approve', request)
+    else if (action === 'reject')
+      await apiClient.postContract('dcl/customer/reject', {
+        ...request,
+        reason,
+      })
+    else
+      await apiClient.postContract('dcl/customer/unapprove', {
+        ...request,
+        reason,
+      })
+    return
+  }
+  if (action === 'submit')
+    await apiClient.postContract('dcl/customer-account/submit', request)
+  else if (action === 'unsubmit')
+    await apiClient.postContract('dcl/customer-account/unsubmit', request)
+  else if (action === 'approve')
+    await apiClient.postContract('dcl/customer-account/approve', request)
+  else if (action === 'reject')
+    await apiClient.postContract('dcl/customer-account/reject', {
+      ...request,
+      reason,
+    })
+  else
+    await apiClient.postContract('dcl/customer-account/unapprove', {
+      ...request,
+      reason,
+    })
 }
 
 interface WorkbenchListState {
@@ -241,6 +288,16 @@ export function useDashboardViewModel() {
         } else if (item.entity === 'supplier') {
           await runDclSupplierAction(action, request, comment.trim())
         } else if (
+          item.entity === 'customer' ||
+          item.entity === 'customer-account'
+        ) {
+          await runDclCustomerAction(
+            item.entity,
+            action,
+            request,
+            comment.trim(),
+          )
+        } else if (
           item.entity === 'other-unit' ||
           item.entity === 'sales-partner'
         ) {
@@ -250,17 +307,8 @@ export function useDashboardViewModel() {
             request,
             comment.trim(),
           )
-        } else if (action === 'submit') {
-          await submitBusinessObject(item.entity, request)
-        } else if (action === 'unsubmit') {
-          await unsubmitBusinessObject(item.entity, request)
-        } else if (action === 'approve') {
-          await approveBusinessObject(item.entity, request)
-        } else if (action === 'reject') {
-          await rejectBusinessObject(item.entity, {
-            ...request,
-            reason: comment.trim(),
-          })
+        } else {
+          throw new Error('BOB current data has no lifecycle actions.')
         }
       } else {
         const request = {

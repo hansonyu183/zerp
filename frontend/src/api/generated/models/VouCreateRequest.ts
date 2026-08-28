@@ -36,7 +36,7 @@ export type VouCreateRequest = {
       approvalEntryId: string;
     };
     counterpartyType?: 'customer-account' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
-    otherCategory?: 'COMMISSION' | 'INTERMEDIARY' | 'REBATE';
+    otherCategory?: 'COMMISSION' | 'INTERMEDIARY';
     counterparty?: {
       objectId: string;
       approvalEntryId: string;

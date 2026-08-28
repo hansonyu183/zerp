@@ -60,13 +60,11 @@ const source: IntermediaryCalculationSource = {
       unitPrice: '5.00',
       referenceUnitPrice: '4.00',
       settlementSurcharge: '0.10',
-      rebateUnitPrice: '0.20',
       lineAmount: '2000.00',
       settlementTermCode: 'MONTHLY_30',
       specialApproval: false,
       adjustmentEmployeeAmount: '0.00',
       adjustmentIntermediaryAmount: '0.00',
-      adjustmentRebateAmount: '0.00',
     },
   ],
   bills: [],
@@ -74,18 +72,17 @@ const source: IntermediaryCalculationSource = {
 
 const resultLine: IntermediaryResultLine = {
   sourceSignoffLineId: 'signoff-line-1',
-  premiumUnitPrice: '0.70',
+  premiumUnitPrice: '0.90',
   standardPieceQuantity: '2',
   baseCommission: '16.00',
-  premiumCommission: '70.00',
+  premiumCommission: '90.00',
   lowPriceCommission: '0.00',
   marketMaintenanceSubsidy: '4.00',
   marketDevelopmentSubsidy: '1800.00',
   billCost: '0.00',
   billLineIds: [],
-  employeeAmount: '1890.00',
+  employeeAmount: '1910.00',
   intermediaryAmount: '0.00',
-  rebateAmount: '80.00',
 }
 
 const migration = readFileSync(
@@ -106,8 +103,7 @@ function result() {
   return {
     lines: [{ ...resultLine }],
     summaries: [
-      { payee: salesperson, category: 'COMMISSION', amount: '1890.00' },
-      { payee: customer, category: 'REBATE', amount: '80.00' },
+      { payee: salesperson, category: 'COMMISSION', amount: '1910.00' },
     ],
   }
 }
@@ -134,7 +130,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
     externalResult.summaries[0] = {
       payee: externalSource.lines[0].salesperson,
       category: 'EXTERNAL_PART_TIME',
-      amount: '1890.00',
+      amount: '1910.00',
     }
 
     expect(() =>
@@ -161,17 +157,15 @@ describe('intermediary calculation QuickJS sandbox', () => {
     const ordinary = await runIntermediaryScript(seededScript, ordinarySource)
     expect(ordinary.lines[0]).toMatchObject({
       baseCommission: '16.00',
-      premiumCommission: '70.00',
+      premiumCommission: '90.00',
       marketMaintenanceSubsidy: '4.00',
       marketDevelopmentSubsidy: '1800.00',
       billCost: '30.00',
       billLineIds: ['bill-line-1'],
-      employeeAmount: '1860.00',
-      rebateAmount: '80.00',
+      employeeAmount: '1880.00',
     })
     expect(ordinary.summaries).toEqual([
-      { payee: salesperson, category: 'COMMISSION', amount: '1860.00' },
-      { payee: customer, category: 'REBATE', amount: '80.00' },
+      { payee: salesperson, category: 'COMMISSION', amount: '1880.00' },
     ])
 
     const specialSource = structuredClone(source)
@@ -203,34 +197,33 @@ describe('intermediary calculation QuickJS sandbox', () => {
     expect(intermediated.lines[0]).toMatchObject({
       premiumCommission: '0.00',
       employeeAmount: '1820.00',
-      intermediaryAmount: '247.79',
-      rebateAmount: '80.00',
+      intermediaryAmount: '318.58',
     })
     expect(intermediated.summaries).toContainEqual({
       payee: intermediary,
       category: 'INTERMEDIARY',
-      amount: '247.79',
+      amount: '318.58',
     })
   })
 
   it('matches the 2026 collection-delay brackets', async () => {
     const cases = [
-      ['PREPAID', 7, '16.00', '70.00'],
-      ['PREPAID', 8, '0.00', '70.00'],
+      ['PREPAID', 7, '16.00', '90.00'],
+      ['PREPAID', 8, '0.00', '90.00'],
       ['PREPAID', 16, '0.00', '0.00'],
-      ['MONTHLY_CURRENT', 0, '10.00', '70.00'],
-      ['MONTHLY_CURRENT', 8, '6.00', '70.00'],
+      ['MONTHLY_CURRENT', 0, '10.00', '90.00'],
+      ['MONTHLY_CURRENT', 8, '6.00', '90.00'],
       ['MONTHLY_CURRENT', 21, '0.00', '0.00'],
-      ['ARRIVAL_30', 8, '6.00', '70.00'],
-      ['ARRIVAL_30', 16, '0.00', '70.00'],
+      ['ARRIVAL_30', 8, '6.00', '90.00'],
+      ['ARRIVAL_30', 16, '0.00', '90.00'],
       ['ARRIVAL_30', 21, '0.00', '0.00'],
-      ['MONTHLY_30', 8, '10.00', '70.00'],
-      ['MONTHLY_30', 11, '6.00', '70.00'],
-      ['MONTHLY_30', 21, '0.00', '70.00'],
+      ['MONTHLY_30', 8, '10.00', '90.00'],
+      ['MONTHLY_30', 11, '6.00', '90.00'],
+      ['MONTHLY_30', 21, '0.00', '90.00'],
       ['MONTHLY_30', 31, '0.00', '0.00'],
-      ['MONTHLY_60', 1, '10.00', '70.00'],
-      ['MONTHLY_60', 8, '6.00', '70.00'],
-      ['MONTHLY_60', 21, '6.00', '70.00'],
+      ['MONTHLY_60', 1, '10.00', '90.00'],
+      ['MONTHLY_60', 8, '6.00', '90.00'],
+      ['MONTHLY_60', 21, '6.00', '90.00'],
       ['MONTHLY_60', 31, '0.00', '0.00'],
       ['MONTHLY_90', 0, '0.00', '0.00'],
     ] as const
@@ -267,17 +260,15 @@ describe('intermediary calculation QuickJS sandbox', () => {
       `globalThis.calculate = (input) => ({
         lines: [{
           sourceSignoffLineId: input.lines[0].sourceSignoffLineId,
-          premiumUnitPrice: '0.70', standardPieceQuantity: '2',
-          baseCommission: '16.00', premiumCommission: '70.00',
+          premiumUnitPrice: '0.90', standardPieceQuantity: '2',
+          baseCommission: '16.00', premiumCommission: '90.00',
           lowPriceCommission: '0.00', marketMaintenanceSubsidy: '4.00',
           marketDevelopmentSubsidy: '1800.00', billCost: '0.00',
           billLineIds: [],
-          employeeAmount: '1890.00', intermediaryAmount: '0.00',
-          rebateAmount: '80.00'
+          employeeAmount: '1910.00', intermediaryAmount: '0.00',
         }],
         summaries: [
-          { payee: input.lines[0].salesperson, category: 'COMMISSION', amount: '1890.00' },
-          { payee: input.lines[0].customer, category: 'REBATE', amount: '80.00' }
+          { payee: input.lines[0].salesperson, category: 'COMMISSION', amount: '1910.00' },
         ],
         hostType: typeof document
       });`,
@@ -345,7 +336,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
           ...result(),
           summaries: [
             { payee: salesperson, category: 'COMMISSION', amount: '1889.00' },
-            { payee: customer, category: 'REBATE', amount: '80.00' },
           ],
         },
         source,
@@ -359,9 +349,8 @@ describe('intermediary calculation QuickJS sandbox', () => {
             {
               payee: { ...salesperson, approvalEntryId: 'employee-v2' },
               category: 'COMMISSION',
-              amount: '1890.00',
+              amount: '1910.00',
             },
-            { payee: customer, category: 'REBATE', amount: '80.00' },
           ],
         },
         source,
@@ -459,7 +448,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
     expect(calculated.lines[0]).toMatchObject({
       billCost: '0.00',
       billLineIds: [],
-      employeeAmount: '1890.00',
+      employeeAmount: '1910.00',
     })
   })
 
@@ -488,12 +477,12 @@ describe('intermediary calculation QuickJS sandbox', () => {
     expect(calculated.lines[0]).toMatchObject({
       billCost: '0.00',
       billLineIds: [],
-      employeeAmount: '1890.00',
+      employeeAmount: '1910.00',
     })
     expect(calculated.summaries).toContainEqual({
       payee: salesperson,
       category: 'COMMISSION',
-      amount: '1890.00',
+      amount: '1910.00',
     })
   })
 
@@ -509,7 +498,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
       returnDocumentNos: ['SRT-001'],
       adjustmentEmployeeAmount: '10.00',
       adjustmentIntermediaryAmount: '5.00',
-      adjustmentRebateAmount: '2.00',
       intermediary: {
         objectId: 'other-unit-1',
         approvalEntryId: 'other-unit-v1',
@@ -525,7 +513,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
       billLineIds: [],
       employeeAmount: '-10.00',
       intermediaryAmount: '-5.00',
-      rebateAmount: '-2.00',
       note: '跨月退货冲回：SRT-001',
     })
     expect(calculated.summaries).toEqual([
@@ -535,7 +522,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
         category: 'INTERMEDIARY',
         amount: '-5.00',
       },
-      { payee: customer, category: 'REBATE', amount: '-2.00' },
     ])
     const invalid = structuredClone(calculated)
     invalid.lines[0].employeeAmount = '0.00'

@@ -84,17 +84,17 @@ func TestCashEntitiesFixOrAcceptCounterpartyType(t *testing.T) {
 	}
 	if _, err := validateDraft(EntitySalesReceipt, DraftInput{
 		BusinessDate: "2026-08-03", Currency: "CNY", Counterparty: refInput(),
-		FundAccount: refInput(), Handler: refInput(), Amount: "10.00", OtherCategory: "REBATE",
+		FundAccount: refInput(), Handler: refInput(), Amount: "10.00", OtherCategory: "UNSUPPORTED",
 	}); err == nil {
 		t.Fatal("trade receipt accepted an other transaction category")
 	}
 	if _, err := validateDraft(EntitySaleOrder, DraftInput{
-		BusinessDate: "2026-08-03", Currency: "CNY", OtherCategory: "REBATE",
+		BusinessDate: "2026-08-03", Currency: "CNY", OtherCategory: "UNSUPPORTED",
 	}); err == nil || !strings.Contains(err.Error(), "otherCategory") {
 		t.Fatalf("sale order otherCategory error = %v", err)
 	}
 	if _, err := validateDraft(EntityBillReceipt, DraftInput{
-		BusinessDate: "2026-08-03", Currency: "CNY", OtherCategory: "REBATE",
+		BusinessDate: "2026-08-03", Currency: "CNY", OtherCategory: "UNSUPPORTED",
 	}); err == nil || !strings.Contains(err.Error(), "otherCategory") {
 		t.Fatalf("bill receipt otherCategory error = %v", err)
 	}

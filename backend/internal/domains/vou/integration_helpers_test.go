@@ -540,51 +540,78 @@ func createApprovedCustomer(
 	authorizer := authorization.Func(nil)
 	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
 	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{}, authorizer, bus, parties)
+	accounts := dcldomain.NewCustomerAccountService(pool, service, authorizer, bus)
+	customers := dcldomain.NewCustomerService(pool, service, parties, bobdomain.NewPartyCurrentReader(pool), accounts, authorizer, bus)
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "VOU 客户经营主体", TaxNumber: "TAX" + newID()[3:],
 	})
 	if data.SettlementMethodID == "" {
 		data.SettlementMethodID = "01JSMT00000000000000000017"
 	}
-	created, err := service.CustomerCreate(t.Context(), bobdomain.CustomerCreateInput{
-		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name + "主体" + newID()[20:]},
-		Data: bobdomain.CustomerAccountData{
+	created, err := customers.Create(t.Context(), dcldomain.CustomerCreateInput{
+		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name + "主体" + newID()[20:]},
+		OperatingEntityID: operating.ObjectID,
+		DefaultAccount: dcldomain.CustomerAccountDataInput{
 			Name: data.Name, CustomerTypeCode: bobdomain.CustomerTypeEndUser,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
-			OperatingEntityID: operating.ObjectID, SettlementMethodID: data.SettlementMethodID,
+			SettlementMethodID:         data.SettlementMethodID,
 			PaymentMethodID:            "01J00000000000000000000082",
 			DefaultTransportMethodCode: "SELF_PICKUP", DefaultTransportMethodName: "客户自提",
-			TransportSurcharge: "0.00", PricingPolicy: bobdomain.PricingPolicy{
-				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00", CostItems: []bobdomain.PricingCostItem{},
+			TransportSurcharge: "0.00", PricingPolicy: dcldomain.CustomerPricingPolicy{
+				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00", CostItems: []dcldomain.CustomerPricingCostItem{},
 				ThirdPartyIntermediaryFixedUnitCost: "0.00", ThirdPartyIntermediaryVariableUnitCost: "0.00",
-			}, CreditLimits: []bobdomain.CustomerCreditLimit{}, PrimarySalesAttribution: bobdomain.CustomerSalesAttributionInput{
-				Type: bobdomain.SalesAttributionInternalEmployee, SubjectObjectID: data.SalespersonEmployeeID,
+			}, CreditLimits: []dcldomain.CustomerCreditLimit{}, PrimarySalesAttribution: dcldomain.CustomerSalesAttributionInput{
+				Type: dcldomain.CustomerSalesAttributionInternalEmployee, SubjectObjectID: data.SalespersonEmployeeID,
 			},
 		},
-	}, trustedIntegrationActor(t, "vou-customer-create"), true)
+	}, trustedIntegrationActor(t, "vou-customer-create"))
 	if err != nil {
 		t.Fatalf("create customer reference: %v", err)
 	}
-	submitted, err := service.Submit(t.Context(), bobdomain.EntityCustomer, bobdomain.VersionRevisionInput{
+	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: created.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-customer-party-get"))
+	if err != nil {
+		t.Fatalf("get customer Party: %v", err)
+	}
+	partySubmitted, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{
+		PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-customer-party-submit"))
+	if err != nil {
+		t.Fatalf("submit customer Party: %v", err)
+	}
+	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{
+		PartyID: partySubmitted.PartyID, ApprovalEntryID: partySubmitted.Approval.ApprovalEntryID, ApprovalRevision: partySubmitted.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-customer-party-approve")); err != nil {
+		t.Fatalf("approve customer Party: %v", err)
+	}
+	submitted, err := customers.Submit(t.Context(), dcldomain.CustomerVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
 	}, trustedIntegrationActor(t, "vou-customer-submit"))
 	if err != nil {
 		t.Fatalf("submit customer reference: %v", err)
 	}
-	if _, err = service.Approve(t.Context(), bobdomain.EntityCustomer, bobdomain.ReviewInput{
+	if _, err = customers.Approve(t.Context(), dcldomain.CustomerVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
 	}, trustedIntegrationActor(t, "vou-customer-approve")); err != nil {
 		t.Fatalf("approve customer relationship: %v", err)
 	}
-	accountSubmitted, err := service.Submit(t.Context(), bobdomain.EntityCustomerAccount, bobdomain.VersionRevisionInput{
-		ObjectID: created.DefaultAccount.ObjectID, ApprovalEntryID: created.DefaultAccount.OpenVersion.Approval.ApprovalEntryID,
-		ApprovalRevision: created.DefaultAccount.OpenVersion.Approval.Revision,
+	accountsPage, err := accounts.Query(t.Context(), dcldomain.CustomerAccountQueryInput{
+		Page: 1, PageSize: 20,
+		Filters: dcldomain.CustomerAccountQueryFilters{CustomerRelationshipID: created.ObjectID},
+		Sort:    []dcldomain.CustomerAccountSortItem{{Field: "code", Order: "asc"}},
+	}, trustedIntegrationActor(t, "vou-customer-account-query"))
+	if err != nil || len(accountsPage.Items) != 1 || accountsPage.Items[0].OpenVersion == nil {
+		t.Fatalf("load default customer account: items=%d err=%v", len(accountsPage.Items), err)
+	}
+	account := accountsPage.Items[0]
+	accountSubmitted, err := accounts.Submit(t.Context(), dcldomain.CustomerAccountVersionInput{
+		ObjectID: account.ObjectID, ApprovalEntryID: account.OpenVersion.Approval.ApprovalEntryID,
+		ApprovalRevision: account.OpenVersion.Approval.Revision,
 	}, trustedIntegrationActor(t, "vou-customer-account-submit"))
 	if err != nil {
 		t.Fatalf("submit customer account: %v", err)
 	}
-	accountApproved, err := service.Approve(t.Context(), bobdomain.EntityCustomerAccount, bobdomain.ReviewInput{
-		ObjectID: created.DefaultAccount.ObjectID, ApprovalEntryID: accountSubmitted.Approval.ApprovalEntryID, ApprovalRevision: accountSubmitted.Approval.Revision,
+	accountApproved, err := accounts.Approve(t.Context(), dcldomain.CustomerAccountVersionInput{
+		ObjectID: account.ObjectID, ApprovalEntryID: accountSubmitted.Approval.ApprovalEntryID, ApprovalRevision: accountSubmitted.Approval.Revision,
 	}, trustedIntegrationActor(t, "vou-customer-account-approve"))
 	if err != nil {
 		t.Fatalf("approve customer account: %v", err)

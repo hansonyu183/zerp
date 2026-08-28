@@ -19,13 +19,6 @@ async function signOut(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/signin/)
 }
 
-async function openCustomer(page: Page): Promise<void> {
-  await page.goto('/bob/customer')
-  await expect(
-    page.getByRole('textbox', { name: '账户编码或名称' }),
-  ).toBeVisible()
-}
-
 async function openSupplier(page: Page): Promise<void> {
   await page.goto('/dcl/supplier')
   await expect(
@@ -33,22 +26,10 @@ async function openSupplier(page: Page): Promise<void> {
   ).toBeVisible()
 }
 
-function customerRow(page: Page, code: string) {
-  return page.locator('tbody tr').filter({
-    has: page.locator('td[data-label="账户编码"]').filter({ hasText: code }),
-  })
-}
-
 function supplierRow(page: Page, code: string) {
   return page.locator('tbody tr').filter({
     has: page.locator('td[data-label="编码"]').filter({ hasText: code }),
   })
-}
-
-async function searchCustomer(page: Page, code: string): Promise<void> {
-  await page.getByRole('textbox', { name: '账户编码或名称' }).fill(code)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(customerRow(page, code)).toBeVisible()
 }
 
 async function searchSupplier(page: Page, code: string): Promise<void> {
@@ -109,26 +90,12 @@ async function selectAutocomplete(
   await option.click()
 }
 
-async function confirmReason(
-  page: Page,
-  title: string,
-  reason: string,
-): Promise<void> {
-  const dialog = page.getByRole('dialog').filter({ hasText: title })
-  await dialog.getByLabel('操作原因').fill(reason)
-  await dialog.getByRole('button', { name: '确认', exact: true }).click()
-}
-
-async function clickAndExpectBusinessSuccess(
-  page: Page,
-  path: string,
-  click: () => Promise<void>,
-): Promise<void> {
-  const pending = page.waitForResponse((response) =>
-    response.url().endsWith(path),
+async function openBobCurrentPage(page: Page, path: string): Promise<void> {
+  const currentRead = page.waitForResponse((response) =>
+    response.url().endsWith(`${path}/query`),
   )
-  await click()
-  const payload = (await (await pending).json()) as {
+  await page.goto(path)
+  const payload = (await (await currentRead).json()) as {
     code: number | string
     message: string
   }
@@ -181,97 +148,20 @@ test(
 )
 
 test(
-  '使用双账号完成客户创建、审核与启禁用',
+  'BOB 客户与客户结算子账户只读取当前档案',
   { tag: '@mobile' },
-  async ({ page, workerState }, testInfo) => {
-    test.setTimeout(120_000)
-    const customerName = `E2E 生命周期客户 ${testInfo.project.name} ${testInfo.parallelIndex}`
-
+  async ({ page, workerState }) => {
     await signIn(page, workerState.operator)
-    await openCustomer(page)
-    await page.getByRole('button', { name: '新增', exact: true }).click()
-    const editor = page.locator('.customer-workspace__drawer')
-    await editor.getByLabel('法定名称').fill(customerName)
-    await editor.getByLabel('显示名称').fill(`${customerName}简称`)
-    await editor.getByLabel('账户名称').fill(`${customerName}结算户`)
-    await selectAutocomplete(page, editor, '经营主体', '上海示例')
-    await selectAutocomplete(page, editor, '结算方式', '当月结')
-    await selectAutocomplete(page, editor, '收款方式', 'WFL 银行转账')
-    await selectAutocomplete(
-      page,
-      editor,
-      '主要业务归属主体',
-      workerState.fixtures.employee,
-    )
-    await editor.getByRole('button', { name: '保存', exact: true }).click()
-
-    const createdRow = page
-      .locator('tbody tr')
-      .filter({ hasText: customerName })
-    await expect(createdRow).toHaveCount(1)
-    const code = (
-      await createdRow.locator('td[data-label="账户编码"]').textContent()
-    )?.trim()
-    expect(code).toMatch(/^CAC-\d{4}$/)
-    await searchCustomer(page, code!)
-    await expect(customerRow(page, code!)).toContainText('草稿')
-
-    await clickAndExpectBusinessSuccess(
-      page,
-      '/bob/customer-account/submit',
-      () => customerRow(page, code!).getByLabel('提交审核').click(),
-    )
-    await expect(customerRow(page, code!)).toContainText('待批准')
-    await customerRow(page, code!).getByLabel('撤回提交').click()
-    await confirmReason(page, '客户账户生命周期操作', 'E2E 验证撤回提交')
-    await expect(customerRow(page, code!)).toContainText('草稿')
-    await clickAndExpectBusinessSuccess(
-      page,
-      '/bob/customer-account/submit',
-      () => customerRow(page, code!).getByLabel('提交审核').click(),
-    )
-    await expect(customerRow(page, code!)).toContainText('待批准')
-    await signOut(page)
-
-    await signIn(page, workerState.reviewer)
-    await openCustomer(page)
-    await searchCustomer(page, code!)
-    await customerRow(page, code!).getByLabel('审核驳回').click()
-    await confirmReason(page, '客户账户生命周期操作', 'E2E 验证驳回后重提')
-    await expect(customerRow(page, code!)).toContainText('草稿')
-    await signOut(page)
-
-    await signIn(page, workerState.operator)
-    await openCustomer(page)
-    await searchCustomer(page, code!)
-    await clickAndExpectBusinessSuccess(
-      page,
-      '/bob/customer-account/submit',
-      () => customerRow(page, code!).getByLabel('提交审核').click(),
-    )
-    await expect(customerRow(page, code!)).toContainText('待批准')
-    await signOut(page)
-
-    await signIn(page, workerState.reviewer)
-    await openCustomer(page)
-    await searchCustomer(page, code!)
-    await customerRow(page, code!).getByLabel('审核通过').click()
-    let dialog = page
-      .getByRole('dialog')
-      .filter({ hasText: '客户账户生命周期操作' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await expect(customerRow(page, code!)).toContainText('已批准')
-
-    await customerRow(page, code!).getByLabel('禁用').click()
-    dialog = page
-      .getByRole('dialog')
-      .filter({ hasText: '客户账户生命周期操作' })
-    await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await expect(customerRow(page, code!).getByLabel('启用')).toBeVisible()
-    await customerRow(page, code!).getByLabel('启用').click()
-    await expect(customerRow(page, code!).getByLabel('禁用')).toBeVisible()
-
-    await expect(customerRow(page, code!).getByLabel('撤销批准')).toHaveCount(0)
+    const legacyLifecycleRequests: string[] = []
+    page.on('request', (request) => {
+      const pathname = new URL(request.url()).pathname
+      if (/^\/bob\/customer(?:-account)?\/(?!query$|get$)/.test(pathname)) {
+        legacyLifecycleRequests.push(pathname)
+      }
+    })
+    await openBobCurrentPage(page, '/bob/customer')
+    await openBobCurrentPage(page, '/bob/customer-account')
+    expect(legacyLifecycleRequests).toEqual([])
   },
 )
 

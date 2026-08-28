@@ -85,8 +85,8 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	if err = pool.QueryRow(t.Context(), `
 		SELECT relationship.party_id,relationship.operating_entity_id
 		FROM bob_customer_relationships relationship
-		JOIN bob_objects object ON object.id=relationship.object_id AND object.entity='customer'
-		ORDER BY object.created_at LIMIT 1
+		JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity='customer'
+		ORDER BY subject.created_at LIMIT 1
 	`).Scan(&partyID, &operatingEntityID); err != nil {
 		t.Fatalf("load seeded party identity: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		}
 		var status string
 		approvalDomain := "bob"
-		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee || item.entity == bob.EntitySupplier || item.entity == bob.EntityOtherUnit || item.entity == bob.EntitySalesPartner {
+		if item.entity == bob.EntityCustomer || item.entity == bob.EntityCustomerAccount || item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee || item.entity == bob.EntitySupplier || item.entity == bob.EntityOtherUnit || item.entity == bob.EntitySalesPartner {
 			approvalDomain = "dcl"
 		}
 		if err = pool.QueryRow(t.Context(), `
@@ -179,7 +179,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		bob.EntityVehicle, bob.EntityFundAccount, bob.EntityOperatingEntity,
 	}
 	payloadTables := map[string]string{
-		bob.EntityCustomer: "bob_customer_relationship_versions", bob.EntityCustomerAccount: "bob_customer_versions",
+		bob.EntityCustomer: "dcl_customer_versions", bob.EntityCustomerAccount: "dcl_customer_account_versions",
 		bob.EntitySupplier: "dcl_supplier_versions", bob.EntityOtherUnit: "dcl_other_unit_versions",
 		bob.EntityEmployee: "dcl_employee_versions", bob.EntitySalesPartner: "dcl_sales_partner_versions",
 		bob.EntityProduct: "dcl_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",
@@ -188,7 +188,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 	for _, entity := range allEntities {
 		approvalDomain := "bob"
-		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntitySupplier || entity == bob.EntityOtherUnit || entity == bob.EntitySalesPartner {
+		if entity == bob.EntityCustomer || entity == bob.EntityCustomerAccount || entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntitySupplier || entity == bob.EntityOtherUnit || entity == bob.EntitySalesPartner {
 			approvalDomain = "dcl"
 		}
 		var objectCount, entryCount, payloadCount int

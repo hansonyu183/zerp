@@ -870,6 +870,222 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
     };
   };
+  "/dcl/customer/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerQueryResponse } } };
+    };
+  };
+  "/dcl/customer/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerViewResponse } } };
+    };
+  };
+  "/dcl/customer/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerVersionPageResponse } } };
+    };
+  };
+  "/dcl/customer/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
+    };
+  };
+  "/dcl/customer-account/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerAccountQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerAccountQueryResponse } } };
+    };
+  };
+  "/dcl/customer-account/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerAccountViewResponse } } };
+    };
+  };
+  "/dcl/customer-account/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerAccountCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer-account/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerAccountSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer-account/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer-account/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer-account/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer-account/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer-account/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer-account/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/customer-account/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerAccountVersionPageResponse } } };
+    };
+  };
+  "/dcl/customer-account/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
+    };
+  };
+  "/dcl/customer/attachment-initiate": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerAttachmentInitiateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerAttachmentInitiateResponse } } };
+    };
+  };
+  "/dcl/customer/attachment-download": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerAttachmentDownloadRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerAttachmentDownloadResponse } } };
+    };
+  };
+  "/dcl/customer/attachment-remove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerAttachmentRemoveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclCustomerAttachmentRemoveResponse } } };
+    };
+  };
   "/dcl/supplier/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1618,8 +1834,8 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.CustomerQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.CustomerQueryResponse } } };
+      requestBody: { content: { 'application/json': Models.BobCustomerQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.BobCustomerQueryResponse } } };
     };
   };
   "/bob/customer/get": {
@@ -1627,63 +1843,23 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobGetRequest } };
-      responses: { 200: { content: { 'application/json': Models.CustomerGetResponse } } };
+      responses: { 200: { content: { 'application/json': Models.BobCustomerGetResponse } } };
     };
   };
-  "/bob/customer/create": {
+  "/bob/customer-account/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.CustomerCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.CustomerCreateResponse } } };
+      requestBody: { content: { 'application/json': Models.BobCustomerAccountQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.BobCustomerAccountQueryResponse } } };
     };
   };
-  "/bob/customer/account-add": {
+  "/bob/customer-account/get": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.CustomerAccountAddRequest } };
-      responses: { 200: { content: { 'application/json': Models.CustomerAccountResponse } } };
-    };
-  };
-  "/bob/customer/account-delete": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
-    };
-  };
-  "/bob/customer/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.CustomerSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
-    };
-  };
-  "/bob/customer/attachment-initiate": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.CustomerAttachmentInitiateRequest } };
-      responses: { 200: { content: { 'application/json': Models.CustomerAttachmentInitiateResponse } } };
-    };
-  };
-  "/bob/customer/attachment-download": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.CustomerAttachmentDownloadRequest } };
-      responses: { 200: { content: { 'application/json': Models.CustomerAttachmentDownloadResponse } } };
-    };
-  };
-  "/bob/customer/attachment-remove": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.CustomerAttachmentRemoveRequest } };
-      responses: { 200: { content: { 'application/json': Models.CustomerAttachmentRemoveResponse } } };
+      requestBody: { content: { 'application/json': Models.BobGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.BobCustomerAccountGetResponse } } };
     };
   };
   "/bob/supplier/query": {
@@ -1748,86 +1924,6 @@ export interface paths {
       parameters: { query?: never; header?: never; path: { "entity": Models.BobReadableEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobGetRequest } };
       responses: { 200: { content: { 'application/json': Models.BobObjectResponse } } };
-    };
-  };
-  "/bob/{entity}/delete": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
-    };
-  };
-  "/bob/{entity}/submit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
-    };
-  };
-  "/bob/{entity}/unsubmit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
-    };
-  };
-  "/bob/{entity}/approve": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
-    };
-  };
-  "/bob/{entity}/reject": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
-    };
-  };
-  "/bob/{entity}/unapprove": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobUnapproveResponse } } };
-    };
-  };
-  "/bob/{entity}/enable": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobObjectRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
-    };
-  };
-  "/bob/{entity}/disable": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobObjectRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobDisableResponse } } };
-    };
-  };
-  "/bob/{entity}/versions": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobVersionHistoryResponse } } };
-    };
-  };
-  "/bob/{entity}/audit-history": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobAuditHistoryResponse } } };
     };
   };
   "/vou/{entity}/query": {
@@ -2533,6 +2629,47 @@ export interface components {
       "OtherUnitQueryRequest": Models.OtherUnitQueryRequest;
       "OtherUnitPage": Models.OtherUnitPage;
       "OtherUnitQueryResponse": Models.OtherUnitQueryResponse;
+      "DclCustomerQueryRequest": Models.DclCustomerQueryRequest;
+      "DclCustomerAttachmentView": Models.DclCustomerAttachmentView;
+      "DclCustomerVersionView": Models.DclCustomerVersionView;
+      "DclCustomerListItem": Models.DclCustomerListItem;
+      "DclCustomerQueryPage": Models.DclCustomerQueryPage;
+      "DclCustomerQueryResponse": Models.DclCustomerQueryResponse;
+      "DclCustomerView": Models.DclCustomerView;
+      "DclCustomerViewResponse": Models.DclCustomerViewResponse;
+      "DclCustomerPricingCostItem": Models.DclCustomerPricingCostItem;
+      "DclCustomerPricingPolicy": Models.DclCustomerPricingPolicy;
+      "DclCustomerCreditLimit": Models.DclCustomerCreditLimit;
+      "DclCustomerSalesAttributionInput": Models.DclCustomerSalesAttributionInput;
+      "DclCustomerAccountInput": Models.DclCustomerAccountInput;
+      "DclCustomerCreateRequest": Models.DclCustomerCreateRequest;
+      "DclCustomerSaveRequest": Models.DclCustomerSaveRequest;
+      "DclCustomerVersionPage": Models.DclCustomerVersionPage;
+      "DclCustomerVersionPageResponse": Models.DclCustomerVersionPageResponse;
+      "DclCustomerAccountQueryRequest": Models.DclCustomerAccountQueryRequest;
+      "DclCustomerSnapshot": Models.DclCustomerSnapshot;
+      "DclCustomerSalesAttributionSnapshot": Models.DclCustomerSalesAttributionSnapshot;
+      "DclCustomerAccountData": Models.DclCustomerAccountData;
+      "DclCustomerAccountVersionView": Models.DclCustomerAccountVersionView;
+      "DclCustomerAccountListItem": Models.DclCustomerAccountListItem;
+      "DclCustomerAccountQueryPage": Models.DclCustomerAccountQueryPage;
+      "DclCustomerAccountQueryResponse": Models.DclCustomerAccountQueryResponse;
+      "DclCustomerAccountView": Models.DclCustomerAccountView;
+      "DclCustomerAccountViewResponse": Models.DclCustomerAccountViewResponse;
+      "DclCustomerAccountCreateRequest": Models.DclCustomerAccountCreateRequest;
+      "DclCustomerAccountSaveRequest": Models.DclCustomerAccountSaveRequest;
+      "DclCustomerAccountVersionPage": Models.DclCustomerAccountVersionPage;
+      "DclCustomerAccountVersionPageResponse": Models.DclCustomerAccountVersionPageResponse;
+      "DclCustomerAttachmentScope": Models.DclCustomerAttachmentScope;
+      "DclCustomerAttachmentInitiateRequest": Models.DclCustomerAttachmentInitiateRequest;
+      "DclCustomerAttachmentInitiateResult": Models.DclCustomerAttachmentInitiateResult;
+      "DclCustomerAttachmentInitiateResponse": Models.DclCustomerAttachmentInitiateResponse;
+      "DclCustomerAttachmentDownloadRequest": Models.DclCustomerAttachmentDownloadRequest;
+      "DclCustomerAttachmentDownloadResult": Models.DclCustomerAttachmentDownloadResult;
+      "DclCustomerAttachmentDownloadResponse": Models.DclCustomerAttachmentDownloadResponse;
+      "DclCustomerAttachmentRemoveRequest": Models.DclCustomerAttachmentRemoveRequest;
+      "DclCustomerAttachmentMutationResult": Models.DclCustomerAttachmentMutationResult;
+      "DclCustomerAttachmentRemoveResponse": Models.DclCustomerAttachmentRemoveResponse;
       "SupplierQueryRequest": Models.SupplierQueryRequest;
       "SupplierSettlementSnapshot": Models.SupplierSettlementSnapshot;
       "SupplierPurchaserSnapshot": Models.SupplierPurchaserSnapshot;
@@ -2694,41 +2831,17 @@ export interface components {
       "PartyView": Models.PartyView;
       "PartyGetResponse": Models.PartyGetResponse;
       "BobGetRequest": Models.BobGetRequest;
-      "CustomerQueryRequest": Models.CustomerQueryRequest;
-      "CustomerListItem": Models.CustomerListItem;
-      "CustomerQueryResponse": Models.CustomerQueryResponse;
-      "CustomerPricingCostItem": Models.CustomerPricingCostItem;
-      "CustomerPricingPolicy": Models.CustomerPricingPolicy;
-      "CustomerCreditLimit": Models.CustomerCreditLimit;
-      "CustomerSnapshot": Models.CustomerSnapshot;
-      "CustomerSalesAttributionView": Models.CustomerSalesAttributionView;
-      "CustomerAccountDataView": Models.CustomerAccountDataView;
-      "CustomerAttachmentView": Models.CustomerAttachmentView;
-      "CustomerVersionView": Models.CustomerVersionView;
-      "CustomerAccountView": Models.CustomerAccountView;
-      "CustomerDetailView": Models.CustomerDetailView;
-      "CustomerGetResponse": Models.CustomerGetResponse;
-      "CustomerSalesAttributionInput": Models.CustomerSalesAttributionInput;
-      "CustomerAccountInput": Models.CustomerAccountInput;
-      "CustomerCreateRequest": Models.CustomerCreateRequest;
-      "BobMutationResult": Models.BobMutationResult;
-      "CustomerCreateResult": Models.CustomerCreateResult;
-      "CustomerCreateResponse": Models.CustomerCreateResponse;
-      "CustomerAccountAddRequest": Models.CustomerAccountAddRequest;
-      "CustomerAccountResponse": Models.CustomerAccountResponse;
-      "BobDeleteRequest": Models.BobDeleteRequest;
-      "CustomerSaveRequest": Models.CustomerSaveRequest;
-      "BobMutationResponse": Models.BobMutationResponse;
-      "CustomerAttachmentScope": Models.CustomerAttachmentScope;
-      "CustomerAttachmentInitiateRequest": Models.CustomerAttachmentInitiateRequest;
-      "CustomerAttachmentInitiateResult": Models.CustomerAttachmentInitiateResult;
-      "CustomerAttachmentInitiateResponse": Models.CustomerAttachmentInitiateResponse;
-      "CustomerAttachmentDownloadRequest": Models.CustomerAttachmentDownloadRequest;
-      "CustomerAttachmentDownloadResult": Models.CustomerAttachmentDownloadResult;
-      "CustomerAttachmentDownloadResponse": Models.CustomerAttachmentDownloadResponse;
-      "CustomerAttachmentRemoveRequest": Models.CustomerAttachmentRemoveRequest;
-      "CustomerAttachmentMutationResult": Models.CustomerAttachmentMutationResult;
-      "CustomerAttachmentRemoveResponse": Models.CustomerAttachmentRemoveResponse;
+      "BobCustomerQueryRequest": Models.BobCustomerQueryRequest;
+      "BobCustomerListItem": Models.BobCustomerListItem;
+      "BobCustomerQueryResponse": Models.BobCustomerQueryResponse;
+      "BobCustomerCurrentView": Models.BobCustomerCurrentView;
+      "BobCustomerGetResponse": Models.BobCustomerGetResponse;
+      "BobCustomerAccountQueryRequest": Models.BobCustomerAccountQueryRequest;
+      "BobCustomerAccountListItem": Models.BobCustomerAccountListItem;
+      "BobCustomerAccountQueryResponse": Models.BobCustomerAccountQueryResponse;
+      "BobCustomerAttachmentView": Models.BobCustomerAttachmentView;
+      "BobCustomerAccountCurrentView": Models.BobCustomerAccountCurrentView;
+      "BobCustomerAccountGetResponse": Models.BobCustomerAccountGetResponse;
       "SupplierListVersion": Models.SupplierListVersion;
       "SupplierListItem": Models.SupplierListItem;
       "SupplierQueryResponse": Models.SupplierQueryResponse;
@@ -2751,20 +2864,6 @@ export interface components {
       "BobRelationshipIdentityView": Models.BobRelationshipIdentityView;
       "BobObjectView": Models.BobObjectView;
       "BobObjectResponse": Models.BobObjectResponse;
-      "BobLifecycleEntity": Models.BobLifecycleEntity;
-      "BobVersionRevisionRequest": Models.BobVersionRevisionRequest;
-      "BobReviewRequest": Models.BobReviewRequest;
-      "BobActiveReferenceCount": Models.BobActiveReferenceCount;
-      "BobActiveReferenceBlockers": Models.BobActiveReferenceBlockers;
-      "BobUnapproveResponse": Models.BobUnapproveResponse;
-      "BobObjectRevisionRequest": Models.BobObjectRevisionRequest;
-      "BobDisableResponse": Models.BobDisableResponse;
-      "BobHistoryRequest": Models.BobHistoryRequest;
-      "BobVersionHistoryItem": Models.BobVersionHistoryItem;
-      "BobVersionHistoryPage": Models.BobVersionHistoryPage;
-      "BobVersionHistoryResponse": Models.BobVersionHistoryResponse;
-      "BobAuditEventPage": Models.BobAuditEventPage;
-      "BobAuditHistoryResponse": Models.BobAuditHistoryResponse;
       "VouQueryRequest": Models.VouQueryRequest;
       "VouSalesBaseQuantitySummary": Models.VouSalesBaseQuantitySummary;
       "VouPurchaseBaseQuantitySummary": Models.VouPurchaseBaseQuantitySummary;

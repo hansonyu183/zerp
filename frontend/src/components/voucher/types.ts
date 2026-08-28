@@ -177,7 +177,7 @@ export interface VoucherDraftForm {
     '' | 'customer' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner'
   counterparty: VoucherReference | null
   settlementMethod: VoucherReference | null
-  otherCategory: '' | 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
+  otherCategory: '' | 'COMMISSION' | 'INTERMEDIARY'
   employee: VoucherReference | null
   salesperson: VoucherReference | null
   purchaser: VoucherReference | null
@@ -371,7 +371,7 @@ export interface VoucherDocumentData {
   customer?: VoucherReferenceView
   supplier?: VoucherReferenceView
   counterparty?: VoucherReferenceView
-  otherCategory?: 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
+  otherCategory?: 'COMMISSION' | 'INTERMEDIARY'
   employee?: VoucherReferenceView
   salesperson?: VoucherReferenceView
   purchaser?: VoucherReferenceView
@@ -459,14 +459,12 @@ export interface IntermediarySourceLine {
   unitPrice: string
   referenceUnitPrice: string
   settlementSurcharge: string
-  rebateUnitPrice: string
   lineAmount: string
   settlementTermCode: string
   specialApproval: boolean
   returnDocumentNos?: string[]
   adjustmentEmployeeAmount: string
   adjustmentIntermediaryAmount: string
-  adjustmentRebateAmount: string
 }
 
 export interface IntermediarySourceBill {
@@ -511,18 +509,13 @@ export interface IntermediaryResultLine {
   billLineIds: string[]
   employeeAmount: string
   intermediaryAmount: string
-  rebateAmount: string
   note?: string
 }
 
 export interface IntermediarySummary {
   payee: IntermediaryReference
   category:
-    | 'COMMISSION'
-    | 'EXTERNAL_PART_TIME'
-    | 'CHANNEL_PARTNER'
-    | 'INTERMEDIARY'
-    | 'REBATE'
+    'COMMISSION' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' | 'INTERMEDIARY'
   amount: string
 }
 

@@ -9,6 +9,8 @@ export type DclDeclarationEntity =
   | 'fund-account'
   | 'product'
   | 'employee'
+  | 'customer'
+  | 'customer-account'
   | 'supplier'
   | 'other-unit'
   | 'sales-partner'
@@ -16,6 +18,24 @@ export type DclDeclarationLifecycleAction =
   'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
 export type DclDeclarationWireAction =
   Exclude<DclDeclarationLifecycleAction, 'enable' | 'disable'> | 'submit'
+
+export const dclApprovalStatusText = {
+  DRAFT: '草稿',
+  PENDING: '待审核',
+  APPROVED: '已批准',
+} as const
+
+export const dclApprovalEventActionText = {
+  CREATED: '创建',
+  SAVED: '保存',
+  SUBMITTED: '提交审核',
+  UNSUBMITTED: '撤回提交',
+  REJECTED: '审核驳回',
+  APPROVED: '审核通过',
+  UNAPPROVED: '撤销批准',
+  DELETED: '删除草稿',
+  MERGED: '主体合并',
+} as const
 
 export type DclDeclarationActionState = {
   status: 'DRAFT' | 'PENDING' | 'APPROVED'
@@ -86,6 +106,8 @@ export function isDclDeclarationEntity(
     entity === 'fund-account' ||
     entity === 'product' ||
     entity === 'employee' ||
+    entity === 'customer' ||
+    entity === 'customer-account' ||
     entity === 'supplier' ||
     entity === 'other-unit' ||
     entity === 'sales-partner'

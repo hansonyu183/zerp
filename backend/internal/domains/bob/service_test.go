@@ -396,7 +396,7 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 		t.Fatalf("validate customer: %v", err)
 	}
 	if customer.CustomerType != CustomerTypeEndUser || customer.TaxNumber != "AB-123" ||
-		customer.Email != "sales@example.com" || customer.RebateUnitPrice != "0" {
+		customer.Email != "sales@example.com" {
 		t.Fatalf("normalized customer = %+v", customer)
 	}
 
@@ -434,10 +434,6 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 		}},
 		{"invalid monthly closing day", EntityCustomer, CreateDetailInput{
 			Code: "CUSTOMER-6", Name: "客户", MonthlyClosingDay: 32,
-			SalespersonEmployeeID: "01J00000000000000000000021",
-		}},
-		{"invalid rebate unit price", EntityCustomer, CreateDetailInput{
-			Code: "CUSTOMER-7", Name: "客户", RebateUnitPrice: "-0.01",
 			SalespersonEmployeeID: "01J00000000000000000000021",
 		}},
 		{"invalid date", EntityEmployee, CreateDetailInput{
@@ -479,7 +475,6 @@ func TestCommonAttributeSaveOmissionAndExplicitClear(t *testing.T) {
 		TaxNumber: "TAX001", CategoryID: "01J00000000000000000000020",
 		SettlementMethodID:    "01J00000000000000000000021",
 		SalespersonEmployeeID: "01J00000000000000000000022",
-		RebateUnitPrice:       "0.35",
 	}
 	var omitted DetailInput
 	if err := json.Unmarshal([]byte(`{"name":"更新客户"}`), &omitted); err != nil {
@@ -487,21 +482,19 @@ func TestCommonAttributeSaveOmissionAndExplicitClear(t *testing.T) {
 	}
 	merged := mergeDetailInput(current, omitted)
 	if merged.ShortName != "简称" || merged.TaxNumber != "TAX001" || merged.CategoryID == "" ||
-		merged.SettlementMethodID == "" || merged.SalespersonEmployeeID == "" ||
-		merged.RebateUnitPrice != "0.35" {
+		merged.SettlementMethodID == "" || merged.SalespersonEmployeeID == "" {
 		t.Fatalf("omitted fields were not preserved: %+v", merged)
 	}
 
 	var cleared DetailInput
 	if err := json.Unmarshal([]byte(
-		`{"name":"更新客户","shortName":null,"taxNumber":"","settlementMethodId":null,"salespersonEmployeeId":"","rebateUnitPrice":"0.20"}`,
+		`{"name":"更新客户","shortName":null,"taxNumber":"","settlementMethodId":null,"salespersonEmployeeId":""}`,
 	), &cleared); err != nil {
 		t.Fatalf("decode clear input: %v", err)
 	}
 	merged = mergeDetailInput(current, cleared)
 	if merged.ShortName != "" || merged.TaxNumber != "" || merged.CategoryID == "" ||
-		merged.SettlementMethodID != "" || merged.SalespersonEmployeeID != "" ||
-		merged.RebateUnitPrice != "0.20" {
+		merged.SettlementMethodID != "" || merged.SalespersonEmployeeID != "" {
 		t.Fatalf("explicit clear failed: %+v", merged)
 	}
 	if _, err := validateDetailData(EntityCustomer, merged); !errorIsKind(err, ErrorValidation) {

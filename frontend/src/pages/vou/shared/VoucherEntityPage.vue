@@ -527,7 +527,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     :items="[
                       { title: '提成', value: 'COMMISSION' },
                       { title: '居间', value: 'INTERMEDIARY' },
-                      { title: '返点', value: 'REBATE' },
                     ]"
                     label="其他往来分类（可选）"
                     variant="outlined"

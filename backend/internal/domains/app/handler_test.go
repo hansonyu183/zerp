@@ -173,7 +173,7 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 func TestWorkbenchUsesSessionAuthorizationAndCurrentPermissions(t *testing.T) {
 	stub := &handlerServiceStub{authorizeResult: Principal{
 		User:        UserSummary{ID: "user-1"},
-		Permissions: []string{"/bob/customer/query", "/bob/customer/submit"},
+		Permissions: []string{"/dcl/customer/query", "/dcl/customer/submit"},
 	}}
 	request := httptest.NewRequest(
 		http.MethodPost,

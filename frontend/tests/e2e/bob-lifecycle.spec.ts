@@ -149,19 +149,22 @@ test(
     await signIn(page, workerState.operator)
     await page.goto('/dcl/other-unit')
     await expect(
-      page.getByRole('heading', { name: '其他单位申报' }),
+      page.getByRole('textbox', { name: '其他单位编码或主体名称' }),
     ).toBeVisible()
-    await page.getByLabel('新建主体').check()
-    await page.getByLabel('主体名称').fill(partyName)
-    await page
-      .getByLabel('经营主体 ID')
-      .fill(workerState.fixtures.operatingEntityId)
-    await page.getByLabel('联系人').fill('E2E 联系人')
-    await page.getByRole('button', { name: '新建申报' }).click()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
+    const editor = page.locator('.dcl-relationship-drawer')
+    await editor.getByText('选择已有主体', { exact: true }).click()
+    await page.getByRole('option', { name: '新建主体', exact: true }).click()
+    await editor.getByLabel('法定名称').fill(partyName)
+    await selectAutocomplete(page, editor, '经营主体', '上海示例')
+    await editor.getByLabel('联系人').fill('E2E 联系人')
+    await editor.getByRole('button', { name: '保存', exact: true }).click()
 
     const createdRow = page.locator('tbody tr').filter({ hasText: partyName })
     await expect(createdRow).toHaveCount(1)
-    const code = (await createdRow.locator('td').first().textContent())?.trim()
+    const code = (
+      await createdRow.locator('td[data-label="编码"]').textContent()
+    )?.trim()
     expect(code).toMatch(/^OUT-\d{4}$/)
 
     const partyRow = await openPartyDeclarations(page, partyName)

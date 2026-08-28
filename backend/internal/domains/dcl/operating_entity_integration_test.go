@@ -108,7 +108,6 @@ func TestOperatingEntityDeclarationControlsBOBCurrentDataIntegration(t *testing.
 		t.Fatalf("V2 candidate = %+v", v2.Approval)
 	}
 	assertOperatingEntityCurrent(t, business, v1.ObjectID, v1.Approval.ApprovalEntryID, "第一版经营主体", true)
-	assertOperatingEntityCandidateStatusHidden(t, business, "DRAFT")
 
 	v2, err = service.Submit(t.Context(), OperatingEntityVersionInput{
 		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID, ApprovalRevision: v2.Approval.Revision,
@@ -117,7 +116,6 @@ func TestOperatingEntityDeclarationControlsBOBCurrentDataIntegration(t *testing.
 		t.Fatalf("submit V2: %v", err)
 	}
 	assertOperatingEntityCurrent(t, business, v1.ObjectID, v1.Approval.ApprovalEntryID, "第一版经营主体", true)
-	assertOperatingEntityCandidateStatusHidden(t, business, "PENDING")
 
 	v2, err = service.Approve(t.Context(), OperatingEntityVersionInput{
 		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID, ApprovalRevision: v2.Approval.Revision,
@@ -447,18 +445,5 @@ func assertOperatingEntityCurrent(
 	}
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].SourceApprovalEntryID != approvalEntryID {
 		t.Fatalf("BOB current page = %+v", page)
-	}
-}
-
-func assertOperatingEntityCandidateStatusHidden(t *testing.T, business *bobdomain.Service, status string) {
-	t.Helper()
-	page, err := business.Query(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.QueryInput{
-		Page: 1, PageSize: 20, Filters: bobdomain.QueryFilters{Status: []string{status}},
-	})
-	if err != nil {
-		t.Fatalf("query BOB current with %s candidate filter: %v", status, err)
-	}
-	if page.Total != 0 || len(page.Items) != 0 {
-		t.Fatalf("BOB current leaked %s candidate: %+v", status, page)
 	}
 }

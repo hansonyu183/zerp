@@ -471,19 +471,41 @@ func (q *Queries) RptListAssetReferences(ctx context.Context, arg RptListAssetRe
 }
 
 const rptListBOBReferences = `-- name: RptListBOBReferences :many
-SELECT object.id, object.code, object.code AS name, count(*) OVER() AS total
-FROM bob_objects object
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
-WHERE object.entity = $1 AND ($2::text = '' OR object.id = $2 OR object.code ILIKE '%' || $3 || '%')
-ORDER BY (object.id = $2 AND $2::text <> '') DESC, object.code OFFSET $4 LIMIT $5
+WITH current_references AS (
+  SELECT object.id, object.code, object.code AS name
+  FROM bob_objects object
+  WHERE object.entity=$5
+    AND CASE object.entity
+      WHEN 'customer-account' THEN EXISTS (SELECT 1 FROM bob_customer_account_currents current WHERE current.object_id=object.id)
+      WHEN 'supplier' THEN EXISTS (SELECT 1 FROM bob_suppliers current WHERE current.object_id=object.id)
+      WHEN 'other-unit' THEN EXISTS (SELECT 1 FROM bob_other_units current WHERE current.object_id=object.id)
+      WHEN 'employee' THEN EXISTS (SELECT 1 FROM bob_employees current WHERE current.object_id=object.id)
+      WHEN 'sales-partner' THEN EXISTS (SELECT 1 FROM bob_sales_partners current WHERE current.object_id=object.id)
+      WHEN 'product' THEN EXISTS (SELECT 1 FROM bob_products current WHERE current.object_id=object.id)
+      WHEN 'warehouse' THEN EXISTS (SELECT 1 FROM bob_warehouses current WHERE current.object_id=object.id)
+      WHEN 'fund-account' THEN EXISTS (SELECT 1 FROM bob_fund_accounts current WHERE current.object_id=object.id)
+      ELSE false
+    END
+  UNION ALL
+  SELECT object.id, object.code, object.data->>'name' AS name
+  FROM aux_objects object
+  WHERE $5::text='department' AND object.entity='department'
+    AND (object.enabled OR object.id=$1)
+)
+SELECT reference.id, reference.code, reference.name, count(*) OVER() AS total
+FROM current_references reference
+WHERE $1::text='' OR reference.id=$1
+   OR reference.code ILIKE '%'||$2||'%' OR reference.name ILIKE '%'||$2||'%'
+ORDER BY (reference.id=$1 AND $1::text<>'') DESC, reference.code
+OFFSET $3 LIMIT $4
 `
 
 type RptListBOBReferencesParams struct {
-	Entity     string  `db:"entity" json:"entity"`
 	SelectedID string  `db:"selected_id" json:"selected_id"`
 	Keyword    *string `db:"keyword" json:"keyword"`
 	RowOffset  int32   `db:"row_offset" json:"row_offset"`
 	RowLimit   int32   `db:"row_limit" json:"row_limit"`
+	Entity     string  `db:"entity" json:"entity"`
 }
 
 type RptListBOBReferencesRow struct {
@@ -495,11 +517,11 @@ type RptListBOBReferencesRow struct {
 
 func (q *Queries) RptListBOBReferences(ctx context.Context, arg RptListBOBReferencesParams) ([]RptListBOBReferencesRow, error) {
 	rows, err := q.db.Query(ctx, rptListBOBReferences,
-		arg.Entity,
 		arg.SelectedID,
 		arg.Keyword,
 		arg.RowOffset,
 		arg.RowLimit,
+		arg.Entity,
 	)
 	if err != nil {
 		return nil, err

@@ -304,75 +304,30 @@ func Optional(value string) OptionalString {
 	return OptionalString{Value: value, Set: true}
 }
 
-type CreateInput struct {
-	Data CreateDetailInput `json:"data"`
-}
-
-type SaveInput struct {
-	ObjectID         string      `json:"objectId"`
-	ApprovalEntryID  string      `json:"approvalEntryId"`
-	ApprovalRevision int64       `json:"approvalRevision"`
-	Data             DetailInput `json:"data"`
-}
-
-type ObjectRevisionInput struct {
-	ObjectID       string `json:"objectId"`
-	ObjectRevision int64  `json:"objectRevision"`
-}
-
-type ReverseInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Reason           string `json:"reason"`
-}
-
-type VersionRevisionInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-
-type DeleteInput struct {
-	ObjectID         string `json:"objectId"`
-	ObjectRevision   int64  `json:"objectRevision"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-
-type ReviewInput struct {
-	ObjectID         string  `json:"objectId"`
-	ApprovalEntryID  string  `json:"approvalEntryId"`
-	ApprovalRevision int64   `json:"approvalRevision"`
-	Reason           *string `json:"reason"`
-}
-
 type GetInput struct {
-	ObjectID        string `json:"objectId"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+	ObjectID string `json:"objectId"`
 }
 
 type QueryFilters struct {
-	Keyword                    string   `json:"keyword,omitempty"`
-	PartyKind                  string   `json:"kind,omitempty"`
-	Merged                     *bool    `json:"merged,omitempty"`
-	Status                     []string `json:"status,omitempty"`
-	Enabled                    *bool    `json:"enabled,omitempty"`
-	CustomerType               string   `json:"customerType,omitempty"`
-	OperatingEntityID          string   `json:"operatingEntityId,omitempty"`
-	Capability                 string   `json:"capability,omitempty"`
-	SalesAttributionType       string   `json:"salesAttributionType,omitempty"`
-	SalesAttributionSubjectID  string   `json:"salesAttributionSubjectId,omitempty"`
-	CategoryID                 string   `json:"categoryId,omitempty"`
-	DepartmentID               string   `json:"departmentId,omitempty"`
-	PositionID                 string   `json:"positionId,omitempty"`
-	SalespersonEmployeeID      string   `json:"salespersonEmployeeId,omitempty"`
-	DefaultPurchaserEmployeeID string   `json:"defaultPurchaserEmployeeId,omitempty"`
-	Currency                   string   `json:"currency,omitempty"`
-	ProductTypeID              string   `json:"productTypeId,omitempty"`
-	TargetEntity               string   `json:"targetEntity,omitempty"`
-	ParentID                   string   `json:"parentId,omitempty"`
-	RootOnly                   bool     `json:"rootOnly,omitempty"`
+	Keyword                    string `json:"keyword,omitempty"`
+	PartyKind                  string `json:"kind,omitempty"`
+	Merged                     *bool  `json:"merged,omitempty"`
+	Enabled                    *bool  `json:"enabled,omitempty"`
+	CustomerType               string `json:"customerType,omitempty"`
+	OperatingEntityID          string `json:"operatingEntityId,omitempty"`
+	Capability                 string `json:"capability,omitempty"`
+	SalesAttributionType       string `json:"salesAttributionType,omitempty"`
+	SalesAttributionSubjectID  string `json:"salesAttributionSubjectId,omitempty"`
+	CategoryID                 string `json:"categoryId,omitempty"`
+	DepartmentID               string `json:"departmentId,omitempty"`
+	PositionID                 string `json:"positionId,omitempty"`
+	SalespersonEmployeeID      string `json:"salespersonEmployeeId,omitempty"`
+	DefaultPurchaserEmployeeID string `json:"defaultPurchaserEmployeeId,omitempty"`
+	Currency                   string `json:"currency,omitempty"`
+	ProductTypeID              string `json:"productTypeId,omitempty"`
+	TargetEntity               string `json:"targetEntity,omitempty"`
+	ParentID                   string `json:"parentId,omitempty"`
+	RootOnly                   bool   `json:"rootOnly,omitempty"`
 	provided                   map[string]bool
 }
 

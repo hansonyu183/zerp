@@ -94,6 +94,9 @@ func (s *Service) resolveSelectedAuxiliaryReference(
 	if input == nil {
 		return nil, nil
 	}
+	if !newDocument && preserved != nil && input.ObjectID == preserved.ObjectID {
+		return preserved, nil
+	}
 	ref, err := s.auxResolver.ResolveCurrentAuxiliaryReference(ctx, tx, entity, input.ObjectID)
 	if err != nil {
 		return nil, domainError(ErrorConflict, entity+" reference is not approved", nil, err)

@@ -156,7 +156,7 @@ func fundAccountDetail(r dbsqlc.GetBobFundAccountCurrentRow) DetailView {
 }
 
 func (s *Service) getFundAccountCurrent(ctx context.Context, in GetInput) (ObjectView, error) {
-	if !validID(in.ObjectID) || in.ApprovalEntryID != "" {
+	if !validID(in.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid fund account get request", nil, nil)
 	}
 	r, e := s.queries.GetBobFundAccountCurrent(ctx, in.ObjectID)

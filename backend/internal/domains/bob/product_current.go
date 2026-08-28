@@ -105,7 +105,7 @@ func (s *Service) EnsureProductUnapproveAllowed(ctx context.Context, tx pgx.Tx, 
 	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entry)
 }
 func (s *Service) getProductCurrent(ctx context.Context, in GetInput) (ObjectView, error) {
-	if !validID(in.ObjectID) || in.ApprovalEntryID != "" {
+	if !validID(in.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid product get request", nil, nil)
 	}
 	r, err := s.queries.GetBobProductCurrent(ctx, in.ObjectID)

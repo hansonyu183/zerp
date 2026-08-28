@@ -108,9 +108,12 @@ func (s *Service) resolveSelectedAssetCategoryReference(
 	ctx context.Context,
 	tx pgx.Tx,
 	input *ReferenceInput,
-	preserved *bobdomain.EffectiveReference,
+	preserved *bobdomain.AuxiliaryReference,
 	newDocument bool,
 ) (bobdomain.AuxiliaryReference, error) {
+	if !newDocument && preserved != nil && input.ObjectID == preserved.ObjectID {
+		return *preserved, nil
+	}
 	reference, err := s.auxResolver.ResolveCurrentAuxiliaryReference(ctx, tx, auxdomain.EntityAssetCategory, input.ObjectID)
 	if err != nil {
 		return bobdomain.AuxiliaryReference{}, domainError(ErrorConflict, "asset category is not effective", nil, err)
@@ -168,14 +171,27 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 			if err = validateAuxiliaryReference(&line.Department, "department", true); err != nil {
 				return result, err
 			}
-			var savedCustodian *bobdomain.EffectiveReference
+			var savedCategory *bobdomain.AuxiliaryReference
+			var savedDepartment, savedCustodian *bobdomain.EffectiveReference
 			if saved != nil && lineIndex < len(saved.AssetAcquisitionLines) {
 				stored := saved.AssetAcquisitionLines[lineIndex]
+				savedCategory = &bobdomain.AuxiliaryReference{
+					ObjectID: stored.Category.ObjectID, Entity: auxdomain.EntityAssetCategory,
+					Code: stored.Category.Code, Data: map[string]any{
+						"name":                    stored.Category.Name,
+						"defaultUsefulLifeMonths": stored.CategoryDefaultUsefulLifeMonths,
+						"defaultResidualRate":     stored.CategoryDefaultResidualRate,
+					},
+				}
+				savedDepartment = &bobdomain.EffectiveReference{
+					ObjectID: stored.Department.ObjectID, Entity: auxdomain.EntityDepartment,
+					Code: stored.Department.Code, Data: bobdomain.DetailView{Name: stored.Department.Name},
+				}
 				if stored.Custodian != nil {
 					savedCustodian = &bobdomain.EffectiveReference{ObjectID: stored.Custodian.ObjectID, ApprovalEntryID: stored.Custodian.ApprovalEntryID}
 				}
 			}
-			categoryRef, auxErr := s.resolveSelectedAssetCategoryReference(ctx, tx, &line.Category, nil, saved == nil)
+			categoryRef, auxErr := s.resolveSelectedAssetCategoryReference(ctx, tx, &line.Category, savedCategory, saved == nil)
 			if auxErr != nil {
 				return result, auxErr
 			}
@@ -184,7 +200,7 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 			if categoryDefaultRateErr != nil || categoryDefaultUsefulLifeMonths < 1 || categoryDefaultUsefulLifeMonths > 1200 || categoryDefaultResidualRate < 0 || categoryDefaultResidualRate >= 10000 {
 				return result, domainError(ErrorConflict, "asset category defaults are invalid", nil, categoryDefaultRateErr)
 			}
-			departmentRef, auxErr := s.resolveSelectedAuxiliaryReference(ctx, tx, auxdomain.EntityDepartment, &line.Department, nil, saved == nil)
+			departmentRef, auxErr := s.resolveSelectedAuxiliaryReference(ctx, tx, auxdomain.EntityDepartment, &line.Department, savedDepartment, saved == nil)
 			if auxErr != nil {
 				return result, domainError(ErrorConflict, "department is not effective", nil, auxErr)
 			}

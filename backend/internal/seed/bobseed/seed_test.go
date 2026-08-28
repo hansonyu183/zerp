@@ -80,7 +80,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 func TestSeedResumesPartialLifecycle(t *testing.T) {
 	store := newFakeStore()
 	item := samples[0]
-	created, err := store.Create(t.Context(), item.entity, bob.CreateInput{Data: item.data}, mustSeedActor("partial"))
+	created, err := store.Create(t.Context(), item.entity, seedCreateInput{Data: item.data}, mustSeedActor("partial"))
 	if err != nil {
 		t.Fatalf("create partial sample: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestSeedRejectsOccupiedDemoCode(t *testing.T) {
 	item := samples[0]
 	changed := item.data
 	changed.Name = "其他客户"
-	if _, err := store.Create(t.Context(), item.entity, bob.CreateInput{Data: changed}, mustSeedActor("occupied")); err != nil {
+	if _, err := store.Create(t.Context(), item.entity, seedCreateInput{Data: changed}, mustSeedActor("occupied")); err != nil {
 		t.Fatalf("create occupied sample: %v", err)
 	}
 
@@ -165,7 +165,7 @@ func (s *fakeStore) Find(_ context.Context, entity, code string) (string, bool, 
 	return view.ObjectID, found, nil
 }
 
-func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInput, _ approval.Actor) (seedMutation, error) {
+func (s *fakeStore) Create(_ context.Context, entity string, input seedCreateInput, _ approval.Actor) (seedMutation, error) {
 	s.createCalls++
 	s.nextID++
 	objectID := fmt.Sprintf("object-%d", s.nextID)
@@ -247,7 +247,7 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 	return mutation(view), nil
 }
 
-func (s *fakeStore) Get(_ context.Context, _ string, input bob.GetInput) (seedObjectView, error) {
+func (s *fakeStore) Get(_ context.Context, _ string, input seedGetInput) (seedObjectView, error) {
 	recordKey, found := s.byID[input.ObjectID]
 	if !found {
 		return seedObjectView{}, fmt.Errorf("object not found")
@@ -255,7 +255,7 @@ func (s *fakeStore) Get(_ context.Context, _ string, input bob.GetInput) (seedOb
 	return s.byKey[recordKey], nil
 }
 
-func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _ approval.Actor) (seedMutation, error) {
+func (s *fakeStore) Save(_ context.Context, _ string, input seedSaveInput, _ approval.Actor) (seedMutation, error) {
 	s.saveCalls++
 	recordKey, found := s.byID[input.ObjectID]
 	if !found {
@@ -329,27 +329,27 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _ app
 	return mutation(view), nil
 }
 
-func (s *fakeStore) Submit(_ context.Context, _ string, input bob.VersionRevisionInput, _ approval.Actor) (seedMutation, error) {
+func (s *fakeStore) Submit(_ context.Context, _ string, input seedVersionRevisionInput, _ approval.Actor) (seedMutation, error) {
 	s.submitCalls++
 	return s.transition(input.ObjectID, approval.StatusPending), nil
 }
 
-func (s *fakeStore) Unsubmit(_ context.Context, _ string, input bob.ReverseInput, _ approval.Actor) (seedMutation, error) {
+func (s *fakeStore) Unsubmit(_ context.Context, _ string, input seedReverseInput, _ approval.Actor) (seedMutation, error) {
 	s.unsubmitCalls++
 	return s.transition(input.ObjectID, approval.StatusDraft), nil
 }
 
-func (s *fakeStore) Approve(_ context.Context, _ string, input bob.ReviewInput, _ approval.Actor) (seedMutation, error) {
+func (s *fakeStore) Approve(_ context.Context, _ string, input seedReviewInput, _ approval.Actor) (seedMutation, error) {
 	s.approveCalls++
 	return s.transition(input.ObjectID, approval.StatusApproved), nil
 }
 
-func (s *fakeStore) Unapprove(_ context.Context, _ string, input bob.ReverseInput, _ approval.Actor) (seedMutation, error) {
+func (s *fakeStore) Unapprove(_ context.Context, _ string, input seedReverseInput, _ approval.Actor) (seedMutation, error) {
 	s.unapproveCalls++
 	return s.transition(input.ObjectID, approval.StatusPending), nil
 }
 
-func (s *fakeStore) Reject(_ context.Context, _ string, input bob.ReviewInput, _ approval.Actor) (seedMutation, error) {
+func (s *fakeStore) Reject(_ context.Context, _ string, input seedReviewInput, _ approval.Actor) (seedMutation, error) {
 	s.rejectCalls++
 	return s.transition(input.ObjectID, approval.StatusDraft), nil
 }

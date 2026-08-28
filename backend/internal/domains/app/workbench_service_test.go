@@ -59,20 +59,11 @@ func TestWorkbenchIncludesDCLDeclarationLifecycles(t *testing.T) {
 	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account"}) {
 		t.Fatalf("DCL submit entities = %v", entities)
 	}
-	if domain := workbenchApprovalDomain("party"); domain != "dcl" {
-		t.Fatalf("Party workbench domain = %q", domain)
-	}
-	if domain := workbenchApprovalDomain("employee"); domain != "dcl" {
-		t.Fatalf("Employee workbench domain = %q", domain)
-	}
-	if domain := workbenchApprovalDomain("supplier"); domain != "dcl" {
-		t.Fatalf("Supplier workbench domain = %q", domain)
-	}
-	if domain := workbenchApprovalDomain("other-unit"); domain != "dcl" {
-		t.Fatalf("Other-unit workbench domain = %q", domain)
-	}
-	if domain := workbenchApprovalDomain("sales-partner"); domain != "dcl" {
-		t.Fatalf("Sales-partner workbench domain = %q", domain)
+	legacyScope := newWorkbenchPermissionScope([]string{"/bob/party/query", "/bob/party/submit"})
+	if legacy := appendDCLWorkbenchEntities(legacyScope, nil, func(domain, entity string) bool {
+		return legacyScope.can(domain, entity, "submit")
+	}); len(legacy) != 0 {
+		t.Fatalf("legacy BOB lifecycle permissions leaked into workbench: %v", legacy)
 	}
 }
 

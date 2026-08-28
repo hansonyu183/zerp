@@ -19,11 +19,33 @@ WHERE (sqlc.arg(selected_id)::text = '' OR id = sqlc.arg(selected_id) OR bill_no
 ORDER BY (id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, bill_no OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 
 -- name: RptListBOBReferences :many
-SELECT object.id, object.code, object.code AS name, count(*) OVER() AS total
-FROM bob_objects object
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
-WHERE object.entity = sqlc.arg(entity) AND (sqlc.arg(selected_id)::text = '' OR object.id = sqlc.arg(selected_id) OR object.code ILIKE '%' || sqlc.arg(keyword) || '%')
-ORDER BY (object.id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, object.code OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
+WITH current_references AS (
+  SELECT object.id, object.code, object.code AS name
+  FROM bob_objects object
+  WHERE object.entity=sqlc.arg(entity)
+    AND CASE object.entity
+      WHEN 'customer-account' THEN EXISTS (SELECT 1 FROM bob_customer_account_currents current WHERE current.object_id=object.id)
+      WHEN 'supplier' THEN EXISTS (SELECT 1 FROM bob_suppliers current WHERE current.object_id=object.id)
+      WHEN 'other-unit' THEN EXISTS (SELECT 1 FROM bob_other_units current WHERE current.object_id=object.id)
+      WHEN 'employee' THEN EXISTS (SELECT 1 FROM bob_employees current WHERE current.object_id=object.id)
+      WHEN 'sales-partner' THEN EXISTS (SELECT 1 FROM bob_sales_partners current WHERE current.object_id=object.id)
+      WHEN 'product' THEN EXISTS (SELECT 1 FROM bob_products current WHERE current.object_id=object.id)
+      WHEN 'warehouse' THEN EXISTS (SELECT 1 FROM bob_warehouses current WHERE current.object_id=object.id)
+      WHEN 'fund-account' THEN EXISTS (SELECT 1 FROM bob_fund_accounts current WHERE current.object_id=object.id)
+      ELSE false
+    END
+  UNION ALL
+  SELECT object.id, object.code, object.data->>'name' AS name
+  FROM aux_objects object
+  WHERE sqlc.arg(entity)::text='department' AND object.entity='department'
+    AND (object.enabled OR object.id=sqlc.arg(selected_id))
+)
+SELECT reference.id, reference.code, reference.name, count(*) OVER() AS total
+FROM current_references reference
+WHERE sqlc.arg(selected_id)::text='' OR reference.id=sqlc.arg(selected_id)
+   OR reference.code ILIKE '%'||sqlc.arg(keyword)||'%' OR reference.name ILIKE '%'||sqlc.arg(keyword)||'%'
+ORDER BY (reference.id=sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text<>'') DESC, reference.code
+OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 
 -- RPT owns only stable definition identity and version payload. Approval owns lifecycle.
 -- name: RptQueryDefinitions :many

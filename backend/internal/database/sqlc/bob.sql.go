@@ -242,18 +242,15 @@ WHERE object.entity='operating-entity'
   AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
        OR current.legal_name ILIKE '%'||$1::text||'%')
   AND ($2::integer=-1 OR current.enabled=($2::integer=1))
-  AND (cardinality($3::text[])=0
-       OR approved.status=ANY($3::text[]))
 `
 
 type CountBobOperatingEntitiesParams struct {
-	Keyword       string   `db:"keyword" json:"keyword"`
-	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
 }
 
 func (q *Queries) CountBobOperatingEntities(ctx context.Context, arg CountBobOperatingEntitiesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countBobOperatingEntities, arg.Keyword, arg.EnabledFilter, arg.StatusFilter)
+	row := q.db.QueryRow(ctx, countBobOperatingEntities, arg.Keyword, arg.EnabledFilter)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -3365,31 +3362,24 @@ WHERE object.entity='operating-entity'
   AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
        OR current.legal_name ILIKE '%'||$1::text||'%')
   AND ($2::integer=-1 OR current.enabled=($2::integer=1))
-  AND (cardinality($3::text[])=0
-       OR approved.status=ANY($3::text[]))
 ORDER BY
-  CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN current.updated_at END ASC,
-  CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN current.updated_at END DESC,
-  CASE WHEN $4::text='code' AND $5::text='asc' THEN object.code END ASC,
-  CASE WHEN $4::text='code' AND $5::text='desc' THEN object.code END DESC,
-  CASE WHEN $4::text='name' AND $5::text='asc' THEN current.legal_name END ASC,
-  CASE WHEN $4::text='name' AND $5::text='desc' THEN current.legal_name END DESC,
-  CASE WHEN $4::text='status' AND $5::text='asc' THEN approved.status END ASC,
-  CASE WHEN $4::text='status' AND $5::text='desc' THEN approved.status END DESC,
-  CASE WHEN $4::text='version' AND $5::text='asc' THEN approved.version_no END ASC,
-  CASE WHEN $4::text='version' AND $5::text='desc' THEN approved.version_no END DESC,
+  CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN current.updated_at END ASC,
+  CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN current.updated_at END DESC,
+  CASE WHEN $3::text='code' AND $4::text='asc' THEN object.code END ASC,
+  CASE WHEN $3::text='code' AND $4::text='desc' THEN object.code END DESC,
+  CASE WHEN $3::text='name' AND $4::text='asc' THEN current.legal_name END ASC,
+  CASE WHEN $3::text='name' AND $4::text='desc' THEN current.legal_name END DESC,
   object.id DESC
-LIMIT $7 OFFSET $6
+LIMIT $6 OFFSET $5
 `
 
 type ListBobOperatingEntitiesParams struct {
-	Keyword       string   `db:"keyword" json:"keyword"`
-	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter  []string `db:"status_filter" json:"status_filter"`
-	SortField     string   `db:"sort_field" json:"sort_field"`
-	SortOrder     string   `db:"sort_order" json:"sort_order"`
-	RowOffset     int32    `db:"row_offset" json:"row_offset"`
-	RowLimit      int32    `db:"row_limit" json:"row_limit"`
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+	SortField     string `db:"sort_field" json:"sort_field"`
+	SortOrder     string `db:"sort_order" json:"sort_order"`
+	RowOffset     int32  `db:"row_offset" json:"row_offset"`
+	RowLimit      int32  `db:"row_limit" json:"row_limit"`
 }
 
 type ListBobOperatingEntitiesRow struct {
@@ -3407,7 +3397,6 @@ func (q *Queries) ListBobOperatingEntities(ctx context.Context, arg ListBobOpera
 	rows, err := q.db.Query(ctx, listBobOperatingEntities,
 		arg.Keyword,
 		arg.EnabledFilter,
-		arg.StatusFilter,
 		arg.SortField,
 		arg.SortOrder,
 		arg.RowOffset,

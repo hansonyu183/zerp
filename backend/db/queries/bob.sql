@@ -260,9 +260,7 @@ JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
 WHERE object.entity='operating-entity'
   AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%'
        OR current.legal_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-  AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
-  AND (cardinality(sqlc.arg(status_filter)::text[])=0
-       OR approved.status=ANY(sqlc.arg(status_filter)::text[]));
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1));
 
 -- name: ListBobOperatingEntities :many
 SELECT object.id AS object_id, object.entity, object.code,
@@ -277,8 +275,6 @@ WHERE object.entity='operating-entity'
   AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%'
        OR current.legal_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
   AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
-  AND (cardinality(sqlc.arg(status_filter)::text[])=0
-       OR approved.status=ANY(sqlc.arg(status_filter)::text[]))
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN current.updated_at END ASC,
   CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN current.updated_at END DESC,
@@ -286,10 +282,6 @@ ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN object.code END DESC,
   CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN current.legal_name END ASC,
   CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN current.legal_name END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='asc' THEN approved.status END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='desc' THEN approved.status END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='asc' THEN approved.version_no END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='desc' THEN approved.version_no END DESC,
   object.id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 

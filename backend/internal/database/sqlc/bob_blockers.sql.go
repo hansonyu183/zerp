@@ -10,17 +10,7 @@ import (
 )
 
 const listBobApprovalEntryReferenceCounts = `-- name: ListBobApprovalEntryReferenceCounts :many
-WITH current_bob_entries AS (
-    SELECT entry.id
-    FROM approval_entries entry
-    WHERE entry.domain='bob' AND entry.status='APPROVED'
-      AND NOT EXISTS (
-          SELECT 1 FROM approval_entries newer
-          WHERE newer.domain=entry.domain AND newer.entity=entry.entity
-            AND newer.subject_id=entry.subject_id AND newer.status='APPROVED'
-            AND newer.version_no>entry.version_no
-      )
-), snapshot_references(entity, field, entry_id) AS (
+WITH snapshot_references(entity, field, entry_id) AS (
     SELECT 'customer-account','customer-operating',payload.operating_entity_approval_entry_id
     FROM dcl_customer_account_versions payload
     JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id

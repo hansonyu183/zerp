@@ -13,7 +13,7 @@ import (
 // BOB exposes Suppliers strictly through the approved current projection. DCL
 // owns Supplier candidates and their historical snapshots.
 func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Supplier get request", nil, nil)
 	}
 	r, err := s.queries.GetBobSupplierCurrent(ctx, input.ObjectID)

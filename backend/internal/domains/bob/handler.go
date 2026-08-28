@@ -151,19 +151,11 @@ func (h *Handler) get(c *gin.Context, entity string) {
 	var input GetInput
 	if h.bind(c, &input) {
 		if entity == EntityCustomer {
-			if input.ApprovalEntryID != "" {
-				h.writeError(c, domainError(ErrorValidation, "BOB customer get reads only current projection", nil, nil))
-				return
-			}
 			result, err := h.service.CustomerCurrentGet(c.Request.Context(), input.ObjectID)
 			h.result(c, result, err)
 			return
 		}
 		if entity == EntityCustomerAccount {
-			if input.ApprovalEntryID != "" {
-				h.writeError(c, domainError(ErrorValidation, "BOB customer account get reads only current projection", nil, nil))
-				return
-			}
 			result, err := h.service.CustomerAccountCurrentGet(c.Request.Context(), input.ObjectID)
 			h.result(c, result, err)
 			return

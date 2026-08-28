@@ -49,6 +49,42 @@ type seedObjectView struct {
 	UpdatedAt      time.Time
 }
 
+type seedCreateInput struct {
+	Data bob.CreateDetailInput
+}
+
+type seedGetInput struct {
+	ObjectID        string
+	ApprovalEntryID string
+}
+
+type seedSaveInput struct {
+	ObjectID         string
+	ApprovalEntryID  string
+	ApprovalRevision int64
+	Data             bob.DetailInput
+}
+
+type seedVersionRevisionInput struct {
+	ObjectID         string
+	ApprovalEntryID  string
+	ApprovalRevision int64
+}
+
+type seedReverseInput struct {
+	ObjectID         string
+	ApprovalEntryID  string
+	ApprovalRevision int64
+	Reason           string
+}
+
+type seedReviewInput struct {
+	ObjectID         string
+	ApprovalEntryID  string
+	ApprovalRevision int64
+	Reason           *string
+}
+
 func errorChain(err error) string {
 	chain := ""
 	for err != nil {
@@ -82,14 +118,14 @@ func mustReviewerActor(requestID string) approval.Actor {
 }
 
 type lifecycleService interface {
-	Create(context.Context, string, bob.CreateInput, approval.Actor) (seedMutation, error)
-	Get(context.Context, string, bob.GetInput) (seedObjectView, error)
-	Save(context.Context, string, bob.SaveInput, approval.Actor) (seedMutation, error)
-	Submit(context.Context, string, bob.VersionRevisionInput, approval.Actor) (seedMutation, error)
-	Unsubmit(context.Context, string, bob.ReverseInput, approval.Actor) (seedMutation, error)
-	Approve(context.Context, string, bob.ReviewInput, approval.Actor) (seedMutation, error)
-	Unapprove(context.Context, string, bob.ReverseInput, approval.Actor) (seedMutation, error)
-	Reject(context.Context, string, bob.ReviewInput, approval.Actor) (seedMutation, error)
+	Create(context.Context, string, seedCreateInput, approval.Actor) (seedMutation, error)
+	Get(context.Context, string, seedGetInput) (seedObjectView, error)
+	Save(context.Context, string, seedSaveInput, approval.Actor) (seedMutation, error)
+	Submit(context.Context, string, seedVersionRevisionInput, approval.Actor) (seedMutation, error)
+	Unsubmit(context.Context, string, seedReverseInput, approval.Actor) (seedMutation, error)
+	Approve(context.Context, string, seedReviewInput, approval.Actor) (seedMutation, error)
+	Unapprove(context.Context, string, seedReverseInput, approval.Actor) (seedMutation, error)
+	Reject(context.Context, string, seedReviewInput, approval.Actor) (seedMutation, error)
 }
 
 type relationshipAwareLifecycleService struct {
@@ -110,7 +146,7 @@ type relationshipAwareLifecycleService struct {
 }
 
 func (service relationshipAwareLifecycleService) Create(
-	ctx context.Context, entity string, input bob.CreateInput, actor approval.Actor,
+	ctx context.Context, entity string, input seedCreateInput, actor approval.Actor,
 ) (seedMutation, error) {
 	if entity == bob.EntityProduct {
 		result, err := service.products.Create(ctx, dcldomain.ProductCreateInput{Data: productData(input.Data)}, actor)
@@ -236,7 +272,7 @@ func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context
 }
 
 func (service relationshipAwareLifecycleService) Save(
-	ctx context.Context, entity string, input bob.SaveInput, actor approval.Actor,
+	ctx context.Context, entity string, input seedSaveInput, actor approval.Actor,
 ) (seedMutation, error) {
 	if entity == bob.EntityProduct {
 		view, err := service.products.Get(ctx, dcldomain.ProductGetInput{
@@ -405,7 +441,7 @@ func (service relationshipAwareLifecycleService) Save(
 }
 
 func (service relationshipAwareLifecycleService) Get(
-	ctx context.Context, entity string, input bob.GetInput,
+	ctx context.Context, entity string, input seedGetInput,
 ) (seedObjectView, error) {
 	if entity == bob.EntityProduct {
 		view, err := service.products.Get(ctx, dcldomain.ProductGetInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID}, mustSeedActor("seed-bob-product-get"))
@@ -462,7 +498,7 @@ func (service relationshipAwareLifecycleService) Get(
 			Remark: view.Data.Remark, SettlementMethodID: view.Data.SettlementMethodID}}, nil
 }
 
-func (service relationshipAwareLifecycleService) Submit(ctx context.Context, entity string, input bob.VersionRevisionInput, actor approval.Actor) (seedMutation, error) {
+func (service relationshipAwareLifecycleService) Submit(ctx context.Context, entity string, input seedVersionRevisionInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomerAccount {
 		if err := service.approveCustomerRelationship(ctx, input.ObjectID, actor); err != nil {
 			return seedMutation{}, err
@@ -647,7 +683,7 @@ func (service relationshipAwareLifecycleService) supplierPartyID(ctx context.Con
 	return identity.PartyID, nil
 }
 
-func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (seedMutation, error) {
+func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input seedReverseInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomerAccount {
 		result, err := service.customerAccounts.Unsubmit(ctx, dcldomain.CustomerAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return customerAccountMutation(result), err
@@ -699,7 +735,7 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 	return operatingEntityMutation(result), err
 }
 
-func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (seedMutation, error) {
+func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input seedReviewInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomerAccount {
 		result, err := service.customerAccounts.Approve(ctx, dcldomain.CustomerAccountVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return customerAccountMutation(result), err
@@ -743,7 +779,7 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 	return operatingEntityMutation(result), err
 }
 
-func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (seedMutation, error) {
+func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input seedReverseInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomerAccount {
 		result, err := service.customerAccounts.Unapprove(ctx, dcldomain.CustomerAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return customerAccountMutation(result), err
@@ -795,7 +831,7 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 	return operatingEntityMutation(result), err
 }
 
-func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (seedMutation, error) {
+func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input seedReviewInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomerAccount {
 		reason := ""
 		if input.Reason != nil {
@@ -1432,7 +1468,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		material, getErr := s.service.Get(
 			ctx,
 			bob.EntityProduct,
-			bob.GetInput{ObjectID: materialObjectID},
+			seedGetInput{ObjectID: materialObjectID},
 		)
 		if getErr != nil {
 			return 0, fmt.Errorf("get formula material: %w", getErr)
@@ -1459,7 +1495,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 	var current seedMutation
 	outcome := outcomeCreated
 	if found {
-		view, getErr := s.service.Get(ctx, item.entity, bob.GetInput{ObjectID: objectID})
+		view, getErr := s.service.Get(ctx, item.entity, seedGetInput{ObjectID: objectID})
 		if getErr != nil {
 			return 0, fmt.Errorf("get existing object: %w", getErr)
 		}
@@ -1489,7 +1525,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		current, err = s.service.Create(
 			ctx,
 			item.entity,
-			bob.CreateInput{Data: item.data},
+			seedCreateInput{Data: item.data},
 			mustSeedActor(requestID(item.data.Code, "create")),
 		)
 		if err != nil {
@@ -1498,7 +1534,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 	}
 
 	if current.Approval.Status == approval.StatusDraft && item.status != string(current.Approval.Status) {
-		current, err = s.service.Submit(ctx, item.entity, bob.VersionRevisionInput{
+		current, err = s.service.Submit(ctx, item.entity, seedVersionRevisionInput{
 			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
 			ApprovalRevision: current.Approval.Revision,
 		}, mustSeedActor(requestID(item.data.Code, "submit")))
@@ -1512,7 +1548,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		return outcome, nil
 	case current.Approval.Status == approval.StatusPending && item.status == approvedStatus:
 		reason := "演示数据：审核通过"
-		_, err = s.service.Approve(ctx, item.entity, bob.ReviewInput{
+		_, err = s.service.Approve(ctx, item.entity, seedReviewInput{
 			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
 			ApprovalRevision: current.Approval.Revision, Reason: &reason,
 		}, mustReviewerActor(requestID(item.data.Code, "approve")))
@@ -1702,7 +1738,7 @@ func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view seedOb
 		Approval: view.Approval,
 	}
 	if item.entity == bob.EntitySupplier && string(current.Approval.Status) == approvedStatus {
-		saved, err := s.service.Save(ctx, item.entity, bob.SaveInput{
+		saved, err := s.service.Save(ctx, item.entity, seedSaveInput{
 			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
 			ApprovalRevision: current.Approval.Revision,
 			Data:             detailInput(item.entity, item.data),
@@ -1715,13 +1751,13 @@ func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view seedOb
 	var err error
 	switch current.Approval.Status {
 	case approval.StatusApproved:
-		current, err = s.service.Unapprove(ctx, item.entity, bob.ReverseInput{
+		current, err = s.service.Unapprove(ctx, item.entity, seedReverseInput{
 			ObjectID:        current.ObjectID,
 			ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision,
 			Reason: "演示数据：撤销批准后补齐属性",
 		}, mustSeedActor(requestID(item.data.Code, "upgrade-unapprove")))
 		if err == nil {
-			current, err = s.service.Unsubmit(ctx, item.entity, bob.ReverseInput{
+			current, err = s.service.Unsubmit(ctx, item.entity, seedReverseInput{
 				ObjectID:        current.ObjectID,
 				ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision,
 				Reason: "演示数据：退回草稿补齐属性",
@@ -1729,7 +1765,7 @@ func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view seedOb
 		}
 	case approval.StatusPending:
 		reason := "演示数据：补齐新增属性"
-		current, err = s.service.Reject(ctx, item.entity, bob.ReviewInput{
+		current, err = s.service.Reject(ctx, item.entity, seedReviewInput{
 			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
 			ApprovalRevision: current.Approval.Revision, Reason: &reason,
 		}, mustReviewerActor(requestID(item.data.Code, "upgrade-reject")))
@@ -1740,7 +1776,7 @@ func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view seedOb
 	if err != nil {
 		return seedMutation{}, fmt.Errorf("prepare demo data upgrade: %w", err)
 	}
-	saved, err := s.service.Save(ctx, item.entity, bob.SaveInput{
+	saved, err := s.service.Save(ctx, item.entity, seedSaveInput{
 		ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
 		ApprovalRevision: current.Approval.Revision,
 		Data:             detailInput(item.entity, item.data),

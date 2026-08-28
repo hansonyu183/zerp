@@ -176,7 +176,7 @@ func warehouseData(r dbsqlc.DclWarehouseVersion) WarehouseData {
 }
 
 func (s *Service) getWarehouseCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid warehouse get request", nil, nil)
 	}
 	r, err := s.queries.GetBobWarehouseCurrent(ctx, input.ObjectID)

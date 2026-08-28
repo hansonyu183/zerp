@@ -3,7 +3,9 @@
 package aux
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -127,6 +129,58 @@ func TestDirectDeleteBlockerAndDisabledHistoryIntegration(t *testing.T) {
 	}
 	if err = s.Delete(t.Context(), EntityDepartment, DeleteInput{ObjectID: created.ObjectID, ObjectRevision: disabled.ObjectRevision}, actor); err != nil {
 		t.Fatalf("delete after blocker removal: %v", err)
+	}
+}
+
+func TestReferencedProductTypeBehaviorChangeIsRejectedWithoutMutationIntegration(t *testing.T) {
+	s, pool, actor := directIntegrationService(t)
+	suffix := ulid.Make().String()
+	created, err := s.Create(t.Context(), EntityProductType, CreateInput{Data: CreateData{Data: map[string]any{
+		"name": "被引用产品类型-" + suffix, "behaviorProfile": ProductBehaviorRawMaterial,
+		"description": "原始说明",
+	}}}, actor)
+	if err != nil {
+		t.Fatalf("create product type: %v", err)
+	}
+	entryID, subjectID := ulid.Make().String(), ulid.Make().String()
+	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries
+		(id,domain,entity,subject_id,version_no,status,created_by,created_at,updated_by,updated_at)
+		VALUES($1,'dcl','product',$2,1,'DRAFT',$3,now(),$3,now())`, entryID, subjectID, actor.ID()); err != nil {
+		t.Fatalf("insert product approval entry: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_product_versions
+		(approval_entry_id,name,product_type_id,product_type_code,product_type_name,behavior_profile)
+		VALUES($1,$2,$3,'',$2,$4)`, entryID, "被引用产品", created.ObjectID, ProductBehaviorRawMaterial); err != nil {
+		t.Fatalf("insert product snapshot: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM dcl_product_versions WHERE approval_entry_id=$1`, entryID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_entries WHERE id=$1`, entryID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM aux_objects WHERE id=$1`, created.ObjectID)
+	})
+
+	before, err := s.Get(t.Context(), EntityProductType, GetInput{ObjectID: created.ObjectID}, actor)
+	if err != nil {
+		t.Fatalf("get product type before rejected save: %v", err)
+	}
+	_, err = s.Save(t.Context(), EntityProductType, SaveInput{
+		ObjectID: created.ObjectID, ObjectRevision: created.ObjectRevision,
+		Data: map[string]any{
+			"name": "不应落库的名称", "behaviorProfile": ProductBehaviorPackaging,
+			"description": "不应落库的说明",
+		},
+	}, actor)
+	if !errorKind(err, ErrorValidation) {
+		t.Fatalf("referenced behaviorProfile save = %v", err)
+	}
+	after, err := s.Get(t.Context(), EntityProductType, GetInput{ObjectID: created.ObjectID}, actor)
+	if err != nil {
+		t.Fatalf("get product type after rejected save: %v", err)
+	}
+	if after.ObjectRevision != before.ObjectRevision || stringValue(after.Data["name"]) != stringValue(before.Data["name"]) ||
+		fmt.Sprint(after.Data["behaviorProfile"]) != fmt.Sprint(before.Data["behaviorProfile"]) ||
+		stringValue(after.Data["description"]) != stringValue(before.Data["description"]) {
+		t.Fatalf("rejected save mutated product type: before=%+v after=%+v", before, after)
 	}
 }
 

@@ -590,7 +590,7 @@ func otherUnitCurrentView(r dbsqlc.GetBobOtherUnitCurrentRow) ObjectView {
 	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, Data: DetailView{ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset}}
 }
 func (s *Service) getOtherUnitCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Other Unit get request", nil, nil)
 	}
 	r, err := s.queries.GetBobOtherUnitCurrent(ctx, input.ObjectID)
@@ -603,7 +603,7 @@ func (s *Service) getOtherUnitCurrent(ctx context.Context, input GetInput) (Obje
 	return otherUnitCurrentView(r), nil
 }
 func (s *Service) getSalesPartnerCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Sales Partner get request", nil, nil)
 	}
 	r, err := s.queries.GetBobSalesPartnerCurrent(ctx, input.ObjectID)

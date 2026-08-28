@@ -193,7 +193,7 @@ func vehicleDataFromCurrent(r dbsqlc.GetBobVehicleCurrentRow) VehicleData {
 }
 
 func (s *Service) getVehicleCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid vehicle get request", nil, nil)
 	}
 	r, err := s.queries.GetBobVehicleCurrent(ctx, input.ObjectID)

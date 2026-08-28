@@ -532,7 +532,7 @@ func TestBobAuxiliaryCurrentReferenceBoundaryIntegration(t *testing.T) {
 	}
 	page, err := bobService.Query(t.Context(), bob.EntityProduct, bob.QueryInput{
 		Page: 1, PageSize: 20,
-		Filters: bob.QueryFilters{Keyword: formalName, CategoryID: formalCategory.ObjectID, Status: []string{string(approval.StatusApproved)}},
+		Filters: bob.QueryFilters{Keyword: formalName, CategoryID: formalCategory.ObjectID},
 	})
 	if err != nil {
 		t.Fatalf("query formal product by category: %v", err)

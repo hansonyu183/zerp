@@ -249,7 +249,7 @@ func employeeDetailFromCurrent(row dbsqlc.GetBobEmployeeCurrentRow) DetailView {
 }
 
 func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
-	if !validID(input.ObjectID) || input.ApprovalEntryID != "" {
+	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Employee get request", nil, nil)
 	}
 	row, err := s.queries.GetBobEmployeeCurrent(ctx, input.ObjectID)

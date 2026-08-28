@@ -34,7 +34,7 @@ func TestAssetCategoryDefaultsAreAdoptedIntoImmutableAssetSnapshotsIntegration(t
 	categoryV1, categories, categoryApproved := createApprovedAuxiliaryReference(t, pool, auxdomain.EntityAssetCategory, map[string]any{
 		"name": "快照类别 V1", "defaultUsefulLifeMonths": 60, "defaultResidualRate": "5.00",
 	}, "asset-category-v1")
-	department, _, _ := createApprovedAuxiliaryReference(t, pool, auxdomain.EntityDepartment, map[string]any{
+	department, departments, departmentCreated := createApprovedAuxiliaryReference(t, pool, auxdomain.EntityDepartment, map[string]any{
 		"name": "资产使用部门",
 	}, "asset-department")
 	draft := func(category ReferenceInput) DraftInput {
@@ -70,6 +70,9 @@ func TestAssetCategoryDefaultsAreAdoptedIntoImmutableAssetSnapshotsIntegration(t
 		if line.UsefulLifeMonths != 84 || line.ResidualRate != "1.25" {
 			t.Fatalf("asset-specific depreciation values = %+v, want explicit overrides", line)
 		}
+		if line.Department.ObjectID != department.ObjectID || line.Department.Name != "资产使用部门" {
+			t.Fatalf("stored department snapshot = %+v", line.Department)
+		}
 	}
 	assertV1Snapshot()
 
@@ -83,12 +86,36 @@ func TestAssetCategoryDefaultsAreAdoptedIntoImmutableAssetSnapshotsIntegration(t
 		t.Fatalf("save asset category V2: %v", err)
 	}
 	categoryV2 := categoryV2Draft
+	savedAfterRename, err := vouchers.Save(t.Context(), EntityAssetAcquisition, SaveInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision, Data: draft(categoryV1),
+	}, integrationApprovalActor(t, integrationActorOne, "asset-snapshot-save-after-category-rename"))
+	if err != nil {
+		t.Fatalf("save existing acquisition after category rename: %v", err)
+	}
 	assertV1Snapshot()
+
+	departmentRenamed, err := departments.Save(t.Context(), auxdomain.EntityDepartment, auxdomain.SaveInput{
+		ObjectID: department.ObjectID, ObjectRevision: departmentCreated.ObjectRevision,
+		Data: map[string]any{"name": "资产使用部门 V2"},
+	}, trustedIntegrationActor(t, "asset-department-v2-save"))
+	if err != nil {
+		t.Fatalf("rename department: %v", err)
+	}
 
 	if _, err = categories.Disable(t.Context(), auxdomain.EntityAssetCategory, auxdomain.ObjectRevisionInput{
 		ObjectID: categoryV2.ObjectID, ObjectRevision: categoryV2.ObjectRevision,
 	}, trustedIntegrationActor(t, "asset-category-disable")); err != nil {
 		t.Fatalf("disable asset category: %v", err)
+	}
+	if _, err = departments.Disable(t.Context(), auxdomain.EntityDepartment, auxdomain.ObjectRevisionInput{
+		ObjectID: departmentRenamed.ObjectID, ObjectRevision: departmentRenamed.ObjectRevision,
+	}, trustedIntegrationActor(t, "asset-department-disable")); err != nil {
+		t.Fatalf("disable department: %v", err)
+	}
+	if _, err = vouchers.Save(t.Context(), EntityAssetAcquisition, SaveInput{
+		DocumentID: created.DocumentID, Revision: savedAfterRename.Approval.Revision, Data: draft(categoryV1),
+	}, integrationApprovalActor(t, integrationActorOne, "asset-snapshot-save-after-aux-disable")); err != nil {
+		t.Fatalf("save existing acquisition after AUX disable: %v", err)
 	}
 	assertV1Snapshot()
 

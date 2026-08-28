@@ -719,7 +719,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	input.DefaultPurchaserEmployeeID = strings.TrimSpace(input.DefaultPurchaserEmployeeID)
 	input.OperatingEntityID = strings.TrimSpace(input.OperatingEntityID)
 	input.ParentID = strings.TrimSpace(input.ParentID)
-	if utf8.RuneCountInString(input.Keyword) > 128 || len(input.Status) > 5 ||
+	if utf8.RuneCountInString(input.Keyword) > 128 ||
 		(input.PartyKind != "" && input.PartyKind != PartyKindPerson && input.PartyKind != PartyKindOrganization) ||
 		(input.CustomerType != "" && !validCustomerType(input.CustomerType)) ||
 		(input.Currency != "" && !currencyPattern.MatchString(input.Currency)) ||

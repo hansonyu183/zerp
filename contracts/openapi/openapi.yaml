@@ -8739,9 +8739,7 @@
                       'application/json':
                         {
                           'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/BobQueryRequest',
-                            },
+                            { '$ref': './schemas/bob.yaml#/BobQueryRequest' },
                         },
                     },
                 },

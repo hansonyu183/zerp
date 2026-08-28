@@ -229,7 +229,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 			($1, '工作台待核对', $4, $5, $6, $7),
 			($2, '工作台待批准', $4, $5, $6, $7),
 			($3, '工作台待完成', $4, $5, $6, $7)
-	`, documentIDs[0], documentIDs[1], documentIDs[2], fund.ObjectID, fundView.Approval.ApprovalEntryID, fundView.Code, fundView.Data.Name); err != nil {
+	`, documentIDs[0], documentIDs[1], documentIDs[2], fund.ObjectID, fundView.SourceApprovalEntryID, fundView.Code, fundView.Data.Name); err != nil {
 		t.Fatalf("insert workbench voucher details: %v", err)
 	}
 	if err = tx.Commit(t.Context()); err != nil {

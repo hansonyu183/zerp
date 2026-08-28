@@ -1,30 +1,12 @@
 package bob
 
-import (
-	"time"
-
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
-	"github.com/jackc/pgx/v5/pgtype"
-)
-
-func approvalMeta(entry dbsqlc.ApprovalEntry) approval.VersionMeta {
-	versionNo := int32(0)
-	if entry.VersionNo != nil {
-		versionNo = *entry.VersionNo
+func versionNumber(value *int32) int32 {
+	if value == nil {
+		return 0
 	}
-	return approval.VersionMeta{ApprovalEntryID: entry.ID, VersionNo: versionNo, Status: approval.Status(entry.Status), Revision: entry.Revision,
-		CreatedBy: entry.CreatedBy, CreatedAt: entry.CreatedAt.Time, UpdatedBy: entry.UpdatedBy, UpdatedAt: entry.UpdatedAt.Time,
-		SubmittedBy: entry.SubmittedBy, SubmittedAt: timePointer(entry.SubmittedAt), ApprovedBy: entry.ApprovedBy, ApprovedAt: timePointer(entry.ApprovedAt)}
+	return *value
 }
 
-func timePointer(value pgtype.Timestamptz) *time.Time {
-	if !value.Valid {
-		return nil
-	}
-	result := value.Time
-	return &result
-}
 func deref(value *string) string {
 	if value == nil {
 		return ""

@@ -170,12 +170,12 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 		if err != nil {
 			return voudomain.ReferenceInput{}, fmt.Errorf("get BOB demo object %s: %w", code, err)
 		}
-		if view.Approval.Status != approval.StatusApproved {
+		if view.SourceApprovalEntryID == "" {
 			return voudomain.ReferenceInput{}, fmt.Errorf("BOB demo object %s has no approved version", code)
 		}
 		return voudomain.ReferenceInput{
 			ObjectID:        view.ObjectID,
-			ApprovalEntryID: view.Approval.ApprovalEntryID,
+			ApprovalEntryID: view.SourceApprovalEntryID,
 		}, nil
 	}
 	var refs references

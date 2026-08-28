@@ -134,7 +134,7 @@ func TestDetailInputOnlySetsFieldsAllowedForEntity(t *testing.T) {
 }
 
 type fakeStore struct {
-	byKey          map[string]bob.ObjectView
+	byKey          map[string]seedObjectView
 	byID           map[string]string
 	nextID         int
 	createCalls    int
@@ -148,7 +148,7 @@ type fakeStore struct {
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		byKey: make(map[string]bob.ObjectView),
+		byKey: make(map[string]seedObjectView),
 		byID:  make(map[string]string),
 	}
 }
@@ -165,7 +165,7 @@ func (s *fakeStore) Find(_ context.Context, entity, code string) (string, bool, 
 	return view.ObjectID, found, nil
 }
 
-func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInput, _ approval.Actor) (bob.MutationResult, error) {
+func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInput, _ approval.Actor) (seedMutation, error) {
 	s.createCalls++
 	s.nextID++
 	objectID := fmt.Sprintf("object-%d", s.nextID)
@@ -178,12 +178,12 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 	if entity == bob.EntityCustomerAccount && monthlyClosingDay == 0 {
 		monthlyClosingDay = 31
 	}
-	view := bob.ObjectView{
+	view := seedObjectView{
 		ObjectID:       objectID,
 		Entity:         entity,
 		Code:           input.Data.Code,
 		ObjectRevision: 1,
-		Approval: bob.VersionMeta{
+		Approval: approval.VersionMeta{
 			ApprovalEntryID: approvalEntryID,
 			VersionNo:       1,
 			Status:          approval.StatusDraft,
@@ -247,19 +247,19 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 	return mutation(view), nil
 }
 
-func (s *fakeStore) Get(_ context.Context, _ string, input bob.GetInput) (bob.ObjectView, error) {
+func (s *fakeStore) Get(_ context.Context, _ string, input bob.GetInput) (seedObjectView, error) {
 	recordKey, found := s.byID[input.ObjectID]
 	if !found {
-		return bob.ObjectView{}, fmt.Errorf("object not found")
+		return seedObjectView{}, fmt.Errorf("object not found")
 	}
 	return s.byKey[recordKey], nil
 }
 
-func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _ approval.Actor) (bob.MutationResult, error) {
+func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _ approval.Actor) (seedMutation, error) {
 	s.saveCalls++
 	recordKey, found := s.byID[input.ObjectID]
 	if !found {
-		return bob.MutationResult{}, fmt.Errorf("object not found")
+		return seedMutation{}, fmt.Errorf("object not found")
 	}
 	view := s.byKey[recordKey]
 	customerType := view.Data.CustomerType
@@ -329,32 +329,32 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _ app
 	return mutation(view), nil
 }
 
-func (s *fakeStore) Submit(_ context.Context, _ string, input bob.VersionRevisionInput, _ approval.Actor) (bob.MutationResult, error) {
+func (s *fakeStore) Submit(_ context.Context, _ string, input bob.VersionRevisionInput, _ approval.Actor) (seedMutation, error) {
 	s.submitCalls++
 	return s.transition(input.ObjectID, approval.StatusPending), nil
 }
 
-func (s *fakeStore) Unsubmit(_ context.Context, _ string, input bob.ReverseInput, _ approval.Actor) (bob.MutationResult, error) {
+func (s *fakeStore) Unsubmit(_ context.Context, _ string, input bob.ReverseInput, _ approval.Actor) (seedMutation, error) {
 	s.unsubmitCalls++
 	return s.transition(input.ObjectID, approval.StatusDraft), nil
 }
 
-func (s *fakeStore) Approve(_ context.Context, _ string, input bob.ReviewInput, _ approval.Actor) (bob.MutationResult, error) {
+func (s *fakeStore) Approve(_ context.Context, _ string, input bob.ReviewInput, _ approval.Actor) (seedMutation, error) {
 	s.approveCalls++
 	return s.transition(input.ObjectID, approval.StatusApproved), nil
 }
 
-func (s *fakeStore) Unapprove(_ context.Context, _ string, input bob.ReverseInput, _ approval.Actor) (bob.MutationResult, error) {
+func (s *fakeStore) Unapprove(_ context.Context, _ string, input bob.ReverseInput, _ approval.Actor) (seedMutation, error) {
 	s.unapproveCalls++
 	return s.transition(input.ObjectID, approval.StatusPending), nil
 }
 
-func (s *fakeStore) Reject(_ context.Context, _ string, input bob.ReviewInput, _ approval.Actor) (bob.MutationResult, error) {
+func (s *fakeStore) Reject(_ context.Context, _ string, input bob.ReviewInput, _ approval.Actor) (seedMutation, error) {
 	s.rejectCalls++
 	return s.transition(input.ObjectID, approval.StatusDraft), nil
 }
 
-func (s *fakeStore) transition(objectID string, status approval.Status) bob.MutationResult {
+func (s *fakeStore) transition(objectID string, status approval.Status) seedMutation {
 	recordKey := s.byID[objectID]
 	view := s.byKey[recordKey]
 	view.Approval.Status = status
@@ -363,8 +363,8 @@ func (s *fakeStore) transition(objectID string, status approval.Status) bob.Muta
 	return mutation(view)
 }
 
-func mutation(view bob.ObjectView) bob.MutationResult {
-	return bob.MutationResult{
+func mutation(view seedObjectView) seedMutation {
+	return seedMutation{
 		ObjectID: view.ObjectID, ObjectRevision: view.ObjectRevision, Approval: view.Approval,
 	}
 }

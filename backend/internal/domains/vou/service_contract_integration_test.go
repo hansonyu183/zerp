@@ -98,7 +98,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	if _, err = accounts.Create(t.Context(), dcldomain.CustomerAccountCreateInput{
 		CustomerRelationshipID: customerRelationshipID,
 		Data: dcldomain.CustomerAccountDataInput{
-			Name: "禁止自归属账户", CustomerTypeCode: bobdomain.CustomerTypeEndUser,
+			Name: "禁止自归属账户", CustomerTypeID: bobdomain.CustomerTypeEndUserID,
 			PricingPolicy: dcldomain.CustomerPricingPolicy{
 				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00",
 				ThirdPartyIntermediaryFixedUnitCost: "0.00", ThirdPartyIntermediaryVariableUnitCost: "0.00",

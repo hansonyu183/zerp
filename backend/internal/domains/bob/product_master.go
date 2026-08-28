@@ -68,7 +68,7 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 		if !payloadOK || !entryOK {
 			return Page[QueryItem]{}, s.internal("load product current", pgx.ErrNoRows)
 		}
-		page.Items = append(page.Items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time, LatestApproved: &VersionSummary{Approval: approvalMeta(entry), Summary: productDetailFromRow(payload)}})
+		page.Items = append(page.Items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: productDetailFromRow(payload), UpdatedAt: r.UpdatedAt.Time})
 	}
 	unitConversions, formulas, err := s.loadProductListEnrichments(ctx, versionIDs)
 	if err != nil {
@@ -76,14 +76,9 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 	}
 	for index := range page.Items {
 		item := &page.Items[index]
-		for _, version := range []*VersionSummary{item.LatestApproved, item.OpenVersion} {
-			if version == nil {
-				continue
-			}
-			entryID := version.Approval.ApprovalEntryID
-			version.Summary.UnitConversions = unitConversions[entryID]
-			version.Summary.Formula = formulas[entryID]
-		}
+		item.Data.UnitConversions = unitConversions[item.SourceApprovalEntryID]
+		enrichDefaultInputUnit(&item.Data)
+		item.Data.Formula = formulas[item.SourceApprovalEntryID]
 	}
 	return page, nil
 }

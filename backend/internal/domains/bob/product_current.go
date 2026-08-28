@@ -153,7 +153,7 @@ func (s *Service) getProductCurrent(ctx context.Context, in GetInput) (ObjectVie
 	if err != nil {
 		return ObjectView{}, s.internal("get product identity", err)
 	}
-	return ObjectView{ObjectID: r.ObjectID, Entity: EntityProduct, Code: r.Code, ObjectRevision: o.Revision, Enabled: d.Enabled, Approval: approvalMeta(e), Data: d, UpdatedAt: o.UpdatedAt.Time}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: EntityProduct, Code: r.Code, ObjectRevision: o.Revision, Enabled: d.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: versionNumber(e.VersionNo), Data: d, UpdatedAt: o.UpdatedAt.Time}, nil
 }
 func (s *Service) validateProductSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	e, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityProduct})

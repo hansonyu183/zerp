@@ -8,7 +8,7 @@ import type { DclCustomerSalesAttributionInput } from './DclCustomerSalesAttribu
 export type DclCustomerAccountInput = {
   name: string;
   shortName?: string | null;
-  customerTypeCode: string;
+  customerTypeId: string;
   contactName?: string | null;
   contactPhone?: string | null;
   email?: string | null;

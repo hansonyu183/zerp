@@ -1,7 +1,6 @@
-import type { BusinessObjectField } from '@/components/business-object'
+import type { BusinessObjectColumn, BusinessObjectField } from '@/components/business-object'
 import type { BobForm } from '@/pages/bob/shared/types'
 import {
-  baseColumns,
   baseFilters,
   commonFields,
   defineBobEntityConfig,
@@ -10,9 +9,10 @@ import {
   text,
   textarea,
 } from '@/pages/bob/shared/config-helpers'
-import type { DclProductConfig } from './types'
+import { dclProductActiveVersion } from './types'
+import type { DclProductConfig, DclProductListItem } from './types'
 
-export const dclProductConfig: DclProductConfig = defineBobEntityConfig({
+const sharedProductConfig = defineBobEntityConfig({
   entity: 'product',
   title: '产品申报',
   codeLabel: '产品编码',
@@ -136,32 +136,7 @@ export const dclProductConfig: DclProductConfig = defineBobEntityConfig({
     text('barcode', '条码', 64),
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('编码', '名称', [
-    {
-      key: 'productTypeName',
-      label: '产品类型',
-      value: (row) =>
-        row.openVersion?.summary.productTypeName ??
-        row.latestApproved?.summary.productTypeName ??
-        '',
-    },
-    {
-      key: 'defaultInputUnit',
-      label: '默认录入单位',
-      value: (row) =>
-        row.openVersion?.summary.defaultInputUnitId ??
-        row.latestApproved?.summary.defaultInputUnitId ??
-        '',
-    },
-    {
-      key: 'model',
-      label: '型号',
-      value: (row) =>
-        row.openVersion?.summary.model ??
-        row.latestApproved?.summary.model ??
-        '',
-    },
-  ]),
+  columns: [],
   filters: baseFilters([
     {
       key: 'productTypeId',
@@ -181,3 +156,17 @@ export const dclProductConfig: DclProductConfig = defineBobEntityConfig({
     },
   ]),
 })
+
+const productColumns: readonly BusinessObjectColumn<DclProductListItem>[] = [
+  { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
+  { key: 'name', label: '名称', value: (row) => dclProductActiveVersion(row).summary.name, sizing: 'fluid' },
+  { key: 'productTypeName', label: '产品类型', value: (row) => dclProductActiveVersion(row).summary.productTypeName ?? '' },
+  { key: 'defaultInputUnit', label: '默认录入单位', value: (row) => dclProductActiveVersion(row).summary.defaultInputUnitId ?? '' },
+  { key: 'model', label: '型号', value: (row) => dclProductActiveVersion(row).summary.model ?? '' },
+  { key: 'status', label: '状态', value: (row) => dclProductActiveVersion(row).approval.status, sizing: 'compact' },
+]
+
+export const dclProductConfig = {
+  ...sharedProductConfig,
+  columns: productColumns,
+} as DclProductConfig

@@ -1,5 +1,4 @@
 import { defineBobEntityConfig, textarea } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const otherUnitConfig = defineBobEntityConfig({
   entity: 'other-unit',
@@ -39,7 +38,7 @@ export const otherUnitConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '主体',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {

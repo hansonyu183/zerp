@@ -30,6 +30,7 @@ function listItem(
       ? {
           approval: value.approval,
           summary: { ...value.data } as never,
+          enabled: value.enabled,
         }
       : null
   return {

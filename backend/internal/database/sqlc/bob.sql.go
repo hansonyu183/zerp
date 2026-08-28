@@ -81,8 +81,8 @@ func (q *Queries) CopyDCLCustomerAccountCreditLimits(ctx context.Context, arg Co
 }
 
 const copyDCLCustomerAccountVersion = `-- name: CopyDCLCustomerAccountVersion :execrows
-INSERT INTO dcl_customer_account_versions(approval_entry_id,entity,name,customer_type,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_due_days,settlement_month_offset,settlement_cutoff_day,settlement_sales_surcharge_cents,payment_method_id,payment_method_code,payment_method_name,payment_sales_surcharge_cents,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,operating_entity_tax_number,operating_entity_address,operating_entity_phone,default_transport_method_code,default_transport_method_name,transport_surcharge_cents,pricing_policy,primary_sales_attribution_type,primary_sales_subject_id,primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name,internal_reminder,default_sales_order_remark,enabled)
-SELECT $1,source.entity,source.name,source.customer_type,source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_due_days,source.settlement_month_offset,source.settlement_cutoff_day,source.settlement_sales_surcharge_cents,source.payment_method_id,source.payment_method_code,source.payment_method_name,source.payment_sales_surcharge_cents,source.operating_entity_id,source.operating_entity_approval_entry_id,source.operating_entity_code,source.operating_entity_name,source.operating_entity_tax_number,source.operating_entity_address,source.operating_entity_phone,source.default_transport_method_code,source.default_transport_method_name,source.transport_surcharge_cents,source.pricing_policy,source.primary_sales_attribution_type,source.primary_sales_subject_id,source.primary_sales_subject_approval_entry_id,source.primary_sales_subject_code,source.primary_sales_subject_name,source.internal_reminder,source.default_sales_order_remark,source.enabled FROM dcl_customer_account_versions source WHERE source.approval_entry_id=$2
+INSERT INTO dcl_customer_account_versions(approval_entry_id,entity,name,customer_type,customer_type_code,customer_type_name,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_due_days,settlement_month_offset,settlement_cutoff_day,settlement_sales_surcharge_cents,payment_method_id,payment_method_code,payment_method_name,payment_sales_surcharge_cents,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,operating_entity_tax_number,operating_entity_address,operating_entity_phone,default_transport_method_code,default_transport_method_name,transport_surcharge_cents,pricing_policy,primary_sales_attribution_type,primary_sales_subject_id,primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name,internal_reminder,default_sales_order_remark,enabled)
+SELECT $1,source.entity,source.name,source.customer_type,source.customer_type_code,source.customer_type_name,source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_due_days,source.settlement_month_offset,source.settlement_cutoff_day,source.settlement_sales_surcharge_cents,source.payment_method_id,source.payment_method_code,source.payment_method_name,source.payment_sales_surcharge_cents,source.operating_entity_id,source.operating_entity_approval_entry_id,source.operating_entity_code,source.operating_entity_name,source.operating_entity_tax_number,source.operating_entity_address,source.operating_entity_phone,source.default_transport_method_code,source.default_transport_method_name,source.transport_surcharge_cents,source.pricing_policy,source.primary_sales_attribution_type,source.primary_sales_subject_id,source.primary_sales_subject_approval_entry_id,source.primary_sales_subject_code,source.primary_sales_subject_name,source.internal_reminder,source.default_sales_order_remark,source.enabled FROM dcl_customer_account_versions source WHERE source.approval_entry_id=$2
 `
 
 type CopyDCLCustomerAccountVersionParams struct {
@@ -2581,7 +2581,7 @@ func (q *Queries) GetDCLCustomerAccountIdentity(ctx context.Context, objectID st
 }
 
 const getDCLCustomerAccountVersion = `-- name: GetDCLCustomerAccountVersion :one
-SELECT approval_entry_id, entity, name, customer_type, short_name, tax_number, contact_name, contact_phone, email, address, remark, settlement_method_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_due_days, settlement_month_offset, settlement_cutoff_day, settlement_sales_surcharge_cents, payment_method_id, payment_method_code, payment_method_name, payment_sales_surcharge_cents, operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, operating_entity_tax_number, operating_entity_address, operating_entity_phone, default_transport_method_code, default_transport_method_name, transport_surcharge_cents, pricing_policy, primary_sales_attribution_type, primary_sales_subject_id, primary_sales_subject_approval_entry_id, primary_sales_subject_code, primary_sales_subject_name, internal_reminder, default_sales_order_remark, enabled FROM dcl_customer_account_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, entity, name, customer_type, customer_type_code, customer_type_name, short_name, tax_number, contact_name, contact_phone, email, address, remark, settlement_method_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_due_days, settlement_month_offset, settlement_cutoff_day, settlement_sales_surcharge_cents, payment_method_id, payment_method_code, payment_method_name, payment_sales_surcharge_cents, operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, operating_entity_tax_number, operating_entity_address, operating_entity_phone, default_transport_method_code, default_transport_method_name, transport_surcharge_cents, pricing_policy, primary_sales_attribution_type, primary_sales_subject_id, primary_sales_subject_approval_entry_id, primary_sales_subject_code, primary_sales_subject_name, internal_reminder, default_sales_order_remark, enabled FROM dcl_customer_account_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLCustomerAccountVersion(ctx context.Context, approvalEntryID string) (DclCustomerAccountVersion, error) {
@@ -2592,6 +2592,8 @@ func (q *Queries) GetDCLCustomerAccountVersion(ctx context.Context, approvalEntr
 		&i.Entity,
 		&i.Name,
 		&i.CustomerType,
+		&i.CustomerTypeCode,
+		&i.CustomerTypeName,
 		&i.ShortName,
 		&i.TaxNumber,
 		&i.ContactName,
@@ -3116,14 +3118,16 @@ func (q *Queries) InsertDCLCustomerAccountCreditLimit(ctx context.Context, arg I
 }
 
 const insertDCLCustomerAccountVersion = `-- name: InsertDCLCustomerAccountVersion :exec
-INSERT INTO dcl_customer_account_versions(approval_entry_id,name,customer_type,short_name,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_due_days,settlement_month_offset,settlement_cutoff_day,settlement_sales_surcharge_cents,payment_method_id,payment_method_code,payment_method_name,payment_sales_surcharge_cents,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,operating_entity_tax_number,operating_entity_address,operating_entity_phone,default_transport_method_code,default_transport_method_name,transport_surcharge_cents,pricing_policy,primary_sales_attribution_type,primary_sales_subject_id,primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name,internal_reminder,default_sales_order_remark,enabled)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40)
+INSERT INTO dcl_customer_account_versions(approval_entry_id,name,customer_type,customer_type_code,customer_type_name,short_name,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_due_days,settlement_month_offset,settlement_cutoff_day,settlement_sales_surcharge_cents,payment_method_id,payment_method_code,payment_method_name,payment_sales_surcharge_cents,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,operating_entity_tax_number,operating_entity_address,operating_entity_phone,default_transport_method_code,default_transport_method_name,transport_surcharge_cents,pricing_policy,primary_sales_attribution_type,primary_sales_subject_id,primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name,internal_reminder,default_sales_order_remark,enabled)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42)
 `
 
 type InsertDCLCustomerAccountVersionParams struct {
 	ApprovalEntryID                    string  `db:"approval_entry_id" json:"approval_entry_id"`
 	Name                               string  `db:"name" json:"name"`
 	CustomerType                       string  `db:"customer_type" json:"customer_type"`
+	CustomerTypeCode                   string  `db:"customer_type_code" json:"customer_type_code"`
+	CustomerTypeName                   string  `db:"customer_type_name" json:"customer_type_name"`
 	ShortName                          *string `db:"short_name" json:"short_name"`
 	ContactName                        *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                       *string `db:"contact_phone" json:"contact_phone"`
@@ -3170,6 +3174,8 @@ func (q *Queries) InsertDCLCustomerAccountVersion(ctx context.Context, arg Inser
 		arg.ApprovalEntryID,
 		arg.Name,
 		arg.CustomerType,
+		arg.CustomerTypeCode,
+		arg.CustomerTypeName,
 		arg.ShortName,
 		arg.ContactName,
 		arg.ContactPhone,
@@ -5981,12 +5987,14 @@ func (q *Queries) UpdateBobProductPayload(ctx context.Context, arg UpdateBobProd
 }
 
 const updateDCLCustomerAccountVersion = `-- name: UpdateDCLCustomerAccountVersion :execrows
-UPDATE dcl_customer_account_versions SET name=$1,customer_type=$2,short_name=$3,contact_name=$4,contact_phone=$5,email=$6,address=$7,settlement_method_id=$8,settlement_method_name=$9,settlement_term_code=$10,settlement_rule_type=$11,settlement_due_days=$12,settlement_month_offset=$13,settlement_cutoff_day=$14,settlement_sales_surcharge_cents=$15,payment_method_id=$16,payment_method_name=$17,payment_sales_surcharge_cents=$18,operating_entity_id=$19,operating_entity_approval_entry_id=$20,operating_entity_code=$21,operating_entity_name=$22,operating_entity_tax_number=$23,operating_entity_address=$24,operating_entity_phone=$25,default_transport_method_code=$26,default_transport_method_name=$27,transport_surcharge_cents=$28,pricing_policy=$29,primary_sales_attribution_type=$30,primary_sales_subject_id=$31,primary_sales_subject_approval_entry_id=$32,primary_sales_subject_code=$33,primary_sales_subject_name=$34,internal_reminder=$35,default_sales_order_remark=$36,enabled=$37 WHERE approval_entry_id=$38
+UPDATE dcl_customer_account_versions SET name=$1,customer_type=$2,customer_type_code=$3,customer_type_name=$4,short_name=$5,contact_name=$6,contact_phone=$7,email=$8,address=$9,settlement_method_id=$10,settlement_method_name=$11,settlement_term_code=$12,settlement_rule_type=$13,settlement_due_days=$14,settlement_month_offset=$15,settlement_cutoff_day=$16,settlement_sales_surcharge_cents=$17,payment_method_id=$18,payment_method_name=$19,payment_sales_surcharge_cents=$20,operating_entity_id=$21,operating_entity_approval_entry_id=$22,operating_entity_code=$23,operating_entity_name=$24,operating_entity_tax_number=$25,operating_entity_address=$26,operating_entity_phone=$27,default_transport_method_code=$28,default_transport_method_name=$29,transport_surcharge_cents=$30,pricing_policy=$31,primary_sales_attribution_type=$32,primary_sales_subject_id=$33,primary_sales_subject_approval_entry_id=$34,primary_sales_subject_code=$35,primary_sales_subject_name=$36,internal_reminder=$37,default_sales_order_remark=$38,enabled=$39 WHERE approval_entry_id=$40
 `
 
 type UpdateDCLCustomerAccountVersionParams struct {
 	Name                               string  `db:"name" json:"name"`
 	CustomerType                       string  `db:"customer_type" json:"customer_type"`
+	CustomerTypeCode                   string  `db:"customer_type_code" json:"customer_type_code"`
+	CustomerTypeName                   string  `db:"customer_type_name" json:"customer_type_name"`
 	ShortName                          *string `db:"short_name" json:"short_name"`
 	ContactName                        *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                       *string `db:"contact_phone" json:"contact_phone"`
@@ -6029,6 +6037,8 @@ func (q *Queries) UpdateDCLCustomerAccountVersion(ctx context.Context, arg Updat
 	result, err := q.db.Exec(ctx, updateDCLCustomerAccountVersion,
 		arg.Name,
 		arg.CustomerType,
+		arg.CustomerTypeCode,
+		arg.CustomerTypeName,
 		arg.ShortName,
 		arg.ContactName,
 		arg.ContactPhone,

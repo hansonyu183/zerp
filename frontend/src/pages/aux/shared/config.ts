@@ -189,17 +189,17 @@ export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
     title: '字典项',
     defaults: () => ({
       name: '',
-      dictionaryTypeCode: '',
+      dictionaryTypeId: '',
       sortOrder: 10,
     }),
     fields: [
       text('name', '名称', { required: true }),
       {
-        key: 'dictionaryTypeCode',
+        key: 'dictionaryTypeId',
         label: '字典类型',
         type: 'reference',
         required: true,
-        reference: { entity: 'dictionary-type', value: 'code' },
+        reference: { entity: 'dictionary-type', value: 'objectId' },
       },
       {
         key: 'sortOrder',

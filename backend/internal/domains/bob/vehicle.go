@@ -179,7 +179,7 @@ func (s *Service) EnsureVehicleUnapproveAllowed(ctx context.Context, tx pgx.Tx, 
 	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
 }
 func vehicleDetail(d VehicleData) DetailView {
-	return DetailView{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, VIN: d.VIN, EngineNumber: d.EngineNumber, LoadCapacityKG: d.LoadCapacityKG, Remark: d.Remark, CarrierAffiliation: d.CarrierAffiliation, BulkLiquidCapable: d.BulkLiquidCapable}
+	return DetailView{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, VehicleTypeName: d.VehicleTypeName, VIN: d.VIN, EngineNumber: d.EngineNumber, LoadCapacityKG: d.LoadCapacityKG, Remark: d.Remark, CarrierAffiliation: d.CarrierAffiliation, BulkLiquidCapable: d.BulkLiquidCapable}
 }
 
 func vehicleDataFromCurrent(r dbsqlc.GetBobVehicleCurrentRow) VehicleData {
@@ -198,7 +198,7 @@ func (s *Service) getVehicleCurrent(ctx context.Context, input GetInput) (Object
 		return ObjectView{}, s.internal("get vehicle current", err)
 	}
 	entry := dbsqlc.ApprovalEntry{ID: r.SourceApprovalEntryID, Domain: r.Domain, Entity: EntityVehicle, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.ApprovalUpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, Approval: approvalMeta(entry), Data: vehicleDetail(vehicleDataFromCurrent(r)), UpdatedAt: r.UpdatedAt.Time}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: vehicleDetail(vehicleDataFromCurrent(r)), UpdatedAt: r.UpdatedAt.Time}, nil
 }
 
 func (s *Service) queryVehicles(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
@@ -240,7 +240,7 @@ func (s *Service) queryVehicles(ctx context.Context, input QueryInput) (Page[Que
 		if viewErr != nil {
 			return Page[QueryItem]{}, viewErr
 		}
-		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.CurrentEnabled, UpdatedAt: row.UpdatedAt.Time, LatestApproved: &VersionSummary{Approval: view.Approval, Summary: view.Data}})
+		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.CurrentEnabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }

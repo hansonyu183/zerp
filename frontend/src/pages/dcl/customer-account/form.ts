@@ -6,7 +6,7 @@ export function createCustomerAccountForm(): CustomerAccountForm {
   return {
     name: '',
     shortName: '',
-    customerTypeCode: 'DIT-0001',
+    customerTypeId: '01JAVX00000000000000000005',
     contactName: '',
     contactPhone: '',
     email: '',
@@ -48,7 +48,7 @@ export function sortedCostItems(
 export function customerAccountFormErrors(form: CustomerAccountForm): string[] {
   const errors: string[] = []
   if (!form.name.trim()) errors.push('请填写账户名称。')
-  if (!form.customerTypeCode.trim()) errors.push('请选择客户类型。')
+  if (!form.customerTypeId.trim()) errors.push('请选择客户类型。')
   if (!form.primarySalesAttribution.subjectObjectId.trim())
     errors.push('请选择主要业务归属。')
   for (const [label, value] of [

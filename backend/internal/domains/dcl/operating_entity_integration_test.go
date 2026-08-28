@@ -55,6 +55,13 @@ func resetDCLIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	`); err != nil {
 		t.Fatalf("reset DCL integration data: %v", err)
 	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by) VALUES
+		('01JAVX00000000000000000001','dictionary-type','DCT-0001','{"name":"客户类型"}'::jsonb,'00000000000000000000000000','00000000000000000000000000'),
+		('01JAVX00000000000000000005','dictionary-item','DIT-0001','{"name":"终端客户","sortOrder":10,"dictionaryTypeId":"01JAVX00000000000000000001","dictionaryTypeCode":"DCT-0001","dictionaryTypeName":"客户类型"}'::jsonb,'00000000000000000000000000','00000000000000000000000000')
+	`); err != nil {
+		t.Fatalf("seed fixed customer type: %v", err)
+	}
 }
 
 func dclActor(t *testing.T, actorID, requestID string) approval.Actor {
@@ -429,15 +436,14 @@ func assertOperatingEntityCurrent(
 	if err != nil {
 		t.Fatalf("get BOB operating entity: %v", err)
 	}
-	if view.Approval.ApprovalEntryID != approvalEntryID || view.Data.Name != name || view.Enabled != enabled {
+	if view.SourceApprovalEntryID != approvalEntryID || view.Data.Name != name || view.Enabled != enabled {
 		t.Fatalf("BOB current view = %+v", view)
 	}
 	page, err := business.Query(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.QueryInput{Page: 1, PageSize: 20})
 	if err != nil {
 		t.Fatalf("query BOB operating entities: %v", err)
 	}
-	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].LatestApproved == nil ||
-		page.Items[0].LatestApproved.Approval.ApprovalEntryID != approvalEntryID {
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].SourceApprovalEntryID != approvalEntryID {
 		t.Fatalf("BOB current page = %+v", page)
 	}
 }

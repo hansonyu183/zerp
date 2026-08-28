@@ -1,5 +1,4 @@
 import { defineBobEntityConfig, textarea } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const employeeConfig = defineBobEntityConfig({
   entity: 'employee',
@@ -41,7 +40,7 @@ export const employeeConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '主体',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
@@ -54,17 +53,17 @@ export const employeeConfig = defineBobEntityConfig({
       key: 'employeeCategory',
       label: '人员类别',
       value: (row) =>
-        bobListActiveVersion(row).summary.categoryId ?? '—',
+        row.data.categoryName ?? '—',
     },
     {
       key: 'department',
       label: '部门',
-      value: (row) => bobListActiveVersion(row).summary.departmentId ?? '—',
+      value: (row) => row.data.departmentName ?? '—',
     },
     {
       key: 'position',
       label: '岗位',
-      value: (row) => bobListActiveVersion(row).summary.positionId ?? '—',
+      value: (row) => row.data.positionName ?? '—',
     },
     {
       key: 'enabled',

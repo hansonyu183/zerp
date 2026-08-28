@@ -18,7 +18,7 @@ const columns: readonly BusinessObjectColumn<BobCustomerAccountListItem>[] = [
     label: '客户关系',
     value: (row) => row.customerRelationshipCode,
   },
-  { key: 'type', label: '客户类型', value: (row) => row.customerTypeCode },
+  { key: 'type', label: '客户类型', value: (row) => row.customerTypeId },
   { key: 'entity', label: '经营主体', value: (row) => row.operatingEntityCode },
   {
     key: 'enabled',
@@ -85,7 +85,7 @@ void vm.query()
         <v-list-item title="账户名称" :subtitle="vm.currentView.data.name" />
         <v-list-item
           title="客户类型"
-          :subtitle="vm.currentView.data.customerTypeCode"
+          :subtitle="vm.currentView.data.customerTypeId"
         />
         <v-list-item
           title="联系人"

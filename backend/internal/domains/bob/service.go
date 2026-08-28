@@ -352,6 +352,14 @@ func (s *Service) resolveNamedAuxiliaryReference(ctx context.Context, tx pgx.Tx,
 	return reference, nil
 }
 
+func (s *Service) ResolveCustomerTypeReference(ctx context.Context, tx pgx.Tx, objectID string) (EffectiveReference, error) {
+	reference, err := s.resolveNamedAuxiliaryReference(ctx, tx, "dictionary-item", objectID)
+	if err != nil || mapString(reference.Data, "dictionaryTypeCode") != "DCT-0001" {
+		return EffectiveReference{}, domainError(ErrorConflict, "customer type reference is unavailable", nil, err)
+	}
+	return EffectiveReference{ObjectID: reference.ObjectID, Entity: reference.Entity, Code: reference.Code, Data: DetailView{Name: mapString(reference.Data, "name")}}, nil
+}
+
 func (s *Service) resolveAuxiliaryReferenceBySemantics(ctx context.Context, tx pgx.Tx, entity, objectID string) (AuxiliaryReference, error) {
 	return s.auxiliaryResolver.ResolveCurrentAuxiliaryReference(ctx, tx, entity, objectID)
 }

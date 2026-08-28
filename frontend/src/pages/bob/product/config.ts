@@ -1,5 +1,4 @@
 import { defineBobEntityConfig } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const productConfig = defineBobEntityConfig({
   entity: 'product',
@@ -55,23 +54,23 @@ export const productConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '名称',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'productTypeName',
       label: '产品类型',
-      value: (row) => bobListActiveVersion(row).summary.productTypeName,
+      value: (row) => row.data.productTypeName,
     },
     {
       key: 'defaultInputUnit',
       label: '默认录入单位',
-      value: (row) => bobListActiveVersion(row).summary.defaultInputUnitId,
+      value: (row) => row.data.defaultInputUnitName ?? '—',
     },
     {
       key: 'model',
       label: '型号',
-      value: (row) => bobListActiveVersion(row).summary.model,
+      value: (row) => row.data.model,
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {

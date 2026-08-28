@@ -1090,7 +1090,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.SupplierQueryRequest } };
+      requestBody: { content: { 'application/json': Models.DclSupplierQueryRequest } };
       responses: { 200: { content: { 'application/json': Models.DclSupplierQueryResponse } } };
     };
   };
@@ -1810,8 +1810,8 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.SupplierQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.SupplierQueryResponse } } };
+      requestBody: { content: { 'application/json': Models.BobQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.BobQueryResponse } } };
     };
   };
   "/bob/supplier/get": {
@@ -1819,7 +1819,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobGetRequest } };
-      responses: { 200: { content: { 'application/json': Models.SupplierGetResponse } } };
+      responses: { 200: { content: { 'application/json': Models.BobObjectResponse } } };
     };
   };
   "/bob/reference/query": {
@@ -1842,8 +1842,8 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.SalesPartnerQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.SalesPartnerQueryResponse } } };
+      requestBody: { content: { 'application/json': Models.BobQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.BobQueryResponse } } };
     };
   };
   "/bob/sales-partner/get": {
@@ -1851,7 +1851,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobGetRequest } };
-      responses: { 200: { content: { 'application/json': Models.SalesPartnerGetResponse } } };
+      responses: { 200: { content: { 'application/json': Models.BobObjectResponse } } };
     };
   };
   "/bob/{entity}/query": {
@@ -2598,8 +2598,8 @@ export interface components {
       "DclCustomerVersionPage": Models.DclCustomerVersionPage;
       "DclCustomerVersionPageResponse": Models.DclCustomerVersionPageResponse;
       "DclCustomerAccountQueryRequest": Models.DclCustomerAccountQueryRequest;
-      "DclCustomerSnapshot": Models.DclCustomerSnapshot;
       "DclCustomerAuxiliarySnapshot": Models.DclCustomerAuxiliarySnapshot;
+      "DclCustomerSnapshot": Models.DclCustomerSnapshot;
       "DclCustomerSalesAttributionSnapshot": Models.DclCustomerSalesAttributionSnapshot;
       "DclCustomerAccountData": Models.DclCustomerAccountData;
       "DclCustomerAccountVersionView": Models.DclCustomerAccountVersionView;
@@ -2622,7 +2622,7 @@ export interface components {
       "DclCustomerAttachmentRemoveRequest": Models.DclCustomerAttachmentRemoveRequest;
       "DclCustomerAttachmentMutationResult": Models.DclCustomerAttachmentMutationResult;
       "DclCustomerAttachmentRemoveResponse": Models.DclCustomerAttachmentRemoveResponse;
-      "SupplierQueryRequest": Models.SupplierQueryRequest;
+      "DclSupplierQueryRequest": Models.DclSupplierQueryRequest;
       "SupplierSettlementSnapshot": Models.SupplierSettlementSnapshot;
       "SupplierPurchaserSnapshot": Models.SupplierPurchaserSnapshot;
       "DclSupplierData": Models.DclSupplierData;
@@ -2791,29 +2791,6 @@ export interface components {
       "BobCustomerAttachmentView": Models.BobCustomerAttachmentView;
       "BobCustomerAccountCurrentView": Models.BobCustomerAccountCurrentView;
       "BobCustomerAccountGetResponse": Models.BobCustomerAccountGetResponse;
-      "SupplierListVersion": Models.SupplierListVersion;
-      "SupplierListItem": Models.SupplierListItem;
-      "SupplierQueryResponse": Models.SupplierQueryResponse;
-      "SupplierView": Models.SupplierView;
-      "SupplierVersionView": Models.SupplierVersionView;
-      "SupplierDetailView": Models.SupplierDetailView;
-      "SupplierGetResponse": Models.SupplierGetResponse;
-      "BobReferenceQueryRequest": Models.BobReferenceQueryRequest;
-      "ReferenceCandidate": Models.ReferenceCandidate;
-      "ReferenceQueryResponse": Models.ReferenceQueryResponse;
-      "AuxReferenceQueryRequest": Models.AuxReferenceQueryRequest;
-      "AuxReferenceCandidate": Models.AuxReferenceCandidate;
-      "AuxReferenceQueryResponse": Models.AuxReferenceQueryResponse;
-      "SalesPartnerQueryRequest": Models.SalesPartnerQueryRequest;
-      "SalesPartnerListVersion": Models.SalesPartnerListVersion;
-      "SalesPartnerListItem": Models.SalesPartnerListItem;
-      "SalesPartnerPage": Models.SalesPartnerPage;
-      "SalesPartnerQueryResponse": Models.SalesPartnerQueryResponse;
-      "SalesPartnerDataView": Models.SalesPartnerDataView;
-      "SalesPartnerVersionView": Models.SalesPartnerVersionView;
-      "SalesPartnerDetailView": Models.SalesPartnerDetailView;
-      "SalesPartnerGetResponse": Models.SalesPartnerGetResponse;
-      "BobReadableEntity": Models.BobReadableEntity;
       "BobQueryRequest": Models.BobQueryRequest;
       "BobDetailData": Models.BobDetailData;
       "BobDetailView": Models.BobDetailView;
@@ -2823,6 +2800,13 @@ export interface components {
       "BobQueryResponse": Models.BobQueryResponse;
       "BobObjectView": Models.BobObjectView;
       "BobObjectResponse": Models.BobObjectResponse;
+      "BobReferenceQueryRequest": Models.BobReferenceQueryRequest;
+      "ReferenceCandidate": Models.ReferenceCandidate;
+      "ReferenceQueryResponse": Models.ReferenceQueryResponse;
+      "AuxReferenceQueryRequest": Models.AuxReferenceQueryRequest;
+      "AuxReferenceCandidate": Models.AuxReferenceCandidate;
+      "AuxReferenceQueryResponse": Models.AuxReferenceQueryResponse;
+      "BobReadableEntity": Models.BobReadableEntity;
       "VouQueryRequest": Models.VouQueryRequest;
       "VouSalesBaseQuantitySummary": Models.VouSalesBaseQuantitySummary;
       "VouPurchaseBaseQuantitySummary": Models.VouPurchaseBaseQuantitySummary;

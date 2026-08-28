@@ -500,7 +500,7 @@ func createApprovedCustomer(
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name + "主体" + newID()[20:]},
 		OperatingEntityID: operating.ObjectID,
 		DefaultAccount: dcldomain.CustomerAccountDataInput{
-			Name: data.Name, CustomerTypeCode: bobdomain.CustomerTypeEndUser,
+			Name: data.Name, CustomerTypeID: bobdomain.CustomerTypeEndUserID,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
 			SettlementMethodID:         data.SettlementMethodID,
 			DefaultTransportMethodCode: "SELF_PICKUP", DefaultTransportMethodName: "客户自提",

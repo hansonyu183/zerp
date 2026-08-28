@@ -200,15 +200,11 @@ func assertSupplierCurrent(t *testing.T, business *bobdomain.Service, objectID, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Approval.ApprovalEntryID != entryID {
-		t.Fatalf("current entry = %s want %s", view.Approval.ApprovalEntryID, entryID)
+	if view.SourceApprovalEntryID != entryID {
+		t.Fatalf("current entry = %s want %s", view.SourceApprovalEntryID, entryID)
 	}
-	legacy, err := business.SupplierGet(t.Context(), bobdomain.GetInput{ObjectID: objectID})
-	if err != nil || legacy.LatestApproved == nil || legacy.LatestApproved.Approval.ApprovalEntryID != entryID || legacy.OpenVersion != nil {
-		t.Fatalf("BOB Supplier read leaked candidate: view=%+v err=%v", legacy, err)
-	}
-	if legacy.LatestApproved.Data.DefaultPurchaser == nil || legacy.LatestApproved.Data.DefaultPurchaser.SourceObjectID == "" || legacy.LatestApproved.Data.DefaultPurchaser.ApprovalEntryID == "" || legacy.LatestApproved.Data.DefaultPurchaser.Code == "" || legacy.LatestApproved.Data.DefaultPurchaser.Name == "" {
-		t.Fatalf("BOB Supplier purchaser snapshot missing: %+v", legacy.LatestApproved.Data.DefaultPurchaser)
+	if view.Data.DefaultPurchaserEmployeeID == "" || view.Data.DefaultPurchaserApprovalEntryID == "" || view.Data.DefaultPurchaserCode == "" || view.Data.DefaultPurchaserName == "" {
+		t.Fatalf("BOB Supplier purchaser snapshot missing: %+v", view.Data)
 	}
 }
 func insertSupplierPurchaseReference(t *testing.T, pool *pgxpool.Pool, supplier SupplierMutation, actorID, reviewerID, documentNo string) {

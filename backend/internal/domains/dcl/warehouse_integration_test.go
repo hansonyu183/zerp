@@ -330,7 +330,7 @@ func assertWarehouseCurrent(t *testing.T, business *bobdomain.Service, objectID,
 	if err != nil {
 		t.Fatalf("get BOB warehouse: %v", err)
 	}
-	if view.Approval.ApprovalEntryID != entryID || view.Data.Name != name || view.Enabled != enabled {
+	if view.SourceApprovalEntryID != entryID || view.Data.Name != name || view.Enabled != enabled {
 		t.Fatalf("BOB warehouse current = %+v", view)
 	}
 }

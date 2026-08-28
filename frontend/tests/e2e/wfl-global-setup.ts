@@ -638,7 +638,7 @@ async function createEffectiveCustomer(
     operatingEntityId,
     defaultAccount: {
       name,
-      customerTypeCode: 'DIT-0001',
+      customerTypeId: '01JAVX00000000000000000005',
       settlementMethodId,
       paymentMethodId,
       defaultTransportMethodCode: 'SELF_PICKUP',

@@ -142,7 +142,7 @@ func assertEmployeeCurrent(t *testing.T, business *bobdomain.Service, objectID, 
 	if err != nil {
 		t.Fatalf("get BOB Employee current: %v", err)
 	}
-	if view.Approval.ApprovalEntryID != entryID || view.Data.Name != name || view.Data.Phone != phone || view.Enabled != enabled {
+	if view.SourceApprovalEntryID != entryID || view.Data.Name != name || view.Data.Phone != phone || view.Enabled != enabled {
 		t.Fatalf("BOB Employee current = %+v", view)
 	}
 }

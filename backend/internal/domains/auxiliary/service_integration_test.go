@@ -130,6 +130,59 @@ func TestDirectDeleteBlockerAndDisabledHistoryIntegration(t *testing.T) {
 	}
 }
 
+func TestDeleteBlocksEnabledAndDisabledAuxiliaryChildrenIntegration(t *testing.T) {
+	s, _, actor := directIntegrationService(t)
+	suffix := ulid.Make().String()
+	parent, err := s.Create(t.Context(), EntityProductCategory, CreateInput{Data: CreateData{Data: map[string]any{"name": "父分类-" + suffix}}}, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := s.Create(t.Context(), EntityProductCategory, CreateInput{Data: CreateData{Data: map[string]any{"name": "子分类-" + suffix, "parentId": parent.ObjectID}}}, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Delete(t.Context(), EntityProductCategory, DeleteInput{ObjectID: parent.ObjectID, ObjectRevision: parent.ObjectRevision}, actor); !errorKind(err, ErrorConflict) {
+		t.Fatalf("enabled child must block parent delete: %v", err)
+	}
+	disabled, err := s.Disable(t.Context(), EntityProductCategory, ObjectRevisionInput{ObjectID: child.ObjectID, ObjectRevision: child.ObjectRevision}, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Delete(t.Context(), EntityProductCategory, DeleteInput{ObjectID: parent.ObjectID, ObjectRevision: parent.ObjectRevision}, actor); !errorKind(err, ErrorConflict) {
+		t.Fatalf("disabled child must block parent delete: %v", err)
+	}
+	if err = s.Delete(t.Context(), EntityProductCategory, DeleteInput{ObjectID: child.ObjectID, ObjectRevision: disabled.ObjectRevision}, actor); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Delete(t.Context(), EntityProductCategory, DeleteInput{ObjectID: parent.ObjectID, ObjectRevision: parent.ObjectRevision}, actor); err != nil {
+		t.Fatal(err)
+	}
+
+	dictionaryType, err := s.Create(t.Context(), EntityDictionaryType, CreateInput{Data: CreateData{Data: map[string]any{"name": "字典类型-" + suffix}}}, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := s.Create(t.Context(), EntityDictionaryItem, CreateInput{Data: CreateData{Data: map[string]any{
+		"name": "字典项-" + suffix, "dictionaryTypeId": dictionaryType.ObjectID, "sortOrder": 10,
+	}}}, actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	itemView, err := s.Get(t.Context(), EntityDictionaryItem, GetInput{ObjectID: item.ObjectID}, actor)
+	if err != nil || itemView.Data["dictionaryTypeId"] != dictionaryType.ObjectID {
+		t.Fatalf("dictionary item stable owner = %#v, err = %v", itemView.Data, err)
+	}
+	if err = s.Delete(t.Context(), EntityDictionaryType, DeleteInput{ObjectID: dictionaryType.ObjectID, ObjectRevision: dictionaryType.ObjectRevision}, actor); !errorKind(err, ErrorConflict) {
+		t.Fatalf("dictionary item must block type delete: %v", err)
+	}
+	if err = s.Delete(t.Context(), EntityDictionaryItem, DeleteInput{ObjectID: item.ObjectID, ObjectRevision: item.ObjectRevision}, actor); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Delete(t.Context(), EntityDictionaryType, DeleteInput{ObjectID: dictionaryType.ObjectID, ObjectRevision: dictionaryType.ObjectRevision}, actor); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func errorKind(err error, kind ErrorKind) bool {
 	var domainErr *DomainError
 	return errors.As(err, &domainErr) && domainErr.Kind == kind

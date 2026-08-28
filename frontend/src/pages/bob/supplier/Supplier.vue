@@ -5,11 +5,7 @@ import { BusinessObjectList } from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { BusinessObjectColumn } from '@/components/business-object'
-import {
-  useSupplierViewModel,
-  supplierActiveVersion,
-  type SupplierListItem,
-} from './vm'
+import { useSupplierViewModel, type SupplierListItem } from './vm'
 
 const vm = reactive(useSupplierViewModel())
 const route = useRoute()
@@ -19,21 +15,23 @@ const columns: readonly BusinessObjectColumn<SupplierListItem>[] = [
   {
     key: 'party',
     label: '主体',
-    value: (row) => row.partyDisplayName,
+    value: (row) => row.relationship?.partyDisplayName ?? '—',
     sizing: 'fluid',
   },
   {
     key: 'operatingEntity',
     label: '经营主体',
-    value: (row) => `${row.operatingEntityCode} · ${row.operatingEntityName}`,
+    value: (row) => row.relationship
+      ? `${row.relationship.operatingEntityCode} · ${row.relationship.operatingEntityName}`
+      : '—',
   },
   {
     key: 'purchaser',
     label: '默认采购员',
     value: (row) => {
-      const value = supplierActiveVersion(row).defaultPurchaserName
+      const value = row.data.defaultPurchaserName
       return value
-        ? `${supplierActiveVersion(row).defaultPurchaserCode ?? ''} · ${value}`
+        ? `${row.data.defaultPurchaserCode ?? ''} · ${value}`
         : '—'
     },
   },
@@ -44,7 +42,7 @@ const columns: readonly BusinessObjectColumn<SupplierListItem>[] = [
     sizing: 'compact',
   },
 ]
-const view = computed(() => vm.currentView?.latestApproved ?? null)
+const view = computed(() => vm.currentView ?? null)
 void vm.query()
 watch(
   () => route.query.objectId,
@@ -130,18 +128,18 @@ watch(
             title="编码"
             :subtitle="vm.currentView.code" /><v-list-item
             title="主体"
-            :subtitle="vm.currentView.partyDisplayName" /><v-list-item
+            :subtitle="vm.currentView.relationship?.partyDisplayName ?? '—'" /><v-list-item
             title="经营主体"
-            :subtitle="`${vm.currentView.operatingEntityCode} · ${vm.currentView.operatingEntityName}`" /><v-list-item
+            :subtitle="vm.currentView.relationship ? `${vm.currentView.relationship.operatingEntityCode} · ${vm.currentView.relationship.operatingEntityName}` : '—'" /><v-list-item
             title="联系人"
             :subtitle="view?.data.contactName ?? '—'" /><v-list-item
             title="联系电话"
             :subtitle="view?.data.contactPhone ?? '—'" /><v-list-item
             title="结算方式"
-            :subtitle="view?.data.settlementMethod?.name ?? '—'" /><v-list-item
+            :subtitle="view?.data.settlementMethodName ?? '—'" /><v-list-item
             title="默认采购员"
             :subtitle="
-              view?.data.defaultPurchaser?.name ?? '—'
+              view?.data.defaultPurchaserName ?? '—'
             " /></v-list></v-card-text
       ><v-card-actions
         ><v-spacer /><v-btn variant="text" @click="vm.closeEditor"

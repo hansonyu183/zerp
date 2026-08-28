@@ -14,7 +14,7 @@ export interface CustomerPricingCostItemForm {
 export interface CustomerAccountForm {
   name: string
   shortName: string
-  customerTypeCode: string
+  customerTypeId: string
   contactName: string
   contactPhone: string
   email: string

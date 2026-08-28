@@ -2083,7 +2083,7 @@
       'required':
         [
           'name',
-          'customerTypeCode',
+          'customerTypeId',
           'pricingPolicy',
           'creditLimits',
           'primarySalesAttribution',
@@ -2093,7 +2093,8 @@
         {
           'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'shortName': { 'type': 'string', 'nullable': true },
-          'customerTypeCode': { 'type': 'string' },
+          'customerTypeId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
           'contactName': { 'type': 'string', 'nullable': true },
           'contactPhone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
@@ -2126,7 +2127,8 @@
       'required':
         [
           'name',
-          'customerTypeCode',
+          'customerTypeId',
+          'customerType',
           'operatingEntityId',
           'pricingPolicy',
           'creditLimits',
@@ -2140,7 +2142,8 @@
         {
           'name': { 'type': 'string' },
           'shortName': { 'type': 'string', 'nullable': true },
-          'customerTypeCode': { 'type': 'string' },
+          'customerTypeId': { 'type': 'string' },
+          'customerType': { '$ref': '#/DclCustomerAuxiliarySnapshot' },
           'contactName': { 'type': 'string', 'nullable': true },
           'contactPhone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
@@ -3026,7 +3029,45 @@
   'DclSupplierVersionRequest': { '$ref': '#/DclOperatingEntityVersionRequest' },
   'DclSupplierReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
   'DclSupplierGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
-  'DclSupplierQueryRequest': { '$ref': './bob.yaml#/SupplierQueryRequest' },
+  'DclSupplierQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string' },
+                  'status': { 'type': 'array', 'items': { 'type': 'string' } },
+                  'enabled': { 'type': 'boolean' },
+                  'defaultPurchaserEmployeeId': { 'type': 'string' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['code'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
   'DclSupplierHistoryRequest': { '$ref': '#/DclOperatingEntityHistoryRequest' },
   'DclSupplierMutationResponse':
     { '$ref': '#/DclOperatingEntityMutationResponse' },

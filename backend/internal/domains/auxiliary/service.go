@@ -406,6 +406,7 @@ func auxObjectDeleteBlockers(ctx context.Context, q dbtx, objectID string) ([]ma
 	// Each source is deliberately named: deletion is blocked by any persisted
 	// snapshot, irrespective of its DCL or VOU lifecycle state.
 	checks := []struct{ source, query string }{
+		{"aux_objects", `SELECT count(*) FROM aux_objects WHERE data->>'parentId'=$1 OR data->>'dictionaryTypeId'=$1`},
 		{"dcl_employee_versions", `SELECT count(*) FROM dcl_employee_versions WHERE employee_category_id=$1 OR department_id=$1 OR position_id=$1`},
 		{"dcl_product_versions", `SELECT count(*) FROM dcl_product_versions WHERE category_id=$1 OR pricing_unit_id=$1 OR product_type_id=$1 OR default_input_unit_id=$1`},
 		{"dcl_product_formulas", `SELECT count(*) FROM dcl_product_formulas WHERE output_unit_object_id=$1`},
@@ -413,7 +414,7 @@ func auxObjectDeleteBlockers(ctx context.Context, q dbtx, objectID string) ([]ma
 		{"dcl_product_unit_conversions", `SELECT count(*) FROM dcl_product_unit_conversions WHERE unit_object_id=$1`},
 		{"dcl_supplier_versions", `SELECT count(*) FROM dcl_supplier_versions WHERE settlement_method_id=$1`},
 		{"dcl_other_unit_versions", `SELECT count(*) FROM dcl_other_unit_versions WHERE settlement_method_id=$1`},
-		{"dcl_customer_account_versions", `SELECT count(*) FROM dcl_customer_account_versions WHERE settlement_method_id=$1 OR payment_method_id=$1`},
+		{"dcl_customer_account_versions", `SELECT count(*) FROM dcl_customer_account_versions WHERE customer_type=$1 OR settlement_method_id=$1 OR payment_method_id=$1`},
 		{"dcl_vehicle_versions", `SELECT count(*) FROM dcl_vehicle_versions WHERE vehicle_type_object_id=$1`},
 		{"dcl_warehouse_versions", `SELECT count(*) FROM dcl_warehouse_versions WHERE category_id=$1`},
 		{"dcl_customer_attachments", `SELECT count(*) FROM dcl_customer_attachments WHERE category_object_id=$1`},
@@ -540,15 +541,28 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 		}
 		data["defaultUsefulLifeMonths"], data["defaultResidualRate"] = months, rate
 	case EntityDictionaryItem:
-		allow("dictionaryTypeCode", "sortOrder")
-		typeCode := strings.ToUpper(strings.TrimSpace(stringValue(data["dictionaryTypeCode"])))
-		if typeCode == "" {
-			return nil, errors.New("dictionaryTypeCode is required")
+		if _, supplied := data["dictionaryTypeCode"]; supplied {
+			return nil, errors.New("dictionaryTypeCode is a server-owned snapshot")
 		}
-		data["dictionaryTypeCode"] = typeCode
-		if err := s.requireEnabledCode(ctx, q, EntityDictionaryType, typeCode); err != nil {
+		if _, supplied := data["dictionaryTypeName"]; supplied {
+			return nil, errors.New("dictionaryTypeName is a server-owned snapshot")
+		}
+		allow("dictionaryTypeId", "dictionaryTypeCode", "dictionaryTypeName", "sortOrder")
+		typeID := strings.TrimSpace(stringValue(data["dictionaryTypeId"]))
+		if !validID(typeID) {
+			return nil, errors.New("dictionaryTypeId is required")
+		}
+		var typeCode, typeName string
+		if err := q.QueryRow(ctx, `SELECT code,COALESCE(data->>'name','') FROM aux_objects
+			WHERE id=$1 AND entity='dictionary-type' AND enabled`, typeID).Scan(&typeCode, &typeName); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, errors.New("dictionary type is unavailable")
+			}
 			return nil, err
 		}
+		data["dictionaryTypeId"] = typeID
+		data["dictionaryTypeCode"] = typeCode
+		data["dictionaryTypeName"] = typeName
 		if _, ok := intValue(data["sortOrder"]); !ok {
 			return nil, errors.New("sortOrder must be an integer")
 		}
@@ -638,20 +652,6 @@ func (s *Service) validateParent(ctx context.Context, q dbtx, entity, objectID, 
 		current = next
 	}
 	return errors.New("parent hierarchy is too deep")
-}
-
-func (s *Service) requireEnabledCode(ctx context.Context, q dbtx, entity, code string) error {
-	if q == nil {
-		q = s.pool
-	}
-	var exists bool
-	if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM aux_objects WHERE entity=$1 AND code=$2 AND enabled)`, entity, code).Scan(&exists); err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("%s %s is unavailable", entity, code)
-	}
-	return nil
 }
 
 func (s *Service) enabledObjectData(

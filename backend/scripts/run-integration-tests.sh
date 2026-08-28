@@ -100,6 +100,27 @@ initialize_schema() {
 		<db/schema.sql
 }
 
+initialize_issue_290_schema() {
+	local database="$1"
+	git show d505c567:backend/db/schema.sql |
+		"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+			'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"'
+}
+
+run_issue_290_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-290-aux-direct-crud.sql
+}
+
+verify_issue_290_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.aux_version_payloads'"'"') IS NULL AND NOT EXISTS (SELECT 1 FROM approval_entries WHERE domain='"'"'aux'"'"') AND NOT EXISTS (SELECT 1 FROM dcl_customer_account_versions WHERE length(customer_type)<>26 OR customer_type_code='"'"''"'"' OR customer_type_name='"'"''"'"') AND NOT EXISTS (SELECT 1 FROM aux_objects WHERE entity='"'"'dictionary-item'"'"' AND (length(data->>'"'"'dictionaryTypeId'"'"')<>26 OR COALESCE(data->>'"'"'dictionaryTypeCode'"'"','"'"''"'"')='"'"''"'"' OR COALESCE(data->>'"'"'dictionaryTypeName'"'"','"'"''"'"')='"'"''"'"')) THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 wait_for_packages() {
 	local failed=0
 	local index exit_code status
@@ -169,6 +190,22 @@ trap 'exit 143' TERM
 
 mkdir -p "$work_root"
 "${compose[@]}" up -d --wait db
+
+cutover_database="$(database_name "_issue_290_cutover_${run_id}_test")"
+clone_databases+=("$cutover_database")
+recreate_database "$cutover_database"
+initialize_issue_290_schema "$cutover_database"
+run_issue_290_cutover "$cutover_database"
+verify_issue_290_cutover "$cutover_database"
+
+recreate_database "$cutover_database"
+initialize_issue_290_schema "$cutover_database"
+"${compose[@]}" exec -T -e TARGET_DATABASE="$cutover_database" db sh -eu -c \
+	'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+	 "DELETE FROM aux_version_payloads WHERE approval_entry_id=(SELECT id FROM approval_entries WHERE domain='"'"'aux'"'"' AND status='"'"'APPROVED'"'"' LIMIT 1)"' </dev/null
+if run_issue_290_cutover "$cutover_database" >/dev/null 2>&1; then
+	fail "issue-290 cutover accepted an approved AUX entry without a payload"
+fi
 
 recreate_database "$base_database"
 initialize_schema "$base_database"

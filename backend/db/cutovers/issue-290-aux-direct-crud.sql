@@ -97,6 +97,71 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Dictionary items own their dictionary type by stable AUX identity. Keep the
+-- code and name as immutable display snapshots for filtering and read models.
+UPDATE aux_objects item
+SET data=item.data || jsonb_build_object(
+  'dictionaryTypeId',type_object.id,
+  'dictionaryTypeCode',type_object.code,
+  'dictionaryTypeName',type_object.data->>'name'
+)
+FROM aux_objects type_object
+WHERE item.entity='dictionary-item'
+  AND type_object.entity='dictionary-type'
+  AND type_object.code=item.data->>'dictionaryTypeCode';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM aux_objects item
+    LEFT JOIN aux_objects type_object
+      ON type_object.id=item.data->>'dictionaryTypeId'
+     AND type_object.entity='dictionary-type'
+    WHERE item.entity='dictionary-item'
+      AND (
+        type_object.id IS NULL
+        OR item.data->>'dictionaryTypeCode'<>type_object.code
+        OR item.data->>'dictionaryTypeName'<>type_object.data->>'name'
+      )
+  ) THEN
+    RAISE EXCEPTION 'issue-290: unresolved dictionary type AUX identity';
+  END IF;
+END $$;
+
+-- Customer Account previously persisted the dictionary item display code.
+-- Replace it with the stable AUX object identity before the old AUX lifecycle
+-- rows are removed; an unmapped value aborts the whole transaction.
+ALTER TABLE dcl_customer_account_versions
+  ALTER COLUMN customer_type TYPE varchar(26);
+ALTER TABLE dcl_customer_account_versions
+  ADD COLUMN IF NOT EXISTS customer_type_code varchar(32),
+  ADD COLUMN IF NOT EXISTS customer_type_name varchar(200);
+UPDATE dcl_customer_account_versions version
+SET customer_type=type_item.id,
+    customer_type_code=type_item.code,
+    customer_type_name=type_item.data->>'name'
+FROM aux_objects type_item
+WHERE type_item.entity='dictionary-item'
+  AND type_item.code=version.customer_type
+  AND type_item.data->>'dictionaryTypeCode'='DCT-0001';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM dcl_customer_account_versions version
+    LEFT JOIN aux_objects type_item
+      ON type_item.id=version.customer_type
+     AND type_item.entity='dictionary-item'
+    WHERE type_item.id IS NULL
+       OR type_item.data->>'dictionaryTypeCode'<>'DCT-0001'
+       OR version.customer_type_code<>type_item.code
+       OR version.customer_type_name<>type_item.data->>'name'
+  ) THEN
+    RAISE EXCEPTION 'issue-290: unresolved customer type AUX identity';
+  END IF;
+END $$;
+ALTER TABLE dcl_customer_account_versions
+  ALTER COLUMN customer_type_code SET NOT NULL,
+  ALTER COLUMN customer_type_name SET NOT NULL;
+
 -- Version payloads have finished serving both migration and identity checks.
 -- Removing them first releases their FK so candidate-only AUX objects can be
 -- removed without retaining a compatibility row.

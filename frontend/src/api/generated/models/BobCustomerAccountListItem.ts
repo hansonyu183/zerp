@@ -8,7 +8,7 @@ export type BobCustomerAccountListItem = {
   customerRelationshipId: string;
   customerRelationshipCode: string;
   name: string;
-  customerTypeCode: string;
+  customerTypeId: string;
   operatingEntityCode: string;
   enabled: boolean;
   sourceApprovalEntryId: string;

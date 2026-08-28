@@ -23,13 +23,16 @@ func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (Objec
 	if err != nil {
 		return ObjectView{}, s.internal("get Supplier current", err)
 	}
-	e := dbsqlc.ApprovalEntry{ID: r.ApprovalEntryID, Domain: r.Domain, Entity: EntitySupplier, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.UpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	d := DetailView{Name: r.DisplayName, ShortName: stringValue(r.ShortName), TaxNumber: stringValue(r.TaxNumber), ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), Remark: stringValue(r.Remark), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), TermCode: stringValue(r.SettlementTermCode), RuleType: stringValue(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset, DefaultPurchaserEmployeeID: stringValue(r.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: stringValue(r.DefaultPurchaserEmployeeApprovalEntryID)}
+	e := struct {
+		ID        string
+		VersionNo int32
+	}{ID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo)}
+	d := DetailView{Name: r.DisplayName, ShortName: stringValue(r.ShortName), TaxNumber: stringValue(r.TaxNumber), ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), Remark: stringValue(r.Remark), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), TermCode: stringValue(r.SettlementTermCode), RuleType: stringValue(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset, DefaultPurchaserEmployeeID: stringValue(r.DefaultPurchaserEmployeeID), DefaultPurchaserApprovalEntryID: stringValue(r.DefaultPurchaserEmployeeApprovalEntryID), DefaultPurchaserCode: stringValue(r.DefaultPurchaserEmployeeCode), DefaultPurchaserName: stringValue(r.DefaultPurchaserEmployeeName)}
 	if r.SettlementDayOfMonth != 0 {
 		day := r.SettlementDayOfMonth
 		d.DayOfMonth = &day
 	}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, Approval: approvalMeta(e), Data: d, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID}}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, Data: d, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID}}, nil
 }
 
 func (s *Service) querySuppliersCurrent(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
@@ -62,7 +65,7 @@ func (s *Service) querySuppliersCurrent(ctx context.Context, input QueryInput) (
 		if err != nil {
 			return Page[QueryItem]{}, err
 		}
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time, LatestApproved: &VersionSummary{Approval: view.Approval, Summary: view.Data}})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: r.UpdatedAt.Time, Relationship: view.Relationship})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }

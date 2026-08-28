@@ -598,7 +598,7 @@ async function createAttributedCustomer(
     operatingEntityId: facts.operatingEntityId,
     defaultAccount: {
       name: `E2E 渠道客户 ${suffix}`,
-      customerTypeCode: 'DIT-0001',
+      customerTypeId: '01JAVX00000000000000000005',
       settlementMethodId: facts.settlementMethodId,
       paymentMethodId: paymentMethod.objectId,
       defaultTransportMethodCode: 'SELF_PICKUP',
@@ -958,7 +958,7 @@ async function createEmployeeAttributedCustomer(
     operatingEntityId,
     defaultAccount: {
       name,
-      customerTypeCode: 'DIT-0001',
+      customerTypeId: '01JAVX00000000000000000005',
       settlementMethodId,
       paymentMethodId: paymentMethod.objectId,
       defaultTransportMethodCode: 'SELF_PICKUP',
@@ -1902,7 +1902,7 @@ test(
         operatingEntityId: facts.operatingEntityId,
         defaultAccount: {
           name: `E2E 自归属客户 ${suffix}`,
-          customerTypeCode: 'DIT-0001',
+          customerTypeId: '01JAVX00000000000000000005',
           pricingPolicy: {
             defaultPremiumUnitPrice: '0.00',
             defaultDiscountUnitPrice: '0.00',

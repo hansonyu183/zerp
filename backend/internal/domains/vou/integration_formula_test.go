@@ -188,10 +188,16 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		Formula: rawView.Data.Formula,
 	}
 	productDeclarations := dcldomain.NewProductService(pool, bobService, authorization.Func(nil), txevent.NewBus())
+	rawDeclaration, err := productDeclarations.Get(t.Context(), dcldomain.ProductGetInput{
+		ObjectID: rawView.ObjectID, ApprovalEntryID: rawView.SourceApprovalEntryID,
+	}, trustedIntegrationActor(t, "formula-raw-get-declaration"))
+	if err != nil {
+		t.Fatalf("get raw material declaration before edit: %v", err)
+	}
 	editedRaw, err := productDeclarations.Save(t.Context(), dcldomain.ProductSaveInput{
 		ObjectID:         rawView.ObjectID,
-		ApprovalEntryID:  rawView.Approval.ApprovalEntryID,
-		ApprovalRevision: rawView.Approval.Revision,
+		ApprovalEntryID:  rawDeclaration.Approval.ApprovalEntryID,
+		ApprovalRevision: rawDeclaration.Approval.Revision,
 		Enabled:          rawView.Enabled, Data: rawData,
 	}, trustedIntegrationActor(t, "formula-raw-edit"))
 	if err != nil {

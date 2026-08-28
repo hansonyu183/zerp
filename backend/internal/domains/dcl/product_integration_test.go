@@ -470,7 +470,7 @@ func approveProduct(t *testing.T, service *ProductService, mutation ProductMutat
 func assertProductCurrent(t *testing.T, business *bobdomain.Service, objectID, entryID, name string) {
 	t.Helper()
 	view, err := business.Get(t.Context(), bobdomain.EntityProduct, bobdomain.GetInput{ObjectID: objectID})
-	if err != nil || view.Approval.ApprovalEntryID != entryID || view.Data.Name != name {
+	if err != nil || view.SourceApprovalEntryID != entryID || view.Data.Name != name {
 		t.Fatalf("BOB product current = %+v err=%v", view, err)
 	}
 }

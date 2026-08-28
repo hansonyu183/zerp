@@ -58,7 +58,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 		t.Fatal(err)
 	}
 	employee = submitAndApproveEmployee(t, employees, employee, creator("employee-submit"), reviewer("employee-approve"))
-	input := CustomerAccountDataInput{Name: "账户 V1", CustomerTypeCode: bobdomain.CustomerTypeEndUser, PricingPolicy: CustomerPricingPolicy{DefaultPremiumUnitPrice: "0", DefaultDiscountUnitPrice: "0", ThirdPartyIntermediaryFixedUnitCost: "0", ThirdPartyIntermediaryVariableUnitCost: "0", CostItems: []CustomerPricingCostItem{}}, CreditLimits: []CustomerCreditLimit{{Currency: "CNY", Amount: "100"}}, PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: employee.ObjectID}}
+	input := CustomerAccountDataInput{Name: "账户 V1", CustomerTypeID: bobdomain.CustomerTypeEndUserID, PricingPolicy: CustomerPricingPolicy{DefaultPremiumUnitPrice: "0", DefaultDiscountUnitPrice: "0", ThirdPartyIntermediaryFixedUnitCost: "0", ThirdPartyIntermediaryVariableUnitCost: "0", CostItems: []CustomerPricingCostItem{}}, CreditLimits: []CustomerCreditLimit{{Currency: "CNY", Amount: "100"}}, PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: employee.ObjectID}}
 	customer, err := customers.Create(t.Context(), CustomerCreateInput{PartyID: party.ID, OperatingEntityID: owner.ObjectID, DefaultAccount: input}, creator("customer-create"))
 	if err != nil {
 		t.Fatal(err)
@@ -70,8 +70,8 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	account := CustomerAccountMutation{ObjectID: accountID, Approval: approval.VersionMeta{ApprovalEntryID: accountEntry, Revision: 1}}
 	account = submitAndApproveCustomerAccount(t, accounts, account, creator("account-submit-v1"), reviewer("account-approve-v1"))
 	employeeView, err := accounts.Get(t.Context(), CustomerAccountGetInput{ObjectID: accountID}, creator("account-get-v1"))
-	if err != nil || employeeView.Data.PrimarySalesAttribution.SubjectApprovalEntryID != employee.Approval.ApprovalEntryID {
-		t.Fatalf("employee attribution snapshot=%+v err=%v", employeeView.Data.PrimarySalesAttribution, err)
+	if err != nil || employeeView.Data.PrimarySalesAttribution.SubjectApprovalEntryID != employee.Approval.ApprovalEntryID || employeeView.Data.CustomerType == nil || employeeView.Data.CustomerType.SourceObjectID != bobdomain.CustomerTypeEndUserID || employeeView.Data.CustomerType.Code != "DIT-0001" || employeeView.Data.CustomerType.Name != "终端客户" {
+		t.Fatalf("customer account snapshots=%+v err=%v", employeeView.Data, err)
 	}
 	var current string
 	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customer_account_currents WHERE object_id=$1`, accountID).Scan(&current); err != nil || current != account.Approval.ApprovalEntryID {

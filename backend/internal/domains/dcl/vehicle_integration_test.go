@@ -218,7 +218,7 @@ func TestVehicleDeclarationIdentifierClaimsAndReferenceDriftIntegration(t *testi
 	}
 	if _, err = auxiliary.Save(t.Context(), auxdomain.EntityDictionaryItem, auxdomain.SaveInput{
 		ObjectID: typeObjectID, ObjectRevision: typeView.ObjectRevision,
-		Data: map[string]any{"name": "厢式货车 V2", "sortOrder": 10, "dictionaryTypeCode": "DCT-0002"},
+		Data: map[string]any{"name": "厢式货车 V2", "sortOrder": 10, "dictionaryTypeId": "01JAVX00000000000000000003"},
 	}, creator("save-vehicle-type-v2")); err != nil {
 		t.Fatalf("save vehicle type current data: %v", err)
 	}
@@ -392,7 +392,7 @@ func seedVehicleType(t *testing.T, pool *pgxpool.Pool) string {
 	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by) VALUES('01JAVX00000000000000000003','dictionary-type','DCT-0002',$1::jsonb,$2,$2) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data`, `{"name":"车辆类型","description":"车辆展示和筛选类型"}`, "01J00000000000000000000000"); err != nil {
 		t.Fatalf("insert vehicle dictionary type fixture: %v", err)
 	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by) VALUES($1,'dictionary-item','DIT-0003',$2::jsonb,$3,$3) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data`, objectID, `{"name":"厢式货车","sortOrder":10,"dictionaryTypeCode":"DCT-0002"}`, "01J00000000000000000000000"); err != nil {
+	if _, err := pool.Exec(t.Context(), `INSERT INTO aux_objects(id,entity,code,data,created_by,updated_by) VALUES($1,'dictionary-item','DIT-0003',$2::jsonb,$3,$3) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data`, objectID, `{"name":"厢式货车","sortOrder":10,"dictionaryTypeId":"01JAVX00000000000000000003","dictionaryTypeCode":"DCT-0002","dictionaryTypeName":"车辆类型"}`, "01J00000000000000000000000"); err != nil {
 		t.Fatalf("insert vehicle type object fixture: %v", err)
 	}
 	return objectID
@@ -437,7 +437,7 @@ func assertVehicleCurrent(t *testing.T, business *bobdomain.Service, objectID, e
 	if err != nil {
 		t.Fatalf("get BOB vehicle: %v", err)
 	}
-	if view.Approval.ApprovalEntryID != entryID || view.Data.Name != name || view.Enabled != enabled {
+	if view.SourceApprovalEntryID != entryID || view.Data.Name != name || view.Enabled != enabled {
 		t.Fatalf("BOB vehicle current = %+v", view)
 	}
 }

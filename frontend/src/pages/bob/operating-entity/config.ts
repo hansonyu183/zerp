@@ -7,7 +7,6 @@ import {
   text,
   textarea,
 } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const operatingEntityConfig = defineBobEntityConfig({
   entity: 'operating-entity',
@@ -53,13 +52,13 @@ export const operatingEntityConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '法定公司名称',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'taxNumber',
       label: '税号',
-      value: (row) => bobListActiveVersion(row).summary.taxNumber,
+      value: (row) => row.data.taxNumber,
     },
     {
       key: 'objectId',

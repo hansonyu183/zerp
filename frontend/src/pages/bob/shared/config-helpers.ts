@@ -9,9 +9,10 @@ import type {
   BobFilterField,
   BobForm,
   BobListItem,
-  BobStatus,
 } from './types'
-import { bobListActiveVersion } from './types'
+import type { components } from '@/api/generated/schema'
+
+type BobStatus = components['schemas']['ApprovalVersionMeta']['status']
 
 export const statusText: Record<BobStatus, string> = {
   DRAFT: '草稿',
@@ -200,17 +201,10 @@ export function baseColumns(
     {
       key: 'name',
       label: nameLabel,
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     ...extra,
-    {
-      key: 'status',
-      label: '状态',
-      value: (row) => bobListActiveVersion(row).approval.status,
-      format: (value) => statusText[value as BobStatus] ?? String(value),
-      sizing: 'compact',
-    },
   ]
 }
 

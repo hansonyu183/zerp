@@ -36,10 +36,21 @@ func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID 
 		if err != nil {
 			return DetailView{}, err
 		}
+		enrichDefaultInputUnit(&data)
 		data.Formula, err = loadProductFormula(ctx, q, approvalEntryID)
 		return data, err
 	default:
 		return DetailView{}, invalidPayloadEntity(entity)
+	}
+}
+
+func enrichDefaultInputUnit(data *DetailView) {
+	for _, conversion := range data.UnitConversions {
+		if conversion.Unit.ObjectID == data.DefaultInputUnitID {
+			data.DefaultInputUnitCode = conversion.Unit.Code
+			data.DefaultInputUnitName = conversion.Unit.Name
+			return
+		}
 	}
 }
 

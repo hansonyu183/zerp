@@ -185,7 +185,7 @@ func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput)
 	}
 	return ObjectView{
 		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
-		ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, Approval: approvalMeta(entry),
+		ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo),
 		Data: DetailView{Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
 			Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark)},
 		UpdatedAt: row.UpdatedAt.Time,
@@ -248,8 +248,8 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 		}
 		items = append(items, QueryItem{
 			ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
-			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
-			LatestApproved: &VersionSummary{Approval: view.Approval, Summary: view.Data},
+			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID,
+			SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil

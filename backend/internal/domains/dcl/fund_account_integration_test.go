@@ -52,15 +52,15 @@ func TestFundAccountDeclarationLifecycleAndReferencesIntegration(t *testing.T) {
 	}
 	v1 = submitAndApproveFundAccount(t, service, v1, creator("fund-submit"), reviewer("fund-approve"))
 	current, err := business.Get(t.Context(), bobdomain.EntityFundAccount, bobdomain.GetInput{ObjectID: v1.ObjectID})
-	if err != nil || current.Data.Name != "基本账户" || current.Approval.ApprovalEntryID != v1.Approval.ApprovalEntryID {
+	if err != nil || current.Data.Name != "基本账户" || current.SourceApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("BOB current=%+v err=%v", current, err)
 	}
 	page, err := business.Query(t.Context(), bobdomain.EntityFundAccount, bobdomain.QueryInput{Page: 1, PageSize: 20})
-	if err != nil || len(page.Items) != 1 || page.Items[0].LatestApproved == nil {
+	if err != nil || len(page.Items) != 1 || page.Items[0].SourceApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("BOB current page=%+v err=%v", page, err)
 	}
-	if page.Items[0].LatestApproved.Summary.AccountNumber != "" {
-		t.Fatalf("BOB current list exposed full account number: %+v", page.Items[0].LatestApproved.Summary)
+	if page.Items[0].Data.AccountNumber != "" {
+		t.Fatalf("BOB current list exposed full account number: %+v", page.Items[0].Data)
 	}
 
 	v2, err := service.Save(t.Context(), FundAccountSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Enabled: false, Data: FundAccountData{Name: "基本账户 V2", Currency: "CNY", AccountNumber: "6222-002", OperatingEntityID: owner.ObjectID}}, creator("fund-save"))

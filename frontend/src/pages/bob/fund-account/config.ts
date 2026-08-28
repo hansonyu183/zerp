@@ -1,5 +1,4 @@
 import { defineBobEntityConfig } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const fundAccountConfig = defineBobEntityConfig({
   entity: 'fund-account',
@@ -38,24 +37,24 @@ export const fundAccountConfig = defineBobEntityConfig({
     {
       key: 'name',
       label: '名称',
-      value: (row) => bobListActiveVersion(row).summary.name,
+      value: (row) => row.data.name,
       sizing: 'fluid',
     },
     {
       key: 'currency',
       label: '币种',
-      value: (row) => bobListActiveVersion(row).summary.currency,
+      value: (row) => row.data.currency,
       sizing: 'compact',
     },
     {
       key: 'bankName',
       label: '银行',
-      value: (row) => bobListActiveVersion(row).summary.bankName,
+      value: (row) => row.data.bankName,
     },
     {
       key: 'operatingEntityId',
       label: '经营主体',
-      value: (row) => bobListActiveVersion(row).summary.operatingEntityId,
+      value: (row) => row.data.operatingEntityName ?? '—',
     },
     { key: 'objectId', label: 'Stable ID', value: (row) => row.objectId },
     {

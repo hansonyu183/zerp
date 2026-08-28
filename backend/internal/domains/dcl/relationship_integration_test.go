@@ -116,7 +116,7 @@ func assertRelationshipCurrent(t *testing.T, business *bobdomain.Service, entity
 	if err != nil {
 		t.Fatalf("get BOB %s current: %v", entity, err)
 	}
-	if view.Approval.ApprovalEntryID != entryID || view.Relationship == nil || view.Relationship.PartyDisplayName != name {
+	if view.SourceApprovalEntryID != entryID || view.Relationship == nil || view.Relationship.PartyDisplayName != name {
 		t.Fatalf("BOB %s current = %+v", entity, view)
 	}
 }

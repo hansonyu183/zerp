@@ -94,7 +94,7 @@ payment-method PMT
 
 ### 3.6 字典
 
-`dictionary-type` 只归集不参与逻辑的选项集合；`dictionary-item` 通过 `dictionaryTypeCode` 归属字典类型，并提供 `sortOrder`。字典项一旦被引用，其编码不可修改；名称、顺序和启停状态仍可维护。
+`dictionary-type` 只归集不参与逻辑的选项集合；`dictionary-item` 通过 `dictionaryTypeId` 归属字典类型，并提供 `sortOrder`。服务端同时冻结 `dictionaryTypeCode` 与 `dictionaryTypeName` 展示快照，筛选可以使用编码快照，但所有权、删除 blocker 和写入校验只使用稳定对象 ID。字典项一旦被引用，其编码不可修改；名称、顺序和启停状态仍可维护。
 
 ### 3.7 收支类型
 

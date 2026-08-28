@@ -10,7 +10,8 @@ import type { DclCustomerSnapshot } from './DclCustomerSnapshot';
 export type DclCustomerAccountData = {
   name: string;
   shortName?: string | null;
-  customerTypeCode: string;
+  customerTypeId: string;
+  customerType: DclCustomerAuxiliarySnapshot;
   contactName?: string | null;
   contactPhone?: string | null;
   email?: string | null;

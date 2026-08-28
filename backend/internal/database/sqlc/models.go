@@ -819,6 +819,8 @@ type DclCustomerAccountVersion struct {
 	Entity                             string  `db:"entity" json:"entity"`
 	Name                               string  `db:"name" json:"name"`
 	CustomerType                       string  `db:"customer_type" json:"customer_type"`
+	CustomerTypeCode                   string  `db:"customer_type_code" json:"customer_type_code"`
+	CustomerTypeName                   string  `db:"customer_type_name" json:"customer_type_name"`
 	ShortName                          *string `db:"short_name" json:"short_name"`
 	TaxNumber                          *string `db:"tax_number" json:"tax_number"`
 	ContactName                        *string `db:"contact_name" json:"contact_name"`

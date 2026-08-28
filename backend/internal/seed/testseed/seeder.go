@@ -88,7 +88,7 @@ type Seeder struct {
 	vouchers          *voudomain.Service
 	accounting        *accdomain.Service
 	auxRefs           map[string]auxdomain.ObjectView
-	bobRefs           map[string]bobdomain.ObjectView
+	bobRefs           map[string]seedBusinessView
 }
 
 // seedAuthorizer is only used by the isolated test-data builder. Every
@@ -174,7 +174,7 @@ func New(
 		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, relationships: relationships, parties: partyDeclarations,
 		vouchers: vouchers, accounting: accounting,
 		auxRefs: make(map[string]auxdomain.ObjectView),
-		bobRefs: make(map[string]bobdomain.ObjectView),
+		bobRefs: make(map[string]seedBusinessView),
 	}, nil
 }
 

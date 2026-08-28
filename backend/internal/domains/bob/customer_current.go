@@ -87,7 +87,7 @@ type CustomerCreditLimit struct {
 type CustomerAccountData struct {
 	Name                       string                        `json:"name"`
 	ShortName                  string                        `json:"shortName,omitempty"`
-	CustomerTypeCode           string                        `json:"customerTypeCode"`
+	CustomerTypeID             string                        `json:"customerTypeId"`
 	ContactName                string                        `json:"contactName,omitempty"`
 	ContactPhone               string                        `json:"contactPhone,omitempty"`
 	Email                      string                        `json:"email,omitempty"`
@@ -200,7 +200,7 @@ type CustomerAccountCurrentListItem struct {
 	CustomerRelationshipID   string    `json:"customerRelationshipId"`
 	CustomerRelationshipCode string    `json:"customerRelationshipCode"`
 	Name                     string    `json:"name"`
-	CustomerTypeCode         string    `json:"customerTypeCode"`
+	CustomerTypeID           string    `json:"customerTypeId"`
 	OperatingEntityCode      string    `json:"operatingEntityCode"`
 	Enabled                  bool      `json:"enabled"`
 	SourceApprovalEntryID    string    `json:"sourceApprovalEntryId"`
@@ -293,7 +293,7 @@ func (s *Service) CustomerAccountCurrentQuery(ctx context.Context, in CustomerAc
 	}
 	items := make([]CustomerAccountCurrentListItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, CustomerAccountCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, CustomerRelationshipID: row.CustomerRelationshipID, CustomerRelationshipCode: row.CustomerRelationshipCode, Name: row.Name, CustomerTypeCode: row.CustomerType, OperatingEntityCode: row.OperatingEntityCode, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, UpdatedAt: row.UpdatedAt.Time})
+		items = append(items, CustomerAccountCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, CustomerRelationshipID: row.CustomerRelationshipID, CustomerRelationshipCode: row.CustomerRelationshipCode, Name: row.Name, CustomerTypeID: row.CustomerType, OperatingEntityCode: row.OperatingEntityCode, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[CustomerAccountCurrentListItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
@@ -333,7 +333,7 @@ func bobCustomerAccountData(row dbsqlc.DclCustomerAccountVersion, q *dbsqlc.Quer
 	if err != nil {
 		return CustomerAccountData{}, err
 	}
-	data := CustomerAccountData{Name: row.Name, ShortName: stringValue(row.ShortName), CustomerTypeCode: row.CustomerType, ContactName: stringValue(row.ContactName), ContactPhone: stringValue(row.ContactPhone), Email: stringValue(row.Email), Address: stringValue(row.Address), OperatingEntityID: row.OperatingEntityID, SettlementMethodID: stringValue(row.SettlementMethodID), PaymentMethodID: stringValue(row.PaymentMethodID), DefaultTransportMethodCode: stringValue(row.DefaultTransportMethodCode), DefaultTransportMethodName: stringValue(row.DefaultTransportMethodName), TransportSurcharge: fixeddecimal.Format(row.TransportSurchargeCents, 2, false), PricingPolicy: policy, InternalReminder: stringValue(row.InternalReminder), DefaultSalesOrderRemark: stringValue(row.DefaultSalesOrderRemark), OperatingEntity: &CustomerSnapshot{SourceObjectID: row.OperatingEntityID, ApprovalEntryID: row.OperatingEntityApprovalEntryID, Code: row.OperatingEntityCode, Name: row.OperatingEntityName, TaxNumber: stringValue(row.OperatingEntityTaxNumber), Address: stringValue(row.OperatingEntityAddress), Phone: stringValue(row.OperatingEntityPhone)}, SalesAttribution: CustomerSalesAttributionView{CustomerSalesAttributionInput: CustomerSalesAttributionInput{Type: stringValue(row.PrimarySalesAttributionType), SubjectObjectID: stringValue(row.PrimarySalesSubjectID)}, SubjectApprovalEntryID: stringValue(row.PrimarySalesSubjectApprovalEntryID), SubjectCode: stringValue(row.PrimarySalesSubjectCode), SubjectName: stringValue(row.PrimarySalesSubjectName)}}
+	data := CustomerAccountData{Name: row.Name, ShortName: stringValue(row.ShortName), CustomerTypeID: row.CustomerType, ContactName: stringValue(row.ContactName), ContactPhone: stringValue(row.ContactPhone), Email: stringValue(row.Email), Address: stringValue(row.Address), OperatingEntityID: row.OperatingEntityID, SettlementMethodID: stringValue(row.SettlementMethodID), PaymentMethodID: stringValue(row.PaymentMethodID), DefaultTransportMethodCode: stringValue(row.DefaultTransportMethodCode), DefaultTransportMethodName: stringValue(row.DefaultTransportMethodName), TransportSurcharge: fixeddecimal.Format(row.TransportSurchargeCents, 2, false), PricingPolicy: policy, InternalReminder: stringValue(row.InternalReminder), DefaultSalesOrderRemark: stringValue(row.DefaultSalesOrderRemark), OperatingEntity: &CustomerSnapshot{SourceObjectID: row.OperatingEntityID, ApprovalEntryID: row.OperatingEntityApprovalEntryID, Code: row.OperatingEntityCode, Name: row.OperatingEntityName, TaxNumber: stringValue(row.OperatingEntityTaxNumber), Address: stringValue(row.OperatingEntityAddress), Phone: stringValue(row.OperatingEntityPhone)}, SalesAttribution: CustomerSalesAttributionView{CustomerSalesAttributionInput: CustomerSalesAttributionInput{Type: stringValue(row.PrimarySalesAttributionType), SubjectObjectID: stringValue(row.PrimarySalesSubjectID)}, SubjectApprovalEntryID: stringValue(row.PrimarySalesSubjectApprovalEntryID), SubjectCode: stringValue(row.PrimarySalesSubjectCode), SubjectName: stringValue(row.PrimarySalesSubjectName)}}
 	if data.SettlementMethodID != "" {
 		data.SettlementMethod = &CustomerAuxiliarySnapshot{SourceObjectID: data.SettlementMethodID, Code: stringValue(row.SettlementMethodCode), Name: stringValue(row.SettlementMethodName), TermCode: stringValue(row.SettlementTermCode), RuleType: stringValue(row.SettlementRuleType), DueDays: row.SettlementDueDays, MonthOffset: row.SettlementMonthOffset, CutoffDay: row.SettlementCutoffDay, DefaultSalesSurcharge: fixeddecimal.Format(row.SettlementSalesSurchargeCents, 2, false)}
 	}
@@ -405,7 +405,7 @@ func (s *Service) customerAccountEffectiveReference(ctx context.Context, q *dbsq
 	if err != nil {
 		return EffectiveReference{}, err
 	}
-	detail := DetailView{Name: data.Name, ShortName: data.ShortName, CustomerType: data.CustomerTypeCode, ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, OperatingEntityID: data.OperatingEntityID}
+	detail := DetailView{Name: data.Name, ShortName: data.ShortName, CustomerType: data.CustomerTypeID, ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, OperatingEntityID: data.OperatingEntityID}
 	if data.OperatingEntity != nil {
 		detail.OperatingEntityApprovalEntryID, detail.OperatingEntityCode, detail.OperatingEntityName = data.OperatingEntity.ApprovalEntryID, data.OperatingEntity.Code, data.OperatingEntity.Name
 	}

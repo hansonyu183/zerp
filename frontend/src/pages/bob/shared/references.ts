@@ -28,11 +28,9 @@ function referenceName(item: unknown): string {
   if (!item || typeof item !== 'object') return ''
   const record = item as Record<string, unknown>
   if (typeof record.partyDisplayName === 'string') return record.partyDisplayName
-  const version = record.latestApproved
-  if (!version || typeof version !== 'object') return ''
-  const summary = (version as Record<string, unknown>).summary
-  if (!summary || typeof summary !== 'object') return ''
-  const name = (summary as Record<string, unknown>).name
+  const data = record.data
+  if (!data || typeof data !== 'object') return ''
+  const name = (data as Record<string, unknown>).name
   return typeof name === 'string' ? name : ''
 }
 
@@ -56,7 +54,7 @@ function hasValue(value: unknown): boolean {
 }
 
 export function useBobReferences(
-  config: BobEntityConfig,
+  config: Pick<BobEntityConfig, 'references' | 'filters' | 'fields'>,
   editorMode: Ref<'create' | 'edit' | 'view'>,
   filters: Ref<Record<string, unknown>>,
 ) {

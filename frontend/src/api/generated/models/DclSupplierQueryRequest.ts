@@ -2,18 +2,16 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { SalesPartnerCapability } from './SalesPartnerCapability';
-export type SalesPartnerQueryRequest = {
+export type DclSupplierQueryRequest = {
   page: number;
   pageSize: 20;
-  filters: {
+  filters?: {
     keyword?: string;
     status?: Array<string>;
     enabled?: boolean;
-    operatingEntityId?: string;
-    capability?: SalesPartnerCapability;
+    defaultPurchaserEmployeeId?: string;
   };
-  sort: Array<{
+  sort?: Array<{
     field: 'code';
     order: 'asc';
   }>;

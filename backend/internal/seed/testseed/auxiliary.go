@@ -60,12 +60,12 @@ func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 		}), true},
 		{"dictionary-test-active", auxdomain.EntityDictionaryItem, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
-				"name": "正常", "dictionaryTypeCode": refs["dictionary-test"].Code, "sortOrder": 10,
+				"name": "正常", "dictionaryTypeId": refs["dictionary-test"].ObjectID, "sortOrder": 10,
 			}
 		}, true},
 		{"dictionary-test-disabled", auxdomain.EntityDictionaryItem, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
-				"name": "停用选项", "dictionaryTypeCode": refs["dictionary-test"].Code, "sortOrder": 20,
+				"name": "停用选项", "dictionaryTypeId": refs["dictionary-test"].ObjectID, "sortOrder": 20,
 			}
 		}, false},
 		{"unit-test-disabled", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{

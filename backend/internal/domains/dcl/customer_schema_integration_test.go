@@ -78,7 +78,7 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 	}
 	salesperson = submitAndApproveEmployee(t, employees, salesperson, creator("salesperson-submit"), reviewer("salesperson-approve"))
 	defaultAccount := CustomerAccountDataInput{
-		Name: "复用客户账户", CustomerTypeCode: bobdomain.CustomerTypeEndUser,
+		Name: "复用客户账户", CustomerTypeID: bobdomain.CustomerTypeEndUserID,
 		PricingPolicy:           CustomerPricingPolicy{DefaultPremiumUnitPrice: "0", DefaultDiscountUnitPrice: "0", ThirdPartyIntermediaryFixedUnitCost: "0", ThirdPartyIntermediaryVariableUnitCost: "0", CostItems: []CustomerPricingCostItem{}},
 		CreditLimits:            []CustomerCreditLimit{},
 		PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: salesperson.ObjectID},

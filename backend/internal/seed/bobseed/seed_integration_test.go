@@ -446,7 +446,7 @@ func TestBobAuxiliaryCurrentReferenceBoundaryIntegration(t *testing.T) {
 		}
 		return created
 	}
-	approveProduct := func(created bob.MutationResult, label string) bob.MutationResult {
+	approveProduct := func(created seedMutation, label string) seedMutation {
 		pending, submitErr := productService.Submit(t.Context(), dcldomain.ProductVersionInput{
 			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
 			ApprovalRevision: created.Approval.Revision,
@@ -472,7 +472,7 @@ func TestBobAuxiliaryCurrentReferenceBoundaryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve baseline kilogram unit: %v", err)
 	}
-	newProduct := func(categoryID, name string) bob.MutationResult {
+	newProduct := func(categoryID, name string) seedMutation {
 		created, createErr := productService.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
 			Name: name, CategoryID: categoryID, ProductTypeID: productType.ObjectID,
 			DefaultInputUnitID: unit.ObjectID, PricingUnitID: unit.ObjectID,

@@ -8968,7 +8968,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '查询供应商有效资料与候选状态',
+              'summary': '查询供应商当前有效资料',
               'operationId': 'supplierQuery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -8979,9 +8979,7 @@
                       'application/json':
                         {
                           'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SupplierQueryRequest',
-                            },
+                            { '$ref': './schemas/bob.yaml#/BobQueryRequest' },
                         },
                     },
                 },
@@ -8996,7 +8994,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/SupplierQueryResponse',
+                                  '$ref': './schemas/bob.yaml#/BobQueryResponse',
                                 },
                             },
                         },
@@ -9009,7 +9007,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '读取供应商已批准版本与候选版本',
+              'summary': '读取供应商当前有效资料',
               'operationId': 'supplierGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -9035,7 +9033,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/SupplierGetResponse',
+                                  '$ref': './schemas/bob.yaml#/BobObjectResponse',
                                 },
                             },
                         },
@@ -9141,9 +9139,7 @@
                       'application/json':
                         {
                           'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SalesPartnerQueryRequest',
-                            },
+                            { '$ref': './schemas/bob.yaml#/BobQueryRequest' },
                         },
                     },
                 },
@@ -9158,7 +9154,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/SalesPartnerQueryResponse',
+                                  '$ref': './schemas/bob.yaml#/BobQueryResponse',
                                 },
                             },
                         },
@@ -9197,7 +9193,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/SalesPartnerGetResponse',
+                                  '$ref': './schemas/bob.yaml#/BobObjectResponse',
                                 },
                             },
                         },

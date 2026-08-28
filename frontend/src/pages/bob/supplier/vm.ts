@@ -5,14 +5,8 @@ import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 
-export type SupplierListItem = components['schemas']['SupplierListItem']
-export type SupplierDetailView = components['schemas']['SupplierDetailView']
-
-export function supplierActiveVersion(item: SupplierListItem) {
-  const value = item.latestApproved
-  if (!value) throw new Error('供应商当前档案缺少有效版本。')
-  return value
-}
+export type SupplierListItem = components['schemas']['BobListItem']
+export type SupplierDetailView = components['schemas']['BobObjectView']
 
 export function useSupplierViewModel() {
   const session = useSessionStore()

@@ -1172,7 +1172,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_code_check CHECK (((entity)::text = 'rpt-definition'::character varying AND (code IS NOT NULL) AND ((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text))
+    CONSTRAINT dcl_subjects_code_check CHECK (((entity)::text = 'rpt-definition'::character varying AND (code IS NOT NULL) AND ((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text) AND ((code)::text <> ALL ((ARRAY['definition'::character varying, 'directory'::character varying])::text[])))
         OR ((entity)::text <> 'rpt-definition'::character varying AND ((code IS NULL) OR ((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)))),
     CONSTRAINT dcl_subjects_core_code_required_ck CHECK (((entity)::text <> 'rpt-definition'::character varying) OR (code IS NOT NULL)),
     CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))

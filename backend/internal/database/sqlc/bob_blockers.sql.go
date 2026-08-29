@@ -15,23 +15,19 @@ WITH snapshot_references(entity, field, entry_id) AS (
     FROM dcl_customer_account_versions payload
     JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
     WHERE current_entry.domain='dcl' AND current_entry.entity='customer-account' AND current_entry.status='APPROVED'
-      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='customer-account' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
     UNION ALL SELECT 'customer-account',CASE payload.primary_sales_attribution_type
         WHEN 'INTERNAL_EMPLOYEE' THEN 'customer-sales'
         WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales'
         ELSE 'customer-channel-sales' END,payload.primary_sales_subject_approval_entry_id
     FROM dcl_customer_account_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
     WHERE current_entry.domain='dcl' AND current_entry.entity='customer-account' AND current_entry.status='APPROVED'
-      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='customer-account' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
       AND payload.primary_sales_attribution_type IS NOT NULL
     UNION ALL SELECT 'supplier','supplier-purchaser',payload.default_purchaser_employee_approval_entry_id
     FROM dcl_supplier_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
     WHERE current_entry.domain='dcl' AND current_entry.entity='supplier' AND current_entry.status='APPROVED'
-      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='supplier' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
     UNION ALL SELECT 'fund-account','fund-operating',payload.operating_entity_approval_entry_id
     FROM dcl_fund_account_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
     WHERE current_entry.domain='dcl' AND current_entry.entity='fund-account' AND current_entry.status='APPROVED'
-      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='fund-account' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
 	UNION ALL SELECT 'product','formula-material',payload.material_approval_entry_id
 	FROM dcl_product_formula_lines payload JOIN approval_entries current_entry ON current_entry.id=payload.product_approval_entry_id
 	WHERE current_entry.domain='dcl' AND current_entry.entity='product' AND current_entry.status='APPROVED'
@@ -42,13 +38,12 @@ WITH snapshot_references(entity, field, entry_id) AS (
 	UNION ALL SELECT 'acc-opening-bill','originating-party',entry.origin_party_approval_entry_id
 	FROM acc_opening_bills entry
     UNION ALL SELECT 'vehicle','vehicle-carrier-operating',payload.carrier_operating_entity_approval_entry_id
-    FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='vehicle' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
+    FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED'
     UNION ALL SELECT 'vehicle','vehicle-carrier-service',payload.carrier_service_relationship_approval_entry_id
-    FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='vehicle' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
+    FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED'
     UNION ALL SELECT 'warehouse','warehouse-manager',payload.manager_employee_approval_entry_id
     FROM dcl_warehouse_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
     WHERE current_entry.domain='dcl' AND current_entry.entity='warehouse' AND current_entry.status='APPROVED'
-      AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='warehouse' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
 )
 SELECT entity::text, field::text, count(*)::bigint AS reference_count
 FROM snapshot_references
@@ -63,9 +58,10 @@ type ListBobApprovalEntryReferenceCountsRow struct {
 	ReferenceCount int64  `db:"reference_count" json:"reference_count"`
 }
 
-// Exact BOB Approval-entry blocker projection. Only the latest APPROVED
-// payload of each referencing object is a current formal reference; each row
-// is matched by the immutable snapshot entry rather than the stable object.
+// Exact BOB Approval-entry blocker projection. Every approved declaration
+// remains a persisted formal fact, including versions that are no longer the
+// latest approved declaration. Each row is matched by the immutable snapshot
+// entry rather than the stable object.
 func (q *Queries) ListBobApprovalEntryReferenceCounts(ctx context.Context, approvalEntryID string) ([]ListBobApprovalEntryReferenceCountsRow, error) {
 	rows, err := q.db.Query(ctx, listBobApprovalEntryReferenceCounts, approvalEntryID)
 	if err != nil {

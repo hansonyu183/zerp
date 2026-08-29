@@ -1085,16 +1085,16 @@ SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_sta
 -- ── RPT Definition (DCL-owned) ──────────────────────────────────
 
 -- name: DclRptGetLatestApprovedPayload :one
-SELECT v.approval_entry_id, e.subject_id AS definition_id, v.name, v.description, v.enabled, coalesce(validity.validity, 'VALID') AS validity, v.sql_text, v.parameters, v.columns
+SELECT v.approval_entry_id, e.subject_id AS definition_id, v.name, v.description, v.enabled, validity.validity, v.sql_text, v.parameters, v.columns
 FROM approval_entries e
 JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
-LEFT JOIN rpt_definition_validities validity ON validity.approval_entry_id=e.id
+JOIN rpt_definition_validities validity ON validity.approval_entry_id=e.id
 WHERE e.domain='dcl' AND e.entity='rpt-definition' AND e.subject_id=sqlc.arg(definition_id) AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1;
 -- name: DclRptGetVersionPayload :one
-SELECT v.approval_entry_id, e.subject_id AS definition_id, v.name, v.description, v.enabled, coalesce(validity.validity, 'VALID') AS validity, v.sql_text, v.parameters, v.columns
+SELECT v.approval_entry_id, e.subject_id AS definition_id, v.name, v.description, v.enabled, validity.validity, v.sql_text, v.parameters, v.columns
 FROM dcl_rpt_definition_versions v
 JOIN approval_entries e ON e.id=v.approval_entry_id
-LEFT JOIN rpt_definition_validities validity ON validity.approval_entry_id=v.approval_entry_id
+JOIN rpt_definition_validities validity ON validity.approval_entry_id=v.approval_entry_id
 WHERE v.approval_entry_id=sqlc.arg(approval_entry_id) AND e.subject_id=sqlc.arg(definition_id);
 
 -- name: NextDclRptDefinitionCode :one

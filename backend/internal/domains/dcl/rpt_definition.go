@@ -878,32 +878,3 @@ func (s *RptDefinitionService) validateVersion(ctx context.Context, q *dbsqlc.Qu
 	}
 	return nil
 }
-
-func (s *RptDefinitionService) syncUsePermissions(ctx context.Context, q *dbsqlc.Queries, definitionID, code, actorID string) error {
-	state, err := q.RptLatestApprovedUseState(ctx, definitionID)
-	if err != nil {
-		return err
-	}
-	actorPtr := &actorID
-	if state.Enabled && state.Status == string(approval.StatusApproved) && state.Validity != nil && *state.Validity == "VALID" {
-		queryDesc := "查询" + state.Name + "报表"
-		exportDesc := "导出" + state.Name + "报表"
-		if err := q.RptUpsertUsePermission(ctx, dbsqlc.RptUpsertUsePermissionParams{
-			ID: ulid.Make().String(), Path: "/rpt/" + code + "/query", Code: code, Action: "query",
-			Description: &queryDesc, ActorID: actorPtr,
-		}); err != nil {
-			return err
-		}
-		if err := q.RptUpsertUsePermission(ctx, dbsqlc.RptUpsertUsePermissionParams{
-			ID: ulid.Make().String(), Path: "/rpt/" + code + "/export", Code: code, Action: "export",
-			Description: &exportDesc, ActorID: actorPtr,
-		}); err != nil {
-			return err
-		}
-	} else {
-		if err := q.RptDisableUsePermissions(ctx, dbsqlc.RptDisableUsePermissionsParams{Code: code, ActorID: actorPtr}); err != nil {
-			return err
-		}
-	}
-	return nil
-}

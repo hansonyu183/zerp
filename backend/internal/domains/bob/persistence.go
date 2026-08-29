@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/oklog/ulid/v2"
 )
 
 // DCL owns Product snapshot writes. BOB only reconstructs the immutable DCL
@@ -76,27 +74,11 @@ func loadProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, approval
 	}
 	return result, nil
 }
-func nilIfEmpty(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
-}
 func dateString(value pgtype.Date) string {
 	if !value.Valid {
 		return ""
 	}
 	return value.Time.Format("2006-01-02")
-}
-func numericValue(value string) (pgtype.Numeric, error) {
-	if strings.TrimSpace(value) == "" {
-		return pgtype.Numeric{}, nil
-	}
-	var numeric pgtype.Numeric
-	if err := numeric.Scan(value); err != nil {
-		return pgtype.Numeric{}, err
-	}
-	return numeric, nil
 }
 func numericString(value pgtype.Numeric) string {
 	if !value.Valid {
@@ -108,4 +90,3 @@ func numericString(value pgtype.Numeric) string {
 	}
 	return fmt.Sprint(raw)
 }
-func newID() string { return ulid.Make().String() }

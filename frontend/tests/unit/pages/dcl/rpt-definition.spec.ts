@@ -89,11 +89,15 @@ describe('DCL report definition boundary', () => {
       'dcl/rpt-definition/audit-history',
       { code: definition.code, page: 1, pageSize: 100 },
     )
-    expect(mockedPost).toHaveBeenNthCalledWith(4, 'dcl/rpt-definition/disable', {
-      code: definition.code,
-      approvalEntryId: approval.approvalEntryId,
-      approvalRevision: approval.revision,
-    })
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      4,
+      'dcl/rpt-definition/disable',
+      {
+        code: definition.code,
+        approvalEntryId: approval.approvalEntryId,
+        approvalRevision: approval.revision,
+      },
+    )
   })
 
   it('orchestrates the sole maintenance VM without RPT lifecycle permissions', async () => {
@@ -135,9 +139,13 @@ describe('DCL report definition boundary', () => {
       if (path === 'dcl/rpt-definition/get')
         return Promise.resolve({ data: definition })
       if (path === 'dcl/rpt-definition/versions')
-        return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 100 } })
+        return Promise.resolve({
+          data: { items: [], total: 0, page: 1, pageSize: 100 },
+        })
       if (path === 'dcl/rpt-definition/audit-history')
-        return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 100 } })
+        return Promise.resolve({
+          data: { items: [], total: 0, page: 1, pageSize: 100 },
+        })
       return Promise.resolve({ data: {} })
     }) as typeof apiClient.postContract)
 
@@ -158,6 +166,36 @@ describe('DCL report definition boundary', () => {
       'dcl/rpt-definition/submit',
       expect.any(Object),
     )
-    expect(mockedPost.mock.calls.some(([path]) => String(path).startsWith('rpt/definition/'))).toBe(false)
+    expect(
+      mockedPost.mock.calls.some(([path]) =>
+        String(path).startsWith('rpt/definition/'),
+      ),
+    ).toBe(false)
+  })
+
+  it('requires both save and enable permissions for the enable operation', async () => {
+    const session = useSessionStore()
+    session.permissions = ['/dcl/rpt-definition/enable']
+    const vm = createDclRptDefinitionViewModel()
+    vm.selected = { ...definition, enabled: false }
+
+    expect(vm.canChangeEnabled(true)).toBe(false)
+    await vm.changeEnabled(true)
+    expect(mockedPost).not.toHaveBeenCalled()
+
+    session.permissions = ['/dcl/rpt-definition/save']
+    expect(vm.canChangeEnabled(true)).toBe(false)
+
+    session.permissions = [
+      '/dcl/rpt-definition/save',
+      '/dcl/rpt-definition/enable',
+    ]
+    mockedPost.mockResolvedValue({ data: {} } as never)
+    expect(vm.canChangeEnabled(true)).toBe(true)
+    await vm.changeEnabled(true)
+    expect(mockedPost).toHaveBeenCalledWith(
+      'dcl/rpt-definition/enable',
+      expect.objectContaining({ approvalEntryId: approval.approvalEntryId }),
+    )
   })
 })

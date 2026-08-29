@@ -3,6 +3,7 @@
 package dcl
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -93,6 +94,93 @@ func TestWarehouseDeclarationPersistsManagerApprovalSnapshotIntegration(t *testi
 	}
 	if view.Data.ManagerEmployeeID != employeeID || view.Data.ManagerEmployeeApprovalEntryID != employeeEntryID {
 		t.Fatalf("warehouse manager current = %+v", view.Data)
+	}
+
+	warehouseV2, err := service.Save(t.Context(), WarehouseSaveInput{
+		ObjectID: warehouse.ObjectID, ApprovalEntryID: warehouse.Approval.ApprovalEntryID,
+		ApprovalRevision: warehouse.Approval.Revision, Enabled: true,
+		Data: WarehouseData{Name: "不再指定负责人仓"},
+	}, creator("warehouse-save-v2"))
+	if err != nil {
+		t.Fatalf("create manager-free warehouse V2: %v", err)
+	}
+	_ = submitAndApproveWarehouse(t, service, warehouseV2, creator("warehouse-submit-v2"), reviewer("warehouse-approve-v2"))
+
+	assertExactApprovalReferenceBlockers(t, pool, business, employeeEntryID, "warehouse")
+	insertAccountingPartyReferenceFixtures(t, pool, employeeID, employeeEntryID)
+	assertExactApprovalReferenceBlockers(t, pool, business, employeeEntryID, "warehouse", "acc-bill", "acc-opening-bill")
+}
+
+func assertExactApprovalReferenceBlockers(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, entryID string, wantEntities ...string) {
+	t.Helper()
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin exact reference blocker check: %v", err)
+	}
+	defer tx.Rollback(t.Context()) //nolint:errcheck
+	err = business.EnsureUnapproveAllowed(t.Context(), tx, entryID)
+	var domainErr *bobdomain.DomainError
+	if !errors.As(err, &domainErr) || domainErr.ErrorKey != "bob_unapprove_blocked" {
+		t.Fatalf("exact reference blocker error = %v", err)
+	}
+	blockers, ok := domainErr.Data.(bobdomain.ActiveReferenceBlockers)
+	if !ok {
+		t.Fatalf("exact reference blocker payload = %#v", domainErr.Data)
+	}
+	found := make(map[string]bool, len(blockers.References))
+	for _, blocker := range blockers.References {
+		found[blocker.Entity] = true
+	}
+	for _, entity := range wantEntities {
+		if !found[entity] {
+			t.Fatalf("exact reference blockers = %#v, missing %q", blockers.References, entity)
+		}
+	}
+}
+
+func insertAccountingPartyReferenceFixtures(t *testing.T, pool *pgxpool.Pool, objectID, entryID string) {
+	t.Helper()
+	bookID, billID, openingBillID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
+	var actorID string
+	if err := pool.QueryRow(t.Context(), `SELECT id FROM app_users ORDER BY id LIMIT 1`).Scan(&actorID); err != nil {
+		t.Fatalf("load accounting fixture user: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM acc_bills WHERE id=$1; DELETE FROM acc_openings WHERE book_id=$2; DELETE FROM acc_books WHERE id=$2`, billID, bookID)
+	})
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin accounting exact reference fixtures: %v", err)
+	}
+	defer tx.Rollback(t.Context()) //nolint:errcheck
+	statements := []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO acc_books(id,code,name,start_month,base_currency,created_by,updated_by) VALUES($1,'EXACT-REF','精确引用测试账簿','2026-08-01','CNY',$2,$2)`, []any{bookID, actorID}},
+		{`INSERT INTO acc_openings(book_id,created_by,updated_by) VALUES($1,$2,$2)`, []any{bookID, actorID}},
+		{`INSERT INTO acc_bills(
+			id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,
+			issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,
+			interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
+			origin_party_object_id,origin_party_approval_entry_id,origin_party_code,
+			origin_party_name,state,source_document_id,source_line_id
+		) VALUES($1,'BILL-EXACT-REF','BANK_ACCEPTANCE','ASSET','CNY','ELECTRONIC',100,
+			'2026-08-01','2026-08-31','出票人','承兑人','收款人',0,0,0,0,'employee',
+			$2,$3,'EMP-0001','精确引用员工','AVAILABLE',$4,$5)`, []any{billID, objectID, entryID, ulid.Make().String(), ulid.Make().String()}},
+		{`INSERT INTO acc_opening_bills(
+			book_id,line_order,bill_id,create_object,currency,origin_party_entity,
+			origin_party_object_id,origin_party_approval_entry_id,origin_party_code,
+			origin_party_name,value_minor
+		) VALUES($1,1,$2,false,'CNY','employee',$3,$4,'EMP-0001','精确引用员工',100)`, []any{bookID, openingBillID, objectID, entryID}},
+	}
+	for _, statement := range statements {
+		if _, err = tx.Exec(t.Context(), statement.sql, statement.args...); err != nil {
+			t.Fatalf("insert accounting exact reference fixture: %v", err)
+		}
+	}
+	if err = tx.Commit(t.Context()); err != nil {
+		t.Fatalf("commit accounting exact reference fixtures: %v", err)
 	}
 }
 
@@ -221,7 +309,7 @@ func insertApprovedEmployeeReference(t *testing.T, pool *pgxpool.Pool, business 
 		t.Fatalf("create manager operating entity: %v", err)
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, dclActor(t, creatorID, "warehouse-manager-owner-submit"), dclActor(t, reviewerID, "warehouse-manager-owner-approve"))
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	employees := NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	created, err := employees.Create(t.Context(), EmployeeCreateInput{
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "仓库负责人"},
@@ -274,7 +362,7 @@ func insertWarehouseInventoryBalance(t *testing.T, pool *pgxpool.Pool, warehouse
 		sql  string
 		args []any
 	}{
-		{`INSERT INTO bob_objects(id,entity,code,enabled,revision,created_by,updated_by) VALUES($1,'product','PRD-0001',true,1,$2,$2)`, []any{productID, userID}},
+		{`INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'product','PRD-0001',$2)`, []any{productID, userID}},
 		{`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl','product',$2,1,'APPROVED',3,$3,now(),$4,now(),$3,now(),$4,now())`, []any{productEntryID, productID, userID, reviewerID}},
 		{`INSERT INTO dcl_product_versions(approval_entry_id,name) VALUES($1,'库存产品')`, []any{productEntryID}},
 		{`INSERT INTO acc_books(id,code,name,start_month,base_currency,control_book,created_by,updated_by) VALUES($1,'INV-FIXTURE','库存阻断账簿','2026-08-01','CNY',true,$2,$2)`, []any{bookID, userID}},

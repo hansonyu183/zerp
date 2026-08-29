@@ -78,8 +78,6 @@ WITH requested AS (SELECT sqlc.arg(object_id)::text AS object_id), blockers(sour
   UNION ALL SELECT 'dcl_warehouse_versions',count(*) FROM dcl_warehouse_versions,requested WHERE category_id=requested.object_id
   UNION ALL SELECT 'dcl_customer_attachments',count(*) FROM dcl_customer_attachments,requested WHERE category_object_id=requested.object_id
   UNION ALL SELECT 'dcl_customer_account_attachments',count(*) FROM dcl_customer_account_attachments,requested WHERE category_object_id=requested.object_id
-  UNION ALL SELECT 'bob_warehouses',count(*) FROM bob_warehouses,requested WHERE category_id=requested.object_id
-  UNION ALL SELECT 'bob_vehicles',count(*) FROM bob_vehicles,requested WHERE vehicle_type_object_id=requested.object_id
   UNION ALL SELECT 'vou_asset_acquisition_lines',count(*) FROM vou_asset_acquisition_lines,requested WHERE category_object_id=requested.object_id OR department_object_id=requested.object_id
   UNION ALL SELECT 'vou_inventory_count_lines',count(*) FROM vou_inventory_count_lines,requested WHERE entered_unit_object_id=requested.object_id
   UNION ALL SELECT 'vou_price_lines',count(*) FROM vou_price_lines,requested WHERE product_type_object_id=requested.object_id

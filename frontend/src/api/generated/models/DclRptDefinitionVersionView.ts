@@ -7,6 +7,7 @@ import type { RptVersionData } from './RptVersionData';
 export type DclRptDefinitionVersionView = {
   name: string;
   description: string;
+  enabled: boolean;
   approval: ApprovalVersionMeta;
   validity: 'VALID' | 'INVALID';
   data: RptVersionData;

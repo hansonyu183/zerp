@@ -163,11 +163,11 @@ func (s *CustomerAttachmentService) touchDraft(ctx context.Context, tx pgx.Tx, s
 	entry := approvalEntry(e)
 	q := s.queries.WithTx(tx)
 	if scope == CustomerAttachmentScopeCustomer {
-		identity, err := q.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: entry.SubjectID, Entity: EntityCustomer})
+		identity, err := lockSubject(ctx, tx, EntityCustomer, entry.SubjectID)
 		if err != nil {
 			return approval.Entry{}, translateError(err)
 		}
-		relationship, err := q.GetBobCustomerRelationship(ctx, entry.SubjectID)
+		relationship, err := q.GetDCLCustomerRelationship(ctx, entry.SubjectID)
 		if err != nil {
 			return approval.Entry{}, translateError(err)
 		}
@@ -177,11 +177,7 @@ func (s *CustomerAttachmentService) touchDraft(ctx context.Context, tx pgx.Tx, s
 		}
 		return s.customer.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, dclapproval.CustomerPayload{SubjectID: entry.SubjectID, Code: identity.Code, PartyID: relationship.PartyID, Enabled: stored.Enabled})
 	}
-	identity, err := q.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: entry.SubjectID, Entity: EntityCustomerAccount})
-	if err != nil {
-		return approval.Entry{}, translateError(err)
-	}
-	relationshipID, err := q.GetDCLCustomerAccountIdentity(ctx, entry.SubjectID)
+	identity, relationshipID, err := lockCustomerAccountIdentity(ctx, tx, entry.SubjectID)
 	if err != nil {
 		return approval.Entry{}, translateError(err)
 	}

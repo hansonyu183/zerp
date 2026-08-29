@@ -63,8 +63,8 @@ func (s *OperatingEntityService) Query(
 	items := make([]OperatingEntityQueryItem, 0, len(rows))
 	for _, row := range rows {
 		item := OperatingEntityQueryItem{
-			ObjectID: row.ObjectID, Entity: EntityOperatingEntity, Code: row.Code,
-			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
+			ObjectID: row.ObjectID, Entity: EntityOperatingEntity, Code: stringValue(row.Code),
+			Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
 		}
 		if row.ApprovedEntryID != "" {
 			view, loadErr := s.loadVersionView(ctx, s.queries, row.ApprovedEntryID, row.ObjectID)

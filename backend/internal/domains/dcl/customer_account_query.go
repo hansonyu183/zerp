@@ -84,11 +84,7 @@ func (s *CustomerAccountService) Get(ctx context.Context, in CustomerAccountGetI
 		return CustomerAccountView{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	id, err := s.current.GetCustomerAccountIdentity(ctx, tx, in.ObjectID)
-	if err != nil {
-		return CustomerAccountView{}, translateError(err)
-	}
-	relation, err := q.GetDCLCustomerAccountIdentity(ctx, in.ObjectID)
+	id, relation, err := lockCustomerAccountIdentity(ctx, tx, in.ObjectID)
 	if err != nil {
 		return CustomerAccountView{}, translateError(err)
 	}
@@ -96,7 +92,7 @@ func (s *CustomerAccountService) Get(ctx context.Context, in CustomerAccountGetI
 	if err != nil {
 		return CustomerAccountView{}, err
 	}
-	return CustomerAccountView{ObjectID: id.ObjectID, Entity: EntityCustomerAccount, Code: id.Code, CustomerRelationshipID: relation, ObjectRevision: id.ObjectRevision, Enabled: v.Enabled, Approval: v.Approval, Data: v.Data, Attachments: v.Attachments, UpdatedAt: e.UpdatedAt}, nil
+	return CustomerAccountView{ObjectID: id.ObjectID, Entity: EntityCustomerAccount, Code: id.Code, CustomerRelationshipID: relation, Enabled: v.Enabled, Approval: v.Approval, Data: v.Data, Attachments: v.Attachments, UpdatedAt: e.UpdatedAt}, nil
 }
 func (s *CustomerAccountService) Versions(ctx context.Context, in CustomerAccountHistoryInput, actor approval.Actor) (Page[CustomerAccountVersionView], error) {
 	if _, ok := dclPageOffset(in.Page, in.PageSize); !ok || !validID(in.ObjectID) || !validActor(actor) {
@@ -164,7 +160,7 @@ func (s *CustomerAccountService) Query(ctx context.Context, in CustomerAccountQu
 	}
 	items := make([]CustomerAccountQueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := CustomerAccountQueryItem{ObjectID: row.ObjectID, Entity: EntityCustomerAccount, Code: row.Code, CustomerRelationshipID: row.CustomerRelationshipID, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
+		item := CustomerAccountQueryItem{ObjectID: row.ObjectID, Entity: EntityCustomerAccount, Code: stringValue(row.Code), CustomerRelationshipID: row.CustomerRelationshipID, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
 		if row.LatestApprovedEntryID != "" {
 			v, x := s.version(ctx, s.queries, row.LatestApprovedEntryID, row.ObjectID)
 			if x != nil {

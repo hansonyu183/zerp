@@ -10,7 +10,7 @@ import {
 
 export const operatingEntityConfig = defineBobEntityConfig({
   entity: 'operating-entity',
-  title: '经营主体',
+  title: '经营主体（当前有效资料）',
   codeLabel: '经营主体编码',
   nameLabel: '法定公司名称',
   defaults: {

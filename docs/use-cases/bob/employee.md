@@ -1,16 +1,16 @@
-# BOB 员工当前档案页面用例
+# BOB 员工当前有效资料页面用例
 
 权威业务规则见 [DCL 员工申报](../../domains/dcl.md#36-员工申报)、[BOB 对象与引用规则](../../domains/bob.md#2-领域职责与边界) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI BOB Schema](../../../contracts/openapi/schemas/bob.yaml)。
 
 ## 页面边界
 
-1. 页面入口为 `/bob/employee`，只调用 `POST /bob/employee/query`、`POST /bob/employee/get` 与 `POST /bob/reference/query` 的 `employee` 候选查询；它展示 DCL latest approved 投影。
+1. 页面入口为 `/bob/employee`，只调用 `POST /bob/employee/query`、`POST /bob/employee/get` 与 `POST /bob/reference/query` 的 `employee` 候选查询；它展示 DCL 当前有效资料。
 2. 列表与详情展示员工编码、Party 当前资料、经营主体、人员类别、部门、岗位、工作电话、工作邮箱、入职日期、备注、启停状态、Stable ID 与 `sourceApprovalEntryId`；不把候选资料当作当前事实。
 3. 页面没有新建、编辑、启停、删除、提交、撤回、审核、反批、驳回、版本或审计动作，不请求任何 BOB employee 写路径。维护深链统一进入 `/dcl/employee`。
 
 ## 可见性与异常
 
-1. 加载列表、详情与引用候选分别要求 BOB `employee/query`、`employee/get` 与 `employee/reference` 权限；DCL 权限不会隐式授予当前档案读取权限。
+1. 加载列表、详情与引用候选分别要求 BOB `employee/query`、`employee/get` 与 `employee/reference` 权限；DCL 权限不会隐式授予当前有效资料读取权限。
 2. DCL 候选待审、驳回或撤回期间，BOB 持续显示上一正式版本；批准后显示新 current，反批后显示上一 approved version 或移除 current。
 3. 页面不使用 Party 当前姓名、当前 AUX 名称或当前经营主体资料重写 employee current snapshot，也不在 BOB 内推断审批来源。
 4. 请求失败时显示稳定业务消息与 `requestId`，不回退到 DCL 写 API、旧 BOB lifecycle 或本地假数据。

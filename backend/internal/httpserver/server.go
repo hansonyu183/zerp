@@ -43,10 +43,8 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	eventBus := txevent.NewBus()
 	auxService := auxdomain.NewService(db)
 	auxiliaryResolver := auxiliaryrefs.New(auxService)
-	partyCurrentWriter := bobdomain.NewPartyCurrentWriter(db)
 	partyCurrentReader := bobdomain.NewPartyCurrentReader(db)
-	partyMergeEngine := bobdomain.NewPartyMergeEngine(db)
-	dclPartyService := dcldomain.NewPartyService(db, partyCurrentWriter, partyCurrentReader, partyMergeEngine, authorizer, eventBus)
+	dclPartyService := dcldomain.NewPartyService(db, partyCurrentReader, authorizer, eventBus)
 	bobService := bobdomain.NewService(db, auxiliaryResolver)
 	dclOperatingEntityService := dcldomain.NewOperatingEntityService(db, bobService, authorizer, eventBus)
 	dclWarehouseService := dcldomain.NewWarehouseService(db, bobService, authorizer, eventBus)
@@ -64,7 +62,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	if err != nil {
 		return nil, err
 	}
-	accService := accdomain.NewService(db, authorizer, eventBus)
+	accService := accdomain.NewService(db, bobService, authorizer, eventBus)
 	dclAccMappingService := dcldomain.NewAccMappingService(db, accService, authorizer, eventBus)
 	rptService, err := rptdomain.NewService(db)
 	if err != nil {

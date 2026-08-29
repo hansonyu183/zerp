@@ -14,48 +14,43 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type supplierCurrentWriter interface {
-	ReserveSupplierIdentity(context.Context, pgx.Tx, string, string, string) (bobdomain.RelationshipIdentity, error)
-	GetSupplierIdentity(context.Context, pgx.Tx, string) (bobdomain.RelationshipIdentity, error)
+type supplierBusinessRules interface {
 	ResolveOtherUnitDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bool) (bobdomain.DetailView, error)
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
-	ValidateApprovedSnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
-	ApplySupplierCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string, bool, string) (bobdomain.RelationshipIdentity, error)
-	RemoveSupplierCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string) (bobdomain.RelationshipIdentity, error)
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	EnsureSupplierUnapproveAllowed(context.Context, pgx.Tx, string) error
-	DeleteSupplierIdentity(context.Context, pgx.Tx, string, int64) error
 }
 type supplierPartyReader interface {
 	ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error)
 }
 
-// SupplierService owns DCL's supplier declaration and delegates only immutable
-// relationship identity/current projection to BOB.
+// SupplierService owns the declaration and immutable typed relationship root;
+// BOB contributes only business validation and reference resolution.
 type SupplierService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     supplierCurrentWriter
+	rules       supplierBusinessRules
 	parties     bobdomain.PartyDeclarationCreator
 	partyReader supplierPartyReader
 	coordinator *approval.Coordinator[dclapproval.SupplierPayload]
 }
 
-func NewSupplierService(pool *pgxpool.Pool, current supplierCurrentWriter, parties bobdomain.PartyDeclarationCreator, partyReader supplierPartyReader, authorizer approval.Authorizer, bus *txevent.Bus) *SupplierService {
-	if pool == nil || current == nil || parties == nil || partyReader == nil || authorizer == nil || bus == nil {
+func NewSupplierService(pool *pgxpool.Pool, rules supplierBusinessRules, parties bobdomain.PartyDeclarationCreator, partyReader supplierPartyReader, authorizer approval.Authorizer, bus *txevent.Bus) *SupplierService {
+	if pool == nil || rules == nil || parties == nil || partyReader == nil || authorizer == nil || bus == nil {
 		panic("dcl: supplier dependencies are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntitySupplier, authorizer, bus, dclapproval.SupplierTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &SupplierService{pool: pool, queries: dbsqlc.New(pool), current: current, parties: parties, partyReader: partyReader, coordinator: c}
+	return &SupplierService{pool: pool, queries: dbsqlc.New(pool), rules: rules, parties: parties, partyReader: partyReader, coordinator: c}
 }
 
 func supplierPayload(id bobdomain.RelationshipIdentity, enabled bool) dclapproval.SupplierPayload {
 	return dclapproval.SupplierPayload{SubjectID: id.ObjectID, Code: id.Code, PartyID: id.PartyID, Enabled: enabled}
 }
 func supplierMutation(id bobdomain.RelationshipIdentity, enabled bool, e approval.Entry) SupplierMutation {
-	return SupplierMutation{ObjectID: id.ObjectID, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+	return SupplierMutation{ObjectID: id.ObjectID, PartyID: id.PartyID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 func supplierVersionInput(i SupplierReviewInput) SupplierVersionInput {
 	return SupplierVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
@@ -134,7 +129,7 @@ func supplierInsert(id string, enabled bool, data SupplierData) dbsqlc.InsertDCL
 	return dbsqlc.InsertDCLSupplierVersionParams{ApprovalEntryID: p.ApprovalEntryID, ShortName: p.ShortName, TaxNumber: p.TaxNumber, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, Remark: p.Remark, SettlementMethodID: p.SettlementMethodID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, DefaultPurchaserEmployeeID: p.DefaultPurchaserEmployeeID, DefaultPurchaserEmployeeApprovalEntryID: p.DefaultPurchaserEmployeeApprovalEntryID, DefaultPurchaserEmployeeCode: p.DefaultPurchaserEmployeeCode, DefaultPurchaserEmployeeName: p.DefaultPurchaserEmployeeName, Enabled: p.Enabled}
 }
 func (s *SupplierService) resolve(ctx context.Context, tx pgx.Tx, data SupplierData, exact bool) (SupplierData, error) {
-	detail, err := s.current.ResolveOtherUnitDeclaration(ctx, tx, supplierDetail(data), exact)
+	detail, err := s.rules.ResolveOtherUnitDeclaration(ctx, tx, supplierDetail(data), exact)
 	if err != nil {
 		return SupplierData{}, err
 	}
@@ -142,9 +137,9 @@ func (s *SupplierService) resolve(ctx context.Context, tx pgx.Tx, data SupplierD
 	if data.DefaultPurchaserEmployeeID != "" {
 		var ref bobdomain.EffectiveReference
 		if exact {
-			ref, err = s.current.ValidateApprovedSnapshotReference(ctx, tx, bobdomain.EntityEmployee, data.DefaultPurchaserEmployeeID, data.DefaultPurchaserApprovalEntryID)
+			ref, err = s.rules.ValidateHistoricalReference(ctx, tx, bobdomain.EntityEmployee, data.DefaultPurchaserEmployeeID, data.DefaultPurchaserApprovalEntryID)
 		} else {
-			ref, err = s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityEmployee, data.DefaultPurchaserEmployeeID)
+			ref, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityEmployee, data.DefaultPurchaserEmployeeID)
 		}
 		if err != nil {
 			return SupplierData{}, err
@@ -176,7 +171,7 @@ func (s *SupplierService) Create(ctx context.Context, in SupplierCreateInput, ac
 		return SupplierMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err = s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID); err != nil {
+	if _, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID); err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
 	var party bobdomain.PartyRelationshipResolved
@@ -188,7 +183,7 @@ func (s *SupplierService) Create(ctx context.Context, in SupplierCreateInput, ac
 	if err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
-	id, err := s.current.ReserveSupplierIdentity(ctx, tx, party.ID, in.OperatingEntityID, actor.ID())
+	id, err := reserveRelationshipIdentity(ctx, tx, EntitySupplier, "SUP", party.ID, in.OperatingEntityID, actor.ID())
 	if err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
@@ -197,9 +192,6 @@ func (s *SupplierService) Create(ctx context.Context, in SupplierCreateInput, ac
 		return SupplierMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: id.ObjectID, Entity: EntitySupplier, ActorID: actor.ID()}); err != nil {
-		return SupplierMutation{}, translateError(err)
-	}
 	e, err := s.coordinator.CreateFirstVersion(ctx, tx, id.ObjectID, actor, supplierPayload(id, true))
 	if err != nil {
 		return SupplierMutation{}, translateError(err)
@@ -234,7 +226,7 @@ func (s *SupplierService) Save(ctx context.Context, in SupplierSaveInput, actor 
 	if err != nil || stored.SubjectID != in.ObjectID || stored.Revision != in.ApprovalRevision {
 		return SupplierMutation{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
 	}
-	id, err := s.current.GetSupplierIdentity(ctx, tx, in.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntitySupplier, in.ObjectID)
 	if err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
@@ -306,7 +298,7 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 	if err != nil || p.Entry().SubjectID != in.ObjectID {
 		return SupplierMutation{}, translateError(err)
 	}
-	id, err := s.current.GetSupplierIdentity(ctx, tx, in.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntitySupplier, in.ObjectID)
 	if err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
@@ -320,7 +312,7 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-			_, err = s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
+			_, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
 		}
 		if err == nil {
 			_, err = s.resolve(ctx, tx, data, true)
@@ -330,7 +322,7 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureSupplierUnapproveAllowed(ctx, tx, in.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureSupplierUnapproveAllowed(ctx, tx, in.ApprovalEntryID); err != nil {
 			return SupplierMutation{}, translateError(err)
 		}
 	}
@@ -338,33 +330,10 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 	if err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
-	result, enabled := id, stored.Enabled
-	if action == approval.ActionApproved {
-		result, err = s.current.ApplySupplierCurrent(ctx, tx, id, e.ID, stored.Enabled, actor.ID())
-	} else if action == approval.ActionUnapproved {
-		latest, lookup := s.queries.WithTx(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySupplier, SubjectID: id.ObjectID})
-		if errors.Is(lookup, pgx.ErrNoRows) {
-			result, err = s.current.RemoveSupplierCurrent(ctx, tx, id, actor.ID())
-			enabled = false
-		} else if lookup != nil {
-			err = lookup
-		} else {
-			prior, getErr := s.queries.WithTx(tx).GetDCLSupplierVersion(ctx, latest.ID)
-			if getErr != nil {
-				err = getErr
-			} else {
-				result, err = s.current.ApplySupplierCurrent(ctx, tx, id, latest.ID, prior.Enabled, actor.ID())
-				enabled = prior.Enabled
-			}
-		}
-	}
-	if err != nil {
-		return SupplierMutation{}, translateError(err)
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
-	return supplierMutation(result, enabled, e), nil
+	return supplierMutation(id, stored.Enabled, e), nil
 }
 
 func (s *SupplierService) Delete(ctx context.Context, in SupplierDeleteInput, actor approval.Actor) error {
@@ -379,7 +348,7 @@ func (s *SupplierService) Delete(ctx context.Context, in SupplierDeleteInput, ac
 	if err = s.coordinator.LockVersionSubject(ctx, tx, in.ObjectID); err != nil {
 		return translateError(err)
 	}
-	id, err := s.current.GetSupplierIdentity(ctx, tx, in.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntitySupplier, in.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
@@ -401,10 +370,10 @@ func (s *SupplierService) Delete(ctx context.Context, in SupplierDeleteInput, ac
 	}
 	_, err = q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySupplier, SubjectID: in.ObjectID})
 	if errors.Is(err, pgx.ErrNoRows) {
-		if n, err = q.DeleteDCLSubject(ctx, dbsqlc.DeleteDCLSubjectParams{ID: in.ObjectID, Entity: EntitySupplier}); err != nil || n != 1 {
+		if n, err = q.DeleteDCLSupplierRelationship(ctx, in.ObjectID); err != nil || n != 1 {
 			return translateError(err)
 		}
-		if err = s.current.DeleteSupplierIdentity(ctx, tx, in.ObjectID, id.ObjectRevision); err != nil {
+		if n, err = q.DeleteDCLSubject(ctx, dbsqlc.DeleteDCLSubjectParams{ID: in.ObjectID, Entity: EntitySupplier}); err != nil || n != 1 {
 			return translateError(err)
 		}
 	} else if err != nil {

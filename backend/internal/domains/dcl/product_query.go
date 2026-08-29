@@ -53,7 +53,7 @@ func (s *ProductService) Query(ctx context.Context, input ProductQueryInput, act
 	}
 	items := make([]ProductQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := ProductQueryItem{ObjectID: r.ObjectID, Entity: EntityProduct, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		item := ProductQueryItem{ObjectID: r.ObjectID, Entity: EntityProduct, Code: stringValue(r.Code), Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.ApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.ApprovedEntryID, r.ObjectID)
 			if e != nil {
@@ -105,7 +105,7 @@ func (s *ProductService) Get(ctx context.Context, input ProductGetInput, actor a
 		}
 		return ProductView{}, translateError(err)
 	}
-	identity, err := s.current.GetProductIdentity(ctx, tx, input.ObjectID)
+	identity, err := s.queries.WithTx(tx).GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: input.ObjectID, Entity: EntityProduct})
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
@@ -113,7 +113,7 @@ func (s *ProductService) Get(ctx context.Context, input ProductGetInput, actor a
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
-	return ProductView{ObjectID: identity.ObjectID, Entity: EntityProduct, Code: identity.Code, ObjectRevision: identity.ObjectRevision, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: productVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
+	return ProductView{ObjectID: identity.ID, Entity: EntityProduct, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: productVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
 }
 
 func (s *ProductService) Versions(ctx context.Context, input ProductHistoryInput, actor approval.Actor) (Page[ProductVersionView], error) {

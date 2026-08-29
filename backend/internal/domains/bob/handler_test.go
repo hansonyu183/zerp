@@ -85,7 +85,7 @@ func newBOBTestRouter(service applicationService, authorizer authorization.Autho
 	return router
 }
 
-func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
+func TestHandlerRegistersReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
 	expectedEntities := []string{"customer", "customer-account"}
@@ -226,6 +226,35 @@ func TestHandlerDispatchesWarehouseCurrentReadActionsOnly(t *testing.T) {
 				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
 			}
 		})
+	}
+}
+
+func TestHandlerReturnsNotFoundForEveryLegacyBOBWritePath(t *testing.T) {
+	authorizer := authorization.Func(func(_ context.Context, _ *http.Request, _, _ string) (authorization.Principal, error) {
+		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
+	})
+	entities := []string{
+		"party", "customer", "customer-account", "supplier", "employee",
+		"other-unit", "sales-partner", "product", "warehouse", "vehicle",
+		"fund-account", "operating-entity",
+	}
+	actions := []string{
+		"create", "save", "submit", "unsubmit", "reject", "approve",
+		"unapprove", "delete", "enable", "disable", "versions", "audit-history",
+	}
+	for _, entity := range entities {
+		for _, action := range actions {
+			t.Run(entity+"/"+action, func(t *testing.T) {
+				router := newBOBTestRouter(&serviceStub{}, authorizer)
+				request := httptest.NewRequest(http.MethodPost, "/bob/"+entity+"/"+action, strings.NewReader(`{}`))
+				request.Header.Set("Content-Type", "application/json")
+				recorder := httptest.NewRecorder()
+				router.ServeHTTP(recorder, request)
+				if recorder.Code != http.StatusNotFound {
+					t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
+				}
+			})
+		}
 	}
 }
 

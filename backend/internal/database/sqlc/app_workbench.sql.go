@@ -14,19 +14,18 @@ import (
 const countWorkbenchBobItems = `-- name: CountWorkbenchBobItems :one
 SELECT count(*)
 FROM approval_entries entry
-LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN dcl_subjects subject ON subject.id=entry.subject_id AND subject.entity=entry.entity
 LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
 LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
-LEFT JOIN rpt_definitions report_definition ON entry.entity='rpt-definition' AND report_definition.id=entry.subject_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'customer' THEN (SELECT current.display_name FROM bob_customer_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'customer' THEN (SELECT current.display_name FROM dcl_customer_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) current ON true WHERE relationship.object_id=entry.subject_id)
     WHEN 'customer-account' THEN (SELECT payload.name FROM dcl_customer_account_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'supplier' THEN (SELECT current.display_name FROM bob_supplier_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
-    WHEN 'other-unit' THEN (SELECT current.display_name FROM bob_service_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
-    WHEN 'employee' THEN (SELECT party.display_name FROM bob_employment_relationships relationship JOIN bob_party_currents party ON party.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL)
-    WHEN 'sales-partner' THEN (SELECT current.display_name FROM bob_sales_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'supplier' THEN (SELECT current.display_name FROM dcl_supplier_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) current ON true WHERE relationship.object_id=entry.subject_id)
+    WHEN 'other-unit' THEN (SELECT current.display_name FROM dcl_service_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) current ON true WHERE relationship.object_id=entry.subject_id)
+    WHEN 'employee' THEN (SELECT party.display_name FROM dcl_employment_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL)
+    WHEN 'sales-partner' THEN (SELECT current.display_name FROM dcl_sales_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) current ON true WHERE relationship.object_id=entry.subject_id)
     WHEN 'product' THEN (SELECT payload.name FROM dcl_product_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'warehouse' THEN (SELECT payload.name FROM dcl_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'vehicle' THEN (SELECT payload.name FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -54,10 +53,9 @@ WHERE entry.domain='dcl'
   )
   AND (
     $5::text = ''
-    OR object.code ILIKE '%' || $5 || '%'
+    OR subject.code ILIKE '%' || $5 || '%'
     OR mapping.vou_entity ILIKE '%' || $5 || '%'
     OR mapping_book.name ILIKE '%' || $5 || '%'
-    OR report_definition.code ILIKE '%' || $5 || '%'
     OR named.name ILIKE '%' || $5 || '%'
   )
 `
@@ -133,30 +131,28 @@ func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbench
 }
 
 const listWorkbenchBobItems = `-- name: ListWorkbenchBobItems :many
-SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, mapping.vou_entity, report_definition.code, '') AS code,
+SELECT entry.subject_id AS object_id, entry.entity, COALESCE(subject.code, mapping.vou_entity, '') AS code,
        named.name,
        COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
-       COALESCE(object.revision, report_definition.revision, 1) AS object_revision,
        entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision,
-       COALESCE(object.updated_at, mapping.updated_at, report_definition.updated_at, entry.updated_at) AS object_updated_at,
+       COALESCE(subject.created_at, mapping.updated_at, entry.updated_at) AS object_updated_at,
        CASE
          WHEN entry.submitted_by = $1::text THEN true
          ELSE false
        END AS is_submitted_by_actor
 FROM approval_entries entry
-LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN dcl_subjects subject ON subject.id=entry.subject_id AND subject.entity=entry.entity
 LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
 LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
-LEFT JOIN rpt_definitions report_definition ON entry.entity='rpt-definition' AND report_definition.id=entry.subject_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'customer' THEN (SELECT current.display_name FROM bob_customer_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'customer' THEN (SELECT current.display_name FROM dcl_customer_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) current ON true WHERE relationship.object_id=entry.subject_id)
     WHEN 'customer-account' THEN (SELECT payload.name FROM dcl_customer_account_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'supplier' THEN (SELECT current.display_name FROM bob_supplier_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
-    WHEN 'other-unit' THEN (SELECT current.display_name FROM bob_service_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
-    WHEN 'employee' THEN (SELECT party.display_name FROM bob_employment_relationships relationship JOIN bob_party_currents party ON party.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL)
-    WHEN 'sales-partner' THEN (SELECT current.display_name FROM bob_sales_relationships relationship JOIN bob_party_currents current ON current.party_id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'supplier' THEN (SELECT current.display_name FROM dcl_supplier_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) current ON true WHERE relationship.object_id=entry.subject_id)
+    WHEN 'other-unit' THEN (SELECT current.display_name FROM dcl_service_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) current ON true WHERE relationship.object_id=entry.subject_id)
+    WHEN 'employee' THEN (SELECT party.display_name FROM dcl_employment_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL)
+    WHEN 'sales-partner' THEN (SELECT current.display_name FROM dcl_sales_relationships relationship JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) current ON true WHERE relationship.object_id=entry.subject_id)
     WHEN 'product' THEN (SELECT payload.name FROM dcl_product_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'warehouse' THEN (SELECT payload.name FROM dcl_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'vehicle' THEN (SELECT payload.name FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
@@ -184,13 +180,12 @@ WHERE entry.domain='dcl'
   )
   AND (
     $5::text = ''
-    OR object.code ILIKE '%' || $5 || '%'
+    OR subject.code ILIKE '%' || $5 || '%'
     OR mapping.vou_entity ILIKE '%' || $5 || '%'
     OR mapping_book.name ILIKE '%' || $5 || '%'
-    OR report_definition.code ILIKE '%' || $5 || '%'
     OR named.name ILIKE '%' || $5 || '%'
   )
-ORDER BY COALESCE(object.updated_at,mapping.updated_at,report_definition.updated_at,entry.updated_at) DESC, entry.subject_id ASC
+ORDER BY COALESCE(subject.created_at,mapping.updated_at,entry.updated_at) DESC, entry.subject_id ASC
 LIMIT $7 OFFSET $6
 `
 
@@ -211,7 +206,6 @@ type ListWorkbenchBobItemsRow struct {
 	Name               string             `db:"name" json:"name"`
 	BookID             string             `db:"book_id" json:"book_id"`
 	VouEntity          string             `db:"vou_entity" json:"vou_entity"`
-	ObjectRevision     int64              `db:"object_revision" json:"object_revision"`
 	ApprovalEntryID    string             `db:"approval_entry_id" json:"approval_entry_id"`
 	Status             string             `db:"status" json:"status"`
 	ApprovalRevision   int64              `db:"approval_revision" json:"approval_revision"`
@@ -243,7 +237,6 @@ func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBo
 			&i.Name,
 			&i.BookID,
 			&i.VouEntity,
-			&i.ObjectRevision,
 			&i.ApprovalEntryID,
 			&i.Status,
 			&i.ApprovalRevision,

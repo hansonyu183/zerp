@@ -52,7 +52,7 @@ func (s *FundAccountService) Query(ctx context.Context, input FundAccountQueryIn
 	}
 	items := make([]FundAccountQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := FundAccountQueryItem{ObjectID: r.ObjectID, Entity: EntityFundAccount, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		item := FundAccountQueryItem{ObjectID: r.ObjectID, Entity: EntityFundAccount, Code: stringValue(r.Code), Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.ApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.ApprovedEntryID, r.ObjectID)
 			if e != nil {
@@ -104,7 +104,7 @@ func (s *FundAccountService) Get(ctx context.Context, input FundAccountGetInput,
 		}
 		return FundAccountView{}, translateError(err)
 	}
-	identity, err := s.current.GetFundAccountIdentity(ctx, tx, input.ObjectID)
+	identity, err := s.queries.WithTx(tx).GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: input.ObjectID, Entity: EntityFundAccount})
 	if err != nil {
 		return FundAccountView{}, translateError(err)
 	}
@@ -112,7 +112,7 @@ func (s *FundAccountService) Get(ctx context.Context, input FundAccountGetInput,
 	if err != nil {
 		return FundAccountView{}, translateError(err)
 	}
-	return FundAccountView{ObjectID: identity.ObjectID, Entity: EntityFundAccount, Code: identity.Code, ObjectRevision: identity.ObjectRevision, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: fundAccountVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
+	return FundAccountView{ObjectID: identity.ID, Entity: EntityFundAccount, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: fundAccountVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
 }
 
 func (s *FundAccountService) Versions(ctx context.Context, input FundAccountHistoryInput, actor approval.Actor) (Page[FundAccountVersionView], error) {

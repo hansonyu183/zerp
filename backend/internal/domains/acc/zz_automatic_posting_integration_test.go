@@ -98,7 +98,7 @@ func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service,
 func createApprovedAccountingEmployee(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, bus *txevent.Bus, operatingEntityID, name, requestPrefix string) voudomain.ReferenceInput {
 	t.Helper()
 	authorizer := authorization.Func(nil)
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	employees := dcldomain.NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: name},
@@ -430,7 +430,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	}
 	auxiliary := auxdomain.NewService(pool)
 	business := newAccountingIntegrationBOBService(pool, bus)
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "服务验收经营主体"})
 	employee := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "服务验收经办人", "service-acceptance-employee")

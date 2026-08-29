@@ -19,7 +19,6 @@ interface Envelope<T> {
 interface Mutation {
   objectId: string
   partyId?: string
-  objectRevision: number
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -53,7 +52,6 @@ interface VoucherMutation {
 interface BobView {
   objectId: string
   code: string
-  objectRevision: number
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -69,7 +67,6 @@ interface BobView {
 interface BobCurrentView {
   objectId: string
   code: string
-  objectRevision: number
   enabled: boolean
   sourceApprovalEntryId: string
   sourceVersionNo: number
@@ -140,7 +137,6 @@ interface ReferenceMutation {
 interface WflDefinition {
   definitionId: string
   code: string
-  revision: number
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -703,7 +699,8 @@ async function createEnabledWorkflow(
     'dcl/wfl-process-definition/enable',
     {
       code: approved.code,
-      revision: approved.revision,
+      approvalEntryId: approved.approval.approvalEntryId,
+      approvalRevision: approved.approval.revision,
     },
   )
   expect(enabled.enabled).toBe(true)
@@ -1202,7 +1199,7 @@ test(
         .click()
       const partyDialog = page
         .getByRole('dialog')
-        .filter({ hasText: '主体当前档案' })
+        .filter({ hasText: '主体当前有效资料' })
       await expect(partyDialog).toContainText(
         `${facts.otherUnit.code} · 服务关系`,
       )
@@ -1241,7 +1238,7 @@ test(
         suffix,
       )
 
-      // One real-backend journey now proves the final BOB/DCL projection
+      // One real-backend journey now proves the final BOB/DCL read boundary
       // model as a whole. No application request is mocked or intercepted.
       const product = await referenceByCode(
         session.api,
@@ -1329,8 +1326,7 @@ test(
         'dcl/employee/submit',
         {
           objectId: managerDisableCandidate.objectId,
-          approvalEntryId:
-            managerDisableCandidate.approval.approvalEntryId,
+          approvalEntryId: managerDisableCandidate.approval.approvalEntryId,
           approvalRevision: managerDisableCandidate.approval.revision,
         },
       )

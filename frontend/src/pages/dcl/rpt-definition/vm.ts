@@ -81,9 +81,12 @@ export function createDclRptDefinitionViewModel() {
       ]),
     ),
   )
+  const canChangeEnabled = (enabled: boolean): boolean =>
+    permissions.value.save && permissions.value[enabled ? 'enable' : 'disable']
   const form = reactive({
     name: '',
     description: '',
+    enabled: true,
     dataText: JSON.stringify(initialData, null, 2),
     validationParametersText: '{}',
   })
@@ -111,18 +114,33 @@ export function createDclRptDefinitionViewModel() {
   const validationParameters = computed<Record<string, unknown> | null>(() => {
     try {
       const value = JSON.parse(form.validationParametersText) as unknown
-      return value !== null && typeof value === 'object' && !Array.isArray(value)
+      return value !== null &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
         ? (value as Record<string, unknown>)
         : null
     } catch {
       return null
     }
   })
+  const canSetFormEnabled = (enabled: boolean): boolean =>
+    permissions.value[enabled ? 'enable' : 'disable']
+  const canPersistForm = computed(() => {
+    if (!selected.value)
+      return permissions.value.create && canSetFormEnabled(form.enabled)
+    return (
+      permissions.value.save &&
+      selected.value.approval.status === 'DRAFT' &&
+      (selected.value.enabled === form.enabled ||
+        canSetFormEnabled(form.enabled))
+    )
+  })
 
   function resetForm(): void {
     selected.value = null
     form.name = ''
     form.description = ''
+    form.enabled = true
     form.dataText = JSON.stringify(initialData, null, 2)
     form.validationParametersText = '{}'
     reason.value = ''
@@ -132,6 +150,7 @@ export function createDclRptDefinitionViewModel() {
     selected.value = definition
     form.name = definition.name
     form.description = definition.description
+    form.enabled = definition.enabled
     form.dataText = JSON.stringify(definition.data, null, 2)
   }
 
@@ -190,7 +209,10 @@ export function createDclRptDefinitionViewModel() {
     }
   }
 
-  async function openByTarget(code: string, approvalEntryId?: string): Promise<void> {
+  async function openByTarget(
+    code: string,
+    approvalEntryId?: string,
+  ): Promise<void> {
     const item = rows.value.find((row) => row.code === code)
     if (item) await openDefinition(item, approvalEntryId)
   }
@@ -208,6 +230,7 @@ export function createDclRptDefinitionViewModel() {
   }
 
   async function save(): Promise<void> {
+    if (!canPersistForm.value) return
     if (!parsedData.value) {
       errorMessage.value = '定义数据必须包含 sql、parameters 和 columns。'
       return
@@ -220,24 +243,25 @@ export function createDclRptDefinitionViewModel() {
     errorMessage.value = null
     try {
       if (selected.value) {
-        if (!permissions.value.save || selected.value.approval.status !== 'DRAFT')
-          return
         await saveRptDefinition({
           ...selected.value,
           name: form.name.trim(),
           description: form.description.trim(),
+          enabled: form.enabled,
           data: parsedData.value,
         })
       } else {
-        if (!permissions.value.create) return
         await createRptDefinition({
           name: form.name.trim(),
           description: form.description.trim(),
+          enabled: form.enabled,
           data: parsedData.value,
         })
       }
       if (!active) return
-      successMessage.value = selected.value ? '报表定义草稿已保存。' : '报表定义已创建。'
+      successMessage.value = selected.value
+        ? '报表定义草稿已保存。'
+        : '报表定义已创建。'
       editorOpen.value = false
       await query()
     } catch (error) {
@@ -259,7 +283,10 @@ export function createDclRptDefinitionViewModel() {
   ): Promise<void> {
     const definition = selected.value
     if (!definition || !permissions.value[action]) return
-    if ((action === 'reject' || action === 'unapprove') && !reason.value.trim()) {
+    if (
+      (action === 'reject' || action === 'unapprove') &&
+      !reason.value.trim()
+    ) {
       errorMessage.value = '请填写原因。'
       return
     }
@@ -286,7 +313,11 @@ export function createDclRptDefinitionViewModel() {
           validationParameters.value ?? {},
         )
       else
-        await runRptDefinitionReviewAction(action, definition, reason.value.trim())
+        await runRptDefinitionReviewAction(
+          action,
+          definition,
+          reason.value.trim(),
+        )
       if (!active) return
       successMessage.value = '报表定义申报操作已完成。'
       editorOpen.value = false
@@ -299,8 +330,7 @@ export function createDclRptDefinitionViewModel() {
   }
 
   async function changeEnabled(enabled: boolean): Promise<void> {
-    if (!selected.value || !permissions.value[enabled ? 'enable' : 'disable'])
-      return
+    if (!selected.value || !canChangeEnabled(enabled)) return
     try {
       await setRptDefinitionEnabled(selected.value, enabled)
       successMessage.value = enabled ? '报表已启用。' : '报表已停用。'
@@ -336,6 +366,8 @@ export function createDclRptDefinitionViewModel() {
   return reactive({
     auditEvents,
     auditOpen,
+    canPersistForm,
+    canSetFormEnabled,
     changeEnabled,
     changePage,
     editorOpen,
@@ -352,6 +384,7 @@ export function createDclRptDefinitionViewModel() {
     page,
     pageSize,
     permissions,
+    canChangeEnabled,
     query,
     reason,
     resetFilters,

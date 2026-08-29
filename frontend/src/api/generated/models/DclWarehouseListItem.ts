@@ -7,7 +7,6 @@ export type DclWarehouseListItem = {
   objectId: string;
   entity: 'warehouse';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclWarehouseVersionView | null;
   openVersion: DclWarehouseVersionView | null;

@@ -1,4 +1,4 @@
-package bob
+package dcl
 
 import (
 	"context"
@@ -10,13 +10,14 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/oklog/ulid/v2"
 )
 
-// PartyMergeEngine is the BOB-owned transactional relationship writer. DCL
-// owns the application boundary and delegates merge execution here.
+// PartyMergeEngine owns DCL Party merge preflight, confirmation and audit.
 type PartyMergeEngine struct {
 	pool    *pgxpool.Pool
 	queries *dbsqlc.Queries
@@ -24,15 +25,15 @@ type PartyMergeEngine struct {
 
 func NewPartyMergeEngine(pool *pgxpool.Pool) *PartyMergeEngine {
 	if pool == nil {
-		panic("bob: Party merge engine requires persistence")
+		panic("dcl: Party merge engine requires persistence")
 	}
 	return &PartyMergeEngine{pool: pool, queries: dbsqlc.New(pool)}
 }
 
-func (e *PartyMergeEngine) Preflight(ctx context.Context, in PartyMergePreflightInput, visibility PartyRelationshipVisibility, actorID, requestID string) (PartyMergePreflightResult, error) {
+func (e *PartyMergeEngine) Preflight(ctx context.Context, in bobdomain.PartyMergePreflightInput, visibility bobdomain.PartyRelationshipVisibility, actorID, requestID string) (bobdomain.PartyMergePreflightResult, error) {
 	return e.PartyMergePreflight(ctx, in, visibility, actorID, requestID)
 }
-func (e *PartyMergeEngine) Confirm(ctx context.Context, in PartyMergeConfirmInput, visibility PartyRelationshipVisibility, actorID, requestID string) (PartyMergeResult, error) {
+func (e *PartyMergeEngine) Confirm(ctx context.Context, in bobdomain.PartyMergeConfirmInput, visibility bobdomain.PartyRelationshipVisibility, actorID, requestID string) (bobdomain.PartyMergeResult, error) {
 	return e.PartyMergeConfirm(ctx, in, visibility, actorID, requestID)
 }
 
@@ -41,64 +42,12 @@ const (
 	partyMergeActionMerged      = "MERGED"
 )
 
-type PartyMergePreflightInput struct {
-	SourcePartyID          string `json:"sourcePartyId"`
-	TargetPartyID          string `json:"targetPartyId"`
-	SourceApprovalEntryID  string `json:"sourceApprovalEntryId"`
-	TargetApprovalEntryID  string `json:"targetApprovalEntryId"`
-	SourceApprovalRevision int64  `json:"sourceApprovalRevision"`
-	TargetApprovalRevision int64  `json:"targetApprovalRevision"`
-}
-
-type PartyMergeRelationshipConflict struct {
-	RelationshipType    string `json:"relationshipType"`
-	OperatingEntityID   string `json:"operatingEntityId"`
-	OperatingEntityName string `json:"operatingEntityName"`
-	SourceObjectID      string `json:"sourceObjectId"`
-	SourceObjectCode    string `json:"sourceObjectCode"`
-	TargetObjectID      string `json:"targetObjectId"`
-	TargetObjectCode    string `json:"targetObjectCode"`
-}
-
-type PartyMergePreflightResult struct {
-	PreflightID            string                           `json:"preflightId,omitempty"`
-	CanMerge               bool                             `json:"canMerge"`
-	SourcePartyID          string                           `json:"sourcePartyId"`
-	TargetPartyID          string                           `json:"targetPartyId"`
-	SourceApprovalEntryID  string                           `json:"sourceApprovalEntryId"`
-	TargetApprovalEntryID  string                           `json:"targetApprovalEntryId"`
-	SourceApprovalRevision int64                            `json:"sourceApprovalRevision"`
-	TargetApprovalRevision int64                            `json:"targetApprovalRevision"`
-	BlockReasons           []string                         `json:"blockReasons"`
-	RelationshipConflicts  []PartyMergeRelationshipConflict `json:"relationshipConflicts"`
-}
-
-type PartyMergeConflictResolution struct {
-	RelationshipType  string `json:"relationshipType"`
-	OperatingEntityID string `json:"operatingEntityId"`
-	RetainObjectID    string `json:"retainObjectId"`
-}
-
-type PartyMergeConfirmInput struct {
-	PreflightID         string                         `json:"preflightId"`
-	ConflictResolutions []PartyMergeConflictResolution `json:"conflictResolutions"`
-}
-
-type PartyMergeResult struct {
-	MergeEventID             string `json:"mergeEventId"`
-	SourcePartyID            string `json:"sourcePartyId"`
-	TargetPartyID            string `json:"targetPartyId"`
-	TransferredRelationships int    `json:"transferredRelationships"`
-	MergedRelationships      int    `json:"mergedRelationships"`
-}
-
 type partyMergeRelationship struct {
 	relationshipType    string
 	objectID            string
 	objectCode          string
 	operatingEntityID   string
 	operatingEntityName string
-	objectRevision      int64
 	enabled             bool
 	openApprovalEntryID string
 	latestApprovedID    string
@@ -108,25 +57,25 @@ type partyMergeRelationship struct {
 }
 
 func (s *PartyMergeEngine) PartyMergePreflight(
-	ctx context.Context, input PartyMergePreflightInput, visibility PartyRelationshipVisibility, actorID, requestID string,
-) (PartyMergePreflightResult, error) {
+	ctx context.Context, input bobdomain.PartyMergePreflightInput, visibility bobdomain.PartyRelationshipVisibility, actorID, requestID string,
+) (bobdomain.PartyMergePreflightResult, error) {
 	if !validPartyMergeInput(input) ||
 		!validActorAndRequest(actorID, requestID) {
-		return PartyMergePreflightResult{}, domainError(ErrorValidation, "invalid Party merge preflight", nil, nil)
+		return bobdomain.PartyMergePreflightResult{}, domainError(ErrorValidation, "invalid Party merge preflight", nil, nil)
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return PartyMergePreflightResult{}, s.internal("begin Party merge preflight", err)
+		return bobdomain.PartyMergePreflightResult{}, s.internal("begin Party merge preflight", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
 	source, target, err := lockPartyMergePair(ctx, qtx, input.SourcePartyID, input.TargetPartyID)
 	if err != nil {
-		return PartyMergePreflightResult{}, s.partyMergeLockError(err)
+		return bobdomain.PartyMergePreflightResult{}, s.partyMergeLockError(err)
 	}
 	if source.SourceApprovalEntryID != input.SourceApprovalEntryID || target.SourceApprovalEntryID != input.TargetApprovalEntryID ||
 		source.Revision != input.SourceApprovalRevision || target.Revision != input.TargetApprovalRevision {
-		return PartyMergePreflightResult{}, domainError(ErrorConflict, "主体资料已变化，请重新预检", nil, nil)
+		return bobdomain.PartyMergePreflightResult{}, domainError(ErrorConflict, "主体资料已变化，请重新预检", nil, nil)
 	}
 	result, sourceRelationships, targetRelationships := partyMergeAssessment(source, target)
 	result.SourcePartyID, result.TargetPartyID = input.SourcePartyID, input.TargetPartyID
@@ -135,11 +84,11 @@ func (s *PartyMergeEngine) PartyMergePreflight(
 	if len(result.BlockReasons) == 0 {
 		ids := mergeRelationshipIDs(sourceRelationships, targetRelationships)
 		if _, err = qtx.LockPartyMergeObjects(ctx, ids); err != nil {
-			return PartyMergePreflightResult{}, s.internal("lock Party merge relationships", err)
+			return bobdomain.PartyMergePreflightResult{}, s.internal("lock Party merge relationships", err)
 		}
 		sourceRelationships, targetRelationships, err = listPartyMergeRelationshipPair(ctx, qtx, input.SourcePartyID, input.TargetPartyID)
 		if err != nil {
-			return PartyMergePreflightResult{}, s.internal("list Party merge relationships", err)
+			return bobdomain.PartyMergePreflightResult{}, s.internal("list Party merge relationships", err)
 		}
 		result, _, _ = partyMergeAssessment(source, target)
 		result.SourcePartyID, result.TargetPartyID = input.SourcePartyID, input.TargetPartyID
@@ -162,74 +111,74 @@ func (s *PartyMergeEngine) PartyMergePreflight(
 			SourceApprovalRevision: source.Revision, TargetApprovalRevision: target.Revision, StateFingerprint: fingerprint,
 			ActorID: actorID, RequestID: requestID,
 		}); err != nil {
-			return PartyMergePreflightResult{}, s.writeError("insert Party merge preflight", err)
+			return bobdomain.PartyMergePreflightResult{}, s.writeError("insert Party merge preflight", err)
 		}
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return PartyMergePreflightResult{}, s.writeError("commit Party merge preflight", err)
+		return bobdomain.PartyMergePreflightResult{}, s.writeError("commit Party merge preflight", err)
 	}
 	return result, nil
 }
 
 func (s *PartyMergeEngine) PartyMergeConfirm(
-	ctx context.Context, input PartyMergeConfirmInput, visibility PartyRelationshipVisibility, actorID, requestID string,
-) (PartyMergeResult, error) {
+	ctx context.Context, input bobdomain.PartyMergeConfirmInput, visibility bobdomain.PartyRelationshipVisibility, actorID, requestID string,
+) (bobdomain.PartyMergeResult, error) {
 	if !validID(input.PreflightID) || !validActorAndRequest(actorID, requestID) {
-		return PartyMergeResult{}, domainError(ErrorValidation, "invalid Party merge confirmation", nil, nil)
+		return bobdomain.PartyMergeResult{}, domainError(ErrorValidation, "invalid Party merge confirmation", nil, nil)
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return PartyMergeResult{}, s.internal("begin Party merge confirmation", err)
+		return bobdomain.PartyMergeResult{}, s.internal("begin Party merge confirmation", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
 	preflight, err := qtx.LockPartyMergePreflight(ctx, input.PreflightID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return PartyMergeResult{}, domainError(ErrorConflict, "合并预检已失效，请重新预检", nil, nil)
+		return bobdomain.PartyMergeResult{}, domainError(ErrorConflict, "合并预检已失效，请重新预检", nil, nil)
 	}
 	if err != nil {
-		return PartyMergeResult{}, s.internal("lock Party merge preflight", err)
+		return bobdomain.PartyMergeResult{}, s.internal("lock Party merge preflight", err)
 	}
 	if preflight.ConsumedAt.Valid {
-		return PartyMergeResult{}, domainError(ErrorConflict, "合并预检已失效，请重新预检", nil, nil)
+		return bobdomain.PartyMergeResult{}, domainError(ErrorConflict, "合并预检已失效，请重新预检", nil, nil)
 	}
 	source, target, err := lockPartyMergePair(ctx, qtx, preflight.SourcePartyID, preflight.TargetPartyID)
 	if err != nil {
-		return PartyMergeResult{}, s.partyMergeLockError(err)
+		return bobdomain.PartyMergeResult{}, s.partyMergeLockError(err)
 	}
 	if source.SourceApprovalEntryID != preflight.SourceApprovalEntryID || target.SourceApprovalEntryID != preflight.TargetApprovalEntryID ||
 		source.Revision != preflight.SourceApprovalRevision || target.Revision != preflight.TargetApprovalRevision {
-		return PartyMergeResult{}, domainError(ErrorConflict, "合并预检已失效，请重新预检", nil, nil)
+		return bobdomain.PartyMergeResult{}, domainError(ErrorConflict, "合并预检已失效，请重新预检", nil, nil)
 	}
 	sourceRelationships, targetRelationships, err := listPartyMergeRelationshipPair(ctx, qtx, preflight.SourcePartyID, preflight.TargetPartyID)
 	if err != nil {
-		return PartyMergeResult{}, s.internal("list Party merge relationships", err)
+		return bobdomain.PartyMergeResult{}, s.internal("list Party merge relationships", err)
 	}
 	if _, err = qtx.LockPartyMergeObjects(ctx, mergeRelationshipIDs(sourceRelationships, targetRelationships)); err != nil {
-		return PartyMergeResult{}, s.internal("lock Party merge relationships", err)
+		return bobdomain.PartyMergeResult{}, s.internal("lock Party merge relationships", err)
 	}
 	sourceRelationships, targetRelationships, err = listPartyMergeRelationshipPair(ctx, qtx, preflight.SourcePartyID, preflight.TargetPartyID)
 	if err != nil {
-		return PartyMergeResult{}, s.internal("re-read Party merge relationships", err)
+		return bobdomain.PartyMergeResult{}, s.internal("re-read Party merge relationships", err)
 	}
 	assessment, sourceRelationships, targetRelationships := partyMergeAssessmentWithRelationships(source, target, sourceRelationships, targetRelationships)
 	redactHiddenPartyMergeConflicts(&assessment, visibility)
 	if len(assessment.BlockReasons) > 0 || partyMergeFingerprint(source, target, sourceRelationships, targetRelationships) != preflight.StateFingerprint {
-		return PartyMergeResult{}, domainError(ErrorConflict, "合并预检已失效，请重新预检", nil, nil)
+		return bobdomain.PartyMergeResult{}, domainError(ErrorConflict, "合并预检已失效，请重新预检", nil, nil)
 	}
 	resolutions, err := validatePartyMergeResolutions(assessment.RelationshipConflicts, input.ConflictResolutions)
 	if err != nil {
-		return PartyMergeResult{}, err
+		return bobdomain.PartyMergeResult{}, err
 	}
 	mergeEventID := newID()
 	if err = qtx.InsertPartyMergeEvent(ctx, dbsqlc.InsertPartyMergeEventParams{
 		ID: mergeEventID, PreflightID: input.PreflightID, SourcePartyID: preflight.SourcePartyID,
 		TargetPartyID: preflight.TargetPartyID, ActorID: actorID, RequestID: requestID,
 	}); err != nil {
-		return PartyMergeResult{}, s.writeError("insert Party merge event", err)
+		return bobdomain.PartyMergeResult{}, s.writeError("insert Party merge event", err)
 	}
 	transferred, merged := 0, 0
-	conflictBySource := make(map[string]PartyMergeRelationshipConflict, len(assessment.RelationshipConflicts))
+	conflictBySource := make(map[string]bobdomain.PartyMergeRelationshipConflict, len(assessment.RelationshipConflicts))
 	targetRelationshipByObject := make(map[string]partyMergeRelationship, len(targetRelationships))
 	for _, conflict := range assessment.RelationshipConflicts {
 		conflictBySource[conflict.SourceObjectID] = conflict
@@ -251,21 +200,15 @@ func (s *PartyMergeEngine) PartyMergeConfirm(
 					TargetRelationshipID: retainedObjectID, SourceRelationshipID: mergedRelationship.objectID,
 				})
 				if moveErr != nil || rows < 1 {
-					return PartyMergeResult{}, s.writeError("move customer accounts to retained relationship", moveErr)
+					return bobdomain.PartyMergeResult{}, s.writeError("move customer accounts to retained relationship", moveErr)
 				}
 			}
 			if err = markMergedPartyRelationship(ctx, qtx, mergedRelationship, mergedPartyID, retainedObjectID); err != nil {
-				return PartyMergeResult{}, err
-			}
-			if rows, disableErr := qtx.DisableMergedPartyRelationshipObject(ctx, dbsqlc.DisableMergedPartyRelationshipObjectParams{
-				ActorID: actorID, ObjectID: mergedRelationship.objectID, Entity: mergedRelationship.relationshipType,
-				Revision: mergedRelationship.objectRevision,
-			}); disableErr != nil || rows != 1 {
-				return PartyMergeResult{}, s.writeError("disable merged Party relationship", disableErr)
+				return bobdomain.PartyMergeResult{}, err
 			}
 			if retainedObjectID == conflict.SourceObjectID {
 				if err = movePartyRelationship(ctx, qtx, relationship, preflight.SourcePartyID, preflight.TargetPartyID); err != nil {
-					return PartyMergeResult{}, err
+					return bobdomain.PartyMergeResult{}, err
 				}
 			}
 			if err = qtx.InsertPartyRelationshipMergeEvent(ctx, dbsqlc.InsertPartyRelationshipMergeEventParams{
@@ -273,51 +216,45 @@ func (s *PartyMergeEngine) PartyMergeConfirm(
 				SourceObjectID: mergedRelationship.objectID, TargetObjectID: &retainedObjectID,
 				OperatingEntityID: relationship.operatingEntityID, Action: partyMergeActionMerged,
 			}); err != nil {
-				return PartyMergeResult{}, s.writeError("audit merged Party relationship", err)
+				return bobdomain.PartyMergeResult{}, s.writeError("audit merged Party relationship", err)
 			}
 			merged++
 			continue
 		}
 		if err = movePartyRelationship(ctx, qtx, relationship, preflight.SourcePartyID, preflight.TargetPartyID); err != nil {
-			return PartyMergeResult{}, err
+			return bobdomain.PartyMergeResult{}, err
 		}
 		if err = qtx.InsertPartyRelationshipMergeEvent(ctx, dbsqlc.InsertPartyRelationshipMergeEventParams{
 			ID: newID(), MergeEventID: mergeEventID, RelationshipType: relationship.relationshipType,
 			SourceObjectID: relationship.objectID, OperatingEntityID: relationship.operatingEntityID,
 			Action: partyMergeActionTransferred,
 		}); err != nil {
-			return PartyMergeResult{}, s.writeError("audit transferred Party relationship", err)
+			return bobdomain.PartyMergeResult{}, s.writeError("audit transferred Party relationship", err)
 		}
 		transferred++
 	}
 	if rows, markErr := qtx.MarkPartyMerged(ctx, dbsqlc.MarkPartyMergedParams{
 		TargetPartyID: &preflight.TargetPartyID, SourcePartyID: preflight.SourcePartyID,
 	}); markErr != nil || rows != 1 {
-		return PartyMergeResult{}, s.writeError("mark source Party merged", markErr)
-	}
-	if rows, removeErr := qtx.DeleteMergedPartyCurrent(ctx, preflight.SourcePartyID); removeErr != nil || rows != 1 {
-		return PartyMergeResult{}, s.writeError("remove source Party current", removeErr)
+		return bobdomain.PartyMergeResult{}, s.writeError("mark source Party merged", markErr)
 	}
 	// DCL retains the source's latest approved identifier claims for history and
 	// to prevent that retired identity from being claimed by a new Party.
-	if _, removeErr := qtx.DeleteMergedPartyCurrentIdentifiers(ctx, preflight.SourcePartyID); removeErr != nil {
-		return PartyMergeResult{}, s.writeError("remove source Party current identifiers", removeErr)
-	}
 	if rows, consumeErr := qtx.ConsumePartyMergePreflight(ctx, dbsqlc.ConsumePartyMergePreflightParams{ID: input.PreflightID, ActorID: &actorID}); consumeErr != nil || rows != 1 {
-		return PartyMergeResult{}, s.writeError("consume Party merge preflight", consumeErr)
+		return bobdomain.PartyMergeResult{}, s.writeError("consume Party merge preflight", consumeErr)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return PartyMergeResult{}, s.writeError("commit Party merge", err)
+		return bobdomain.PartyMergeResult{}, s.writeError("commit Party merge", err)
 	}
-	return PartyMergeResult{MergeEventID: mergeEventID, SourcePartyID: preflight.SourcePartyID, TargetPartyID: preflight.TargetPartyID,
+	return bobdomain.PartyMergeResult{MergeEventID: mergeEventID, SourcePartyID: preflight.SourcePartyID, TargetPartyID: preflight.TargetPartyID,
 		TransferredRelationships: transferred, MergedRelationships: merged}, nil
 }
 
-func redactHiddenPartyMergeConflicts(result *PartyMergePreflightResult, visibility PartyRelationshipVisibility) {
+func redactHiddenPartyMergeConflicts(result *bobdomain.PartyMergePreflightResult, visibility bobdomain.PartyRelationshipVisibility) {
 	visible := result.RelationshipConflicts[:0]
 	hidden := false
 	for _, conflict := range result.RelationshipConflicts {
-		if visibility.allows(conflict.RelationshipType) {
+		if visibility.Allows(conflict.RelationshipType) {
 			visible = append(visible, conflict)
 		} else {
 			hidden = true
@@ -329,7 +266,7 @@ func redactHiddenPartyMergeConflicts(result *PartyMergePreflightResult, visibili
 	}
 }
 
-func validPartyMergeInput(input PartyMergePreflightInput) bool {
+func validPartyMergeInput(input bobdomain.PartyMergePreflightInput) bool {
 	return validID(input.SourcePartyID) && validID(input.TargetPartyID) && input.SourcePartyID != input.TargetPartyID &&
 		validID(input.SourceApprovalEntryID) && validID(input.TargetApprovalEntryID) &&
 		input.SourceApprovalRevision >= 1 && input.TargetApprovalRevision >= 1
@@ -358,7 +295,32 @@ func (s *PartyMergeEngine) internal(operation string, err error) error {
 	return domainError(ErrorInternal, "internal server error", nil, fmt.Errorf("%s: %w", operation, err))
 }
 func (s *PartyMergeEngine) writeError(operation string, err error) error {
-	return (&Service{}).writeError(operation, err)
+	return translateError(fmt.Errorf("%s: %w", operation, err))
+}
+
+func domainError(kind ErrorKind, message string, details any, cause error) error {
+	key := "party_merge_failed"
+	if kind == ErrorValidation {
+		key = "validation_failed"
+	} else if kind == ErrorConflict {
+		key = "party_merge_conflict"
+	} else if kind == ErrorInternal {
+		key = "internal_error"
+	}
+	return newError(kind, key, message, details, cause)
+}
+
+func newID() string { return ulid.Make().String() }
+
+func validActorAndRequest(actorID, requestID string) bool {
+	return validID(actorID) && strings.TrimSpace(requestID) != ""
+}
+
+func deref(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 func (s *PartyMergeEngine) partyMergeLockError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -383,20 +345,20 @@ func mapPartyMergeRelationships(rows []dbsqlc.ListPartyMergeRelationshipsRow) []
 	result := make([]partyMergeRelationship, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, partyMergeRelationship{relationshipType: row.RelationshipType, objectID: row.ObjectID,
-			objectCode: row.ObjectCode, operatingEntityID: row.OperatingEntityID, operatingEntityName: row.OperatingEntityName,
-			objectRevision: row.ObjectRevision, enabled: row.Enabled,
+			objectCode: stringValue(row.ObjectCode), operatingEntityID: row.OperatingEntityID, operatingEntityName: row.OperatingEntityName,
+			enabled:             row.Enabled,
 			openApprovalEntryID: row.OpenApprovalEntryID, latestApprovedID: row.LatestApprovedEntryID, visibleStatus: row.VisibleStatus,
 			visibleRevision: row.VisibleApprovalRevision, mergedIntoObjectID: deref(row.MergedIntoObjectID)})
 	}
 	return result
 }
 
-func partyMergeAssessment(source, target dbsqlc.LockPartyMergePartyRow) (PartyMergePreflightResult, []partyMergeRelationship, []partyMergeRelationship) {
+func partyMergeAssessment(source, target dbsqlc.LockPartyMergePartyRow) (bobdomain.PartyMergePreflightResult, []partyMergeRelationship, []partyMergeRelationship) {
 	return partyMergeAssessmentWithRelationships(source, target, nil, nil)
 }
 
-func partyMergeAssessmentWithRelationships(source, target dbsqlc.LockPartyMergePartyRow, sourceRelationships, targetRelationships []partyMergeRelationship) (PartyMergePreflightResult, []partyMergeRelationship, []partyMergeRelationship) {
-	result := PartyMergePreflightResult{BlockReasons: []string{}, RelationshipConflicts: []PartyMergeRelationshipConflict{}}
+func partyMergeAssessmentWithRelationships(source, target dbsqlc.LockPartyMergePartyRow, sourceRelationships, targetRelationships []partyMergeRelationship) (bobdomain.PartyMergePreflightResult, []partyMergeRelationship, []partyMergeRelationship) {
+	result := bobdomain.PartyMergePreflightResult{BlockReasons: []string{}, RelationshipConflicts: []bobdomain.PartyMergeRelationshipConflict{}}
 	if source.Kind != target.Kind {
 		result.BlockReasons = append(result.BlockReasons, "主体类型不同，不能合并")
 	}
@@ -422,7 +384,7 @@ func partyMergeAssessmentWithRelationships(source, target dbsqlc.LockPartyMergeP
 	}
 	for _, sourceRelationship := range sourceRelationships {
 		if targetRelationship, exists := targetByKey[sourceRelationship.relationshipType+"\x00"+sourceRelationship.operatingEntityID]; exists {
-			result.RelationshipConflicts = append(result.RelationshipConflicts, PartyMergeRelationshipConflict{
+			result.RelationshipConflicts = append(result.RelationshipConflicts, bobdomain.PartyMergeRelationshipConflict{
 				RelationshipType: sourceRelationship.relationshipType, OperatingEntityID: sourceRelationship.operatingEntityID,
 				OperatingEntityName: sourceRelationship.operatingEntityName,
 				SourceObjectID:      sourceRelationship.objectID, SourceObjectCode: sourceRelationship.objectCode,
@@ -438,8 +400,8 @@ func partyMergeFingerprint(source, target dbsqlc.LockPartyMergePartyRow, sourceR
 		fmt.Sprintf("target:%s:%s:%s:%d:%s", target.ID, target.Kind, target.SourceApprovalEntryID, target.Revision, deref(target.MergedIntoPartyID))}
 	for side, relationships := range map[string][]partyMergeRelationship{"source": sourceRelationships, "target": targetRelationships} {
 		for _, relationship := range relationships {
-			parts = append(parts, fmt.Sprintf("%s:%s:%s:%s:%d:%t:%s:%s:%s:%d:%s", side, relationship.relationshipType,
-				relationship.objectID, relationship.operatingEntityID, relationship.objectRevision, relationship.enabled,
+			parts = append(parts, fmt.Sprintf("%s:%s:%s:%s:%t:%s:%s:%s:%d:%s", side, relationship.relationshipType,
+				relationship.objectID, relationship.operatingEntityID, relationship.enabled,
 				relationship.openApprovalEntryID, relationship.latestApprovedID, relationship.visibleStatus, relationship.visibleRevision,
 				relationship.mergedIntoObjectID))
 		}
@@ -462,16 +424,16 @@ func mergeRelationshipIDs(source, target []partyMergeRelationship) []string {
 	return ids
 }
 
-func partyMergeConflictKey(conflict PartyMergeRelationshipConflict) string {
+func partyMergeConflictKey(conflict bobdomain.PartyMergeRelationshipConflict) string {
 	return conflict.RelationshipType + "\x00" + conflict.OperatingEntityID
 }
 
-func validatePartyMergeResolutions(conflicts []PartyMergeRelationshipConflict, resolutions []PartyMergeConflictResolution) (map[string]string, error) {
+func validatePartyMergeResolutions(conflicts []bobdomain.PartyMergeRelationshipConflict, resolutions []bobdomain.PartyMergeConflictResolution) (map[string]string, error) {
 	if len(conflicts) != len(resolutions) {
 		return nil, domainError(ErrorValidation, "必须为每个关系冲突选择保留关系", nil, nil)
 	}
 	result := make(map[string]string, len(resolutions))
-	conflictByKey := make(map[string]PartyMergeRelationshipConflict, len(conflicts))
+	conflictByKey := make(map[string]bobdomain.PartyMergeRelationshipConflict, len(conflicts))
 	for _, conflict := range conflicts {
 		conflictByKey[partyMergeConflictKey(conflict)] = conflict
 	}

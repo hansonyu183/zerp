@@ -16,15 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type employeeCurrentWriter interface {
-	ReserveEmployeeIdentity(context.Context, pgx.Tx, string, string, string) (bobdomain.EmployeeIdentity, error)
-	GetEmployeeIdentity(context.Context, pgx.Tx, string) (bobdomain.EmployeeIdentity, error)
+type employeeBusinessRules interface {
 	ResolveEmployeeAuxiliaryReferences(context.Context, pgx.Tx, bobdomain.EmployeeData, bool) (bobdomain.EmployeeData, error)
 	ResolveEmployeeDraftAuxiliaryReferences(context.Context, pgx.Tx, bobdomain.EmployeeData, bobdomain.EmployeeData) (bobdomain.EmployeeData, error)
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
-	ApplyEmployeeCurrent(context.Context, pgx.Tx, string, string, bool, string) (bobdomain.EmployeeCurrent, error)
-	RemoveEmployeeCurrent(context.Context, pgx.Tx, string, string) (bobdomain.EmployeeIdentity, error)
-	DeleteEmployeeIdentity(context.Context, pgx.Tx, string, int64) error
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	EnsureEmployeeDisableAllowed(context.Context, pgx.Tx, string) error
 	EnsureEmployeeUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
@@ -36,21 +31,21 @@ type employeePartyReader interface {
 type EmployeeService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     employeeCurrentWriter
+	rules       employeeBusinessRules
 	parties     bobdomain.PartyDeclarationCreator
 	partyReader employeePartyReader
 	coordinator *approval.Coordinator[dclapproval.EmployeePayload]
 }
 
-func NewEmployeeService(pool *pgxpool.Pool, current employeeCurrentWriter, parties bobdomain.PartyDeclarationCreator, partyReader employeePartyReader, authorizer approval.Authorizer, bus *txevent.Bus) *EmployeeService {
-	if pool == nil || current == nil || parties == nil || partyReader == nil || authorizer == nil || bus == nil {
-		panic("dcl: Employee persistence, BOB current writer, Party ports, authorizer and event bus are required")
+func NewEmployeeService(pool *pgxpool.Pool, rules employeeBusinessRules, parties bobdomain.PartyDeclarationCreator, partyReader employeePartyReader, authorizer approval.Authorizer, bus *txevent.Bus) *EmployeeService {
+	if pool == nil || rules == nil || parties == nil || partyReader == nil || authorizer == nil || bus == nil {
+		panic("dcl: Employee persistence, business rules, Party ports, authorizer and event bus are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityEmployee, authorizer, bus, dclapproval.EmployeeTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &EmployeeService{pool: pool, queries: dbsqlc.New(pool), current: current, parties: parties, partyReader: partyReader, coordinator: c}
+	return &EmployeeService{pool: pool, queries: dbsqlc.New(pool), rules: rules, parties: parties, partyReader: partyReader, coordinator: c}
 }
 
 func employeeDeclarationData(data EmployeeInput) bobdomain.EmployeeData {
@@ -86,7 +81,7 @@ func employeePayload(i bobdomain.EmployeeIdentity, enabled bool, data EmployeeDa
 	return dclapproval.EmployeePayload{SubjectID: i.ObjectID, Code: i.Code, PartyID: i.PartyID, Enabled: enabled}
 }
 func employeeMutation(i bobdomain.EmployeeIdentity, enabled bool, e approval.Entry) EmployeeMutation {
-	return EmployeeMutation{ObjectID: i.ObjectID, ObjectRevision: i.ObjectRevision, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+	return EmployeeMutation{ObjectID: i.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 func employeeInput(i EmployeeReviewInput) EmployeeVersionInput {
 	return EmployeeVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
@@ -122,7 +117,7 @@ func (s *EmployeeService) Create(ctx context.Context, input EmployeeCreateInput,
 		return EmployeeMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err = s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, input.OperatingEntityID); err != nil {
+	if _, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, input.OperatingEntityID); err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
 	var party bobdomain.PartyRelationshipResolved
@@ -134,16 +129,13 @@ func (s *EmployeeService) Create(ctx context.Context, input EmployeeCreateInput,
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
-	id, err := s.current.ReserveEmployeeIdentity(ctx, tx, party.ID, input.OperatingEntityID, actor.ID())
+	id, err := reserveEmployeeIdentity(ctx, tx, party.ID, input.OperatingEntityID, actor.ID())
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	data, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, false)
+	data, err = s.rules.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, false)
 	if err != nil {
-		return EmployeeMutation{}, translateError(err)
-	}
-	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: id.ObjectID, Entity: EntityEmployee, ActorID: actor.ID()}); err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
 	e, err := s.coordinator.CreateFirstVersion(ctx, tx, id.ObjectID, actor, employeePayload(id, true, employeeDCLData(data)))
@@ -183,7 +175,7 @@ func (s *EmployeeService) Save(ctx context.Context, input EmployeeSaveInput, act
 		}
 		return EmployeeMutation{}, translateError(err)
 	}
-	id, err := s.current.GetEmployeeIdentity(ctx, tx, input.ObjectID)
+	id, err := lockEmployeeIdentity(ctx, tx, input.ObjectID)
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
@@ -214,9 +206,9 @@ func (s *EmployeeService) Save(ctx context.Context, input EmployeeSaveInput, act
 		return EmployeeMutation{}, translateError(err)
 	}
 	if draftPrevious != nil {
-		data, err = s.current.ResolveEmployeeDraftAuxiliaryReferences(ctx, tx, data, *draftPrevious)
+		data, err = s.rules.ResolveEmployeeDraftAuxiliaryReferences(ctx, tx, data, *draftPrevious)
 	} else {
-		data, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, false)
+		data, err = s.rules.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, false)
 	}
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
@@ -270,7 +262,7 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 		}
 		return EmployeeMutation{}, translateError(err)
 	}
-	id, err := s.current.GetEmployeeIdentity(ctx, tx, input.ObjectID)
+	id, err := lockEmployeeIdentity(ctx, tx, input.ObjectID)
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
@@ -284,22 +276,22 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-			_, err = s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
+			_, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
 		}
 		if err == nil {
-			data, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, true)
+			data, err = s.rules.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, true)
 		}
 		if err != nil {
 			return EmployeeMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionApproved && !stored.Enabled {
-		if err = s.current.EnsureEmployeeDisableAllowed(ctx, tx, input.ObjectID); err != nil {
+		if err = s.rules.EnsureEmployeeDisableAllowed(ctx, tx, input.ObjectID); err != nil {
 			return EmployeeMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureEmployeeUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureEmployeeUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
 			return EmployeeMutation{}, translateError(err)
 		}
 		if err = s.ensureEmployeeUnapproveFallbackAllowed(ctx, tx, input.ObjectID, input.ApprovalEntryID); err != nil {
@@ -310,24 +302,10 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
-	resultID, resultEnabled := id, stored.Enabled
-	if action == approval.ActionApproved {
-		c, applyErr := s.current.ApplyEmployeeCurrent(ctx, tx, input.ObjectID, e.ID, stored.Enabled, actor.ID())
-		if applyErr != nil {
-			return EmployeeMutation{}, translateError(applyErr)
-		}
-		resultID, resultEnabled = c.EmployeeIdentity, c.Enabled
-	}
-	if action == approval.ActionUnapproved {
-		resultID, resultEnabled, err = s.restoreLatestApproved(ctx, tx, id, actor.ID())
-		if err != nil {
-			return EmployeeMutation{}, err
-		}
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
-	return employeeMutation(resultID, resultEnabled, e), nil
+	return employeeMutation(id, stored.Enabled, e), nil
 }
 
 func (s *EmployeeService) ensureEmployeeUnapproveFallbackAllowed(
@@ -352,37 +330,7 @@ func (s *EmployeeService) ensureEmployeeUnapproveFallbackAllowed(
 			return nil
 		}
 	}
-	return translateError(s.current.EnsureEmployeeDisableAllowed(ctx, tx, objectID))
-}
-
-func (s *EmployeeService) restoreLatestApproved(ctx context.Context, tx pgx.Tx, id bobdomain.EmployeeIdentity, actorID string) (bobdomain.EmployeeIdentity, bool, error) {
-	latest, err := s.queries.WithTx(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityEmployee, SubjectID: id.ObjectID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		r, e := s.current.RemoveEmployeeCurrent(ctx, tx, id.ObjectID, actorID)
-		return r, false, translateError(e)
-	}
-	if err != nil {
-		return bobdomain.EmployeeIdentity{}, false, translateError(err)
-	}
-	stored, err := s.queries.WithTx(tx).GetDCLEmployeeVersion(ctx, latest.ID)
-	if err != nil {
-		return bobdomain.EmployeeIdentity{}, false, translateError(err)
-	}
-	d, err := bobdomain.ValidateEmployeeData(employeeStoredData(stored))
-	if err != nil {
-		return bobdomain.EmployeeIdentity{}, false, translateError(err)
-	}
-	if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-		_, err = s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
-	}
-	if err == nil {
-		_, err = s.current.ResolveEmployeeAuxiliaryReferences(ctx, tx, d, true)
-	}
-	if err != nil {
-		return bobdomain.EmployeeIdentity{}, false, translateError(err)
-	}
-	c, err := s.current.ApplyEmployeeCurrent(ctx, tx, id.ObjectID, latest.ID, stored.Enabled, actorID)
-	return c.EmployeeIdentity, c.Enabled, translateError(err)
+	return translateError(s.rules.EnsureEmployeeDisableAllowed(ctx, tx, objectID))
 }
 
 func (s *EmployeeService) Delete(ctx context.Context, input EmployeeDeleteInput, actor approval.Actor) error {
@@ -397,7 +345,7 @@ func (s *EmployeeService) Delete(ctx context.Context, input EmployeeDeleteInput,
 	if err = s.coordinator.LockVersionSubject(ctx, tx, input.ObjectID); err != nil {
 		return translateError(err)
 	}
-	id, err := s.current.GetEmployeeIdentity(ctx, tx, input.ObjectID)
+	id, err := lockEmployeeIdentity(ctx, tx, input.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
@@ -422,14 +370,17 @@ func (s *EmployeeService) Delete(ctx context.Context, input EmployeeDeleteInput,
 	}
 	_, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityEmployee, SubjectID: input.ObjectID})
 	if errors.Is(latestErr, pgx.ErrNoRows) {
+		if n, er := q.DeleteDCLEmployeeRelationship(ctx, input.ObjectID); er != nil || n != 1 {
+			if er == nil {
+				er = errors.New("DCL employee relationship changed")
+			}
+			return translateError(er)
+		}
 		if n, er := q.DeleteDCLSubject(ctx, dbsqlc.DeleteDCLSubjectParams{ID: input.ObjectID, Entity: EntityEmployee}); er != nil || n != 1 {
 			if er == nil {
 				er = errors.New("DCL subject changed")
 			}
 			return translateError(er)
-		}
-		if err = s.current.DeleteEmployeeIdentity(ctx, tx, input.ObjectID, id.ObjectRevision); err != nil {
-			return translateError(err)
 		}
 	} else if latestErr != nil {
 		return translateError(latestErr)

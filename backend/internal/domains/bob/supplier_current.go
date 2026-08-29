@@ -6,11 +6,10 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
-// BOB exposes Suppliers strictly through the approved current projection. DCL
+// BOB exposes Suppliers strictly as currently effective approved data. DCL
 // owns Supplier candidates and their historical snapshots.
 func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
 	if !validID(input.ObjectID) {
@@ -32,7 +31,7 @@ func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (Objec
 		day := r.SettlementDayOfMonth
 		d.DayOfMonth = &day
 	}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, Data: d, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID}}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, Data: d, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID}}, nil
 }
 
 func (s *Service) querySuppliersCurrent(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
@@ -66,7 +65,7 @@ func (s *Service) querySuppliersCurrent(ctx context.Context, input QueryInput) (
 		if err != nil {
 			return Page[QueryItem]{}, err
 		}
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: r.UpdatedAt.Time, Relationship: view.Relationship})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: r.UpdatedAt.Time, Relationship: view.Relationship})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -83,22 +82,19 @@ func (s *Service) resolveSupplierCurrentReference(ctx context.Context, q *dbsqlc
 	if err != nil {
 		return EffectiveReference{}, err
 	}
-	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: v.Data}, nil
+	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: v.Data}, nil
 }
 
 func (s *Service) validateSupplierSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
-	e, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntitySupplier})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (e.SubjectID != objectID || e.Status != string(approval.StatusApproved))) {
-		return EffectiveReference{}, domainError(ErrorConflict, "Supplier approval snapshot is unavailable", nil, nil)
-	}
+	e, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntitySupplier, objectID, "Supplier approval snapshot is unavailable")
 	if err != nil {
-		return EffectiveReference{}, s.internal("validate Supplier snapshot", err)
+		return EffectiveReference{}, err
 	}
 	payload, err := q.GetDCLSupplierVersion(ctx, entryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Supplier snapshot", err)
 	}
-	object, err := q.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: objectID, Entity: EntitySupplier})
+	object, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntitySupplier})
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Supplier identity", err)
 	}
@@ -115,5 +111,5 @@ func (s *Service) validateSupplierSnapshotReference(ctx context.Context, q *dbsq
 		day := payload.SettlementDayOfMonth
 		d.DayOfMonth = &day
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: object.Code, ApprovalEntryID: entryID, Data: d}, nil
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entryID, VersionNo: versionNumber(e.VersionNo), Data: d}, nil
 }

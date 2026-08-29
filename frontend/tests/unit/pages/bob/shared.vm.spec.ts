@@ -20,7 +20,6 @@ function row(enabled = true): BobListItem {
     objectId: 'OBJ-1',
     entity: 'product',
     code: 'PRD-1',
-    objectRevision: 3,
     enabled,
     sourceApprovalEntryId: 'VER-2',
     sourceVersionNo: 2,
@@ -51,7 +50,6 @@ function objectView(approvalEntryId = 'VER-1'): BobObjectView {
     objectId: 'OBJ-1',
     entity: 'product',
     code: 'PRD-1',
-    objectRevision: 4,
     enabled: true,
     sourceApprovalEntryId: approvalEntryId,
     sourceVersionNo: 2,
@@ -135,7 +133,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.editorErrorMessage.value).toBe('详情加载失败')
   })
 
-  it('当前档案使用只读列和启停筛选', () => {
+  it('当前有效资料使用只读列和启停筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       product: [
         '编码',
@@ -219,7 +217,7 @@ describe('shared BOB entity configuration and view model', () => {
     }
   })
 
-  it('BOB 经营主体只读取当前投影且忽略 DCL 生命周期权限', async () => {
+  it('BOB 经营主体只读取当前有效资料且忽略 DCL 生命周期权限', async () => {
     useSessionStore().permissions = [
       '/bob/operating-entity/query',
       '/bob/operating-entity/get',
@@ -238,7 +236,6 @@ describe('shared BOB entity configuration and view model', () => {
             objectId: 'OPE-OBJECT-1',
             entity: 'operating-entity',
             code: 'OPE-0001',
-            objectRevision: 1,
             enabled: true,
             sourceApprovalEntryId: 'OPE-VERSION-1',
             sourceVersionNo: 1,
@@ -281,7 +278,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect('save' in vm).toBe(false)
   })
 
-  it('BOB 仓库只读取当前投影且没有任何写动作', async () => {
+  it('BOB 仓库只读取当前有效资料且没有任何写动作', async () => {
     useSessionStore().permissions = [
       '/bob/warehouse/query',
       '/bob/warehouse/get',
@@ -295,7 +292,6 @@ describe('shared BOB entity configuration and view model', () => {
             objectId: 'WHS-OBJECT-1',
             entity: 'warehouse',
             code: 'WHS-0001',
-            objectRevision: 1,
             enabled: true,
             sourceApprovalEntryId: 'WHS-VERSION-1',
             sourceVersionNo: 1,
@@ -333,7 +329,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect('submitObject' in vm).toBe(false)
   })
 
-  it('BOB 车辆只读取当前投影且没有任何写动作', async () => {
+  it('BOB 车辆只读取当前有效资料且没有任何写动作', async () => {
     useSessionStore().permissions = [
       '/bob/vehicle/query',
       '/bob/vehicle/get',
@@ -352,7 +348,6 @@ describe('shared BOB entity configuration and view model', () => {
             objectId: 'VEH-OBJECT-1',
             entity: 'vehicle',
             code: 'VEH-0001',
-            objectRevision: 1,
             enabled: true,
             sourceApprovalEntryId: 'VEH-VERSION-1',
             sourceVersionNo: 1,
@@ -394,7 +389,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect('changeEnabled' in vm).toBe(false)
   })
 
-  it('BOB 产品只读取当前投影且忽略全部生命周期权限', () => {
+  it('BOB 产品只读取当前有效资料且忽略全部生命周期权限', () => {
     grant('product', 'submit', 'approve')
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
@@ -447,7 +442,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect('openVersions' in vm).toBe(false)
   })
 
-  it('资金账户当前档案不提供 BOB 写入或经营主体引用预载', async () => {
+  it('资金账户当前有效资料不提供 BOB 写入或经营主体引用预载', async () => {
     grant('fund-account', 'create', 'get', 'save', 'query')
     const config = getBobEntityConfig('fund-account')
     const vm = useBobEntityViewModel(config)
@@ -458,7 +453,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect(mockedApiClient.postContract).not.toHaveBeenCalled()
   })
 
-  it('查看资金账户当前档案不会预载经营主体引用', async () => {
+  it('查看资金账户当前有效资料不会预载经营主体引用', async () => {
     grant('fund-account', 'get')
     const config = getBobEntityConfig('fund-account')
     mockedApiClient.postContract.mockResolvedValueOnce({
@@ -466,7 +461,6 @@ describe('shared BOB entity configuration and view model', () => {
         objectId: 'FND-1',
         entity: 'fund-account',
         code: 'FA-0001',
-        objectRevision: 1,
         enabled: true,
         sourceApprovalEntryId: 'VER-1',
         sourceVersionNo: 1,

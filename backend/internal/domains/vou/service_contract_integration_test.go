@@ -79,7 +79,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	refs := prepareReferences(t, pool)
 	bobService := newBOBIntegrationService(pool)
 	bus := txevent.NewBus()
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, bobService, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	accounts := dcldomain.NewCustomerAccountService(pool, bobService, authorization.Func(nil), bus)
 	service := newIntegrationService(t, pool)
@@ -113,8 +113,8 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	var customerRelationshipID, customerPartyID, operatingEntityID string
 	if err = pool.QueryRow(t.Context(), `
 		SELECT relationship.object_id,relationship.party_id,relationship.operating_entity_id
-		FROM bob_customer_accounts account
-		JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+		FROM dcl_customer_accounts account
+		JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
 		WHERE account.object_id=$1
 	`, refs.customer.ObjectID).Scan(&customerRelationshipID, &customerPartyID, &operatingEntityID); err != nil {
 		t.Fatalf("load customer relationship identity: %v", err)

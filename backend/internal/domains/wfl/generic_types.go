@@ -39,7 +39,6 @@ type DefinitionListItem struct {
 	Code         string               `json:"code"`
 	Name         string               `json:"name"`
 	Enabled      bool                 `json:"enabled"`
-	Revision     int64                `json:"revision"`
 	Approval     approval.VersionMeta `json:"approval"`
 	RootEntity   string               `json:"rootEntity"`
 	NodeCount    int                  `json:"nodeCount"`

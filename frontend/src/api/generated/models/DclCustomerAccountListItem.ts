@@ -8,7 +8,6 @@ export type DclCustomerAccountListItem = {
   entity: 'customer-account';
   code: string;
   customerRelationshipId: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclCustomerAccountVersionView | null;
   openVersion: DclCustomerAccountVersionView | null;

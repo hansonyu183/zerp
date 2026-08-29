@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobProductUnitConversionSnapshot } from './BobProductUnitConversionSnapshot';
+import type { BobProductUnitConversion } from './BobProductUnitConversion';
 export type ReferenceCandidate = {
   objectId: string;
   approvalEntryId: string;
@@ -11,5 +11,5 @@ export type ReferenceCandidate = {
   behaviorProfile?: 'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING';
   defaultInputUnitId?: string;
   pricingUnitId?: string;
-  unitConversions?: Array<BobProductUnitConversionSnapshot>;
+  unitConversions?: Array<BobProductUnitConversion>;
 };

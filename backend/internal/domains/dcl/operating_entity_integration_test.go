@@ -51,7 +51,7 @@ func newDCLIntegrationBOBService(pool *pgxpool.Pool, auxiliary *auxdomain.Servic
 func resetDCLIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
-		TRUNCATE dcl_customer_download_tokens, dcl_customer_files, dcl_subjects, bob_parties, bob_objects, aux_objects, approval_events, approval_entries, object_number_counters CASCADE
+		TRUNCATE dcl_customer_download_tokens, dcl_customer_files, dcl_subjects, aux_objects, approval_events, approval_entries, object_number_counters CASCADE
 	`); err != nil {
 		t.Fatalf("reset DCL integration data: %v", err)
 	}
@@ -90,6 +90,19 @@ func TestOperatingEntityDeclarationControlsBOBCurrentDataIntegration(t *testing.
 	}}, creator("create-v1"))
 	if err != nil {
 		t.Fatalf("create V1: %v", err)
+	}
+	v1View, err := service.Get(t.Context(), OperatingEntityGetInput{
+		ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID,
+	}, creator("get-created-v1"))
+	if err != nil {
+		t.Fatalf("get created V1: %v", err)
+	}
+	var subjectCode *string
+	if err = pool.QueryRow(t.Context(), `SELECT code FROM dcl_subjects WHERE id=$1 AND entity='operating-entity'`, v1.ObjectID).Scan(&subjectCode); err != nil {
+		t.Fatalf("load DCL-owned operating entity code: %v", err)
+	}
+	if subjectCode == nil || *subjectCode != v1View.Code {
+		t.Fatalf("DCL subject code = %v, want %q", subjectCode, v1View.Code)
 	}
 	assertOperatingEntityAbsent(t, business, v1.ObjectID)
 
@@ -139,7 +152,7 @@ func TestOperatingEntityDeclarationControlsBOBCurrentDataIntegration(t *testing.
 	if err != nil {
 		t.Fatalf("begin exact historical reference check: %v", err)
 	}
-	historical, referenceErr := business.ValidateApprovedSnapshotReference(
+	historical, referenceErr := business.ValidateHistoricalReference(
 		t.Context(), tx, bobdomain.EntityOperatingEntity, v1.ObjectID, v1.Approval.ApprovalEntryID,
 	)
 	if referenceErr != nil || historical.ApprovalEntryID != v1.Approval.ApprovalEntryID {
@@ -297,62 +310,11 @@ func TestOperatingEntityApprovalSubscriberFailureRollsBackIntegration(t *testing
 	assertOperatingEntityAbsent(t, business, pending.ObjectID)
 }
 
-type failingOperatingEntityCurrentWriter struct {
-	operatingEntityCurrentWriter
-	failure error
-}
-
-func (w failingOperatingEntityCurrentWriter) ApplyOperatingEntityCurrent(
-	ctx context.Context,
-	tx pgx.Tx,
-	objectID string,
-	entryID string,
-	enabled bool,
-	data bobdomain.OperatingEntityData,
-	actorID string,
-) (bobdomain.OperatingEntityCurrent, error) {
-	current, err := w.operatingEntityCurrentWriter.ApplyOperatingEntityCurrent(ctx, tx, objectID, entryID, enabled, data, actorID)
-	if err != nil {
-		return bobdomain.OperatingEntityCurrent{}, err
-	}
-	return current, w.failure
-}
-
-func TestOperatingEntityCurrentApplyFailureRollsBackIntegration(t *testing.T) {
-	pool := dclIntegrationPool(t)
-	resetDCLIntegrationData(t, pool)
-	bus := txevent.NewBus()
-	business, service := newDCLIntegrationServices(t, pool, bus, nil)
-	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
-	draft, err := service.Create(t.Context(), OperatingEntityCreateInput{Data: OperatingEntityData{Name: "应用失败主体"}}, dclActor(t, creatorID, "create"))
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	pending, err := service.Submit(t.Context(), OperatingEntityVersionInput{
-		ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID, ApprovalRevision: draft.Approval.Revision,
-	}, dclActor(t, creatorID, "submit"))
-	if err != nil {
-		t.Fatalf("submit: %v", err)
-	}
-	failure := errors.New("BOB current apply failure")
-	failingService := NewOperatingEntityService(pool, failingOperatingEntityCurrentWriter{
-		operatingEntityCurrentWriter: business, failure: failure,
-	}, authorization.Func(nil), bus)
-	_, err = failingService.Approve(t.Context(), OperatingEntityVersionInput{
-		ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision,
-	}, dclActor(t, reviewerID, "approve"))
-	if !errors.Is(err, failure) {
-		t.Fatalf("approve error = %v, want current apply failure", err)
-	}
-	assertApprovalState(t, pool, pending.Approval.ApprovalEntryID, approval.StatusPending, pending.Approval.Revision)
-	assertOperatingEntityAbsent(t, business, pending.ObjectID)
-}
-
 func newDCLIntegrationServices(
 	t *testing.T,
 	pool *pgxpool.Pool,
 	bus *txevent.Bus,
-	current operatingEntityCurrentWriter,
+	current operatingEntityRules,
 ) (*bobdomain.Service, *OperatingEntityService) {
 	t.Helper()
 	authorizer := authorization.Func(nil)

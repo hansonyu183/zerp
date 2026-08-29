@@ -311,7 +311,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
   }),
   registerPage('bob', {
     entity: 'product',
-    entityTitle: '产品（当前档案）',
+    entityTitle: '产品（当前有效资料）',
     icon: 'mdi-package-variant-closed',
     order: 40,
     component: () => import('@/pages/bob/product/Product.vue'),
@@ -332,7 +332,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
   }),
   registerPage('bob', {
     entity: 'fund-account',
-    entityTitle: '资金账户（当前档案）',
+    entityTitle: '资金账户（当前有效资料）',
     icon: 'mdi-bank-outline',
     order: 80,
     component: () => import('@/pages/bob/fund-account/FundAccount.vue'),

@@ -8,7 +8,6 @@ export type DclWarehouseView = {
   objectId: string;
   entity: 'warehouse';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   approval: ApprovalVersionMeta;
   data: DclWarehouseData;

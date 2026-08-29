@@ -14,6 +14,6 @@
 
 ## 生命周期与验收
 
-1. 页面编排该独立 subject 的全套 DCL 动作；账户 V2 draft/pending 不影响 BOB V1 current。
+1. 页面编排该独立 subject 的全套 DCL 动作；账户 V2 draft/pending 不影响 BOB V1 正式资料。
 2. 账户 candidate 附件独立复制和只读，不能与关系附件混用。
-3. 当前投影失败必须使 entry、账户 snapshot、附件变化和事件一并回滚；正式交易 exact 引用阻止反批，V1 历史 snapshot 在 V2 批准后仍可校验。
+3. 当前有效资料读取失败不得引入额外写入；正式交易 exact 引用阻止反批，V1 历史 snapshot 在 V2 批准后仍可校验。

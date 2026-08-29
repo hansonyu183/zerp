@@ -3,7 +3,6 @@
 package dcl
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -13,7 +12,6 @@ import (
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
-	"github.com/jackc/pgx/v5"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -183,26 +181,4 @@ func TestFundAccountIdentifierClaimsAndApprovalRollbackIntegration(t *testing.T)
 	}
 	_ = reused
 
-	failing := NewFundAccountService(pool, failingFundAccountWriter{Service: business}, authorizer, bus)
-	pending, err := failing.Create(t.Context(), FundAccountCreateInput{Data: FundAccountData{Name: "失败投影", Currency: "CNY", AccountNumber: "999999", OperatingEntityID: owner.ObjectID}}, creator("failure-create"))
-	if err != nil {
-		t.Fatalf("create failing projection: %v", err)
-	}
-	pending, err = failing.Submit(t.Context(), FundAccountVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, creator("failure-submit"))
-	if err != nil {
-		t.Fatalf("submit failing projection: %v", err)
-	}
-	if _, err = failing.Approve(t.Context(), FundAccountVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer("failure-approve")); err == nil {
-		t.Fatal("failing BOB current writer approved declaration")
-	}
-	view, err := service.Get(t.Context(), FundAccountGetInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID}, creator("failure-check"))
-	if err != nil || view.Approval.Status != approval.StatusPending {
-		t.Fatalf("failed projection changed approval view=%+v err=%v", view, err)
-	}
-}
-
-type failingFundAccountWriter struct{ *bobdomain.Service }
-
-func (failingFundAccountWriter) ApplyFundAccountCurrent(context.Context, pgx.Tx, string, string, bool, bobdomain.FundAccountData, string) (bobdomain.FundAccountCurrent, error) {
-	return bobdomain.FundAccountCurrent{}, errors.New("injected BOB current failure")
 }

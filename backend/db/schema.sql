@@ -32,17 +32,17 @@ SET row_security = off;
 
 
 --
--- Name: bob_reject_merged_party_relationship(); Type: FUNCTION; Schema: public; Owner: -
+-- Name: dcl_reject_merged_party_relationship(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 -- Relationship creation and Party merge run in separate service transactions.
 -- This guard closes the race in which a relationship is inserted after merge has
 -- locked and inspected the Party but before the source Party becomes read-only.
-CREATE FUNCTION public.bob_reject_merged_party_relationship() RETURNS trigger
+CREATE FUNCTION public.dcl_reject_merged_party_relationship() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM bob_parties WHERE id=NEW.party_id AND merged_into_party_id IS NOT NULL) THEN
+    IF EXISTS (SELECT 1 FROM dcl_parties WHERE id=NEW.party_id AND merged_into_party_id IS NOT NULL) THEN
         RAISE EXCEPTION 'merged Party cannot start a new relationship' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
@@ -156,17 +156,18 @@ DECLARE
 BEGIN
     FOR report IN
         SELECT d.code,v.sql_text,v.parameters,v.columns
-        FROM rpt_definitions d
+        FROM dcl_subjects d
         JOIN LATERAL (
-            SELECT payload.sql_text,payload.parameters,payload.columns,payload.validity
+            SELECT payload.enabled,payload.sql_text,payload.parameters,payload.columns
             FROM approval_entries entry
             JOIN dcl_rpt_definition_versions payload ON payload.approval_entry_id=entry.id
+            JOIN rpt_definition_validities validity ON validity.approval_entry_id=entry.id AND validity.validity='VALID'
             WHERE entry.domain='dcl' AND entry.entity='rpt-definition'
               AND entry.subject_id=d.id AND entry.status='APPROVED'
             ORDER BY entry.version_no DESC
             LIMIT 1
         ) v ON true
-        WHERE d.enabled AND v.validity='VALID'
+        WHERE d.entity='rpt-definition' AND v.enabled
         ORDER BY d.code
     LOOP
         rewritten_sql := report.sql_text;
@@ -1166,10 +1167,14 @@ COMMENT ON INDEX public.approval_entries_latest_approved_idx IS
 CREATE TABLE public.dcl_subjects (
     id character varying(26) NOT NULL,
     entity character varying(64) NOT NULL,
+    code character varying(64),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
+    CONSTRAINT dcl_subjects_code_check CHECK (((entity)::text = 'rpt-definition'::character varying AND (code IS NOT NULL) AND ((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text) AND ((code)::text <> ALL ((ARRAY['definition'::character varying, 'directory'::character varying])::text[])))
+        OR ((entity)::text <> 'rpt-definition'::character varying AND ((code IS NULL) OR ((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)))),
+    CONSTRAINT dcl_subjects_core_code_required_ck CHECK (((entity)::text <> 'rpt-definition'::character varying) OR (code IS NOT NULL)),
     CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))
 );
 
@@ -1186,7 +1191,100 @@ CREATE TABLE public.dcl_operating_entity_versions (
     CONSTRAINT dcl_operating_entity_versions_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
 );
 
--- Employee keeps its immutable Party-to-operating-entity relationship in BOB.
+-- Party and every typed Party-to-operating-entity relationship are DCL-owned
+-- stable roots.  Mutable data remains in the typed approval snapshots below.
+CREATE TABLE public.dcl_parties (
+    id character varying(26) NOT NULL,
+    entity character varying(16) DEFAULT 'party'::character varying NOT NULL,
+    merged_into_party_id character varying(26),
+    merged_at timestamp with time zone,
+    CONSTRAINT dcl_parties_pkey PRIMARY KEY (id),
+    CONSTRAINT dcl_parties_entity_ck CHECK (entity='party'),
+    CONSTRAINT dcl_parties_merge_state_ck CHECK ((((merged_into_party_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_party_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_party_id)::text <> (id)::text))))
+);
+
+CREATE TABLE public.dcl_customer_relationships (
+    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'customer'::character varying NOT NULL,
+    party_id character varying(26) NOT NULL,
+    operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
+    merged_into_object_id character varying(26), merged_at timestamp with time zone,
+    CONSTRAINT dcl_customer_relationships_pkey PRIMARY KEY (object_id),
+    CONSTRAINT dcl_customer_relationships_entity_ck CHECK (object_entity='customer' AND operating_entity_entity='operating-entity'),
+    CONSTRAINT dcl_customer_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
+);
+CREATE TABLE public.dcl_employment_relationships (
+    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'employee'::character varying NOT NULL, party_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
+    merged_into_object_id character varying(26), merged_at timestamp with time zone,
+    CONSTRAINT dcl_employment_relationships_pkey PRIMARY KEY (object_id),
+    CONSTRAINT dcl_employment_relationships_entity_ck CHECK (object_entity='employee' AND operating_entity_entity='operating-entity'),
+    CONSTRAINT dcl_employment_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
+);
+CREATE TABLE public.dcl_supplier_relationships (
+    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'supplier'::character varying NOT NULL, party_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
+    merged_into_object_id character varying(26), merged_at timestamp with time zone,
+    CONSTRAINT dcl_supplier_relationships_pkey PRIMARY KEY (object_id),
+    CONSTRAINT dcl_supplier_relationships_entity_ck CHECK (object_entity='supplier' AND operating_entity_entity='operating-entity'),
+    CONSTRAINT dcl_supplier_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
+);
+CREATE TABLE public.dcl_service_relationships (
+    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'other-unit'::character varying NOT NULL, party_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
+    merged_into_object_id character varying(26), merged_at timestamp with time zone,
+    CONSTRAINT dcl_service_relationships_pkey PRIMARY KEY (object_id),
+    CONSTRAINT dcl_service_relationships_entity_ck CHECK (object_entity='other-unit' AND operating_entity_entity='operating-entity'),
+    CONSTRAINT dcl_service_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
+);
+CREATE TABLE public.dcl_sales_relationships (
+    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'sales-partner'::character varying NOT NULL, party_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
+    merged_into_object_id character varying(26), merged_at timestamp with time zone,
+    CONSTRAINT dcl_sales_relationships_pkey PRIMARY KEY (object_id),
+    CONSTRAINT dcl_sales_relationships_entity_ck CHECK (object_entity='sales-partner' AND operating_entity_entity='operating-entity'),
+    CONSTRAINT dcl_sales_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
+);
+CREATE TABLE public.dcl_customer_accounts (
+    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'customer-account'::character varying NOT NULL, customer_relationship_id character varying(26) NOT NULL,
+    CONSTRAINT dcl_customer_accounts_pkey PRIMARY KEY (object_id),
+    CONSTRAINT dcl_customer_accounts_entity_ck CHECK (object_entity='customer-account')
+);
+CREATE VIEW public.dcl_party_relationship_endpoints AS
+  SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'customer'::text AS entity FROM public.dcl_customer_relationships
+  UNION ALL SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'supplier'::text FROM public.dcl_supplier_relationships
+  UNION ALL SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'employee'::text FROM public.dcl_employment_relationships
+  UNION ALL SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'other-unit'::text FROM public.dcl_service_relationships
+  UNION ALL SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'sales-partner'::text FROM public.dcl_sales_relationships;
+CREATE TABLE public.dcl_party_merge_preflights (
+    id character varying(26) NOT NULL, source_party_id character varying(26) NOT NULL, target_party_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL, target_approval_entry_id character varying(26) NOT NULL,
+    source_approval_revision bigint NOT NULL, target_approval_revision bigint NOT NULL, state_fingerprint character(64) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL, created_by character varying(26) NOT NULL, request_id character varying(128) NOT NULL,
+    consumed_at timestamp with time zone, consumed_by character varying(26),
+    CONSTRAINT dcl_party_merge_preflights_pkey PRIMARY KEY (id),
+    CONSTRAINT dcl_party_merge_preflights_distinct_ck CHECK (source_party_id <> target_party_id),
+    CONSTRAINT dcl_party_merge_preflights_consumed_ck CHECK (((consumed_at IS NULL) AND (consumed_by IS NULL)) OR ((consumed_at IS NOT NULL) AND (consumed_by IS NOT NULL))),
+    CONSTRAINT dcl_party_merge_preflights_revision_ck CHECK (source_approval_revision >= 1 AND target_approval_revision >= 1),
+    CONSTRAINT dcl_party_merge_preflights_fingerprint_ck CHECK (state_fingerprint ~ '^[0-9a-f]{64}$')
+);
+CREATE TABLE public.dcl_party_merge_events (
+    id character varying(26) NOT NULL, preflight_id character varying(26) NOT NULL,
+    source_party_id character varying(26) NOT NULL, target_party_id character varying(26) NOT NULL,
+    actor_id character varying(26) NOT NULL, request_id character varying(128) NOT NULL,
+    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT dcl_party_merge_events_pkey PRIMARY KEY (id),
+    CONSTRAINT dcl_party_merge_events_preflight_id_key UNIQUE (preflight_id),
+    CONSTRAINT dcl_party_merge_events_distinct_ck CHECK (source_party_id <> target_party_id)
+);
+CREATE TABLE public.dcl_party_relationship_merge_events (
+    id character varying(26) NOT NULL, merge_event_id character varying(26) NOT NULL,
+    relationship_type character varying(16) NOT NULL, source_object_id character varying(26) NOT NULL,
+    target_object_id character varying(26), operating_entity_id character varying(26) NOT NULL,
+    operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
+    action character varying(16) NOT NULL, occurred_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT dcl_party_relationship_merge_events_pkey PRIMARY KEY (id),
+    CONSTRAINT dcl_party_relationship_merge_events_action_ck CHECK (action IN ('TRANSFERRED','MERGED')),
+    CONSTRAINT dcl_party_relationship_merge_events_shape_ck CHECK (((action='TRANSFERRED') AND target_object_id IS NULL) OR ((action='MERGED') AND target_object_id IS NOT NULL)),
+    CONSTRAINT dcl_party_relationship_merge_events_type_ck CHECK (relationship_type IN ('customer','supplier','employee','other-unit','sales-partner')),
+    CONSTRAINT dcl_party_relationship_merge_events_operating_entity_ck CHECK (operating_entity_entity='operating-entity')
+);
+
 -- This DCL payload intentionally contains no Party identity data.
 CREATE TABLE public.dcl_employee_versions (
     approval_entry_id character varying(26) NOT NULL,
@@ -1211,7 +1309,7 @@ CREATE TABLE public.dcl_employee_versions (
 );
 
 -- Other Unit and Sales Partner keep their immutable Party-to-operating-entity
--- identities in BOB. DCL owns every mutable declaration snapshot.
+-- identities in typed DCL roots alongside their declaration snapshots.
 CREATE TABLE public.dcl_other_unit_versions (
     approval_entry_id character varying(26) NOT NULL,
     contact_name character varying(100),
@@ -1258,7 +1356,7 @@ CREATE TABLE public.dcl_supplier_versions (
     settlement_term_code character varying(32), settlement_rule_type character varying(32),
     settlement_month_offset integer NOT NULL DEFAULT 0, settlement_day_of_month integer NOT NULL DEFAULT 0,
     settlement_day_offset integer NOT NULL DEFAULT 0,
-    default_purchaser_employee_id character varying(26), default_purchaser_employee_approval_entry_id character varying(26),
+    default_purchaser_employee_id character varying(26), default_purchaser_employee_entity character varying(16) DEFAULT 'employee'::character varying NOT NULL, default_purchaser_employee_approval_entry_id character varying(26),
     default_purchaser_employee_code character varying(64), default_purchaser_employee_name character varying(200),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_supplier_versions_pkey PRIMARY KEY (approval_entry_id),
@@ -1273,12 +1371,12 @@ CREATE TABLE public.dcl_supplier_versions (
       (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_approval_entry_id IS NULL)
       AND (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_code IS NULL)
       AND (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_name IS NULL)
-    )
+    ),
+    CONSTRAINT dcl_supplier_default_purchaser_employee_entity_ck CHECK (default_purchaser_employee_entity='employee')
 );
 
--- Party keeps a stable BOB root because every relationship refers to it, but
--- identity data is a DCL declaration snapshot and is visible to BOB only via
--- bob_party_currents after approval.
+-- Party keeps a stable typed DCL root because every relationship refers to it;
+-- identity data is visible to BOB only from the highest approved DCL snapshot.
 CREATE TABLE public.dcl_party_versions (
     approval_entry_id character varying(26) NOT NULL,
     party_id character varying(26) NOT NULL,
@@ -1373,21 +1471,8 @@ CREATE INDEX approval_events_entry_created_idx
     ON public.approval_events USING btree (entry_id, created_at, id);
 
 
---
--- Name: bob_customer_accounts; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_customer_accounts (
-    object_id character varying(26) NOT NULL,
-    object_entity character varying(16) DEFAULT 'customer-account'::character varying NOT NULL,
-    customer_relationship_id character varying(26) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    CONSTRAINT bob_customer_accounts_object_entity_check CHECK (((object_entity)::text = 'customer-account'::text))
-);
-
--- #287 DCL owns the independent customer relationship approval payload. The
--- stable relationship identity remains bob_customer_relationships.
+-- DCL owns the independent customer relationship approval payload; its typed
+-- stable relationship root is dcl_customer_relationships.
 CREATE TABLE public.dcl_customer_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'customer'::character varying NOT NULL,
@@ -1399,9 +1484,9 @@ CREATE TABLE public.dcl_customer_versions (
     CONSTRAINT dcl_customer_versions_entity_check CHECK (((entity)::text = 'customer'::text))
 );
 
--- #287 DCL owns the complete customer-account approval payload. The account
--- stable identity remains bob_customer_accounts; this table is intentionally
--- separate from the BOB current read projection.
+-- DCL owns the complete customer-account approval payload. The typed stable
+-- identity is dcl_customer_accounts; BOB reads the highest approved snapshot
+-- directly and does not maintain a second current-data store.
 CREATE TABLE public.dcl_customer_account_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'customer-account'::character varying NOT NULL,
@@ -1456,26 +1541,6 @@ CREATE TABLE public.dcl_customer_account_attachments (
     CONSTRAINT dcl_customer_account_attachments_pkey PRIMARY KEY (approval_entry_id, file_id)
 );
 
-CREATE TABLE public.bob_customers (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_customers_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_customers_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
-);
-
-CREATE TABLE public.bob_customer_account_currents (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_customer_account_currents_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_customer_account_currents_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
-);
-
 
 --
 -- Name: dcl_customer_download_tokens; Type: TABLE; Schema: public; Owner: -
@@ -1518,85 +1583,6 @@ CREATE TABLE public.dcl_customer_files (
 );
 
 
---
--- Name: bob_customer_relationships; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_customer_relationships (
-    object_id character varying(26) NOT NULL,
-    object_entity character varying(16) DEFAULT 'customer'::character varying NOT NULL,
-    party_id character varying(26) NOT NULL,
-    operating_entity_id character varying(26) NOT NULL,
-    operating_entity_entity character varying(32) DEFAULT 'operating-entity'::character varying NOT NULL,
-    merged_into_object_id character varying(26),
-    merged_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    CONSTRAINT bob_customer_relationship_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text)))),
-    CONSTRAINT bob_customer_relationships_object_entity_check CHECK (((object_entity)::text = 'customer'::text)),
-    CONSTRAINT bob_customer_relationships_operating_entity_entity_check CHECK (((operating_entity_entity)::text = 'operating-entity'::text))
-);
-
-
---
--- Name: bob_employment_relationships; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_employment_relationships (
-    object_id character varying(26) NOT NULL,
-    object_entity character varying(16) DEFAULT 'employee'::character varying NOT NULL,
-    party_id character varying(26) NOT NULL,
-    operating_entity_id character varying(26) NOT NULL,
-    operating_entity_entity character varying(32) DEFAULT 'operating-entity'::character varying NOT NULL,
-    merged_into_object_id character varying(26),
-    merged_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    CONSTRAINT bob_employment_relationship_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text)))),
-    CONSTRAINT bob_employment_relationships_object_entity_check CHECK (((object_entity)::text = 'employee'::text)),
-    CONSTRAINT bob_employment_relationships_operating_entity_entity_check CHECK (((operating_entity_entity)::text = 'operating-entity'::text))
-);
-
-CREATE TABLE public.bob_employees (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_employees_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_employees_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
-);
-
-CREATE TABLE public.bob_other_units (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_other_units_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_other_units_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
-);
-
-CREATE TABLE public.bob_sales_partners (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_sales_partners_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_sales_partners_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
-);
-
-CREATE TABLE public.bob_suppliers (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_suppliers_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_suppliers_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
-);
-
 
 --
 -- Name: dcl_fund_account_versions; Type: TABLE; Schema: public; Owner: -
@@ -1613,326 +1599,26 @@ CREATE TABLE public.dcl_fund_account_versions (
     account_number character varying(64),
     remark character varying(1000),
     operating_entity_id character varying(26) NOT NULL,
+	operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
     operating_entity_approval_entry_id character varying(26) NOT NULL,
     operating_entity_code character varying(16) NOT NULL,
     operating_entity_name character varying(200) NOT NULL,
     enabled boolean NOT NULL,
     CONSTRAINT dcl_fund_account_versions_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT dcl_fund_account_versions_entity_check CHECK (((entity)::text = 'fund-account'::text)),
+	CONSTRAINT dcl_fund_account_versions_operating_entity_check CHECK (((operating_entity_entity)::text = 'operating-entity'::text)),
     CONSTRAINT dcl_fund_account_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
 );
 
 CREATE TABLE public.dcl_fund_account_identifier_claims (
     normalized_account_number character varying(64) NOT NULL PRIMARY KEY,
     object_id character varying(26) NOT NULL,
+	object_entity character varying(16) DEFAULT 'fund-account'::character varying NOT NULL,
     approved_entry_id character varying(26),
     open_entry_id character varying(26),
-    CONSTRAINT dcl_fund_account_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
+	CONSTRAINT dcl_fund_account_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL),
+	CONSTRAINT dcl_fund_account_identifier_claims_object_entity_ck CHECK ((object_entity)::text = 'fund-account'::text)
 );
-
-CREATE TABLE public.bob_fund_accounts (
-    object_id character varying(26) NOT NULL PRIMARY KEY,
-    source_approval_entry_id character varying(26) NOT NULL UNIQUE,
-    name character varying(200) NOT NULL,
-    currency character varying(3) NOT NULL,
-    account_name character varying(200), bank_name character varying(200), bank_branch character varying(200),
-    account_number character varying(64), remark character varying(1000),
-    operating_entity_id character varying(26) NOT NULL,
-    operating_entity_approval_entry_id character varying(26) NOT NULL,
-    operating_entity_code character varying(16) NOT NULL, operating_entity_name character varying(200) NOT NULL,
-    enabled boolean NOT NULL, updated_at timestamp with time zone DEFAULT now() NOT NULL, updated_by character varying(26) NOT NULL
-);
-
---
--- Name: bob_objects; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_objects (
-    id character varying(26) NOT NULL,
-    entity character varying(32) NOT NULL,
-    code character varying(64) NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    enabled boolean DEFAULT true NOT NULL,
-    CONSTRAINT bob_objects_code_check CHECK (((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)),
-    CONSTRAINT bob_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['customer'::character varying, 'customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying, 'product'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'operating-entity'::character varying])::text[]))),
-    CONSTRAINT bob_objects_revision_check CHECK ((revision >= 1))
-);
-
---
--- Name: bob_operating_entities; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_operating_entities (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    legal_name character varying(200) NOT NULL,
-    short_name character varying(100),
-    tax_number character varying(100),
-    address character varying(500),
-    phone character varying(100),
-    remark character varying(1000),
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_operating_entities_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_operating_entities_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
-    CONSTRAINT bob_operating_entities_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
-);
-
-CREATE TABLE public.bob_warehouses (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    category_id character varying(26),
-    name character varying(200) NOT NULL,
-    address character varying(500),
-    contact_name character varying(100),
-    contact_phone character varying(32),
-    manager_employee_id character varying(26),
-    manager_employee_approval_entry_id character varying(26),
-    remark character varying(1000),
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_warehouses_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_warehouses_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
-    CONSTRAINT bob_warehouses_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
-);
-
-CREATE TABLE public.bob_vehicles (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    name character varying(200) NOT NULL,
-    plate_number character varying(32) NOT NULL,
-    vehicle_type character varying(64) NOT NULL,
-    vehicle_type_object_id character varying(26) NOT NULL,
-    vehicle_type_name character varying(200) NOT NULL,
-    vin character varying(17),
-    engine_number character varying(200),
-    load_capacity_kg numeric(12,3),
-    remark character varying(1000),
-    carrier_affiliation_type character varying(16) NOT NULL,
-    carrier_operating_entity_id character varying(26),
-    carrier_operating_entity_approval_entry_id character varying(26),
-    carrier_service_relationship_object_id character varying(26),
-    carrier_service_relationship_approval_entry_id character varying(26),
-    bulk_liquid_capable boolean DEFAULT false NOT NULL,
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_vehicles_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_vehicles_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
-);
-
-
---
--- Name: bob_parties; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_parties (
-    id character varying(26) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    merged_into_party_id character varying(26),
-    merged_at timestamp with time zone,
-    CONSTRAINT bob_parties_merge_state_ck CHECK ((((merged_into_party_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_party_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_party_id)::text <> (id)::text))))
-);
-
-CREATE TABLE public.bob_party_currents (
-    party_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    kind character varying(16) NOT NULL,
-    legal_name character varying(200) NOT NULL,
-    display_name character varying(200) NOT NULL,
-    tax_number character varying(100),
-    phone character varying(32),
-    email character varying(254),
-    address character varying(500),
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_party_currents_pkey PRIMARY KEY (party_id),
-    CONSTRAINT bob_party_currents_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
-    CONSTRAINT bob_party_currents_kind_check CHECK ((kind)::text = ANY ((ARRAY['PERSON'::character varying, 'ORGANIZATION'::character varying])::text[])),
-    CONSTRAINT bob_party_currents_legal_name_check CHECK ((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)),
-    CONSTRAINT bob_party_currents_display_name_check CHECK ((length(btrim((display_name)::text)) >= 1) AND (length(btrim((display_name)::text)) <= 200))
-);
-
-
-
---
--- Name: bob_party_identifiers; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_party_identifiers (
-    party_id character varying(26) NOT NULL,
-    identifier_type character varying(40) NOT NULL,
-    value character varying(100) NOT NULL,
-    normalized_value character varying(100) NOT NULL,
-    CONSTRAINT bob_party_identifiers_identifier_type_check CHECK (((identifier_type)::text = ANY ((ARRAY['PERSON_ID'::character varying, 'UNIFIED_SOCIAL_CREDIT_CODE'::character varying, 'TAX_NUMBER'::character varying])::text[]))),
-    CONSTRAINT bob_party_identifiers_normalized_value_check CHECK (((length(btrim((normalized_value)::text)) >= 1) AND (length(btrim((normalized_value)::text)) <= 100))),
-    CONSTRAINT bob_party_identifiers_value_check CHECK (((length(btrim((value)::text)) >= 1) AND (length(btrim((value)::text)) <= 100)))
-);
-
-
---
--- Name: bob_party_merge_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_party_merge_events (
-    id character varying(26) NOT NULL,
-    preflight_id character varying(26) NOT NULL,
-    source_party_id character varying(26) NOT NULL,
-    target_party_id character varying(26) NOT NULL,
-    actor_id character varying(26) NOT NULL,
-    request_id character varying(128) NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT bob_party_merge_events_check CHECK (((source_party_id)::text <> (target_party_id)::text))
-);
-
-
---
--- Name: bob_party_merge_preflights; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_party_merge_preflights (
-    id character varying(26) NOT NULL,
-    source_party_id character varying(26) NOT NULL,
-    target_party_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    target_approval_entry_id character varying(26) NOT NULL,
-    source_approval_revision bigint NOT NULL,
-    target_approval_revision bigint NOT NULL,
-    state_fingerprint character(64) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    request_id character varying(128) NOT NULL,
-    consumed_at timestamp with time zone,
-    consumed_by character varying(26),
-    CONSTRAINT bob_party_merge_preflights_check CHECK (((source_party_id)::text <> (target_party_id)::text)),
-    CONSTRAINT bob_party_merge_preflights_check1 CHECK ((((consumed_at IS NULL) AND (consumed_by IS NULL)) OR ((consumed_at IS NOT NULL) AND (consumed_by IS NOT NULL)))),
-    CONSTRAINT bob_party_merge_preflights_source_approval_revision_check CHECK ((source_approval_revision >= 1)),
-    CONSTRAINT bob_party_merge_preflights_state_fingerprint_check CHECK ((state_fingerprint ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT bob_party_merge_preflights_target_approval_revision_check CHECK ((target_approval_revision >= 1))
-);
-
-
---
--- Name: bob_sales_relationships; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_sales_relationships (
-    object_id character varying(26) NOT NULL,
-    object_entity character varying(16) DEFAULT 'sales-partner'::character varying NOT NULL,
-    party_id character varying(26) NOT NULL,
-    operating_entity_id character varying(26) NOT NULL,
-    operating_entity_entity character varying(32) DEFAULT 'operating-entity'::character varying NOT NULL,
-    merged_into_object_id character varying(26),
-    merged_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    CONSTRAINT bob_sales_relationship_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text)))),
-    CONSTRAINT bob_sales_relationships_object_entity_check CHECK (((object_entity)::text = 'sales-partner'::text)),
-    CONSTRAINT bob_sales_relationships_operating_entity_entity_check CHECK (((operating_entity_entity)::text = 'operating-entity'::text))
-);
-
-
---
--- Name: bob_service_relationships; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_service_relationships (
-    object_id character varying(26) NOT NULL,
-    object_entity character varying(16) DEFAULT 'other-unit'::character varying NOT NULL,
-    party_id character varying(26) NOT NULL,
-    operating_entity_id character varying(26) NOT NULL,
-    operating_entity_entity character varying(32) DEFAULT 'operating-entity'::character varying NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    merged_into_object_id character varying(26),
-    merged_at timestamp with time zone,
-    CONSTRAINT bob_service_relationship_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text)))),
-    CONSTRAINT bob_service_relationships_object_entity_check CHECK (((object_entity)::text = 'other-unit'::text)),
-    CONSTRAINT bob_service_relationships_operating_entity_entity_check CHECK (((operating_entity_entity)::text = 'operating-entity'::text))
-);
-
-
---
--- Name: bob_supplier_relationships; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_supplier_relationships (
-    object_id character varying(26) NOT NULL,
-    object_entity character varying(16) DEFAULT 'supplier'::character varying NOT NULL,
-    party_id character varying(26) NOT NULL,
-    operating_entity_id character varying(26) NOT NULL,
-    operating_entity_entity character varying(32) DEFAULT 'operating-entity'::character varying NOT NULL,
-    merged_into_object_id character varying(26),
-    merged_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    CONSTRAINT bob_supplier_relationship_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text)))),
-    CONSTRAINT bob_supplier_relationships_object_entity_check CHECK (((object_entity)::text = 'supplier'::text)),
-    CONSTRAINT bob_supplier_relationships_operating_entity_entity_check CHECK (((operating_entity_entity)::text = 'operating-entity'::text))
-);
-
-
---
--- Name: bob_party_relationship_endpoints; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.bob_party_relationship_endpoints AS
- SELECT bob_customer_relationships.object_id,
-    bob_customer_relationships.party_id,
-    bob_customer_relationships.operating_entity_id,
-    bob_customer_relationships.merged_into_object_id
-   FROM public.bob_customer_relationships
-UNION ALL
- SELECT bob_supplier_relationships.object_id,
-    bob_supplier_relationships.party_id,
-    bob_supplier_relationships.operating_entity_id,
-    bob_supplier_relationships.merged_into_object_id
-   FROM public.bob_supplier_relationships
-UNION ALL
- SELECT bob_employment_relationships.object_id,
-    bob_employment_relationships.party_id,
-    bob_employment_relationships.operating_entity_id,
-    bob_employment_relationships.merged_into_object_id
-   FROM public.bob_employment_relationships
-UNION ALL
- SELECT bob_service_relationships.object_id,
-    bob_service_relationships.party_id,
-    bob_service_relationships.operating_entity_id,
-    bob_service_relationships.merged_into_object_id
-   FROM public.bob_service_relationships
-UNION ALL
- SELECT bob_sales_relationships.object_id,
-    bob_sales_relationships.party_id,
-    bob_sales_relationships.operating_entity_id,
-    bob_sales_relationships.merged_into_object_id
-   FROM public.bob_sales_relationships;
-
-
---
--- Name: bob_party_relationship_merge_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_party_relationship_merge_events (
-    id character varying(26) NOT NULL,
-    merge_event_id character varying(26) NOT NULL,
-    relationship_type character varying(16) NOT NULL,
-    source_object_id character varying(26) NOT NULL,
-    target_object_id character varying(26),
-    operating_entity_id character varying(26) CONSTRAINT bob_party_relationship_merge_event_operating_entity_id_not_null NOT NULL,
-    action character varying(16) NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT bob_party_relationship_merge_events_action_check CHECK (((action)::text = ANY ((ARRAY['TRANSFERRED'::character varying, 'MERGED'::character varying])::text[]))),
-    CONSTRAINT bob_party_relationship_merge_events_check CHECK (((((action)::text = 'TRANSFERRED'::text) AND (target_object_id IS NULL)) OR (((action)::text = 'MERGED'::text) AND (target_object_id IS NOT NULL)))),
-    CONSTRAINT bob_party_relationship_merge_events_relationship_type_check CHECK (((relationship_type)::text = ANY ((ARRAY['customer'::character varying, 'supplier'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying])::text[])))
-);
-
 
 --
 -- Name: dcl_product_formula_lines; Type: TABLE; Schema: public; Owner: -
@@ -1942,6 +1628,7 @@ CREATE TABLE public.dcl_product_formula_lines (
     product_approval_entry_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     material_object_id character varying(26) NOT NULL,
+	material_entity character varying(16) DEFAULT 'product'::character varying NOT NULL,
     material_approval_entry_id character varying(26) NOT NULL,
     base_quantity_micros bigint CONSTRAINT dcl_product_formula_lines_quantity_micros_not_null NOT NULL,
     entered_quantity_micros bigint NOT NULL,
@@ -1955,7 +1642,8 @@ CREATE TABLE public.dcl_product_formula_lines (
     CONSTRAINT dcl_product_formula_lines_line_no_check CHECK ((line_no >= 1)),
     CONSTRAINT dcl_product_formula_lines_quantity_micros_check CHECK ((base_quantity_micros > 0)),
     CONSTRAINT dcl_product_formula_lines_quantity_scale_check CHECK (((entered_unit_quantity_scale >= 0) AND (entered_unit_quantity_scale <= 6))),
-    CONSTRAINT dcl_product_formula_lines_resolution_status_check CHECK (((resolution_status)::text = ANY ((ARRAY['CURRENT'::character varying, 'UNRESOLVED'::character varying])::text[])))
+	CONSTRAINT dcl_product_formula_lines_resolution_status_check CHECK (((resolution_status)::text = ANY ((ARRAY['CURRENT'::character varying, 'UNRESOLVED'::character varying])::text[]))),
+	CONSTRAINT dcl_product_formula_lines_material_entity_ck CHECK ((material_entity)::text = 'product'::text)
 );
 
 
@@ -2028,9 +1716,11 @@ CREATE TABLE public.dcl_product_versions (
 CREATE TABLE public.dcl_product_barcode_claims (
     normalized_barcode character varying(64) NOT NULL PRIMARY KEY,
     object_id character varying(26) NOT NULL,
+	object_entity character varying(16) DEFAULT 'product'::character varying NOT NULL,
     approved_entry_id character varying(26),
     open_entry_id character varying(26),
-    CONSTRAINT dcl_product_barcode_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
+	CONSTRAINT dcl_product_barcode_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL),
+	CONSTRAINT dcl_product_barcode_claims_object_entity_ck CHECK ((object_entity)::text = 'product'::text)
 );
 
 
@@ -2078,10 +1768,12 @@ CREATE TABLE public.dcl_vehicle_identifier_claims (
     identifier_kind character varying(8) NOT NULL CHECK (((identifier_kind)::text = ANY ((ARRAY['PLATE'::character varying, 'VIN'::character varying])::text[]))),
     normalized_value character varying(64) NOT NULL CHECK (length(btrim(normalized_value)) > 0),
     object_id character varying(26) NOT NULL,
+	object_entity character varying(16) DEFAULT 'vehicle'::character varying NOT NULL,
     approved_entry_id character varying(26),
     open_entry_id character varying(26),
     CONSTRAINT dcl_vehicle_identifier_claims_pkey PRIMARY KEY (identifier_kind, normalized_value),
-    CONSTRAINT dcl_vehicle_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
+	CONSTRAINT dcl_vehicle_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL),
+	CONSTRAINT dcl_vehicle_identifier_claims_object_entity_ck CHECK ((object_entity)::text = 'vehicle'::text)
 );
 
 
@@ -2093,7 +1785,7 @@ CREATE TABLE public.object_number_counters (
     domain character varying(3) NOT NULL,
     entity character varying(32) NOT NULL,
     last_value integer NOT NULL,
-    CONSTRAINT object_number_counters_domain_check CHECK (((domain)::text = ANY ((ARRAY['bob'::character varying, 'aux'::character varying, 'acc'::character varying])::text[]))),
+    CONSTRAINT object_number_counters_domain_check CHECK (((domain)::text = ANY ((ARRAY['aux'::character varying, 'acc'::character varying, 'dcl'::character varying])::text[]))),
     CONSTRAINT object_number_counters_last_value_check CHECK (((last_value >= 1) AND (last_value <= 9999)))
 );
 
@@ -2115,23 +1807,6 @@ CREATE TABLE public.rpt_runtime_audit_events (
 );
 
 
---
--- Name: rpt_definitions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.rpt_definitions (
-    id character varying(26) NOT NULL,
-    code character varying(64) NOT NULL,
-    enabled boolean DEFAULT true NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT rpt_definitions_code_check CHECK ((((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text) AND ((code)::text <> ALL ((ARRAY['definition'::character varying, 'directory'::character varying])::text[])))),
-    CONSTRAINT rpt_definitions_revision_check CHECK ((revision >= 1))
-);
-
 
 --
 -- Name: dcl_rpt_definition_versions; Type: TABLE; Schema: public; Owner: -
@@ -2139,15 +1814,12 @@ CREATE TABLE public.rpt_definitions (
 
 CREATE TABLE public.dcl_rpt_definition_versions (
     approval_entry_id character varying(26) NOT NULL,
-    definition_id character varying(26) NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
     name character varying(200) NOT NULL,
     description character varying(1000) DEFAULT ''::character varying NOT NULL,
-    validity character varying(16) NOT NULL,
     sql_text text NOT NULL,
     parameters jsonb NOT NULL,
     columns jsonb NOT NULL,
-    invalidated_at timestamp with time zone,
-    invalid_reason character varying(200),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -2155,8 +1827,25 @@ CREATE TABLE public.dcl_rpt_definition_versions (
     CONSTRAINT dcl_rpt_definition_versions_columns_check CHECK ((jsonb_typeof(columns) = 'array'::text)),
     CONSTRAINT dcl_rpt_definition_versions_name_check CHECK ((btrim((name)::text) <> ''::text)),
     CONSTRAINT dcl_rpt_definition_versions_parameters_check CHECK ((jsonb_typeof(parameters) = 'array'::text)),
-    CONSTRAINT dcl_rpt_definition_versions_sql_text_check CHECK ((btrim(sql_text) <> ''::text)),
-    CONSTRAINT dcl_rpt_definition_versions_validity_check CHECK (((validity)::text = ANY ((ARRAY['VALID'::character varying, 'INVALID'::character varying])::text[])))
+    CONSTRAINT dcl_rpt_definition_versions_sql_text_check CHECK ((btrim(sql_text) <> ''::text))
+);
+
+
+--
+-- Name: rpt_definition_validities; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rpt_definition_validities (
+    approval_entry_id character varying(26) NOT NULL,
+    validity character varying(16) DEFAULT 'VALID'::character varying NOT NULL,
+    invalidated_at timestamp with time zone,
+    invalid_reason character varying(200),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(26) NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT rpt_definition_validities_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT rpt_definition_validities_validity_check CHECK (((validity)::text = ANY ((ARRAY['VALID'::character varying, 'INVALID'::character varying])::text[])))
 );
 
 
@@ -3576,13 +3265,11 @@ CREATE TABLE public.wfl_process_definitions (
     id character varying(26) NOT NULL,
     code character varying(64) NOT NULL,
     enabled boolean DEFAULT false NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    CONSTRAINT wfl_process_definitions_code_check CHECK (((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text)),
-    CONSTRAINT wfl_process_definitions_revision_check CHECK ((revision > 0))
+    CONSTRAINT wfl_process_definitions_code_check CHECK (((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text))
 );
 
 
@@ -4732,7 +4419,7 @@ FROM (VALUES
     ('01JCDT00000000000000000015','dictionary-item', '{"name": "其他", "sortOrder": 70, "dictionaryTypeId": "01JCDT00000000000000000001", "dictionaryTypeCode": "DCT-0003", "dictionaryTypeName": "客户资料类别"}'::jsonb)
 ) AS payload(object_id,entity,data)
 WHERE payload.object_id=object.id AND payload.entity=object.entity;
--- Data for Name: bob_customer_accounts; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_customer_accounts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -4750,13 +4437,13 @@ WHERE payload.object_id=object.id AND payload.entity=object.entity;
 
 
 --
--- Data for Name: bob_customer_relationships; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_customer_relationships; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_employment_relationships; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_employment_relationships; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -4768,16 +4455,7 @@ WHERE payload.object_id=object.id AND payload.entity=object.entity;
 
 
 --
--- Data for Name: bob_objects; Type: TABLE DATA; Schema: public; Owner: -
---
-
--- Data for Name: bob_operating_entities; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: bob_parties; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_parties; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -4785,25 +4463,25 @@ WHERE payload.object_id=object.id AND payload.entity=object.entity;
 
 
 --
--- Data for Name: bob_party_identifiers; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_party_identifier_claims; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_party_merge_events; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_party_merge_events; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_party_merge_preflights; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_party_merge_preflights; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_party_relationship_merge_events; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_party_relationship_merge_events; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -4833,13 +4511,13 @@ WHERE payload.object_id=object.id AND payload.entity=object.entity;
 
 
 --
--- Data for Name: bob_sales_relationships; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_sales_relationships; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
 
 --
--- Data for Name: bob_service_relationships; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_service_relationships; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -4870,24 +4548,26 @@ INSERT INTO public.object_number_counters VALUES ('aux', 'product-type', 4);
 
 
 --
--- Data for Name: rpt_definitions; Type: TABLE DATA; Schema: public; Owner: -
+-- Built-in report definitions are DCL subjects. Report state lives on the
+-- approved version payload, not on a separate root table.
 --
 
-INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD1e68c4c93e49d8d1e1877f9', 'account-journal', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb40033a1ed0a842d50c23f1', 'subject-balance', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD43189400de7a6fe5d7978ed', 'customer-aging', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD24d57c02d870b62329517d0', 'supplier-aging', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDef5b48e5bf2909eebd39609', 'inventory-movement', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb5237b6a7892a42a4a7a60f', 'bills', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD57bcbf1d2df6010d41816c0', 'containers', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD517f80b4080608d1ef8ce23', 'employee-loans', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.dcl_subjects (id, entity, code, created_at, created_by) VALUES
+    ('RPD1e68c4c93e49d8d1e1877f9', 'rpt-definition', 'account-journal', '2026-08-24 15:23:49.887333+00', 'SYSTEM'),
+    ('RPDb40033a1ed0a842d50c23f1', 'rpt-definition', 'subject-balance', '2026-08-24 15:23:49.887333+00', 'SYSTEM'),
+    ('RPD43189400de7a6fe5d7978ed', 'rpt-definition', 'customer-aging', '2026-08-24 15:23:49.887333+00', 'SYSTEM'),
+    ('RPD24d57c02d870b62329517d0', 'rpt-definition', 'supplier-aging', '2026-08-24 15:23:49.887333+00', 'SYSTEM'),
+    ('RPDef5b48e5bf2909eebd39609', 'rpt-definition', 'inventory-movement', '2026-08-24 15:23:49.887333+00', 'SYSTEM'),
+    ('RPDb5237b6a7892a42a4a7a60f', 'rpt-definition', 'bills', '2026-08-24 15:23:49.887333+00', 'SYSTEM'),
+    ('RPD57bcbf1d2df6010d41816c0', 'rpt-definition', 'containers', '2026-08-24 15:23:49.887333+00', 'SYSTEM'),
+    ('RPD517f80b4080608d1ef8ce23', 'rpt-definition', 'employee-loans', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
 
 
 --
 -- Data for Name: dcl_rpt_definition_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV1e68c4c93e49d8d1e1877f9', 'RPD1e68c4c93e49d8d1e1877f9', '科目流水', '系统预置报表', 'VALID', '
+INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV1e68c4c93e49d8d1e1877f9', true, '科目流水', '系统预置报表', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,v.business_date::date AS business_date,
         v.id::text AS voucher_id,v.source_document_no::text AS source_document_no,e.currency::text AS currency,
         CASE WHEN e.debit_minor>0 THEN ''DEBIT'' ELSE ''CREDIT'' END::text AS direction,
@@ -4901,7 +4581,7 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id
       AND ($3::text='''' OR e.currency=$3) AND v.business_date <@ $4::daterange
     ORDER BY v.business_date,v.id,e.line_order
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "会计科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "dateRange", "name": "日期范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "日期", "type": "DATE", "alias": "business_date", "order": 3, "width": 110, "format": "date", "visible": true}, {"name": "凭证", "type": "ID", "alias": "voucher_id", "order": 4, "width": 180, "visible": false}, {"name": "来源单号", "type": "TEXT", "alias": "source_document_no", "order": 5, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "方向", "type": "TEXT", "alias": "direction", "order": 7, "width": 80, "visible": true}, {"name": "金额", "type": "DECIMAL", "alias": "amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 9, "width": 130, "visible": true}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 10, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb40033a1ed0a842d50c23f1', 'RPDb40033a1ed0a842d50c23f1', '科目余额', '系统预置报表', 'VALID', '
+INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb40033a1ed0a842d50c23f1', true, '科目余额', '系统预置报表', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,e.currency::text AS currency,
       (sum(CASE WHEN v.business_date<lower($4::daterange) THEN e.debit_minor-e.credit_minor ELSE 0 END)::numeric/100) AS opening_balance,
       (sum(CASE WHEN v.business_date <@ $4::daterange THEN e.debit_minor ELSE 0 END)::numeric/100) AS debit_amount,
@@ -4914,7 +4594,7 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id
       AND v.business_date<upper($4::daterange)
     GROUP BY b.code,s.code,e.currency ORDER BY b.code,s.code,e.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "会计科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "dateRange", "name": "期间", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 3, "width": 80, "visible": true}, {"name": "期初余额", "type": "DECIMAL", "alias": "opening_balance", "order": 4, "width": 130, "format": "money", "visible": true}, {"name": "借方发生", "type": "DECIMAL", "alias": "debit_amount", "order": 5, "width": 130, "format": "money", "visible": true}, {"name": "贷方发生", "type": "DECIMAL", "alias": "credit_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "期末余额", "type": "DECIMAL", "alias": "ending_balance", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "余额方向", "type": "TEXT", "alias": "balance_direction", "order": 8, "width": 90, "visible": true}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVef5b48e5bf2909eebd39609', 'RPDef5b48e5bf2909eebd39609', '库存收发存', '系统预置报表', 'VALID', '
+INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVef5b48e5bf2909eebd39609', true, '库存收发存', '系统预置报表', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,i.warehouse_id::text AS warehouse_id,
       i.product_id::text AS product_id,
       (sum(CASE WHEN i.business_date<date_trunc(''month'',$5::date)::date THEN i.quantity_delta_micros ELSE 0 END)::numeric/1000000) AS opening_quantity,
@@ -4936,7 +4616,7 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id
       AND ($3::text='''' OR i.warehouse_id=$3) AND ($4::text='''' OR i.product_id=$4) AND i.business_date<=$5::date
     GROUP BY b.code,s.code,i.warehouse_id,i.product_id ORDER BY b.code,s.code,i.warehouse_id,i.product_id
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "库存科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "warehouseId", "name": "仓库", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "WAREHOUSE"}, {"key": "productId", "name": "产品", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "PRODUCT"}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "库存科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "仓库", "type": "ID", "alias": "warehouse_id", "order": 3, "width": 180, "visible": true}, {"name": "产品", "type": "ID", "alias": "product_id", "order": 4, "width": 180, "visible": true}, {"name": "期初数量", "type": "DECIMAL", "alias": "opening_quantity", "order": 5, "width": 120, "format": "quantity", "visible": true}, {"name": "入库数量", "type": "DECIMAL", "alias": "inbound_quantity", "order": 6, "width": 120, "format": "quantity", "visible": true}, {"name": "出库数量", "type": "DECIMAL", "alias": "outbound_quantity", "order": 7, "width": 120, "format": "quantity", "visible": true}, {"name": "期末数量", "type": "DECIMAL", "alias": "ending_quantity", "order": 8, "width": 120, "format": "quantity", "visible": true}, {"name": "移动平均单价", "type": "DECIMAL", "alias": "average_unit_cost", "order": 9, "width": 140, "format": "money", "visible": true}, {"name": "期末金额", "type": "DECIMAL", "alias": "ending_amount", "order": 10, "width": 130, "format": "money", "visible": true}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb5237b6a7892a42a4a7a60f', 'RPDb5237b6a7892a42a4a7a60f', '票据', '系统预置报表', 'VALID', '
+INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb5237b6a7892a42a4a7a60f', true, '票据', '系统预置报表', '
     SELECT book.code::text AS book_code,bill.id::text AS bill_id,bill.bill_no::text AS bill_no,
       CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$6::date THEN ''SETTLED'' ELSE ''AVAILABLE'' END::text AS business_status,
       bill.position_type::text AS position_type,bill.currency::text AS currency,
@@ -4955,7 +4635,7 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id
       AND bill.maturity_date <@ $5::daterange AND bill.issue_date<=$6::date
     ORDER BY book.code,bill.bill_no,bill.id
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "billId", "name": "票据", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "BILL"}, {"key": "partyId", "name": "往来方", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "OTHER_PARTY"}, {"key": "status", "name": "状态", "type": "ENUM", "required": false, "enumValues": ["", "AVAILABLE", "SETTLED"], "defaultValue": ""}, {"key": "maturityRange", "name": "到期日范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "票据ID", "type": "ID", "alias": "bill_id", "order": 2, "width": 180, "visible": false}, {"name": "票据号", "type": "TEXT", "alias": "bill_no", "order": 3, "width": 160, "visible": true}, {"name": "业务状态", "type": "TEXT", "alias": "business_status", "order": 4, "width": 110, "visible": true}, {"name": "账簿方向", "type": "TEXT", "alias": "position_type", "order": 5, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "原值", "type": "DECIMAL", "alias": "original_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "账面金额", "type": "DECIMAL", "alias": "carrying_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "到期日", "type": "DATE", "alias": "maturity_date", "order": 9, "width": 110, "format": "date", "visible": true}, {"name": "往来方", "type": "ID", "alias": "party_id", "order": 10, "width": 180, "visible": false}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV43189400de7a6fe5d7978ed', 'RPD43189400de7a6fe5d7978ed', '客户应收预收账龄', '系统预置报表', 'VALID', '
+INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV43189400de7a6fe5d7978ed', true, '客户应收预收账龄', '系统预置报表', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''CUSTOMER_ACCOUNT'' AS party_id,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
@@ -4997,11 +4677,11 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_objects p ON p.id=x.party_id AND p.entity=''customer-account''
+    LEFT JOIN dcl_subjects p ON p.id=x.party_id AND p.entity=''customer-account''
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,customer_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV24d57c02d870b62329517d0', 'RPD24d57c02d870b62329517d0', '供应商应付预付账龄', '系统预置报表', 'VALID', '
+INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV24d57c02d870b62329517d0', true, '供应商应付预付账龄', '系统预置报表', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''SUPPLIER_RELATIONSHIP'' AS party_id,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
@@ -5043,11 +4723,11 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_objects p ON p.id=x.party_id AND p.entity=''supplier''
+    LEFT JOIN dcl_subjects p ON p.id=x.party_id AND p.entity=''supplier''
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,supplier_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV57bcbf1d2df6010d41816c0', 'RPD57bcbf1d2df6010d41816c0', '空桶', '系统预置报表', 'VALID', '
+INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV57bcbf1d2df6010d41816c0', true, '空桶', '系统预置报表', '
     WITH facts AS (
       SELECT book.id AS book_id,book.code,e.customer_id,e.container_type,e.quantity_delta,
         coalesce(source.business_date,book.start_month) AS business_date,e.source_revision
@@ -5081,10 +4761,10 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id
       m.returned_quantity::numeric AS returned_quantity,m.adjusted_quantity::numeric AS adjusted_quantity,
       m.balance_quantity::numeric AS balance_quantity,NULL::numeric AS amount
     FROM movements m
-    LEFT JOIN bob_objects customer ON customer.id=m.customer_id AND customer.entity=''customer-account''
+    LEFT JOIN dcl_subjects customer ON customer.id=m.customer_id AND customer.entity=''customer-account''
     ORDER BY m.code,customer_code,m.container_type
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 5, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 6, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 7, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 10, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 11, "width": 130, "format": "money", "visible": true}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80b4080608d1ef8ce23', '员工借款', '系统预置报表', 'VALID', '
+INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV517f80b4080608d1ef8ce23', true, '员工借款', '系统预置报表', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''EMPLOYMENT_RELATIONSHIP'' AS employee_id,v.business_date,v.source_entity,
         (e.debit_minor-e.credit_minor) AS signed_minor
@@ -5125,9 +4805,13 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, definition_id
       (abs(x.balance_minor)::numeric/100) AS unsettled_amount,greatest(($4::date-x.oldest_date)::bigint,0::bigint) AS oldest_age_days,
       (CASE WHEN x.balance_minor<0 THEN ''PAYABLE_TO_EMPLOYEE'' ELSE ''RECEIVABLE_FROM_EMPLOYEE'' END)::text AS balance_meaning
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_objects p ON p.id=x.employee_id AND p.entity=''employee''
+    LEFT JOIN dcl_subjects p ON p.id=x.employee_id AND p.entity=''employee''
     ORDER BY b.code,employee_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "employeeId", "name": "员工", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "EMPLOYMENT_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "员工ID", "type": "ID", "alias": "employee_id", "order": 2, "width": 180, "visible": false}, {"name": "员工编码", "type": "TEXT", "alias": "employee_code", "order": 3, "width": 120, "visible": true}, {"name": "员工姓名", "type": "TEXT", "alias": "employee_name", "order": 4, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "借款", "type": "DECIMAL", "alias": "loan_amount", "order": 6, "width": 120, "format": "money", "visible": true}, {"name": "还款", "type": "DECIMAL", "alias": "repayment_amount", "order": 7, "width": 120, "format": "money", "visible": true}, {"name": "费用核销", "type": "DECIMAL", "alias": "writeoff_amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "余额", "type": "DECIMAL", "alias": "balance", "order": 9, "width": 120, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 10, "width": 120, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 11, "width": 120, "visible": true}, {"name": "余额含义", "type": "TEXT", "alias": "balance_meaning", "order": 12, "width": 170, "visible": true}]', 'SYSTEM', 'SYSTEM');
+
+INSERT INTO public.rpt_definition_validities (approval_entry_id, validity, created_by, updated_by)
+SELECT approval_entry_id, 'VALID', 'SYSTEM', 'SYSTEM'
+FROM public.dcl_rpt_definition_versions;
 
 
 --
@@ -5636,10 +5320,10 @@ globalThis.calculate = function calculate(input) {
 -- Data for Name: wfl_process_definitions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.wfl_process_definitions (id, code, enabled, revision, created_by, updated_by) VALUES
-    ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.wfl_process_definitions (id, code, enabled, created_by, updated_by) VALUES
+    ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
+    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
+    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
 INSERT INTO public.dcl_wfl_process_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE0f7b734eecb146455d2f051', 'WFD0f7b734eecb146455d2f051', 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
 workflow(code="expense-payment", name="费用报销付款", root=reimbursement, edges=[edge(source=reimbursement, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": ""}))])', NULL, '{"edges": [{"relation": "payment", "sourceKey": "reimbursement", "targetKey": "payment", "actionName": "expense_payment"}], "nodes": [{"key": "reimbursement", "name": "费用报销", "entity": "expense-reimbursement"}, {"key": "payment", "name": "费用付款", "entity": "expense-payment"}], "rootKey": "reimbursement"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
@@ -6164,11 +5848,8 @@ ALTER TABLE ONLY public.aux_objects
 
 
 --
--- Name: bob_customer_accounts bob_customer_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_accounts dcl_customer_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_customer_accounts
-    ADD CONSTRAINT bob_customer_accounts_pkey PRIMARY KEY (object_id);
 
 
 --
@@ -6204,19 +5885,13 @@ ALTER TABLE ONLY public.dcl_customer_files
 
 
 --
--- Name: bob_customer_relationships bob_customer_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_relationships dcl_customer_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_customer_relationships
-    ADD CONSTRAINT bob_customer_relationships_pkey PRIMARY KEY (object_id);
 
 
 --
--- Name: bob_employment_relationships bob_employment_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_employment_relationships dcl_employment_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_employment_relationships
-    ADD CONSTRAINT bob_employment_relationships_pkey PRIMARY KEY (object_id);
 
 
 --
@@ -6228,77 +5903,40 @@ ALTER TABLE ONLY public.dcl_fund_account_versions
 
 
 --
--- Name: bob_objects bob_objects_id_entity_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_objects
-    ADD CONSTRAINT bob_objects_id_entity_key UNIQUE (id, entity);
-
-
+-- Name: dcl_parties dcl_parties_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
--- Name: bob_objects bob_objects_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_objects
-    ADD CONSTRAINT bob_objects_pkey PRIMARY KEY (id);
-
-
---
---
--- Name: bob_parties bob_parties_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_parties
-    ADD CONSTRAINT bob_parties_pkey PRIMARY KEY (id);
 
 
 
 --
--- Name: bob_party_identifiers bob_party_identifiers_identifier_type_normalized_value_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_identifier_claims dcl_party_identifier_claims_identifier_type_normalized_value_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_party_identifiers
-    ADD CONSTRAINT bob_party_identifiers_identifier_type_normalized_value_key UNIQUE (identifier_type, normalized_value);
 
 
 --
--- Name: bob_party_identifiers bob_party_identifiers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_identifier_claims dcl_party_identifier_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_party_identifiers
-    ADD CONSTRAINT bob_party_identifiers_pkey PRIMARY KEY (party_id, identifier_type, normalized_value);
 
 
 --
--- Name: bob_party_merge_events bob_party_merge_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_merge_events dcl_party_merge_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_party_merge_events
-    ADD CONSTRAINT bob_party_merge_events_pkey PRIMARY KEY (id);
 
 
 --
--- Name: bob_party_merge_events bob_party_merge_events_preflight_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_merge_events dcl_party_merge_events_preflight_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_party_merge_events
-    ADD CONSTRAINT bob_party_merge_events_preflight_id_key UNIQUE (preflight_id);
 
 
 --
--- Name: bob_party_merge_preflights bob_party_merge_preflights_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_merge_preflights dcl_party_merge_preflights_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_party_merge_preflights
-    ADD CONSTRAINT bob_party_merge_preflights_pkey PRIMARY KEY (id);
 
 
 --
--- Name: bob_party_relationship_merge_events bob_party_relationship_merge_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_relationship_merge_events dcl_party_relationship_merge_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_party_relationship_merge_events
-    ADD CONSTRAINT bob_party_relationship_merge_events_pkey PRIMARY KEY (id);
 
 
 --
@@ -6343,28 +5981,19 @@ ALTER TABLE ONLY public.dcl_product_versions
 
 
 --
--- Name: bob_sales_relationships bob_sales_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_sales_relationships dcl_sales_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_sales_relationships
-    ADD CONSTRAINT bob_sales_relationships_pkey PRIMARY KEY (object_id);
 
 
 
 --
--- Name: bob_service_relationships bob_service_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_service_relationships dcl_service_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_service_relationships
-    ADD CONSTRAINT bob_service_relationships_pkey PRIMARY KEY (object_id);
 
 
 --
--- Name: bob_supplier_relationships bob_supplier_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_supplier_relationships dcl_supplier_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_supplier_relationships
-    ADD CONSTRAINT bob_supplier_relationships_pkey PRIMARY KEY (object_id);
 
 
 --
@@ -6395,22 +6024,6 @@ ALTER TABLE ONLY public.object_number_counters
 
 ALTER TABLE ONLY public.rpt_runtime_audit_events
     ADD CONSTRAINT rpt_runtime_audit_events_pkey PRIMARY KEY (id);
-
-
---
--- Name: rpt_definitions rpt_definitions_code_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.rpt_definitions
-    ADD CONSTRAINT rpt_definitions_code_key UNIQUE (code);
-
-
---
--- Name: rpt_definitions rpt_definitions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.rpt_definitions
-    ADD CONSTRAINT rpt_definitions_pkey PRIMARY KEY (id);
 
 
 --
@@ -7386,10 +6999,8 @@ CREATE INDEX aux_objects_entity_updated_idx ON public.aux_objects USING btree (e
 
 
 --
--- Name: bob_customer_accounts_relationship_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_customer_accounts_relationship_idx; Type: INDEX; Schema: public; Owner: -
 --
-
-CREATE INDEX bob_customer_accounts_relationship_idx ON public.bob_customer_accounts USING btree (customer_relationship_id, object_id);
 
 
 --
@@ -7407,47 +7018,29 @@ CREATE INDEX dcl_customer_files_pending_idx ON public.dcl_customer_files USING b
 
 
 --
--- Name: bob_customer_relationships_active_party_operating_key; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_customer_relationships_active_party_operating_key; Type: INDEX; Schema: public; Owner: -
 --
-
-CREATE UNIQUE INDEX bob_customer_relationships_active_party_operating_key ON public.bob_customer_relationships USING btree (party_id, operating_entity_id) WHERE (merged_into_object_id IS NULL);
 
 
 --
--- Name: bob_employment_relationships_active_party_operating_key; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_employment_relationships_active_party_operating_key; Type: INDEX; Schema: public; Owner: -
 --
-
-CREATE UNIQUE INDEX bob_employment_relationships_active_party_operating_key ON public.bob_employment_relationships USING btree (party_id, operating_entity_id) WHERE (merged_into_object_id IS NULL);
 
 
 --
 
 --
--- Name: bob_objects_entity_code_uq; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_subjects_entity_code_uq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX bob_objects_entity_code_uq ON public.bob_objects USING btree (entity, upper((code)::text));
-
-
---
--- Name: bob_objects_entity_updated_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_objects_entity_updated_idx ON public.bob_objects USING btree (entity, updated_at DESC, id DESC);
+CREATE UNIQUE INDEX dcl_subjects_entity_code_uq ON public.dcl_subjects USING btree (entity, upper((code)::text)) WHERE (code IS NOT NULL);
 
 
 --
--- Name: bob_operating_entities_tax_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_parties_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_operating_entities_tax_idx ON public.bob_operating_entities USING btree (upper(btrim((tax_number)::text))) WHERE ((tax_number IS NOT NULL) AND (btrim((tax_number)::text) <> ''::text));
-
-
---
--- Name: bob_parties_name_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_party_currents_name_idx ON public.bob_party_currents USING btree (upper((display_name)::text), party_id);
+CREATE INDEX dcl_party_versions_display_name_idx ON public.dcl_party_versions USING btree (upper((display_name)::text), party_id);
 
 CREATE INDEX dcl_party_versions_party_idx ON public.dcl_party_versions USING btree (party_id, approval_entry_id);
 
@@ -7457,17 +7050,17 @@ CREATE INDEX dcl_party_identifier_claims_open_party_idx ON public.dcl_party_iden
 
 
 --
--- Name: bob_party_merge_preflights_open_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_party_merge_preflights_open_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_party_merge_preflights_open_idx ON public.bob_party_merge_preflights USING btree (source_party_id, target_party_id, created_at DESC) WHERE (consumed_at IS NULL);
+CREATE INDEX dcl_party_merge_preflights_open_idx ON public.dcl_party_merge_preflights USING btree (source_party_id, target_party_id, created_at DESC) WHERE (consumed_at IS NULL);
 
 
 --
--- Name: bob_party_relationship_merge_events_source_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_party_relationship_merge_events_source_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_party_relationship_merge_events_source_idx ON public.bob_party_relationship_merge_events USING btree (source_object_id, occurred_at DESC) INCLUDE (merge_event_id);
+CREATE INDEX dcl_party_relationship_merge_events_source_idx ON public.dcl_party_relationship_merge_events USING btree (source_object_id, occurred_at DESC) INCLUDE (merge_event_id);
 
 
 --
@@ -7475,27 +7068,6 @@ CREATE INDEX bob_party_relationship_merge_events_source_idx ON public.bob_party_
 --
 
 CREATE INDEX dcl_product_versions_category_idx ON public.dcl_product_versions USING btree (category_id);
-
-
---
--- Name: bob_sales_relationships_active_party_operating_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX bob_sales_relationships_active_party_operating_key ON public.bob_sales_relationships USING btree (party_id, operating_entity_id) WHERE (merged_into_object_id IS NULL);
-
-
---
--- Name: bob_service_relationships_active_party_operating_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX bob_service_relationships_active_party_operating_key ON public.bob_service_relationships USING btree (party_id, operating_entity_id) WHERE (merged_into_object_id IS NULL);
-
-
---
--- Name: bob_supplier_relationships_active_party_operating_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX bob_supplier_relationships_active_party_operating_key ON public.bob_supplier_relationships USING btree (party_id, operating_entity_id) WHERE (merged_into_object_id IS NULL);
 
 
 --
@@ -7718,38 +7290,38 @@ CREATE INDEX wfl_runtime_audit_history_idx ON public.wfl_runtime_audit_events US
 
 
 --
--- Name: bob_customer_relationships bob_customer_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
+-- Name: dcl_customer_relationships bob_customer_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER bob_customer_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_customer_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
-
-
---
--- Name: bob_employment_relationships bob_employment_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER bob_employment_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_employment_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
+CREATE TRIGGER dcl_customer_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_customer_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
 
 
 --
--- Name: bob_sales_relationships bob_sales_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
+-- Name: dcl_employment_relationships bob_employment_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER bob_sales_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_sales_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
-
-
---
--- Name: bob_service_relationships bob_service_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER bob_service_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_service_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
+CREATE TRIGGER dcl_employment_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_employment_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
 
 
 --
--- Name: bob_supplier_relationships bob_supplier_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
+-- Name: dcl_sales_relationships bob_sales_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER bob_supplier_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_supplier_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
+CREATE TRIGGER dcl_sales_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_sales_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
+
+
+--
+-- Name: dcl_service_relationships bob_service_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER dcl_service_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_service_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
+
+
+--
+-- Name: dcl_supplier_relationships bob_supplier_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER dcl_supplier_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_supplier_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
 
 
 --
@@ -7946,12 +7518,6 @@ CREATE CONSTRAINT TRIGGER vou_sale_return_detail_ck AFTER INSERT OR DELETE OR UP
 --
 
 CREATE CONSTRAINT TRIGGER vou_sale_signoff_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.vou_sale_signoff_details DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.vou_validate_document_detail();
-
-CREATE TABLE public.bob_products (
-    object_id character varying(26) NOT NULL PRIMARY KEY REFERENCES public.bob_objects(id) ON DELETE RESTRICT,
-    source_approval_entry_id character varying(26) NOT NULL UNIQUE REFERENCES public.approval_entries(id) ON DELETE RESTRICT,
-    enabled boolean NOT NULL, updated_at timestamp with time zone DEFAULT now() NOT NULL, updated_by character varying(26) NOT NULL
-);
 
 
 --
@@ -8469,19 +8035,13 @@ ALTER TABLE ONLY public.app_user_roles
 
 
 --
--- Name: bob_customer_accounts bob_customer_accounts_customer_relationship_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_accounts dcl_customer_accounts_customer_relationship_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_customer_accounts
-    ADD CONSTRAINT bob_customer_accounts_customer_relationship_id_fkey FOREIGN KEY (customer_relationship_id) REFERENCES public.bob_customer_relationships(object_id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_customer_accounts bob_customer_accounts_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_accounts dcl_customer_accounts_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_customer_accounts
-    ADD CONSTRAINT bob_customer_accounts_object_id_object_entity_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -8493,67 +8053,43 @@ ALTER TABLE ONLY public.dcl_customer_download_tokens
 
 
 --
--- Name: bob_customer_relationships bob_customer_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_relationships dcl_customer_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_customer_relationships
-    ADD CONSTRAINT bob_customer_relationships_merged_into_object_id_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.bob_customer_relationships(object_id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_customer_relationships bob_customer_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_relationships dcl_customer_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_customer_relationships
-    ADD CONSTRAINT bob_customer_relationships_object_id_object_entity_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_customer_relationships bob_customer_relationships_operating_entity_id_operating_e_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_relationships dcl_customer_relationships_operating_entity_id_operating_e_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_customer_relationships
-    ADD CONSTRAINT bob_customer_relationships_operating_entity_id_operating_e_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_customer_relationships bob_customer_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_customer_relationships dcl_customer_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_customer_relationships
-    ADD CONSTRAINT bob_customer_relationships_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_employment_relationships bob_employment_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_employment_relationships dcl_employment_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_employment_relationships
-    ADD CONSTRAINT bob_employment_relationships_merged_into_object_id_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.bob_employment_relationships(object_id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_employment_relationships bob_employment_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_employment_relationships dcl_employment_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_employment_relationships
-    ADD CONSTRAINT bob_employment_relationships_object_id_object_entity_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_employment_relationships bob_employment_relationships_operating_entity_id_operating_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_employment_relationships dcl_employment_relationships_operating_entity_id_operating_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_employment_relationships
-    ADD CONSTRAINT bob_employment_relationships_operating_entity_id_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_employment_relationships bob_employment_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_employment_relationships dcl_employment_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_employment_relationships
-    ADD CONSTRAINT bob_employment_relationships_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
 
 
 --
@@ -8561,7 +8097,7 @@ ALTER TABLE ONLY public.bob_employment_relationships
 --
 
 ALTER TABLE ONLY public.dcl_fund_account_versions
-    ADD CONSTRAINT dcl_fund_account_operating_object_fk FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT dcl_fund_account_operating_object_fk FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8582,171 +8118,180 @@ ALTER TABLE ONLY public.dcl_fund_account_versions
     ADD CONSTRAINT dcl_fund_account_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
-    ADD CONSTRAINT dcl_fund_account_identifier_claims_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_fund_account_identifier_claims_object_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE CASCADE;
 ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
     ADD CONSTRAINT dcl_fund_account_identifier_claims_approved_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
     ADD CONSTRAINT dcl_fund_account_identifier_claims_open_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_product_barcode_claims
-    ADD CONSTRAINT dcl_product_barcode_claims_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_product_barcode_claims_object_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE CASCADE;
 ALTER TABLE ONLY public.dcl_product_barcode_claims
     ADD CONSTRAINT dcl_product_barcode_claims_approved_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_product_barcode_claims
     ADD CONSTRAINT dcl_product_barcode_claims_open_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_fund_accounts
-    ADD CONSTRAINT bob_fund_accounts_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_fund_accounts
-    ADD CONSTRAINT bob_fund_accounts_source_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_fund_accounts
-    ADD CONSTRAINT bob_fund_accounts_operating_object_fkey FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_fund_accounts
-    ADD CONSTRAINT bob_fund_accounts_operating_version_fkey FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_operating_entities bob_operating_entities_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_operating_entities
-    ADD CONSTRAINT bob_operating_entities_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.bob_operating_entities
-    ADD CONSTRAINT bob_operating_entities_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
 ALTER TABLE ONLY public.dcl_operating_entity_versions
     ADD CONSTRAINT dcl_operating_entity_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_parties bob_parties_merged_into_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_parties dcl_parties_merged_into_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_parties
-    ADD CONSTRAINT bob_parties_merged_into_fk FOREIGN KEY (merged_into_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_party_versions
     ADD CONSTRAINT dcl_party_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_party_versions
-    ADD CONSTRAINT dcl_party_versions_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT dcl_party_versions_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_party_version_identifiers
     ADD CONSTRAINT dcl_party_version_identifiers_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_party_versions(approval_entry_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.dcl_party_identifier_claims
-    ADD CONSTRAINT dcl_party_identifier_claims_approved_party_id_fkey FOREIGN KEY (approved_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT dcl_party_identifier_claims_approved_party_id_fkey FOREIGN KEY (approved_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_party_identifier_claims
     ADD CONSTRAINT dcl_party_identifier_claims_approved_approval_entry_id_fkey FOREIGN KEY (approved_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_party_identifier_claims
-    ADD CONSTRAINT dcl_party_identifier_claims_open_party_id_fkey FOREIGN KEY (open_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT dcl_party_identifier_claims_open_party_id_fkey FOREIGN KEY (open_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_party_identifier_claims
     ADD CONSTRAINT dcl_party_identifier_claims_open_approval_entry_id_fkey FOREIGN KEY (open_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.bob_party_currents
-    ADD CONSTRAINT bob_party_currents_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_parties
+    ADD CONSTRAINT dcl_parties_subject_fkey FOREIGN KEY (id, entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_parties
+    ADD CONSTRAINT dcl_parties_merged_into_fkey FOREIGN KEY (merged_into_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.bob_party_currents
-    ADD CONSTRAINT bob_party_currents_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_relationships
+    ADD CONSTRAINT dcl_customer_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_relationships
+    ADD CONSTRAINT dcl_customer_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_relationships
+    ADD CONSTRAINT dcl_customer_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_relationships
+    ADD CONSTRAINT dcl_customer_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_customer_relationships(object_id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY public.dcl_employment_relationships
+    ADD CONSTRAINT dcl_employment_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employment_relationships
+    ADD CONSTRAINT dcl_employment_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employment_relationships
+    ADD CONSTRAINT dcl_employment_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employment_relationships
+    ADD CONSTRAINT dcl_employment_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_employment_relationships(object_id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY public.dcl_supplier_relationships
+    ADD CONSTRAINT dcl_supplier_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_relationships
+    ADD CONSTRAINT dcl_supplier_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_relationships
+    ADD CONSTRAINT dcl_supplier_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_relationships
+    ADD CONSTRAINT dcl_supplier_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_supplier_relationships(object_id) ON DELETE RESTRICT;
 
---
--- Name: bob_party_identifiers bob_party_identifiers_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.dcl_service_relationships
+    ADD CONSTRAINT dcl_service_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_service_relationships
+    ADD CONSTRAINT dcl_service_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_service_relationships
+    ADD CONSTRAINT dcl_service_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_service_relationships
+    ADD CONSTRAINT dcl_service_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_service_relationships(object_id) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.bob_party_identifiers
-    ADD CONSTRAINT bob_party_identifiers_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_relationships
+    ADD CONSTRAINT dcl_sales_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_relationships
+    ADD CONSTRAINT dcl_sales_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_relationships
+    ADD CONSTRAINT dcl_sales_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_relationships
+    ADD CONSTRAINT dcl_sales_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_sales_relationships(object_id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY public.dcl_customer_accounts
+    ADD CONSTRAINT dcl_customer_accounts_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_accounts
+    ADD CONSTRAINT dcl_customer_accounts_relationship_fkey FOREIGN KEY (customer_relationship_id) REFERENCES public.dcl_customer_relationships(object_id) ON DELETE RESTRICT;
 
---
--- Name: bob_party_merge_events bob_party_merge_events_preflight_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
+ALTER TABLE ONLY public.dcl_party_merge_preflights
+    ADD CONSTRAINT dcl_party_merge_preflights_source_fkey FOREIGN KEY (source_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_merge_preflights
+    ADD CONSTRAINT dcl_party_merge_preflights_target_fkey FOREIGN KEY (target_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_merge_preflights
+    ADD CONSTRAINT dcl_party_merge_preflights_source_entry_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_merge_preflights
+    ADD CONSTRAINT dcl_party_merge_preflights_target_entry_fkey FOREIGN KEY (target_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_merge_events
+    ADD CONSTRAINT dcl_party_merge_events_preflight_fkey FOREIGN KEY (preflight_id) REFERENCES public.dcl_party_merge_preflights(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_merge_events
+    ADD CONSTRAINT dcl_party_merge_events_source_fkey FOREIGN KEY (source_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_merge_events
+    ADD CONSTRAINT dcl_party_merge_events_target_fkey FOREIGN KEY (target_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_relationship_merge_events
+    ADD CONSTRAINT dcl_party_relationship_merge_events_merge_fkey FOREIGN KEY (merge_event_id) REFERENCES public.dcl_party_merge_events(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_party_relationship_merge_events
+    ADD CONSTRAINT dcl_party_relationship_merge_events_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.bob_party_merge_events
-    ADD CONSTRAINT bob_party_merge_events_preflight_id_fkey FOREIGN KEY (preflight_id) REFERENCES public.bob_party_merge_preflights(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_party_merge_events bob_party_merge_events_source_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_party_merge_events
-    ADD CONSTRAINT bob_party_merge_events_source_party_id_fkey FOREIGN KEY (source_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_party_merge_events bob_party_merge_events_target_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_party_merge_events
-    ADD CONSTRAINT bob_party_merge_events_target_party_id_fkey FOREIGN KEY (target_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_party_merge_preflights bob_party_merge_preflights_source_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_party_merge_preflights
-    ADD CONSTRAINT bob_party_merge_preflights_source_party_id_fkey FOREIGN KEY (source_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_party_merge_preflights bob_party_merge_preflights_source_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_party_merge_preflights
-    ADD CONSTRAINT bob_party_merge_preflights_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_party_merge_preflights bob_party_merge_preflights_target_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_party_merge_preflights
-    ADD CONSTRAINT bob_party_merge_preflights_target_party_id_fkey FOREIGN KEY (target_party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_party_merge_preflights bob_party_merge_preflights_target_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_party_merge_preflights
-    ADD CONSTRAINT bob_party_merge_preflights_target_approval_entry_id_fkey FOREIGN KEY (target_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_party_relationship_merge_events bob_party_relationship_merge_events_merge_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_party_relationship_merge_events
-    ADD CONSTRAINT bob_party_relationship_merge_events_merge_event_id_fkey FOREIGN KEY (merge_event_id) REFERENCES public.bob_party_merge_events(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_party_relationship_merge_events bob_party_relationship_merge_events_operating_entity_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_identifier_claims dcl_party_identifier_claims_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_party_relationship_merge_events
-    ADD CONSTRAINT bob_party_relationship_merge_events_operating_entity_id_fkey FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_party_relationship_merge_events bob_party_relationship_merge_events_source_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_merge_events dcl_party_merge_events_preflight_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_party_relationship_merge_events
-    ADD CONSTRAINT bob_party_relationship_merge_events_source_object_id_fkey FOREIGN KEY (source_object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_party_relationship_merge_events bob_party_relationship_merge_events_target_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_party_merge_events dcl_party_merge_events_source_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_party_relationship_merge_events
-    ADD CONSTRAINT bob_party_relationship_merge_events_target_object_id_fkey FOREIGN KEY (target_object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+
+--
+-- Name: dcl_party_merge_events dcl_party_merge_events_target_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+
+--
+-- Name: dcl_party_merge_preflights dcl_party_merge_preflights_source_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+
+--
+-- Name: dcl_party_merge_preflights dcl_party_merge_preflights_source_entry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+
+--
+-- Name: dcl_party_merge_preflights dcl_party_merge_preflights_target_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+
+--
+-- Name: dcl_party_merge_preflights dcl_party_merge_preflights_target_entry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+
+--
+-- Name: dcl_party_relationship_merge_events dcl_party_relationship_merge_events_merge_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+
+--
+-- Name: dcl_party_relationship_merge_events dcl_party_relationship_merge_events_operating_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+
+--
+-- Name: dcl_party_relationship_merge_events source object has immutable historical identity; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+
+--
+-- Name: dcl_party_relationship_merge_events target object has immutable historical identity; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
 
 
 --
@@ -8754,7 +8299,7 @@ ALTER TABLE ONLY public.bob_party_relationship_merge_events
 --
 
 ALTER TABLE ONLY public.dcl_product_formula_lines
-    ADD CONSTRAINT dcl_product_formula_lines_material_object_id_fkey FOREIGN KEY (material_object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT dcl_product_formula_lines_material_object_id_fkey FOREIGN KEY (material_object_id, material_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8807,100 +8352,64 @@ ALTER TABLE ONLY public.dcl_product_versions
 
 
 --
--- Name: bob_sales_relationships bob_sales_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_sales_relationships dcl_sales_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_sales_relationships
-    ADD CONSTRAINT bob_sales_relationships_merged_into_object_id_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.bob_sales_relationships(object_id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_sales_relationships bob_sales_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_sales_relationships dcl_sales_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_sales_relationships
-    ADD CONSTRAINT bob_sales_relationships_object_id_object_entity_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_sales_relationships bob_sales_relationships_operating_entity_id_operating_enti_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_sales_relationships dcl_sales_relationships_operating_entity_id_operating_enti_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_sales_relationships
-    ADD CONSTRAINT bob_sales_relationships_operating_entity_id_operating_enti_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_sales_relationships bob_sales_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_sales_relationships dcl_sales_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_sales_relationships
-    ADD CONSTRAINT bob_sales_relationships_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_service_relationships bob_service_relationship_merged_into_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_service_relationships bob_service_relationship_merged_into_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_service_relationships
-    ADD CONSTRAINT bob_service_relationship_merged_into_fk FOREIGN KEY (merged_into_object_id) REFERENCES public.bob_service_relationships(object_id) ON DELETE RESTRICT;
 
 
 
 --
--- Name: bob_service_relationships bob_service_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_service_relationships dcl_service_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_service_relationships
-    ADD CONSTRAINT bob_service_relationships_object_id_object_entity_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_service_relationships bob_service_relationships_operating_entity_id_operating_en_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_service_relationships dcl_service_relationships_operating_entity_id_operating_en_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_service_relationships
-    ADD CONSTRAINT bob_service_relationships_operating_entity_id_operating_en_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_service_relationships bob_service_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_service_relationships dcl_service_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_service_relationships
-    ADD CONSTRAINT bob_service_relationships_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_supplier_relationships bob_supplier_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_supplier_relationships dcl_supplier_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_supplier_relationships
-    ADD CONSTRAINT bob_supplier_relationships_merged_into_object_id_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.bob_supplier_relationships(object_id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_supplier_relationships bob_supplier_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_supplier_relationships dcl_supplier_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_supplier_relationships
-    ADD CONSTRAINT bob_supplier_relationships_object_id_object_entity_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_supplier_relationships bob_supplier_relationships_operating_entity_id_operating_e_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_supplier_relationships dcl_supplier_relationships_operating_entity_id_operating_e_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_supplier_relationships
-    ADD CONSTRAINT bob_supplier_relationships_operating_entity_id_operating_e_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_supplier_relationships bob_supplier_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_supplier_relationships dcl_supplier_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
-
-ALTER TABLE ONLY public.bob_supplier_relationships
-    ADD CONSTRAINT bob_supplier_relationships_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
 
 
 --
@@ -8911,7 +8420,7 @@ ALTER TABLE ONLY public.bob_supplier_relationships
 --
 
 ALTER TABLE ONLY public.dcl_vehicle_versions
-    ADD CONSTRAINT dcl_vehicle_versions_carrier_operating_fk FOREIGN KEY (carrier_operating_entity_id, carrier_operating_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT dcl_vehicle_versions_carrier_operating_fk FOREIGN KEY (carrier_operating_entity_id, carrier_operating_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -8919,7 +8428,7 @@ ALTER TABLE ONLY public.dcl_vehicle_versions
 --
 
 ALTER TABLE ONLY public.dcl_vehicle_versions
-    ADD CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_fk FOREIGN KEY (carrier_service_relationship_object_id, carrier_service_relationship_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_fk FOREIGN KEY (carrier_service_relationship_object_id, carrier_service_relationship_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -8951,7 +8460,7 @@ ALTER TABLE ONLY public.dcl_warehouse_versions
 --
 
 ALTER TABLE ONLY public.dcl_warehouse_versions
-    ADD CONSTRAINT dcl_warehouse_versions_manager_employee_id_manager_employee_entity_fkey FOREIGN KEY (manager_employee_id, manager_employee_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT dcl_warehouse_versions_manager_employee_id_manager_employee_entity_fkey FOREIGN KEY (manager_employee_id, manager_employee_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -8961,20 +8470,8 @@ ALTER TABLE ONLY public.dcl_warehouse_versions
 ALTER TABLE ONLY public.dcl_warehouse_versions
     ADD CONSTRAINT dcl_warehouse_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.bob_warehouses
-    ADD CONSTRAINT bob_warehouses_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.bob_warehouses
-    ADD CONSTRAINT bob_warehouses_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.bob_vehicles
-    ADD CONSTRAINT bob_vehicles_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.bob_vehicles
-    ADD CONSTRAINT bob_vehicles_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
 ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
-    ADD CONSTRAINT dcl_vehicle_identifier_claims_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_vehicle_identifier_claims_object_id_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
     ADD CONSTRAINT dcl_vehicle_identifier_claims_approved_entry_id_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
@@ -8988,18 +8485,10 @@ ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
 --
 
 ALTER TABLE ONLY public.rpt_runtime_audit_events
-    ADD CONSTRAINT rpt_runtime_audit_events_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.rpt_definitions(id) ON DELETE SET NULL;
+    ADD CONSTRAINT rpt_runtime_audit_events_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.dcl_subjects(id) ON DELETE SET NULL;
 
 
 --
---
--- Name: dcl_rpt_definition_versions dcl_rpt_definition_versions_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.dcl_rpt_definition_versions
-    ADD CONSTRAINT dcl_rpt_definition_versions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.rpt_definitions(id) ON DELETE CASCADE;
-
-
 --
 -- Name: vou_asset_acquisition_details vou_asset_acquisition_details_document_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
@@ -9767,11 +9256,8 @@ ALTER TABLE ONLY public.wfl_node_instances
 
 
 
--- RPT baseline payloads are trusted system V1 approvals. Runtime validity stays
--- domain-owned while central Approval is the only lifecycle and version header.
-INSERT INTO public.dcl_subjects (id, entity, created_at, created_by)
-SELECT id, 'rpt-definition', created_at, created_by
-FROM public.rpt_definitions;
+-- RPT baseline payloads are trusted system V1 approvals. Central Approval
+-- owns the only lifecycle and version header; RPT owns the technical validity.
 
 INSERT INTO public.approval_entries (
     id, domain, entity, subject_id, version_no, status, revision,
@@ -9779,35 +9265,51 @@ INSERT INTO public.approval_entries (
     submitted_by, submitted_at, approved_by, approved_at
 )
 SELECT
-    payload.approval_entry_id, 'dcl', 'rpt-definition', payload.definition_id, 1, 'APPROVED', 3,
+    payload.approval_entry_id, 'dcl', 'rpt-definition', subject.id, 1, 'APPROVED', 3,
     '01JAPPSYST3MACTR0000000000', payload.created_at,
     '01JAPPSYST3MACTR0000000000', payload.updated_at,
     '00000000000000000000000000', payload.created_at,
     '01JAPPSYST3MACTR0000000000', payload.created_at
-FROM public.dcl_rpt_definition_versions AS payload;
+FROM public.dcl_rpt_definition_versions AS payload
+JOIN public.dcl_subjects AS subject
+  ON subject.id = 'RPD' || substr(payload.approval_entry_id, 4)
+ AND subject.entity = 'rpt-definition';
 
 ALTER TABLE ONLY public.dcl_rpt_definition_versions
     ADD CONSTRAINT dcl_rpt_definition_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.rpt_definition_validities
+    ADD CONSTRAINT rpt_definition_validities_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE CASCADE;
 
 INSERT INTO public.approval_events (
     id, entry_id, domain, entity, subject_id, version_no, action,
     from_status, to_status, from_revision, to_revision, actor_id, reason, request_id, created_at
 )
 SELECT substr(md5(payload.approval_entry_id || ':CREATED'), 1, 26), payload.approval_entry_id,
-       'dcl', 'rpt-definition', payload.definition_id, 1, 'CREATED',
+       'dcl', 'rpt-definition', subject.id, 1, 'CREATED',
        NULL, 'DRAFT', NULL, 1, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-rpt-v1', payload.created_at
 FROM public.dcl_rpt_definition_versions AS payload
+JOIN public.dcl_subjects AS subject
+  ON subject.id = 'RPD' || substr(payload.approval_entry_id, 4)
+ AND subject.entity = 'rpt-definition'
 UNION ALL
 SELECT substr(md5(payload.approval_entry_id || ':SUBMITTED'), 1, 26), payload.approval_entry_id,
-       'dcl', 'rpt-definition', payload.definition_id, 1, 'SUBMITTED',
+       'dcl', 'rpt-definition', subject.id, 1, 'SUBMITTED',
        'DRAFT', 'PENDING', 1, 2, '00000000000000000000000000', NULL, 'baseline-rpt-v1', payload.created_at
 FROM public.dcl_rpt_definition_versions AS payload
+JOIN public.dcl_subjects AS subject
+  ON subject.id = 'RPD' || substr(payload.approval_entry_id, 4)
+ AND subject.entity = 'rpt-definition'
 UNION ALL
 SELECT substr(md5(payload.approval_entry_id || ':APPROVED'), 1, 26), payload.approval_entry_id,
-       'dcl', 'rpt-definition', payload.definition_id, 1, 'APPROVED',
+       'dcl', 'rpt-definition', subject.id, 1, 'APPROVED',
        'PENDING', 'APPROVED', 2, 3, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-rpt-v1', payload.created_at
-FROM public.dcl_rpt_definition_versions AS payload;
+FROM public.dcl_rpt_definition_versions AS payload
+JOIN public.dcl_subjects AS subject
+  ON subject.id = 'RPD' || substr(payload.approval_entry_id, 4)
+ AND subject.entity = 'rpt-definition';
 
 -- WFL process definitions are DCL-owned. Baseline seeds use domain='dcl',
 -- entity='wfl-process-definition'. They are not enabled and are not treated
@@ -9851,12 +9353,6 @@ ALTER TABLE ONLY public.dcl_employee_versions
 ALTER TABLE ONLY public.dcl_employee_versions
     ADD CONSTRAINT dcl_employee_versions_position_id_fkey
     FOREIGN KEY (position_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_employees
-    ADD CONSTRAINT bob_employees_object_id_fkey
-    FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_employees
-    ADD CONSTRAINT bob_employees_source_approval_entry_id_fkey
-    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_other_unit_versions
     ADD CONSTRAINT dcl_other_unit_versions_approval_entry_id_fkey
@@ -9872,16 +9368,10 @@ ALTER TABLE ONLY public.dcl_supplier_versions
     FOREIGN KEY (settlement_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_supplier_versions
     ADD CONSTRAINT dcl_supplier_versions_default_purchaser_id_fkey
-    FOREIGN KEY (default_purchaser_employee_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+    FOREIGN KEY (default_purchaser_employee_id, default_purchaser_employee_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_supplier_versions
     ADD CONSTRAINT dcl_supplier_versions_default_purchaser_entry_id_fkey
     FOREIGN KEY (default_purchaser_employee_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_suppliers
-    ADD CONSTRAINT bob_suppliers_object_id_fkey
-    FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_suppliers
-    ADD CONSTRAINT bob_suppliers_source_approval_entry_id_fkey
-    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_customer_versions
     ADD CONSTRAINT dcl_customer_versions_approval_entry_id_fkey
@@ -9919,33 +9409,9 @@ ALTER TABLE ONLY public.dcl_customer_account_attachments
 ALTER TABLE ONLY public.dcl_customer_account_attachments
     ADD CONSTRAINT dcl_customer_account_attachments_file_id_fkey
     FOREIGN KEY (file_id) REFERENCES public.dcl_customer_files(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_customers
-    ADD CONSTRAINT bob_customers_object_id_fkey
-    FOREIGN KEY (object_id) REFERENCES public.bob_customer_relationships(object_id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_customers
-    ADD CONSTRAINT bob_customers_source_approval_entry_id_fkey
-    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_customer_account_currents
-    ADD CONSTRAINT bob_customer_account_currents_object_id_fkey
-    FOREIGN KEY (object_id) REFERENCES public.bob_customer_accounts(object_id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_customer_account_currents
-    ADD CONSTRAINT bob_customer_account_currents_source_approval_entry_id_fkey
-    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_sales_partner_versions
     ADD CONSTRAINT dcl_sales_partner_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_other_units
-    ADD CONSTRAINT bob_other_units_object_id_fkey
-    FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_other_units
-    ADD CONSTRAINT bob_other_units_source_approval_entry_id_fkey
-    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_sales_partners
-    ADD CONSTRAINT bob_sales_partners_object_id_fkey
-    FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_sales_partners
-    ADD CONSTRAINT bob_sales_partners_source_approval_entry_id_fkey
-    FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 CREATE INDEX dcl_employee_versions_employee_category_idx
     ON public.dcl_employee_versions USING btree (employee_category_id);
@@ -9965,6 +9431,18 @@ CREATE INDEX dcl_customer_account_versions_payment_method_idx
     ON public.dcl_customer_account_versions USING btree (payment_method_id);
 CREATE INDEX dcl_customer_account_versions_primary_sales_subject_idx
     ON public.dcl_customer_account_versions USING btree (primary_sales_subject_id);
+CREATE INDEX dcl_customer_accounts_relationship_idx
+    ON public.dcl_customer_accounts USING btree (customer_relationship_id, object_id);
+CREATE UNIQUE INDEX dcl_customer_relationships_active_party_operating_key
+    ON public.dcl_customer_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
+CREATE UNIQUE INDEX dcl_employment_relationships_active_party_operating_key
+    ON public.dcl_employment_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
+CREATE UNIQUE INDEX dcl_supplier_relationships_active_party_operating_key
+    ON public.dcl_supplier_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
+CREATE UNIQUE INDEX dcl_service_relationships_active_party_operating_key
+    ON public.dcl_service_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
+CREATE UNIQUE INDEX dcl_sales_relationships_active_party_operating_key
+    ON public.dcl_sales_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
 
 
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;

@@ -19,29 +19,31 @@ INSERT INTO vou_service_contract_details(
 SELECT object.id AS counterparty_object_id,object.entity AS counterparty_entity,
        version.id AS counterparty_approval_entry_id,object.code AS counterparty_code,
        party.id AS party_id,party_current.display_name AS party_name,
-       operating.id AS operating_entity_object_id,operating_detail.source_approval_entry_id AS operating_entity_approval_entry_id,
+       operating.id AS operating_entity_object_id,operating_entry.id AS operating_entity_approval_entry_id,
        operating.code AS operating_entity_code,operating_detail.legal_name AS operating_entity_name,
        COALESCE(sales.capabilities,ARRAY[]::varchar(32)[]) AS capabilities,
        service_detail.settlement_method_id,service_detail.settlement_method_code,
        service_detail.settlement_method_name,service_detail.settlement_term_code,
        service_detail.settlement_rule_type,service_detail.settlement_month_offset,
        service_detail.settlement_day_of_month,service_detail.settlement_day_offset
-FROM bob_objects object
+FROM dcl_subjects object
 JOIN LATERAL (
   SELECT id FROM approval_entries
   WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) version ON true
-LEFT JOIN bob_service_relationships service_rel ON service_rel.object_id=object.id AND object.entity='other-unit'
+LEFT JOIN dcl_service_relationships service_rel ON service_rel.object_id=object.id AND object.entity='other-unit'
 LEFT JOIN dcl_other_unit_versions service_detail ON service_detail.approval_entry_id=version.id AND object.entity='other-unit'
-LEFT JOIN bob_sales_relationships sales_rel ON sales_rel.object_id=object.id AND object.entity='sales-partner'
+LEFT JOIN dcl_sales_relationships sales_rel ON sales_rel.object_id=object.id AND object.entity='sales-partner'
 LEFT JOIN dcl_sales_partner_versions sales ON sales.approval_entry_id=version.id AND object.entity='sales-partner'
-JOIN bob_parties party ON party.id=COALESCE(service_rel.party_id,sales_rel.party_id)
-JOIN bob_party_currents party_current ON party_current.party_id=party.id
-JOIN bob_objects operating ON operating.id=COALESCE(service_rel.operating_entity_id,sales_rel.operating_entity_id)
-JOIN bob_operating_entities operating_detail ON operating_detail.object_id=operating.id AND operating_detail.enabled
+JOIN dcl_parties party ON party.id=COALESCE(service_rel.party_id,sales_rel.party_id)
+JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=party.id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party_current ON true
+JOIN dcl_subjects operating ON operating.id=COALESCE(service_rel.operating_entity_id,sales_rel.operating_entity_id) AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id AND operating_detail.enabled
 WHERE object.id=sqlc.arg(counterparty_object_id) AND object.entity=sqlc.arg(counterparty_entity)
-  AND object.enabled
+  AND object.entity IN ('other-unit','sales-partner')
+  AND COALESCE(service_detail.enabled,sales.enabled)
 FOR SHARE OF object,party,operating;
 
 -- name: UpdateVouServiceContractDetail :execrows

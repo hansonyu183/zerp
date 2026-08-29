@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobMeasurementUnitSnapshotInput } from './BobMeasurementUnitSnapshotInput';
-export type BobQuantitySnapshotInput = {
+import type { DclMeasurementUnitReferenceInput } from './DclMeasurementUnitReferenceInput';
+export type DclProductQuantityInput = {
   enteredQuantity: string;
-  enteredUnit: BobMeasurementUnitSnapshotInput;
+  enteredUnit: DclMeasurementUnitReferenceInput;
   baseQuantity: string;
 };

@@ -26,7 +26,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	accounts := NewCustomerAccountService(pool, business, authorizer, bus)
@@ -49,12 +49,13 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() { _ = tx.Rollback(t.Context()) }()
 	party, err := parties.CreateForRelationship(t.Context(), tx, bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "账户客户", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108CACDCL001"}}}, creator("party-create"), true)
 	if err == nil {
 		err = tx.Commit(t.Context())
 	}
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("create party: %s", accountTestError(err))
 	}
 	approveRelationshipParty(t, parties, party.ID, creator("party-submit"), reviewer("party-approve"))
 	employee, err := employees.Create(t.Context(), EmployeeCreateInput{PartyID: party.ID, OperatingEntityID: owner.ObjectID, Data: EmployeeInput{}}, creator("employee-create"))
@@ -76,10 +77,6 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	employeeView, err := accounts.Get(t.Context(), CustomerAccountGetInput{ObjectID: accountID}, creator("account-get-v1"))
 	if err != nil || employeeView.Data.PrimarySalesAttribution.SubjectApprovalEntryID != employee.Approval.ApprovalEntryID || employeeView.Data.CustomerType == nil || employeeView.Data.CustomerType.SourceObjectID != bobdomain.CustomerTypeEndUserID || employeeView.Data.CustomerType.Code != "DIT-0001" || employeeView.Data.CustomerType.Name != "终端客户" {
 		t.Fatalf("customer account snapshots=%+v err=%v", employeeView.Data, err)
-	}
-	var current string
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customer_account_currents WHERE object_id=$1`, accountID).Scan(&current); err != nil || current != account.Approval.ApprovalEntryID {
-		t.Fatalf("V1 current=%s err=%v", current, err)
 	}
 	currentAccount, err := business.CustomerAccountCurrentGet(t.Context(), accountID)
 	if err != nil || currentAccount.SourceApprovalEntryID != account.Approval.ApprovalEntryID || currentAccount.SourceVersionNo != 1 {
@@ -113,7 +110,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 		t.Fatalf("partner attribution snapshot=%+v err=%v", partnerView.Data.PrimarySalesAttribution, err)
 	}
 	var accountCount int
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM bob_customer_accounts WHERE customer_relationship_id=$1`, customer.ObjectID).Scan(&accountCount); err != nil || accountCount != 2 {
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_customer_accounts WHERE customer_relationship_id=$1`, customer.ObjectID).Scan(&accountCount); err != nil || accountCount != 2 {
 		t.Fatalf("customer accounts=%d err=%v", accountCount, err)
 	}
 	fileID := ulid.Make().String()
@@ -170,13 +167,11 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_customer_account_attachments WHERE file_id=$1`, fileID).Scan(&copies); err != nil || copies != 2 {
 		t.Fatalf("candidate attachment copies=%d err=%v", copies, err)
 	}
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customer_account_currents WHERE object_id=$1`, accountID).Scan(&current); err != nil || current != account.Approval.ApprovalEntryID {
-		t.Fatalf("candidate changed current=%s err=%v", current, err)
+	currentAccount, err = business.CustomerAccountCurrentGet(t.Context(), accountID)
+	if err != nil || currentAccount.SourceApprovalEntryID != account.Approval.ApprovalEntryID {
+		t.Fatalf("candidate changed approved view=%+v err=%v", currentAccount, err)
 	}
 	v2 = submitAndApproveCustomerAccount(t, accounts, v2, creator("account-submit-v2"), reviewer("account-approve-v2"))
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customer_account_currents WHERE object_id=$1`, accountID).Scan(&current); err != nil || current != v2.Approval.ApprovalEntryID {
-		t.Fatalf("V2 current=%s err=%v", current, err)
-	}
 	currentAccount, err = business.CustomerAccountCurrentGet(t.Context(), accountID)
 	if err != nil || currentAccount.SourceApprovalEntryID != v2.Approval.ApprovalEntryID || currentAccount.SourceVersionNo != 2 {
 		t.Fatalf("V2 BOB current account source version=%+v err=%v", currentAccount, err)
@@ -189,7 +184,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	if err != nil {
 		t.Fatal(err)
 	}
-	v1Exact, err := business.ValidateApprovedSnapshotReference(t.Context(), tx, bobdomain.EntityCustomerAccount, accountID, account.Approval.ApprovalEntryID)
+	v1Exact, err := business.ValidateHistoricalReference(t.Context(), tx, bobdomain.EntityCustomerAccount, accountID, account.Approval.ApprovalEntryID)
 	_ = tx.Rollback(t.Context())
 	if err != nil || v1Exact.Data.Name != "账户 V1" {
 		t.Fatalf("historical V1 exact snapshot after V2 approval=%+v err=%v", v1Exact, err)
@@ -224,8 +219,9 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customer_account_currents WHERE object_id=$1`, accountID).Scan(&current); err != nil || current != account.Approval.ApprovalEntryID {
-		t.Fatalf("fallback current=%s err=%v", current, err)
+	currentAccount, err = business.CustomerAccountCurrentGet(t.Context(), accountID)
+	if err != nil || currentAccount.SourceApprovalEntryID != account.Approval.ApprovalEntryID {
+		t.Fatalf("fallback approved view=%+v err=%v", currentAccount, err)
 	}
 	var savedCustomerName string
 	if err = pool.QueryRow(t.Context(), `SELECT counterparty_name FROM vou_receipt_details WHERE document_id=$1`, voucherID).Scan(&savedCustomerName); err != nil || savedCustomerName != "账户 V1" {
@@ -284,26 +280,6 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_customer_account_attachments WHERE approval_entry_id=$1`, partnerAccount.Approval.ApprovalEntryID).Scan(&copies); err != nil || copies != maxDCLCustomerAttachments-1 {
 		t.Fatalf("attachments after full remove=%d err=%v", copies, err)
 	}
-	rollback, err := accounts.Save(t.Context(), CustomerAccountSaveInput{ObjectID: accountID, ApprovalEntryID: account.Approval.ApprovalEntryID, ApprovalRevision: account.Approval.Revision, Enabled: true, Data: input}, creator("account-rollback-save"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	pendingRollback, err := accounts.Submit(t.Context(), CustomerAccountVersionInput{ObjectID: rollback.ObjectID, ApprovalEntryID: rollback.Approval.ApprovalEntryID, ApprovalRevision: rollback.Approval.Revision}, creator("account-rollback-submit"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	failure := errors.New("forced customer account current failure")
-	failingAccounts := NewCustomerAccountService(pool, failingCustomerAccountCurrent{customerAccountCurrent: business, failure: failure}, authorizer, bus)
-	if _, err = failingAccounts.Approve(t.Context(), CustomerAccountVersionInput{ObjectID: pendingRollback.ObjectID, ApprovalEntryID: pendingRollback.Approval.ApprovalEntryID, ApprovalRevision: pendingRollback.Approval.Revision}, reviewer("account-rollback-approve")); !errors.Is(err, failure) {
-		t.Fatalf("approve error=%v, want current failure", err)
-	}
-	var status string
-	if err = pool.QueryRow(t.Context(), `SELECT status FROM approval_entries WHERE id=$1`, pendingRollback.Approval.ApprovalEntryID).Scan(&status); err != nil || status != string(approval.StatusPending) {
-		t.Fatalf("rollback approval status=%s err=%v", status, err)
-	}
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customer_account_currents WHERE object_id=$1`, accountID).Scan(&current); err != nil || current != account.Approval.ApprovalEntryID {
-		t.Fatalf("failed current apply changed current=%s err=%v", current, err)
-	}
 }
 
 func accountTestError(err error) string {
@@ -313,15 +289,6 @@ func accountTestError(err error) string {
 		err = errors.Unwrap(err)
 	}
 	return strings.Join(parts, " <- ")
-}
-
-type failingCustomerAccountCurrent struct {
-	customerAccountCurrent
-	failure error
-}
-
-func (f failingCustomerAccountCurrent) ApplyCustomerAccountCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string, bool, string) (bobdomain.RelationshipIdentity, error) {
-	return bobdomain.RelationshipIdentity{}, f.failure
 }
 
 func submitAndApproveCustomerAccount(t *testing.T, service *CustomerAccountService, mutation CustomerAccountMutation, submitter, reviewer approval.Actor) CustomerAccountMutation {

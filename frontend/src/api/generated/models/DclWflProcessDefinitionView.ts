@@ -10,7 +10,6 @@ export type DclWflProcessDefinitionView = {
   code: string;
   definitionId: string;
   enabled: boolean;
-  revision: number;
   approval: ApprovalVersionMeta;
   script: string;
   diagnostic?: WflDefinitionDiagnostic;

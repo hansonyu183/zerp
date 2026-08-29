@@ -19,34 +19,88 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-// TestCustomerDeclarationsUseDclPayloadAndCurrentTablesIntegration is the
-// schema-level first assertion for #287. Customer relationship and account are
-// independent DCL approval subjects; neither can continue to use the legacy
-// BOB-owned version payload tables.
-func TestCustomerDeclarationsUseDclPayloadAndCurrentTablesIntegration(t *testing.T) {
+// TestRelationshipStableIdentityAndSnapshotsAreDclOwnedIntegration fixes the
+// #308 schema seam: stable typed roots exist before V1 approval in DCL, while
+// BOB has no identity or latest-approved copy table for these entities.
+func TestRelationshipStableIdentityAndSnapshotsAreDclOwnedIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	for _, table := range []string{
+		"dcl_parties",
+		"dcl_customer_relationships",
+		"dcl_customer_accounts",
+		"dcl_employment_relationships",
+		"dcl_supplier_relationships",
+		"dcl_service_relationships",
+		"dcl_sales_relationships",
 		"dcl_customer_versions",
 		"dcl_customer_account_versions",
-		"bob_customers",
-		"bob_customer_account_currents",
 	} {
 		var exists bool
 		if err := pool.QueryRow(t.Context(), `SELECT to_regclass($1) IS NOT NULL`, "public."+table).Scan(&exists); err != nil {
 			t.Fatalf("check %s: %v", table, err)
 		}
 		if !exists {
-			t.Fatalf("missing #287 declaration table %s", table)
+			t.Fatalf("missing #308 DCL typed table %s", table)
+		}
+	}
+	for _, table := range []string{
+		"bob_objects",
+		"bob_parties",
+		"bob_party_currents",
+		"bob_party_identifiers",
+		"bob_customer_relationships",
+		"bob_customer_accounts",
+		"bob_employment_relationships",
+		"bob_supplier_relationships",
+		"bob_service_relationships",
+		"bob_sales_relationships",
+		"bob_customers",
+		"bob_customer_account_currents",
+		"bob_employees",
+		"bob_suppliers",
+		"bob_other_units",
+		"bob_sales_partners",
+	} {
+		var exists bool
+		if err := pool.QueryRow(t.Context(), `SELECT to_regclass($1) IS NOT NULL`, "public."+table).Scan(&exists); err != nil {
+			t.Fatalf("check %s: %v", table, err)
+		}
+		if exists {
+			t.Fatalf("obsolete #308 BOB identity/current table remains: %s", table)
 		}
 	}
 }
 
-func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testing.T) {
+func TestFinalCutoverRetiresBobVersionAndCounterOwnershipIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	var versionedEntries, versionedEvents, counters int
+	if err := pool.QueryRow(t.Context(), `
+		SELECT
+			(SELECT count(*) FROM approval_entries WHERE domain='bob' AND version_no IS NOT NULL),
+			(SELECT count(*) FROM approval_events WHERE domain='bob' AND version_no IS NOT NULL),
+			(SELECT count(*) FROM object_number_counters WHERE domain='bob')
+	`).Scan(&versionedEntries, &versionedEvents, &counters); err != nil {
+		t.Fatalf("query final BOB ownership tombstones: %v", err)
+	}
+	if versionedEntries != 0 || versionedEvents != 0 || counters != 0 {
+		t.Fatalf("BOB ownership remains: entries=%d events=%d counters=%d", versionedEntries, versionedEvents, counters)
+	}
+
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO object_number_counters(domain,entity,last_value)
+		VALUES('bob','issue-311-tombstone',1)
+	`); err == nil {
+		_, _ = pool.Exec(t.Context(), `DELETE FROM object_number_counters WHERE domain='bob' AND entity='issue-311-tombstone'`)
+		t.Fatal("current schema accepted the retired BOB number-counter namespace")
+	}
+}
+
+func TestCustomerLifecycleDrivesLatestApprovedBobReadIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	accounts := NewCustomerAccountService(pool, business, authorizer, bus)
@@ -96,18 +150,15 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 		t.Fatalf("Customer create must atomically create default Account V1 DRAFT: count=%d err=%v", defaultAccountCount, err)
 	}
 	v1 = submitAndApproveCustomer(t, customers, v1, creator("customer-submit"), reviewer("customer-approve"))
-	var current string
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customers WHERE object_id=$1`, v1.ObjectID).Scan(&current); err != nil || current != v1.Approval.ApprovalEntryID {
-		t.Fatalf("current source=%s err=%v", current, err)
+	currentView, err := business.CustomerCurrentGet(t.Context(), v1.ObjectID)
+	if err != nil || currentView.SourceApprovalEntryID != v1.Approval.ApprovalEntryID {
+		t.Fatalf("approved view source=%+v err=%v", currentView, err)
 	}
 	v2, err := customers.Save(t.Context(), CustomerSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Enabled: false}, creator("customer-save"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customers WHERE object_id=$1`, v1.ObjectID).Scan(&current); err != nil || current != v1.Approval.ApprovalEntryID {
-		t.Fatalf("draft changed BOB current source=%s err=%v", current, err)
-	}
-	currentView, err := business.CustomerCurrentGet(t.Context(), v1.ObjectID)
+	currentView, err = business.CustomerCurrentGet(t.Context(), v1.ObjectID)
 	if err != nil || currentView.SourceApprovalEntryID != v1.Approval.ApprovalEntryID || currentView.SourceVersionNo != 1 {
 		t.Fatalf("BOB current get leaked DCL candidate: view=%+v err=%v", currentView, err)
 	}
@@ -129,9 +180,6 @@ func TestCustomerLifecycleWritesOnlyDclVersionAndBobCurrentIntegration(t *testin
 		t.Fatalf("candidate attachment copies=%d err=%v", attachmentCopies, err)
 	}
 	v2 = submitAndApproveCustomer(t, customers, v2, creator("customer-submit-v2"), reviewer("customer-approve-v2"))
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_customers WHERE object_id=$1`, v1.ObjectID).Scan(&current); err != nil || current != v2.Approval.ApprovalEntryID {
-		t.Fatalf("approved V2 source=%s err=%v", current, err)
-	}
 	currentView, err = business.CustomerCurrentGet(t.Context(), v1.ObjectID)
 	if err != nil || currentView.SourceApprovalEntryID != v2.Approval.ApprovalEntryID || currentView.SourceVersionNo != 2 {
 		t.Fatalf("BOB current get did not switch to V2: view=%+v err=%v", currentView, err)

@@ -51,7 +51,6 @@ function row(
     objectId: 'OBJECT-1',
     entity: 'operating-entity',
     code: 'OPE-0001',
-    objectRevision: 1,
     enabled,
     latestApproved: status === 'APPROVED' ? version : null,
     openVersion: status === 'APPROVED' ? null : version,
@@ -68,7 +67,6 @@ function objectView(status: 'DRAFT' | 'PENDING' | 'APPROVED' = 'DRAFT') {
     objectId: 'OBJECT-1',
     entity: 'operating-entity' as const,
     code: 'OPE-0001',
-    objectRevision: 1,
     enabled: true,
     approval: approval(status),
     data: {
@@ -102,7 +100,6 @@ describe('DCL operating entity view model', () => {
             objectId: 'OBJECT-1',
             entity: 'operating-entity',
             code: 'OPE-0001',
-            objectRevision: 1,
             enabled: true,
             latestApproved: null,
             openVersion: {
@@ -155,7 +152,6 @@ describe('DCL operating entity view model', () => {
       .mockResolvedValueOnce({
         data: {
           objectId: 'OBJECT-1',
-          objectRevision: 1,
           enabled: true,
           approval: approval(),
         },
@@ -273,7 +269,6 @@ describe('DCL operating entity view model', () => {
       .mockResolvedValueOnce({
         data: {
           objectId: 'OBJECT-1',
-          objectRevision: 2,
           enabled: true,
           approval: { ...approval(), approvalEntryId: 'ENTRY-2' },
         },

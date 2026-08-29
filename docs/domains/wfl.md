@@ -16,7 +16,7 @@ Starlark 脚本是流程定义的唯一可编辑来源。`node` 声明稳定节�
 
 脚本禁止 import、文件、网络、数据库、环境变量、附件内容、凭证、当前时间、随机数和直接持久化，并受脚本大小、节点数、边数及执行步数限制。试算是 WFL 领域能力，由 DCL 维护流程在保存或提交前调用；试算仅针对某个 DRAFT entry，接受已存在的 `{entity, documentId}`，以完整冻结的 VOU 副本和零写入 adapter 执行；保存后此前成功试算失效。提交/批准前，该 DRAFT entry 必须编译成功并完成至少一次成功真实单据试算。
 
-enabled 只影响未来根单据匹配：启用要求存在 latest APPROVED entry，停用不修改 Approval entry 或既有实例。启用/停用由 DCL 维护流程执行，使用 stable definition revision 作并发保护。
+enabled 只影响未来根单据匹配：启用要求存在 latest APPROVED entry，停用不修改 Approval entry 或既有实例。启用/停用由 DCL 维护流程执行，并使用 latest APPROVED 的 `approvalEntryId` 与 `approvalRevision` 作并发保护；stable definition 不保存第二套 revision。
 
 ## 3. 静态动作边界
 

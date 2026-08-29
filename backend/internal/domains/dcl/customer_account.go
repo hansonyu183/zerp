@@ -16,42 +16,36 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type customerAccountCurrent interface {
-	ReserveCustomerAccountIdentity(context.Context, pgx.Tx, string, string) (bobdomain.RelationshipIdentity, error)
-	GetCustomerAccountIdentity(context.Context, pgx.Tx, string) (bobdomain.RelationshipIdentity, error)
-	DeleteCustomerAccountIdentity(context.Context, pgx.Tx, string, int64) error
-	GetCustomerIdentity(context.Context, pgx.Tx, string) (bobdomain.RelationshipIdentity, error)
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
-	ValidateApprovedSnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
+type customerAccountBusinessRules interface {
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	ResolveCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error)
 	ResolveCustomerTypeReference(context.Context, pgx.Tx, string) (bobdomain.EffectiveReference, error)
 	ValidateCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string, string, string, string) error
-	ApplyCustomerAccountCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string, bool, string) (bobdomain.RelationshipIdentity, error)
-	RemoveCustomerAccountCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string) (bobdomain.RelationshipIdentity, error)
 	EnsureCustomerAccountUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 type CustomerAccountService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     customerAccountCurrent
+	rules       customerAccountBusinessRules
 	coordinator *approval.Coordinator[dclapproval.CustomerAccountPayload]
 }
 
-func NewCustomerAccountService(pool *pgxpool.Pool, current customerAccountCurrent, authorizer approval.Authorizer, bus *txevent.Bus) *CustomerAccountService {
-	if pool == nil || current == nil || authorizer == nil || bus == nil {
+func NewCustomerAccountService(pool *pgxpool.Pool, rules customerAccountBusinessRules, authorizer approval.Authorizer, bus *txevent.Bus) *CustomerAccountService {
+	if pool == nil || rules == nil || authorizer == nil || bus == nil {
 		panic("dcl: customer account dependencies are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityCustomerAccount, authorizer, bus, dclapproval.CustomerAccountTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &CustomerAccountService{pool: pool, queries: dbsqlc.New(pool), current: current, coordinator: c}
+	return &CustomerAccountService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
 }
 func customerAccountPayload(id bobdomain.RelationshipIdentity, relationshipID, name string, enabled bool) dclapproval.CustomerAccountPayload {
 	return dclapproval.CustomerAccountPayload{SubjectID: id.ObjectID, Code: id.Code, CustomerRelationshipID: relationshipID, Name: name, Enabled: enabled}
 }
 func customerAccountMutation(id bobdomain.RelationshipIdentity, relation string, enabled bool, e approval.Entry) CustomerAccountMutation {
-	return CustomerAccountMutation{ObjectID: id.ObjectID, ObjectRevision: id.ObjectRevision, CustomerRelationshipID: relation, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+	return CustomerAccountMutation{ObjectID: id.ObjectID, CustomerRelationshipID: relation, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 
 func (s *CustomerAccountService) Create(ctx context.Context, in CustomerAccountCreateInput, actor approval.Actor) (CustomerAccountMutation, error) {
@@ -84,7 +78,7 @@ func (s *CustomerAccountService) CreateFirstInTx(ctx context.Context, tx pgx.Tx,
 		}
 		return CustomerAccountMutation{}, translateError(err)
 	}
-	relationship, err := s.current.GetCustomerIdentity(ctx, tx, relationshipID)
+	relationship, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, relationshipID)
 	if err != nil {
 		return CustomerAccountMutation{}, translateError(err)
 	}
@@ -92,14 +86,11 @@ func (s *CustomerAccountService) CreateFirstInTx(ctx context.Context, tx pgx.Tx,
 	if err != nil {
 		return CustomerAccountMutation{}, translateError(err)
 	}
-	id, err := s.current.ReserveCustomerAccountIdentity(ctx, tx, relationshipID, actor.ID())
+	id, err := reserveCustomerAccountIdentity(ctx, tx, relationshipID, actor.ID())
 	if err != nil {
 		return CustomerAccountMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: id.ObjectID, Entity: EntityCustomerAccount, ActorID: actor.ID()}); err != nil {
-		return CustomerAccountMutation{}, translateError(err)
-	}
 	e, err := s.coordinator.CreateFirstVersion(ctx, tx, id.ObjectID, actor, customerAccountPayload(id, relationshipID, resolved.Name, true))
 	if err != nil {
 		return CustomerAccountMutation{}, translateError(err)
@@ -110,15 +101,15 @@ func (s *CustomerAccountService) CreateFirstInTx(ctx context.Context, tx pgx.Tx,
 	return customerAccountMutation(id, relationshipID, true, e), nil
 }
 func (s *CustomerAccountService) resolve(ctx context.Context, tx pgx.Tx, relationship bobdomain.RelationshipIdentity, data CustomerAccountDataInput, exact bool) (CustomerAccountData, error) {
-	customerType, err := s.current.ResolveCustomerTypeReference(ctx, tx, data.CustomerTypeID)
+	customerType, err := s.rules.ResolveCustomerTypeReference(ctx, tx, data.CustomerTypeID)
 	if err != nil {
 		return CustomerAccountData{}, err
 	}
-	op, err := s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, relationship.OperatingEntityID)
+	op, err := s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, relationship.OperatingEntityID)
 	if err != nil {
 		return CustomerAccountData{}, err
 	}
-	settlement, payment, sales, err := s.current.ResolveCustomerAccountReferences(ctx, tx, relationship.PartyID, data.SettlementMethodID, data.PaymentMethodID, data.PrimarySalesAttribution.Type, data.PrimarySalesAttribution.SubjectObjectID)
+	settlement, payment, sales, err := s.rules.ResolveCustomerAccountReferences(ctx, tx, relationship.PartyID, data.SettlementMethodID, data.PaymentMethodID, data.PrimarySalesAttribution.Type, data.PrimarySalesAttribution.SubjectObjectID)
 	if err != nil {
 		return CustomerAccountData{}, err
 	}
@@ -225,15 +216,11 @@ func (s *CustomerAccountService) Save(ctx context.Context, in CustomerAccountSav
 	if err != nil || stored.SubjectID != in.ObjectID || stored.Revision != in.ApprovalRevision {
 		return CustomerAccountMutation{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
 	}
-	id, err := s.current.GetCustomerAccountIdentity(ctx, tx, in.ObjectID)
+	id, relation, err := lockCustomerAccountIdentity(ctx, tx, in.ObjectID)
 	if err != nil {
 		return CustomerAccountMutation{}, translateError(err)
 	}
-	relation, err := q.GetDCLCustomerAccountIdentity(ctx, in.ObjectID)
-	if err != nil {
-		return CustomerAccountMutation{}, translateError(err)
-	}
-	relationship, err := s.current.GetCustomerIdentity(ctx, tx, relation)
+	relationship, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, relation)
 	if err != nil {
 		return CustomerAccountMutation{}, translateError(err)
 	}
@@ -302,15 +289,11 @@ func (s *CustomerAccountService) Delete(ctx context.Context, in CustomerAccountD
 	if err = s.coordinator.LockVersionSubject(ctx, tx, in.ObjectID); err != nil {
 		return translateError(err)
 	}
-	id, err := s.current.GetCustomerAccountIdentity(ctx, tx, in.ObjectID)
+	id, relationshipID, err := lockCustomerAccountIdentity(ctx, tx, in.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	relationshipID, err := q.GetDCLCustomerAccountIdentity(ctx, in.ObjectID)
-	if err != nil {
-		return translateError(err)
-	}
 	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: in.ApprovalEntryID, Domain: "dcl", Entity: EntityCustomerAccount})
 	if err != nil || entry.SubjectID != in.ObjectID {
 		if err == nil {
@@ -336,11 +319,11 @@ func (s *CustomerAccountService) Delete(ctx context.Context, in CustomerAccountD
 	}
 	_, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomerAccount, SubjectID: in.ObjectID})
 	if errors.Is(latestErr, pgx.ErrNoRows) {
-		if n, x := q.DeleteDCLSubject(ctx, dbsqlc.DeleteDCLSubjectParams{ID: in.ObjectID, Entity: EntityCustomerAccount}); x != nil || n != 1 {
+		if n, x := q.DeleteDCLCustomerAccountRoot(ctx, in.ObjectID); x != nil || n != 1 {
 			return translateError(x)
 		}
-		if err = s.current.DeleteCustomerAccountIdentity(ctx, tx, in.ObjectID, id.ObjectRevision); err != nil {
-			return translateError(err)
+		if n, x := q.DeleteDCLSubject(ctx, dbsqlc.DeleteDCLSubjectParams{ID: in.ObjectID, Entity: EntityCustomerAccount}); x != nil || n != 1 {
+			return translateError(x)
 		}
 	} else if latestErr != nil {
 		return translateError(latestErr)
@@ -376,11 +359,7 @@ func (s *CustomerAccountService) transition(ctx context.Context, in CustomerAcco
 		return CustomerAccountMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	id, err := s.current.GetCustomerAccountIdentity(ctx, tx, in.ObjectID)
-	if err != nil {
-		return CustomerAccountMutation{}, translateError(err)
-	}
-	relation, err := q.GetDCLCustomerAccountIdentity(ctx, in.ObjectID)
+	id, relation, err := lockCustomerAccountIdentity(ctx, tx, in.ObjectID)
 	if err != nil {
 		return CustomerAccountMutation{}, translateError(err)
 	}
@@ -389,19 +368,19 @@ func (s *CustomerAccountService) transition(ctx context.Context, in CustomerAcco
 		return CustomerAccountMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
-		customer, identityErr := s.current.GetCustomerIdentity(ctx, tx, relation)
+		customer, identityErr := lockRelationshipIdentity(ctx, tx, EntityCustomer, relation)
 		if identityErr != nil {
 			return CustomerAccountMutation{}, translateError(identityErr)
 		}
-		if _, err = s.current.ValidateApprovedSnapshotReference(ctx, tx, bobdomain.EntityOperatingEntity, stored.OperatingEntityID, stored.OperatingEntityApprovalEntryID); err == nil {
-			err = s.current.ValidateCustomerAccountReferences(ctx, tx, customer.PartyID, stringValue(stored.SettlementMethodID), "", stringValue(stored.PaymentMethodID), "", stringValue(stored.PrimarySalesAttributionType), stringValue(stored.PrimarySalesSubjectID), stringValue(stored.PrimarySalesSubjectApprovalEntryID))
+		if _, err = s.rules.ValidateHistoricalReference(ctx, tx, bobdomain.EntityOperatingEntity, stored.OperatingEntityID, stored.OperatingEntityApprovalEntryID); err == nil {
+			err = s.rules.ValidateCustomerAccountReferences(ctx, tx, customer.PartyID, stringValue(stored.SettlementMethodID), "", stringValue(stored.PaymentMethodID), "", stringValue(stored.PrimarySalesAttributionType), stringValue(stored.PrimarySalesSubjectID), stringValue(stored.PrimarySalesSubjectApprovalEntryID))
 		}
 		if err != nil {
 			return CustomerAccountMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureCustomerAccountUnapproveAllowed(ctx, tx, in.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureCustomerAccountUnapproveAllowed(ctx, tx, in.ApprovalEntryID); err != nil {
 			return CustomerAccountMutation{}, translateError(err)
 		}
 	}
@@ -409,14 +388,10 @@ func (s *CustomerAccountService) transition(ctx context.Context, in CustomerAcco
 	if err != nil {
 		return CustomerAccountMutation{}, translateError(err)
 	}
-	result := id
 	enabled := stored.Enabled
-	if action == approval.ActionApproved {
-		result, err = s.current.ApplyCustomerAccountCurrent(ctx, tx, id, e.ID, stored.Enabled, a.ID())
-	} else if action == approval.ActionUnapproved {
+	if action == approval.ActionUnapproved {
 		latest, x := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomerAccount, SubjectID: in.ObjectID})
 		if errors.Is(x, pgx.ErrNoRows) {
-			result, err = s.current.RemoveCustomerAccountCurrent(ctx, tx, id, a.ID())
 			enabled = false
 		} else if x != nil {
 			err = x
@@ -425,7 +400,6 @@ func (s *CustomerAccountService) transition(ctx context.Context, in CustomerAcco
 			if x != nil {
 				err = x
 			} else {
-				result, err = s.current.ApplyCustomerAccountCurrent(ctx, tx, id, latest.ID, prior.Enabled, a.ID())
 				enabled = prior.Enabled
 			}
 		}
@@ -436,5 +410,5 @@ func (s *CustomerAccountService) transition(ctx context.Context, in CustomerAcco
 	if err = tx.Commit(ctx); err != nil {
 		return CustomerAccountMutation{}, translateError(err)
 	}
-	return customerAccountMutation(result, relation, enabled, e), nil
+	return customerAccountMutation(id, relation, enabled, e), nil
 }

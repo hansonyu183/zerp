@@ -29,7 +29,6 @@ const objectItem: WorkbenchItem = {
   availableActions: ['view', 'edit', 'submit'],
   updatedAt: '2026-08-01T08:00:00Z',
   objectId: 'object-1',
-  objectRevision: 3,
   versionId: 'version-1',
   revision: 5,
   code: 'CUS-0001',

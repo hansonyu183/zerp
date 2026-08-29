@@ -77,7 +77,7 @@ export function useBobCustomerAccountViewModel() {
         'bob/customer-account/get',
         { objectId },
       )
-      if (!data) throw new Error('客户结算子账户当前档案不存在。')
+      if (!data) throw new Error('客户结算子账户当前有效资料不存在。')
       currentView.value = data
       drawerOpen.value = true
     } catch (error) {

@@ -233,6 +233,44 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 	}
 }
 
+func TestOpenAPISeparatesBOBReadModelsFromDCLProductWriteInputs(t *testing.T) {
+	swagger, err := generated.GetSpec()
+	if err != nil {
+		t.Fatalf("load OpenAPI contract: %v", err)
+	}
+	payload, err := json.Marshal(swagger)
+	if err != nil {
+		t.Fatalf("marshal OpenAPI contract: %v", err)
+	}
+	contract := string(payload)
+	for _, forbidden := range []string{
+		"BobMeasurementUnitSnapshotInput",
+		"BobProductUnitConversionInput",
+		"BobQuantitySnapshotInput",
+		"BobProductFormulaInput",
+		"BobProductFormulaComponentInput",
+	} {
+		if strings.Contains(contract, forbidden) {
+			t.Errorf("BOB write model %q remains in the public contract", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"BobProductUnitConversion",
+		"BobQuantitySnapshot",
+		"BobProductFormula",
+		"BobProductFormulaComponent",
+		"DclMeasurementUnitReferenceInput",
+		"DclProductUnitConversionInput",
+		"DclProductQuantityInput",
+		"DclProductFormulaInput",
+		"DclProductFormulaComponentInput",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Errorf("separated read/write model %q is missing from the public contract", required)
+		}
+	}
+}
+
 func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
 	swagger, err := generated.GetSpec()
 	if err != nil {

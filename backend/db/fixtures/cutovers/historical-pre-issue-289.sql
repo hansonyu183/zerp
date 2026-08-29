@@ -3,7 +3,7 @@
 -- Purpose: exercise the ordered #289-#293 cutover chain without reading a
 -- historical Git object or using the network. The frozen schema includes
 -- representative seeded AUX objects, Approval entries, and payloads.
--- Provenance: backend/db/schema.sql at d505c567; this comment is documentary.
+-- Provenance: the historical pre-#289 schema captured in this fixture.
 
 -- The report reader is cluster-scoped while schema initialization is database-scoped.
 DO $$ BEGIN
@@ -1418,7 +1418,7 @@ CREATE TABLE public.dcl_customer_versions (
 
 -- #287 DCL owns the complete customer-account approval payload. The account
 -- stable identity remains bob_customer_accounts; this table is intentionally
--- separate from the BOB current read projection.
+-- 与 BOB 当前有效的只读业务资料分开保存。
 CREATE TABLE public.dcl_customer_account_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'customer-account'::character varying NOT NULL,

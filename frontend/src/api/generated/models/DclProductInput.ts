@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobProductFormulaInput } from './BobProductFormulaInput';
-import type { BobProductUnitConversionInput } from './BobProductUnitConversionInput';
+import type { DclProductFormulaInput } from './DclProductFormulaInput';
+import type { DclProductUnitConversionInput } from './DclProductUnitConversionInput';
 export type DclProductInput = {
   name: string;
   categoryId: string | null;
@@ -14,8 +14,8 @@ export type DclProductInput = {
   productTypeId: string | null;
   defaultInputUnitId: string | null;
   pricingUnitId: string | null;
-  unitConversions: Array<BobProductUnitConversionInput>;
+  unitConversions: Array<DclProductUnitConversionInput>;
   returnable: boolean;
   defaultPackagingSpec: string | null;
-  formula: BobProductFormulaInput | null;
+  formula: DclProductFormulaInput | null;
 };

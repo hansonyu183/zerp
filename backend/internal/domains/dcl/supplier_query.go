@@ -52,7 +52,7 @@ func (s *SupplierService) Query(ctx context.Context, in SupplierQueryInput, acto
 	}
 	items := make([]SupplierQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := SupplierQueryItem{RelationshipIdentityView: RelationshipIdentityView{ObjectID: r.ObjectID, Entity: EntitySupplier, Code: r.Code, ObjectRevision: r.ObjectRevision, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, Enabled: r.Enabled}, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName, UpdatedAt: r.UpdatedAt.Time}
+		item := SupplierQueryItem{RelationshipIdentityView: RelationshipIdentityView{ObjectID: r.ObjectID, Entity: EntitySupplier, Code: r.Code, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, Enabled: r.Enabled}, OperatingEntityCode: stringValue(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName, UpdatedAt: r.UpdatedAt.Time}
 		if r.LatestApprovedEntryID != "" {
 			v, e := s.version(ctx, s.queries, r.LatestApprovedEntryID, r.ObjectID)
 			if e != nil {
@@ -103,7 +103,7 @@ func (s *SupplierService) Get(ctx context.Context, in SupplierGetInput, actor ap
 		}
 		return SupplierView{}, translateError(err)
 	}
-	id, err := s.current.GetSupplierIdentity(ctx, tx, in.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntitySupplier, in.ObjectID)
 	if err != nil {
 		return SupplierView{}, translateError(err)
 	}
@@ -111,11 +111,11 @@ func (s *SupplierService) Get(ctx context.Context, in SupplierGetInput, actor ap
 	if err != nil {
 		return SupplierView{}, translateError(err)
 	}
-	operating, err := s.current.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, id.OperatingEntityID)
+	operating, err := s.rules.ResolveCurrentReference(ctx, tx, EntityOperatingEntity, id.OperatingEntityID)
 	if err != nil {
 		return SupplierView{}, translateError(err)
 	}
-	return SupplierView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySupplier, Code: id.Code, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, PartyKind: stored.PartyKind, PartyDisplayName: stored.DisplayName, OperatingEntityID: id.OperatingEntityID, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e)}, OperatingEntityApprovalEntryID: operating.ApprovalEntryID, OperatingEntityCode: operating.Code, OperatingEntityName: operating.Data.Name, Data: supplierStored(stored), UpdatedAt: e.UpdatedAt}, nil
+	return SupplierView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySupplier, Code: id.Code, PartyID: id.PartyID, PartyKind: stored.PartyKind, PartyDisplayName: stored.DisplayName, OperatingEntityID: id.OperatingEntityID, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e)}, OperatingEntityApprovalEntryID: operating.ApprovalEntryID, OperatingEntityCode: operating.Code, OperatingEntityName: operating.Data.Name, Data: supplierStored(stored), UpdatedAt: e.UpdatedAt}, nil
 }
 func (s *SupplierService) Versions(ctx context.Context, in SupplierHistoryInput, actor approval.Actor) (Page[SupplierVersionView], error) {
 	if _, ok := dclPageOffset(in.Page, in.PageSize); !ok || !validID(in.ObjectID) || !validActor(actor) {

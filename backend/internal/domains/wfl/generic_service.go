@@ -79,7 +79,6 @@ func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInpu
 			Code:         row.Code,
 			Name:         compiled.Name,
 			Enabled:      row.Enabled,
-			Revision:     row.ObjectRevision,
 			Approval:     workflowApprovalMetaFromEntry(entryRow),
 			RootEntity:   root.Entity,
 			NodeCount:    len(compiled.Nodes),
@@ -98,8 +97,7 @@ func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput, _
 
 	var code string
 	var enabled bool
-	var revision int64
-	if err := s.pool.QueryRow(ctx, `SELECT code, enabled, revision FROM wfl_process_definitions WHERE id=$1`, input.DefinitionID).Scan(&code, &enabled, &revision); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT code, enabled FROM wfl_process_definitions WHERE id=$1`, input.DefinitionID).Scan(&code, &enabled); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return DefinitionView{}, validation("process definition not found", nil)
 		}
@@ -134,7 +132,6 @@ func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput, _
 			Code:         code,
 			Name:         compiled.Name,
 			Enabled:      enabled,
-			Revision:     revision,
 			Approval:     workflowApprovalMetaFromEntry(entryRow),
 			RootEntity:   compiledNodeByKey(compiled, compiled.RootKey).Entity,
 			NodeCount:    len(compiled.Nodes),

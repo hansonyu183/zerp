@@ -41,7 +41,6 @@ describe('DCL fund account view model', () => {
               objectId: 'FND-1',
               entity: 'fund-account',
               code: 'FA-0001',
-              objectRevision: 1,
               enabled: true,
               latestApproved: null,
               openVersion: {
@@ -175,7 +174,6 @@ describe('DCL fund account view model', () => {
         objectId: 'FND-1',
         entity: 'fund-account',
         code: 'FA-0001',
-        objectRevision: 1,
         enabled: true,
         approval,
         data: {
@@ -204,7 +202,6 @@ describe('DCL fund account view model', () => {
           objectId: 'FND-1',
           entity: 'fund-account',
           code: 'FA-0001',
-          objectRevision: 1,
           enabled: true,
           approval,
           data: {
@@ -257,7 +254,6 @@ describe('DCL fund account view model', () => {
             objectId: 'FND-1',
             entity: 'fund-account',
             code: 'FA-0001',
-            objectRevision: 1,
             enabled: true,
             approval,
             data: {

@@ -158,7 +158,7 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 		SELECT count(DISTINCT entry.entity)
 		FROM approval_events event
 		JOIN approval_entries entry ON entry.id=event.entry_id
-		WHERE event.domain IN ('bob','dcl') AND event.request_id LIKE $1
+		WHERE event.domain='dcl' AND event.request_id LIKE $1
 	`, seedPrefix+"%").Scan(&businessEntities); err != nil {
 		t.Fatalf("count test business entities: %v", err)
 	}
@@ -250,7 +250,19 @@ func assertAccountingAndReportFacts(t *testing.T, pool *pgxpool.Pool) {
 	var reports, reportRows int
 	if err := pool.QueryRow(t.Context(), `
 		SELECT
-			(SELECT count(*) FROM rpt_definitions definition WHERE definition.enabled AND EXISTS(SELECT 1 FROM approval_entries approval WHERE approval.domain='dcl' AND approval.entity='rpt-definition' AND approval.subject_id=definition.id AND approval.status='APPROVED')),
+			(SELECT count(*)
+			 FROM dcl_subjects subject
+			 JOIN LATERAL (
+				 SELECT approval.id
+				 FROM approval_entries approval
+				 WHERE approval.domain='dcl' AND approval.entity='rpt-definition'
+				   AND approval.subject_id=subject.id AND approval.status='APPROVED'
+				 ORDER BY approval.version_no DESC
+				 LIMIT 1
+			 ) approval ON true
+			 JOIN dcl_rpt_definition_versions definition ON definition.approval_entry_id=approval.id
+			 JOIN rpt_definition_validities validity ON validity.approval_entry_id=approval.id AND validity.validity='VALID'
+			 WHERE subject.entity='rpt-definition' AND definition.enabled),
 			(SELECT count(*) FROM acc_voucher_lines)
 	`).Scan(&reports, &reportRows); err != nil {
 		t.Fatalf("read test report facts: %v", err)

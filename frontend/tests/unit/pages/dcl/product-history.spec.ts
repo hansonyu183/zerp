@@ -17,7 +17,6 @@ const row: BobListItem = {
   objectId: 'OBJECT-1',
   entity: 'product',
   code: 'PRODUCT-1',
-  objectRevision: 1,
   enabled: true,
   latestApproved: null,
   openVersion: {

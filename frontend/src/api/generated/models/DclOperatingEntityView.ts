@@ -8,7 +8,6 @@ export type DclOperatingEntityView = {
   objectId: string;
   entity: 'operating-entity';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   approval: ApprovalVersionMeta;
   data: DclOperatingEntityData;

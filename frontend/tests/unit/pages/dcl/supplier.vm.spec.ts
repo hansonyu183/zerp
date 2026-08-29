@@ -115,7 +115,6 @@ describe('DCL supplier view model', () => {
       operatingEntityId: 'OPE-1',
       operatingEntityCode: 'OPE-0001',
       operatingEntityName: '主体',
-      objectRevision: 1,
       enabled: true,
       latestApproved: null,
       openVersion: {

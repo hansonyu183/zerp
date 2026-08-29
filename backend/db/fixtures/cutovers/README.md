@@ -12,5 +12,4 @@ data that do not belong to the current runtime schema.
   the #305 architecture cutover; that cutover is implemented by issue #305.
 
 The integration runner must read these files directly. Do not replace them
-with `git show`, a commit SHA, a network download, or the current
-`db/schema.sql`.
+with Git-history lookup, a network download, or the current `db/schema.sql`.

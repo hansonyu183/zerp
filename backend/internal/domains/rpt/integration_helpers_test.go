@@ -57,10 +57,10 @@ func rptIntegrationPool(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	var actualDatabase, table string
-	if err = pool.QueryRow(t.Context(), "SELECT current_database(), to_regclass('rpt_definitions')::text").Scan(&actualDatabase, &table); err != nil {
+	if err = pool.QueryRow(t.Context(), "SELECT current_database(), to_regclass('dcl_rpt_definition_versions')::text").Scan(&actualDatabase, &table); err != nil {
 		t.Fatalf("read RPT integration database: %v", err)
 	}
-	if actualDatabase != expectedDatabase || table != "rpt_definitions" {
+	if actualDatabase != expectedDatabase || table != "dcl_rpt_definition_versions" {
 		t.Fatalf("RPT migrations are not applied: database=%q table=%q", actualDatabase, table)
 	}
 	resetRPTIntegrationData(t, pool)
@@ -73,10 +73,16 @@ func resetRPTIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	_, err := pool.Exec(context.Background(), `
 		DELETE FROM app_role_permissions
 		WHERE permission_id IN (SELECT p.id FROM app_permissions p WHERE p.domain='rpt'
-			AND NOT EXISTS(SELECT 1 FROM rpt_definitions d WHERE d.code=p.entity AND d.created_by='SYSTEM'));
-		DELETE FROM rpt_definitions WHERE created_by<>'SYSTEM';
+			AND NOT EXISTS(SELECT 1 FROM dcl_subjects d WHERE d.entity='rpt-definition' AND d.code=p.entity AND d.created_by='SYSTEM'));
+		DELETE FROM dcl_rpt_definition_versions payload USING approval_entries entry, dcl_subjects subject
+		WHERE payload.approval_entry_id=entry.id AND entry.subject_id=subject.id AND subject.entity='rpt-definition' AND subject.created_by<>'SYSTEM';
+		DELETE FROM approval_events event USING dcl_subjects subject
+		WHERE event.domain='dcl' AND event.entity='rpt-definition' AND event.subject_id=subject.id AND subject.created_by<>'SYSTEM';
+		DELETE FROM approval_entries entry USING dcl_subjects subject
+		WHERE entry.domain='dcl' AND entry.entity='rpt-definition' AND entry.subject_id=subject.id AND subject.created_by<>'SYSTEM';
+		DELETE FROM dcl_subjects WHERE entity='rpt-definition' AND created_by<>'SYSTEM';
 		DELETE FROM app_permissions p WHERE p.domain='rpt'
-			AND NOT EXISTS(SELECT 1 FROM rpt_definitions d WHERE d.code=p.entity AND d.created_by='SYSTEM');`)
+			AND NOT EXISTS(SELECT 1 FROM dcl_subjects d WHERE d.entity='rpt-definition' AND d.code=p.entity AND d.created_by='SYSTEM');`)
 	if err != nil {
 		t.Fatalf("reset RPT integration data: %v", err)
 	}

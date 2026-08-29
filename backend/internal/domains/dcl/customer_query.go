@@ -49,7 +49,6 @@ type CustomerView struct {
 	OperatingEntityApprovalEntryID string                   `json:"operatingEntityApprovalEntryId"`
 	OperatingEntityCode            string                   `json:"operatingEntityCode"`
 	OperatingEntityName            string                   `json:"operatingEntityName"`
-	ObjectRevision                 int64                    `json:"objectRevision"`
 	Enabled                        bool                     `json:"enabled"`
 	Approval                       approval.VersionMeta     `json:"approval"`
 	Attachments                    []CustomerAttachmentView `json:"attachments"`
@@ -72,7 +71,6 @@ type CustomerQueryItem struct {
 	OperatingEntityID   string               `json:"operatingEntityId"`
 	OperatingEntityCode string               `json:"operatingEntityCode"`
 	OperatingEntityName string               `json:"operatingEntityName"`
-	ObjectRevision      int64                `json:"objectRevision"`
 	Enabled             bool                 `json:"enabled"`
 	LatestApproved      *CustomerVersionView `json:"latestApproved"`
 	OpenVersion         *CustomerVersionView `json:"openVersion"`
@@ -125,7 +123,7 @@ func (s *CustomerService) Query(ctx context.Context, in CustomerQueryInput, acto
 	items := make([]CustomerQueryItem, 0, len(rows))
 	for _, row := range rows {
 		item := CustomerQueryItem{
-			ObjectID: row.ObjectID, Entity: EntityCustomer, Code: row.Code, ObjectRevision: row.ObjectRevision,
+			ObjectID: row.ObjectID, Entity: EntityCustomer, Code: row.Code,
 			PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName,
 			OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode,
 			OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
@@ -183,7 +181,11 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 		}
 		return CustomerView{}, translateError(err)
 	}
-	identity, err := q.GetDCLCustomerIdentity(ctx, in.ObjectID)
+	identity, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, in.ObjectID)
+	if err != nil {
+		return CustomerView{}, translateError(err)
+	}
+	party, err := s.partyReader.ResolveForRelationship(ctx, tx, identity.PartyID)
 	if err != nil {
 		return CustomerView{}, translateError(err)
 	}
@@ -199,8 +201,8 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 		return CustomerView{}, translateError(err)
 	}
 	return CustomerView{
-		ObjectID: identity.ObjectID, Entity: EntityCustomer, Code: identity.Code, ObjectRevision: identity.ObjectRevision,
-		PartyID: identity.PartyID, PartyKind: identity.PartyKind, PartyDisplayName: identity.DisplayName,
+		ObjectID: identity.ObjectID, Entity: EntityCustomer, Code: identity.Code,
+		PartyID: identity.PartyID, PartyKind: party.Kind, PartyDisplayName: party.DisplayName,
 		OperatingEntityID: identity.OperatingEntityID, OperatingEntityApprovalEntryID: stored.OperatingEntityApprovalEntryID,
 		OperatingEntityCode: stored.OperatingEntityCode, OperatingEntityName: stored.OperatingEntityName,
 		Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Attachments: attachments, UpdatedAt: entry.UpdatedAt,

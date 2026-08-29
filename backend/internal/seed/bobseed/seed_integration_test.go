@@ -66,7 +66,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
-	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
+	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
@@ -82,7 +82,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	var partyID, operatingEntityID string
 	if err = pool.QueryRow(t.Context(), `
 		SELECT relationship.party_id,relationship.operating_entity_id
-		FROM bob_customer_relationships relationship
+		FROM dcl_customer_relationships relationship
 		JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity='customer'
 		ORDER BY subject.created_at LIMIT 1
 	`).Scan(&partyID, &operatingEntityID); err != nil {
@@ -141,18 +141,14 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 			continue
 		}
 		var status string
-		approvalDomain := "bob"
-		if item.entity == bob.EntityCustomer || item.entity == bob.EntityCustomerAccount || item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee || item.entity == bob.EntitySupplier || item.entity == bob.EntityOtherUnit || item.entity == bob.EntitySalesPartner {
-			approvalDomain = "dcl"
-		}
 		if err = pool.QueryRow(t.Context(), `
 			SELECT entry.status
 			FROM approval_entries entry
-			WHERE entry.domain=$3 AND entry.entity=$1 AND entry.subject_id=$2
+			WHERE entry.domain='dcl' AND entry.entity=$1 AND entry.subject_id=$2
 			  AND entry.version_no IS NOT NULL
 			ORDER BY entry.version_no DESC
 			LIMIT 1
-		`, item.entity, objectID, approvalDomain).Scan(&status); err != nil {
+		`, item.entity, objectID).Scan(&status); err != nil {
 			t.Fatalf("query %s %s status: %v", item.entity, item.data.Code, err)
 		}
 		counts[status]++
@@ -185,25 +181,17 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		bob.EntityOperatingEntity: "dcl_operating_entity_versions",
 	}
 	for _, entity := range allEntities {
-		approvalDomain := "bob"
-		if entity == bob.EntityCustomer || entity == bob.EntityCustomerAccount || entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntitySupplier || entity == bob.EntityOtherUnit || entity == bob.EntitySalesPartner {
-			approvalDomain = "dcl"
-		}
 		var objectCount, entryCount, payloadCount int
-		objectTable := "bob_objects"
-		if approvalDomain == "dcl" {
-			objectTable = "dcl_subjects"
-		}
-		objectQuery := fmt.Sprintf(`
+		objectQuery := `
 			SELECT count(*),
-			       (SELECT count(*) FROM approval_entries entry WHERE entry.domain=$2 AND entry.entity=$1)
-			FROM %s object WHERE object.entity=$1
-		`, objectTable)
-		if err = pool.QueryRow(t.Context(), objectQuery, entity, approvalDomain).Scan(&objectCount, &entryCount); err != nil {
+			       (SELECT count(*) FROM approval_entries entry WHERE entry.domain='dcl' AND entry.entity=$1)
+			FROM dcl_subjects object WHERE object.entity=$1
+		`
+		if err = pool.QueryRow(t.Context(), objectQuery, entity).Scan(&objectCount, &entryCount); err != nil {
 			t.Fatalf("query %s central coverage: %v", entity, err)
 		}
-		payloadQuery := fmt.Sprintf(`SELECT count(*) FROM %s payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id WHERE entry.domain=$2 AND entry.entity=$1`, payloadTables[entity])
-		if err = pool.QueryRow(t.Context(), payloadQuery, entity, approvalDomain).Scan(&payloadCount); err != nil {
+		payloadQuery := fmt.Sprintf(`SELECT count(*) FROM %s payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id WHERE entry.domain='dcl' AND entry.entity=$1`, payloadTables[entity])
+		if err = pool.QueryRow(t.Context(), payloadQuery, entity).Scan(&payloadCount); err != nil {
 			t.Fatalf("query %s payload coverage: %v", entity, err)
 		}
 		if objectCount == 0 || entryCount == 0 || payloadCount == 0 {
@@ -285,17 +273,17 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin reference check: %v", err)
 	}
-	if _, err = business.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v2.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("draft V2 was resolvable as an approved reference")
 	}
-	if _, err = business.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, unrelated.ObjectID, v1.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("approval entry resolved for a different BOB object")
 	}
-	latest, err := business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err := business.ResolveCurrentReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest during V2 draft = %+v err=%v, want V1", latest, err)
 	}
@@ -308,7 +296,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	`, forgedEntryID, created.ObjectID, "01J00000000000000000000000", "01J00000000000000000000001"); err != nil {
 		t.Fatalf("insert forged approved BOB metadata: %v", err)
 	}
-	if _, err = business.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, forgedEntryID,
 	); err == nil {
 		t.Fatal("approved metadata without a BOB version payload resolved as a snapshot")
@@ -328,7 +316,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin pending reference check: %v", err)
 	}
-	if _, err = business.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v2Pending.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("pending V2 was resolvable as an approved snapshot")
@@ -347,13 +335,13 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin approved reference check: %v", err)
 	}
-	snapshot, err := business.ValidateApprovedSnapshotReference(
+	snapshot, err := business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v1.Approval.ApprovalEntryID,
 	)
 	if err != nil || snapshot.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("validate V1 snapshot after V2 approval = %+v err=%v, want V1", snapshot, err)
 	}
-	latest, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err = business.ResolveCurrentReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v2Approved.Approval.ApprovalEntryID {
 		t.Fatalf("latest reference after V2 approval = %+v err=%v, want V2", latest, err)
 	}
@@ -371,7 +359,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin fallback check: %v", err)
 	}
-	latest, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err = business.ResolveCurrentReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest after V2 unapprove = %+v err=%v, want V1", latest, err)
 	}
@@ -402,7 +390,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin unavailable check: %v", err)
 	}
-	if _, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID); err == nil {
+	if _, err = business.ResolveCurrentReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID); err == nil {
 		t.Fatal("BOB reference remained available after V1 unapprove")
 	}
 	if err = tx.Rollback(t.Context()); err != nil {
@@ -476,7 +464,7 @@ func TestBobAuxiliaryCurrentReferenceBoundaryIntegration(t *testing.T) {
 		created, createErr := productService.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
 			Name: name, CategoryID: categoryID, ProductTypeID: productType.ObjectID,
 			DefaultInputUnitID: unit.ObjectID, PricingUnitID: unit.ObjectID,
-			UnitConversions:      []bob.ProductUnitConversion{{Unit: bob.MeasurementUnitSnapshot{ObjectID: unit.ObjectID}, Factor: "1"}},
+			UnitConversions:      []dcldomain.ProductUnitConversionInput{{Unit: dcldomain.MeasurementUnitReferenceInput{ObjectID: unit.ObjectID}, Factor: "1"}},
 			DefaultPackagingSpec: "1",
 		}}, actor(name+"-create"))
 		if createErr != nil {
@@ -511,7 +499,7 @@ func TestBobAuxiliaryCurrentReferenceBoundaryIntegration(t *testing.T) {
 		t.Fatalf("approve candidate product with current AUX reference: %v", err)
 	}
 
-	// A BOB current projection keeps its own snapshot, while its persisted AUX
+	// Current effective BOB data keeps its selected snapshot, while its persisted AUX
 	// reference blocks destructive deletion of the current object.
 	formalCategory := createAuxiliary(auxdomain.EntityProductCategory, map[string]any{
 		"name": "PR3 正式分类-" + suffix,

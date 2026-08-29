@@ -30,6 +30,17 @@ func (rptQueryOnlyAuthorizer) RequirePermission(_ context.Context, _ authorizati
 	return errors.New("permission denied: " + path)
 }
 
+type rptPermissionAuthorizer struct {
+	allowed map[string]bool
+}
+
+func (a *rptPermissionAuthorizer) RequirePermission(_ context.Context, _ authorization.Principal, path, _ string) error {
+	if a.allowed[path] {
+		return nil
+	}
+	return authorization.NewError(authorization.ErrorForbidden, "permission denied: "+path, nil)
+}
+
 func resetRptDefinitionIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanup := func(ctx context.Context) error {
@@ -37,14 +48,13 @@ func resetRptDefinitionIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 			sql  string
 			args []any
 		}{
-			{sql: `DELETE FROM rpt_runtime_audit_events audit USING rpt_definitions definition WHERE audit.definition_id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM app_role_permissions WHERE permission_id IN (SELECT permission.id FROM app_permissions permission JOIN rpt_definitions definition ON definition.code=permission.entity WHERE permission.domain='rpt' AND definition.created_by<>'SYSTEM')`},
-			{sql: `DELETE FROM app_permissions permission USING rpt_definitions definition WHERE permission.domain='rpt' AND permission.entity=definition.code AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM dcl_rpt_definition_versions payload USING rpt_definitions definition WHERE payload.definition_id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM approval_events event USING rpt_definitions definition WHERE event.domain='dcl' AND event.entity='rpt-definition' AND event.subject_id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM approval_entries entry USING rpt_definitions definition WHERE entry.domain='dcl' AND entry.entity='rpt-definition' AND entry.subject_id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM dcl_subjects subject USING rpt_definitions definition WHERE subject.entity='rpt-definition' AND subject.id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM rpt_definitions WHERE created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM rpt_runtime_audit_events audit USING dcl_subjects subject WHERE audit.definition_id=subject.id AND subject.entity='rpt-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM app_role_permissions WHERE permission_id IN (SELECT permission.id FROM app_permissions permission JOIN dcl_subjects subject ON subject.code=permission.entity AND subject.entity='rpt-definition' WHERE permission.domain='rpt' AND subject.created_by<>'SYSTEM')`},
+			{sql: `DELETE FROM app_permissions permission USING dcl_subjects subject WHERE permission.domain='rpt' AND permission.entity=subject.code AND subject.entity='rpt-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM dcl_rpt_definition_versions payload USING approval_entries entry, dcl_subjects subject WHERE payload.approval_entry_id=entry.id AND entry.subject_id=subject.id AND subject.entity='rpt-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM approval_events event USING dcl_subjects subject WHERE event.domain='dcl' AND event.entity='rpt-definition' AND event.subject_id=subject.id AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM approval_entries entry USING dcl_subjects subject WHERE entry.domain='dcl' AND entry.entity='rpt-definition' AND entry.subject_id=subject.id AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM dcl_subjects WHERE entity='rpt-definition' AND created_by<>'SYSTEM'`},
 			{sql: `DELETE FROM app_users WHERE id IN ($1,$2)`, args: []any{rptDefinitionCreatorID, rptDefinitionReviewerID}},
 		}
 		for _, statement := range statements {
@@ -121,10 +131,10 @@ func TestDclRptDefinitionCurrentSwitchFallbackAndAuditIdentityIntegration(t *tes
 	}
 	service := NewRptDefinitionService(pool, rptService, authorization.Func(nil), bus)
 	v1, err := service.Create(t.Context(), RptDefinitionCreateInput{
-		Name: "当前版本 V1", Data: rptDefinitionTestData(t, "v1"),
+		Name: "当前版本 V1", Enabled: true, Data: rptDefinitionTestData(t, "v1"),
 	}, dclActor(t, rptDefinitionCreatorID, "dcl-rpt-create-v1"))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("create report definition: %v: %v", err, errors.Unwrap(err))
 	}
 	code := v1.Code
 	v1 = approveRptDefinition(t, service, v1)
@@ -166,7 +176,7 @@ func TestDclRptDefinitionCurrentSwitchFallbackAndAuditIdentityIntegration(t *tes
 	v2, err = service.Save(t.Context(), RptDefinitionSaveInput{
 		Code: code, ApprovalEntryID: v2.Approval.ApprovalEntryID,
 		ApprovalRevision: v2.Approval.Revision, Name: &name, Description: &description,
-		Data: rptDefinitionTestData(t, "v2"),
+		Enabled: true, Data: rptDefinitionTestData(t, "v2"),
 	}, dclActor(t, rptDefinitionCreatorID, "dcl-rpt-save-v2"))
 	if err != nil {
 		t.Fatal(err)
@@ -213,6 +223,115 @@ func TestDclRptDefinitionCurrentSwitchFallbackAndAuditIdentityIntegration(t *tes
 	}
 }
 
+func TestRptDefinitionOwnershipIsSplitAcrossDclApprovalAndRptIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+
+	var obsoleteRootExists, validityTableExists bool
+	if err := pool.QueryRow(t.Context(), `
+		SELECT to_regclass('public.rpt_definitions') IS NOT NULL,
+		       to_regclass('public.rpt_definition_validities') IS NOT NULL
+	`).Scan(&obsoleteRootExists, &validityTableExists); err != nil {
+		t.Fatal(err)
+	}
+	if obsoleteRootExists {
+		t.Fatal("RPT must not retain a second report-definition stable root")
+	}
+	if !validityTableExists {
+		t.Fatal("RPT technical validity must use its own approval-entry keyed table")
+	}
+
+	rows, err := pool.Query(t.Context(), `
+		SELECT column_name
+		FROM information_schema.columns
+		WHERE table_schema='public' AND table_name='dcl_rpt_definition_versions'
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	columns := map[string]bool{}
+	for rows.Next() {
+		var column string
+		if err = rows.Scan(&column); err != nil {
+			t.Fatal(err)
+		}
+		columns[column] = true
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !columns["enabled"] {
+		t.Fatal("DCL report-definition snapshot must own enabled")
+	}
+	for _, rptOwnedColumn := range []string{"validity", "invalidated_at", "invalid_reason"} {
+		if columns[rptOwnedColumn] {
+			t.Fatalf("RPT-owned technical state remains in DCL snapshot: %s", rptOwnedColumn)
+		}
+	}
+}
+
+func TestDclRptDefinitionCreateAndSaveCannotBypassEnabledPermissionsIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetRptDefinitionIntegrationData(t, pool)
+	rptService, err := rptdomain.NewService(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorizer := &rptPermissionAuthorizer{allowed: map[string]bool{
+		"/dcl/rpt-definition/create": true,
+	}}
+	service := NewRptDefinitionService(pool, rptService, authorizer, txevent.NewBus())
+	actor := dclActor(t, rptDefinitionCreatorID, "dcl-rpt-enabled-permissions")
+
+	_, err = service.Create(t.Context(), RptDefinitionCreateInput{
+		Name: "权限验证", Enabled: true, Data: rptDefinitionTestData(t, "enabled"),
+	}, actor)
+	assertRptDefinitionForbidden(t, err)
+
+	authorizer.allowed["/dcl/rpt-definition/enable"] = true
+	created, err := service.Create(t.Context(), RptDefinitionCreateInput{
+		Name: "权限验证", Enabled: true, Data: rptDefinitionTestData(t, "enabled"),
+	}, actor)
+	if err != nil {
+		t.Fatalf("create with create and enable permissions: %v", err)
+	}
+
+	authorizer.allowed["/dcl/rpt-definition/save"] = true
+	name := "权限验证已保存"
+	saved, err := service.Save(t.Context(), RptDefinitionSaveInput{
+		Code: created.Code, ApprovalEntryID: created.Approval.ApprovalEntryID,
+		ApprovalRevision: created.Approval.Revision, Name: &name, Enabled: true,
+		Data: rptDefinitionTestData(t, "saved"),
+	}, actor)
+	if err != nil {
+		t.Fatalf("save without changing enabled state: %v", err)
+	}
+
+	_, err = service.Save(t.Context(), RptDefinitionSaveInput{
+		Code: saved.Code, ApprovalEntryID: saved.Approval.ApprovalEntryID,
+		ApprovalRevision: saved.Approval.Revision, Name: &name, Enabled: false,
+		Data: rptDefinitionTestData(t, "disabled"),
+	}, actor)
+	assertRptDefinitionForbidden(t, err)
+
+	authorizer.allowed["/dcl/rpt-definition/disable"] = true
+	if _, err = service.Save(t.Context(), RptDefinitionSaveInput{
+		Code: saved.Code, ApprovalEntryID: saved.Approval.ApprovalEntryID,
+		ApprovalRevision: saved.Approval.Revision, Name: &name, Enabled: false,
+		Data: rptDefinitionTestData(t, "disabled"),
+	}, actor); err != nil {
+		t.Fatalf("save enabled change with disable permission: %v", err)
+	}
+}
+
+func assertRptDefinitionForbidden(t *testing.T, err error) {
+	t.Helper()
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorForbidden {
+		t.Fatalf("error = %v, want DCL forbidden", err)
+	}
+}
+
 func TestDclRptDefinitionSubscriberFailureRollsBackIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetRptDefinitionIntegrationData(t, pool)
@@ -234,16 +353,15 @@ func TestDclRptDefinitionSubscriberFailureRollsBackIntegration(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected subscriber failure")
 	}
-	var definitions, subjects, versions int
+	var subjects, versions int
 	if scanErr := pool.QueryRow(t.Context(), `
 		SELECT
-			(SELECT count(*) FROM rpt_definitions WHERE created_by=$1),
 			(SELECT count(*) FROM dcl_subjects WHERE entity='rpt-definition' AND created_by=$1),
 			(SELECT count(*) FROM dcl_rpt_definition_versions WHERE created_by=$1)
-	`, rptDefinitionCreatorID).Scan(&definitions, &subjects, &versions); scanErr != nil {
+	`, rptDefinitionCreatorID).Scan(&subjects, &versions); scanErr != nil {
 		t.Fatal(scanErr)
 	}
-	if definitions != 0 || subjects != 0 || versions != 0 {
-		t.Fatalf("subscriber failure committed definition=%d subject=%d version=%d", definitions, subjects, versions)
+	if subjects != 0 || versions != 0 {
+		t.Fatalf("subscriber failure committed subject=%d version=%d", subjects, versions)
 	}
 }

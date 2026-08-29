@@ -14,32 +14,27 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type fundAccountCurrentWriter interface {
-	ReserveFundAccountIdentity(context.Context, pgx.Tx, string) (bobdomain.FundAccountIdentity, error)
-	GetFundAccountIdentity(context.Context, pgx.Tx, string) (bobdomain.FundAccountIdentity, error)
+type fundAccountRules interface {
 	ResolveFundAccountOperating(context.Context, pgx.Tx, bobdomain.FundAccountData, bool) (bobdomain.FundAccountData, error)
-	ApplyFundAccountCurrent(context.Context, pgx.Tx, string, string, bool, bobdomain.FundAccountData, string) (bobdomain.FundAccountCurrent, error)
-	RemoveFundAccountCurrent(context.Context, pgx.Tx, string, string) (bobdomain.FundAccountIdentity, error)
-	DeleteFundAccountIdentity(context.Context, pgx.Tx, string, int64) error
 	EnsureFundAccountUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 
 type FundAccountService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     fundAccountCurrentWriter
+	rules       fundAccountRules
 	coordinator *approval.Coordinator[dclapproval.FundAccountPayload]
 }
 
-func NewFundAccountService(pool *pgxpool.Pool, current fundAccountCurrentWriter, authorizer approval.Authorizer, bus *txevent.Bus) *FundAccountService {
-	if pool == nil || current == nil || authorizer == nil || bus == nil {
-		panic("dcl: persistence, BOB current writer, authorizer and event bus are required")
+func NewFundAccountService(pool *pgxpool.Pool, rules fundAccountRules, authorizer approval.Authorizer, bus *txevent.Bus) *FundAccountService {
+	if pool == nil || rules == nil || authorizer == nil || bus == nil {
+		panic("dcl: persistence, business rules, authorizer and event bus are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityFundAccount, authorizer, bus, dclapproval.FundAccountTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &FundAccountService{pool: pool, queries: dbsqlc.New(pool), current: current, coordinator: c}
+	return &FundAccountService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
 }
 
 func fundAccountDeclarationData(data FundAccountData) bobdomain.FundAccountData {
@@ -48,11 +43,11 @@ func fundAccountDeclarationData(data FundAccountData) bobdomain.FundAccountData 
 func fundAccountDCLData(data bobdomain.FundAccountData) FundAccountData {
 	return FundAccountData{Name: data.Name, Currency: data.Currency, AccountName: data.AccountName, BankName: data.BankName, BankBranch: data.BankBranch, AccountNumber: data.AccountNumber, Remark: data.Remark, OperatingEntityID: data.OperatingEntityID}
 }
-func fundAccountPayload(i bobdomain.FundAccountIdentity, enabled bool, data FundAccountData) dclapproval.FundAccountPayload {
+func fundAccountPayload(i subjectIdentity, enabled bool, data FundAccountData) dclapproval.FundAccountPayload {
 	return dclapproval.FundAccountPayload{SubjectID: i.ObjectID, Code: i.Code, Enabled: enabled, Name: data.Name}
 }
-func fundAccountMutation(i bobdomain.FundAccountIdentity, enabled bool, e approval.Entry) FundAccountMutation {
-	return FundAccountMutation{ObjectID: i.ObjectID, ObjectRevision: i.ObjectRevision, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+func fundAccountMutation(i subjectIdentity, enabled bool, e approval.Entry) FundAccountMutation {
+	return FundAccountMutation{ObjectID: i.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 func fundAccountInput(i FundAccountReviewInput) FundAccountVersionInput {
 	return FundAccountVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
@@ -80,16 +75,13 @@ func (s *FundAccountService) Create(ctx context.Context, input FundAccountCreate
 		return FundAccountMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	id, err := s.current.ReserveFundAccountIdentity(ctx, tx, actor.ID())
+	id, err := reserveSubject(ctx, tx, EntityFundAccount, "FAC", actor.ID())
 	if err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	data, err = s.current.ResolveFundAccountOperating(ctx, tx, data, false)
+	data, err = s.rules.ResolveFundAccountOperating(ctx, tx, data, false)
 	if err != nil {
-		return FundAccountMutation{}, translateError(err)
-	}
-	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: id.ObjectID, Entity: EntityFundAccount, ActorID: actor.ID()}); err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
 	e, err := s.coordinator.CreateFirstVersion(ctx, tx, id.ObjectID, actor, fundAccountPayload(id, true, fundAccountDCLData(data)))
@@ -132,7 +124,7 @@ func (s *FundAccountService) Save(ctx context.Context, input FundAccountSaveInpu
 		}
 		return FundAccountMutation{}, translateError(err)
 	}
-	id, err := s.current.GetFundAccountIdentity(ctx, tx, input.ObjectID)
+	id, err := lockSubject(ctx, tx, EntityFundAccount, input.ObjectID)
 	if err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
@@ -154,7 +146,7 @@ func (s *FundAccountService) Save(ctx context.Context, input FundAccountSaveInpu
 	if err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
-	data, err = s.current.ResolveFundAccountOperating(ctx, tx, data, false)
+	data, err = s.rules.ResolveFundAccountOperating(ctx, tx, data, false)
 	if err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
@@ -210,7 +202,7 @@ func (s *FundAccountService) transition(ctx context.Context, input FundAccountVe
 		}
 		return FundAccountMutation{}, translateError(err)
 	}
-	id, err := s.current.GetFundAccountIdentity(ctx, tx, input.ObjectID)
+	id, err := lockSubject(ctx, tx, EntityFundAccount, input.ObjectID)
 	if err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
@@ -223,13 +215,13 @@ func (s *FundAccountService) transition(ctx context.Context, input FundAccountVe
 		return FundAccountMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
-		data, err = s.current.ResolveFundAccountOperating(ctx, tx, data, true)
+		data, err = s.rules.ResolveFundAccountOperating(ctx, tx, data, true)
 		if err != nil {
 			return FundAccountMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureFundAccountUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureFundAccountUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
 			return FundAccountMutation{}, translateError(err)
 		}
 	}
@@ -241,45 +233,10 @@ func (s *FundAccountService) transition(ctx context.Context, input FundAccountVe
 	if err = refreshFundAccountIdentifierClaims(ctx, q, input.ObjectID); err != nil {
 		return FundAccountMutation{}, err
 	}
-	resultID, resultEnabled := id, stored.Enabled
-	if action == approval.ActionApproved {
-		c, applyErr := s.current.ApplyFundAccountCurrent(ctx, tx, input.ObjectID, e.ID, stored.Enabled, data, actor.ID())
-		if applyErr != nil {
-			return FundAccountMutation{}, translateError(applyErr)
-		}
-		resultID, resultEnabled = c.FundAccountIdentity, c.Enabled
-	}
-	if action == approval.ActionUnapproved {
-		resultID, resultEnabled, err = s.restoreLatestApproved(ctx, tx, id, actor.ID())
-		if err != nil {
-			return FundAccountMutation{}, err
-		}
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
-	return fundAccountMutation(resultID, resultEnabled, e), nil
-}
-
-func (s *FundAccountService) restoreLatestApproved(ctx context.Context, tx pgx.Tx, id bobdomain.FundAccountIdentity, actorID string) (bobdomain.FundAccountIdentity, bool, error) {
-	latest, err := s.queries.WithTx(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityFundAccount, SubjectID: id.ObjectID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		r, e := s.current.RemoveFundAccountCurrent(ctx, tx, id.ObjectID, actorID)
-		return r, false, translateError(e)
-	}
-	if err != nil {
-		return bobdomain.FundAccountIdentity{}, false, translateError(err)
-	}
-	stored, err := s.queries.WithTx(tx).GetDCLFundAccountVersion(ctx, latest.ID)
-	if err != nil {
-		return bobdomain.FundAccountIdentity{}, false, translateError(err)
-	}
-	d, err := bobdomain.ValidateFundAccountData(fundAccountStoredData(stored))
-	if err != nil {
-		return bobdomain.FundAccountIdentity{}, false, translateError(err)
-	}
-	c, err := s.current.ApplyFundAccountCurrent(ctx, tx, id.ObjectID, latest.ID, stored.Enabled, d, actorID)
-	return c.FundAccountIdentity, c.Enabled, translateError(err)
+	return fundAccountMutation(id, stored.Enabled, e), nil
 }
 
 func (s *FundAccountService) Delete(ctx context.Context, input FundAccountDeleteInput, actor approval.Actor) error {
@@ -294,7 +251,7 @@ func (s *FundAccountService) Delete(ctx context.Context, input FundAccountDelete
 	if err = s.coordinator.LockVersionSubject(ctx, tx, input.ObjectID); err != nil {
 		return translateError(err)
 	}
-	id, err := s.current.GetFundAccountIdentity(ctx, tx, input.ObjectID)
+	id, err := lockSubject(ctx, tx, EntityFundAccount, input.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
@@ -327,9 +284,6 @@ func (s *FundAccountService) Delete(ctx context.Context, input FundAccountDelete
 				er = errors.New("DCL subject changed")
 			}
 			return translateError(er)
-		}
-		if err = s.current.DeleteFundAccountIdentity(ctx, tx, input.ObjectID, id.ObjectRevision); err != nil {
-			return translateError(err)
 		}
 	} else if latestErr != nil {
 		return translateError(latestErr)

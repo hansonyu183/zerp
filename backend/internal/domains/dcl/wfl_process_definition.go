@@ -59,8 +59,9 @@ type WflProcessDefinitionDeleteInput struct {
 }
 
 type WflProcessDefinitionEnableInput struct {
-	Code     string `json:"code"`
-	Revision int64  `json:"revision"`
+	Code             string `json:"code"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
 }
 
 type WflProcessDefinitionGetInput struct {
@@ -95,7 +96,6 @@ type WflProcessDefinitionHistoryInput struct {
 type WflProcessDefinitionMutation struct {
 	Code         string               `json:"code"`
 	DefinitionID string               `json:"definitionId"`
-	Revision     int64                `json:"revision"`
 	Enabled      bool                 `json:"enabled"`
 	Approval     approval.VersionMeta `json:"approval"`
 }
@@ -104,7 +104,6 @@ type WflProcessDefinitionView struct {
 	Code         string               `json:"code"`
 	DefinitionID string               `json:"definitionId"`
 	Enabled      bool                 `json:"enabled"`
-	Revision     int64                `json:"revision"`
 	Approval     approval.VersionMeta `json:"approval"`
 	Script       string               `json:"script"`
 	Diagnostic   *string              `json:"diagnostic,omitempty"`
@@ -143,7 +142,6 @@ type WflProcessDefinitionListItem struct {
 	Code           string                              `json:"code"`
 	DefinitionID   string                              `json:"definitionId"`
 	Enabled        bool                                `json:"enabled"`
-	Revision       int64                               `json:"revision"`
 	LatestApproved *WflProcessDefinitionVersionSummary `json:"latestApproved"`
 	OpenVersion    *WflProcessDefinitionVersionSummary `json:"openVersion"`
 }
@@ -209,7 +207,7 @@ func (s *WflProcessDefinitionService) Create(ctx context.Context, input WflProce
 	}
 
 	return WflProcessDefinitionMutation{
-		Code: code, DefinitionID: defID, Revision: 1, Enabled: false,
+		Code: code, DefinitionID: defID, Enabled: false,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -295,7 +293,7 @@ func (s *WflProcessDefinitionService) Save(ctx context.Context, input WflProcess
 	}
 
 	return WflProcessDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: def.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -333,7 +331,7 @@ func (s *WflProcessDefinitionService) transition(ctx context.Context, entryID st
 	}
 
 	return WflProcessDefinitionMutation{
-		Code: code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: code, DefinitionID: def.ID, Enabled: def.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -414,7 +412,7 @@ func (s *WflProcessDefinitionService) Approve(ctx context.Context, input WflProc
 	}
 
 	return WflProcessDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: def.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -458,13 +456,13 @@ func (s *WflProcessDefinitionService) Unapprove(ctx context.Context, input WflPr
 		return WflProcessDefinitionMutation{}, translateError(commitErr)
 	}
 	if def.Enabled {
-		fallback, fallbackErr := q.DclWflGetLatestApprovedPayload(ctx, def.ID)
-		if fallbackErr == nil {
-			if err := upsertWflDefinitionPermissions(ctx, tx, input.Code, workflowCompiledName(fallback.Compiled), actor.ID()); err != nil {
+		previous, previousErr := q.DclWflGetLatestApprovedPayload(ctx, def.ID)
+		if previousErr == nil {
+			if err := upsertWflDefinitionPermissions(ctx, tx, input.Code, workflowCompiledName(previous.Compiled), actor.ID()); err != nil {
 				return WflProcessDefinitionMutation{}, err
 			}
-		} else if !errors.Is(fallbackErr, pgx.ErrNoRows) {
-			return WflProcessDefinitionMutation{}, translateError(fallbackErr)
+		} else if !errors.Is(previousErr, pgx.ErrNoRows) {
+			return WflProcessDefinitionMutation{}, translateError(previousErr)
 		}
 	}
 
@@ -473,7 +471,7 @@ func (s *WflProcessDefinitionService) Unapprove(ctx context.Context, input WflPr
 	}
 
 	return WflProcessDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: def.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -526,9 +524,7 @@ func (s *WflProcessDefinitionService) Delete(ctx context.Context, input WflProce
 		if hasInstances {
 			return newError(ErrorConflict, "workflow_definition_in_use", "cannot delete: workflow definition has active instances", nil, nil)
 		}
-		deletedDefinition, delErr := q.DeleteDclWflProcessDefinition(ctx, dbsqlc.DeleteDclWflProcessDefinitionParams{
-			DefinitionID: def.ID, Revision: def.Revision,
-		})
+		deletedDefinition, delErr := q.DeleteDclWflProcessDefinition(ctx, def.ID)
 		if delErr != nil {
 			return translateError(delErr)
 		}
@@ -595,7 +591,7 @@ func (s *WflProcessDefinitionService) CreateNext(ctx context.Context, input WflP
 	}
 
 	return WflProcessDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: def.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -609,7 +605,7 @@ func (s *WflProcessDefinitionService) Disable(ctx context.Context, input WflProc
 }
 
 func (s *WflProcessDefinitionService) setEnabled(ctx context.Context, input WflProcessDefinitionEnableInput, actor approval.Actor, enabled bool) (WflProcessDefinitionMutation, error) {
-	if !validActor(actor) || input.Code == "" {
+	if !validActor(actor) || input.Code == "" || input.ApprovalEntryID == "" || input.ApprovalRevision < 1 {
 		return WflProcessDefinitionMutation{}, newError(ErrorValidation, "validation_failed", "invalid workflow definition enable/disable request", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -633,15 +629,12 @@ func (s *WflProcessDefinitionService) setEnabled(ctx context.Context, input WflP
 	if err != nil {
 		return WflProcessDefinitionMutation{}, translateError(err)
 	}
-	if def.Revision != input.Revision {
-		return WflProcessDefinitionMutation{}, newError(ErrorConflict, "definition_stale_revision", "workflow definition changed", nil, nil)
-	}
-
-	updated, err := q.DclWflSetDefinitionEnabled(ctx, dbsqlc.DclWflSetDefinitionEnabledParams{
-		DefinitionID: def.ID, Enabled: enabled, Revision: input.Revision, ActorID: actor.ID(),
-	})
-	if err != nil {
-		return WflProcessDefinitionMutation{}, translateError(err)
+	stored, storedErr := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: input.ApprovalEntryID, Domain: "dcl", Entity: EntityWflProcessDefinition})
+	if storedErr != nil || stored.SubjectID != def.ID || stored.Status != string(approval.StatusApproved) || stored.Revision != input.ApprovalRevision {
+		if storedErr == nil || errors.Is(storedErr, pgx.ErrNoRows) {
+			storedErr = newError(ErrorConflict, "approval_stale_revision", "latest approved workflow definition changed", nil, storedErr)
+		}
+		return WflProcessDefinitionMutation{}, translateError(storedErr)
 	}
 
 	latest, latestErr := q.DclWflGetLatestApprovedPayload(ctx, def.ID)
@@ -651,11 +644,16 @@ func (s *WflProcessDefinitionService) setEnabled(ctx context.Context, input WflP
 	if latestErr != nil {
 		return WflProcessDefinitionMutation{}, translateError(latestErr)
 	}
-	entryRow, eErr := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: latest.ApprovalEntryID, Domain: "dcl", Entity: EntityWflProcessDefinition})
-	if eErr != nil {
-		return WflProcessDefinitionMutation{}, translateError(eErr)
+	if latest.ApprovalEntryID != input.ApprovalEntryID {
+		return WflProcessDefinitionMutation{}, newError(ErrorConflict, "approval_stale_revision", "latest approved workflow definition changed", nil, nil)
 	}
-	meta := approval.VersionMetaFromEntry(approvalEntry(entryRow))
+	updated, err := q.DclWflSetDefinitionEnabled(ctx, dbsqlc.DclWflSetDefinitionEnabledParams{
+		DefinitionID: def.ID, Enabled: enabled, ActorID: actor.ID(),
+	})
+	if err != nil {
+		return WflProcessDefinitionMutation{}, translateError(err)
+	}
+	meta := approval.VersionMetaFromEntry(approvalEntry(stored))
 	if enabled {
 		if err := upsertWflDefinitionPermissions(ctx, tx, input.Code, workflowCompiledName(latest.Compiled), actor.ID()); err != nil {
 			return WflProcessDefinitionMutation{}, err
@@ -667,7 +665,7 @@ func (s *WflProcessDefinitionService) setEnabled(ctx context.Context, input WflP
 	}
 
 	return WflProcessDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: updated.Revision, Enabled: updated.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: updated.Enabled,
 		Approval: meta,
 	}, nil
 }
@@ -753,7 +751,7 @@ func (s *WflProcessDefinitionService) Get(ctx context.Context, input WflProcessD
 		return WflProcessDefinitionView{}, translateError(err)
 	}
 
-	view, err := wflViewFromParts(input.Code, def.ID, def.Enabled, def.Revision, entry, stored)
+	view, err := wflViewFromParts(input.Code, def.ID, def.Enabled, entry, stored)
 	if err != nil {
 		return WflProcessDefinitionView{}, translateError(err)
 	}
@@ -810,7 +808,7 @@ func (s *WflProcessDefinitionService) Query(ctx context.Context, input WflProces
 	for _, row := range rows {
 		item := WflProcessDefinitionListItem{
 			Code: row.Code, DefinitionID: row.DefinitionID,
-			Enabled: row.Enabled, Revision: row.ObjectRevision,
+			Enabled: row.Enabled,
 		}
 
 		if row.ApprovedEntryID != "" {
@@ -959,13 +957,13 @@ func decodeWflGraph(encoded []byte) ([]WflNodeView, []WflEdgeView, error) {
 	return nodes, edges, nil
 }
 
-func wflViewFromParts(code string, defID string, enabled bool, revision int64, entry approval.Entry, version dbsqlc.DclWflGetVersionPayloadRow) (WflProcessDefinitionView, error) {
+func wflViewFromParts(code string, defID string, enabled bool, entry approval.Entry, version dbsqlc.DclWflGetVersionPayloadRow) (WflProcessDefinitionView, error) {
 	nodes, edges, err := decodeWflGraph(version.Compiled)
 	if err != nil {
 		return WflProcessDefinitionView{}, err
 	}
 	return WflProcessDefinitionView{
-		Code: code, DefinitionID: defID, Enabled: enabled, Revision: revision,
+		Code: code, DefinitionID: defID, Enabled: enabled,
 		Approval: approval.VersionMetaFromEntry(entry), Script: version.Script,
 		Diagnostic: version.Diagnostic, Nodes: nodes, Edges: edges,
 	}, nil

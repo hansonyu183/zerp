@@ -8,7 +8,7 @@ vi.mock('@/api/client', () => ({
 }))
 
 describe('Customer', () => {
-  it('mounts the read-only current projection rather than a customer editor', () => {
+  it('mounts the current effective read-only data rather than a customer editor', () => {
     const wrapper = mount(Customer, {
       global: { plugins: [createPinia()] },
     })

@@ -13,7 +13,6 @@ export type WorkbenchObjectItem = {
   availableActions: Array<WorkbenchAction>;
   updatedAt: string;
   objectId: string;
-  objectRevision: number;
   versionId: string;
   revision: number;
   code: string;

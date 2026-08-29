@@ -4,16 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/oklog/ulid/v2"
 )
 
 // DCL owns Product snapshot writes. BOB only reconstructs the immutable DCL
-// snapshot selected by a current projection or an exact historical reference.
+// snapshot selected as current effective data or by an exact historical reference.
 func loadDCLProductSnapshot(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) (DetailView, error) {
 	r, err := q.GetDCLProductSnapshot(ctx, approvalEntryID)
 	if err != nil {
@@ -61,7 +59,7 @@ func loadProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryID 
 	}
 	result := &ProductFormula{Output: QuantitySnapshot{EnteredQuantity: formatMicros(f.OutputEnteredQuantityMicros), BaseQuantity: formatMicros(f.OutputBaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: f.OutputUnitObjectID, Code: f.OutputUnitCode, Name: f.OutputUnitName, Symbol: f.OutputUnitSymbol, QuantityScale: f.OutputUnitQuantityScale}}, Components: make([]ProductFormulaComponent, 0, len(rows))}
 	for _, row := range rows {
-		result.Components = append(result.Components, ProductFormulaComponent{Material: FormulaMaterialReference{ObjectID: row.MaterialObjectID, ApprovalEntryID: row.MaterialApprovalEntryID, Code: row.MaterialCode, Name: row.MaterialName, BehaviorProfile: stringValue(row.MaterialBehaviorProfile)}, Quantity: QuantitySnapshot{EnteredQuantity: formatMicros(row.EnteredQuantityMicros), BaseQuantity: formatMicros(row.BaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: row.EnteredUnitObjectID, Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol, QuantityScale: row.EnteredUnitQuantityScale}}, ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation})
+		result.Components = append(result.Components, ProductFormulaComponent{Material: FormulaMaterialReference{ObjectID: row.MaterialObjectID, ApprovalEntryID: row.MaterialApprovalEntryID, Code: stringValue(row.MaterialCode), Name: row.MaterialName, BehaviorProfile: stringValue(row.MaterialBehaviorProfile)}, Quantity: QuantitySnapshot{EnteredQuantity: formatMicros(row.EnteredQuantityMicros), BaseQuantity: formatMicros(row.BaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: row.EnteredUnitObjectID, Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol, QuantityScale: row.EnteredUnitQuantityScale}}, ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation})
 	}
 	return result, nil
 }
@@ -76,27 +74,11 @@ func loadProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, approval
 	}
 	return result, nil
 }
-func nilIfEmpty(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
-}
 func dateString(value pgtype.Date) string {
 	if !value.Valid {
 		return ""
 	}
 	return value.Time.Format("2006-01-02")
-}
-func numericValue(value string) (pgtype.Numeric, error) {
-	if strings.TrimSpace(value) == "" {
-		return pgtype.Numeric{}, nil
-	}
-	var numeric pgtype.Numeric
-	if err := numeric.Scan(value); err != nil {
-		return pgtype.Numeric{}, err
-	}
-	return numeric, nil
 }
 func numericString(value pgtype.Numeric) string {
 	if !value.Valid {
@@ -108,4 +90,3 @@ func numericString(value pgtype.Numeric) string {
 	}
 	return fmt.Sprint(raw)
 }
-func newID() string { return ulid.Make().String() }

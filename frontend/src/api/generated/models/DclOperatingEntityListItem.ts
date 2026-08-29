@@ -7,7 +7,6 @@ export type DclOperatingEntityListItem = {
   objectId: string;
   entity: 'operating-entity';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclOperatingEntityVersionView | null;
   openVersion: DclOperatingEntityVersionView | null;

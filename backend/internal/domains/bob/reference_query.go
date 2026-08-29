@@ -45,7 +45,7 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		result := make([]ReferenceCandidate, 0, len(rows))
 		for _, row := range rows {
 			result = append(result, ReferenceCandidate{
-				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: row.Code, Name: row.Name,
+				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: deref(row.Code), Name: row.Name,
 			})
 		}
 		return result, nil
@@ -57,10 +57,16 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		if err != nil {
 			return nil, s.internal("query product current reference candidates", err)
 		}
-		rows = make([]dbsqlc.QueryBobReferenceCandidatesRow, len(productRows))
-		for i, row := range productRows {
-			rows[i] = dbsqlc.QueryBobReferenceCandidatesRow(row)
+		result := make([]ReferenceCandidate, 0, len(productRows))
+		for _, row := range productRows {
+			candidate := ReferenceCandidate{ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: deref(row.Code), Name: row.Name, BehaviorProfile: row.BehaviorProfile, DefaultInputUnitID: row.DefaultInputUnitID, PricingUnitID: row.PricingUnitID}
+			candidate.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, candidate.ApprovalEntryID)
+			if err != nil {
+				return nil, s.internal("read product reference unit conversions", err)
+			}
+			result = append(result, candidate)
 		}
+		return result, nil
 	} else {
 		rows, err = s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, BehaviorProfile: input.BehaviorProfile})
 	}

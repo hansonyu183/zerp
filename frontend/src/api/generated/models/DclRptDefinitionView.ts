@@ -10,7 +10,6 @@ export type DclRptDefinitionView = {
   name: string;
   description: string;
   enabled: boolean;
-  revision: number;
   approval: ApprovalVersionMeta;
   validity: 'VALID' | 'INVALID';
   data: RptVersionData;

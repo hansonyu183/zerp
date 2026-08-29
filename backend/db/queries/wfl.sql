@@ -1,5 +1,5 @@
 -- Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
--- approval_entries; this table owns only identity, enabled and object revision.
+-- approval_entries; this table owns only identity and the runtime enabled switch.
 
 -- name: CountCurrentWorkflowDefinitions :one
 SELECT count(*)
@@ -19,7 +19,7 @@ WHERE (sqlc.arg(enabled_filter)::integer=-1 OR definition.enabled=(sqlc.arg(enab
 
 -- name: ListCurrentWorkflowDefinitions :many
 SELECT definition.id AS definition_id,definition.code,definition.enabled,
-       definition.revision AS object_revision,approval.id AS approval_entry_id,
+       approval.id AS approval_entry_id,
        version.compiled,approval.updated_at
 FROM wfl_process_definitions definition
 JOIN LATERAL (

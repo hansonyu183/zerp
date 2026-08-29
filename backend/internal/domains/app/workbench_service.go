@@ -211,7 +211,7 @@ func (s *Service) queryWorkbenchBob(
 				Category: WorkbenchCategoryBob, Entity: row.Entity, Status: row.Status,
 				PendingStage:     map[bool]string{true: "SUBMIT", false: "APPROVE"}[row.Status == "DRAFT"],
 				AvailableActions: actions, UpdatedAt: row.ObjectUpdatedAt.Time,
-				ObjectID: row.ObjectID, ObjectRevision: row.ObjectRevision, ApprovalEntryID: row.ApprovalEntryID,
+				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID,
 				Revision: row.ApprovalRevision, Code: row.Code, Name: row.Name,
 				BookID: row.BookID, VouEntity: row.VouEntity,
 			})
@@ -237,7 +237,7 @@ func (s *Service) queryWorkbenchBob(
 		items = append(items, WorkbenchItem{
 			Category: WorkbenchCategoryBob, Entity: row.Entity, Status: row.Status,
 			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.ObjectUpdatedAt.Time,
-			ObjectID: row.ObjectID, ObjectRevision: row.ObjectRevision, ApprovalEntryID: row.ApprovalEntryID,
+			ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID,
 			Revision: row.ApprovalRevision, Code: row.Code, Name: row.Name,
 		})
 	}

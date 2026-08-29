@@ -3,11 +3,9 @@ package bob
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -16,17 +14,6 @@ import (
 type WarehouseData struct {
 	Name, Address, ContactName, ContactPhone, ManagerEmployeeID, Remark string
 	ManagerEmployeeApprovalEntryID                                      string
-}
-
-type WarehouseIdentity struct {
-	ObjectID, Code string
-	ObjectRevision int64
-}
-type WarehouseCurrent struct {
-	WarehouseIdentity
-	SourceApprovalEntryID string
-	Enabled               bool
-	Data                  WarehouseData
 }
 
 func ValidateWarehouseData(input WarehouseData) (WarehouseData, error) {
@@ -43,39 +30,6 @@ func ValidateWarehouseData(input WarehouseData) (WarehouseData, error) {
 	return WarehouseData{Name: data.Name, Address: data.Address, ContactName: data.ContactName, ContactPhone: data.ContactPhone, ManagerEmployeeID: data.ManagerEmployeeID, ManagerEmployeeApprovalEntryID: managerApprovalEntryID, Remark: data.Remark}, nil
 }
 
-func (s *Service) ReserveWarehouseIdentity(ctx context.Context, tx pgx.Tx, actorID string) (WarehouseIdentity, error) {
-	if tx == nil || !validID(actorID) {
-		return WarehouseIdentity{}, domainError(ErrorValidation, "invalid warehouse identity request", nil, nil)
-	}
-	q := s.queries.WithTx(tx)
-	counter, err := q.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityWarehouse})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return WarehouseIdentity{}, domainError(ErrorConflict, "object number exhausted", nil, nil)
-	}
-	if err != nil {
-		return WarehouseIdentity{}, s.writeError("allocate warehouse number", err)
-	}
-	identity := WarehouseIdentity{ObjectID: newID(), Code: fmt.Sprintf("WHS-%04d", counter), ObjectRevision: 1}
-	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: identity.ObjectID, Entity: EntityWarehouse, Code: identity.Code, ActorID: actorID}); err != nil {
-		return WarehouseIdentity{}, s.writeError("reserve warehouse identity", err)
-	}
-	return identity, nil
-}
-
-func (s *Service) GetWarehouseIdentity(ctx context.Context, tx pgx.Tx, objectID string) (WarehouseIdentity, error) {
-	if tx == nil || !validID(objectID) {
-		return WarehouseIdentity{}, domainError(ErrorValidation, "invalid warehouse identity request", nil, nil)
-	}
-	r, err := s.queries.WithTx(tx).LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: objectID, Entity: EntityWarehouse})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return WarehouseIdentity{}, domainError(ErrorValidation, "warehouse not found", nil, nil)
-	}
-	if err != nil {
-		return WarehouseIdentity{}, s.internal("lock warehouse identity", err)
-	}
-	return WarehouseIdentity{ObjectID: r.ID, Code: r.Code, ObjectRevision: r.Revision}, nil
-}
-
 func (s *Service) ResolveWarehouseManager(ctx context.Context, tx pgx.Tx, data WarehouseData, exact bool) (WarehouseData, error) {
 	if data.ManagerEmployeeID == "" {
 		data.ManagerEmployeeApprovalEntryID = ""
@@ -87,9 +41,9 @@ func (s *Service) ResolveWarehouseManager(ctx context.Context, tx pgx.Tx, data W
 		if data.ManagerEmployeeApprovalEntryID == "" {
 			return WarehouseData{}, domainError(ErrorConflict, "employee approval snapshot is missing", nil, nil)
 		}
-		ref, err = s.ValidateApprovedSnapshotReference(ctx, tx, EntityEmployee, data.ManagerEmployeeID, data.ManagerEmployeeApprovalEntryID)
+		ref, err = s.ValidateHistoricalReference(ctx, tx, EntityEmployee, data.ManagerEmployeeID, data.ManagerEmployeeApprovalEntryID)
 	} else {
-		ref, err = s.ResolveLatestApprovedReference(ctx, tx, EntityEmployee, data.ManagerEmployeeID)
+		ref, err = s.ResolveCurrentReference(ctx, tx, EntityEmployee, data.ManagerEmployeeID)
 	}
 	if err != nil {
 		return WarehouseData{}, err
@@ -98,63 +52,8 @@ func (s *Service) ResolveWarehouseManager(ctx context.Context, tx pgx.Tx, data W
 	return data, nil
 }
 
-func (s *Service) ApplyWarehouseCurrent(ctx context.Context, tx pgx.Tx, objectID, entryID string, enabled bool, data WarehouseData, actorID string) (WarehouseCurrent, error) {
-	if tx == nil || !validID(objectID) || !validID(entryID) || !validID(actorID) {
-		return WarehouseCurrent{}, domainError(ErrorValidation, "invalid warehouse current apply", nil, nil)
-	}
-	validated, err := ValidateWarehouseData(data)
-	if err != nil {
-		return WarehouseCurrent{}, err
-	}
-	q := s.queries.WithTx(tx)
-	if err = q.UpsertBobWarehouseCurrent(ctx, dbsqlc.UpsertBobWarehouseCurrentParams{ObjectID: objectID, SourceApprovalEntryID: entryID, Name: validated.Name, Address: nilIfEmpty(validated.Address), ContactName: nilIfEmpty(validated.ContactName), ContactPhone: nilIfEmpty(validated.ContactPhone), ManagerEmployeeID: nilIfEmpty(validated.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: nilIfEmpty(validated.ManagerEmployeeApprovalEntryID), Remark: nilIfEmpty(validated.Remark), Enabled: enabled, ActorID: actorID}); err != nil {
-		return WarehouseCurrent{}, s.writeError("apply warehouse current data", err)
-	}
-	o, err := q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: objectID, Entity: EntityWarehouse})
-	if err != nil {
-		return WarehouseCurrent{}, s.writeError("touch warehouse current", err)
-	}
-	return WarehouseCurrent{WarehouseIdentity: WarehouseIdentity{ObjectID: o.ID, Code: o.Code, ObjectRevision: o.Revision}, SourceApprovalEntryID: entryID, Enabled: enabled, Data: validated}, nil
-}
-
-func (s *Service) RemoveWarehouseCurrent(ctx context.Context, tx pgx.Tx, objectID, actorID string) (WarehouseIdentity, error) {
-	if tx == nil || !validID(objectID) || !validID(actorID) {
-		return WarehouseIdentity{}, domainError(ErrorValidation, "invalid warehouse current removal", nil, nil)
-	}
-	q := s.queries.WithTx(tx)
-	rows, err := q.DeleteBobWarehouseCurrent(ctx, objectID)
-	if err != nil {
-		return WarehouseIdentity{}, s.writeError("remove warehouse current", err)
-	}
-	if rows != 1 {
-		return WarehouseIdentity{}, domainError(ErrorConflict, "warehouse current data changed", nil, nil)
-	}
-	o, err := q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: objectID, Entity: EntityWarehouse})
-	if err != nil {
-		return WarehouseIdentity{}, s.writeError("touch warehouse current removal", err)
-	}
-	return WarehouseIdentity{ObjectID: o.ID, Code: o.Code, ObjectRevision: o.Revision}, nil
-}
-
-func (s *Service) DeleteWarehouseIdentity(ctx context.Context, tx pgx.Tx, objectID string, revision int64) error {
-	if tx == nil || !validID(objectID) || revision < 1 {
-		return domainError(ErrorValidation, "invalid warehouse identity deletion", nil, nil)
-	}
-	rows, err := s.queries.WithTx(tx).DeleteBobObject(ctx, dbsqlc.DeleteBobObjectParams{ObjectID: objectID, Entity: EntityWarehouse, ObjectRevision: revision})
-	if err != nil {
-		return s.writeError("delete warehouse identity", err)
-	}
-	if rows != 1 {
-		return domainError(ErrorConflict, "warehouse identity changed", nil, nil)
-	}
-	return nil
-}
-
 func (s *Service) EnsureWarehouseUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
-	if tx == nil || !validID(entryID) {
-		return domainError(ErrorValidation, "invalid warehouse unapprove request", nil, nil)
-	}
-	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
+	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
 
 func (s *Service) EnsureWarehouseDisableAllowed(ctx context.Context, tx pgx.Tx, warehouseID string) (WarehouseDisableBlockers, error) {
@@ -187,7 +86,7 @@ func (s *Service) getWarehouseCurrent(ctx context.Context, input GetInput) (Obje
 		return ObjectView{}, s.internal("get warehouse current", err)
 	}
 	entry := dbsqlc.ApprovalEntry{ID: r.ApprovalEntryID, Domain: r.Domain, Entity: EntityWarehouse, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.UpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}, UpdatedAt: r.UpdatedAt.Time}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}, UpdatedAt: r.UpdatedAt.Time}, nil
 }
 
 func (s *Service) queryWarehouses(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
@@ -228,20 +127,17 @@ func (s *Service) queryWarehouses(ctx context.Context, input QueryInput) (Page[Q
 		if e != nil {
 			return Page[QueryItem]{}, e
 		}
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: v.Data, UpdatedAt: r.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: v.Data, UpdatedAt: r.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
 func (s *Service) validateWarehouseSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityWarehouse})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (entry.SubjectID != objectID || entry.Status != string(approval.StatusApproved))) {
-		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
-	}
+	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntityWarehouse, objectID, "BOB approval snapshot is unavailable")
 	if err != nil {
-		return EffectiveReference{}, s.internal("validate DCL warehouse snapshot", err)
+		return EffectiveReference{}, err
 	}
-	o, err := q.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: objectID, Entity: EntityWarehouse})
+	o, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityWarehouse})
 	if err != nil {
 		return EffectiveReference{}, s.internal("load warehouse identity", err)
 	}
@@ -249,7 +145,7 @@ func (s *Service) validateWarehouseSnapshotReference(ctx context.Context, q *dbs
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL warehouse snapshot", err)
 	}
-	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: o.Code, ApprovalEntryID: entry.ID, Data: warehouseDetail(warehouseData(stored))}, nil
+	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: deref(o.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: warehouseDetail(warehouseData(stored))}, nil
 }
 func (s *Service) resolveWarehouseCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
 	r, err := q.GetBobWarehouseCurrentReference(ctx, objectID)
@@ -259,5 +155,5 @@ func (s *Service) resolveWarehouseCurrentReference(ctx context.Context, q *dbsql
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve warehouse current", err)
 	}
-	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}}, nil
+	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}}, nil
 }

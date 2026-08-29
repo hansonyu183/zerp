@@ -68,7 +68,7 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 		if !payloadOK || !entryOK {
 			return Page[QueryItem]{}, s.internal("load product current", pgx.ErrNoRows)
 		}
-		page.Items = append(page.Items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: productDetailFromRow(payload), UpdatedAt: r.UpdatedAt.Time})
+		page.Items = append(page.Items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: productDetailFromRow(payload), UpdatedAt: r.UpdatedAt.Time})
 	}
 	unitConversions, formulas, err := s.loadProductListEnrichments(ctx, versionIDs)
 	if err != nil {
@@ -135,7 +135,7 @@ func (s *Service) loadProductListEnrichments(
 		formula.Components = append(formula.Components, ProductFormulaComponent{
 			Material: FormulaMaterialReference{
 				ObjectID: row.MaterialObjectID, ApprovalEntryID: row.MaterialApprovalEntryID,
-				Code: row.MaterialCode, Name: row.MaterialName,
+				Code: stringValue(row.MaterialCode), Name: row.MaterialName,
 				BehaviorProfile: stringValue(row.MaterialBehaviorProfile),
 			},
 			Quantity: QuantitySnapshot{
@@ -227,7 +227,7 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 		if preserveSources && previousApprovalEntryID != "" {
 			continue
 		}
-		material, err := s.ResolveLatestApprovedReference(ctx, tx, EntityProduct, component.Material.ObjectID)
+		material, err := s.ResolveCurrentReference(ctx, tx, EntityProduct, component.Material.ObjectID)
 		if err != nil {
 			return DetailView{}, err
 		}
@@ -334,7 +334,7 @@ func (s *Service) resolveProductDraftReferences(ctx context.Context, tx pgx.Tx, 
 		if unchangedMaterial {
 			component.Material = previousComponent.Material
 		} else {
-			material, err := s.ResolveLatestApprovedReference(ctx, tx, EntityProduct, component.Material.ObjectID)
+			material, err := s.ResolveCurrentReference(ctx, tx, EntityProduct, component.Material.ObjectID)
 			if err != nil {
 				return DetailView{}, err
 			}

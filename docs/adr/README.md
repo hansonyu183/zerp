@@ -18,27 +18,28 @@
 | [ADR-0030](0030-party-and-typed-business-relationships.md)                            | 2026-08-23 | Party 与强类型业务关系                                          |
 | [ADR-0031](0031-pay-is-deferred-and-requires-a-new-design.md)                         | 2026-08-23 | PAY 暂缓，未来从新输入模型重建                                  |
 | [ADR-0032](0032-central-approval-persistence-and-lifecycle.md)                        | 2026-08-25 | 审批持久化、生命周期与版本头由中央 Approval 统一拥有            |
-| [ADR-0033](0033-dcl-operating-entity-declaration-and-bob-current-projection.md)       | 2026-08-27 | 经营主体由 DCL 申报并投影到 BOB 当前业务面                      |
-| [ADR-0034](0034-warehouse-declarations-are-dcl-owned.md)                              | 2026-08-27 | 仓库由 DCL 申报并投影到 BOB 当前业务面                          |
-| [ADR-0035](0035-vehicle-declarations-are-dcl-owned.md)                                | 2026-08-28 | 车辆由 DCL 申报并投影到 BOB 当前业务面                          |
-| [ADR-0036](0036-fund-account-declarations-are-dcl-owned.md)                           | 2026-08-28 | 资金账户由 DCL 申报并投影到 BOB 当前业务面                      |
-| [ADR-0037](0037-product-declarations-are-dcl-owned.md)                                | 2026-08-28 | 产品由 DCL 申报并投影到 BOB 当前业务面                          |
-| [ADR-0038](0038-party-identity-declarations-are-dcl-owned.md)                         | 2026-08-28 | Party 共享身份由 DCL 申报并投影到 BOB 当前业务面                |
-| [ADR-0039](0039-employee-declarations-are-dcl-owned.md)                               | 2026-08-28 | 员工申报由 DCL 拥有并投影到 BOB 当前业务面                      |
-| [ADR-0040](0040-other-unit-and-sales-partner-declarations-are-dcl-owned.md)           | 2026-08-28 | 服务关系与销售合作关系申报由 DCL 拥有                           |
-| [ADR-0041](0041-supplier-declarations-are-dcl-owned.md)                               | 2026-08-28 | 供应商申报由 DCL 拥有并投影到 BOB 当前业务面                    |
-| [ADR-0042](0042-customer-declarations-are-dcl-owned.md)                               | 2026-08-28 | 客户与客户结算子账户申报由 DCL 拥有并投影到 BOB 当前业务面      |
 | [ADR-0043](0043-aux-stable-id-direct-crud.md)                                         | 2026-08-28 | AUX 使用 Stable-ID Direct CRUD 与采用方快照                     |
 | [ADR-0044](0044-acc-mapping-declarations-are-dcl-owned.md)                            | 2026-08-28 | 会计映射申报由 DCL 拥有并投影到 ACC 当前记账解释                |
-| [ADR-0045](0045-wfl-process-definition-declarations-are-dcl-owned.md)                 | 2026-08-29 | 流程定义申报由 DCL 拥有并投影到 WFL 当前执行面                  |
+| [ADR-0045](0045-wfl-process-definition-declarations-are-dcl-owned.md)                 | 2026-08-29 | 流程定义申报由 DCL 拥有并供 WFL 当前执行                        |
 | [ADR-0046](0046-dcl-is-the-only-approval-version-writer.md)                           | 2026-08-29 | DCL 是申报版本的唯一写入方                                      |
+| [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md)                      | 2026-08-29 | DCL Subject 是版本化业务对象的唯一稳定身份                      |
 
 ## Superseded
 
-| ADR                                                 | 日期       | 决定                               | 取代者                                                        |
-| --------------------------------------------------- | ---------- | ---------------------------------- | ------------------------------------------------------------- |
-| [ADR-0001](0001-other-dealings-subject-category.md) | 2026-08-09 | 其他往来台账采用主体与类别两个维度 | [ADR-0030](0030-party-and-typed-business-relationships.md)    |
-| [ADR-0002](0002-separate-payroll-ledger.md)         | 2026-08-09 | 工资使用独立计算、发放和台账       | [ADR-0031](0031-pay-is-deferred-and-requires-a-new-design.md) |
+| ADR                                                                         | 日期       | 决定                                                 | 取代者                                                           |
+| --------------------------------------------------------------------------- | ---------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| [ADR-0001](0001-other-dealings-subject-category.md)                         | 2026-08-09 | 其他往来台账采用主体与类别两个维度                   | [ADR-0030](0030-party-and-typed-business-relationships.md)       |
+| [ADR-0002](0002-separate-payroll-ledger.md)                                 | 2026-08-09 | 工资使用独立计算、发放和台账                         | [ADR-0031](0031-pay-is-deferred-and-requires-a-new-design.md)    |
+| [ADR-0033](0033-dcl-operating-entity-declaration-and-bob-read-boundary.md)  | 2026-08-27 | 经营主体由 DCL 申报并由 BOB 只读查询                 | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0034](0034-warehouse-declarations-are-dcl-owned.md)                    | 2026-08-27 | 仓库由 DCL 申报并由 BOB 只读查询                     | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0035](0035-vehicle-declarations-are-dcl-owned.md)                      | 2026-08-28 | 车辆由 DCL 申报并由 BOB 只读查询                     | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0036](0036-fund-account-declarations-are-dcl-owned.md)                 | 2026-08-28 | 资金账户由 DCL 申报并由 BOB 只读查询                 | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0037](0037-product-declarations-are-dcl-owned.md)                      | 2026-08-28 | 产品由 DCL 申报并由 BOB 只读查询                     | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0038](0038-party-identity-declarations-are-dcl-owned.md)               | 2026-08-28 | Party 共享身份由 DCL 申报并由 BOB 只读查询           | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0039](0039-employee-declarations-are-dcl-owned.md)                     | 2026-08-28 | 员工申报由 DCL 拥有并由 BOB 只读查询                 | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0040](0040-other-unit-and-sales-partner-declarations-are-dcl-owned.md) | 2026-08-28 | 服务关系与销售合作关系申报由 DCL 拥有                | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0041](0041-supplier-declarations-are-dcl-owned.md)                     | 2026-08-28 | 供应商申报由 DCL 拥有并由 BOB 只读查询               | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
+| [ADR-0042](0042-customer-declarations-are-dcl-owned.md)                     | 2026-08-28 | 客户与客户结算子账户申报由 DCL 拥有并由 BOB 只读查询 | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
 
 ## Rejected
 

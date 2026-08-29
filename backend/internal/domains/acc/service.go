@@ -11,6 +11,7 @@ import (
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/events/accapproval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -29,17 +30,22 @@ type Service struct {
 	pool            *pgxpool.Pool
 	queries         *dbsqlc.Queries
 	openingApproval *approval.Coordinator[accapproval.Payload]
+	references      historicalReferenceResolver
 }
 
-func NewService(pool *pgxpool.Pool, authorizer authorization.Authorizer, bus *txevent.Bus) *Service {
-	if pool == nil || authorizer == nil || bus == nil {
-		panic("acc: database, authorizer, and transactional event bus are required")
+type historicalReferenceResolver interface {
+	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bob.EffectiveReference, error)
+}
+
+func NewService(pool *pgxpool.Pool, references historicalReferenceResolver, authorizer authorization.Authorizer, bus *txevent.Bus) *Service {
+	if pool == nil || references == nil || authorizer == nil || bus == nil {
+		panic("acc: database, historical reference resolver, authorizer, and transactional event bus are required")
 	}
 	opening, err := approval.NewCoordinator("acc", "opening", authorizer, bus, accapproval.Topic("opening"))
 	if err != nil {
 		panic(err)
 	}
-	return &Service{pool: pool, queries: dbsqlc.New(pool), openingApproval: opening}
+	return &Service{pool: pool, queries: dbsqlc.New(pool), openingApproval: opening, references: references}
 }
 
 func mapApprovalError(err error) error {

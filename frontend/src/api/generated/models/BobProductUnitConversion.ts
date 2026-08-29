@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { BobMeasurementUnitSnapshot } from './BobMeasurementUnitSnapshot';
-export type BobProductUnitConversionSnapshot = {
+export type BobProductUnitConversion = {
   unit: BobMeasurementUnitSnapshot;
   factor: string;
 };

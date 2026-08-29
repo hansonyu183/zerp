@@ -149,7 +149,7 @@ func (s *Service) CreateSaleReturn(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolver.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID)
+	warehouse, err := s.resolver.ResolveCurrentReference(ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID)
 	if err != nil {
 		return MutationResult{}, err
 	}

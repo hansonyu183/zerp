@@ -2,6 +2,6 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type BobMeasurementUnitSnapshotInput = {
+export type DclMeasurementUnitReferenceInput = {
   objectId: string;
 };

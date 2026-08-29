@@ -166,7 +166,6 @@ type CustomerAccountQueryInput struct {
 }
 type CustomerAccountMutation struct {
 	ObjectID               string               `json:"objectId"`
-	ObjectRevision         int64                `json:"objectRevision"`
 	CustomerRelationshipID string               `json:"customerRelationshipId"`
 	Enabled                bool                 `json:"enabled"`
 	Approval               approval.VersionMeta `json:"approval"`
@@ -182,7 +181,6 @@ type CustomerAccountView struct {
 	Entity                 string                   `json:"entity"`
 	Code                   string                   `json:"code"`
 	CustomerRelationshipID string                   `json:"customerRelationshipId"`
-	ObjectRevision         int64                    `json:"objectRevision"`
 	Enabled                bool                     `json:"enabled"`
 	Approval               approval.VersionMeta     `json:"approval"`
 	Data                   CustomerAccountData      `json:"data"`
@@ -194,7 +192,6 @@ type CustomerAccountQueryItem struct {
 	Entity                 string                      `json:"entity"`
 	Code                   string                      `json:"code"`
 	CustomerRelationshipID string                      `json:"customerRelationshipId"`
-	ObjectRevision         int64                       `json:"objectRevision"`
 	Enabled                bool                        `json:"enabled"`
 	LatestApproved         *CustomerAccountVersionView `json:"latestApproved"`
 	OpenVersion            *CustomerAccountVersionView `json:"openVersion"`

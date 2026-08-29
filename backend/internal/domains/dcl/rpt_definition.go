@@ -26,6 +26,7 @@ type RptDefinitionData struct {
 type RptDefinitionCreateInput struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
+	Enabled     bool              `json:"enabled"`
 	Data        RptDefinitionData `json:"data"`
 }
 
@@ -35,6 +36,7 @@ type RptDefinitionSaveInput struct {
 	ApprovalRevision int64             `json:"approvalRevision"`
 	Name             *string           `json:"name,omitempty"`
 	Description      *string           `json:"description,omitempty"`
+	Enabled          bool              `json:"enabled"`
 	Data             RptDefinitionData `json:"data"`
 }
 
@@ -59,8 +61,9 @@ type RptDefinitionDeleteInput struct {
 }
 
 type RptDefinitionEnableInput struct {
-	Code     string `json:"code"`
-	Revision int64  `json:"revision"`
+	Code             string `json:"code"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
 }
 
 type RptDefinitionGetInput struct {
@@ -95,7 +98,6 @@ type RptDefinitionHistoryInput struct {
 type RptDefinitionMutation struct {
 	Code         string               `json:"code"`
 	DefinitionID string               `json:"definitionId"`
-	Revision     int64                `json:"revision"`
 	Enabled      bool                 `json:"enabled"`
 	Approval     approval.VersionMeta `json:"approval"`
 }
@@ -106,7 +108,6 @@ type RptDefinitionView struct {
 	Name         string               `json:"name"`
 	Description  string               `json:"description"`
 	Enabled      bool                 `json:"enabled"`
-	Revision     int64                `json:"revision"`
 	Approval     approval.VersionMeta `json:"approval"`
 	Validity     string               `json:"validity"`
 	Data         RptDefinitionData    `json:"data"`
@@ -115,6 +116,7 @@ type RptDefinitionView struct {
 type RptDefinitionVersionView struct {
 	Name        string               `json:"name"`
 	Description string               `json:"description"`
+	Enabled     bool                 `json:"enabled"`
 	Approval    approval.VersionMeta `json:"approval"`
 	Validity    string               `json:"validity"`
 	Data        RptDefinitionData    `json:"data"`
@@ -123,6 +125,7 @@ type RptDefinitionVersionView struct {
 type RptDefinitionVersionSummary struct {
 	Name        string               `json:"name"`
 	Description string               `json:"description"`
+	Enabled     bool                 `json:"enabled"`
 	Approval    approval.VersionMeta `json:"approval"`
 	Validity    string               `json:"validity"`
 }
@@ -133,7 +136,6 @@ type RptDefinitionListItem struct {
 	Name           string                       `json:"name"`
 	Description    string                       `json:"description"`
 	Enabled        bool                         `json:"enabled"`
-	Revision       int64                        `json:"revision"`
 	LatestApproved *RptDefinitionVersionSummary `json:"latestApproved"`
 	OpenVersion    *RptDefinitionVersionSummary `json:"openVersion"`
 }
@@ -148,6 +150,7 @@ type RptDefinitionService struct {
 type RptDefinitionValidator interface {
 	ValidateDefinitionShape(string, json.RawMessage, json.RawMessage) error
 	ValidateDefinition(context.Context, string, json.RawMessage, json.RawMessage, map[string]any) error
+	RegisterDefinitionSubscriptions(*txevent.Bus) error
 }
 
 func NewRptDefinitionService(pool *pgxpool.Pool, validator RptDefinitionValidator, authorizer approval.Authorizer, bus *txevent.Bus) *RptDefinitionService {
@@ -156,6 +159,9 @@ func NewRptDefinitionService(pool *pgxpool.Pool, validator RptDefinitionValidato
 	}
 	c, err := approval.NewCoordinator("dcl", EntityRptDefinition, authorizer, bus, dclapproval.RptDefinitionTopic)
 	if err != nil {
+		panic(err)
+	}
+	if err := validator.RegisterDefinitionSubscriptions(bus); err != nil {
 		panic(err)
 	}
 	return &RptDefinitionService{pool: pool, queries: dbsqlc.New(pool), coordinator: c, validator: validator}
@@ -167,14 +173,13 @@ func rptDefinitionDataFromRow(row dbsqlc.DclRptGetVersionPayloadRow) RptDefiniti
 	}
 }
 
-func rptDefinitionViewFromParts(code string, defID string, enabled bool, revision int64, entry approval.Entry, version dbsqlc.DclRptGetVersionPayloadRow) RptDefinitionView {
+func rptDefinitionViewFromParts(code string, defID string, entry approval.Entry, version dbsqlc.DclRptGetVersionPayloadRow) RptDefinitionView {
 	return RptDefinitionView{
 		Code:         code,
 		DefinitionID: defID,
 		Name:         version.Name,
 		Description:  version.Description,
-		Enabled:      enabled,
-		Revision:     revision,
+		Enabled:      version.Enabled,
 		Approval:     approval.VersionMetaFromEntry(entry),
 		Validity:     version.Validity,
 		Data:         rptDefinitionDataFromRow(version),
@@ -193,6 +198,9 @@ func (s *RptDefinitionService) Create(ctx context.Context, input RptDefinitionCr
 	if err := s.validator.ValidateDefinitionShape(input.Data.SQL, input.Data.Parameters, input.Data.Columns); err != nil {
 		return RptDefinitionMutation{}, newError(ErrorValidation, "report_definition_invalid", err.Error(), nil, err)
 	}
+	if err := s.coordinator.Authorize(ctx, actor, enabledPermissionAction(input.Enabled)); err != nil {
+		return RptDefinitionMutation{}, translateError(err)
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return RptDefinitionMutation{}, translateError(err)
@@ -206,10 +214,7 @@ func (s *RptDefinitionService) Create(ctx context.Context, input RptDefinitionCr
 	}
 
 	defID := ulid.Make().String()
-	if err := q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: defID, Entity: EntityRptDefinition, ActorID: actor.ID()}); err != nil {
-		return RptDefinitionMutation{}, translateError(err)
-	}
-	if err := q.DclRptInsertDefinition(ctx, dbsqlc.DclRptInsertDefinitionParams{ID: defID, Code: code, ActorID: actor.ID()}); err != nil {
+	if err := q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: defID, Entity: EntityRptDefinition, Code: &code, ActorID: actor.ID()}); err != nil {
 		return RptDefinitionMutation{}, translateError(err)
 	}
 
@@ -220,7 +225,7 @@ func (s *RptDefinitionService) Create(ctx context.Context, input RptDefinitionCr
 
 	if err := q.DclRptInsertVersionPayload(ctx, dbsqlc.DclRptInsertVersionPayloadParams{
 		ApprovalEntryID: entry.ID,
-		DefinitionID:    defID,
+		Enabled:         input.Enabled,
 		Name:            input.Name,
 		Description:     input.Description,
 		SqlText:         input.Data.SQL,
@@ -236,7 +241,7 @@ func (s *RptDefinitionService) Create(ctx context.Context, input RptDefinitionCr
 	}
 
 	return RptDefinitionMutation{
-		Code: code, DefinitionID: defID, Revision: 1, Enabled: true,
+		Code: code, DefinitionID: defID, Enabled: input.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -279,9 +284,22 @@ func (s *RptDefinitionService) Save(ctx context.Context, input RptDefinitionSave
 		return RptDefinitionMutation{}, newError(ErrorConflict, "approval_invalid_transition", "only a draft report definition can be saved", nil, nil)
 	}
 	entry := approvalEntry(stored)
+	version, err := q.DclRptGetVersionPayload(ctx, dbsqlc.DclRptGetVersionPayloadParams{
+		ApprovalEntryID: entry.ID,
+		DefinitionID:    def.ID,
+	})
+	if err != nil {
+		return RptDefinitionMutation{}, translateError(err)
+	}
+	if version.Enabled != input.Enabled {
+		if err := s.coordinator.Authorize(ctx, actor, enabledPermissionAction(input.Enabled)); err != nil {
+			return RptDefinitionMutation{}, translateError(err)
+		}
+	}
 
 	if err := q.DclRptUpdateDraftPayload(ctx, dbsqlc.DclRptUpdateDraftPayloadParams{
 		Name: input.Name, Description: input.Description,
+		Enabled: input.Enabled,
 		SqlText: input.Data.SQL, Parameters: input.Data.Parameters, Columns: input.Data.Columns,
 		ActorID: actor.ID(), ApprovalEntryID: entry.ID, DefinitionID: def.ID,
 	}); err != nil {
@@ -298,9 +316,16 @@ func (s *RptDefinitionService) Save(ctx context.Context, input RptDefinitionSave
 	}
 
 	return RptDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: input.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
+}
+
+func enabledPermissionAction(enabled bool) string {
+	if enabled {
+		return "enable"
+	}
+	return "disable"
 }
 
 func (s *RptDefinitionService) transition(ctx context.Context, entryID string, revision int64, code string, action approval.Action, actor approval.Actor, reason string, validationParameters map[string]any) (RptDefinitionMutation, error) {
@@ -333,6 +358,10 @@ func (s *RptDefinitionService) transition(ctx context.Context, entryID string, r
 			return RptDefinitionMutation{}, err
 		}
 	}
+	version, versionErr := q.DclRptGetVersionPayload(ctx, dbsqlc.DclRptGetVersionPayloadParams{ApprovalEntryID: entryID, DefinitionID: def.ID})
+	if versionErr != nil {
+		return RptDefinitionMutation{}, translateError(versionErr)
+	}
 	entry, err = s.coordinator.Commit(ctx, tx, prepared, payload)
 	if err != nil {
 		return RptDefinitionMutation{}, translateError(err)
@@ -343,7 +372,7 @@ func (s *RptDefinitionService) transition(ctx context.Context, entryID string, r
 	}
 
 	return RptDefinitionMutation{
-		Code: code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: code, DefinitionID: def.ID, Enabled: version.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -400,13 +429,13 @@ func (s *RptDefinitionService) Approve(ctx context.Context, input RptDefinitionV
 	if err := s.validateVersion(ctx, q, def.ID, input.ApprovalEntryID, input.ValidationParameters); err != nil {
 		return RptDefinitionMutation{}, err
 	}
+	version, versionErr := q.DclRptGetVersionPayload(ctx, dbsqlc.DclRptGetVersionPayloadParams{ApprovalEntryID: input.ApprovalEntryID, DefinitionID: def.ID})
+	if versionErr != nil {
+		return RptDefinitionMutation{}, translateError(versionErr)
+	}
 	entry, commitErr := s.coordinator.Commit(ctx, tx, prepared, rptDefPayload(input.Code, def.ID))
 	if commitErr != nil {
 		return RptDefinitionMutation{}, translateError(commitErr)
-	}
-
-	if err := s.syncUsePermissions(ctx, q, def.ID, input.Code, actor.ID()); err != nil {
-		return RptDefinitionMutation{}, translateError(err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -414,7 +443,7 @@ func (s *RptDefinitionService) Approve(ctx context.Context, input RptDefinitionV
 	}
 
 	return RptDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: version.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -445,13 +474,13 @@ func (s *RptDefinitionService) Unapprove(ctx context.Context, input RptDefinitio
 	if prepared.Entry().SubjectID != def.ID {
 		return RptDefinitionMutation{}, newError(ErrorValidation, "validation_failed", "report definition version does not belong to definition", nil, nil)
 	}
+	version, versionErr := q.DclRptGetVersionPayload(ctx, dbsqlc.DclRptGetVersionPayloadParams{ApprovalEntryID: input.ApprovalEntryID, DefinitionID: def.ID})
+	if versionErr != nil {
+		return RptDefinitionMutation{}, translateError(versionErr)
+	}
 	entry, commitErr := s.coordinator.Commit(ctx, tx, prepared, rptDefPayload(input.Code, def.ID))
 	if commitErr != nil {
 		return RptDefinitionMutation{}, translateError(commitErr)
-	}
-
-	if err := s.syncUsePermissions(ctx, q, def.ID, input.Code, actor.ID()); err != nil {
-		return RptDefinitionMutation{}, translateError(err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -459,7 +488,7 @@ func (s *RptDefinitionService) Unapprove(ctx context.Context, input RptDefinitio
 	}
 
 	return RptDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: version.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -507,12 +536,6 @@ func (s *RptDefinitionService) Delete(ctx context.Context, input RptDefinitionDe
 
 	if !hasApproved {
 		// No approved versions left - check if we should delete the definition entirely
-		if deleted, delErr := q.DclRptDeleteDefinition(ctx, dbsqlc.DclRptDeleteDefinitionParams{DefinitionID: def.ID, Revision: def.Revision}); delErr != nil || deleted != 1 {
-			if delErr == nil {
-				delErr = errors.New("report definition changed")
-			}
-			return translateError(delErr)
-		}
 		if deleted, delErr := q.DeleteDCLSubject(ctx, dbsqlc.DeleteDCLSubjectParams{ID: def.ID, Entity: EntityRptDefinition}); delErr != nil || deleted != 1 {
 			if delErr == nil {
 				delErr = errors.New("report definition subject changed")
@@ -567,13 +590,17 @@ func (s *RptDefinitionService) CreateNext(ctx context.Context, input RptDefiniti
 	}); err != nil {
 		return RptDefinitionMutation{}, translateError(err)
 	}
+	version, err := q.DclRptGetVersionPayload(ctx, dbsqlc.DclRptGetVersionPayloadParams{ApprovalEntryID: entry.ID, DefinitionID: def.ID})
+	if err != nil {
+		return RptDefinitionMutation{}, translateError(err)
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return RptDefinitionMutation{}, translateError(err)
 	}
 
 	return RptDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: def.Revision, Enabled: def.Enabled,
+		Code: input.Code, DefinitionID: def.ID, Enabled: version.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
@@ -587,7 +614,7 @@ func (s *RptDefinitionService) Disable(ctx context.Context, input RptDefinitionE
 }
 
 func (s *RptDefinitionService) setEnabled(ctx context.Context, input RptDefinitionEnableInput, actor approval.Actor, enabled bool) (RptDefinitionMutation, error) {
-	if !validActor(actor) || input.Code == "" {
+	if !validActor(actor) || input.Code == "" || input.ApprovalEntryID == "" {
 		return RptDefinitionMutation{}, newError(ErrorValidation, "validation_failed", "invalid report definition enable/disable request", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -607,41 +634,37 @@ func (s *RptDefinitionService) setEnabled(ctx context.Context, input RptDefiniti
 	if err := s.coordinator.LockVersionSubject(ctx, tx, def.ID); err != nil {
 		return RptDefinitionMutation{}, translateError(err)
 	}
-	def, err = q.GetDclRptDefinitionByCode(ctx, input.Code)
-	if err != nil {
+	stored, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: input.ApprovalEntryID, Domain: "dcl", Entity: EntityRptDefinition})
+	if err != nil || stored.SubjectID != def.ID || stored.Revision != input.ApprovalRevision {
+		if err == nil || errors.Is(err, pgx.ErrNoRows) {
+			err = newError(ErrorConflict, "approval_stale_revision", "report definition changed", nil, err)
+		}
 		return RptDefinitionMutation{}, translateError(err)
 	}
-	if def.Revision != input.Revision {
-		return RptDefinitionMutation{}, newError(ErrorConflict, "definition_stale_revision", "report definition changed", nil, nil)
+	if stored.Status != string(approval.StatusDraft) {
+		return RptDefinitionMutation{}, newError(ErrorConflict, "approval_invalid_transition", "only a draft report definition can be enabled or disabled", nil, nil)
 	}
-
-	updated, err := q.DclRptSetDefinitionEnabled(ctx, dbsqlc.DclRptSetDefinitionEnabledParams{
-		DefinitionID: def.ID, Enabled: enabled, Revision: input.Revision, ActorID: actor.ID(),
+	updated, err := q.DclRptSetDraftEnabled(ctx, dbsqlc.DclRptSetDraftEnabledParams{
+		DefinitionID: def.ID, ApprovalEntryID: input.ApprovalEntryID, Enabled: enabled, ActorID: actor.ID(),
 	})
+	if err != nil || updated != 1 {
+		if err == nil {
+			err = errors.New("report definition version changed")
+		}
+		return RptDefinitionMutation{}, translateError(err)
+	}
+	entry, err := s.coordinator.SaveDraft(ctx, tx, input.ApprovalEntryID, input.ApprovalRevision, actor, rptDefPayload(input.Code, def.ID))
 	if err != nil {
 		return RptDefinitionMutation{}, translateError(err)
 	}
-
-	if err := s.syncUsePermissions(ctx, q, def.ID, input.Code, actor.ID()); err != nil {
-		return RptDefinitionMutation{}, translateError(err)
-	}
-
-	latestEntry, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityRptDefinition, SubjectID: def.ID})
-	if errors.Is(latestErr, pgx.ErrNoRows) {
-		latestEntry, latestErr = q.GetOpenApprovalVersion(ctx, dbsqlc.GetOpenApprovalVersionParams{Domain: "dcl", Entity: EntityRptDefinition, SubjectID: def.ID})
-	}
-	if latestErr != nil {
-		return RptDefinitionMutation{}, translateError(latestErr)
-	}
-	meta := approval.VersionMetaFromEntry(approvalEntry(latestEntry))
 
 	if err := tx.Commit(ctx); err != nil {
 		return RptDefinitionMutation{}, translateError(err)
 	}
 
 	return RptDefinitionMutation{
-		Code: input.Code, DefinitionID: def.ID, Revision: updated.Revision, Enabled: updated.Enabled,
-		Approval: meta,
+		Code: input.Code, DefinitionID: def.ID, Enabled: enabled,
+		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
 }
 
@@ -697,7 +720,7 @@ func (s *RptDefinitionService) Get(ctx context.Context, input RptDefinitionGetIn
 		return RptDefinitionView{}, translateError(err)
 	}
 
-	return rptDefinitionViewFromParts(input.Code, def.ID, def.Enabled, def.Revision, entry, stored), nil
+	return rptDefinitionViewFromParts(input.Code, def.ID, entry, stored), nil
 }
 
 func (s *RptDefinitionService) Query(ctx context.Context, input RptDefinitionQueryInput, actor approval.Actor) (Page[RptDefinitionListItem], error) {
@@ -741,10 +764,7 @@ func (s *RptDefinitionService) Query(ctx context.Context, input RptDefinitionQue
 
 	items := make([]RptDefinitionListItem, 0, len(rows))
 	for _, row := range rows {
-		item := RptDefinitionListItem{
-			Code: row.Code, DefinitionID: row.DefinitionID,
-			Enabled: row.Enabled, Revision: row.ObjectRevision,
-		}
+		item := RptDefinitionListItem{Code: row.Code, DefinitionID: row.DefinitionID, Enabled: row.Enabled}
 
 		if row.ApprovedEntryID != "" {
 			version, vErr := s.queries.DclRptGetVersionPayload(ctx, dbsqlc.DclRptGetVersionPayloadParams{ApprovalEntryID: row.ApprovedEntryID, DefinitionID: row.DefinitionID})
@@ -757,7 +777,7 @@ func (s *RptDefinitionService) Query(ctx context.Context, input RptDefinitionQue
 			}
 			entry := approvalEntry(entryRow)
 			item.LatestApproved = &RptDefinitionVersionSummary{
-				Name: version.Name, Description: version.Description,
+				Name: version.Name, Description: version.Description, Enabled: version.Enabled,
 				Approval: approval.VersionMetaFromEntry(entry), Validity: version.Validity,
 			}
 			item.Name = version.Name
@@ -775,7 +795,7 @@ func (s *RptDefinitionService) Query(ctx context.Context, input RptDefinitionQue
 			}
 			entry := approvalEntry(entryRow)
 			item.OpenVersion = &RptDefinitionVersionSummary{
-				Name: version.Name, Description: version.Description,
+				Name: version.Name, Description: version.Description, Enabled: version.Enabled,
 				Approval: approval.VersionMetaFromEntry(entry), Validity: version.Validity,
 			}
 			if item.Name == "" {
@@ -830,7 +850,7 @@ func (s *RptDefinitionService) Versions(ctx context.Context, input RptDefinition
 			return Page[RptDefinitionVersionView]{}, translateError(vErr)
 		}
 		items = append(items, RptDefinitionVersionView{
-			Name: version.Name, Description: version.Description,
+			Name: version.Name, Description: version.Description, Enabled: version.Enabled,
 			Approval: approval.VersionMetaFromEntry(entry), Validity: version.Validity,
 			Data: rptDefinitionDataFromRow(version),
 		})
@@ -877,35 +897,6 @@ func (s *RptDefinitionService) validateVersion(ctx context.Context, q *dbsqlc.Qu
 	}
 	if err := s.validator.ValidateDefinition(ctx, version.SqlText, version.Parameters, version.Columns, values); err != nil {
 		return newError(ErrorValidation, "report_definition_invalid", err.Error(), nil, err)
-	}
-	return nil
-}
-
-func (s *RptDefinitionService) syncUsePermissions(ctx context.Context, q *dbsqlc.Queries, definitionID, code, actorID string) error {
-	state, err := q.RptLatestApprovedUseState(ctx, definitionID)
-	if err != nil {
-		return err
-	}
-	actorPtr := &actorID
-	if state.Enabled && state.Status == string(approval.StatusApproved) && state.Validity != nil && *state.Validity == "VALID" {
-		queryDesc := "查询" + state.Name + "报表"
-		exportDesc := "导出" + state.Name + "报表"
-		if err := q.RptUpsertUsePermission(ctx, dbsqlc.RptUpsertUsePermissionParams{
-			ID: ulid.Make().String(), Path: "/rpt/" + code + "/query", Code: code, Action: "query",
-			Description: &queryDesc, ActorID: actorPtr,
-		}); err != nil {
-			return err
-		}
-		if err := q.RptUpsertUsePermission(ctx, dbsqlc.RptUpsertUsePermissionParams{
-			ID: ulid.Make().String(), Path: "/rpt/" + code + "/export", Code: code, Action: "export",
-			Description: &exportDesc, ActorID: actorPtr,
-		}); err != nil {
-			return err
-		}
-	} else {
-		if err := q.RptDisableUsePermissions(ctx, dbsqlc.RptDisableUsePermissionsParams{Code: code, ActorID: actorPtr}); err != nil {
-			return err
-		}
 	}
 	return nil
 }

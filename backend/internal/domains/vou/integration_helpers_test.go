@@ -229,13 +229,13 @@ func createApprovedBOB(
 			data.DefaultPackagingSpec = "1"
 		}
 		declarations := dcldomain.NewProductService(vouIntegrationPool(t), service, authorization.Func(nil), txevent.NewBus())
-		created, err := declarations.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
+		created, err := declarations.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInputFromData(dcldomain.ProductData{
 			Name: data.Name, CategoryID: data.CategoryID,
 			Specification: data.Specification, Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
 			ProductTypeID: data.ProductTypeID, DefaultInputUnitID: data.DefaultInputUnitID,
 			PricingUnitID: data.PricingUnitID, UnitConversions: data.UnitConversions,
 			Returnable: data.Returnable, DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
-		}}, trustedIntegrationActor(t, "vou-ref-create"))
+		})}, trustedIntegrationActor(t, "vou-ref-create"))
 		if err != nil {
 			t.Fatalf("create product reference: %v", err)
 		}
@@ -282,7 +282,7 @@ func createApprovedSupplierDeclaration(t *testing.T, pool *pgxpool.Pool, busines
 	t.Helper()
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	suppliers := dcldomain.NewSupplierService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	created, err := suppliers.Create(t.Context(), dcldomain.SupplierCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name,
@@ -323,7 +323,7 @@ func createApprovedOtherUnitDeclaration(t *testing.T, pool *pgxpool.Pool, busine
 	t.Helper()
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	relationships := dcldomain.NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	created, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name}, OperatingEntityID: data.OperatingEntityID, Data: dcldomain.OtherUnitData{ContactName: data.ContactName, ContactPhone: data.ContactPhone, SettlementMethodID: data.SettlementMethodID}}, trustedIntegrationActor(t, "vou-other-unit-create"))
 	if err != nil {
@@ -355,7 +355,7 @@ func createApprovedEmployeeDeclaration(t *testing.T, pool *pgxpool.Pool, busines
 	t.Helper()
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	employees := dcldomain.NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: data.Name},
@@ -367,7 +367,7 @@ func createApprovedEmployeeDeclaration(t *testing.T, pool *pgxpool.Pool, busines
 		t.Fatalf("create employee declaration: %v", err)
 	}
 	var partyID string
-	if err = pool.QueryRow(t.Context(), `SELECT party_id FROM bob_employment_relationships WHERE object_id=$1`, created.ObjectID).Scan(&partyID); err != nil {
+	if err = pool.QueryRow(t.Context(), `SELECT party_id FROM dcl_employment_relationships WHERE object_id=$1`, created.ObjectID).Scan(&partyID); err != nil {
 		t.Fatalf("get employee Party identity: %v", err)
 	}
 	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: partyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "vou-employee-party-get"))
@@ -486,7 +486,7 @@ func createApprovedCustomer(
 	t.Helper()
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{})
 	accounts := dcldomain.NewCustomerAccountService(pool, service, authorizer, bus)
 	customers := dcldomain.NewCustomerService(pool, service, parties, bobdomain.NewPartyCurrentReader(pool), accounts, authorizer, bus)

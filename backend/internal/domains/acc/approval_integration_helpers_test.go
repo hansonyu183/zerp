@@ -58,11 +58,9 @@ func createAccountingProductSnapshot(t *testing.T, pool *pgxpool.Pool, objectID,
 		sql  string
 		args []any
 	}{
-		{`INSERT INTO bob_objects(id,entity,code,enabled,revision,created_by,updated_by) VALUES($1,'product',$2,TRUE,1,$3,$3)`, []any{objectID, code, adminID}},
-		{`INSERT INTO dcl_subjects(id,entity,created_by) VALUES($1,'product',$2)`, []any{objectID, adminID}},
+		{`INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'product',$2,$3)`, []any{objectID, code, adminID}},
 		{`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl','product',$2,1,'APPROVED',1,$3,now(),$3,now(),$3,now(),$4,now())`, []any{entryID, objectID, adminID, operatorID}},
 		{`INSERT INTO dcl_product_versions(approval_entry_id,name,enabled) VALUES($1,$2,TRUE)`, []any{entryID, name}},
-		{`INSERT INTO bob_products(object_id,source_approval_entry_id,enabled,updated_by) VALUES($1,$2,TRUE,$3)`, []any{objectID, entryID, adminID}},
 	} {
 		if _, err := tx.Exec(t.Context(), statement.sql, statement.args...); err != nil {
 			t.Fatalf("create accounting product snapshot: %v", err)
@@ -88,7 +86,6 @@ func createAccountingProductVersion(t *testing.T, pool *pgxpool.Pool, previous a
 	}{
 		{`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl','product',$2,2,'APPROVED',1,$3,now(),$3,now(),$3,now(),$4,now())`, []any{entryID, previous.ObjectID, adminID, operatorID}},
 		{`INSERT INTO dcl_product_versions(approval_entry_id,name,enabled) VALUES($1,$2,TRUE)`, []any{entryID, name}},
-		{`UPDATE bob_products SET source_approval_entry_id=$1,updated_by=$2,updated_at=now() WHERE object_id=$3`, []any{entryID, adminID, previous.ObjectID}},
 	} {
 		if _, err := tx.Exec(t.Context(), statement.sql, statement.args...); err != nil {
 			t.Fatalf("create accounting product version: %v", err)
@@ -101,7 +98,7 @@ func createAccountingProductVersion(t *testing.T, pool *pgxpool.Pool, previous a
 }
 
 func integrationACCService(pool *pgxpool.Pool, bus *txevent.Bus) *Service {
-	return NewService(pool, authorization.Func(nil), bus)
+	return NewService(pool, newAccountingIntegrationBOBService(pool, bus), authorization.Func(nil), bus)
 }
 
 func defaultIntegrationACCService(pool *pgxpool.Pool) *Service {

@@ -24,7 +24,6 @@ describe('BOB employee current view model', () => {
           objectId: 'EMP-1',
           entity: 'employee',
           code: 'EMP-0001',
-          objectRevision: 1,
           enabled: true,
           sourceApprovalEntryId: 'V1',
           sourceVersionNo: 1,

@@ -14,49 +14,44 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type customerCurrentWriter interface {
-	ReserveCustomerIdentity(context.Context, pgx.Tx, string, string, string) (bobdomain.RelationshipIdentity, error)
-	GetCustomerIdentity(context.Context, pgx.Tx, string) (bobdomain.RelationshipIdentity, error)
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
-	ValidateApprovedSnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
-	ApplyCustomerCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string, bool, string) (bobdomain.RelationshipIdentity, error)
-	RemoveCustomerCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string) (bobdomain.RelationshipIdentity, error)
+type customerBusinessRules interface {
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	EnsureCustomerUnapproveAllowed(context.Context, pgx.Tx, string) error
-	DeleteCustomerIdentity(context.Context, pgx.Tx, string, int64) error
 }
 
 type customerPartyReader interface {
 	ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error)
 }
 
-// CustomerService owns DCL Customer relation declarations.  BOB contributes
-// only immutable identity/current projection primitives.
+// CustomerService owns DCL Customer declarations and the immutable typed root.
+// BOB contributes only business validation and reference resolution.
 type CustomerService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     customerCurrentWriter
+	rules       customerBusinessRules
 	parties     bobdomain.PartyDeclarationCreator
 	partyReader customerPartyReader
 	accounts    *CustomerAccountService
 	coordinator *approval.Coordinator[dclapproval.CustomerPayload]
 }
 
-func NewCustomerService(pool *pgxpool.Pool, current customerCurrentWriter, parties bobdomain.PartyDeclarationCreator, partyReader customerPartyReader, accounts *CustomerAccountService, authorizer approval.Authorizer, bus *txevent.Bus) *CustomerService {
-	if pool == nil || current == nil || parties == nil || partyReader == nil || accounts == nil || authorizer == nil || bus == nil {
+func NewCustomerService(pool *pgxpool.Pool, rules customerBusinessRules, parties bobdomain.PartyDeclarationCreator, partyReader customerPartyReader, accounts *CustomerAccountService, authorizer approval.Authorizer, bus *txevent.Bus) *CustomerService {
+	if pool == nil || rules == nil || parties == nil || partyReader == nil || accounts == nil || authorizer == nil || bus == nil {
 		panic("dcl: customer dependencies are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityCustomer, authorizer, bus, dclapproval.CustomerTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &CustomerService{pool: pool, queries: dbsqlc.New(pool), current: current, parties: parties, partyReader: partyReader, accounts: accounts, coordinator: c}
+	return &CustomerService{pool: pool, queries: dbsqlc.New(pool), rules: rules, parties: parties, partyReader: partyReader, accounts: accounts, coordinator: c}
 }
 
 func customerPayload(id bobdomain.RelationshipIdentity, enabled bool) dclapproval.CustomerPayload {
 	return dclapproval.CustomerPayload{SubjectID: id.ObjectID, Code: id.Code, PartyID: id.PartyID, Enabled: enabled}
 }
 func customerMutation(id bobdomain.RelationshipIdentity, enabled bool, entry approval.Entry) CustomerMutation {
-	return CustomerMutation{ObjectID: id.ObjectID, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
+	return CustomerMutation{ObjectID: id.ObjectID, PartyID: id.PartyID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
 }
 func customerVersionInput(in CustomerReviewInput) CustomerVersionInput {
 	return CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}
@@ -71,7 +66,7 @@ func (s *CustomerService) Create(ctx context.Context, in CustomerCreateInput, ac
 		return CustomerMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	operating, err := s.current.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID)
+	operating, err := s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID)
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
@@ -84,14 +79,11 @@ func (s *CustomerService) Create(ctx context.Context, in CustomerCreateInput, ac
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	id, err := s.current.ReserveCustomerIdentity(ctx, tx, party.ID, in.OperatingEntityID, actor.ID())
+	id, err := reserveRelationshipIdentity(ctx, tx, EntityCustomer, "CUS", party.ID, in.OperatingEntityID, actor.ID())
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: id.ObjectID, Entity: EntityCustomer, ActorID: actor.ID()}); err != nil {
-		return CustomerMutation{}, translateError(err)
-	}
 	entry, err := s.coordinator.CreateFirstVersion(ctx, tx, id.ObjectID, actor, customerPayload(id, true))
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
@@ -128,7 +120,7 @@ func (s *CustomerService) Save(ctx context.Context, in CustomerSaveInput, actor 
 	if err != nil || stored.SubjectID != in.ObjectID || stored.Revision != in.ApprovalRevision {
 		return CustomerMutation{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
 	}
-	id, err := s.current.GetCustomerIdentity(ctx, tx, in.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, in.ObjectID)
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
@@ -196,7 +188,7 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 	if err != nil || p.Entry().SubjectID != in.ObjectID {
 		return CustomerMutation{}, translateError(err)
 	}
-	id, err := s.current.GetCustomerIdentity(ctx, tx, in.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, in.ObjectID)
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
@@ -206,14 +198,14 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-			_, err = s.current.ValidateApprovedSnapshotReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID, stored.OperatingEntityApprovalEntryID)
+			_, err = s.rules.ValidateHistoricalReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID, stored.OperatingEntityApprovalEntryID)
 		}
 		if err != nil {
 			return CustomerMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureCustomerUnapproveAllowed(ctx, tx, in.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureCustomerUnapproveAllowed(ctx, tx, in.ApprovalEntryID); err != nil {
 			return CustomerMutation{}, translateError(err)
 		}
 	}
@@ -221,33 +213,10 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	result, enabled := id, stored.Enabled
-	if action == approval.ActionApproved {
-		result, err = s.current.ApplyCustomerCurrent(ctx, tx, id, entry.ID, stored.Enabled, actor.ID())
-	} else if action == approval.ActionUnapproved {
-		latest, lookup := s.queries.WithTx(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: id.ObjectID})
-		if errors.Is(lookup, pgx.ErrNoRows) {
-			result, err = s.current.RemoveCustomerCurrent(ctx, tx, id, actor.ID())
-			enabled = false
-		} else if lookup != nil {
-			err = lookup
-		} else {
-			prior, readErr := s.queries.WithTx(tx).GetDCLCustomerVersion(ctx, latest.ID)
-			if readErr != nil {
-				err = readErr
-			} else {
-				result, err = s.current.ApplyCustomerCurrent(ctx, tx, id, latest.ID, prior.Enabled, actor.ID())
-				enabled = prior.Enabled
-			}
-		}
-	}
-	if err != nil {
-		return CustomerMutation{}, translateError(err)
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	return customerMutation(result, enabled, entry), nil
+	return customerMutation(id, stored.Enabled, entry), nil
 }
 
 func (s *CustomerService) Delete(ctx context.Context, in CustomerDeleteInput, actor approval.Actor) error {
@@ -262,7 +231,7 @@ func (s *CustomerService) Delete(ctx context.Context, in CustomerDeleteInput, ac
 	if err = s.coordinator.LockVersionSubject(ctx, tx, in.ObjectID); err != nil {
 		return translateError(err)
 	}
-	id, err := s.current.GetCustomerIdentity(ctx, tx, in.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, in.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
@@ -293,11 +262,11 @@ func (s *CustomerService) Delete(ctx context.Context, in CustomerDeleteInput, ac
 	}
 	_, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: in.ObjectID})
 	if errors.Is(latestErr, pgx.ErrNoRows) {
-		if n, e := q.DeleteDCLSubject(ctx, dbsqlc.DeleteDCLSubjectParams{ID: in.ObjectID, Entity: EntityCustomer}); e != nil || n != 1 {
+		if n, e := q.DeleteDCLCustomerRelationship(ctx, in.ObjectID); e != nil || n != 1 {
 			return translateError(e)
 		}
-		if err = s.current.DeleteCustomerIdentity(ctx, tx, in.ObjectID, id.ObjectRevision); err != nil {
-			return translateError(err)
+		if n, e := q.DeleteDCLSubject(ctx, dbsqlc.DeleteDCLSubjectParams{ID: in.ObjectID, Entity: EntityCustomer}); e != nil || n != 1 {
+			return translateError(e)
 		}
 	} else if latestErr != nil {
 		return translateError(latestErr)

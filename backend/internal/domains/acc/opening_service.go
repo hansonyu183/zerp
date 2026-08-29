@@ -139,7 +139,7 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 			return OpeningView{}, databaseError("accounting opening line cannot be saved", err)
 		}
 	}
-	if err = saveOpeningRegisters(ctx, qtx, input); err != nil {
+	if err = s.saveOpeningRegisters(ctx, tx, qtx, input); err != nil {
 		return OpeningView{}, err
 	}
 	payload := accapproval.Payload{BookID: input.BookID}
@@ -368,7 +368,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 				ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, VoucherLineID: lineID,
 				SubjectID: line.subjectID, ProductID: line.dimensions[DimensionProduct], WarehouseID: line.dimensions[DimensionWarehouse],
 				ProductApprovalEntryID: product.ProductApprovalEntryID,
-				ProductCode:            product.ProductCode, ProductName: product.ProductName,
+				ProductCode:            *product.ProductCode, ProductName: product.ProductName,
 				BusinessDate: pgtype.Date{Time: startDate, Valid: true}, QuantityDeltaMicros: *line.quantityMicros, SourceLineID: line.id,
 				CostCounterpartDimensions: []byte(`{}`),
 			}); err != nil {

@@ -5,7 +5,6 @@
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 export type DclRelationshipMutation = {
   objectId: string;
-  objectRevision: number;
   partyId: string;
   enabled: boolean;
   approval: ApprovalVersionMeta;

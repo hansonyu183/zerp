@@ -19,13 +19,13 @@
 
 1. 页面按统一 Approval 动作显示 `submit|unsubmit|reject|approve|unapprove`，驳回与反批要求非空原因。
 2. 已批准版本通过 `create-next` 创建唯一候选；版本历史和审计分别调用 DCL `versions` 与 `audit-history`，历史详情始终显示当时冻结的脚本和编译图。
-3. 只有存在 latest APPROVED 时才能启用；启停携带 stable definition revision，不改变版本 payload。
+3. 只有存在 latest APPROVED 时才能启用；启停携带该 entry 的 `approvalEntryId` 与 `approvalRevision`，不改变版本 payload。
 4. 批准、反批和回落的原子性、实例钉住及 blocker 以领域规则为准，页面不推导当前版本或自动解除引用。
 
 ## 4. 异常分支
 
 1. 编译失败、缺少有效试运行、试运行 revision 过期或根单据类型不匹配时，保留编辑上下文并展示稳定 `errorKey` 与 `requestId`。
-2. Approval revision 或 stable definition revision 冲突时重新读取服务端状态，不覆盖候选。
+2. Approval revision 冲突时重新读取服务端状态，不覆盖候选。
 3. 任一持久化实例引用目标 `approvalEntryId` 时，反批展示结构化实例 blocker，不提供强制反批或自动迁移。
 4. 非 DRAFT 保存或删除、非最新批准反批、无已批准版本启用均由服务端拒绝。
 

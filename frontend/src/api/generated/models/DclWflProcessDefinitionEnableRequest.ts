@@ -4,5 +4,6 @@
 /* eslint-disable */
 export type DclWflProcessDefinitionEnableRequest = {
   code: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
 };

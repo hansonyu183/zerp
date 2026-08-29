@@ -395,10 +395,10 @@ describe('permission menu registry', () => {
       '其他单位',
       '销售合作方',
       '员工',
-      '产品（当前档案）',
+      '产品（当前有效资料）',
       '仓库',
       '车辆',
-      '资金账户（当前档案）',
+      '资金账户（当前有效资料）',
       '经营主体',
     ]
     const router = createTestRouter()
@@ -420,7 +420,7 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
-  it('为 DCL 申报和 BOB 当前档案注册独立产品、经营主体、仓库与车辆入口', () => {
+  it('为 DCL 申报和 BOB 当前有效资料注册独立产品、经营主体、仓库与车辆入口', () => {
     const router = createTestRouter()
     const menus = buildMenus([
       '/dcl/operating-entity/query',
@@ -472,7 +472,7 @@ describe('permission menu registry', () => {
       children: [
         {
           entity: 'product',
-          title: '产品（当前档案）',
+          title: '产品（当前有效资料）',
           actions: ['query', 'get'],
         },
         {
@@ -539,7 +539,7 @@ describe('permission menu registry', () => {
     })
     expect(router.resolve('/bob/product').meta).toMatchObject({
       developing: false,
-      title: '产品（当前档案）',
+      title: '产品（当前有效资料）',
       actions: ['query', 'get'],
     })
 

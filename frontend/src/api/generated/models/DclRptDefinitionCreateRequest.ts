@@ -6,5 +6,6 @@ import type { RptVersionData } from './RptVersionData';
 export type DclRptDefinitionCreateRequest = {
   name: string;
   description?: string;
+  enabled: boolean;
   data: RptVersionData;
 };

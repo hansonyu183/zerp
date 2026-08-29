@@ -137,11 +137,14 @@ export function createNextDclWflProcessDefinitionVersion(
 }
 
 export function setDclWflProcessDefinitionEnabled(
-  code: string,
-  revision: number,
+  definition: DclWflProcessDefinition,
   enabled: boolean,
 ) {
-  const input = { code, revision }
+  const input = {
+    code: definition.code,
+    approvalEntryId: definition.approval.approvalEntryId,
+    approvalRevision: definition.approval.revision,
+  }
   return enabled
     ? apiClient.postContract('dcl/wfl-process-definition/enable', input)
     : apiClient.postContract('dcl/wfl-process-definition/disable', input)

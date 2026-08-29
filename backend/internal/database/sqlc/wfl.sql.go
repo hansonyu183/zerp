@@ -53,7 +53,7 @@ type CountCurrentWorkflowDefinitionsParams struct {
 }
 
 // Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
-// approval_entries; this table owns only identity, enabled and object revision.
+// approval_entries; this table owns only identity and the runtime enabled switch.
 func (q *Queries) CountCurrentWorkflowDefinitions(ctx context.Context, arg CountCurrentWorkflowDefinitionsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countCurrentWorkflowDefinitions, arg.EnabledFilter, arg.Keyword)
 	var count int64
@@ -524,7 +524,7 @@ func (q *Queries) ListCompletedWorkflowActionTargets(ctx context.Context, proces
 
 const listCurrentWorkflowDefinitions = `-- name: ListCurrentWorkflowDefinitions :many
 SELECT definition.id AS definition_id,definition.code,definition.enabled,
-       definition.revision AS object_revision,approval.id AS approval_entry_id,
+       approval.id AS approval_entry_id,
        version.compiled,approval.updated_at
 FROM wfl_process_definitions definition
 JOIN LATERAL (
@@ -554,7 +554,6 @@ type ListCurrentWorkflowDefinitionsRow struct {
 	DefinitionID    string             `db:"definition_id" json:"definition_id"`
 	Code            string             `db:"code" json:"code"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
 	Compiled        []byte             `db:"compiled" json:"compiled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -578,7 +577,6 @@ func (q *Queries) ListCurrentWorkflowDefinitions(ctx context.Context, arg ListCu
 			&i.DefinitionID,
 			&i.Code,
 			&i.Enabled,
-			&i.ObjectRevision,
 			&i.ApprovalEntryID,
 			&i.Compiled,
 			&i.UpdatedAt,

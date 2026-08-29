@@ -81,7 +81,7 @@ ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、�
 
 ## 文档
 
-版本化申报统一从 DCL 写入：中央 Approval 只提供版本头、状态与审计，BOB/ACC/RPT/WFL 只保留 current 或运行时读取，AUX 使用无审批的 Stable-ID Direct CRUD；权威边界见 [ADR-0046](docs/adr/0046-dcl-is-the-only-approval-version-writer.md)。
+版本化申报统一从 DCL 写入：DCL subject 保存 stable ID、code 与创建审计，中央 Approval 只提供版本头、状态与审计；BOB 只读 typed latest-approved snapshot，RPT 只拥有有效性、执行与运行审计，WFL 保留既有 current 开关，AUX 使用无审批的 Stable-ID Direct CRUD；权威边界见 [ADR-0047](docs/adr/0047-dcl-subject-is-the-stable-identity-authority.md)。
 
 - [共享术语与权威链接](CONTEXT.md)
 - [Approval：中央审批与版本](docs/domains/approval.md)

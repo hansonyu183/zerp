@@ -14,7 +14,6 @@ export type DclCustomerListItem = {
   operatingEntityId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclCustomerVersionView | null;
   openVersion: DclCustomerVersionView | null;

@@ -79,7 +79,7 @@ void vm.query()
     width="720"
   >
     <v-card v-if="vm.currentView" flat>
-      <v-card-title>客户结算子账户（当前档案）</v-card-title>
+      <v-card-title>客户结算子账户（当前有效资料）</v-card-title>
       <v-list density="compact">
         <v-list-item title="编码" :subtitle="vm.currentView.code" />
         <v-list-item title="账户名称" :subtitle="vm.currentView.data.name" />

@@ -410,7 +410,7 @@ func (s *Service) prepareProductionOutput(
 				ErrorValidation, "self production requires product only", nil, nil,
 			)
 		}
-		productRef, resolveErr := s.resolver.ResolveLatestApprovedReference(
+		productRef, resolveErr := s.resolver.ResolveCurrentReference(
 			ctx, tx, bobdomain.EntityProduct, input.Product.ObjectID,
 		)
 		if resolveErr != nil {
@@ -462,7 +462,7 @@ func (s *Service) prepareProductionOutput(
 		if err = validateProductReference(materialInput.ActualMaterial); err != nil {
 			return fixedProductionOutput{}, err
 		}
-		actualRef, resolveErr := s.resolver.ResolveLatestApprovedReference(
+		actualRef, resolveErr := s.resolver.ResolveCurrentReference(
 			ctx, tx, bobdomain.EntityProduct, materialInput.ActualMaterial.ObjectID,
 		)
 		if resolveErr != nil {
@@ -631,7 +631,7 @@ func (s *Service) refreshProductionFormulaMaterials(
 	ctx context.Context, tx pgx.Tx, formula *productionFormula,
 ) error {
 	for index := range formula.Components {
-		material, err := s.resolver.ResolveLatestApprovedReference(
+		material, err := s.resolver.ResolveCurrentReference(
 			ctx,
 			tx,
 			bobdomain.EntityProduct,

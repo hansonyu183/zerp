@@ -2,7 +2,7 @@ import { defineBobEntityConfig, textarea } from '../shared/config-helpers'
 
 export const salesPartnerConfig = defineBobEntityConfig({
   entity: 'sales-partner',
-  title: '销售合作方（当前档案）',
+  title: '销售合作方（当前有效资料）',
   codeLabel: '销售合作方编码',
   nameLabel: '主体名称',
   defaults: {

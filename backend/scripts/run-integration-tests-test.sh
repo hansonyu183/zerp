@@ -16,16 +16,11 @@ done
 printf '%s\n' '-- schema' >"${fixture}/db/schema.sql"
 printf '%s\n' '-- historical pre-issue-289 fixture' >"${fixture}/db/fixtures/cutovers/historical-pre-issue-289.sql"
 printf '%s\n' '-- pre-issue-305 fixture' >"${fixture}/db/fixtures/cutovers/pre-issue-305.sql"
-for issue in 289-aux-snapshots 290-aux-direct-crud 291-dcl-acc-mapping 292-dcl-rpt-definition 293-dcl-wfl-process-definition; do
+for issue in 289-aux-snapshots 290-aux-direct-crud 291-dcl-acc-mapping 292-dcl-rpt-definition 293-dcl-wfl-process-definition 305-dcl-subject-core-masters 308-dcl-party-relationships 309-dcl-reference-and-rpt-ownership 310-read-contract 311-final-cutover; do
   printf '%s\n' "-- issue-${issue}" >"${fixture}/db/cutovers/issue-${issue}.sql"
 done
 git -C "${fixture}" init -b main >/dev/null
 git -C "${fixture}" add .
-
-if grep -Eq 'git show|d505c567' "${script_dir}/run-integration-tests.sh"; then
-  echo 'integration runner still depends on a historical Git object' >&2
-  exit 1
-fi
 
 cat >"${tmp}/bin/docker" <<'EOF'
 #!/bin/sh
@@ -48,6 +43,22 @@ case "${input}" in
     printf '%s\n' "${count}" >"${count_file}"
     case "${count}" in 1|3) exit 1 ;; esac
     ;;
+  *issue-305-dcl-subject-core-masters*)
+    count_file="${MOCK_DOCKER_STATE}.issue-305"
+    count=0
+    [ ! -f "${count_file}" ] || count=$(cat "${count_file}")
+    count=$((count + 1))
+    printf '%s\n' "${count}" >"${count_file}"
+    [ "${count}" -ne 1 ] || exit 1
+    ;;
+  *issue-311-final-cutover*)
+    count_file="${MOCK_DOCKER_STATE}.issue-311"
+    count=0
+    [ ! -f "${count_file}" ] || count=$(cat "${count_file}")
+    count=$((count + 1))
+    printf '%s\n' "${count}" >"${count_file}"
+    [ "${count}" -ne 1 ] || exit 1
+    ;;
 esac
 EOF
 chmod +x "${tmp}/bin/docker"
@@ -68,7 +79,8 @@ EOF
 chmod +x "${tmp}/bin/go"
 
 run_runner() {
-  rm -f "${tmp}/docker-state.issue-289" "${tmp}/docker-state.issue-290"
+  rm -f "${tmp}/docker-state.issue-289" "${tmp}/docker-state.issue-290" \
+    "${tmp}/docker-state.issue-305" "${tmp}/docker-state.issue-311"
   (
     cd "${fixture}"
     PATH="${tmp}/bin:${PATH}" \
@@ -89,6 +101,7 @@ if run_runner; then
   echo 'integration runner accepted a failed package' >&2
   exit 1
 fi
+test "$(cat "${tmp}/docker-state.issue-311")" = 2
 test "$(LC_ALL=C sort -u "${tmp}/runs" | wc -l | tr -d ' ')" = 4
 jq -e '
   .version == 1 and .status == "failed" and (.packages | length == 4) and
@@ -100,6 +113,7 @@ printf 'internal/c\ninternal/d\n' >"${tmp}/selection"
 : >"${tmp}/runs"
 unset MOCK_INTEGRATION_FAIL_PACKAGE
 TEST_INTEGRATION_PACKAGES_FILE="${tmp}/selection" run_runner
+test "$(cat "${tmp}/docker-state.issue-311")" = 2
 printf 'internal/c\ninternal/d\n' >"${tmp}/expected-runs"
 LC_ALL=C sort "${tmp}/runs" >"${tmp}/actual-runs"
 cmp -s "${tmp}/expected-runs" "${tmp}/actual-runs"

@@ -9,7 +9,6 @@ export type BobListItem = {
   objectId: string;
   entity: BobEntity;
   code: string;
-  objectRevision: number;
   enabled: boolean;
   sourceApprovalEntryId: string;
   sourceVersionNo: number;

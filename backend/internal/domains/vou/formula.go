@@ -105,7 +105,7 @@ func (s *Service) refreshFormulaMaterials(
 	ctx context.Context, tx pgx.Tx, formula *FormulaView,
 ) error {
 	for index := range formula.Components {
-		material, err := s.resolver.ResolveLatestApprovedReference(
+		material, err := s.resolver.ResolveCurrentReference(
 			ctx,
 			tx,
 			bobdomain.EntityProduct,

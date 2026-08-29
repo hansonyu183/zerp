@@ -155,6 +155,56 @@ func TestDclWflProcessDefinitionCreateDefaultsDisabledIntegration(t *testing.T) 
 	}
 }
 
+func TestDclWflProcessDefinitionEnabledUsesLatestApprovalTokenAndLastCommandWinsIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetWflProcessDefinitionIntegrationData(t, pool)
+	service := NewWflProcessDefinitionService(pool, wflIntegrationCompiler{}, authorization.Func(nil), txevent.NewBus())
+	created, err := service.Create(t.Context(), WflProcessDefinitionCreateInput{Script: wflValidScript("test-enabled-token")},
+		dclActor(t, wflDefinitionCreatorID, "dcl-wfl-create-enabled-token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	approved := approveWflProcessDefinition(t, service, created)
+	token := WflProcessDefinitionEnableInput{
+		Code: approved.Code, ApprovalEntryID: approved.Approval.ApprovalEntryID,
+		ApprovalRevision: approved.Approval.Revision,
+	}
+	enabled, err := service.Enable(t.Context(), token, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-enable-token"))
+	if err != nil || !enabled.Enabled {
+		t.Fatalf("enable = %+v, err=%v", enabled, err)
+	}
+
+	stale := token
+	stale.ApprovalRevision--
+	if _, err = service.Disable(t.Context(), stale, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-disable-stale")); err == nil {
+		t.Fatal("expected stale Approval revision to be rejected")
+	}
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.ErrorKey != "approval_stale_revision" {
+		t.Fatalf("stale disable error = %v", err)
+	}
+
+	disabled, err := service.Disable(t.Context(), token, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-disable-token"))
+	if err != nil || disabled.Enabled {
+		t.Fatalf("disable = %+v, err=%v", disabled, err)
+	}
+
+	// The stable switch deliberately has no independent revision. Commands for
+	// the same latest approved identity serialize under the subject lock, and
+	// the last successful command determines the state.
+	reenabled, err := service.Enable(t.Context(), token, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-reenable-token"))
+	if err != nil || !reenabled.Enabled {
+		t.Fatalf("reenable = %+v, err=%v", reenabled, err)
+	}
+	var finalEnabled bool
+	if err := pool.QueryRow(t.Context(), `SELECT enabled FROM wfl_process_definitions WHERE id=$1`, approved.DefinitionID).Scan(&finalEnabled); err != nil {
+		t.Fatal(err)
+	}
+	if !finalEnabled {
+		t.Fatal("last successful enable command should determine the stable switch state")
+	}
+}
+
 func TestDclWflProcessDefinitionInvalidScriptCreateFailsIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetWflProcessDefinitionIntegrationData(t, pool)

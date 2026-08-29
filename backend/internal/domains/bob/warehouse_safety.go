@@ -40,7 +40,7 @@ func (s *Service) warehouseDisableBlockers(ctx context.Context, q *dbsqlc.Querie
 		return result, s.internal("list warehouse inventory blockers", err)
 	}
 	for _, row := range inventory {
-		result.Inventory = append(result.Inventory, WarehouseInventoryConflict{ProductObjectID: row.ProductID, ProductCode: row.ProductCode,
+		result.Inventory = append(result.Inventory, WarehouseInventoryConflict{ProductObjectID: row.ProductID, ProductCode: stringValue(row.ProductCode),
 			ProductName: row.ProductName, Quantity: formatMicros(row.QuantityMicros)})
 	}
 	inProgress, err := q.ListWarehouseDisableInProgressDocuments(ctx, warehouseID)

@@ -9,7 +9,6 @@ export type DclRptDefinitionListItem = {
   name: string;
   description: string;
   enabled: boolean;
-  revision: number;
   latestApproved: DclRptDefinitionVersionSummary | null;
   openVersion: DclRptDefinitionVersionSummary | null;
 };

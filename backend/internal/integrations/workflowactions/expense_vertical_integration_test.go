@@ -197,7 +197,7 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
 	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool))
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	operating := approveWorkflowReference(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "流程经营主体", TaxNumber: "TAX" + suffix,
@@ -249,7 +249,8 @@ workflow(code="` + code + `", name="费用付款纵切", root=root, edges=[
 		t.Fatalf("approve workflow definition: %v", err)
 	}
 	enabled, err := dclWflService.Enable(t.Context(), dcldomain.WflProcessDefinitionEnableInput{
-		Code: approvedDef.Code, Revision: approvedDef.Revision,
+		Code: approvedDef.Code, ApprovalEntryID: approvedDef.Approval.ApprovalEntryID,
+		ApprovalRevision: approvedDef.Approval.Revision,
 	}, definitionActor)
 	if err != nil {
 		t.Fatalf("enable workflow definition: %v", err)

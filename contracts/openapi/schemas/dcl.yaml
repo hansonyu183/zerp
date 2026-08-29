@@ -131,12 +131,11 @@
   'DclOperatingEntityMutation':
     {
       'type': 'object',
-      'required': ['objectId', 'objectRevision', 'enabled', 'approval'],
+      'required': ['objectId', 'enabled', 'approval'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
         },
@@ -149,7 +148,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'approval',
           'data',
@@ -161,7 +159,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['operating-entity'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclOperatingEntityData' },
@@ -188,7 +185,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -200,7 +196,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['operating-entity'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -484,7 +479,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'approval',
           'data',
@@ -496,7 +490,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['warehouse'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclWarehouseData' },
@@ -523,7 +516,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -535,7 +527,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['warehouse'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -765,7 +756,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'approval',
           'data',
@@ -777,7 +767,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['vehicle'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclVehicleData' },
@@ -804,7 +793,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -816,7 +804,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['vehicle'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -996,7 +983,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'approval',
           'data',
@@ -1008,7 +994,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['fund-account'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclFundAccountData' },
@@ -1035,7 +1020,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -1047,7 +1031,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['fund-account'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -1176,6 +1159,85 @@
     },
   'DclFundAccountAuditHistoryResponse':
     { '$ref': '#/DclWarehouseAuditHistoryResponse' },
+  'DclMeasurementUnitReferenceInput':
+    {
+      'type': 'object',
+      'required': ['objectId'],
+      'additionalProperties': false,
+      'properties': { 'objectId': { 'type': 'string' } },
+    },
+  'DclProductUnitConversionInput':
+    {
+      'type': 'object',
+      'required': ['unit', 'factor'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { '$ref': '#/DclMeasurementUnitReferenceInput' },
+          'factor':
+            {
+              'type': 'string',
+              'pattern': '^(?:0*[1-9][0-9]*|0*\.[0-9]*[1-9][0-9]*)$',
+            },
+        },
+    },
+  'DclProductQuantityInput':
+    {
+      'type': 'object',
+      'required': ['enteredQuantity', 'enteredUnit', 'baseQuantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/DclMeasurementUnitReferenceInput' },
+          'baseQuantity': { 'type': 'string' },
+        },
+    },
+  'DclProductFormulaComponentInput':
+    {
+      'type': 'object',
+      'required': ['material', 'quantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'material':
+            {
+              'type': 'object',
+              'required': ['objectId', 'approvalEntryId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
+                },
+            },
+          'quantity': { '$ref': '#/DclProductQuantityInput' },
+          'resolutionStatus':
+            {
+              'type': 'string',
+              'enum': ['CURRENT', 'UNRESOLVED'],
+              'nullable': true,
+            },
+          'requiresConfirmation': { 'type': 'boolean', 'nullable': true },
+        },
+    },
+  'DclProductFormulaInput':
+    {
+      'type': 'object',
+      'required': ['output', 'components'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'output': { '$ref': '#/DclProductQuantityInput' },
+          'components':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 200,
+              'items': { '$ref': '#/DclProductFormulaComponentInput' },
+            },
+        },
+    },
   'DclProductInput':
     {
       'type': 'object',
@@ -1210,14 +1272,14 @@
           'unitConversions':
             {
               'type': 'array',
-              'items': { '$ref': './bob.yaml#/BobProductUnitConversionInput' },
+              'items': { '$ref': '#/DclProductUnitConversionInput' },
             },
           'returnable': { 'type': 'boolean' },
           'defaultPackagingSpec': { 'type': 'string', 'nullable': true },
           'formula':
             {
               'type': 'object',
-              'allOf': [{ '$ref': './bob.yaml#/BobProductFormulaInput' }],
+              'allOf': [{ '$ref': '#/DclProductFormulaInput' }],
               'nullable': true,
             },
         },
@@ -1329,8 +1391,7 @@
           'unitConversions':
             {
               'type': 'array',
-              'items':
-                { '$ref': './bob.yaml#/BobProductUnitConversionSnapshot' },
+              'items': { '$ref': './bob.yaml#/BobProductUnitConversion' },
             },
           'returnable': { 'type': 'boolean' },
           'defaultPackagingSpec': { 'type': 'string', 'nullable': true },
@@ -1422,7 +1483,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'approval',
           'data',
@@ -1434,7 +1494,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['product'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclProductData' },
@@ -1461,7 +1520,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -1473,7 +1531,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['product'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -1742,7 +1799,6 @@
           'operatingEntityId',
           'operatingEntityCode',
           'operatingEntityName',
-          'objectRevision',
           'enabled',
           'approval',
           'data',
@@ -1761,7 +1817,6 @@
           'operatingEntityApprovalEntryId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclEmployeeData' },
@@ -1794,7 +1849,6 @@
           'operatingEntityId',
           'operatingEntityCode',
           'operatingEntityName',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -1812,7 +1866,6 @@
           'operatingEntityId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -2425,7 +2478,6 @@
           'operatingEntityApprovalEntryId',
           'operatingEntityCode',
           'operatingEntityName',
-          'objectRevision',
           'enabled',
           'approval',
           'attachments',
@@ -2444,7 +2496,6 @@
           'operatingEntityApprovalEntryId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'attachments':
@@ -2464,7 +2515,6 @@
           'entity',
           'code',
           'customerRelationshipId',
-          'objectRevision',
           'enabled',
           'approval',
           'data',
@@ -2478,7 +2528,6 @@
           'entity': { 'type': 'string', 'enum': ['customer-account'] },
           'code': { 'type': 'string' },
           'customerRelationshipId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclCustomerAccountData' },
@@ -2537,7 +2586,6 @@
           'operatingEntityId',
           'operatingEntityCode',
           'operatingEntityName',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -2555,7 +2603,6 @@
           'operatingEntityId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -2581,7 +2628,6 @@
           'entity',
           'code',
           'customerRelationshipId',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -2594,7 +2640,6 @@
           'entity': { 'type': 'string', 'enum': ['customer-account'] },
           'code': { 'type': 'string' },
           'customerRelationshipId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -3086,7 +3131,6 @@
           'operatingEntityApprovalEntryId',
           'operatingEntityCode',
           'operatingEntityName',
-          'objectRevision',
           'enabled',
           'approval',
           'data',
@@ -3105,7 +3149,6 @@
           'operatingEntityApprovalEntryId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclSupplierData' },
@@ -3138,7 +3181,6 @@
           'operatingEntityId',
           'operatingEntityCode',
           'operatingEntityName',
-          'objectRevision',
           'enabled',
           'latestApproved',
           'openVersion',
@@ -3156,7 +3198,6 @@
           'operatingEntityId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'latestApproved':
             {
@@ -3335,13 +3376,11 @@
   'DclRelationshipMutation':
     {
       'type': 'object',
-      'required':
-        ['objectId', 'objectRevision', 'partyId', 'enabled', 'approval'],
+      'required': ['objectId', 'partyId', 'enabled', 'approval'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'partyId': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
@@ -3374,7 +3413,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'partyId',
           'partyKind',
           'partyDisplayName',
@@ -3389,7 +3427,6 @@
           'entity':
             { 'type': 'string', 'enum': ['other-unit', 'sales-partner'] },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'partyId': { 'type': 'string' },
           'partyKind': { '$ref': './bob.yaml#/PartyKind' },
           'partyDisplayName': { 'type': 'string' },

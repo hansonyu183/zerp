@@ -3,11 +3,9 @@ package bob
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -21,19 +19,6 @@ type OperatingEntityData struct {
 	Address   string `json:"address,omitempty"`
 	Phone     string `json:"phone,omitempty"`
 	Remark    string `json:"remark,omitempty"`
-}
-
-type OperatingEntityIdentity struct {
-	ObjectID       string
-	Code           string
-	ObjectRevision int64
-}
-
-type OperatingEntityCurrent struct {
-	OperatingEntityIdentity
-	SourceApprovalEntryID string
-	Enabled               bool
-	Data                  OperatingEntityData
 }
 
 func ValidateOperatingEntityData(input OperatingEntityData) (OperatingEntityData, error) {
@@ -52,116 +37,8 @@ func ValidateOperatingEntityData(input OperatingEntityData) (OperatingEntityData
 	}, nil
 }
 
-func (s *Service) ReserveOperatingEntityIdentity(ctx context.Context, tx pgx.Tx, actorID string) (OperatingEntityIdentity, error) {
-	if tx == nil || !validID(actorID) {
-		return OperatingEntityIdentity{}, domainError(ErrorValidation, "invalid operating entity identity request", nil, nil)
-	}
-	q := s.queries.WithTx(tx)
-	counter, err := q.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityOperatingEntity})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return OperatingEntityIdentity{}, domainError(ErrorConflict, "object number exhausted", nil, nil)
-	}
-	if err != nil {
-		return OperatingEntityIdentity{}, s.writeError("allocate operating entity number", err)
-	}
-	identity := OperatingEntityIdentity{ObjectID: newID(), Code: fmt.Sprintf("OPE-%04d", counter), ObjectRevision: 1}
-	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{
-		ID: identity.ObjectID, Entity: EntityOperatingEntity, Code: identity.Code, ActorID: actorID,
-	}); err != nil {
-		return OperatingEntityIdentity{}, s.writeError("reserve operating entity identity", err)
-	}
-	return identity, nil
-}
-
-func (s *Service) GetOperatingEntityIdentity(ctx context.Context, tx pgx.Tx, objectID string) (OperatingEntityIdentity, error) {
-	if tx == nil || !validID(objectID) {
-		return OperatingEntityIdentity{}, domainError(ErrorValidation, "invalid operating entity identity request", nil, nil)
-	}
-	row, err := s.queries.WithTx(tx).LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: objectID, Entity: EntityOperatingEntity})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return OperatingEntityIdentity{}, domainError(ErrorValidation, "operating entity not found", nil, nil)
-	}
-	if err != nil {
-		return OperatingEntityIdentity{}, s.internal("lock operating entity identity", err)
-	}
-	return OperatingEntityIdentity{ObjectID: row.ID, Code: row.Code, ObjectRevision: row.Revision}, nil
-}
-
-func (s *Service) ApplyOperatingEntityCurrent(
-	ctx context.Context,
-	tx pgx.Tx,
-	objectID string,
-	approvalEntryID string,
-	enabled bool,
-	data OperatingEntityData,
-	actorID string,
-) (OperatingEntityCurrent, error) {
-	if tx == nil || !validID(objectID) || !validID(approvalEntryID) || !validID(actorID) {
-		return OperatingEntityCurrent{}, domainError(ErrorValidation, "invalid operating entity current apply", nil, nil)
-	}
-	validated, err := ValidateOperatingEntityData(data)
-	if err != nil {
-		return OperatingEntityCurrent{}, err
-	}
-	q := s.queries.WithTx(tx)
-	if err = q.UpsertBobOperatingEntityCurrent(ctx, dbsqlc.UpsertBobOperatingEntityCurrentParams{
-		ObjectID: objectID, SourceApprovalEntryID: approvalEntryID, LegalName: validated.Name,
-		ShortName: nilIfEmpty(validated.ShortName), TaxNumber: nilIfEmpty(validated.TaxNumber),
-		Address: nilIfEmpty(validated.Address), Phone: nilIfEmpty(validated.Phone), Remark: nilIfEmpty(validated.Remark),
-		Enabled: enabled, ActorID: actorID,
-	}); err != nil {
-		return OperatingEntityCurrent{}, s.writeError("apply operating entity current data", err)
-	}
-	object, err := q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: objectID, Entity: EntityOperatingEntity})
-	if err != nil {
-		return OperatingEntityCurrent{}, s.writeError("touch operating entity current data", err)
-	}
-	return OperatingEntityCurrent{
-		OperatingEntityIdentity: OperatingEntityIdentity{ObjectID: object.ID, Code: object.Code, ObjectRevision: object.Revision},
-		SourceApprovalEntryID:   approvalEntryID, Enabled: enabled, Data: validated,
-	}, nil
-}
-
-func (s *Service) RemoveOperatingEntityCurrent(ctx context.Context, tx pgx.Tx, objectID, actorID string) (OperatingEntityIdentity, error) {
-	if tx == nil || !validID(objectID) || !validID(actorID) {
-		return OperatingEntityIdentity{}, domainError(ErrorValidation, "invalid operating entity current removal", nil, nil)
-	}
-	q := s.queries.WithTx(tx)
-	rows, err := q.DeleteBobOperatingEntityCurrent(ctx, objectID)
-	if err != nil {
-		return OperatingEntityIdentity{}, s.writeError("remove operating entity current data", err)
-	}
-	if rows != 1 {
-		return OperatingEntityIdentity{}, domainError(ErrorConflict, "operating entity current data changed", nil, nil)
-	}
-	object, err := q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: objectID, Entity: EntityOperatingEntity})
-	if err != nil {
-		return OperatingEntityIdentity{}, s.writeError("touch operating entity current removal", err)
-	}
-	return OperatingEntityIdentity{ObjectID: object.ID, Code: object.Code, ObjectRevision: object.Revision}, nil
-}
-
-func (s *Service) DeleteOperatingEntityIdentity(ctx context.Context, tx pgx.Tx, objectID string, objectRevision int64) error {
-	if tx == nil || !validID(objectID) || objectRevision < 1 {
-		return domainError(ErrorValidation, "invalid operating entity identity deletion", nil, nil)
-	}
-	rows, err := s.queries.WithTx(tx).DeleteBobObject(ctx, dbsqlc.DeleteBobObjectParams{
-		ObjectID: objectID, Entity: EntityOperatingEntity, ObjectRevision: objectRevision,
-	})
-	if err != nil {
-		return s.writeError("delete operating entity identity", err)
-	}
-	if rows != 1 {
-		return domainError(ErrorConflict, "operating entity identity changed", nil, nil)
-	}
-	return nil
-}
-
 func (s *Service) EnsureOperatingEntityUnapproveAllowed(ctx context.Context, tx pgx.Tx, approvalEntryID string) error {
-	if tx == nil || !validID(approvalEntryID) {
-		return domainError(ErrorValidation, "invalid operating entity unapprove request", nil, nil)
-	}
-	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), approvalEntryID)
+	return s.EnsureUnapproveAllowed(ctx, tx, approvalEntryID)
 }
 
 func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
@@ -184,8 +61,8 @@ func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput)
 		ApprovedBy: row.ApprovedBy, ApprovedAt: row.ApprovedAt,
 	}
 	return ObjectView{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
-		ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo),
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code),
+		Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo),
 		Data: DetailView{Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
 			Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark)},
 		UpdatedAt: row.UpdatedAt.Time,
@@ -241,8 +118,8 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 			return Page[QueryItem]{}, getErr
 		}
 		items = append(items, QueryItem{
-			ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
-			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID,
+			ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code),
+			Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID,
 			SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
@@ -255,16 +132,11 @@ func (s *Service) validateOperatingEntitySnapshotReference(
 	objectID string,
 	approvalEntryID string,
 ) (EffectiveReference, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{
-		ID: approvalEntryID, Domain: "dcl", Entity: EntityOperatingEntity,
-	})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (entry.SubjectID != objectID || entry.Status != string(approval.StatusApproved))) {
-		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
-	}
+	entry, err := s.requireHistoricalApprovalEntry(ctx, q, approvalEntryID, EntityOperatingEntity, objectID, "BOB approval snapshot is unavailable")
 	if err != nil {
-		return EffectiveReference{}, s.internal("validate DCL operating entity snapshot", err)
+		return EffectiveReference{}, err
 	}
-	identity, err := q.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: objectID, Entity: EntityOperatingEntity})
+	identity, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityOperatingEntity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
 	}
@@ -279,7 +151,7 @@ func (s *Service) validateOperatingEntitySnapshotReference(
 		return EffectiveReference{}, s.internal("load DCL operating entity snapshot", err)
 	}
 	return EffectiveReference{
-		ObjectID: identity.ID, Entity: identity.Entity, Code: identity.Code, ApprovalEntryID: entry.ID,
+		ObjectID: identity.ID, Entity: identity.Entity, Code: deref(identity.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo),
 		Data: DetailView{
 			Name: stored.LegalName, ShortName: deref(stored.ShortName), TaxNumber: deref(stored.TaxNumber),
 			Address: deref(stored.Address), Phone: deref(stored.Phone), Remark: deref(stored.Remark),
@@ -296,7 +168,7 @@ func (s *Service) resolveOperatingEntityCurrentReference(ctx context.Context, q 
 		return EffectiveReference{}, s.internal("resolve operating entity current reference", err)
 	}
 	return EffectiveReference{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID,
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code), ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo),
 		Data: DetailView{
 			Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
 			Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark),

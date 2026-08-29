@@ -3,7 +3,6 @@
 package dcl
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -308,7 +307,7 @@ func TestApprovedProductKeepsMeasurementUnitQuantityScaleSnapshotIntegration(t *
 	}
 }
 
-func newProductIntegrationServices(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus, current productCurrentWriter) (*bobdomain.Service, *ProductService) {
+func newProductIntegrationServices(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus, current productRules) (*bobdomain.Service, *ProductService) {
 	t.Helper()
 	authorizer := authorization.Func(nil)
 	auxiliary := auxdomain.NewService(pool)
@@ -384,36 +383,6 @@ func TestProductBarcodeClaimConflictAndHistoricalReleaseIntegration(t *testing.T
 	}
 }
 
-type failingProductCurrentWriter struct {
-	productCurrentWriter
-	failure error
-}
-
-func (w failingProductCurrentWriter) ApplyProductCurrent(ctx context.Context, tx pgx.Tx, objectID, entryID string, enabled bool, data bobdomain.DetailView, actorID string) (bobdomain.ProductCurrent, error) {
-	return bobdomain.ProductCurrent{}, w.failure
-}
-
-func TestProductCurrentProjectionFailureRollsBackApprovalAndCurrentIntegration(t *testing.T) {
-	pool := dclIntegrationPool(t)
-	resetDCLIntegrationData(t, pool)
-	ensureProductAuxiliaries(t, pool)
-	bus := txevent.NewBus()
-	business, service := newProductIntegrationServices(t, pool, bus, nil)
-	actorID := ulid.Make().String()
-	draft := mustCreateProduct(t, service, productData("回滚产品", productRawTypeID, nil), dclActor(t, actorID, "create"))
-	pending, err := service.Submit(t.Context(), ProductVersionInput{ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID, ApprovalRevision: draft.Approval.Revision}, dclActor(t, actorID, "submit"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	failure := errors.New("injected product projection failure")
-	failing := NewProductService(pool, failingProductCurrentWriter{productCurrentWriter: business, failure: failure}, authorization.Func(nil), bus)
-	if _, err = failing.Approve(t.Context(), ProductVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, dclActor(t, ulid.Make().String(), "approve")); !errors.Is(err, failure) {
-		t.Fatalf("approve err=%v", err)
-	}
-	assertApprovalState(t, pool, pending.Approval.ApprovalEntryID, approval.StatusPending, pending.Approval.Revision)
-	assertProductAbsent(t, business, pending.ObjectID)
-}
-
 func TestProductQueryFiltersProductTypeAndCategoryIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
@@ -459,21 +428,21 @@ func TestDisabledProductCurrentIsReadableButNotEffectiveReferenceIntegration(t *
 		t.Fatal(err)
 	}
 	defer tx.Rollback(t.Context())
-	if _, err = business.ResolveLatestApprovedReference(t.Context(), tx, bobdomain.EntityProduct, v1.ObjectID); err == nil {
+	if _, err = business.ResolveCurrentReference(t.Context(), tx, bobdomain.EntityProduct, v1.ObjectID); err == nil {
 		t.Fatal("disabled product resolved as effective reference")
 	}
 	_ = v2
 }
 
 func productData(name, productTypeID string, material *ProductMutation) ProductInput {
-	data := ProductInput{Name: name, ProductTypeID: productTypeID, DefaultInputUnitID: productTonUnitID, PricingUnitID: productKGUnitID, UnitConversions: []bobdomain.ProductUnitConversion{
-		{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: productKGUnitID}, Factor: "1"},
-		{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: productTonUnitID}, Factor: "1000"},
+	data := ProductInput{Name: name, ProductTypeID: productTypeID, DefaultInputUnitID: productTonUnitID, PricingUnitID: productKGUnitID, UnitConversions: []ProductUnitConversionInput{
+		{Unit: MeasurementUnitReferenceInput{ObjectID: productKGUnitID}, Factor: "1"},
+		{Unit: MeasurementUnitReferenceInput{ObjectID: productTonUnitID}, Factor: "1000"},
 	}, DefaultPackagingSpec: "10"}
 	if material != nil {
-		data.Formula = &bobdomain.ProductFormula{Output: bobdomain.QuantitySnapshot{EnteredQuantity: "100", EnteredUnit: bobdomain.MeasurementUnitSnapshot{ObjectID: productTonUnitID}, BaseQuantity: "100000"}, Components: []bobdomain.ProductFormulaComponent{{
-			Material:         bobdomain.FormulaMaterialReference{ObjectID: material.ObjectID},
-			Quantity:         bobdomain.QuantitySnapshot{EnteredQuantity: "25.5", EnteredUnit: bobdomain.MeasurementUnitSnapshot{ObjectID: productTonUnitID}, BaseQuantity: "25500"},
+		data.Formula = &ProductFormulaInput{Output: ProductQuantityInput{EnteredQuantity: "100", EnteredUnit: MeasurementUnitReferenceInput{ObjectID: productTonUnitID}, BaseQuantity: "100000"}, Components: []ProductFormulaComponentInput{{
+			Material:         ProductFormulaMaterialInput{ObjectID: material.ObjectID},
+			Quantity:         ProductQuantityInput{EnteredQuantity: "25.5", EnteredUnit: MeasurementUnitReferenceInput{ObjectID: productTonUnitID}, BaseQuantity: "25500"},
 			ResolutionStatus: "CURRENT",
 		}}}
 	}
@@ -491,10 +460,9 @@ func mustCreateProduct(t *testing.T, service *ProductService, data ProductInput,
 
 func productMutationFromView(view ProductView) ProductMutation {
 	return ProductMutation{
-		ObjectID:       view.ObjectID,
-		ObjectRevision: view.ObjectRevision,
-		Enabled:        view.Enabled,
-		Approval:       view.Approval,
+		ObjectID: view.ObjectID,
+		Enabled:  view.Enabled,
+		Approval: view.Approval,
 	}
 }
 

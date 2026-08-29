@@ -14,13 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type warehouseCurrentWriter interface {
-	ReserveWarehouseIdentity(context.Context, pgx.Tx, string) (bobdomain.WarehouseIdentity, error)
-	GetWarehouseIdentity(context.Context, pgx.Tx, string) (bobdomain.WarehouseIdentity, error)
+type warehouseRules interface {
 	ResolveWarehouseManager(context.Context, pgx.Tx, bobdomain.WarehouseData, bool) (bobdomain.WarehouseData, error)
-	ApplyWarehouseCurrent(context.Context, pgx.Tx, string, string, bool, bobdomain.WarehouseData, string) (bobdomain.WarehouseCurrent, error)
-	RemoveWarehouseCurrent(context.Context, pgx.Tx, string, string) (bobdomain.WarehouseIdentity, error)
-	DeleteWarehouseIdentity(context.Context, pgx.Tx, string, int64) error
 	EnsureWarehouseUnapproveAllowed(context.Context, pgx.Tx, string) error
 	EnsureWarehouseDisableAllowed(context.Context, pgx.Tx, string) (bobdomain.WarehouseDisableBlockers, error)
 }
@@ -28,19 +23,19 @@ type warehouseCurrentWriter interface {
 type WarehouseService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     warehouseCurrentWriter
+	rules       warehouseRules
 	coordinator *approval.Coordinator[dclapproval.WarehousePayload]
 }
 
-func NewWarehouseService(pool *pgxpool.Pool, current warehouseCurrentWriter, authorizer approval.Authorizer, bus *txevent.Bus) *WarehouseService {
-	if pool == nil || current == nil || authorizer == nil || bus == nil {
-		panic("dcl: persistence, BOB current writer, authorizer and event bus are required")
+func NewWarehouseService(pool *pgxpool.Pool, rules warehouseRules, authorizer approval.Authorizer, bus *txevent.Bus) *WarehouseService {
+	if pool == nil || rules == nil || authorizer == nil || bus == nil {
+		panic("dcl: persistence, business rules, authorizer and event bus are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityWarehouse, authorizer, bus, dclapproval.WarehouseTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &WarehouseService{pool: pool, queries: dbsqlc.New(pool), current: current, coordinator: c}
+	return &WarehouseService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
 }
 
 func warehouseDeclarationData(data WarehouseData) bobdomain.WarehouseData {
@@ -49,11 +44,11 @@ func warehouseDeclarationData(data WarehouseData) bobdomain.WarehouseData {
 func warehouseDCLData(data bobdomain.WarehouseData) WarehouseData {
 	return WarehouseData{Name: data.Name, Address: data.Address, ContactName: data.ContactName, ContactPhone: data.ContactPhone, ManagerEmployeeID: data.ManagerEmployeeID, Remark: data.Remark}
 }
-func warehousePayload(i bobdomain.WarehouseIdentity, enabled bool, data WarehouseData) dclapproval.WarehousePayload {
+func warehousePayload(i subjectIdentity, enabled bool, data WarehouseData) dclapproval.WarehousePayload {
 	return dclapproval.WarehousePayload{SubjectID: i.ObjectID, Code: i.Code, Enabled: enabled, Name: data.Name}
 }
-func warehouseMutation(i bobdomain.WarehouseIdentity, enabled bool, e approval.Entry) WarehouseMutation {
-	return WarehouseMutation{ObjectID: i.ObjectID, ObjectRevision: i.ObjectRevision, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+func warehouseMutation(i subjectIdentity, enabled bool, e approval.Entry) WarehouseMutation {
+	return WarehouseMutation{ObjectID: i.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 func warehouseInput(i WarehouseReviewInput) WarehouseVersionInput {
 	return WarehouseVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
@@ -87,16 +82,13 @@ func (s *WarehouseService) Create(ctx context.Context, input WarehouseCreateInpu
 		return WarehouseMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	id, err := s.current.ReserveWarehouseIdentity(ctx, tx, actor.ID())
+	id, err := reserveSubject(ctx, tx, EntityWarehouse, "WHS", actor.ID())
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	data, err = s.current.ResolveWarehouseManager(ctx, tx, data, false)
+	data, err = s.rules.ResolveWarehouseManager(ctx, tx, data, false)
 	if err != nil {
-		return WarehouseMutation{}, translateError(err)
-	}
-	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: id.ObjectID, Entity: EntityWarehouse, ActorID: actor.ID()}); err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
 	e, err := s.coordinator.CreateFirstVersion(ctx, tx, id.ObjectID, actor, warehousePayload(id, true, warehouseDCLData(data)))
@@ -136,7 +128,7 @@ func (s *WarehouseService) Save(ctx context.Context, input WarehouseSaveInput, a
 		}
 		return WarehouseMutation{}, translateError(err)
 	}
-	id, err := s.current.GetWarehouseIdentity(ctx, tx, input.ObjectID)
+	id, err := lockSubject(ctx, tx, EntityWarehouse, input.ObjectID)
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
@@ -158,7 +150,7 @@ func (s *WarehouseService) Save(ctx context.Context, input WarehouseSaveInput, a
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
-	data, err = s.current.ResolveWarehouseManager(ctx, tx, data, false)
+	data, err = s.rules.ResolveWarehouseManager(ctx, tx, data, false)
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
@@ -211,7 +203,7 @@ func (s *WarehouseService) transition(ctx context.Context, input WarehouseVersio
 		}
 		return WarehouseMutation{}, translateError(err)
 	}
-	id, err := s.current.GetWarehouseIdentity(ctx, tx, input.ObjectID)
+	id, err := lockSubject(ctx, tx, EntityWarehouse, input.ObjectID)
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
@@ -224,13 +216,13 @@ func (s *WarehouseService) transition(ctx context.Context, input WarehouseVersio
 		return WarehouseMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
-		data, err = s.current.ResolveWarehouseManager(ctx, tx, data, true)
+		data, err = s.rules.ResolveWarehouseManager(ctx, tx, data, true)
 		if err != nil {
 			return WarehouseMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionApproved && !stored.Enabled {
-		blockers, blockErr := s.current.EnsureWarehouseDisableAllowed(ctx, tx, input.ObjectID)
+		blockers, blockErr := s.rules.EnsureWarehouseDisableAllowed(ctx, tx, input.ObjectID)
 		if blockErr != nil {
 			return WarehouseMutation{}, translateError(blockErr)
 		}
@@ -239,7 +231,7 @@ func (s *WarehouseService) transition(ctx context.Context, input WarehouseVersio
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureWarehouseUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureWarehouseUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
 			return WarehouseMutation{}, translateError(err)
 		}
 		if err = s.ensureWarehouseUnapproveFallbackAllowed(ctx, tx, input.ObjectID, input.ApprovalEntryID); err != nil {
@@ -250,29 +242,14 @@ func (s *WarehouseService) transition(ctx context.Context, input WarehouseVersio
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
-	resultID, resultEnabled := id, stored.Enabled
-	if action == approval.ActionApproved {
-		c, applyErr := s.current.ApplyWarehouseCurrent(ctx, tx, input.ObjectID, e.ID, stored.Enabled, data, actor.ID())
-		if applyErr != nil {
-			return WarehouseMutation{}, translateError(applyErr)
-		}
-		resultID, resultEnabled = c.WarehouseIdentity, c.Enabled
-	}
-	if action == approval.ActionUnapproved {
-		resultID, resultEnabled, err = s.restoreLatestApproved(ctx, tx, id, actor.ID())
-		if err != nil {
-			return WarehouseMutation{}, err
-		}
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
-	return warehouseMutation(resultID, resultEnabled, e), nil
+	return warehouseMutation(id, stored.Enabled, e), nil
 }
 
-// ensureWarehouseUnapproveFallbackAllowed validates the projection that will
-// exist after the current approved version is revoked, before its approval
-// transition is committed. This keeps a blocked unapprove fully atomic.
+// ensureWarehouseUnapproveFallbackAllowed validates the effective latest
+// approved snapshot that will remain after the requested version is revoked.
 func (s *WarehouseService) ensureWarehouseUnapproveFallbackAllowed(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -295,7 +272,7 @@ func (s *WarehouseService) ensureWarehouseUnapproveFallbackAllowed(
 			return nil
 		}
 	}
-	blockers, blockerErr := s.current.EnsureWarehouseDisableAllowed(ctx, tx, objectID)
+	blockers, blockerErr := s.rules.EnsureWarehouseDisableAllowed(ctx, tx, objectID)
 	if blockerErr != nil {
 		return translateError(blockerErr)
 	}
@@ -303,27 +280,6 @@ func (s *WarehouseService) ensureWarehouseUnapproveFallbackAllowed(
 		return newError(ErrorConflict, "warehouse_disable_blocked", "warehouse cannot be disabled", blockers, nil)
 	}
 	return nil
-}
-
-func (s *WarehouseService) restoreLatestApproved(ctx context.Context, tx pgx.Tx, id bobdomain.WarehouseIdentity, actorID string) (bobdomain.WarehouseIdentity, bool, error) {
-	latest, err := s.queries.WithTx(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityWarehouse, SubjectID: id.ObjectID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		r, e := s.current.RemoveWarehouseCurrent(ctx, tx, id.ObjectID, actorID)
-		return r, false, translateError(e)
-	}
-	if err != nil {
-		return bobdomain.WarehouseIdentity{}, false, translateError(err)
-	}
-	stored, err := s.queries.WithTx(tx).GetDCLWarehouseVersion(ctx, latest.ID)
-	if err != nil {
-		return bobdomain.WarehouseIdentity{}, false, translateError(err)
-	}
-	d, err := bobdomain.ValidateWarehouseData(warehouseStoredData(stored))
-	if err != nil {
-		return bobdomain.WarehouseIdentity{}, false, translateError(err)
-	}
-	c, err := s.current.ApplyWarehouseCurrent(ctx, tx, id.ObjectID, latest.ID, stored.Enabled, d, actorID)
-	return c.WarehouseIdentity, c.Enabled, translateError(err)
 }
 
 func (s *WarehouseService) Delete(ctx context.Context, input WarehouseDeleteInput, actor approval.Actor) error {
@@ -338,7 +294,7 @@ func (s *WarehouseService) Delete(ctx context.Context, input WarehouseDeleteInpu
 	if err = s.coordinator.LockVersionSubject(ctx, tx, input.ObjectID); err != nil {
 		return translateError(err)
 	}
-	id, err := s.current.GetWarehouseIdentity(ctx, tx, input.ObjectID)
+	id, err := lockSubject(ctx, tx, EntityWarehouse, input.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
@@ -368,9 +324,6 @@ func (s *WarehouseService) Delete(ctx context.Context, input WarehouseDeleteInpu
 				er = errors.New("DCL subject changed")
 			}
 			return translateError(er)
-		}
-		if err = s.current.DeleteWarehouseIdentity(ctx, tx, input.ObjectID, id.ObjectRevision); err != nil {
-			return translateError(err)
 		}
 	} else if latestErr != nil {
 		return translateError(latestErr)

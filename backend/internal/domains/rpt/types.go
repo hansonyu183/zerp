@@ -92,15 +92,14 @@ type Page struct {
 	PageSize int   `json:"pageSize"`
 }
 type DefinitionView struct {
-	DefinitionID   string               `json:"definitionId"`
-	Code           string               `json:"code"`
-	Name           string               `json:"name"`
-	Description    string               `json:"description"`
-	Enabled        bool                 `json:"enabled"`
-	ObjectRevision int64                `json:"revision"`
-	Approval       approval.VersionMeta `json:"approval"`
-	Validity       string               `json:"validity"`
-	Data           VersionData          `json:"data"`
+	DefinitionID string               `json:"definitionId"`
+	Code         string               `json:"code"`
+	Name         string               `json:"name"`
+	Description  string               `json:"description"`
+	Enabled      bool                 `json:"enabled"`
+	Approval     approval.VersionMeta `json:"approval"`
+	Validity     string               `json:"validity"`
+	Data         VersionData          `json:"data"`
 }
 type ReportMetadata struct {
 	Code        string         `json:"code"`

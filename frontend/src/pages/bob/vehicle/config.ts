@@ -2,7 +2,7 @@ import { defineBobEntityConfig } from '../shared/config-helpers'
 
 export const vehicleConfig = defineBobEntityConfig({
   entity: 'vehicle',
-  title: '车辆',
+  title: '车辆（当前有效资料）',
   codeLabel: '车辆编码',
   nameLabel: '车辆名称',
   defaults: {

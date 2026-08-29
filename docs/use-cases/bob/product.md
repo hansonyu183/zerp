@@ -1,13 +1,13 @@
-# BOB 产品当前档案页面用例
+# BOB 产品当前有效资料页面用例
 
 权威业务规则见 [DCL 产品申报](../../domains/dcl.md#34-产品申报)、[BOB 产品业务字段](../../domains/bob.md#21-业务字段) 与 [VOU 产品快照](../../domains/vou.md)，线协议见 [OpenAPI BOB Schema](../../../contracts/openapi/schemas/bob.yaml)。
 
 ## 1. 页面边界
 
 1. 页面入口为 `/bob/product`，只调用 `POST /bob/product/query` 和 `POST /bob/product/get`，展示 DCL 最新批准版本形成的当前正式产品档案。
-2. 列表展示编码、名称、产品类型、默认录入单位、型号、行为模板和启停状态；详情显示当前来源 Approval Entry 以及基础资料、类型、分类、单位换算、默认包装规格和固定配方的完整 current snapshot。
+2. 列表展示编码、名称、产品类型、默认录入单位、型号、行为模板和启停状态；详情显示当前来源 Approval Entry 以及基础资料、类型、分类、单位换算、默认包装规格和固定配方的完整 typed snapshot。
 3. 页面没有新建、编辑、启停、删除、提交、撤回、审核、反批、驳回、版本或审计动作，也不请求任何 `/bob/product/*` 写路径。
-4. 当前投影只随 DCL 批准或反批原子切换；业务引用返回 stable product ID、当前来源 Approval Entry、编码、名称、行为模板、单位与所需快照。
+4. 每次查询直接连接 DCL subject、highest APPROVED Approval Entry 与产品 typed snapshot；DCL 批准或反批后无需额外写入即可切换、回落或隐藏，业务引用返回 stable product ID、当前来源 Approval Entry、编码、名称、行为模板、单位与所需快照。
 
 ## 2. 权限、可见性与异常
 

@@ -79,7 +79,7 @@ export function useSupplierViewModel() {
       const { data } = await apiClient.postContract('bob/supplier/get', {
         objectId: row.objectId,
       })
-      if (!data) throw new Error('供应商当前档案不存在。')
+      if (!data) throw new Error('供应商当前有效资料不存在。')
       currentView.value = data
       drawerOpen.value = true
     } catch (error) {

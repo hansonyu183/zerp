@@ -186,7 +186,6 @@ type WorkbenchItem struct {
 	UpdatedAt        time.Time `json:"updatedAt"`
 
 	ObjectID        string `json:"objectId,omitempty"`
-	ObjectRevision  int64  `json:"objectRevision,omitempty"`
 	ApprovalEntryID string `json:"versionId,omitempty"`
 	Code            string `json:"code,omitempty"`
 	Name            string `json:"name,omitempty"`

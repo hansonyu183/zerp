@@ -26,9 +26,12 @@ func (q *Queries) RptDisableUsePermissions(ctx context.Context, arg RptDisableUs
 }
 
 const rptGetActiveDefinition = `-- name: RptGetActiveDefinition :one
-SELECT d.id AS definition_id, d.code, v.name, v.description, d.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, v.validity, v.sql_text, v.parameters, v.columns
-FROM rpt_definitions d JOIN LATERAL (SELECT id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id AND v.definition_id=d.id
-WHERE d.code=$1 AND d.enabled AND v.validity='VALID'
+SELECT d.id AS definition_id, coalesce(d.code,'') AS code, v.name, v.description, v.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, rv.validity, v.sql_text, v.parameters, v.columns
+FROM dcl_subjects d
+JOIN LATERAL (SELECT id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
+JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+JOIN rpt_definition_validities rv ON rv.approval_entry_id=e.id AND rv.validity='VALID'
+WHERE d.code=$1::text AND d.entity='rpt-definition' AND v.enabled
 `
 
 type RptGetActiveDefinitionRow struct {
@@ -114,7 +117,15 @@ func (q *Queries) RptInsertRuntimeAuditEvent(ctx context.Context, arg RptInsertR
 }
 
 const rptInvalidateVersion = `-- name: RptInvalidateVersion :exec
-UPDATE dcl_rpt_definition_versions SET validity='INVALID', invalidated_at=now(), invalid_reason='STRUCTURE_CHANGED', updated_at=now(), updated_by=$1 WHERE approval_entry_id=$2 AND validity='VALID'
+UPDATE rpt_definition_validities validity
+SET validity='INVALID', invalidated_at=now(), invalid_reason='STRUCTURE_CHANGED', updated_at=now(), updated_by=$1
+FROM approval_entries entry
+JOIN dcl_rpt_definition_versions payload ON payload.approval_entry_id=entry.id
+JOIN dcl_subjects subject ON subject.id=entry.subject_id AND subject.entity='rpt-definition'
+WHERE validity.approval_entry_id=entry.id
+  AND entry.id=$2
+  AND entry.domain='dcl' AND entry.entity='rpt-definition' AND entry.status='APPROVED'
+  AND validity.validity='VALID'
 `
 
 type RptInvalidateVersionParams struct {
@@ -128,9 +139,12 @@ func (q *Queries) RptInvalidateVersion(ctx context.Context, arg RptInvalidateVer
 }
 
 const rptLatestApprovedUseState = `-- name: RptLatestApprovedUseState :one
-SELECT d.id AS definition_id, d.code, coalesce(v.name,'') AS name, d.enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, v.validity
-FROM rpt_definitions d LEFT JOIN LATERAL (SELECT id, status FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
-LEFT JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id AND v.definition_id=d.id WHERE d.id=$1
+SELECT d.id AS definition_id, coalesce(d.code,'') AS code, coalesce(v.name,'') AS name, coalesce(v.enabled,false) AS enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, rv.validity
+FROM dcl_subjects d
+LEFT JOIN LATERAL (SELECT id, status FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
+LEFT JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+LEFT JOIN rpt_definition_validities rv ON rv.approval_entry_id=e.id
+WHERE d.id=$1 AND d.entity='rpt-definition'
 `
 
 type RptLatestApprovedUseStateRow struct {
@@ -143,7 +157,8 @@ type RptLatestApprovedUseStateRow struct {
 	Validity        *string `db:"validity" json:"validity"`
 }
 
-// RPT owns only stable definition identity and version payload. Approval owns lifecycle.
+// RPT owns runtime validity, permission registration, and audit only. DCL owns
+// the stable subject and approved typed payload.
 func (q *Queries) RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error) {
 	row := q.db.QueryRow(ctx, rptLatestApprovedUseState, definitionID)
 	var i RptLatestApprovedUseStateRow
@@ -211,20 +226,10 @@ func (q *Queries) RptListAssetReferences(ctx context.Context, arg RptListAssetRe
 
 const rptListBOBReferences = `-- name: RptListBOBReferences :many
 WITH current_references AS (
-  SELECT object.id, object.code, object.code AS name
-  FROM bob_objects object
-  WHERE object.entity=$5
-    AND CASE object.entity
-      WHEN 'customer-account' THEN EXISTS (SELECT 1 FROM bob_customer_account_currents current WHERE current.object_id=object.id)
-      WHEN 'supplier' THEN EXISTS (SELECT 1 FROM bob_suppliers current WHERE current.object_id=object.id)
-      WHEN 'other-unit' THEN EXISTS (SELECT 1 FROM bob_other_units current WHERE current.object_id=object.id)
-      WHEN 'employee' THEN EXISTS (SELECT 1 FROM bob_employees current WHERE current.object_id=object.id)
-      WHEN 'sales-partner' THEN EXISTS (SELECT 1 FROM bob_sales_partners current WHERE current.object_id=object.id)
-      WHEN 'product' THEN EXISTS (SELECT 1 FROM bob_products current WHERE current.object_id=object.id)
-      WHEN 'warehouse' THEN EXISTS (SELECT 1 FROM bob_warehouses current WHERE current.object_id=object.id)
-      WHEN 'fund-account' THEN EXISTS (SELECT 1 FROM bob_fund_accounts current WHERE current.object_id=object.id)
-      ELSE false
-    END
+  SELECT subject.id, subject.code, subject.code AS name
+  FROM dcl_subjects subject
+  JOIN LATERAL (SELECT 1 FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+  WHERE subject.entity=$5 AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','customer','customer-account','supplier','other-unit','employee','sales-partner')
   UNION ALL
   SELECT object.id, object.code, object.data->>'name' AS name
   FROM aux_objects object
@@ -248,10 +253,10 @@ type RptListBOBReferencesParams struct {
 }
 
 type RptListBOBReferencesRow struct {
-	ID    string `db:"id" json:"id"`
-	Code  string `db:"code" json:"code"`
-	Name  string `db:"name" json:"name"`
-	Total int64  `db:"total" json:"total"`
+	ID    string  `db:"id" json:"id"`
+	Code  *string `db:"code" json:"code"`
+	Name  *string `db:"name" json:"name"`
+	Total int64   `db:"total" json:"total"`
 }
 
 func (q *Queries) RptListBOBReferences(ctx context.Context, arg RptListBOBReferencesParams) ([]RptListBOBReferencesRow, error) {
@@ -436,8 +441,12 @@ func (q *Queries) RptListSubjectReferences(ctx context.Context, arg RptListSubje
 }
 
 const rptQueryDirectory = `-- name: RptQueryDirectory :many
-SELECT d.code, v.name, v.description, v.parameters, v.columns, count(*) OVER() AS total FROM rpt_definitions d JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id AND v.definition_id=d.id
-WHERE d.enabled AND v.validity='VALID' AND d.code=ANY($1::text[]) ORDER BY d.code OFFSET $2 LIMIT $3
+SELECT coalesce(d.code,'') AS code, v.name, v.description, v.parameters, v.columns, count(*) OVER() AS total
+FROM dcl_subjects d
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
+JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+JOIN rpt_definition_validities rv ON rv.approval_entry_id=e.id AND rv.validity='VALID'
+WHERE d.entity='rpt-definition' AND v.enabled AND d.code=ANY($1::text[]) ORDER BY d.code OFFSET $2 LIMIT $3
 `
 
 type RptQueryDirectoryParams struct {
@@ -480,6 +489,23 @@ func (q *Queries) RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const rptUpsertDefinitionValidity = `-- name: RptUpsertDefinitionValidity :exec
+INSERT INTO rpt_definition_validities(approval_entry_id, validity, invalidated_at, invalid_reason, created_by, updated_by)
+VALUES($1, 'VALID', NULL, NULL, $2, $2)
+ON CONFLICT (approval_entry_id) DO UPDATE
+SET validity='VALID', invalidated_at=NULL, invalid_reason=NULL, updated_at=now(), updated_by=excluded.updated_by
+`
+
+type RptUpsertDefinitionValidityParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	ActorID         string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) RptUpsertDefinitionValidity(ctx context.Context, arg RptUpsertDefinitionValidityParams) error {
+	_, err := q.db.Exec(ctx, rptUpsertDefinitionValidity, arg.ApprovalEntryID, arg.ActorID)
+	return err
 }
 
 const rptUpsertUsePermission = `-- name: RptUpsertUsePermission :exec

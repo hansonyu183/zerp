@@ -10,7 +10,7 @@ import (
 )
 
 const consumePartyMergePreflight = `-- name: ConsumePartyMergePreflight :execrows
-UPDATE bob_party_merge_preflights
+UPDATE dcl_party_merge_preflights
 SET consumed_at=now(),consumed_by=$1
 WHERE id=$2 AND consumed_at IS NULL
 `
@@ -28,57 +28,8 @@ func (q *Queries) ConsumePartyMergePreflight(ctx context.Context, arg ConsumePar
 	return result.RowsAffected(), nil
 }
 
-const deleteMergedPartyCurrent = `-- name: DeleteMergedPartyCurrent :execrows
-DELETE FROM bob_party_currents WHERE party_id=$1
-`
-
-func (q *Queries) DeleteMergedPartyCurrent(ctx context.Context, sourcePartyID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteMergedPartyCurrent, sourcePartyID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteMergedPartyCurrentIdentifiers = `-- name: DeleteMergedPartyCurrentIdentifiers :execrows
-DELETE FROM bob_party_identifiers WHERE party_id=$1
-`
-
-func (q *Queries) DeleteMergedPartyCurrentIdentifiers(ctx context.Context, sourcePartyID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteMergedPartyCurrentIdentifiers, sourcePartyID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const disableMergedPartyRelationshipObject = `-- name: DisableMergedPartyRelationshipObject :execrows
-UPDATE bob_objects SET enabled=false,revision=revision+1,updated_at=now(),updated_by=$1
-WHERE id=$2 AND entity=$3 AND revision=$4 AND enabled=true
-`
-
-type DisableMergedPartyRelationshipObjectParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	ObjectID string `db:"object_id" json:"object_id"`
-	Entity   string `db:"entity" json:"entity"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) DisableMergedPartyRelationshipObject(ctx context.Context, arg DisableMergedPartyRelationshipObjectParams) (int64, error) {
-	result, err := q.db.Exec(ctx, disableMergedPartyRelationshipObject,
-		arg.ActorID,
-		arg.ObjectID,
-		arg.Entity,
-		arg.Revision,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const insertPartyMergeEvent = `-- name: InsertPartyMergeEvent :exec
-INSERT INTO bob_party_merge_events(
+INSERT INTO dcl_party_merge_events(
     id,preflight_id,source_party_id,target_party_id,actor_id,request_id
 ) VALUES (
     $1,$2,$3,$4,
@@ -108,7 +59,7 @@ func (q *Queries) InsertPartyMergeEvent(ctx context.Context, arg InsertPartyMerg
 }
 
 const insertPartyMergePreflight = `-- name: InsertPartyMergePreflight :exec
-INSERT INTO bob_party_merge_preflights(
+INSERT INTO dcl_party_merge_preflights(
     id,source_party_id,target_party_id,source_approval_entry_id,target_approval_entry_id,source_approval_revision,target_approval_revision,state_fingerprint,created_by,request_id
 ) VALUES (
     $1,$2,$3,$4,$5,$6,
@@ -146,7 +97,7 @@ func (q *Queries) InsertPartyMergePreflight(ctx context.Context, arg InsertParty
 }
 
 const insertPartyRelationshipMergeEvent = `-- name: InsertPartyRelationshipMergeEvent :exec
-INSERT INTO bob_party_relationship_merge_events(
+INSERT INTO dcl_party_relationship_merge_events(
     id,merge_event_id,relationship_type,source_object_id,target_object_id,operating_entity_id,action
 ) VALUES (
     $1,$2,$3,$4,
@@ -179,15 +130,15 @@ func (q *Queries) InsertPartyRelationshipMergeEvent(ctx context.Context, arg Ins
 
 const listPartyMergeRelationships = `-- name: ListPartyMergeRelationships :many
 SELECT object.entity AS relationship_type, object.id AS object_id, object.code AS object_code,
-       relation.operating_entity_id, operating_detail.legal_name AS operating_entity_name,
-       object.revision AS object_revision, object.enabled,
+       party_rel.operating_entity_id, operating_detail.legal_name AS operating_entity_name,
+       true AS enabled,
        COALESCE(open_entry.id,'')::text AS open_approval_entry_id,
        approved.id AS latest_approved_entry_id,
        COALESCE(open_entry.status,approved.status)::text AS visible_status,
        COALESCE(open_entry.revision,approved.revision)::bigint AS visible_approval_revision,
-       relation.merged_into_object_id
-FROM bob_party_relationship_endpoints relation
-JOIN bob_objects object ON object.id=relation.object_id
+       party_rel.merged_into_object_id
+FROM dcl_party_relationship_endpoints party_rel
+JOIN dcl_subjects object ON object.id=party_rel.object_id AND object.entity=party_rel.entity
 JOIN LATERAL (
   SELECT id,status,revision FROM approval_entries
   WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
@@ -198,18 +149,19 @@ LEFT JOIN LATERAL (
   WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status IN ('DRAFT','PENDING')
   ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
-JOIN bob_operating_entities operating_detail ON operating_detail.object_id=relation.operating_entity_id
-WHERE relation.party_id=$1
-ORDER BY object.entity,relation.operating_entity_id,object.id
+JOIN dcl_subjects operating ON operating.id=party_rel.operating_entity_id AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id
+WHERE party_rel.party_id=$1
+ORDER BY object.entity,party_rel.operating_entity_id,object.id
 `
 
 type ListPartyMergeRelationshipsRow struct {
 	RelationshipType        string  `db:"relationship_type" json:"relationship_type"`
 	ObjectID                string  `db:"object_id" json:"object_id"`
-	ObjectCode              string  `db:"object_code" json:"object_code"`
+	ObjectCode              *string `db:"object_code" json:"object_code"`
 	OperatingEntityID       string  `db:"operating_entity_id" json:"operating_entity_id"`
 	OperatingEntityName     string  `db:"operating_entity_name" json:"operating_entity_name"`
-	ObjectRevision          int64   `db:"object_revision" json:"object_revision"`
 	Enabled                 bool    `db:"enabled" json:"enabled"`
 	OpenApprovalEntryID     string  `db:"open_approval_entry_id" json:"open_approval_entry_id"`
 	LatestApprovedEntryID   string  `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
@@ -233,7 +185,6 @@ func (q *Queries) ListPartyMergeRelationships(ctx context.Context, partyID strin
 			&i.ObjectCode,
 			&i.OperatingEntityID,
 			&i.OperatingEntityName,
-			&i.ObjectRevision,
 			&i.Enabled,
 			&i.OpenApprovalEntryID,
 			&i.LatestApprovedEntryID,
@@ -252,8 +203,8 @@ func (q *Queries) ListPartyMergeRelationships(ctx context.Context, partyID strin
 }
 
 const lockPartyMergeObjects = `-- name: LockPartyMergeObjects :many
-SELECT id,entity,revision,enabled
-FROM bob_objects
+SELECT id,entity,0::bigint AS revision,true AS enabled
+FROM dcl_subjects
 WHERE id=ANY($1::text[])
 ORDER BY id
 FOR UPDATE
@@ -292,11 +243,11 @@ func (q *Queries) LockPartyMergeObjects(ctx context.Context, objectIds []string)
 }
 
 const lockPartyMergeParty = `-- name: LockPartyMergeParty :one
-SELECT party.id,current.kind,current.source_approval_entry_id,approval.revision,party.merged_into_party_id,
+SELECT party.id,current.kind,approval.id AS source_approval_entry_id,approval.revision,party.merged_into_party_id,
        EXISTS(SELECT 1 FROM approval_entries open_entry WHERE open_entry.domain='dcl' AND open_entry.entity='party' AND open_entry.subject_id=party.id AND open_entry.status IN ('DRAFT','PENDING')) AS has_open_candidate
-FROM bob_parties party
-JOIN bob_party_currents current ON current.party_id=party.id
-JOIN approval_entries approval ON approval.id=current.source_approval_entry_id AND approval.domain='dcl' AND approval.entity='party' AND approval.status='APPROVED'
+FROM dcl_parties party
+JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries entry WHERE entry.domain='dcl' AND entry.entity='party' AND entry.subject_id=party.id AND entry.status='APPROVED' ORDER BY entry.version_no DESC LIMIT 1) approval ON true
+JOIN dcl_party_versions current ON current.approval_entry_id=approval.id
 WHERE party.id=$1
 FOR UPDATE
 `
@@ -327,14 +278,14 @@ func (q *Queries) LockPartyMergeParty(ctx context.Context, partyID string) (Lock
 const lockPartyMergePreflight = `-- name: LockPartyMergePreflight :one
 SELECT id,source_party_id,target_party_id,source_approval_entry_id,target_approval_entry_id,source_approval_revision,target_approval_revision,state_fingerprint,
        created_at,created_by,request_id,consumed_at,consumed_by
-FROM bob_party_merge_preflights
+FROM dcl_party_merge_preflights
 WHERE id=$1
 FOR UPDATE
 `
 
-func (q *Queries) LockPartyMergePreflight(ctx context.Context, id string) (BobPartyMergePreflight, error) {
+func (q *Queries) LockPartyMergePreflight(ctx context.Context, id string) (DclPartyMergePreflight, error) {
 	row := q.db.QueryRow(ctx, lockPartyMergePreflight, id)
-	var i BobPartyMergePreflight
+	var i DclPartyMergePreflight
 	err := row.Scan(
 		&i.ID,
 		&i.SourcePartyID,
@@ -354,7 +305,7 @@ func (q *Queries) LockPartyMergePreflight(ctx context.Context, id string) (BobPa
 }
 
 const markCustomerRelationshipMerged = `-- name: MarkCustomerRelationshipMerged :execrows
-UPDATE bob_customer_relationships SET merged_into_object_id=$1,merged_at=now()
+UPDATE dcl_customer_relationships SET merged_into_object_id=$1,merged_at=now()
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -374,7 +325,7 @@ func (q *Queries) MarkCustomerRelationshipMerged(ctx context.Context, arg MarkCu
 }
 
 const markEmploymentRelationshipMerged = `-- name: MarkEmploymentRelationshipMerged :execrows
-UPDATE bob_employment_relationships SET merged_into_object_id=$1,merged_at=now()
+UPDATE dcl_employment_relationships SET merged_into_object_id=$1,merged_at=now()
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -394,7 +345,7 @@ func (q *Queries) MarkEmploymentRelationshipMerged(ctx context.Context, arg Mark
 }
 
 const markPartyMerged = `-- name: MarkPartyMerged :execrows
-UPDATE bob_parties
+UPDATE dcl_parties
 SET merged_into_party_id=$1,merged_at=now()
 WHERE id=$2 AND merged_into_party_id IS NULL
 `
@@ -413,7 +364,7 @@ func (q *Queries) MarkPartyMerged(ctx context.Context, arg MarkPartyMergedParams
 }
 
 const markSalesRelationshipMerged = `-- name: MarkSalesRelationshipMerged :execrows
-UPDATE bob_sales_relationships SET merged_into_object_id=$1,merged_at=now()
+UPDATE dcl_sales_relationships SET merged_into_object_id=$1,merged_at=now()
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -433,7 +384,7 @@ func (q *Queries) MarkSalesRelationshipMerged(ctx context.Context, arg MarkSales
 }
 
 const markServiceRelationshipMerged = `-- name: MarkServiceRelationshipMerged :execrows
-UPDATE bob_service_relationships SET merged_into_object_id=$1,merged_at=now()
+UPDATE dcl_service_relationships SET merged_into_object_id=$1,merged_at=now()
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -453,7 +404,7 @@ func (q *Queries) MarkServiceRelationshipMerged(ctx context.Context, arg MarkSer
 }
 
 const markSupplierRelationshipMerged = `-- name: MarkSupplierRelationshipMerged :execrows
-UPDATE bob_supplier_relationships SET merged_into_object_id=$1,merged_at=now()
+UPDATE dcl_supplier_relationships SET merged_into_object_id=$1,merged_at=now()
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -473,7 +424,7 @@ func (q *Queries) MarkSupplierRelationshipMerged(ctx context.Context, arg MarkSu
 }
 
 const moveCustomerAccountsToRetainedRelationship = `-- name: MoveCustomerAccountsToRetainedRelationship :execrows
-UPDATE bob_customer_accounts
+UPDATE dcl_customer_accounts
 SET customer_relationship_id=$1
 WHERE customer_relationship_id=$2
 `
@@ -492,7 +443,7 @@ func (q *Queries) MoveCustomerAccountsToRetainedRelationship(ctx context.Context
 }
 
 const moveCustomerRelationshipParty = `-- name: MoveCustomerRelationshipParty :execrows
-UPDATE bob_customer_relationships SET party_id=$1
+UPDATE dcl_customer_relationships SET party_id=$1
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -512,7 +463,7 @@ func (q *Queries) MoveCustomerRelationshipParty(ctx context.Context, arg MoveCus
 }
 
 const moveEmploymentRelationshipParty = `-- name: MoveEmploymentRelationshipParty :execrows
-UPDATE bob_employment_relationships SET party_id=$1
+UPDATE dcl_employment_relationships SET party_id=$1
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -532,7 +483,7 @@ func (q *Queries) MoveEmploymentRelationshipParty(ctx context.Context, arg MoveE
 }
 
 const moveSalesRelationshipParty = `-- name: MoveSalesRelationshipParty :execrows
-UPDATE bob_sales_relationships SET party_id=$1
+UPDATE dcl_sales_relationships SET party_id=$1
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -552,7 +503,7 @@ func (q *Queries) MoveSalesRelationshipParty(ctx context.Context, arg MoveSalesR
 }
 
 const moveServiceRelationshipParty = `-- name: MoveServiceRelationshipParty :execrows
-UPDATE bob_service_relationships SET party_id=$1
+UPDATE dcl_service_relationships SET party_id=$1
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `
@@ -572,7 +523,7 @@ func (q *Queries) MoveServiceRelationshipParty(ctx context.Context, arg MoveServ
 }
 
 const moveSupplierRelationshipParty = `-- name: MoveSupplierRelationshipParty :execrows
-UPDATE bob_supplier_relationships SET party_id=$1
+UPDATE dcl_supplier_relationships SET party_id=$1
 WHERE object_id=$2 AND party_id=$3
   AND merged_into_object_id IS NULL
 `

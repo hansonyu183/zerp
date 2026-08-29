@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobProductFormulaInput } from './BobProductFormulaInput';
-import type { BobProductUnitConversionInput } from './BobProductUnitConversionInput';
+import type { BobProductFormula } from './BobProductFormula';
+import type { BobProductUnitConversion } from './BobProductUnitConversion';
 import type { VehicleCarrierAffiliation } from './VehicleCarrierAffiliation';
 export type BobDetailData = {
   name?: string | null;
@@ -63,11 +63,11 @@ export type BobDetailData = {
   vehicleTypeName?: string | null;
   inventoryUnitId?: string | null;
   pricingUnitId?: string | null;
-  unitConversions?: Array<BobProductUnitConversionInput> | null;
+  unitConversions?: Array<BobProductUnitConversion> | null;
   returnable?: boolean | null;
   /**
    * 仅非包装产品适用；一标准包装件对应的基准数量，必须大于零且最多六位小数
    */
   defaultPackagingSpec?: string | null;
-  formula?: BobProductFormulaInput | null;
+  formula?: BobProductFormula | null;
 };

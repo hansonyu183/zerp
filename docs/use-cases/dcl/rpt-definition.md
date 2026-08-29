@@ -10,8 +10,8 @@
 
 ## 2. 新建与保存
 
-1. 新建时由系统分配永久冻结的 code；用户录入随版本保存的 name、description、单条只读 SQL、类型化参数和显式结果列契约。
-2. 每次保存提交完整 snapshot，不保存差异，不允许从前端拼接任意接口路径。
+1. 新建时由系统分配永久冻结的 code；用户录入随版本保存的 name、description、enabled、单条只读 SQL、类型化参数和显式结果列契约。
+2. 每次保存提交完整 snapshot（包括必填 enabled），不保存差异，不允许从前端拼接任意接口路径；并发只携带 candidate 的 `approvalEntryId` 与 `approvalRevision`。
 3. 保存执行结构校验；提交和批准还必须携带校验参数，由后端在只读角色和只读事务中完成完整 SQL、参数及列契约验证。
 
 ## 3. 审批、有效性与 RPT 当前执行面
@@ -20,6 +20,7 @@
 2. 批准后按上文 DCL 原子性规则使最新 `APPROVED + VALID` 定义的 query/export 权限可用；新版本批准后切换到新 entry。
 3. 反批按同一权威规则回落到上一正式版本；没有正式版本时停用使用权限。
 4. 最新批准版本为 INVALID 时停止执行，不回退到更低版本；恢复必须通过新候选、重新验证和批准。
+5. 启停是 candidate snapshot 的版本事实，只允许 DRAFT candidate；当前 APPROVED 定义的界面明确提示先创建下一版本，不能以 root revision 直接改写正式版本。
 
 ## 4. 查询、历史与深链
 

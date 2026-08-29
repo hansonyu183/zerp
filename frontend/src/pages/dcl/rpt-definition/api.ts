@@ -40,6 +40,7 @@ export function getRptDefinition(code: string, approvalEntryId?: string) {
 export function createRptDefinition(input: {
   name: string
   description: string
+  enabled: boolean
   data: RptDefinitionData
 }) {
   return apiClient.postContract('dcl/rpt-definition/create', input)
@@ -52,6 +53,7 @@ export function saveRptDefinition(input: RptDefinition) {
     approvalRevision: input.approval.revision,
     name: input.name,
     description: input.description,
+    enabled: input.enabled,
     data: input.data,
   })
 }
@@ -106,7 +108,11 @@ export function setRptDefinitionEnabled(
   definition: RptDefinition,
   enabled: boolean,
 ) {
-  const input = { code: definition.code, revision: definition.revision }
+  const input = {
+    code: definition.code,
+    approvalEntryId: definition.approval.approvalEntryId,
+    approvalRevision: definition.approval.revision,
+  }
   return enabled
     ? apiClient.postContract('dcl/rpt-definition/enable', input)
     : apiClient.postContract('dcl/rpt-definition/disable', input)

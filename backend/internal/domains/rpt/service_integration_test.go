@@ -70,7 +70,7 @@ func (service *rptExecutionService) CreateDefinition(ctx context.Context, input 
 		return rptExecutionMutation{}, err
 	}
 	created, err := service.declarations.Create(ctx, dcldomain.RptDefinitionCreateInput{
-		Name: input.Name, Description: input.Description,
+		Name: input.Name, Description: input.Description, Enabled: true,
 		Data: dcldomain.RptDefinitionData{SQL: input.Data.SQL, Parameters: parameters, Columns: columns},
 	}, rptActor(service.t, rptSubmitterID, requestID))
 	if err != nil {
@@ -200,7 +200,7 @@ func TestRPTStructuralErrorInvalidatesVersionAndDisablesPermissionsIntegration(t
 	columns, _ := json.Marshal(rptData(serviceSQL, "value").Columns)
 	v2, err = service.declarations.Save(t.Context(), dcldomain.RptDefinitionSaveInput{
 		Code: code, ApprovalEntryID: v2.Approval.ApprovalEntryID, ApprovalRevision: v2.Approval.Revision,
-		Name: &v2Name, Data: dcldomain.RptDefinitionData{SQL: serviceSQL, Parameters: parameters, Columns: columns},
+		Name: &v2Name, Enabled: true, Data: dcldomain.RptDefinitionData{SQL: serviceSQL, Parameters: parameters, Columns: columns},
 	}, rptActor(t, rptSubmitterID, "rpt-invalid-v2-save"))
 	if err != nil {
 		t.Fatalf("save V2 report: %v", err)
@@ -217,9 +217,9 @@ func TestRPTStructuralErrorInvalidatesVersionAndDisablesPermissionsIntegration(t
 		t.Fatalf("invalid report query error = %v", err)
 	}
 	var status, validity string
-	if err = pool.QueryRow(t.Context(), `SELECT entry.status,payload.validity
+	if err = pool.QueryRow(t.Context(), `SELECT entry.status,validity.validity
 		FROM approval_entries entry
-		JOIN dcl_rpt_definition_versions payload ON payload.approval_entry_id=entry.id
+		JOIN rpt_definition_validities validity ON validity.approval_entry_id=entry.id
 		WHERE entry.id=$1`, v2Approved.ID).Scan(&status, &validity); err != nil {
 		t.Fatalf("read invalid report: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestRPTBuiltInReportsUseOrdinaryExecutionPathIntegration(t *testing.T) {
 		t.Run(code, func(t *testing.T) {
 			var status, validity, queryStatus, exportStatus string
 			err := pool.QueryRow(t.Context(), `SELECT e.status,v.validity,q.status,x.status
-				FROM rpt_definitions d
+				FROM dcl_subjects d
 				JOIN LATERAL (
 					SELECT entry.id,entry.status
 					FROM approval_entries entry
@@ -283,9 +283,9 @@ func TestRPTBuiltInReportsUseOrdinaryExecutionPathIntegration(t *testing.T) {
 						AND entry.subject_id=d.id AND entry.status='APPROVED'
 					ORDER BY entry.version_no DESC LIMIT 1
 				) e ON true
-				JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+				JOIN rpt_definition_validities v ON v.approval_entry_id=e.id
 				JOIN app_permissions q ON q.path='/rpt/'||d.code||'/query'
-				JOIN app_permissions x ON x.path='/rpt/'||d.code||'/export' WHERE d.code=$1`, code).
+				JOIN app_permissions x ON x.path='/rpt/'||d.code||'/export' WHERE d.entity='rpt-definition' AND d.code=$1`, code).
 				Scan(&status, &validity, &queryStatus, &exportStatus)
 			if err != nil || status != "APPROVED" || validity != "VALID" || queryStatus != "ENABLED" || exportStatus != "ENABLED" {
 				t.Fatalf("built-in state: status=%q validity=%q query=%q export=%q err=%v", status, validity, queryStatus, exportStatus, err)
@@ -592,7 +592,7 @@ func TestRPTExecutionStatementTimeoutIntegration(t *testing.T) {
 		t.Fatalf("execution timeout error = %v", err)
 	}
 	var validity string
-	if err = pool.QueryRow(t.Context(), `SELECT validity FROM dcl_rpt_definition_versions WHERE approval_entry_id=$1`, created.ID).Scan(&validity); err != nil {
+	if err = pool.QueryRow(t.Context(), `SELECT validity FROM rpt_definition_validities WHERE approval_entry_id=$1`, created.ID).Scan(&validity); err != nil {
 		t.Fatalf("read execution timeout validity: %v", err)
 	}
 	if validity != "VALID" {

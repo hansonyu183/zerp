@@ -3,11 +3,9 @@ package bob
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -27,7 +25,6 @@ type EmployeeData struct {
 
 type EmployeeIdentity struct {
 	ObjectID, Code, PartyID, OperatingEntityID string
-	ObjectRevision                             int64
 }
 
 type EmployeeCurrent struct {
@@ -149,118 +146,8 @@ func (s *Service) ResolveEmployeeDraftAuxiliaryReferences(ctx context.Context, t
 	return validated, nil
 }
 
-func (s *Service) ReserveEmployeeIdentity(ctx context.Context, tx pgx.Tx, partyID, operatingEntityID, actorID string) (EmployeeIdentity, error) {
-	if tx == nil || !validID(partyID) || !validID(operatingEntityID) || !validID(actorID) {
-		return EmployeeIdentity{}, domainError(ErrorValidation, "invalid Employee identity request", nil, nil)
-	}
-	q := s.queries.WithTx(tx)
-	counter, err := q.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityEmployee})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return EmployeeIdentity{}, domainError(ErrorConflict, "object number exhausted", nil, nil)
-	}
-	if err != nil {
-		return EmployeeIdentity{}, s.writeError("allocate Employee number", err)
-	}
-	identity := EmployeeIdentity{
-		ObjectID: newID(), Code: fmt.Sprintf("EMP-%04d", counter), ObjectRevision: 1,
-		PartyID: partyID, OperatingEntityID: operatingEntityID,
-	}
-	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: identity.ObjectID, Entity: EntityEmployee, Code: identity.Code, ActorID: actorID}); err != nil {
-		return EmployeeIdentity{}, s.writeError("reserve Employee identity", err)
-	}
-	if err = q.InsertBobEmployeeRelationship(ctx, dbsqlc.InsertBobEmployeeRelationshipParams{
-		ObjectID: identity.ObjectID, PartyID: partyID, OperatingEntityID: operatingEntityID, ActorID: actorID,
-	}); err != nil {
-		return EmployeeIdentity{}, s.writeError("reserve Employee relationship", err)
-	}
-	return identity, nil
-}
-
-func (s *Service) GetEmployeeIdentity(ctx context.Context, tx pgx.Tx, objectID string) (EmployeeIdentity, error) {
-	if tx == nil || !validID(objectID) {
-		return EmployeeIdentity{}, domainError(ErrorValidation, "invalid Employee identity request", nil, nil)
-	}
-	q := s.queries.WithTx(tx)
-	object, err := q.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: objectID, Entity: EntityEmployee})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return EmployeeIdentity{}, domainError(ErrorValidation, "Employee not found", nil, nil)
-	}
-	if err != nil {
-		return EmployeeIdentity{}, s.internal("lock Employee identity", err)
-	}
-	relationship, err := q.LockBobEmployeeRelationship(ctx, objectID)
-	if err != nil || relationship.MergedIntoObjectID != nil {
-		if errors.Is(err, pgx.ErrNoRows) || err == nil {
-			return EmployeeIdentity{}, domainError(ErrorValidation, "Employee relationship not found", nil, err)
-		}
-		return EmployeeIdentity{}, s.internal("lock Employee relationship", err)
-	}
-	return EmployeeIdentity{ObjectID: object.ID, Code: object.Code, ObjectRevision: object.Revision, PartyID: relationship.PartyID, OperatingEntityID: relationship.OperatingEntityID}, nil
-}
-
-func (s *Service) ApplyEmployeeCurrent(ctx context.Context, tx pgx.Tx, objectID, entryID string, enabled bool, actorID string) (EmployeeCurrent, error) {
-	if tx == nil || !validID(objectID) || !validID(entryID) || !validID(actorID) {
-		return EmployeeCurrent{}, domainError(ErrorValidation, "invalid Employee current apply", nil, nil)
-	}
-	identity, err := s.GetEmployeeIdentity(ctx, tx, objectID)
-	if err != nil {
-		return EmployeeCurrent{}, err
-	}
-	q := s.queries.WithTx(tx)
-	if err = q.UpsertBobEmployeeCurrent(ctx, dbsqlc.UpsertBobEmployeeCurrentParams{ObjectID: objectID, SourceApprovalEntryID: entryID, Enabled: enabled, ActorID: actorID}); err != nil {
-		return EmployeeCurrent{}, s.writeError("apply Employee current", err)
-	}
-	object, err := q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: objectID, Entity: EntityEmployee})
-	if err != nil {
-		return EmployeeCurrent{}, s.writeError("touch Employee current", err)
-	}
-	identity.ObjectRevision = object.Revision
-	return EmployeeCurrent{EmployeeIdentity: identity, SourceApprovalEntryID: entryID, Enabled: enabled}, nil
-}
-
-func (s *Service) RemoveEmployeeCurrent(ctx context.Context, tx pgx.Tx, objectID, actorID string) (EmployeeIdentity, error) {
-	identity, err := s.GetEmployeeIdentity(ctx, tx, objectID)
-	if err != nil {
-		return EmployeeIdentity{}, err
-	}
-	q := s.queries.WithTx(tx)
-	rows, err := q.DeleteBobEmployeeCurrent(ctx, objectID)
-	if err != nil {
-		return EmployeeIdentity{}, s.writeError("remove Employee current", err)
-	}
-	if rows != 1 {
-		return EmployeeIdentity{}, domainError(ErrorConflict, "Employee current changed", nil, nil)
-	}
-	object, err := q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: objectID, Entity: EntityEmployee})
-	if err != nil {
-		return EmployeeIdentity{}, s.writeError("touch Employee current removal", err)
-	}
-	identity.ObjectRevision = object.Revision
-	return identity, nil
-}
-
-func (s *Service) DeleteEmployeeIdentity(ctx context.Context, tx pgx.Tx, objectID string, revision int64) error {
-	if tx == nil || !validID(objectID) || revision < 1 {
-		return domainError(ErrorValidation, "invalid Employee identity deletion", nil, nil)
-	}
-	if _, err := tx.Exec(ctx, `DELETE FROM bob_employment_relationships WHERE object_id=$1 AND merged_into_object_id IS NULL`, objectID); err != nil {
-		return s.writeError("delete Employee relationship", err)
-	}
-	rows, err := s.queries.WithTx(tx).DeleteBobObject(ctx, dbsqlc.DeleteBobObjectParams{ObjectID: objectID, Entity: EntityEmployee, ObjectRevision: revision})
-	if err != nil {
-		return s.writeError("delete Employee identity", err)
-	}
-	if rows != 1 {
-		return domainError(ErrorConflict, "Employee identity changed", nil, nil)
-	}
-	return nil
-}
-
 func (s *Service) EnsureEmployeeUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
-	if tx == nil || !validID(entryID) {
-		return domainError(ErrorValidation, "invalid Employee unapprove request", nil, nil)
-	}
-	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
+	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
 
 func (s *Service) EnsureEmployeeDisableAllowed(ctx context.Context, tx pgx.Tx, objectID string) error {
@@ -300,9 +187,9 @@ func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (Objec
 	}
 	entry := dbsqlc.ApprovalEntry{ID: row.ApprovalEntryID, Domain: row.Domain, Entity: EntityEmployee, SubjectID: row.ObjectID, VersionNo: row.VersionNo, Status: row.Status, Revision: row.ApprovalRevision, CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedBy: row.UpdatedBy, UpdatedAt: row.ApprovalUpdatedAt, SubmittedBy: row.SubmittedBy, SubmittedAt: row.SubmittedAt, ApprovedBy: row.ApprovedBy, ApprovedAt: row.ApprovedAt}
 	return ObjectView{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision,
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
 		Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: employeeDetailFromCurrent(row), UpdatedAt: row.UpdatedAt.Time,
-		Relationship: &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName},
+		Relationship: &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: deref(row.OperatingEntityCode), OperatingEntityName: row.OperatingEntityName},
 	}, nil
 }
 
@@ -345,28 +232,25 @@ func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryI
 		if getErr != nil {
 			return Page[QueryItem]{}, getErr
 		}
-		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
 func (s *Service) validateEmployeeSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityEmployee})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (entry.SubjectID != objectID || entry.Status != string(approval.StatusApproved))) {
-		return EffectiveReference{}, domainError(ErrorConflict, "Employee approval snapshot is unavailable", nil, nil)
-	}
+	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntityEmployee, objectID, "Employee approval snapshot is unavailable")
 	if err != nil {
-		return EffectiveReference{}, s.internal("validate Employee snapshot", err)
+		return EffectiveReference{}, err
 	}
 	row, err := q.GetDCLEmployeeVersion(ctx, entryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Employee snapshot", err)
 	}
-	object, err := q.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: objectID, Entity: EntityEmployee})
+	object, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityEmployee})
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Employee identity", err)
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: object.Code, ApprovalEntryID: entry.ID, Data: DetailView{Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), PositionID: deref(row.PositionID), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}}, nil
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), PositionID: deref(row.PositionID), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}}, nil
 }
 
 func (s *Service) resolveEmployeeCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
@@ -377,5 +261,5 @@ func (s *Service) resolveEmployeeCurrentReference(ctx context.Context, q *dbsqlc
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve Employee current", err)
 	}
-	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, Data: DetailView{Name: row.DisplayName}}, nil
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: DetailView{Name: row.DisplayName}}, nil
 }

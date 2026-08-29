@@ -753,10 +753,6 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	return input, nil
 }
 
-func validActorAndRequest(actorID, requestID string) bool {
-	return validID(actorID) && requestID != "" && len(requestID) <= 128
-}
-
 func pageOffset(page, pageSize int) (int32, bool) {
 	if page < 1 || pageSize < 1 || pageSize > 100 {
 		return 0, false

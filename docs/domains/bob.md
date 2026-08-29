@@ -46,7 +46,7 @@ BOB 列表只返回当前正式资料、stable ID、编码、`sourceApprovalEntr
 
 Party stable root、合并状态及各强类型关系 root 归 DCL 专属 typed identity 结构；共享身份的候选、版本、审批和审计同样由 DCL 承载。BOB 只读取 latest approved typed snapshot。客户、供应、雇佣、服务和销售合作关系的候选、启停和审批分别由 DCL customer、supplier、employee、other-unit 与 sales-partner 承载。停用一条关系不得影响同一主体的其他关系。主体作为永久身份保留，业务退出完全由各关系停用表达；误建重复主体只通过主体合并处理。
 
-主体动作与各关系动作分别授权。拥有客户、供应或其他关系权限，只允许读取页面和交易所需的最小主体投影，不自动获得主体编辑权限；名称、身份标识、税号和通用联系资料的修改必须单独具有主体权限。任何关系模块都不得通过保存关系明细顺带修改主体共享资料。
+主体动作与各关系动作分别授权。拥有客户、供应或其他关系权限，只允许读取页面和交易所需的最小主体资料，不自动获得主体编辑权限；名称、身份标识、税号和通用联系资料的修改必须单独具有主体权限。任何关系模块都不得通过保存关系明细顺带修改主体共享资料。
 
 BOB 提供独立主体及各关系的当前有效资料查询页面。主体详情只返回当前用户有权读取的关系卡片并允许跳转；无权关系的类型、数量和存在性均不得进入响应。客户、客户结算子账户、供应、雇佣、服务和销售合作页面都只读；创建、候选和生命周期深链统一进入对应 DCL 页面，并分别校验主体读取或 DCL Party 创建权限、目标关系 DCL 创建权限及经营主体可引用性。共享身份维护和主体合并均进入 DCL Party 页面。
 
@@ -263,7 +263,7 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 公开动作及路径以 [OpenAPI](../../contracts/openapi/openapi.yaml) 为准。BOB 每个实体只登记 `query/get`，共享引用入口登记 `reference/query`；每个动作都是独立 APP 权限。后端通过路由元数据绑定权限标识，不能由 Handler 以字符串前缀或角色名称推断。
 
-主体读取与各关系读取权限分开。主体查询和详情不因用户拥有任一关系权限而自动开放；关系卡片按关系实体的查询与查看权限分别投影。无论从主体详情还是关系列表进入维护，同类关系都深链到同一 DCL 强类型声明入口，不提供 BOB 页面专用写接口。
+主体读取与各关系读取权限分开。主体查询和详情不因用户拥有任一关系权限而自动开放；关系卡片按关系实体的查询与查看权限分别返回所需资料。无论从主体详情还是关系列表进入维护，同类关系都深链到同一 DCL 强类型声明入口，不提供 BOB 页面专用写接口。
 
 主体不提供 BOB `create` 动作；创建主体只能作为首条 DCL 强类型关系 `create` 的原子组成部分，并同时校验 DCL Party 创建权限和该关系创建权限。主体合并的预检和确认同样只在 DCL。
 
@@ -285,7 +285,7 @@ BOB `query` 永远只返回 current 行；DCL 候选状态不进入筛选或响�
 
 BOB `get` 只接受稳定对象 ID，并返回 current 类型化详情、`sourceApprovalEntryId` 与 `sourceVersionNo`；current 不存在时返回稳定未找到错误。它不接受历史 `approvalEntryId`，也不返回 Approval metadata、开放候选、版本或审计。
 
-BOB `reference/query` 只返回当前启用对象的最小引用投影。新业务由内部 typed resolver 解析 current DCL 来源；已有业务按自己保存的稳定对象 ID 与精确 DCL Approval Entry 校验历史来源，不通过 BOB HTTP 暴露历史详情。
+BOB `reference/query` 只返回当前启用对象的最小引用资料。新业务由内部 typed resolver 解析 current DCL 来源；已有业务按自己保存的稳定对象 ID 与精确 DCL Approval Entry 校验历史来源，不通过 BOB HTTP 暴露历史详情。
 
 ### 6.3 不存在的公开写动作
 
@@ -298,6 +298,7 @@ BOB 不注册 `create/save/enable/disable/submit/unsubmit/reject/approve/unappro
 - BOB HTTP 只读，不接收 revision 写入；
 - DCL typed identity reserve/delete 必须使用锁定后的 stable subject 与 typed root，并由外层 DCL Approval revision 保护整笔动作；
 - 来源、identity 或 Approval 状态已变化时返回稳定冲突，不能自动重放或退回旧来源。
+- WFL stable definition 的启停是独立运行开关，不拥有第二套 revision；同一 latest APPROVED `approvalEntryId + approvalRevision` 下的重复或相反启停请求由 subject lock 串行化，并明确以最后一次成功请求为准。
 
 ### 7.2 数据库锁
 
@@ -329,7 +330,7 @@ VOU 已保存的 `objectId + approvalEntryId` 快照在对象产生新批准版�
 
 解析车辆正式引用时，从 BOB current 取得 DCL 来源 `approvalEntryId` 和完整车辆快照，并在同一事务内按 `carrierAffiliation.type` 确认经营主体或服务关系仍存在可用 current。车辆和承运归属对象的共享锁保持到消费方事务结束，防止校验后承运归属立即失效；已有业务使用精确车辆 Approval Entry 校验历史正式快照，不回读当前车型或承运归属重写历史。
 
-AUX 产品分类、部门、岗位和结算方式只在用户选择或更换时校验 current stable object 并复制关键值，后续不形成 current 依赖；BOB 经营主体、负责人、主要业务归属和默认采购员仍按 DCL Approval Entry 在引用方的创建、保存、提交和审核阶段校验。VOU 使用客户关系的经营主体、客户主要业务归属或供应关系默认采购员创建新单据时，会在同一事务内解析对应对象的 latest approved 版本。最终经营主体与资金账户必须引用同一经营主体对象；资金账户引用投影不返回完整账号。
+AUX 产品分类、部门、岗位和结算方式只在用户选择或更换时校验 current stable object 并复制关键值，后续不形成 current 依赖；BOB 经营主体、负责人、主要业务归属和默认采购员仍按 DCL Approval Entry 在引用方的创建、保存、提交和审核阶段校验。VOU 使用客户关系的经营主体、客户主要业务归属或供应关系默认采购员创建新单据时，会在同一事务内解析对应对象的 latest approved 版本。最终经营主体与资金账户必须引用同一经营主体对象；资金账户引用资料不返回完整账号。
 
 引用候选在读取时有效不构成写入保证。为避免“校验后、交易写入前”发生编辑失效，交易事务应对对象行取得与 BOB 编辑更新互斥的共享锁，或采用经验证的等效数据库约束/串行化方案。
 
@@ -349,7 +350,7 @@ AUX 产品分类、部门、岗位和结算方式只在用户选择或更换时�
 
 - 所有接口先由 APP 中间件校验会话、CSRF 和完整 API 路径权限；
 - 主体与每类关系的 `query/get` 使用独立 BOB 读取权限，不被其他关系权限或 DCL 维护权限隐式包含；
-- 关系查询和详情只投影该页面与交易所需的主体字段，完整税号、身份标识和通用联系方式仍按主体字段权限裁剪；
+- 关系查询和详情只返回该页面与交易所需的主体字段，完整税号、身份标识和通用联系方式仍按主体字段权限裁剪；
 - BOB 权限目录不包含任何写入、lifecycle、版本或审计权限；DCL 权限不会使 BOB 页面出现维护控件；
 - 主体合并、关系创建与维护、候选及审批都使用对应 DCL 精确权限；
 - 日志记录 `requestId`、实体、稳定对象 ID、来源 entry 与结果类别，不记录完整税号、账号、联系方式等敏感业务字段；

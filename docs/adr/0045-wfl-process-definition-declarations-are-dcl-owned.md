@@ -10,7 +10,7 @@ status: accepted
 
 批准或反批后，WFL 直接读取 latest APPROVED typed snapshot 作为当前定义。已被任一持久化 WFL 实例以精确 `approvalEntryId` 引用的版本不得反批，不存在强制反批；该 stable subject 的下一候选仍允许创建和审批。新实例固定启动时 latest APPROVED 的 `approvalEntryId`，既有实例继续固定自己的 entry，定义后续改版不改写历史实例。
 
-`enabled` 是 stable definition 上不进入版本 payload 的独立运行开关，但不拥有第二套 revision。启停必须携带 latest APPROVED 的 `approvalEntryId` 与 `approvalRevision`，由 DCL 在 subject lock 内校验后更新。
+`enabled` 是 stable definition 上不进入版本 payload 的独立运行开关，但不拥有第二套 revision。启停必须携带 latest APPROVED 的 `approvalEntryId` 与 `approvalRevision`，由 DCL 在 subject lock 内校验后更新。同一审批身份下的重复或相反启停请求刻意采用 last-command-wins：subject lock 保证串行执行，最后一次成功请求决定运行开关；只有 latest APPROVED 身份或 Approval revision 改变才返回并发冲突，不为该开关增加独立 revision。
 
 DCL 不保存 `currentVersionId`、`effectiveVersionId`、`baseVersionId` 或 `nextVersionNo`。WFL 当前定义只读页面只检查 WFL `query` 与 `get`，不得因用户具有 DCL 权限而显示生命周期动作。权限切换保留已有角色关联但不保留旧 WFL 定义写路径；流程定义原 WFL 写/生命周期权限不再暴露，生命周期动作本身要求对应 DCL 权限。APP 工作台和审批深链固定进入 DCL 页面。
 

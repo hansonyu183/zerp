@@ -424,7 +424,9 @@ async function verifyBobProductCurrentReadOnly(
   name: string,
 ): Promise<void> {
   await page.goto('/bob/product')
-  await page.getByRole('textbox', { name: '产品（当前档案）关键字' }).fill(name)
+  await page
+    .getByRole('textbox', { name: '产品（当前有效资料）关键字' })
+    .fill(name)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const row = productRow(page, name)
   await expect(row).toHaveCount(1)

@@ -12,7 +12,7 @@
 1. 列表初始不请求；用户显式查询 DCL relationship candidate 与 current 摘要。
 2. 新建必须选择经营主体，并二选一选择既有 Party 或创建新 Party。保存不允许改变既定 Party 或经营主体边界。
 3. 候选维护短名、税号、联系人、电话、邮箱、地址、备注、结算方式、默认采购员与 `enabled`；不展示、传输或恢复供应商类别。草稿可暂缺结算方式或采购员，submit 与 approve 必须具备二者的完整有效 snapshot。
-4. 结算方式和默认采购员候选只展示最小投影；保存时采用当前可用来源，详情、版本和采购引用明确展示 stable ID、精确 Approval Entry、编码和名称快照。默认采购员清楚标为我方经办人。
+4. 结算方式和默认采购员候选列表保持精简；保存、详情与版本读取遵循上述 DCL/BOB 领域规则，并明确展示 stable ID、精确 Approval Entry、编码和名称快照。默认采购员清楚标为我方经办人。
 5. 根据状态与权限提供 create、save、submit、unsubmit、reject、approve、unapprove、delete、versions 与 audit。启停只通过保存 `enabled` 候选完成。
 6. 采购订单、采购入库、采购退货或采购付款精确引用目标 entry 时，反批显示 blocker；历史采购与 ACC 快照不被页面操作改写。
 

@@ -137,7 +137,6 @@ interface ReferenceMutation {
 interface WflDefinition {
   definitionId: string
   code: string
-  revision: number
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -700,7 +699,8 @@ async function createEnabledWorkflow(
     'dcl/wfl-process-definition/enable',
     {
       code: approved.code,
-      revision: approved.revision,
+      approvalEntryId: approved.approval.approvalEntryId,
+      approvalRevision: approved.approval.revision,
     },
   )
   expect(enabled.enabled).toBe(true)
@@ -1199,7 +1199,7 @@ test(
         .click()
       const partyDialog = page
         .getByRole('dialog')
-        .filter({ hasText: '主体当前档案' })
+        .filter({ hasText: '主体当前有效资料' })
       await expect(partyDialog).toContainText(
         `${facts.otherUnit.code} · 服务关系`,
       )

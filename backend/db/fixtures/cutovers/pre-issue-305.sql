@@ -1408,7 +1408,7 @@ CREATE TABLE public.dcl_customer_versions (
 
 -- #287 DCL owns the complete customer-account approval payload. The account
 -- stable identity remains bob_customer_accounts; this table is intentionally
--- separate from the BOB current read projection.
+-- 与 BOB 当前有效的只读业务资料分开保存。
 CREATE TABLE public.dcl_customer_account_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'customer-account'::character varying NOT NULL,

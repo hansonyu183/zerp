@@ -155,7 +155,7 @@ func TestDclWflProcessDefinitionCreateDefaultsDisabledIntegration(t *testing.T) 
 	}
 }
 
-func TestDclWflProcessDefinitionEnabledUsesLatestApprovalTokenIntegration(t *testing.T) {
+func TestDclWflProcessDefinitionEnabledUsesLatestApprovalTokenAndLastCommandWinsIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetWflProcessDefinitionIntegrationData(t, pool)
 	service := NewWflProcessDefinitionService(pool, wflIntegrationCompiler{}, authorization.Func(nil), txevent.NewBus())
@@ -187,6 +187,21 @@ func TestDclWflProcessDefinitionEnabledUsesLatestApprovalTokenIntegration(t *tes
 	disabled, err := service.Disable(t.Context(), token, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-disable-token"))
 	if err != nil || disabled.Enabled {
 		t.Fatalf("disable = %+v, err=%v", disabled, err)
+	}
+
+	// The stable switch deliberately has no independent revision. Commands for
+	// the same latest approved identity serialize under the subject lock, and
+	// the last successful command determines the state.
+	reenabled, err := service.Enable(t.Context(), token, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-reenable-token"))
+	if err != nil || !reenabled.Enabled {
+		t.Fatalf("reenable = %+v, err=%v", reenabled, err)
+	}
+	var finalEnabled bool
+	if err := pool.QueryRow(t.Context(), `SELECT enabled FROM wfl_process_definitions WHERE id=$1`, approved.DefinitionID).Scan(&finalEnabled); err != nil {
+		t.Fatal(err)
+	}
+	if !finalEnabled {
+		t.Fatal("last successful enable command should determine the stable switch state")
 	}
 }
 

@@ -168,7 +168,6 @@ interface WflDefinitionView {
   definitionId: string
   code: string
   enabled: boolean
-  revision: number
   approval: {
     approvalEntryId: string
     status: 'DRAFT' | 'PENDING' | 'APPROVED'
@@ -793,7 +792,11 @@ async function createEnabledWorkflowDefinition(
   }
   const enabled = await operator.post<WflDefinitionView>(
     'dcl/wfl-process-definition/enable',
-    { code: approved.code, revision: approved.revision },
+    {
+      code: approved.code,
+      approvalEntryId: approved.approval.approvalEntryId,
+      approvalRevision: approved.approval.revision,
+    },
   )
   if (!enabled.enabled) {
     throw new Error(`WFL 预置流程定义 ${options.code} 未启用。`)

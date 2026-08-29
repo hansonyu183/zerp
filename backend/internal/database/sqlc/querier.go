@@ -603,7 +603,7 @@ type Querier interface {
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error)
 	ListAuxObjectDeleteBlockers(ctx context.Context, objectID string) ([]ListAuxObjectDeleteBlockersRow, error)
-	// Exact BOB Approval-entry blocker projection. Every approved declaration
+	// Exact BOB Approval-entry blocker data. Every approved declaration
 	// remains a persisted formal fact, including versions that are no longer the
 	// latest approved declaration. Each row is matched by the immutable snapshot
 	// entry rather than the stable object.

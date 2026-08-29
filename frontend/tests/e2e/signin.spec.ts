@@ -7,14 +7,22 @@ const bobPages = [
   {
     entity: 'employee',
     title: '员工',
-    searchLabel: '员工（当前档案）关键字',
+    searchLabel: '员工（当前有效资料）关键字',
   },
-  { entity: 'warehouse', title: '仓库', searchLabel: '仓库关键字' },
-  { entity: 'vehicle', title: '车辆', searchLabel: '车辆关键字' },
+  {
+    entity: 'warehouse',
+    title: '仓库',
+    searchLabel: '仓库（当前有效资料）关键字',
+  },
+  {
+    entity: 'vehicle',
+    title: '车辆',
+    searchLabel: '车辆（当前有效资料）关键字',
+  },
   {
     entity: 'fund-account',
-    title: '资金账户（当前档案）',
-    searchLabel: '资金账户（当前档案）关键字',
+    title: '资金账户（当前有效资料）',
+    searchLabel: '资金账户（当前有效资料）关键字',
   },
 ] as const
 
@@ -195,7 +203,7 @@ test(
   },
 )
 
-test('DCL 经营主体申报与 BOB 当前档案使用独立入口和请求边界', async ({
+test('DCL 经营主体申报与 BOB 当前有效资料使用独立入口和请求边界', async ({
   page,
   workerState,
 }) => {
@@ -259,7 +267,10 @@ test('DCL 经营主体申报与 BOB 当前档案使用独立入口和请求边�
   await currentProfileLink.click()
   await expect(page).toHaveURL(/\/bob\/operating-entity$/)
   await expect(
-    page.getByRole('textbox', { name: '经营主体关键字', exact: true }),
+    page.getByRole('textbox', {
+      name: '经营主体（当前有效资料）关键字',
+      exact: true,
+    }),
   ).toBeVisible()
   await expect(
     page.getByRole('button', { name: '新增', exact: true }),
@@ -267,7 +278,9 @@ test('DCL 经营主体申报与 BOB 当前档案使用独立入口和请求边�
   await expect(
     page.getByRole('combobox', { name: '状态', exact: true }),
   ).toHaveCount(0)
-  await page.getByRole('textbox', { name: '经营主体关键字' }).fill(code!)
+  await page
+    .getByRole('textbox', { name: '经营主体（当前有效资料）关键字' })
+    .fill(code!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const currentRow = operatingEntityRow(page, code!)
   await expect(currentRow).toContainText(declarationName)

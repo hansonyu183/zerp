@@ -58,7 +58,7 @@ type ListBobApprovalEntryReferenceCountsRow struct {
 	ReferenceCount int64  `db:"reference_count" json:"reference_count"`
 }
 
-// Exact BOB Approval-entry blocker projection. Every approved declaration
+// Exact BOB Approval-entry blocker data. Every approved declaration
 // remains a persisted formal fact, including versions that are no longer the
 // latest approved declaration. Each row is matched by the immutable snapshot
 // entry rather than the stable object.

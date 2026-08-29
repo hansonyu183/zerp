@@ -248,7 +248,7 @@ test(
 )
 
 test(
-  'BOB 客户与客户结算子账户只读取当前档案',
+  'BOB 客户与客户结算子账户只读取当前有效资料',
   { tag: '@mobile' },
   async ({ page, workerState }) => {
     await signIn(page, workerState.operator)

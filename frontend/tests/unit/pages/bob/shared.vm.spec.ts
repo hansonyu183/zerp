@@ -133,7 +133,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.editorErrorMessage.value).toBe('详情加载失败')
   })
 
-  it('当前档案使用只读列和启停筛选', () => {
+  it('当前有效资料使用只读列和启停筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       product: [
         '编码',
@@ -217,7 +217,7 @@ describe('shared BOB entity configuration and view model', () => {
     }
   })
 
-  it('BOB 经营主体只读取当前投影且忽略 DCL 生命周期权限', async () => {
+  it('BOB 经营主体只读取当前有效资料且忽略 DCL 生命周期权限', async () => {
     useSessionStore().permissions = [
       '/bob/operating-entity/query',
       '/bob/operating-entity/get',
@@ -278,7 +278,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect('save' in vm).toBe(false)
   })
 
-  it('BOB 仓库只读取当前投影且没有任何写动作', async () => {
+  it('BOB 仓库只读取当前有效资料且没有任何写动作', async () => {
     useSessionStore().permissions = [
       '/bob/warehouse/query',
       '/bob/warehouse/get',
@@ -329,7 +329,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect('submitObject' in vm).toBe(false)
   })
 
-  it('BOB 车辆只读取当前投影且没有任何写动作', async () => {
+  it('BOB 车辆只读取当前有效资料且没有任何写动作', async () => {
     useSessionStore().permissions = [
       '/bob/vehicle/query',
       '/bob/vehicle/get',
@@ -389,7 +389,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect('changeEnabled' in vm).toBe(false)
   })
 
-  it('BOB 产品只读取当前投影且忽略全部生命周期权限', () => {
+  it('BOB 产品只读取当前有效资料且忽略全部生命周期权限', () => {
     grant('product', 'submit', 'approve')
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
@@ -442,7 +442,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect('openVersions' in vm).toBe(false)
   })
 
-  it('资金账户当前档案不提供 BOB 写入或经营主体引用预载', async () => {
+  it('资金账户当前有效资料不提供 BOB 写入或经营主体引用预载', async () => {
     grant('fund-account', 'create', 'get', 'save', 'query')
     const config = getBobEntityConfig('fund-account')
     const vm = useBobEntityViewModel(config)
@@ -453,7 +453,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect(mockedApiClient.postContract).not.toHaveBeenCalled()
   })
 
-  it('查看资金账户当前档案不会预载经营主体引用', async () => {
+  it('查看资金账户当前有效资料不会预载经营主体引用', async () => {
     grant('fund-account', 'get')
     const config = getBobEntityConfig('fund-account')
     mockedApiClient.postContract.mockResolvedValueOnce({

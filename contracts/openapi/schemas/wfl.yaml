@@ -101,7 +101,6 @@
         'code',
         'name',
         'enabled',
-        'revision',
         'approval',
         'rootEntity',
         'nodeCount',
@@ -118,12 +117,6 @@
         'code': { 'type': 'string' },
         'name': { 'type': 'string' },
         'enabled': { 'type': 'boolean' },
-        'revision':
-          {
-            'type': 'integer',
-            'format': 'int64',
-            'description': 'stable definition revision; only enable/disable use it.',
-          },
         'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
         'rootEntity': { '$ref': './vou.yaml#/VouEntity' },
         'nodeCount': { 'type': 'integer' },
@@ -214,7 +207,6 @@
         code,
         name,
         enabled,
-        revision,
         approval,
         rootEntity,
         nodeCount,
@@ -227,12 +219,6 @@
         'code': { 'type': 'string' },
         'name': { 'type': 'string' },
         'enabled': { 'type': 'boolean' },
-        'revision':
-          {
-            'type': 'integer',
-            'format': 'int64',
-            'description': 'stable definition revision; only enable/disable use it.',
-          },
         'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
         'rootEntity': { '$ref': './vou.yaml#/VouEntity' },
         'nodeCount': { 'type': 'integer' },

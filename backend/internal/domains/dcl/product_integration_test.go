@@ -307,7 +307,7 @@ func TestApprovedProductKeepsMeasurementUnitQuantityScaleSnapshotIntegration(t *
 	}
 }
 
-func newProductIntegrationServices(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus, current productCurrentWriter) (*bobdomain.Service, *ProductService) {
+func newProductIntegrationServices(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus, current productRules) (*bobdomain.Service, *ProductService) {
 	t.Helper()
 	authorizer := authorization.Func(nil)
 	auxiliary := auxdomain.NewService(pool)
@@ -435,14 +435,14 @@ func TestDisabledProductCurrentIsReadableButNotEffectiveReferenceIntegration(t *
 }
 
 func productData(name, productTypeID string, material *ProductMutation) ProductInput {
-	data := ProductInput{Name: name, ProductTypeID: productTypeID, DefaultInputUnitID: productTonUnitID, PricingUnitID: productKGUnitID, UnitConversions: []bobdomain.ProductUnitConversion{
-		{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: productKGUnitID}, Factor: "1"},
-		{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: productTonUnitID}, Factor: "1000"},
+	data := ProductInput{Name: name, ProductTypeID: productTypeID, DefaultInputUnitID: productTonUnitID, PricingUnitID: productKGUnitID, UnitConversions: []ProductUnitConversionInput{
+		{Unit: MeasurementUnitReferenceInput{ObjectID: productKGUnitID}, Factor: "1"},
+		{Unit: MeasurementUnitReferenceInput{ObjectID: productTonUnitID}, Factor: "1000"},
 	}, DefaultPackagingSpec: "10"}
 	if material != nil {
-		data.Formula = &bobdomain.ProductFormula{Output: bobdomain.QuantitySnapshot{EnteredQuantity: "100", EnteredUnit: bobdomain.MeasurementUnitSnapshot{ObjectID: productTonUnitID}, BaseQuantity: "100000"}, Components: []bobdomain.ProductFormulaComponent{{
-			Material:         bobdomain.FormulaMaterialReference{ObjectID: material.ObjectID},
-			Quantity:         bobdomain.QuantitySnapshot{EnteredQuantity: "25.5", EnteredUnit: bobdomain.MeasurementUnitSnapshot{ObjectID: productTonUnitID}, BaseQuantity: "25500"},
+		data.Formula = &ProductFormulaInput{Output: ProductQuantityInput{EnteredQuantity: "100", EnteredUnit: MeasurementUnitReferenceInput{ObjectID: productTonUnitID}, BaseQuantity: "100000"}, Components: []ProductFormulaComponentInput{{
+			Material:         ProductFormulaMaterialInput{ObjectID: material.ObjectID},
+			Quantity:         ProductQuantityInput{EnteredQuantity: "25.5", EnteredUnit: MeasurementUnitReferenceInput{ObjectID: productTonUnitID}, BaseQuantity: "25500"},
 			ResolutionStatus: "CURRENT",
 		}}}
 	}

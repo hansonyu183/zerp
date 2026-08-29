@@ -126,8 +126,8 @@ workflow(code="` + secondCode + `", name="另一流程", root=root, edges=[
 	oldDefinitionApprovalID, newDefinitionApprovalID, draftDefinitionApprovalID := newID(), newID(), newID()
 	secondDefinitionID, secondDefinitionApprovalID := newID(), newID()
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO wfl_process_definitions(id,code,enabled,revision,created_by,updated_by)
-		VALUES($1,$2,true,2,$3,$3),($4,$5,true,1,$3,$3)
+		INSERT INTO wfl_process_definitions(id,code,enabled,created_by,updated_by)
+		VALUES($1,$2,true,$3,$3),($4,$5,true,$3,$3)
 	`, definitionID, code, actorID, secondDefinitionID, secondCode); err != nil {
 		t.Fatalf("insert workflow definitions: %v", err)
 	}

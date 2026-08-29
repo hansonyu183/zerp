@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobProductUnitConversionSnapshot } from './BobProductUnitConversionSnapshot';
+import type { BobProductUnitConversion } from './BobProductUnitConversion';
 import type { DclProductFormulaSnapshot } from './DclProductFormulaSnapshot';
 export type DclProductData = {
   name: string;
@@ -19,7 +19,7 @@ export type DclProductData = {
   behaviorProfile?: 'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING' | null;
   defaultInputUnitId?: string | null;
   pricingUnitId?: string | null;
-  unitConversions: Array<BobProductUnitConversionSnapshot>;
+  unitConversions: Array<BobProductUnitConversion>;
   returnable: boolean;
   defaultPackagingSpec?: string | null;
   formula?: DclProductFormulaSnapshot | null;

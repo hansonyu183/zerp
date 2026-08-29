@@ -1,11 +1,11 @@
-# 客户结算子账户当前档案用例
+# 客户结算子账户当前有效资料用例
 
 ## 页面范围
 
 - 路由：`/bob/customer-account`
 - 领域规则：[BOB 领域](../../domains/bob.md) 与 [DCL 领域](../../domains/dcl.md)
 
-页面只读当前批准的账户投影。它只调用 `query|get|reference`，不会读取 DCL candidate，也不提供创建、保存、审批、删除或附件写入。
+页面只读当前有效的账户资料。它只调用 `query|get|reference`，不会读取 DCL candidate，也不提供创建、保存、审批、删除或附件写入。
 
 ## 查询与详情
 

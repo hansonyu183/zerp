@@ -1,4 +1,4 @@
-# 客户当前档案用例
+# 客户当前有效资料用例
 
 ## 页面范围
 
@@ -7,17 +7,17 @@
 - 订单、收款、开票和历史业务边界：[VOU 领域](../../domains/vou.md)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [BOB Schema](../../../contracts/openapi/schemas/bob.yaml)
 
-本页面只读取批准后的客户关系 current projection；候选、附件写入和所有生命周期动作固定进入 `/dcl/customer`，不保留 BOB 写入别名。
+本页面只读取当前有效的客户关系资料；候选、附件写入和所有生命周期动作固定进入 `/dcl/customer`，不保留 BOB 写入别名。
 
 ## 当前查询与详情
 
-1. 首次进入调用 BOB `query`；列表只展示可交易的 current 关系投影、稳定编码、Party、经营主体、启停状态和当前来源 Approval Entry。
+1. 首次进入调用 BOB `query`；列表只展示可交易的当前有效关系资料、稳定编码、Party、经营主体、启停状态和当前来源 Approval Entry。
 2. 查看调用 BOB `get`，只展示 current 关系资料和到 `/bob/customer-account` 的 current 子账户导航；不得显示 `openVersion`、待审资料、草稿附件或生命周期控件。
 3. 页面可以按权限提供“进入申报”深链 `/dcl/customer`，但不在 BOB 内拼装、保存或提交任何 candidate。
 
 ## 读取、异常与恢复
 
-1. 列表只使用 current `query` 投影；查看均重新调用 `get`。候选、历史与附件下载均由对应 DCL 页面读取。
+1. 列表只使用当前有效资料的 `query`；查看均重新调用 `get`。候选、历史与附件下载均由对应 DCL 页面读取。
 2. 读取失败时展示后端业务消息和 `requestId`，保留筛选与页面位置并提供重试，不用列表行或本地默认值拼装详情。
 3. BOB 页面没有可保存输入；申报页返回 revision 冲突或来源失效时，显示后端 `errorKey` 并保留 DCL 表单输入。
 

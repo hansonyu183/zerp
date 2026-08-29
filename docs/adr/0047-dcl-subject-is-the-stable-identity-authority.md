@@ -19,6 +19,6 @@ Party、Customer Account、Employee、Customer、Supplier、Other Unit 与 Sales
 
 V1 草稿在 BOB 不可见；V1 批准后无需额外写入即可被 BOB 读取；V2 `DRAFT` 或 `PENDING` 时仍读取 V1；V2 批准后读取 V2；V2 反批后自然回到 V1；V1 反批且无其他批准版本时自然不可见。已有业务按 stable ID 与精确 Approval Entry 校验历史来源，不要求该 entry 仍为 latest approved；持久化精确引用仍阻止不安全反批。
 
-本 ADR 取代 ADR-0033 至 ADR-0042 中“stable root 或 business code 归 BOB”“BOB 保存 current projection”以及“approve/unapprove 同事务 apply/remove/rollback current”的条款，也取代 ADR-0046 中“BOB 保存 current projection”的表述。上述 ADR 的强类型业务规则、DCL 写边界、Approval 所有权、页面边界、历史 snapshot 和精确引用规则继续有效。后续版本化实体必须沿同一所有权收口，不得建立改名的 stable root、current store、view、cache、fallback、兼容 alias 或通用 query engine。
+本 ADR 取代 ADR-0033 至 ADR-0042 中把 stable root 或 business code 归 BOB、要求 BOB 保存物化当前副本以及在 approve/unapprove 时同步维护该副本的条款，也取代 ADR-0046 中同类旧表述。上述 ADR 的强类型业务规则、DCL 写边界、Approval 所有权、页面边界、历史 snapshot 和精确引用规则继续有效。后续版本化实体必须沿同一所有权收口，不得建立改名的 stable root、current store、view、cache、fallback、兼容 alias 或通用 query engine。
 
 对应 GitHub [#305](https://github.com/hansonyu183/zerp/issues/305)、核心 typed-master 切片 [#307](https://github.com/hansonyu183/zerp/issues/307)、Party/Relationship 切片 [#308](https://github.com/hansonyu183/zerp/issues/308) 与终态收口 [#309](https://github.com/hansonyu183/zerp/issues/309)。

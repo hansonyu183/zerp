@@ -744,7 +744,7 @@ WHERE domain='dcl' AND entity='employee' AND subject_id=sqlc.arg(object_id)
 ORDER BY created_at DESC,id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
--- Warehouse is a DCL-owned declaration with a BOB current projection. Category
+-- Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category
 -- columns are retained only to preserve pre-cutover snapshots and are never
 -- supplied by the Warehouse declaration API.
 -- name: InsertDCLWarehouseVersion :exec
@@ -1214,12 +1214,12 @@ SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_sta
 -- ── WFL Process Definition (DCL-owned) ──────────────────────────────────
 
 -- name: InsertDclWflProcessDefinition :exec
-INSERT INTO wfl_process_definitions(id, code, enabled, revision, created_by, updated_by)
-VALUES(sqlc.arg(definition_id), sqlc.arg(code), false, 1, sqlc.arg(actor_id), sqlc.arg(actor_id));
+INSERT INTO wfl_process_definitions(id, code, enabled, created_by, updated_by)
+VALUES(sqlc.arg(definition_id), sqlc.arg(code), false, sqlc.arg(actor_id), sqlc.arg(actor_id));
 
 -- name: DeleteDclWflProcessDefinition :execrows
 DELETE FROM wfl_process_definitions
-WHERE id=sqlc.arg(definition_id) AND revision=sqlc.arg(revision);
+WHERE id=sqlc.arg(definition_id);
 
 -- name: DclWflGetLatestApprovedPayload :one
 SELECT v.approval_entry_id, v.definition_id, v.script, v.diagnostic, v.compiled FROM approval_entries e JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
@@ -1247,14 +1247,14 @@ UPDATE dcl_wfl_process_definition_versions SET script=sqlc.arg(script), diagnost
 DELETE FROM dcl_wfl_process_definition_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND definition_id=sqlc.arg(definition_id);
 
 -- name: DclWflSetDefinitionEnabled :one
-UPDATE wfl_process_definitions SET enabled=sqlc.arg(enabled), revision=revision+1, updated_at=now(), updated_by=sqlc.arg(actor_id) WHERE id=sqlc.arg(definition_id) AND revision=sqlc.arg(revision) RETURNING id, code, enabled, revision;
+UPDATE wfl_process_definitions SET enabled=sqlc.arg(enabled), updated_at=now(), updated_by=sqlc.arg(actor_id) WHERE id=sqlc.arg(definition_id) RETURNING id, code, enabled;
 
 -- name: DclWflRecordTrial :execrows
 UPDATE dcl_wfl_process_definition_versions SET last_trial_approval_revision=sqlc.arg(approval_revision), updated_at=now()
 WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
 -- name: GetDclWflProcessDefinitionByCode :one
-SELECT id, code, enabled, revision
+SELECT id, code, enabled
 FROM wfl_process_definitions
 WHERE code=sqlc.arg(code);
 
@@ -1285,7 +1285,7 @@ WITH selected AS (
 SELECT count(*) FROM selected;
 
 -- name: ListDclWflProcessDefinitions :many
-SELECT d.id AS definition_id, d.code, d.enabled, d.revision AS object_revision,
+SELECT d.id AS definition_id, d.code, d.enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at

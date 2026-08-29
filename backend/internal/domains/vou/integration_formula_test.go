@@ -178,7 +178,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get raw material before edit: %v", err)
 	}
-	rawData := dcldomain.ProductInput{
+	rawData := dcldomain.ProductInputFromData(dcldomain.ProductData{
 		Name: rawView.Data.Name, CategoryID: rawView.Data.CategoryID,
 		Specification: rawView.Data.Specification, Model: rawView.Data.Model,
 		Barcode: rawView.Data.Barcode, Remark: rawView.Data.Remark,
@@ -186,7 +186,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		PricingUnitID: rawView.Data.PricingUnitID, UnitConversions: rawView.Data.UnitConversions,
 		Returnable: rawView.Data.Returnable, DefaultPackagingSpec: rawView.Data.DefaultPackagingSpec,
 		Formula: rawView.Data.Formula,
-	}
+	})
 	productDeclarations := dcldomain.NewProductService(pool, bobService, authorization.Func(nil), txevent.NewBus())
 	rawDeclaration, err := productDeclarations.Get(t.Context(), dcldomain.ProductGetInput{
 		ObjectID: rawView.ObjectID, ApprovalEntryID: rawView.SourceApprovalEntryID,

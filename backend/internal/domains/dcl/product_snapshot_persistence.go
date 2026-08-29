@@ -9,7 +9,7 @@ import (
 )
 
 // DCL owns every mutable Product declaration snapshot. BOB may read these
-// rows through its current projection, but it never creates or changes them.
+// rows through its current effective read data, but it never creates or changes them.
 func storeProductSnapshot(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string, data bobdomain.DetailView) error {
 	if err := q.InsertDCLProductSnapshot(ctx, dbsqlc.InsertDCLProductSnapshotParams{ApprovalEntryID: approvalEntryID, Name: data.Name}); err != nil {
 		return err

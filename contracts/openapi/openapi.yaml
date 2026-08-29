@@ -9531,7 +9531,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '查询客户当前正式投影',
+              'summary': '查询客户当前有效资料',
               'operationId': 'bobCustomerQuery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -9572,7 +9572,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '读取客户当前正式投影',
+              'summary': '读取客户当前有效资料',
               'operationId': 'bobCustomerGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -9611,7 +9611,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '查询客户结算子账户当前正式投影',
+              'summary': '查询客户结算子账户当前有效资料',
               'operationId': 'bobCustomerAccountQuery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -9652,7 +9652,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '读取客户结算子账户当前正式投影',
+              'summary': '读取客户结算子账户当前有效资料',
               'operationId': 'bobCustomerAccountGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':

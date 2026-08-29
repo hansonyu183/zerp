@@ -491,25 +491,57 @@ type PartyReviewInput struct {
 
 // ProductInput is the complete, mutable product declaration. Snapshot fields
 // are resolved by the service and are deliberately absent from the wire input.
-type ProductInput struct {
-	Name                 string                            `json:"name"`
-	CategoryID           string                            `json:"categoryId"`
-	Specification        string                            `json:"specification"`
-	Model                string                            `json:"model"`
-	Barcode              string                            `json:"barcode"`
-	Remark               string                            `json:"remark"`
-	ProductTypeID        string                            `json:"productTypeId"`
-	DefaultInputUnitID   string                            `json:"defaultInputUnitId"`
-	PricingUnitID        string                            `json:"pricingUnitId"`
-	UnitConversions      []bobdomain.ProductUnitConversion `json:"unitConversions"`
-	Returnable           bool                              `json:"returnable"`
-	DefaultPackagingSpec string                            `json:"defaultPackagingSpec"`
-	Formula              *bobdomain.ProductFormula         `json:"formula"`
+type MeasurementUnitReferenceInput struct {
+	ObjectID string `json:"objectId"`
 }
 
-// ProductData is the DCL read snapshot. Keep it product-only: BOB owns the
-// stable identity/current projection, while DCL exposes no unrelated BOB
-// DetailView fields such as bulkLiquidCapable.
+type ProductUnitConversionInput struct {
+	Unit   MeasurementUnitReferenceInput `json:"unit"`
+	Factor string                        `json:"factor"`
+}
+
+type ProductQuantityInput struct {
+	EnteredQuantity string                        `json:"enteredQuantity"`
+	EnteredUnit     MeasurementUnitReferenceInput `json:"enteredUnit"`
+	BaseQuantity    string                        `json:"baseQuantity"`
+}
+
+type ProductFormulaMaterialInput struct {
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+}
+
+type ProductFormulaComponentInput struct {
+	Material             ProductFormulaMaterialInput `json:"material"`
+	Quantity             ProductQuantityInput        `json:"quantity"`
+	ResolutionStatus     string                      `json:"resolutionStatus"`
+	RequiresConfirmation bool                        `json:"requiresConfirmation"`
+}
+
+type ProductFormulaInput struct {
+	Output     ProductQuantityInput           `json:"output"`
+	Components []ProductFormulaComponentInput `json:"components"`
+}
+
+type ProductInput struct {
+	Name                 string                       `json:"name"`
+	CategoryID           string                       `json:"categoryId"`
+	Specification        string                       `json:"specification"`
+	Model                string                       `json:"model"`
+	Barcode              string                       `json:"barcode"`
+	Remark               string                       `json:"remark"`
+	ProductTypeID        string                       `json:"productTypeId"`
+	DefaultInputUnitID   string                       `json:"defaultInputUnitId"`
+	PricingUnitID        string                       `json:"pricingUnitId"`
+	UnitConversions      []ProductUnitConversionInput `json:"unitConversions"`
+	Returnable           bool                         `json:"returnable"`
+	DefaultPackagingSpec string                       `json:"defaultPackagingSpec"`
+	Formula              *ProductFormulaInput         `json:"formula"`
+}
+
+// ProductData is the DCL read snapshot. Keep it product-only: DCL owns the
+// stable identity and version snapshot, while BOB exposes no unrelated fields
+// such as bulkLiquidCapable through this declaration model.
 type ProductData struct {
 	Name                 string                            `json:"name"`
 	CategoryID           string                            `json:"categoryId"`

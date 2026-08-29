@@ -170,7 +170,7 @@ func (s *Service) ResolveCurrentReference(ctx context.Context, tx pgx.Tx, entity
 	if entity == EntityCustomerAccount {
 		return s.resolveCustomerAccountCurrentReference(ctx, q, objectID)
 	}
-	return EffectiveReference{}, domainError(ErrorValidation, "unsupported BOB current reference entity", nil, nil)
+	return EffectiveReference{}, domainError(ErrorValidation, "unsupported BOB current-effective reference entity", nil, nil)
 }
 
 func (s *Service) EnsureUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {

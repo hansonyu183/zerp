@@ -2,10 +2,7 @@ import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import type { ApprovalStatus } from '@/api/generated'
 import { ApiError, getErrorMessage } from '@/api/types'
 import { documentEntityText } from '@/components/wfl/config'
-import {
-  type ApprovalAction,
-  visibleApprovalActions,
-} from '@/shared/approval'
+import { type ApprovalAction, visibleApprovalActions } from '@/shared/approval'
 import { useSessionStore } from '@/stores/session'
 import {
   approveDclWflProcessDefinition,
@@ -77,7 +74,9 @@ const actions = [
   'trial',
 ] as const
 
-function diagnosticFromString(diagnostic?: string): WflDefinitionDiagnostic | null {
+function diagnosticFromString(
+  diagnostic?: string,
+): WflDefinitionDiagnostic | null {
   if (!diagnostic) return null
   const location = /workflow\.star:(\d+):(\d+)/u.exec(diagnostic)
   return {
@@ -171,16 +170,16 @@ export function createDclWflProcessDefinitionViewModel() {
 
   const nodeMap = computed(
     () =>
-      new Map(
-        (selected.value?.nodes ?? []).map((node) => [node.key, node]),
-      ),
+      new Map((selected.value?.nodes ?? []).map((node) => [node.key, node])),
   )
 
   const lifecycleActions = computed<ApprovalAction[]>(() => {
     const definition = selected.value
     if (!definition || !session.user) return []
-    return visibleApprovalActions(definition.approval, session.user.id, (action) =>
-      permissions.value[action],
+    return visibleApprovalActions(
+      definition.approval,
+      session.user.id,
+      (action) => permissions.value[action],
     )
   })
 
@@ -255,10 +254,7 @@ export function createDclWflProcessDefinitionViewModel() {
         approvalEntryId ??
         item.openVersion?.approval.approvalEntryId ??
         item.latestApproved?.approval.approvalEntryId
-      const result = await getDclWflProcessDefinition(
-        item.code,
-        targetEntry,
-      )
+      const result = await getDclWflProcessDefinition(item.code, targetEntry)
       if (!active || current !== sequence) return
       applyDefinition(result.data)
       editorOpen.value = true
@@ -357,7 +353,9 @@ export function createDclWflProcessDefinitionViewModel() {
     saving.value = true
     errorMessage.value = null
     try {
-      let result: { data: { code: string; approval: { approvalEntryId: string } } } | null = null
+      let result: {
+        data: { code: string; approval: { approvalEntryId: string } }
+      } | null = null
       switch (action) {
         case 'submit':
           result = await submitDclWflProcessDefinition(definition)
@@ -418,8 +416,7 @@ export function createDclWflProcessDefinitionViewModel() {
     errorMessage.value = null
     try {
       const result = await setDclWflProcessDefinitionEnabled(
-        selected.value.code,
-        selected.value.revision,
+        selected.value,
         enabled,
       )
       if (!active) return

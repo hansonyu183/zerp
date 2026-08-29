@@ -476,7 +476,7 @@ func TestBobAuxiliaryCurrentReferenceBoundaryIntegration(t *testing.T) {
 		created, createErr := productService.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
 			Name: name, CategoryID: categoryID, ProductTypeID: productType.ObjectID,
 			DefaultInputUnitID: unit.ObjectID, PricingUnitID: unit.ObjectID,
-			UnitConversions:      []bob.ProductUnitConversion{{Unit: bob.MeasurementUnitSnapshot{ObjectID: unit.ObjectID}, Factor: "1"}},
+			UnitConversions:      []dcldomain.ProductUnitConversionInput{{Unit: dcldomain.MeasurementUnitReferenceInput{ObjectID: unit.ObjectID}, Factor: "1"}},
 			DefaultPackagingSpec: "1",
 		}}, actor(name+"-create"))
 		if createErr != nil {
@@ -511,7 +511,7 @@ func TestBobAuxiliaryCurrentReferenceBoundaryIntegration(t *testing.T) {
 		t.Fatalf("approve candidate product with current AUX reference: %v", err)
 	}
 
-	// A BOB current projection keeps its own snapshot, while its persisted AUX
+	// Current effective BOB data keeps its selected snapshot, while its persisted AUX
 	// reference blocks destructive deletion of the current object.
 	formalCategory := createAuxiliary(auxdomain.EntityProductCategory, map[string]any{
 		"name": "PR3 正式分类-" + suffix,

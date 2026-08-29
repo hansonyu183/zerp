@@ -1948,7 +1948,6 @@ type WflProcessDefinition struct {
 	ID        string             `db:"id" json:"id"`
 	Code      string             `db:"code" json:"code"`
 	Enabled   bool               `db:"enabled" json:"enabled"`
-	Revision  int64              `db:"revision" json:"revision"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy string             `db:"created_by" json:"created_by"`
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`

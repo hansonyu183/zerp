@@ -8,7 +8,7 @@ import {
 
 export const warehouseConfig = defineBobEntityConfig({
   entity: 'warehouse',
-  title: '仓库',
+  title: '仓库（当前有效资料）',
   codeLabel: '仓库编码',
   nameLabel: '仓库名称',
   defaults: {

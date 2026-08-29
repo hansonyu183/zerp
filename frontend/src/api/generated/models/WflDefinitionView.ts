@@ -12,10 +12,6 @@ export type WflDefinitionView = {
   code: string;
   name: string;
   enabled: boolean;
-  /**
-   * stable definition revision; only enable/disable use it.
-   */
-  revision: number;
   approval: ApprovalVersionMeta;
   rootEntity: VouEntity;
   nodeCount: number;

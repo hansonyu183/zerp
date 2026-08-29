@@ -1486,7 +1486,7 @@ CREATE TABLE public.dcl_customer_versions (
 
 -- DCL owns the complete customer-account approval payload. The typed stable
 -- identity is dcl_customer_accounts; BOB reads the highest approved snapshot
--- directly and does not maintain a current projection.
+-- directly and does not maintain a second current-data store.
 CREATE TABLE public.dcl_customer_account_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'customer-account'::character varying NOT NULL,
@@ -3265,13 +3265,11 @@ CREATE TABLE public.wfl_process_definitions (
     id character varying(26) NOT NULL,
     code character varying(64) NOT NULL,
     enabled boolean DEFAULT false NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    CONSTRAINT wfl_process_definitions_code_check CHECK (((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text)),
-    CONSTRAINT wfl_process_definitions_revision_check CHECK ((revision > 0))
+    CONSTRAINT wfl_process_definitions_code_check CHECK (((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text))
 );
 
 
@@ -5327,10 +5325,10 @@ globalThis.calculate = function calculate(input) {
 -- Data for Name: wfl_process_definitions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.wfl_process_definitions (id, code, enabled, revision, created_by, updated_by) VALUES
-    ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.wfl_process_definitions (id, code, enabled, created_by, updated_by) VALUES
+    ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
+    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
+    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
 INSERT INTO public.dcl_wfl_process_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE0f7b734eecb146455d2f051', 'WFD0f7b734eecb146455d2f051', 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
 workflow(code="expense-payment", name="费用报销付款", root=reimbursement, edges=[edge(source=reimbursement, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": ""}))])', NULL, '{"edges": [{"relation": "payment", "sourceKey": "reimbursement", "targetKey": "payment", "actionName": "expense_payment"}], "nodes": [{"key": "reimbursement", "name": "费用报销", "entity": "expense-reimbursement"}, {"key": "payment", "name": "费用付款", "entity": "expense-payment"}], "rootKey": "reimbursement"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');

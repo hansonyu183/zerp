@@ -179,10 +179,10 @@ func (s *fakeStore) Create(_ context.Context, entity string, input seedCreateInp
 		monthlyClosingDay = 31
 	}
 	view := seedObjectView{
-		ObjectID:       objectID,
-		Entity:         entity,
-		Code:           input.Data.Code,
-		ObjectRevision: 1,
+		ObjectID:         objectID,
+		Entity:           entity,
+		Code:             input.Data.Code,
+		ApprovalRevision: 1,
 		Approval: approval.VersionMeta{
 			ApprovalEntryID: approvalEntryID,
 			VersionNo:       1,
@@ -365,6 +365,6 @@ func (s *fakeStore) transition(objectID string, status approval.Status) seedMuta
 
 func mutation(view seedObjectView) seedMutation {
 	return seedMutation{
-		ObjectID: view.ObjectID, ObjectRevision: view.ObjectRevision, Approval: view.Approval,
+		ObjectID: view.ObjectID, ApprovalRevision: view.ApprovalRevision, Approval: view.Approval,
 	}
 }

@@ -1,9 +1,9 @@
-# 供应商当前档案用例
+# 供应商当前有效资料用例
 
 ## 页面范围
 
 - 路由：`/bob/supplier`
-- 当前投影与引用：[BOB 领域](../../domains/bob.md)
+- 当前有效资料与引用：[BOB 领域](../../domains/bob.md)
 - 供应关系申报与生命周期：[DCL 领域](../../domains/dcl.md#37-供应商其他单位与销售合作方申报)
 - 采购交易与结算：[VOU 领域](../../domains/vou.md)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 的 `POST /bob/supplier/query|get` 及 `/bob/reference/query`
@@ -13,7 +13,7 @@
 ## 页面编排
 
 1. 首次进入调用 `query`；关键词、状态、经营主体和默认采购员由公共筛选组件明确提交。列表仅展示当前正式资料、交易可用状态与来源 Approval Entry 摘要。
-2. 详情重新调用 `get`，展示 Party 与经营主体投影、供应关系资料、结算方式精确 snapshot 和默认采购员精确 snapshot；供应商类别不显示、不筛选也不传输。
+2. 详情重新调用 `get`，展示 Party 与经营主体的必要资料、供应关系资料、结算方式精确 snapshot 和默认采购员精确 snapshot；供应商类别不显示、不筛选也不传输。
 3. 用户具有对应 DCL 权限时，页面只提供进入同一 stable relationship 的 DCL 深链；权限、状态或网络失败时保留筛选和页面位置，并显示后端 `errorKey`、消息和 `requestId`。
 4. 采购单据引用候选从 `/bob/reference/query` 读取 current/latest approved 供应关系；已保存采购事实继续使用其精确 Approval Entry 与业务快照，不回查本页 current。
 

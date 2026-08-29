@@ -20,7 +20,7 @@ const (
 	SalesAttributionDealer           = "CHANNEL_PARTNER"
 )
 
-// CustomerAttachmentView remains the read DTO shared by BOB current views.
+// CustomerAttachmentView is the read DTO shared by BOB current-effective views.
 // Ownership and mutation live exclusively in DCL.
 type CustomerAttachmentView struct {
 	FileID           string     `json:"fileId"`
@@ -39,7 +39,7 @@ type CustomerAttachmentView struct {
 
 // CustomerSnapshot and CustomerAccountData are read-only wire shapes shared
 // with the DCL customer-account declaration.  BOB hydrates them only from an
-// approved DCL current projection; it owns no customer payload or lifecycle.
+// currently effective approved DCL data; it owns no customer payload or lifecycle.
 type CustomerSnapshot struct {
 	SourceObjectID        string `json:"sourceObjectId"`
 	ApprovalEntryID       string `json:"approvalEntryId"`
@@ -136,7 +136,7 @@ func hasSalesCapability(values []string, expected string) bool {
 
 // CustomerCurrentQueryInput is deliberately separate from the generic BOB
 // query shape: Customer relationship and account declarations are DCL-owned,
-// and BOB exposes only their approved current projections.
+// and BOB exposes only their currently effective approved data.
 type CustomerCurrentQueryInput struct {
 	Page     int                         `json:"page"`
 	PageSize int                         `json:"pageSize"`
@@ -270,7 +270,7 @@ func (s *Service) CustomerCurrentGet(ctx context.Context, objectID string) (Cust
 	}
 	row, err := s.queries.GetBobCustomerCurrent(ctx, objectID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return CustomerCurrentView{}, domainError(ErrorConflict, "customer current projection is unavailable", nil, nil)
+		return CustomerCurrentView{}, domainError(ErrorConflict, "customer current effective data is unavailable", nil, nil)
 	}
 	if err != nil {
 		return CustomerCurrentView{}, s.internal("get current customer", err)
@@ -308,7 +308,7 @@ func (s *Service) CustomerAccountCurrentGet(ctx context.Context, objectID string
 	}
 	current, err := s.queries.GetBobCustomerAccountCurrent(ctx, objectID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return CustomerAccountCurrentView{}, domainError(ErrorConflict, "customer account current projection is unavailable", nil, nil)
+		return CustomerAccountCurrentView{}, domainError(ErrorConflict, "customer account current effective data is unavailable", nil, nil)
 	}
 	if err != nil {
 		return CustomerAccountCurrentView{}, s.internal("get current customer account", err)
@@ -364,11 +364,11 @@ func bobDCLCustomerAccountAttachments(ctx context.Context, q *dbsqlc.Queries, en
 }
 
 // resolveCustomerAccountCurrentReference is the sole path for new commercial
-// work. It reads the BOB current projection and its exact approved DCL entry.
+// work. It reads the current effective BOB data and its exact approved DCL entry.
 func (s *Service) resolveCustomerAccountCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
 	row, err := q.GetBobCustomerAccountCurrentReference(ctx, objectID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EffectiveReference{}, domainError(ErrorConflict, "customer account current projection is unavailable", nil, nil)
+		return EffectiveReference{}, domainError(ErrorConflict, "customer account current effective data is unavailable", nil, nil)
 	}
 	if err != nil {
 		return EffectiveReference{}, s.internal("get current customer account reference", err)

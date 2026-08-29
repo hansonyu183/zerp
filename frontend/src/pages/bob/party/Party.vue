@@ -47,12 +47,12 @@ onMounted(() => void vm.query())
 <template>
   <v-container fluid class="pa-3 pa-md-6"
     ><v-card
-      ><v-card-title>主体（当前档案）</v-card-title
+      ><v-card-title>主体（当前有效资料）</v-card-title
       ><v-card-text>
         <BusinessObjectList
           :columns="columns"
           :editable="vm.canGet"
-          empty-text="暂无当前主体"
+          empty-text="暂无当前有效主体资料"
           :keyword="vm.keywordDraft"
           :loading="vm.loading"
           :page="vm.page"
@@ -99,10 +99,10 @@ onMounted(() => void vm.query())
     ></v-card>
     <v-dialog v-model="vm.detailOpen" max-width="820"
       ><v-card
-        ><v-card-title>主体当前档案</v-card-title
+        ><v-card-title>主体当前有效资料</v-card-title
         ><v-card-text>
           <v-alert type="info" variant="tonal" class="mb-4"
-            >当前档案只读；维护共享身份、候选和审批请进入主体申报。</v-alert
+            >当前有效资料只读；维护共享身份、候选和审批请进入主体申报。</v-alert
           >
           <v-row dense
             ><v-col cols="12" sm="4"

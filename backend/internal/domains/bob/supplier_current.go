@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// BOB exposes Suppliers strictly through the approved current projection. DCL
+// BOB exposes Suppliers strictly as currently effective approved data. DCL
 // owns Supplier candidates and their historical snapshots.
 func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
 	if !validID(input.ObjectID) {

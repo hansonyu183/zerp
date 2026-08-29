@@ -229,13 +229,13 @@ func createApprovedBOB(
 			data.DefaultPackagingSpec = "1"
 		}
 		declarations := dcldomain.NewProductService(vouIntegrationPool(t), service, authorization.Func(nil), txevent.NewBus())
-		created, err := declarations.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
+		created, err := declarations.Create(t.Context(), dcldomain.ProductCreateInput{Data: dcldomain.ProductInputFromData(dcldomain.ProductData{
 			Name: data.Name, CategoryID: data.CategoryID,
 			Specification: data.Specification, Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
 			ProductTypeID: data.ProductTypeID, DefaultInputUnitID: data.DefaultInputUnitID,
 			PricingUnitID: data.PricingUnitID, UnitConversions: data.UnitConversions,
 			Returnable: data.Returnable, DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
-		}}, trustedIntegrationActor(t, "vou-ref-create"))
+		})}, trustedIntegrationActor(t, "vou-ref-create"))
 		if err != nil {
 			t.Fatalf("create product reference: %v", err)
 		}

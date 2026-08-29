@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type fundAccountCurrentWriter interface {
+type fundAccountRules interface {
 	ResolveFundAccountOperating(context.Context, pgx.Tx, bobdomain.FundAccountData, bool) (bobdomain.FundAccountData, error)
 	EnsureFundAccountUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
@@ -22,19 +22,19 @@ type fundAccountCurrentWriter interface {
 type FundAccountService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     fundAccountCurrentWriter
+	rules       fundAccountRules
 	coordinator *approval.Coordinator[dclapproval.FundAccountPayload]
 }
 
-func NewFundAccountService(pool *pgxpool.Pool, current fundAccountCurrentWriter, authorizer approval.Authorizer, bus *txevent.Bus) *FundAccountService {
-	if pool == nil || current == nil || authorizer == nil || bus == nil {
-		panic("dcl: persistence, BOB current writer, authorizer and event bus are required")
+func NewFundAccountService(pool *pgxpool.Pool, rules fundAccountRules, authorizer approval.Authorizer, bus *txevent.Bus) *FundAccountService {
+	if pool == nil || rules == nil || authorizer == nil || bus == nil {
+		panic("dcl: persistence, business rules, authorizer and event bus are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityFundAccount, authorizer, bus, dclapproval.FundAccountTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &FundAccountService{pool: pool, queries: dbsqlc.New(pool), current: current, coordinator: c}
+	return &FundAccountService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
 }
 
 func fundAccountDeclarationData(data FundAccountData) bobdomain.FundAccountData {
@@ -80,7 +80,7 @@ func (s *FundAccountService) Create(ctx context.Context, input FundAccountCreate
 		return FundAccountMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	data, err = s.current.ResolveFundAccountOperating(ctx, tx, data, false)
+	data, err = s.rules.ResolveFundAccountOperating(ctx, tx, data, false)
 	if err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
@@ -146,7 +146,7 @@ func (s *FundAccountService) Save(ctx context.Context, input FundAccountSaveInpu
 	if err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
-	data, err = s.current.ResolveFundAccountOperating(ctx, tx, data, false)
+	data, err = s.rules.ResolveFundAccountOperating(ctx, tx, data, false)
 	if err != nil {
 		return FundAccountMutation{}, translateError(err)
 	}
@@ -215,13 +215,13 @@ func (s *FundAccountService) transition(ctx context.Context, input FundAccountVe
 		return FundAccountMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
-		data, err = s.current.ResolveFundAccountOperating(ctx, tx, data, true)
+		data, err = s.rules.ResolveFundAccountOperating(ctx, tx, data, true)
 		if err != nil {
 			return FundAccountMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureFundAccountUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureFundAccountUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
 			return FundAccountMutation{}, translateError(err)
 		}
 	}

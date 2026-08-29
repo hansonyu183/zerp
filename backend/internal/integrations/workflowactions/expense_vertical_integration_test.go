@@ -249,7 +249,8 @@ workflow(code="` + code + `", name="费用付款纵切", root=root, edges=[
 		t.Fatalf("approve workflow definition: %v", err)
 	}
 	enabled, err := dclWflService.Enable(t.Context(), dcldomain.WflProcessDefinitionEnableInput{
-		Code: approvedDef.Code, Revision: approvedDef.Revision,
+		Code: approvedDef.Code, ApprovalEntryID: approvedDef.Approval.ApprovalEntryID,
+		ApprovalRevision: approvedDef.Approval.Revision,
 	}, definitionActor)
 	if err != nil {
 		t.Fatalf("enable workflow definition: %v", err)

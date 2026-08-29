@@ -10,7 +10,7 @@
 4. 强标识在 latest approved 与唯一 open candidate 之间共同占用。首条关系提交的新身份精确命中可读 approved Party 时复用既有 Party，命中不可读 Party 或仅命中未批准候选时返回不泄露资料的占用冲突；提交和批准分别重新校验占用，冲突或 Approval revision 冲突不改变候选和既有正式资料。
 5. V1 与首条关系不可拆分，因此页面不提供 V1 草稿删除；已有正式版本时，后续 `DRAFT` candidate 可以删除并释放其候选强标识。
 
-## 当前投影、合并与验收
+## 当前有效资料、合并与验收
 
 1. V1 批准前 BOB 不可见；批准后直接读取 latest approved。V2 批准时自然切换，反批 latest 时自然回落，反批 V1 时自然不可见。
 2. 合并必须在本页先预检：请求提交双方 latest approved `sourceApprovalEntryId` 与 Approval revision，双方存在正式版本且不存在 Party candidate 才能继续。用户显式处理全部关系冲突后，以 `preflightId` 和选择结果确认；资料、Approval token 或关系变化都会使预检失效。来源 DCL Party root 标记 merged-into 后从 BOB 查询消失，DCL history/claims、merge audit 和历史单据不改写。

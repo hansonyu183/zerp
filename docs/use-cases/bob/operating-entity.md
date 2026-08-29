@@ -1,4 +1,4 @@
-# BOB 经营主体当前档案页面用例
+# BOB 经营主体当前有效资料页面用例
 
 权威业务规则见 [BOB 领域](../../domains/bob.md)与 [DCL 经营主体申报](../../domains/dcl.md)，线协议见 [OpenAPI BOB Schema](../../../contracts/openapi/schemas/bob.yaml)。
 
@@ -8,9 +8,9 @@
 2. 列表调用 `POST /bob/operating-entity/query`，只展示已经批准的当前正式档案；详情调用 `POST /bob/operating-entity/get` 重新读取 DCL highest APPROVED typed snapshot。
 3. 页面不展示候选、审批状态、创建、编辑、启停、提交、撤回、驳回、批准、反批、删除、版本或审计控件，也不调用任何 `/dcl/operating-entity/*` 或 BOB 写接口。
 
-## 2. 当前档案
+## 2. 当前有效资料
 
-1. 列表和详情展示稳定 ID、业务编码、来源 Approval Entry ID、法定名称、简称、税号、地址、电话、备注与当前启用状态；不把审批候选字段拼入当前档案。
+1. 列表和详情展示稳定 ID、业务编码、来源 Approval Entry ID、法定名称、简称、税号、地址、电话、备注与当前启用状态；不把审批候选字段拼入当前有效资料。
 2. DCL 存在草稿或待审候选时，本页面继续显示旧正式档案；候选批准后，下一次查询或详情读取自然选择新批准版本。
 3. 具有 DCL 查询权限时，可以提供“查看申报”导航，目标为 `/dcl/operating-entity?objectId=<stable-id>&mode=view`；导航不是 BOB 内写入口，也不得复用 BOB ViewModel 执行 DCL 请求。
 

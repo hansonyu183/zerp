@@ -2,7 +2,7 @@ import { defineBobEntityConfig } from '../shared/config-helpers'
 
 export const productConfig = defineBobEntityConfig({
   entity: 'product',
-  title: '产品（当前档案）',
+  title: '产品（当前有效资料）',
   codeLabel: '产品编码',
   nameLabel: '产品名称',
   defaults: {

@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type vehicleCurrentWriter interface {
+type vehicleRules interface {
 	ResolveVehicleType(context.Context, pgx.Tx, bobdomain.VehicleData, bool) (bobdomain.VehicleData, error)
 	ResolveVehicleCarrier(context.Context, pgx.Tx, bobdomain.VehicleData, bool) (bobdomain.VehicleData, error)
 	EnsureVehicleUnapproveAllowed(context.Context, pgx.Tx, string) error
@@ -24,19 +24,19 @@ type vehicleCurrentWriter interface {
 type VehicleService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     vehicleCurrentWriter
+	rules       vehicleRules
 	coordinator *approval.Coordinator[dclapproval.VehiclePayload]
 }
 
-func NewVehicleService(pool *pgxpool.Pool, current vehicleCurrentWriter, authorizer approval.Authorizer, bus *txevent.Bus) *VehicleService {
-	if pool == nil || current == nil || authorizer == nil || bus == nil {
+func NewVehicleService(pool *pgxpool.Pool, rules vehicleRules, authorizer approval.Authorizer, bus *txevent.Bus) *VehicleService {
+	if pool == nil || rules == nil || authorizer == nil || bus == nil {
 		panic("dcl: vehicle dependencies are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityVehicle, authorizer, bus, dclapproval.VehicleTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &VehicleService{pool: pool, queries: dbsqlc.New(pool), current: current, coordinator: c}
+	return &VehicleService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
 }
 func vehicleBobData(d VehicleData) bobdomain.VehicleData {
 	return bobdomain.VehicleData{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, CarrierAffiliation: d.CarrierAffiliation, BulkLiquidCapable: d.BulkLiquidCapable, VIN: d.VIN, EngineNumber: d.EngineNumber, LoadCapacityKG: d.LoadCapacityKG, Remark: d.Remark}
@@ -71,11 +71,11 @@ func (s *VehicleService) Create(ctx context.Context, in VehicleCreateInput, a ap
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
-	d, err = s.current.ResolveVehicleCarrier(ctx, tx, d, false)
+	d, err = s.rules.ResolveVehicleCarrier(ctx, tx, d, false)
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
-	d, err = s.current.ResolveVehicleType(ctx, tx, d, false)
+	d, err = s.rules.ResolveVehicleType(ctx, tx, d, false)
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
@@ -143,11 +143,11 @@ func (s *VehicleService) Save(ctx context.Context, in VehicleSaveInput, a approv
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
-	d, err = s.current.ResolveVehicleCarrier(ctx, tx, d, false)
+	d, err = s.rules.ResolveVehicleCarrier(ctx, tx, d, false)
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
-	d, err = s.current.ResolveVehicleType(ctx, tx, d, false)
+	d, err = s.rules.ResolveVehicleType(ctx, tx, d, false)
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
@@ -219,17 +219,17 @@ func (s *VehicleService) transition(ctx context.Context, in VehicleVersionInput,
 		return VehicleMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
-		d, err = s.current.ResolveVehicleType(ctx, tx, d, true)
+		d, err = s.rules.ResolveVehicleType(ctx, tx, d, true)
 		if err != nil {
 			return VehicleMutation{}, translateError(err)
 		}
-		d, err = s.current.ResolveVehicleCarrier(ctx, tx, d, true)
+		d, err = s.rules.ResolveVehicleCarrier(ctx, tx, d, true)
 		if err != nil {
 			return VehicleMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureVehicleUnapproveAllowed(ctx, tx, in.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureVehicleUnapproveAllowed(ctx, tx, in.ApprovalEntryID); err != nil {
 			return VehicleMutation{}, translateError(err)
 		}
 	}

@@ -18,31 +18,31 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-type operatingEntityCurrentWriter interface {
+type operatingEntityRules interface {
 	EnsureOperatingEntityUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 
 type OperatingEntityService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     operatingEntityCurrentWriter
+	rules       operatingEntityRules
 	coordinator *approval.Coordinator[dclapproval.OperatingEntityPayload]
 }
 
 func NewOperatingEntityService(
 	pool *pgxpool.Pool,
-	current operatingEntityCurrentWriter,
+	rules operatingEntityRules,
 	authorizer approval.Authorizer,
 	bus *txevent.Bus,
 ) *OperatingEntityService {
-	if pool == nil || current == nil || authorizer == nil || bus == nil {
-		panic("dcl: persistence, BOB current writer, authorizer and event bus are required")
+	if pool == nil || rules == nil || authorizer == nil || bus == nil {
+		panic("dcl: persistence, business rules, authorizer and event bus are required")
 	}
 	coordinator, err := approval.NewCoordinator("dcl", EntityOperatingEntity, authorizer, bus, dclapproval.OperatingEntityTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &OperatingEntityService{pool: pool, queries: dbsqlc.New(pool), current: current, coordinator: coordinator}
+	return &OperatingEntityService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: coordinator}
 }
 
 func (s *OperatingEntityService) Create(ctx context.Context, input OperatingEntityCreateInput, actor approval.Actor) (OperatingEntityMutation, error) {
@@ -197,7 +197,7 @@ func (s *OperatingEntityService) transition(
 		return OperatingEntityMutation{}, translateError(err)
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureOperatingEntityUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureOperatingEntityUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
 			return OperatingEntityMutation{}, translateError(err)
 		}
 	}

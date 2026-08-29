@@ -66,7 +66,7 @@ export function useBobCustomerViewModel() {
       const { data } = await apiClient.postContract('bob/customer/get', {
         objectId,
       })
-      if (!data) throw new Error('客户关系当前档案不存在。')
+      if (!data) throw new Error('客户关系当前有效资料不存在。')
       currentView.value = data
       drawerOpen.value = true
     } catch (error) {

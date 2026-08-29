@@ -1,5 +1,5 @@
--- Compatibility read DTOs for BOB callers.  These are not projections: every
--- row is derived directly from a typed DCL root and its latest APPROVED entry.
+-- Typed read queries for BOB callers. Every row is derived directly from a
+-- typed DCL subject and its latest APPROVED entry.
 
 -- name: CountDCLApprovedPartiesForBOB :one
 SELECT count(*)

@@ -1238,7 +1238,7 @@ test(
         suffix,
       )
 
-      // One real-backend journey now proves the final BOB/DCL projection
+      // One real-backend journey now proves the final BOB/DCL read boundary
       // model as a whole. No application request is mocked or intercepted.
       const product = await referenceByCode(
         session.api,
@@ -1326,8 +1326,7 @@ test(
         'dcl/employee/submit',
         {
           objectId: managerDisableCandidate.objectId,
-          approvalEntryId:
-            managerDisableCandidate.approval.approvalEntryId,
+          approvalEntryId: managerDisableCandidate.approval.approvalEntryId,
           approvalRevision: managerDisableCandidate.approval.revision,
         },
       )

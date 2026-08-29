@@ -177,8 +177,8 @@ type CountDCLApprovedPartiesForBOBParams struct {
 	Keyword   string `db:"keyword" json:"keyword"`
 }
 
-// Compatibility read DTOs for BOB callers.  These are not projections: every
-// row is derived directly from a typed DCL root and its latest APPROVED entry.
+// Typed read queries for BOB callers. Every row is derived directly from a
+// typed DCL subject and its latest APPROVED entry.
 func (q *Queries) CountDCLApprovedPartiesForBOB(ctx context.Context, arg CountDCLApprovedPartiesForBOBParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countDCLApprovedPartiesForBOB, arg.PartyKind, arg.Keyword)
 	var count int64

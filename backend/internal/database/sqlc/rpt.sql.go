@@ -157,7 +157,7 @@ type RptLatestApprovedUseStateRow struct {
 	Validity        *string `db:"validity" json:"validity"`
 }
 
-// RPT owns runtime validity, permission projection, and audit only. DCL owns
+// RPT owns runtime validity, permission registration, and audit only. DCL owns
 // the stable subject and approved typed payload.
 func (q *Queries) RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error) {
 	row := q.db.QueryRow(ctx, rptLatestApprovedUseState, definitionID)

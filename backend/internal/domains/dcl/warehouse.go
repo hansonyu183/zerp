@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type warehouseCurrentWriter interface {
+type warehouseRules interface {
 	ResolveWarehouseManager(context.Context, pgx.Tx, bobdomain.WarehouseData, bool) (bobdomain.WarehouseData, error)
 	EnsureWarehouseUnapproveAllowed(context.Context, pgx.Tx, string) error
 	EnsureWarehouseDisableAllowed(context.Context, pgx.Tx, string) (bobdomain.WarehouseDisableBlockers, error)
@@ -23,19 +23,19 @@ type warehouseCurrentWriter interface {
 type WarehouseService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     warehouseCurrentWriter
+	rules       warehouseRules
 	coordinator *approval.Coordinator[dclapproval.WarehousePayload]
 }
 
-func NewWarehouseService(pool *pgxpool.Pool, current warehouseCurrentWriter, authorizer approval.Authorizer, bus *txevent.Bus) *WarehouseService {
-	if pool == nil || current == nil || authorizer == nil || bus == nil {
-		panic("dcl: persistence, BOB current writer, authorizer and event bus are required")
+func NewWarehouseService(pool *pgxpool.Pool, rules warehouseRules, authorizer approval.Authorizer, bus *txevent.Bus) *WarehouseService {
+	if pool == nil || rules == nil || authorizer == nil || bus == nil {
+		panic("dcl: persistence, business rules, authorizer and event bus are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityWarehouse, authorizer, bus, dclapproval.WarehouseTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &WarehouseService{pool: pool, queries: dbsqlc.New(pool), current: current, coordinator: c}
+	return &WarehouseService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
 }
 
 func warehouseDeclarationData(data WarehouseData) bobdomain.WarehouseData {
@@ -87,7 +87,7 @@ func (s *WarehouseService) Create(ctx context.Context, input WarehouseCreateInpu
 		return WarehouseMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	data, err = s.current.ResolveWarehouseManager(ctx, tx, data, false)
+	data, err = s.rules.ResolveWarehouseManager(ctx, tx, data, false)
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
@@ -150,7 +150,7 @@ func (s *WarehouseService) Save(ctx context.Context, input WarehouseSaveInput, a
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
-	data, err = s.current.ResolveWarehouseManager(ctx, tx, data, false)
+	data, err = s.rules.ResolveWarehouseManager(ctx, tx, data, false)
 	if err != nil {
 		return WarehouseMutation{}, translateError(err)
 	}
@@ -216,13 +216,13 @@ func (s *WarehouseService) transition(ctx context.Context, input WarehouseVersio
 		return WarehouseMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
-		data, err = s.current.ResolveWarehouseManager(ctx, tx, data, true)
+		data, err = s.rules.ResolveWarehouseManager(ctx, tx, data, true)
 		if err != nil {
 			return WarehouseMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionApproved && !stored.Enabled {
-		blockers, blockErr := s.current.EnsureWarehouseDisableAllowed(ctx, tx, input.ObjectID)
+		blockers, blockErr := s.rules.EnsureWarehouseDisableAllowed(ctx, tx, input.ObjectID)
 		if blockErr != nil {
 			return WarehouseMutation{}, translateError(blockErr)
 		}
@@ -231,7 +231,7 @@ func (s *WarehouseService) transition(ctx context.Context, input WarehouseVersio
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureWarehouseUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureWarehouseUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
 			return WarehouseMutation{}, translateError(err)
 		}
 		if err = s.ensureWarehouseUnapproveFallbackAllowed(ctx, tx, input.ObjectID, input.ApprovalEntryID); err != nil {
@@ -272,7 +272,7 @@ func (s *WarehouseService) ensureWarehouseUnapproveFallbackAllowed(
 			return nil
 		}
 	}
-	blockers, blockerErr := s.current.EnsureWarehouseDisableAllowed(ctx, tx, objectID)
+	blockers, blockerErr := s.rules.EnsureWarehouseDisableAllowed(ctx, tx, objectID)
 	if blockerErr != nil {
 		return translateError(blockerErr)
 	}

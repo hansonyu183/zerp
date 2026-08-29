@@ -2,13 +2,13 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobQuantitySnapshotInput } from './BobQuantitySnapshotInput';
-export type BobProductFormulaComponentInput = {
+import type { DclProductQuantityInput } from './DclProductQuantityInput';
+export type DclProductFormulaComponentInput = {
   material: {
     objectId: string;
     approvalEntryId: string;
   };
-  quantity: BobQuantitySnapshotInput;
+  quantity: DclProductQuantityInput;
   resolutionStatus?: 'CURRENT' | 'UNRESOLVED' | null;
   requiresConfirmation?: boolean | null;
 };

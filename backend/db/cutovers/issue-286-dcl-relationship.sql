@@ -117,7 +117,7 @@ UPDATE app_permissions
 SET path=regexp_replace(path, '^/bob/(other-unit|sales-partner)/', '/dcl/\\1/'), domain='dcl', updated_at=clock_timestamp(), revision=revision+1
 WHERE path ~ '^/bob/(other-unit|sales-partner)/' AND action NOT IN ('query','get');
 
--- BOB keeps current-projection query/get permissions. DCL needs distinct exact
+-- BOB keeps read-only current-data query/get permissions. DCL needs distinct exact
 -- permissions for the declaration query/get endpoints.
 INSERT INTO app_permissions(id,path,domain,entity,action,description,status,menu_order) VALUES
   ('01JBOB85000000000000000015','/dcl/other-unit/query','dcl','other-unit','query','查询其他单位声明','ENABLED',40),

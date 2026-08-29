@@ -115,8 +115,8 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		return dcldomain.ProductInput{
 			Name: name, ProductTypeID: productTypeID,
 			DefaultInputUnitID: unitID, PricingUnitID: unitID,
-			UnitConversions: []bobdomain.ProductUnitConversion{{
-				Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: unitID}, Factor: "1",
+			UnitConversions: []dcldomain.ProductUnitConversionInput{{
+				Unit: dcldomain.MeasurementUnitReferenceInput{ObjectID: unitID}, Factor: "1",
 			}},
 			DefaultPackagingSpec: "1",
 		}

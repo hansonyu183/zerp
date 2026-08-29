@@ -2,7 +2,7 @@ import { defineBobEntityConfig, textarea } from '../shared/config-helpers'
 
 export const employeeConfig = defineBobEntityConfig({
   entity: 'employee',
-  title: '员工（当前档案）',
+  title: '员工（当前有效资料）',
   codeLabel: '人员编码',
   nameLabel: '主体名称',
   defaults: {

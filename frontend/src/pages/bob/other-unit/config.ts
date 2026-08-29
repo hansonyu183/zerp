@@ -2,7 +2,7 @@ import { defineBobEntityConfig, textarea } from '../shared/config-helpers'
 
 export const otherUnitConfig = defineBobEntityConfig({
   entity: 'other-unit',
-  title: '其他单位（当前档案）',
+  title: '其他单位（当前有效资料）',
   codeLabel: '其他单位编码',
   nameLabel: '主体名称',
   defaults: {

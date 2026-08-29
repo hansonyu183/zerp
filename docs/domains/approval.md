@@ -4,7 +4,7 @@
 
 Approval 是跨领域的中央审批能力，唯一拥有审批生命周期、操作授权、revision、审批元数据、审计事件和同步事务事件发布。业务 Domain 仍拥有稳定主体、业务数据、业务校验和强类型事件 payload；Approval 不认识任何 Domain 业务规则。
 
-中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。VOU 和 ACC Opening 使用 Approval-only；实际写入 Approval Version 的业务 Domain 只有 DCL，其实体包括资料申报、ACC Mapping、RPT Definition 与 WFL Definition。BOB 是 DCL 的 current read projection，AUX 使用 Stable-ID Direct CRUD，两者均不注册 Approval subject；ACC、RPT 与 WFL 也不得为这些 DCL 实体另建 Approval subject。
+中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。VOU 和 ACC Opening 使用 Approval-only；实际写入 Approval Version 的业务 Domain 只有 DCL，其实体包括资料申报、ACC Mapping、RPT Definition 与 WFL Definition。BOB 只查询 DCL 当前有效的已批准资料，AUX 使用 Stable-ID Direct CRUD，两者均不注册 Approval subject；ACC、RPT 与 WFL 也不得为这些 DCL 实体另建 Approval subject。
 
 ## 2. 审批条目与主体边界
 

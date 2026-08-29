@@ -47,7 +47,6 @@ const listItem: DclWflProcessDefinitionListItem = {
   code: 'test-flow',
   definitionId: '01KWFL00000000000000000002',
   enabled: false,
-  revision: 1,
   latestApproved: null,
   openVersion: { approval },
 }
@@ -56,7 +55,6 @@ const definition: DclWflProcessDefinition = {
   code: 'test-flow',
   definitionId: '01KWFL00000000000000000002',
   enabled: false,
-  revision: 1,
   approval,
   script: 'workflow(code="test-flow", name="测试流程", root=root)',
   nodes: [
@@ -95,8 +93,8 @@ describe('DCL WFL process-definition gateway paths', () => {
     await unapproveDclWflProcessDefinition(definition, '撤回批准')
     await createNextDclWflProcessDefinitionVersion(definition)
     await deleteDclWflProcessDefinitionVersion(definition)
-    await setDclWflProcessDefinitionEnabled(definition.code, definition.revision, true)
-    await setDclWflProcessDefinitionEnabled(definition.code, definition.revision, false)
+    await setDclWflProcessDefinitionEnabled(definition, true)
+    await setDclWflProcessDefinitionEnabled(definition, false)
     await getDclWflProcessDefinitionVersions(definition.code)
     await getDclWflProcessDefinitionAuditHistory(definition.code)
 
@@ -118,8 +116,30 @@ describe('DCL WFL process-definition gateway paths', () => {
       'dcl/wfl-process-definition/audit-history',
     ]
     for (let i = 0; i < expectedPaths.length; i++) {
-      expect(mockedPost).toHaveBeenNthCalledWith(i + 1, expectedPaths[i], expect.any(Object))
+      expect(mockedPost).toHaveBeenNthCalledWith(
+        i + 1,
+        expectedPaths[i],
+        expect.any(Object),
+      )
     }
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      12,
+      'dcl/wfl-process-definition/enable',
+      {
+        code: definition.code,
+        approvalEntryId: approval.approvalEntryId,
+        approvalRevision: approval.revision,
+      },
+    )
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      13,
+      'dcl/wfl-process-definition/disable',
+      {
+        code: definition.code,
+        approvalEntryId: approval.approvalEntryId,
+        approvalRevision: approval.revision,
+      },
+    )
   })
 
   it('keeps trial on the typed WFL endpoint', async () => {
@@ -149,7 +169,8 @@ describe('DCL WFL process-definition gateway paths', () => {
     await approveDclWflProcessDefinition(definition)
 
     const oldPaths = mockedPost.mock.calls.filter(
-      ([path]) => typeof path === 'string' && path.startsWith('wfl/definition/'),
+      ([path]) =>
+        typeof path === 'string' && path.startsWith('wfl/definition/'),
     )
     expect(oldPaths).toHaveLength(0)
   })
@@ -259,9 +280,13 @@ describe('DCL WFL process-definition VM permissions', () => {
       if (path === 'dcl/wfl-process-definition/get')
         return Promise.resolve({ data: definition })
       if (path === 'dcl/wfl-process-definition/versions')
-        return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 100 } })
+        return Promise.resolve({
+          data: { items: [], total: 0, page: 1, pageSize: 100 },
+        })
       if (path === 'dcl/wfl-process-definition/audit-history')
-        return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 100 } })
+        return Promise.resolve({
+          data: { items: [], total: 0, page: 1, pageSize: 100 },
+        })
       return Promise.resolve({ data: {} })
     }) as typeof apiClient.postContract)
 
@@ -289,7 +314,9 @@ describe('DCL WFL process-definition VM permissions', () => {
     )
 
     const nonDclCalls = mockedPost.mock.calls.filter(
-      ([path]) => typeof path === 'string' && !String(path).startsWith('dcl/wfl-process-definition/'),
+      ([path]) =>
+        typeof path === 'string' &&
+        !String(path).startsWith('dcl/wfl-process-definition/'),
     )
     expect(nonDclCalls).toHaveLength(0)
   })

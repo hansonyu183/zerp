@@ -2,7 +2,7 @@ import { defineBobEntityConfig } from '../shared/config-helpers'
 
 export const fundAccountConfig = defineBobEntityConfig({
   entity: 'fund-account',
-  title: '资金账户（当前档案）',
+  title: '资金账户（当前有效资料）',
   codeLabel: '账户编码',
   nameLabel: '账户名称',
   defaults: {

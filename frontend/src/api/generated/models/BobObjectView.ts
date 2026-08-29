@@ -11,7 +11,7 @@ export type BobObjectView = {
   code: string;
   enabled: boolean;
   /**
-   * DCL current 投影的精确来源 Approval Entry。
+   * 当前有效只读资料的精确来源 Approval Entry。
    */
   sourceApprovalEntryId: string;
   sourceVersionNo: number;

@@ -72,12 +72,12 @@ type Querier interface {
 	CountBobVehicles(ctx context.Context, arg CountBobVehiclesParams) (int64, error)
 	CountBobWarehouses(ctx context.Context, arg CountBobWarehousesParams) (int64, error)
 	// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
-	// approval_entries; this table owns only identity, enabled and object revision.
+	// approval_entries; this table owns only identity and the runtime enabled switch.
 	CountCurrentWorkflowDefinitions(ctx context.Context, arg CountCurrentWorkflowDefinitionsParams) (int64, error)
 	CountDCLAccMappingApprovalEvents(ctx context.Context, subjectID string) (int64, error)
 	CountDCLAccMappings(ctx context.Context, arg CountDCLAccMappingsParams) (int64, error)
-	// Compatibility read DTOs for BOB callers.  These are not projections: every
-	// row is derived directly from a typed DCL root and its latest APPROVED entry.
+	// Typed read queries for BOB callers. Every row is derived directly from a
+	// typed DCL subject and its latest APPROVED entry.
 	CountDCLApprovedPartiesForBOB(ctx context.Context, arg CountDCLApprovedPartiesForBOBParams) (int64, error)
 	CountDCLCustomerAccountApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLCustomerAccountAttachments(ctx context.Context, approvalEntryID string) (int64, error)
@@ -229,7 +229,7 @@ type Querier interface {
 	DeleteDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error
 	DeleteDCLVehicleVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (int64, error)
-	DeleteDclWflProcessDefinition(ctx context.Context, arg DeleteDclWflProcessDefinitionParams) (int64, error)
+	DeleteDclWflProcessDefinition(ctx context.Context, definitionID string) (int64, error)
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
 	DeleteVouAssetAcquisitionLines(ctx context.Context, documentID string) error
 	DeleteVouAssetLiquidationLines(ctx context.Context, documentID string) error
@@ -515,7 +515,7 @@ type Querier interface {
 	// all mutable commercial facts and the exact snapshots used by purchasing.
 	InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSupplierVersionParams) error
 	InsertDCLVehicleVersion(ctx context.Context, arg InsertDCLVehicleVersionParams) error
-	// Warehouse is a DCL-owned declaration with a BOB current projection. Category
+	// Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category
 	// columns are retained only to preserve pre-cutover snapshots and are never
 	// supplied by the Warehouse declaration API.
 	InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWarehouseVersionParams) error
@@ -819,7 +819,7 @@ type Querier interface {
 	RptGetActiveDefinition(ctx context.Context, code string) (RptGetActiveDefinitionRow, error)
 	RptInsertRuntimeAuditEvent(ctx context.Context, arg RptInsertRuntimeAuditEventParams) error
 	RptInvalidateVersion(ctx context.Context, arg RptInvalidateVersionParams) error
-	// RPT owns runtime validity, permission projection, and audit only. DCL owns
+	// RPT owns runtime validity, permission registration, and audit only. DCL owns
 	// the stable subject and approved typed payload.
 	RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error)
 	RptListAssetReferences(ctx context.Context, arg RptListAssetReferencesParams) ([]RptListAssetReferencesRow, error)

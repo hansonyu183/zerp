@@ -191,7 +191,7 @@ WHERE id IN (
 
 -- Employee enabled state is versioned through save; there are no standalone
 -- enable/disable routes. Reuse those retired permission identities for DCL's
--- declaration query/get routes while BOB keeps its current-projection reads.
+-- declaration query/get routes while BOB keeps read-only current-data reads.
 UPDATE app_permissions
 SET path='/dcl/employee/query',domain='dcl',entity='employee',action='query',
     description='查询员工声明',menu_order=30,updated_at=clock_timestamp(),revision=revision+1

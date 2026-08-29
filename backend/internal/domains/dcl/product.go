@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type productCurrentWriter interface {
+type productRules interface {
 	ResolveProductDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bool, bool) (bobdomain.DetailView, error)
 	ResolveProductDraftDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bobdomain.DetailView) (bobdomain.DetailView, error)
 	EnsureProductDeclarationReferencesCurrent(context.Context, pgx.Tx, bobdomain.DetailView) error
@@ -24,28 +24,104 @@ type productCurrentWriter interface {
 type ProductService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     productCurrentWriter
+	rules       productRules
 	coordinator *approval.Coordinator[dclapproval.ProductPayload]
 }
 
-func NewProductService(pool *pgxpool.Pool, current productCurrentWriter, authorizer approval.Authorizer, bus *txevent.Bus) *ProductService {
-	if pool == nil || current == nil || authorizer == nil || bus == nil {
-		panic("dcl: persistence, BOB current writer, authorizer and event bus are required")
+func NewProductService(pool *pgxpool.Pool, rules productRules, authorizer approval.Authorizer, bus *txevent.Bus) *ProductService {
+	if pool == nil || rules == nil || authorizer == nil || bus == nil {
+		panic("dcl: persistence, business rules, authorizer and event bus are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityProduct, authorizer, bus, dclapproval.ProductTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &ProductService{pool: pool, queries: dbsqlc.New(pool), current: current, coordinator: c}
+	return &ProductService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
 }
 
 func productDeclarationData(data ProductInput) bobdomain.DetailView {
+	unitConversions := make([]bobdomain.ProductUnitConversion, 0, len(data.UnitConversions))
+	for _, conversion := range data.UnitConversions {
+		unitConversions = append(unitConversions, bobdomain.ProductUnitConversion{
+			Unit:   bobdomain.MeasurementUnitSnapshot{ObjectID: conversion.Unit.ObjectID},
+			Factor: conversion.Factor,
+		})
+	}
+	var formula *bobdomain.ProductFormula
+	if data.Formula != nil {
+		components := make([]bobdomain.ProductFormulaComponent, 0, len(data.Formula.Components))
+		for _, component := range data.Formula.Components {
+			components = append(components, bobdomain.ProductFormulaComponent{
+				Material: bobdomain.FormulaMaterialReference{ObjectID: component.Material.ObjectID, ApprovalEntryID: component.Material.ApprovalEntryID},
+				Quantity: bobdomain.QuantitySnapshot{
+					EnteredQuantity: component.Quantity.EnteredQuantity,
+					EnteredUnit:     bobdomain.MeasurementUnitSnapshot{ObjectID: component.Quantity.EnteredUnit.ObjectID},
+					BaseQuantity:    component.Quantity.BaseQuantity,
+				},
+				ResolutionStatus: component.ResolutionStatus, RequiresConfirmation: component.RequiresConfirmation,
+			})
+		}
+		formula = &bobdomain.ProductFormula{
+			Output: bobdomain.QuantitySnapshot{
+				EnteredQuantity: data.Formula.Output.EnteredQuantity,
+				EnteredUnit:     bobdomain.MeasurementUnitSnapshot{ObjectID: data.Formula.Output.EnteredUnit.ObjectID},
+				BaseQuantity:    data.Formula.Output.BaseQuantity,
+			},
+			Components: components,
+		}
+	}
 	return bobdomain.DetailView{
 		Name: data.Name, CategoryID: data.CategoryID, Specification: data.Specification, Model: data.Model,
 		Barcode: data.Barcode, Remark: data.Remark, ProductTypeID: data.ProductTypeID,
 		DefaultInputUnitID: data.DefaultInputUnitID, PricingUnitID: data.PricingUnitID,
-		UnitConversions: data.UnitConversions, Returnable: data.Returnable,
-		DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
+		UnitConversions: unitConversions, Returnable: data.Returnable,
+		DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: formula,
+	}
+}
+
+// ProductInputFromData strips resolved read snapshots back to the DCL-owned
+// mutable fields used when an internal caller edits an existing declaration.
+func ProductInputFromData(data ProductData) ProductInput {
+	unitConversions := make([]ProductUnitConversionInput, 0, len(data.UnitConversions))
+	for _, conversion := range data.UnitConversions {
+		unitConversions = append(unitConversions, ProductUnitConversionInput{
+			Unit:   MeasurementUnitReferenceInput{ObjectID: conversion.Unit.ObjectID},
+			Factor: conversion.Factor,
+		})
+	}
+	var formula *ProductFormulaInput
+	if data.Formula != nil {
+		components := make([]ProductFormulaComponentInput, 0, len(data.Formula.Components))
+		for _, component := range data.Formula.Components {
+			components = append(components, ProductFormulaComponentInput{
+				Material: ProductFormulaMaterialInput{
+					ObjectID:        component.Material.ObjectID,
+					ApprovalEntryID: component.Material.ApprovalEntryID,
+				},
+				Quantity: ProductQuantityInput{
+					EnteredQuantity: component.Quantity.EnteredQuantity,
+					EnteredUnit:     MeasurementUnitReferenceInput{ObjectID: component.Quantity.EnteredUnit.ObjectID},
+					BaseQuantity:    component.Quantity.BaseQuantity,
+				},
+				ResolutionStatus:     component.ResolutionStatus,
+				RequiresConfirmation: component.RequiresConfirmation,
+			})
+		}
+		formula = &ProductFormulaInput{
+			Output: ProductQuantityInput{
+				EnteredQuantity: data.Formula.Output.EnteredQuantity,
+				EnteredUnit:     MeasurementUnitReferenceInput{ObjectID: data.Formula.Output.EnteredUnit.ObjectID},
+				BaseQuantity:    data.Formula.Output.BaseQuantity,
+			},
+			Components: components,
+		}
+	}
+	return ProductInput{
+		Name: data.Name, CategoryID: data.CategoryID,
+		Specification: data.Specification, Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
+		ProductTypeID: data.ProductTypeID, DefaultInputUnitID: data.DefaultInputUnitID,
+		PricingUnitID: data.PricingUnitID, UnitConversions: unitConversions,
+		Returnable: data.Returnable, DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: formula,
 	}
 }
 func productDCLData(data bobdomain.DetailView) ProductData {
@@ -114,7 +190,7 @@ func (s *ProductService) Create(ctx context.Context, input ProductCreateInput, a
 		return ProductMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	data, err = s.current.ResolveProductDeclaration(ctx, tx, data, false, false)
+	data, err = s.rules.ResolveProductDeclaration(ctx, tx, data, false, false)
 	if err != nil {
 		return ProductMutation{}, translateError(err)
 	}
@@ -192,9 +268,9 @@ func (s *ProductService) Save(ctx context.Context, input ProductSaveInput, actor
 		return ProductView{}, translateError(err)
 	}
 	if draftPrevious != nil {
-		data, err = s.current.ResolveProductDraftDeclaration(ctx, tx, data, *draftPrevious)
+		data, err = s.rules.ResolveProductDraftDeclaration(ctx, tx, data, *draftPrevious)
 	} else {
-		data, err = s.current.ResolveProductDeclaration(ctx, tx, data, false, false)
+		data, err = s.rules.ResolveProductDeclaration(ctx, tx, data, false, false)
 	}
 	if err != nil {
 		return ProductView{}, translateError(err)
@@ -276,11 +352,11 @@ func (s *ProductService) transition(ctx context.Context, input ProductVersionInp
 		return ProductMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
-		data, err = s.current.ResolveProductDeclaration(ctx, tx, data, true, false)
+		data, err = s.rules.ResolveProductDeclaration(ctx, tx, data, true, false)
 		if err != nil {
 			return ProductMutation{}, translateError(err)
 		}
-		if err = s.current.EnsureProductDeclarationReferencesCurrent(ctx, tx, data); err != nil {
+		if err = s.rules.EnsureProductDeclarationReferencesCurrent(ctx, tx, data); err != nil {
 			return ProductMutation{}, newError(ErrorConflict, "product_reference_drift", "product declaration references changed", nil, err)
 		}
 		if err = bobdomain.ValidateProductComplete(data); err != nil {
@@ -288,7 +364,7 @@ func (s *ProductService) transition(ctx context.Context, input ProductVersionInp
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.current.EnsureProductUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
+		if err = s.rules.EnsureProductUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
 			return ProductMutation{}, translateError(err)
 		}
 	}

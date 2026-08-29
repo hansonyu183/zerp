@@ -314,7 +314,7 @@ func newDCLIntegrationServices(
 	t *testing.T,
 	pool *pgxpool.Pool,
 	bus *txevent.Bus,
-	current operatingEntityCurrentWriter,
+	current operatingEntityRules,
 ) (*bobdomain.Service, *OperatingEntityService) {
 	t.Helper()
 	authorizer := authorization.Func(nil)

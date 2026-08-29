@@ -66,7 +66,7 @@ BOB 不建立独立的服务项目主数据、服务目录或 `/bob/service` 页
 
 `operating-entity`（经营主体）表示我方实际承担合同销售方、开票方和收款方责任的法人公司，不是商品品牌、客户类型或报表标签。DCL 拥有它的 stable ID、business code、强类型快照和候选编排，中央 Approval 拥有版本与审批事实；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/bob/operating-entity` 是独立的当前正式档案只读入口，只使用 BOB `query/get`，不展示候选或生命周期控件；维护入口固定为 `/dcl/operating-entity`。完整规则见 [DCL 经营主体申报](dcl.md)。每个我方资金账户必须且只能属于一个当前可用经营主体，一个经营主体可以拥有多个资金账户。
 
-`warehouse`（仓库）的 stable ID、business code、完整候选快照、启停申请和审批同样由 DCL 拥有；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/dcl/warehouse` 是唯一维护入口，`/bob/warehouse` 是只使用 `query/get` 的独立当前档案入口，不显示候选、审批、版本或写动作。仓库仍是全局共享的最小物理库存地点，不绑定经营主体；负责人、地址、联系人和备注保持强类型字段。完整生命周期、读取和事务规则见 [DCL 仓库申报](dcl.md#31-仓库申报)。
+`warehouse`（仓库）的 stable ID、business code、完整候选快照、启停申请和审批同样由 DCL 拥有；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/dcl/warehouse` 是唯一维护入口，`/bob/warehouse` 是只使用 `query/get` 的独立当前有效资料入口，不显示候选、审批、版本或写动作。仓库仍是全局共享的最小物理库存地点，不绑定经营主体；负责人、地址、联系人和备注保持强类型字段。完整生命周期、读取和事务规则见 [DCL 仓库申报](dcl.md#31-仓库申报)。
 
 主要业务归属、业务地址、结算时间、收款方式、运输政策、销售价格政策、信用额度、内部提醒、默认订单备注、应收、开票归属和业绩均属于客户结算子账户。客户关系本身已经绑定一个经营主体，不再把经营主体当作可跨关系切换的共享身份属性。主体通用联系资料属于主体；仅在客户业务中使用的联系人或地址属于客户关系或结算子账户。客户关系不提供供子账户继承或覆盖的默认业务规则；任何销售交易只解析一个子账户的 latest approved 版本，客户关系不合并子账户余额和信用额度。
 

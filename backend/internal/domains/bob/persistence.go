@@ -11,7 +11,7 @@ import (
 )
 
 // DCL owns Product snapshot writes. BOB only reconstructs the immutable DCL
-// snapshot selected by a current projection or an exact historical reference.
+// snapshot selected as current effective data or by an exact historical reference.
 func loadDCLProductSnapshot(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) (DetailView, error) {
 	r, err := q.GetDCLProductSnapshot(ctx, approvalEntryID)
 	if err != nil {

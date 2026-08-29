@@ -7,7 +7,6 @@ export type DclWflProcessDefinitionListItem = {
   code: string;
   definitionId: string;
   enabled: boolean;
-  revision: number;
   latestApproved: DclWflProcessDefinitionVersionSummary | null;
   openVersion: DclWflProcessDefinitionVersionSummary | null;
 };

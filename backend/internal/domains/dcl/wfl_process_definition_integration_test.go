@@ -155,6 +155,41 @@ func TestDclWflProcessDefinitionCreateDefaultsDisabledIntegration(t *testing.T) 
 	}
 }
 
+func TestDclWflProcessDefinitionEnabledUsesLatestApprovalTokenIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetWflProcessDefinitionIntegrationData(t, pool)
+	service := NewWflProcessDefinitionService(pool, wflIntegrationCompiler{}, authorization.Func(nil), txevent.NewBus())
+	created, err := service.Create(t.Context(), WflProcessDefinitionCreateInput{Script: wflValidScript("test-enabled-token")},
+		dclActor(t, wflDefinitionCreatorID, "dcl-wfl-create-enabled-token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	approved := approveWflProcessDefinition(t, service, created)
+	token := WflProcessDefinitionEnableInput{
+		Code: approved.Code, ApprovalEntryID: approved.Approval.ApprovalEntryID,
+		ApprovalRevision: approved.Approval.Revision,
+	}
+	enabled, err := service.Enable(t.Context(), token, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-enable-token"))
+	if err != nil || !enabled.Enabled {
+		t.Fatalf("enable = %+v, err=%v", enabled, err)
+	}
+
+	stale := token
+	stale.ApprovalRevision--
+	if _, err = service.Disable(t.Context(), stale, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-disable-stale")); err == nil {
+		t.Fatal("expected stale Approval revision to be rejected")
+	}
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.ErrorKey != "approval_stale_revision" {
+		t.Fatalf("stale disable error = %v", err)
+	}
+
+	disabled, err := service.Disable(t.Context(), token, dclActor(t, wflDefinitionCreatorID, "dcl-wfl-disable-token"))
+	if err != nil || disabled.Enabled {
+		t.Fatalf("disable = %+v, err=%v", disabled, err)
+	}
+}
+
 func TestDclWflProcessDefinitionInvalidScriptCreateFailsIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetWflProcessDefinitionIntegrationData(t, pool)

@@ -121,7 +121,7 @@ watch(
     temporary
     width="640"
     ><v-card flat
-      ><v-card-title>供应商（当前档案）</v-card-title
+      ><v-card-title>供应商（当前有效资料）</v-card-title
       ><v-card-text v-if="vm.currentView"
         ><v-list density="compact"
           ><v-list-item

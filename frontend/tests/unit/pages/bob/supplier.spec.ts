@@ -34,7 +34,7 @@ describe('Supplier', () => {
     expect('openCreate' in vm).toBe(false)
   })
 
-  it('keeps the current projection returned by BOB without lifecycle adaptation', async () => {
+  it('keeps the current effective data returned by BOB without lifecycle adaptation', async () => {
     const current = {
       objectId: 'SUP-1',
       data: { name: '当前供应商', defaultPurchaserName: '当前采购员' },

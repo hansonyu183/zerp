@@ -37,7 +37,7 @@ WHERE sqlc.arg(selected_id)::text='' OR reference.id=sqlc.arg(selected_id)
 ORDER BY (reference.id=sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text<>'') DESC, reference.code
 OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 
--- RPT owns runtime validity, permission projection, and audit only. DCL owns
+-- RPT owns runtime validity, permission registration, and audit only. DCL owns
 -- the stable subject and approved typed payload.
 -- name: RptLatestApprovedUseState :one
 SELECT d.id AS definition_id, coalesce(d.code,'') AS code, coalesce(v.name,'') AS name, coalesce(v.enabled,false) AS enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, rv.validity

@@ -164,6 +164,23 @@ run_issue_309_cutover() {
 		<db/cutovers/issue-309-dcl-reference-and-rpt-ownership.sql
 }
 
+run_issue_310_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-310-read-contract.sql
+}
+
+verify_issue_310_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN NOT EXISTS (
+		    SELECT 1 FROM information_schema.columns
+		    WHERE table_schema='"'"'public'"'"' AND table_name='"'"'wfl_process_definitions'"'"' AND column_name='"'"'revision'"'"'
+		  ) THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 verify_issue_309_cutover() {
 	local database="$1"
 	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
@@ -637,6 +654,8 @@ run_cutover_compatibility_tests() {
 	verify_issue_308_cutover "$pre_issue_305_database"
 	run_issue_309_cutover "$pre_issue_305_database"
 	verify_issue_309_cutover "$pre_issue_305_database"
+	run_issue_310_cutover "$pre_issue_305_database"
+	verify_issue_310_cutover "$pre_issue_305_database"
 }
 
 initialize_current_schema_databases() {

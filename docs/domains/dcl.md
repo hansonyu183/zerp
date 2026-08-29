@@ -121,7 +121,7 @@ VOU 收付款、费用支付、其他收入和票据资金行继续保存 fund a
 
 ## 3.10 流程定义申报
 
-流程定义的 stable subject 是 `wfl-process-definition`，保留既有 stable ID、Approval Entry ID、版本号、候选、类型化不可变 payload 和审计身份，不重新生成。`dcl_wfl_process_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 Starlark 脚本、诊断、编译图和试算证据；这些版本化字段随候选版本冻结，不直接修改 WFL 当前执行面。`enabled` 保留为 WFL current/stable 投影上的独立开关，由 DCL 维护入口精确授权并使用 stable revision 并发保护，不属于 Approval Version snapshot。
+流程定义的 stable subject 是 `wfl-process-definition`，保留既有 stable ID、Approval Entry ID、版本号、候选、类型化不可变 payload 和审计身份，不重新生成。`dcl_wfl_process_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 Starlark 脚本、诊断、编译图和试算证据；这些版本化字段随候选版本冻结，不直接修改 WFL 当前执行面。`enabled` 保留为 WFL stable definition 上的独立开关，不属于 Approval Version snapshot；启停必须携带 latest APPROVED 的 `approvalEntryId` 与 `approvalRevision`，DCL 不保存第二套 subject revision。
 
 `/dcl/wfl-process-definition` 是流程定义唯一维护入口，候选查询、详情、全部写动作和版本历史固定使用 `/dcl/wfl-process-definition/*`。WFL 业务页面只提供当前定义的 `query|get` 和流程实例/执行，不在 WFL 内创建、保存或审批候选。APP 工作台和审批深链固定进入 DCL 页面；工作项和定义深链同样进入 DCL。
 
@@ -137,7 +137,7 @@ BOB 对新业务解析 current/latest approved，并返回稳定 ID、来源 `ap
 
 ## 5. 权限
 
-DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history` 精确授权。Party 的 `create` 仅由首条关系创建事务消耗，不提供独立 DCL create 页面。BOB 当前档案页面只检查 BOB `query`、`get` 与 `reference`，不得因用户具有 DCL 权限而显示 BOB 生命周期动作。ACC 当前映射只读页面只检查 ACC `query`、`get` 与 `catalog`，不得因用户具有 DCL 权限而显示生命周期动作。WFL 当前定义只读页面只检查 WFL `query` 与 `get`，不得因用户具有 DCL 权限而显示生命周期动作。权限切换保留已有角色分配但不保留旧 ACC 写路径、旧 RPT 定义写路径和旧 WFL 定义写路径；会计映射原 ACC 写/生命周期权限、报表定义原 RPT 写/生命周期权限和流程定义原 WFL 写/生命周期权限不再暴露，生命周期动作本身要求对应 DCL 权限。RPT 当前查询和执行页面只检查 RPT `query`、`export` 与 `directory`，不得因用户具有 DCL 权限而显示生命周期动作。
+DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history` 精确授权。Party 的 `create` 仅由首条关系创建事务消耗，不提供独立 DCL create 页面。BOB 当前有效资料页面只检查 BOB `query`、`get` 与 `reference`，不得因用户具有 DCL 权限而显示 BOB 生命周期动作。ACC 当前映射只读页面只检查 ACC `query`、`get` 与 `catalog`，不得因用户具有 DCL 权限而显示生命周期动作。WFL 当前定义只读页面只检查 WFL `query` 与 `get`，不得因用户具有 DCL 权限而显示生命周期动作。权限切换保留已有角色分配但不保留旧 ACC 写路径、旧 RPT 定义写路径和旧 WFL 定义写路径；会计映射原 ACC 写/生命周期权限、报表定义原 RPT 写/生命周期权限和流程定义原 WFL 写/生命周期权限不再暴露，生命周期动作本身要求对应 DCL 权限。RPT 当前查询和执行页面只检查 RPT `query`、`export` 与 `directory`，不得因用户具有 DCL 权限而显示生命周期动作。
 
 ## 6. 验收边界
 

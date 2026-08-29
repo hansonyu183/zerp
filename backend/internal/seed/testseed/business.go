@@ -22,21 +22,21 @@ type bobSample struct {
 }
 
 type seedBusinessMutation struct {
-	ObjectID       string
-	ObjectRevision int64
-	Enabled        bool
-	Approval       approval.VersionMeta
+	ObjectID         string
+	ApprovalRevision int64
+	Enabled          bool
+	Approval         approval.VersionMeta
 }
 
 type seedBusinessView struct {
-	ObjectID       string
-	Entity         string
-	Code           string
-	ObjectRevision int64
-	Enabled        bool
-	Approval       approval.VersionMeta
-	Data           bobdomain.DetailView
-	UpdatedAt      time.Time
+	ObjectID         string
+	Entity           string
+	Code             string
+	ApprovalRevision int64
+	Enabled          bool
+	Approval         approval.VersionMeta
+	Data             bobdomain.DetailView
+	UpdatedAt        time.Time
 }
 
 type seedBusinessVersion struct {
@@ -54,7 +54,7 @@ func businessMutation(view seedBusinessView) (seedBusinessMutation, error) {
 		return seedBusinessMutation{}, fmt.Errorf("BOB object %s has neither open nor approved version", view.ObjectID)
 	}
 	return seedBusinessMutation{
-		ObjectID: view.ObjectID, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		ObjectID: view.ObjectID, ApprovalRevision: view.ApprovalRevision, Enabled: view.Enabled,
 		Approval: version.Approval,
 	}, nil
 }
@@ -385,7 +385,7 @@ func (s *Seeder) ensureOtherUnit(ctx context.Context, sample bobSample) (seedBus
 func dclOtherUnitObjectView(view dcldomain.OtherUnitView) seedBusinessView {
 	result := seedBusinessView{
 		ObjectID: view.ObjectID, Entity: bobdomain.EntityOtherUnit, Code: view.Code,
-		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
+		ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
 	}
 	result.Approval, result.Data = view.Approval, bobdomain.DetailView{
 		Name: view.PartyDisplayName, ContactName: view.Data.ContactName,
@@ -460,13 +460,13 @@ func (s *Seeder) ensureBusiness(
 			}}, createActor)
 			result, createErr = dclFundAccountBusinessMutation(createdFundAccount), declarationErr
 		case bobdomain.EntityProduct:
-			createdProduct, declarationErr := s.products.Create(ctx, dcldomain.ProductCreateInput{Data: dcldomain.ProductInput{
+			createdProduct, declarationErr := s.products.Create(ctx, dcldomain.ProductCreateInput{Data: dcldomain.ProductInputFromData(dcldomain.ProductData{
 				Name: data.Name, CategoryID: data.CategoryID, Specification: data.Specification,
 				Model: data.Model, Barcode: data.Barcode, Remark: data.Remark,
 				ProductTypeID: data.ProductTypeID, DefaultInputUnitID: data.DefaultInputUnitID,
 				PricingUnitID: data.PricingUnitID, UnitConversions: data.UnitConversions,
 				Returnable: data.Returnable, DefaultPackagingSpec: data.DefaultPackagingSpec, Formula: data.Formula,
-			}}, createActor)
+			})}, createActor)
 			result, createErr = dclProductBusinessMutation(createdProduct), declarationErr
 		case bobdomain.EntityEmployee:
 			createdEmployee, declarationErr := s.employees.Create(ctx, dcldomain.EmployeeCreateInput{
@@ -525,7 +525,7 @@ func (s *Seeder) ensureBusiness(
 				}
 				account := page.Items[0]
 				result = seedBusinessMutation{
-					ObjectID: account.ObjectID, ObjectRevision: account.OpenVersion.Approval.Revision,
+					ObjectID: account.ObjectID, ApprovalRevision: account.OpenVersion.Approval.Revision,
 					Enabled: account.Enabled, Approval: account.OpenVersion.Approval,
 				}
 			}
@@ -635,45 +635,45 @@ func (s *Seeder) ensureRelationshipPartyApproved(ctx context.Context, entity, ob
 }
 
 func dclBusinessMutation(result dcldomain.OperatingEntityMutation) seedBusinessMutation {
-	return seedBusinessMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision,
+	return seedBusinessMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision,
 		Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func dclBusinessView(view dcldomain.OperatingEntityView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityOperatingEntity,
-		Code: view.Code, ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name,
 			ShortName: view.Data.ShortName, TaxNumber: view.Data.TaxNumber, Address: view.Data.Address,
 			Phone: view.Data.Phone, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
 
 func dclWarehouseBusinessMutation(result dcldomain.WarehouseMutation) seedBusinessMutation {
-	return seedBusinessMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision,
+	return seedBusinessMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision,
 		Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func dclWarehouseBusinessView(view dcldomain.WarehouseView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityWarehouse,
-		Code: view.Code, ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name,
 			Address: view.Data.Address, ContactName: view.Data.ContactName, ContactPhone: view.Data.ContactPhone,
 			ManagerEmployeeID: view.Data.ManagerEmployeeID,
 			Remark:            view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
 func dclVehicleBusinessMutation(result dcldomain.VehicleMutation) seedBusinessMutation {
-	return seedBusinessMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedBusinessMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 func dclVehicleBusinessView(view dcldomain.VehicleView) seedBusinessView {
-	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityVehicle, Code: view.Code, ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name, PlateNumber: view.Data.PlateNumber, VehicleType: view.Data.VehicleType, CarrierAffiliation: view.Data.CarrierAffiliation, BulkLiquidCapable: view.Data.BulkLiquidCapable, VIN: view.Data.VIN, EngineNumber: view.Data.EngineNumber, LoadCapacityKG: view.Data.LoadCapacityKG, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
+	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityVehicle, Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name, PlateNumber: view.Data.PlateNumber, VehicleType: view.Data.VehicleType, CarrierAffiliation: view.Data.CarrierAffiliation, BulkLiquidCapable: view.Data.BulkLiquidCapable, VIN: view.Data.VIN, EngineNumber: view.Data.EngineNumber, LoadCapacityKG: view.Data.LoadCapacityKG, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
 
 func dclFundAccountBusinessMutation(result dcldomain.FundAccountMutation) seedBusinessMutation {
-	return seedBusinessMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedBusinessMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func dclFundAccountBusinessView(view dcldomain.FundAccountView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityFundAccount,
-		Code: view.Code, ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name, Currency: view.Data.Currency,
 			OperatingEntityID: view.Data.OperatingEntityID, AccountName: view.Data.AccountName,
 			BankName: view.Data.BankName, BankBranch: view.Data.BankBranch, AccountNumber: view.Data.AccountNumber,
@@ -681,17 +681,17 @@ func dclFundAccountBusinessView(view dcldomain.FundAccountView) seedBusinessView
 }
 
 func dclProductBusinessMutation(result dcldomain.ProductMutation) seedBusinessMutation {
-	return seedBusinessMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedBusinessMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func dclEmployeeBusinessMutation(result dcldomain.EmployeeMutation) seedBusinessMutation {
-	return seedBusinessMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision,
+	return seedBusinessMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision,
 		Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func dclEmployeeBusinessView(view dcldomain.EmployeeView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityEmployee,
-		Code: view.Code, ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.PartyDisplayName,
 			OperatingEntityID: view.OperatingEntityID, DepartmentID: view.Data.DepartmentID,
 			PositionID: view.Data.PositionID, Phone: view.Data.Phone, Email: view.Data.Email,
@@ -699,13 +699,13 @@ func dclEmployeeBusinessView(view dcldomain.EmployeeView) seedBusinessView {
 }
 
 func dclSupplierBusinessMutation(result dcldomain.SupplierMutation) seedBusinessMutation {
-	return seedBusinessMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision,
+	return seedBusinessMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision,
 		Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func dclSupplierBusinessView(view dcldomain.SupplierView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntitySupplier,
-		Code: view.Code, ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.PartyDisplayName,
 			ShortName: view.Data.ShortName, TaxNumber: view.Data.TaxNumber,
 			ContactName: view.Data.ContactName, ContactPhone: view.Data.ContactPhone,
@@ -716,12 +716,12 @@ func dclSupplierBusinessView(view dcldomain.SupplierView) seedBusinessView {
 }
 
 func dclCustomerAccountBusinessMutation(result dcldomain.CustomerAccountMutation) seedBusinessMutation {
-	return seedBusinessMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedBusinessMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func dclCustomerAccountBusinessView(view dcldomain.CustomerAccountView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityCustomerAccount,
-		Code: view.Code, ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name,
 			ShortName: view.Data.ShortName, CustomerType: view.Data.CustomerTypeID,
 			ContactName: view.Data.ContactName, ContactPhone: view.Data.ContactPhone,
@@ -734,7 +734,7 @@ func dclCustomerAccountBusinessView(view dcldomain.CustomerAccountView) seedBusi
 
 func dclProductBusinessView(view dcldomain.ProductView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityProduct,
-		Code: view.Code, ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{
 			Name: view.Data.Name, CategoryID: view.Data.CategoryID, Specification: view.Data.Specification,
 			Model: view.Data.Model, Barcode: view.Data.Barcode, Remark: view.Data.Remark,
@@ -844,7 +844,7 @@ func (s *Seeder) advanceBusiness(
 			}
 			var submitted dcldomain.RelationshipMutation
 			submitted, err = s.relationships.SubmitOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
-			current = seedBusinessMutation{ObjectID: submitted.ObjectID, ObjectRevision: submitted.Approval.Revision, Enabled: submitted.Enabled, Approval: submitted.Approval}
+			current = seedBusinessMutation{ObjectID: submitted.ObjectID, ApprovalRevision: submitted.Approval.Revision, Enabled: submitted.Enabled, Approval: submitted.Approval}
 		} else if sample.entity == bobdomain.EntityCustomerAccount {
 			accounts, submitErr := s.submitCustomerAccount(ctx, current.ObjectID, actor, sample.key)
 			if submitErr != nil {

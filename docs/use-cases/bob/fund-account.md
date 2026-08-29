@@ -1,4 +1,4 @@
-# BOB 资金账户当前档案页面用例
+# BOB 资金账户当前有效资料页面用例
 
 权威业务规则见 [DCL 资金账户申报](../../domains/dcl.md#33-资金账户申报)、[BOB 对象与引用规则](../../domains/bob.md#2-领域职责与边界) 与 [VOU 资金事实](../../domains/vou.md)，线协议见 [OpenAPI BOB Schema](../../../contracts/openapi/schemas/bob.yaml)。
 
@@ -18,6 +18,6 @@
 
 ## 3. 验收场景
 
-1. 只有 BOB `fund-account/query`、`fund-account/get` 权限时可浏览当前档案，所有写按钮均不可见。
+1. 只有 BOB `fund-account/query`、`fund-account/get` 权限时可浏览当前有效资料，所有写按钮均不可见。
 2. `/bob/fund-account` 不请求 DCL 写接口；工作台、审批待办和审批记录中的维护深链进入 `/dcl/fund-account`。
-3. 交易与会计历史继续遵守 [DCL 资金账户历史事实规则](../../domains/dcl.md#33-资金账户申报)，不因当前档案切换而变化。
+3. 交易与会计历史继续遵守 [DCL 资金账户历史事实规则](../../domains/dcl.md#33-资金账户申报)，不因当前有效资料切换而变化。

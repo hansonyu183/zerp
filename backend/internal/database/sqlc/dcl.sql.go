@@ -1294,37 +1294,25 @@ func (q *Queries) DclWflRecordTrial(ctx context.Context, arg DclWflRecordTrialPa
 }
 
 const dclWflSetDefinitionEnabled = `-- name: DclWflSetDefinitionEnabled :one
-UPDATE wfl_process_definitions SET enabled=$1, revision=revision+1, updated_at=now(), updated_by=$2 WHERE id=$3 AND revision=$4 RETURNING id, code, enabled, revision
+UPDATE wfl_process_definitions SET enabled=$1, updated_at=now(), updated_by=$2 WHERE id=$3 RETURNING id, code, enabled
 `
 
 type DclWflSetDefinitionEnabledParams struct {
 	Enabled      bool   `db:"enabled" json:"enabled"`
 	ActorID      string `db:"actor_id" json:"actor_id"`
 	DefinitionID string `db:"definition_id" json:"definition_id"`
-	Revision     int64  `db:"revision" json:"revision"`
 }
 
 type DclWflSetDefinitionEnabledRow struct {
-	ID       string `db:"id" json:"id"`
-	Code     string `db:"code" json:"code"`
-	Enabled  bool   `db:"enabled" json:"enabled"`
-	Revision int64  `db:"revision" json:"revision"`
+	ID      string `db:"id" json:"id"`
+	Code    string `db:"code" json:"code"`
+	Enabled bool   `db:"enabled" json:"enabled"`
 }
 
 func (q *Queries) DclWflSetDefinitionEnabled(ctx context.Context, arg DclWflSetDefinitionEnabledParams) (DclWflSetDefinitionEnabledRow, error) {
-	row := q.db.QueryRow(ctx, dclWflSetDefinitionEnabled,
-		arg.Enabled,
-		arg.ActorID,
-		arg.DefinitionID,
-		arg.Revision,
-	)
+	row := q.db.QueryRow(ctx, dclWflSetDefinitionEnabled, arg.Enabled, arg.ActorID, arg.DefinitionID)
 	var i DclWflSetDefinitionEnabledRow
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Enabled,
-		&i.Revision,
-	)
+	err := row.Scan(&i.ID, &i.Code, &i.Enabled)
 	return i, err
 }
 
@@ -1619,16 +1607,11 @@ func (q *Queries) DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID
 
 const deleteDclWflProcessDefinition = `-- name: DeleteDclWflProcessDefinition :execrows
 DELETE FROM wfl_process_definitions
-WHERE id=$1 AND revision=$2
+WHERE id=$1
 `
 
-type DeleteDclWflProcessDefinitionParams struct {
-	DefinitionID string `db:"definition_id" json:"definition_id"`
-	Revision     int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) DeleteDclWflProcessDefinition(ctx context.Context, arg DeleteDclWflProcessDefinitionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDclWflProcessDefinition, arg.DefinitionID, arg.Revision)
+func (q *Queries) DeleteDclWflProcessDefinition(ctx context.Context, definitionID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDclWflProcessDefinition, definitionID)
 	if err != nil {
 		return 0, err
 	}
@@ -2335,27 +2318,21 @@ func (q *Queries) GetDclRptDefinitionByCode(ctx context.Context, code string) (G
 }
 
 const getDclWflProcessDefinitionByCode = `-- name: GetDclWflProcessDefinitionByCode :one
-SELECT id, code, enabled, revision
+SELECT id, code, enabled
 FROM wfl_process_definitions
 WHERE code=$1
 `
 
 type GetDclWflProcessDefinitionByCodeRow struct {
-	ID       string `db:"id" json:"id"`
-	Code     string `db:"code" json:"code"`
-	Enabled  bool   `db:"enabled" json:"enabled"`
-	Revision int64  `db:"revision" json:"revision"`
+	ID      string `db:"id" json:"id"`
+	Code    string `db:"code" json:"code"`
+	Enabled bool   `db:"enabled" json:"enabled"`
 }
 
 func (q *Queries) GetDclWflProcessDefinitionByCode(ctx context.Context, code string) (GetDclWflProcessDefinitionByCodeRow, error) {
 	row := q.db.QueryRow(ctx, getDclWflProcessDefinitionByCode, code)
 	var i GetDclWflProcessDefinitionByCodeRow
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Enabled,
-		&i.Revision,
-	)
+	err := row.Scan(&i.ID, &i.Code, &i.Enabled)
 	return i, err
 }
 
@@ -3036,7 +3013,7 @@ type InsertDCLWarehouseVersionParams struct {
 	Enabled                        bool    `db:"enabled" json:"enabled"`
 }
 
-// Warehouse is a DCL-owned declaration with a BOB current projection. Category
+// Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category
 // columns are retained only to preserve pre-cutover snapshots and are never
 // supplied by the Warehouse declaration API.
 func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWarehouseVersionParams) error {
@@ -3056,8 +3033,8 @@ func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWa
 
 const insertDclWflProcessDefinition = `-- name: InsertDclWflProcessDefinition :exec
 
-INSERT INTO wfl_process_definitions(id, code, enabled, revision, created_by, updated_by)
-VALUES($1, $2, false, 1, $3, $3)
+INSERT INTO wfl_process_definitions(id, code, enabled, created_by, updated_by)
+VALUES($1, $2, false, $3, $3)
 `
 
 type InsertDclWflProcessDefinitionParams struct {
@@ -4895,7 +4872,7 @@ func (q *Queries) ListDclWflProcessDefinitionApprovalEvents(ctx context.Context,
 }
 
 const listDclWflProcessDefinitions = `-- name: ListDclWflProcessDefinitions :many
-SELECT d.id AS definition_id, d.code, d.enabled, d.revision AS object_revision,
+SELECT d.id AS definition_id, d.code, d.enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
@@ -4935,7 +4912,6 @@ type ListDclWflProcessDefinitionsRow struct {
 	DefinitionID    string             `db:"definition_id" json:"definition_id"`
 	Code            string             `db:"code" json:"code"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
 	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -4960,7 +4936,6 @@ func (q *Queries) ListDclWflProcessDefinitions(ctx context.Context, arg ListDclW
 			&i.DefinitionID,
 			&i.Code,
 			&i.Enabled,
-			&i.ObjectRevision,
 			&i.ApprovedEntryID,
 			&i.OpenEntryID,
 			&i.UpdatedAt,

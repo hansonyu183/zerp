@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// VehicleData is the typed DCL declaration payload and BOB current projection.
+// VehicleData is the typed DCL declaration payload exposed by BOB as current effective data.
 type VehicleData struct {
 	Name, PlateNumber, VehicleType, VIN, EngineNumber, LoadCapacityKG, Remark string
 	VehicleTypeObjectID, VehicleTypeName                                      string

@@ -1159,6 +1159,85 @@
     },
   'DclFundAccountAuditHistoryResponse':
     { '$ref': '#/DclWarehouseAuditHistoryResponse' },
+  'DclMeasurementUnitReferenceInput':
+    {
+      'type': 'object',
+      'required': ['objectId'],
+      'additionalProperties': false,
+      'properties': { 'objectId': { 'type': 'string' } },
+    },
+  'DclProductUnitConversionInput':
+    {
+      'type': 'object',
+      'required': ['unit', 'factor'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { '$ref': '#/DclMeasurementUnitReferenceInput' },
+          'factor':
+            {
+              'type': 'string',
+              'pattern': '^(?:0*[1-9][0-9]*|0*\.[0-9]*[1-9][0-9]*)$',
+            },
+        },
+    },
+  'DclProductQuantityInput':
+    {
+      'type': 'object',
+      'required': ['enteredQuantity', 'enteredUnit', 'baseQuantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/DclMeasurementUnitReferenceInput' },
+          'baseQuantity': { 'type': 'string' },
+        },
+    },
+  'DclProductFormulaComponentInput':
+    {
+      'type': 'object',
+      'required': ['material', 'quantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'material':
+            {
+              'type': 'object',
+              'required': ['objectId', 'approvalEntryId'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'objectId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
+                },
+            },
+          'quantity': { '$ref': '#/DclProductQuantityInput' },
+          'resolutionStatus':
+            {
+              'type': 'string',
+              'enum': ['CURRENT', 'UNRESOLVED'],
+              'nullable': true,
+            },
+          'requiresConfirmation': { 'type': 'boolean', 'nullable': true },
+        },
+    },
+  'DclProductFormulaInput':
+    {
+      'type': 'object',
+      'required': ['output', 'components'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'output': { '$ref': '#/DclProductQuantityInput' },
+          'components':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 200,
+              'items': { '$ref': '#/DclProductFormulaComponentInput' },
+            },
+        },
+    },
   'DclProductInput':
     {
       'type': 'object',
@@ -1193,14 +1272,14 @@
           'unitConversions':
             {
               'type': 'array',
-              'items': { '$ref': './bob.yaml#/BobProductUnitConversionInput' },
+              'items': { '$ref': '#/DclProductUnitConversionInput' },
             },
           'returnable': { 'type': 'boolean' },
           'defaultPackagingSpec': { 'type': 'string', 'nullable': true },
           'formula':
             {
               'type': 'object',
-              'allOf': [{ '$ref': './bob.yaml#/BobProductFormulaInput' }],
+              'allOf': [{ '$ref': '#/DclProductFormulaInput' }],
               'nullable': true,
             },
         },
@@ -1312,8 +1391,7 @@
           'unitConversions':
             {
               'type': 'array',
-              'items':
-                { '$ref': './bob.yaml#/BobProductUnitConversionSnapshot' },
+              'items': { '$ref': './bob.yaml#/BobProductUnitConversion' },
             },
           'returnable': { 'type': 'boolean' },
           'defaultPackagingSpec': { 'type': 'string', 'nullable': true },

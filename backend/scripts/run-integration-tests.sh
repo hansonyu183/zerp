@@ -102,11 +102,44 @@ initialize_schema() {
 		<db/schema.sql
 }
 
-initialize_pre_cutover_schema() {
+initialize_historical_pre_issue_289_schema() {
 	local database="$1"
-	git show d505c567:backend/db/schema.sql |
-		"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
-			'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"'
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/fixtures/cutovers/historical-pre-issue-289.sql
+}
+
+verify_historical_pre_issue_289_fixture() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.aux_version_payloads'"'"') IS NOT NULL
+		 AND EXISTS (SELECT 1 FROM aux_version_payloads WHERE approval_entry_id='"'"'01JAVX00000000000000000012'"'"' AND data->>'"'"'quantityScale'"'"'='"'"'6'"'"')
+		 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01JAVX00000000000000000012'"'"' AND domain='"'"'aux'"'"')
+		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
+initialize_pre_issue_305_schema() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/fixtures/cutovers/pre-issue-305.sql
+}
+
+verify_pre_issue_305_fixture() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.bob_objects'"'"') IS NOT NULL
+		 AND to_regclass('"'"'public.dcl_subjects'"'"') IS NOT NULL
+		 AND to_regclass('"'"'public.dcl_wfl_process_definition_versions'"'"') IS NOT NULL
+		 AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z30500000000000000000001'"'"' AND entity='"'"'operating-entity'"'"')
+		 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z30500000000000000000002'"'"' AND status='"'"'APPROVED'"'"' AND revision=3)
+		 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z30500000000000000000006'"'"' AND status='"'"'PENDING'"'"' AND revision=2)
+		 AND EXISTS (SELECT 1 FROM bob_objects WHERE id='"'"'01Z30500000000000000000001'"'"' AND code='"'"'ENT-0305'"'"' AND revision=7)
+		 AND EXISTS (SELECT 1 FROM bob_operating_entities WHERE object_id='"'"'01Z30500000000000000000001'"'"' AND source_approval_entry_id='"'"'01Z30500000000000000000002'"'"')
+		 AND EXISTS (SELECT 1 FROM object_number_counters WHERE domain='"'"'bob'"'"' AND entity='"'"'operating-entity'"'"' AND last_value=305)
+		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
 }
 
 seed_issue_289_snapshot_fixture() {
@@ -446,115 +479,145 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+run_cutover_compatibility_tests() {
+	local cutover_database pre_issue_305_database
+
+	cutover_database="$(database_name "_issues_289_293_cutover_${run_id}_test")"
+	clone_databases+=("$cutover_database")
+	recreate_database "$cutover_database"
+	initialize_historical_pre_issue_289_schema "$cutover_database"
+	verify_historical_pre_issue_289_fixture "$cutover_database"
+	seed_issue_289_snapshot_fixture "$cutover_database"
+	if run_issue_290_cutover "$cutover_database" >/dev/null 2>&1; then
+		fail "issue-290 cutover accepted execution before issue-289"
+	fi
+	verify_issue_290_order_guard "$cutover_database"
+
+	recreate_database "$cutover_database"
+	initialize_historical_pre_issue_289_schema "$cutover_database"
+	verify_historical_pre_issue_289_fixture "$cutover_database"
+	seed_issue_289_snapshot_fixture "$cutover_database"
+	run_issue_289_cutover "$cutover_database"
+	verify_issue_289_cutover "$cutover_database"
+	run_issue_290_cutover "$cutover_database"
+	verify_issue_290_cutover "$cutover_database"
+	seed_issue_291_mapping_fixture "$cutover_database"
+	run_issue_291_cutover "$cutover_database"
+	verify_issue_291_cutover "$cutover_database"
+	seed_issue_292_report_fixture "$cutover_database"
+	run_issue_292_cutover "$cutover_database"
+	verify_issue_292_cutover "$cutover_database"
+	seed_issue_293_workflow_fixture "$cutover_database"
+	run_issue_293_cutover "$cutover_database"
+	verify_issue_293_cutover "$cutover_database"
+
+	recreate_database "$cutover_database"
+	initialize_historical_pre_issue_289_schema "$cutover_database"
+	seed_issue_289_snapshot_fixture "$cutover_database"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$cutover_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+			 "UPDATE aux_version_payloads SET data=data-'"'"'quantityScale'"'"' WHERE approval_entry_id='"'"'01JAVX00000000000000000012'"'"'"' </dev/null
+	if run_issue_289_cutover "$cutover_database" >/dev/null 2>&1; then
+		fail "issue-289 cutover accepted an incomplete measurement-unit snapshot"
+	fi
+
+	recreate_database "$cutover_database"
+	initialize_historical_pre_issue_289_schema "$cutover_database"
+	seed_issue_289_snapshot_fixture "$cutover_database"
+	run_issue_289_cutover "$cutover_database"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$cutover_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+			 "DELETE FROM aux_version_payloads WHERE approval_entry_id=(SELECT id FROM approval_entries WHERE domain='"'"'aux'"'"' AND status='"'"'APPROVED'"'"' LIMIT 1)"' </dev/null
+	if run_issue_290_cutover "$cutover_database" >/dev/null 2>&1; then
+		fail "issue-290 cutover accepted an approved AUX entry without a payload"
+	fi
+
+	pre_issue_305_database="$(database_name "_pre_issue_305_${run_id}_test")"
+	clone_databases+=("$pre_issue_305_database")
+	echo "==> pre-issue-305 cutover input fixture"
+	recreate_database "$pre_issue_305_database"
+	initialize_pre_issue_305_schema "$pre_issue_305_database"
+	verify_pre_issue_305_fixture "$pre_issue_305_database"
+}
+
+initialize_current_schema_databases() {
+	recreate_database "$base_database"
+	initialize_schema "$base_database"
+
+	recreate_database "$template_database"
+	initialize_schema "$template_database"
+}
+
+run_current_integration_packages() {
+	local all_packages_file packages_file package package_database attachment_root
+	local index=0
+	local failed=0
+
+	all_packages_file="$work_root/all-packages"
+	git ls-files --cached --others --exclude-standard -- '*_test.go' |
+		while IFS= read -r file; do
+			grep -q '^//go:build integration' "$file" && dirname "$file"
+		done | LC_ALL=C sort -u > "$all_packages_file"
+	[[ -s "$all_packages_file" ]] || fail "no integration test packages found"
+
+	packages_file="$all_packages_file"
+	if [[ -n "$TEST_INTEGRATION_PACKAGES_FILE" ]]; then
+		packages_file="$work_root/selected-packages"
+		: >"$packages_file"
+		while IFS= read -r package || [[ -n "$package" ]]; do
+			[[ -n "$package" ]] || fail "integration package selection contains an empty line"
+			[[ "$package" =~ ^[A-Za-z0-9._/-]+$ && "$package" != *..* && "$package" != /* ]] ||
+				fail "invalid integration package selection: $package"
+			grep -Fxq "$package" "$all_packages_file" || fail "unknown integration package selection: $package"
+			grep -Fxq "$package" "$packages_file" && fail "duplicate integration package selection: $package"
+			printf '%s\n' "$package" >>"$packages_file"
+		done <"$TEST_INTEGRATION_PACKAGES_FILE"
+		[[ -s "$packages_file" ]] || fail "integration package selection is empty"
+	fi
+
+	: >"$package_results"
+	while IFS= read -r package; do
+		index=$((index + 1))
+		package_database="$(database_name "_integration_${index}_${run_id}_test")"
+		attachment_root="$work_root/attachments/${index}-${package//\//_}"
+		mkdir -p "$attachment_root"
+		clone_database "$package_database"
+		clone_databases+=("$package_database")
+
+		echo "==> isolated integration package $package"
+		TEST_POSTGRES_DB="$package_database" \
+		TEST_DATABASE_URL="$(database_url "$package_database")" \
+		ATTACHMENT_STORAGE_ROOT="$attachment_root" \
+			go test -tags=integration "./$package" -count=1 -v </dev/null &
+		package_pids+=("$!")
+		package_labels+=("$package")
+
+		if (( ${#package_pids[@]} == TEST_INTEGRATION_JOBS )); then
+			if ! wait_for_packages; then
+				failed=1
+			fi
+		fi
+	done < "$packages_file"
+
+	if ! wait_for_packages; then
+		failed=1
+	fi
+	write_results
+	return "$failed"
+}
+
 mkdir -p "$work_root"
 "${compose[@]}" up -d --wait db
 
-cutover_database="$(database_name "_issues_289_290_cutover_${run_id}_test")"
-clone_databases+=("$cutover_database")
-recreate_database "$cutover_database"
-initialize_pre_cutover_schema "$cutover_database"
-seed_issue_289_snapshot_fixture "$cutover_database"
-if run_issue_290_cutover "$cutover_database" >/dev/null 2>&1; then
-	fail "issue-290 cutover accepted execution before issue-289"
+echo "==> cutover compatibility tests"
+run_cutover_compatibility_tests
+
+echo "==> current schema initialization"
+initialize_current_schema_databases
+
+echo "==> current integration packages"
+integration_status=0
+if ! run_current_integration_packages; then
+	integration_status=1
 fi
-verify_issue_290_order_guard "$cutover_database"
-
-recreate_database "$cutover_database"
-initialize_pre_cutover_schema "$cutover_database"
-seed_issue_289_snapshot_fixture "$cutover_database"
-run_issue_289_cutover "$cutover_database"
-verify_issue_289_cutover "$cutover_database"
-run_issue_290_cutover "$cutover_database"
-verify_issue_290_cutover "$cutover_database"
-seed_issue_291_mapping_fixture "$cutover_database"
-run_issue_291_cutover "$cutover_database"
-verify_issue_291_cutover "$cutover_database"
-seed_issue_292_report_fixture "$cutover_database"
-run_issue_292_cutover "$cutover_database"
-verify_issue_292_cutover "$cutover_database"
-seed_issue_293_workflow_fixture "$cutover_database"
-run_issue_293_cutover "$cutover_database"
-verify_issue_293_cutover "$cutover_database"
-
-recreate_database "$cutover_database"
-initialize_pre_cutover_schema "$cutover_database"
-seed_issue_289_snapshot_fixture "$cutover_database"
-"${compose[@]}" exec -T -e TARGET_DATABASE="$cutover_database" db sh -eu -c \
-	'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
-	 "UPDATE aux_version_payloads SET data=data-'"'"'quantityScale'"'"' WHERE approval_entry_id='"'"'01JAVX00000000000000000012'"'"'"' </dev/null
-if run_issue_289_cutover "$cutover_database" >/dev/null 2>&1; then
-	fail "issue-289 cutover accepted an incomplete measurement-unit snapshot"
-fi
-
-recreate_database "$cutover_database"
-initialize_pre_cutover_schema "$cutover_database"
-seed_issue_289_snapshot_fixture "$cutover_database"
-run_issue_289_cutover "$cutover_database"
-"${compose[@]}" exec -T -e TARGET_DATABASE="$cutover_database" db sh -eu -c \
-	'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
-	 "DELETE FROM aux_version_payloads WHERE approval_entry_id=(SELECT id FROM approval_entries WHERE domain='"'"'aux'"'"' AND status='"'"'APPROVED'"'"' LIMIT 1)"' </dev/null
-if run_issue_290_cutover "$cutover_database" >/dev/null 2>&1; then
-	fail "issue-290 cutover accepted an approved AUX entry without a payload"
-fi
-
-recreate_database "$base_database"
-initialize_schema "$base_database"
-
-recreate_database "$template_database"
-initialize_schema "$template_database"
-
-all_packages_file="$work_root/all-packages"
-git ls-files --cached --others --exclude-standard -- '*_test.go' |
-	while IFS= read -r file; do
-		grep -q '^//go:build integration' "$file" && dirname "$file"
-	done | LC_ALL=C sort -u > "$all_packages_file"
-[[ -s "$all_packages_file" ]] || fail "no integration test packages found"
-
-packages_file="$all_packages_file"
-if [[ -n "$TEST_INTEGRATION_PACKAGES_FILE" ]]; then
-	packages_file="$work_root/selected-packages"
-	: >"$packages_file"
-	while IFS= read -r package || [[ -n "$package" ]]; do
-		[[ -n "$package" ]] || fail "integration package selection contains an empty line"
-		[[ "$package" =~ ^[A-Za-z0-9._/-]+$ && "$package" != *..* && "$package" != /* ]] ||
-			fail "invalid integration package selection: $package"
-		grep -Fxq "$package" "$all_packages_file" || fail "unknown integration package selection: $package"
-		grep -Fxq "$package" "$packages_file" && fail "duplicate integration package selection: $package"
-		printf '%s\n' "$package" >>"$packages_file"
-	done <"$TEST_INTEGRATION_PACKAGES_FILE"
-	[[ -s "$packages_file" ]] || fail "integration package selection is empty"
-fi
-
-: >"$package_results"
-
-index=0
-failed=0
-while IFS= read -r package; do
-	index=$((index + 1))
-	package_database="$(database_name "_integration_${index}_${run_id}_test")"
-	attachment_root="$work_root/attachments/${index}-${package//\//_}"
-	mkdir -p "$attachment_root"
-	clone_database "$package_database"
-	clone_databases+=("$package_database")
-
-	echo "==> isolated integration package $package"
-	TEST_POSTGRES_DB="$package_database" \
-	TEST_DATABASE_URL="$(database_url "$package_database")" \
-	ATTACHMENT_STORAGE_ROOT="$attachment_root" \
-		go test -tags=integration "./$package" -count=1 -v </dev/null &
-	package_pids+=("$!")
-	package_labels+=("$package")
-
-	if (( ${#package_pids[@]} == TEST_INTEGRATION_JOBS )); then
-		if ! wait_for_packages; then
-			failed=1
-		fi
-	fi
-done < "$packages_file"
-
-if ! wait_for_packages; then
-	failed=1
-fi
-write_results
-
-exit "$failed"
+exit "$integration_status"

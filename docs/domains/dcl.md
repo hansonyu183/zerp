@@ -59,27 +59,27 @@ VOU 收付款、费用支付、其他收入和票据资金行继续保存 fund a
 
 ## 3.5 主体申报
 
-Party stable root 永久保存身份 ID 与合并状态；`dcl_party_versions` 以 `approvalEntryId` 保存类型、法定名称、显示名称、税号、通用联系方式和完整强标识 snapshot。Party 不能从 DCL 单独创建：首条强类型关系创建时，强标识精确命中已有 approved Party 且用户可读时复用该 Party；命中但不可读时返回不泄露资料的占用冲突；未命中时才在同一 transaction 创建 root、DCL subject、V1 草稿和关系。V1 批准前不存在 BOB current。
+`dcl_parties` 是 Party 专属 stable root，永久保存身份 ID 与合并状态；`dcl_party_versions` 以 `approvalEntryId` 保存类型、法定名称、显示名称、税号、通用联系方式和完整强标识 snapshot。Party 不能从 DCL 单独创建：首条强类型关系创建时，强标识精确命中已有 approved Party 且用户可读时复用该 Party；命中但不可读时返回不泄露资料的占用冲突；未命中时才在同一 transaction 创建 root、DCL subject、V1 草稿和关系。V1 批准前 BOB 不可见。
 
-`/dcl/party` 是共享身份候选、影响预览、审批、版本、审计和合并维护入口；`/bob/party` 只提供 current `query|get`。V1 与首条关系属于同一原子事实，V1 草稿不得从 Party 页面独立删除；已有正式版本时才可删除其后续 `DRAFT` candidate 并释放候选强标识。批准或反批在同一 transaction 创建、替换、回落或移除 Party current source。强标识“类型 + 规范化值”在 latest approved 与唯一 open candidate 间共同占用；合并、审批或投影失败不得部分改变占用、current 或关系。合并预检固定以双方 current `sourceApprovalEntryId + revision` 为 stale token；双方必须 current approved 且无 open Party candidate，确认仅消费同一预检与显式关系冲突选择，并在 transaction 内复核 token、关系状态和 fingerprint。来源 root 合并后移除 current identifiers 与 BOB current，DCL 历史及 identifier claim 继续保留；DCL 审计按时间统一展示声明 lifecycle 与主体合并事件。历史 VOU 与关系 snapshot 不追溯改写。
+`/dcl/party` 是共享身份候选、影响预览、审批、版本、审计和合并维护入口；`/bob/party` 只提供当前正式资料的 `query|get`。V1 与首条关系属于同一原子事实，V1 草稿不得从 Party 页面独立删除；已有正式版本时才可删除其后续 `DRAFT` candidate 并释放候选强标识。批准或反批只改变 Approval lifecycle，BOB 直接选择 highest APPROVED Party snapshot。强标识“类型 + 规范化值”在 latest approved 与唯一 open candidate 间共同占用；合并或审批失败不得部分改变占用或关系。合并预检固定以双方 latest approved `sourceApprovalEntryId + approvalRevision` 为 stale token；双方必须存在 latest approved 且无 open Party candidate，确认仅消费同一预检与显式关系冲突选择，并在 transaction 内复核 token、关系状态和 fingerprint。来源 root 标记合并后从 BOB 查询消失，DCL 历史、identifier claim、merge audit 与历史单据继续保留；DCL 审计按时间统一展示声明 lifecycle 与主体合并事件。历史 VOU 与关系 snapshot 不追溯改写。
 
 ## 3.6 员工申报
 
-员工 stable root 固定为 `bob_objects(entity=employee)`，而 `bob_employment_relationships` 保留员工、Party 与经营主体的不可变雇佣边界。`dcl_employee_versions` 以 `approvalEntryId` 保存完整 employee snapshot：人员类别、部门、岗位、工作电话、工作邮箱、入职日期、备注与 `enabled`；它不复制 Party identity 或姓名。人员类别、部门、岗位与经营主体均同时保存 stable ID、精确 Approval Entry、编码及名称快照。
+员工 stable ID 与 `EMP-*` 编码由 `dcl_subjects(entity=employee)` 持有，`dcl_employment_relationships` 在 V1 批准前保存员工、Party 与经营主体的不可变雇佣边界。`dcl_employee_versions` 以 `approvalEntryId` 保存完整 employee snapshot：人员类别、部门、岗位、工作电话、工作邮箱、入职日期、备注与 `enabled`；它不复制 Party identity 或姓名。人员类别、部门、岗位与经营主体均同时保存 stable ID、精确 Approval Entry、编码及名称快照。
 
 `/dcl/employee` 是员工唯一维护入口，`/bob/employee` 只提供 current `query|get|reference`。创建请求必须选择已有 Party，或提交 `newParty`；新 Party 时同一 transaction 建立 Party root、DCL Party V1 candidate、员工 root、雇佣边界和员工 V1 candidate。employee 的 submit 与 approve 都要求 Party current approved；候选创建和保存从 AUX current 复制 stable ID、code、name 等快照，并按 latest approved 解析经营主体来源；submit/approve 只重新校验经营主体等 DCL 精确来源，AUX 只校验已存快照完整性与 stable identity。V1 的 `enabled` 默认为 `true`；后续启停通过包含 `enabled` 的完整 DCL candidate 保存，不存在 BOB 直接 `enable/disable`。
 
-批准或反批在同一 transaction 创建、替换、回落或移除 BOB employee current source。BOB current 明确返回来源 Approval Entry；VOU/ACC 与其他正式事实继续保存 employee stable ID、精确 Approval Entry 以及各自所需 snapshot。任一正式事实精确引用目标 employee entry 时，反批必须返回 blocker；新 employee candidate 和后续批准版本不改写历史。
+批准或反批只改变 Approval lifecycle；BOB 直接读取 highest APPROVED employee snapshot 并返回来源 Approval Entry。VOU/ACC 与其他正式事实继续保存 employee stable ID、精确 Approval Entry 以及各自所需 snapshot。任一正式事实精确引用目标 employee entry 时，反批必须返回 blocker；新 employee candidate 和后续批准版本不改写历史。
 
 ## 3.6.1 客户与客户结算子账户申报
 
-客户关系 `customer` 与客户结算子账户 `customer-account` 是独立 Approval subject、独立 DCL 页面和独立 API 路径。稳定模型固定为 Party → 客户关系 → 一个或多个结算子账户：客户关系在创建时一次性绑定 `partyId` 与 `operatingEntityId`，两者以后不得修改；账户只通过 `customerRelationshipId` 归属关系，经营主体从关系推导，客户端不得在账户 input 重复传入经营主体。
+客户关系 `customer` 与客户结算子账户 `customer-account` 是独立 Approval subject、独立 DCL page 和独立 API 路径。`dcl_customer_relationships` 在 V1 批准前保存 Party 与经营主体的不可变强类型边界；`dcl_customer_accounts` 在 V1 批准前保存账户与客户关系的不可变归属。稳定模型固定为 Party → 客户关系 → 一个或多个结算子账户：客户关系在创建时一次性绑定 `partyId` 与 `operatingEntityId`，两者以后不得修改；账户只通过 `customerRelationshipId` 归属关系，经营主体从关系推导，客户端不得在账户 input 重复传入经营主体。
 
 `/dcl/customer/create` 原子创建或复用 Party、客户关系 V1 `DRAFT` 与默认账户 V1 `DRAFT`。传 `newParty` 时，Party root、DCL Party V1、客户关系 root、客户 V1 与默认账户 root、账户 V1 全部在同一 PostgreSQL transaction 完成；任一步失败不得留下 Party、关系、账户、Approval entry、附件或事件残留。已有 Party 仅在用户可读取且强标识规则允许时复用；不可读取命中仍返回不泄露资料的 blocker。
 
 客户关系 candidate 版本化 `enabled` 与关系附件。客户账户 candidate 版本化 `enabled` 以及名称、简称、客户类型、联系人、地址、结算方式、收款方式、运输政策、定价政策、信用额度、主要业务归属、内部提醒和默认销售订单备注。账户 `save` 始终携带顶层 `enabled` 与完整 account input；保存的账户 data 同时返回、持久化客户类型、结算方式和收款方式的 AUX stable ID、编码及名称快照，以及经营主体和业务归属的 DCL stable ID、精确 `approvalEntryId`、编码及名称等完整 snapshot。输入只能选择来源 stable ID，服务端解析并冻结 snapshot；来源改名、停用或换版不回写候选、已批准版本或历史单据。
 
-`/dcl/customer` 与 `/dcl/customer-account` 各自提供 `query|get|create|save|submit|unsubmit|reject|approve|unapprove|delete|versions|audit-history`。两者 V2 `DRAFT` 或 `PENDING` 都不影响各自 V1 BOB current；批准与反批在同一事务建立、切换、回落或移除相应 current projection。`/bob/customer` 与 `/bob/customer-account` 只提供 typed current `query|get|reference`，不返回 open candidate，也不保留 BOB 写入、生命周期或附件写入别名。
+`/dcl/customer` 与 `/dcl/customer-account` 各自提供 `query|get|create|save|submit|unsubmit|reject|approve|unapprove|delete|versions|audit-history`。两者 V2 `DRAFT` 或 `PENDING` 都不影响各自 V1 正式资料；批准与反批只改变 Approval lifecycle，BOB 直接选择各自 highest APPROVED typed snapshot。`/bob/customer` 与 `/bob/customer-account` 只提供当前正式资料的 `query|get|reference`，不返回 open candidate，也不保留 BOB 写入、生命周期或附件写入别名。
 
 附件 JSON 元数据统一经 `/dcl/customer/attachment-initiate`、`/dcl/customer/attachment-download` 与 `/dcl/customer/attachment-remove`。`scope=CUSTOMER|CUSTOMER_ACCOUNT` 和 `ownerApprovalEntryId` 精确指向对应 DCL version；initiate/remove 必须携带 `approvalRevision` 且只允许 `DRAFT` owner，download 可读获准 current 或历史 owner 但永远只读。关系和账户附件随各自 candidate 复制，附件类别来源 snapshot 绝不因类别后续变化而回写。文件 token PUT/GET 继续使用 `/files/customer-attachments/*`。
 
@@ -87,19 +87,19 @@ Party stable root 永久保存身份 ID 与合并状态；`dcl_party_versions` �
 
 ## 3.7 供应商、其他单位与销售合作方申报
 
-供应关系 stable root 固定为 Party 与经营主体的不可变强类型关系；`partyId` 与顶层 `operatingEntityId` 只在创建时确定，保存 candidate 不得改写 Party 共享身份或经营主体边界。创建可以二选一地传既有 `partyId` 或 `newParty`；新 Party 时同一 transaction 建立 Party root、DCL Party V1 candidate、供应关系 root 与供应关系 V1 candidate。
+供应关系 stable ID 与 `SUP-*` 编码由 DCL subject 持有，`dcl_supplier_relationships` 在 V1 批准前保存 Party 与经营主体的不可变强类型边界；`partyId` 与顶层 `operatingEntityId` 只在创建时确定，保存 candidate 不得改写 Party 共享身份或经营主体边界。创建可以二选一地传既有 `partyId` 或 `newParty`；新 Party 时同一 transaction 建立 Party root、DCL Party V1 candidate、供应关系 root 与供应关系 V1 candidate。
 
 `dcl_supplier_versions` 保存完整供应关系 snapshot：`shortName`、`taxNumber`、联系人、电话、邮箱、地址、备注、结算方式来源精确快照、默认采购员来源精确快照与 `enabled`。供应关系不维护任何 supplier category 或 supplier type。默认采购员必须是当前可用 BOB employee 的 exact snapshot；创建和保存按 latest approved 解析，提交和批准重新校验已存结算方式及采购员 entry 仍是 latest approved。
 
-`/dcl/supplier` 是供应关系唯一维护入口，`/bob/supplier` 只提供 current `query|get|reference`。启停必须保存包含 `enabled` 的完整 DCL candidate，不存在 BOB 直接启停。审批或反批在同一事务创建、替换、回落或移除 current；采购订单、采购入库、采购退货、采购付款及其 ACC 事实精确引用的来源 Approval Entry 不得反批，后续 candidate 与审批不改写历史采购或会计快照。
+`/dcl/supplier` 是供应关系唯一维护入口，`/bob/supplier` 只提供当前正式资料的 `query|get|reference`。启停必须保存包含 `enabled` 的完整 DCL candidate，不存在 BOB 直接启停。审批或反批只改变 Approval lifecycle；采购订单、采购入库、采购退货、采购付款及其 ACC 事实精确引用的来源 Approval Entry 不得反批，后续 candidate 与审批不改写历史采购或会计快照。
 
 供应关系之后的文本同样适用于其他单位与销售合作方：
 
-其他单位与销售合作方的 stable root 都固定为 Party 与经营主体的不可变强类型关系；`partyId` 与顶层 `operatingEntityId` 只在创建时确定，保存 candidate 不得改写 Party 共享身份或经营主体边界。创建可以二选一地传既有 `partyId` 或 `newParty`；新 Party 时同一事务建立 Party root、DCL Party V1 candidate、关系 root 与关系 V1 candidate。
+其他单位与销售合作方的 stable ID、`OTU-*`/`SLP-*` 编码由 DCL subject 持有，`dcl_service_relationships` 与 `dcl_sales_relationships` 在 V1 批准前保存 Party 与经营主体的不可变强类型边界；`partyId` 与顶层 `operatingEntityId` 只在创建时确定，保存 candidate 不得改写 Party 共享身份或经营主体边界。创建可以二选一地传既有 `partyId` 或 `newParty`；新 Party 时同一事务建立 Party root、DCL Party V1 candidate、关系 root 与关系 V1 candidate。
 
-`dcl_other_unit_versions` 保存完整服务关系 snapshot：联系人、电话、邮箱、地址、可选结算方式来源快照、备注与 `enabled`。`dcl_sales_partner_versions` 保存完整销售合作关系 snapshot：`EXTERNAL_PART_TIME` 与 `CHANNEL_PARTNER` 能力集、联系人、电话、邮箱、地址、备注与 `enabled`。销售合作方草稿可暂缺能力，但 submit 与 approve 时至少有一种能力；关系当前投影继续供服务合同、车辆、客户归属、收益和 ACC 引用解析，交易事实始终保存 relationship stable ID、精确 Approval Entry 及自身所需 snapshot。
+`dcl_other_unit_versions` 保存完整服务关系 snapshot：联系人、电话、邮箱、地址、可选结算方式来源快照、备注与 `enabled`。`dcl_sales_partner_versions` 保存完整销售合作关系 snapshot：`EXTERNAL_PART_TIME` 与 `CHANNEL_PARTNER` 能力集、联系人、电话、邮箱、地址、备注与 `enabled`。销售合作方草稿可暂缺能力，但 submit 与 approve 时至少有一种能力；BOB 的 highest-approved typed query 继续供服务合同、车辆、客户归属、收益和 ACC 引用解析，交易事实始终保存 relationship stable ID、精确 Approval Entry 及自身所需 snapshot。
 
-`/dcl/other-unit` 与 `/dcl/sales-partner` 是两类关系唯一维护入口；`/bob/other-unit` 与 `/bob/sales-partner` 只提供 current `query|get|reference`。启停必须保存包含 `enabled` 的完整 DCL candidate，不存在 BOB 直接启停。审批或反批在同一事务创建、替换、回落或移除 current；被正式事实精确引用的来源 Approval Entry 不得反批，后续 candidate 与审批不改写任何历史合同、归属、收益、会计或车辆快照。
+`/dcl/other-unit` 与 `/dcl/sales-partner` 是两类关系唯一维护入口；`/bob/other-unit` 与 `/bob/sales-partner` 只提供当前正式资料的 `query|get|reference`。启停必须保存包含 `enabled` 的完整 DCL candidate，不存在 BOB 直接启停。审批或反批只改变 Approval lifecycle；被正式事实精确引用的来源 Approval Entry 不得反批，后续 candidate 与审批不改写任何历史合同、归属、收益、会计或车辆快照。
 
 ## 3.8 会计映射申报
 
@@ -131,7 +131,7 @@ Starlark 脚本、编译图、试算零写入 adapter、类型化 `WorkflowActio
 
 ## 4. 原子性与引用
 
-DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照、同步发布强类型事件以及应用或移除 BOB 当前投影。产品、员工、客户、客户账户与供应商 current source 随版本整体切换，并由该 source 唯一指向完整 DCL snapshot。会计映射批准或反批在同一事务更新 ACC 最新批准当前解释和科目引用登记。报表定义批准或反批在同一事务注册或停用 RPT query/export 使用权限。流程定义批准或反批在同一事务创建、替换、回落或移除 WFL 当前定义。任一 Approval subscriber 或当前投影写入失败时，entry、event、DCL snapshot 和 BOB current 必须全部回滚。
+DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照并同步发布强类型事件。Party、员工、客户、客户账户、供应商、其他单位与销售合作方不应用或移除 BOB current；BOB 直接从 DCL typed stable root、highest APPROVED entry 和完整 snapshot 派生 current read。会计映射批准或反批在同一事务更新 ACC 最新批准当前解释和科目引用登记。报表定义批准或反批在同一事务注册或停用 RPT query/export 使用权限。流程定义批准或反批在同一事务创建、替换、回落或移除 WFL 当前定义。任一 Approval subscriber 或领域内同步写入失败时，subject、typed root、entry、event 与 DCL snapshot 必须全部回滚。
 
 BOB 对新业务解析 current/latest approved，并返回稳定 ID、来源 `approvalEntryId`、编码和类型化资料快照；已保存业务继续按精确 `approvalEntryId` 校验历史批准快照。旧批准版本不会因新版本批准而删除或改写。反批前必须执行 BOB 领域的精确版本引用 blocker；只允许反批 Approval 判断的 latest approved。
 
@@ -141,4 +141,4 @@ DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`�
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖 V1/V2 正式投影切换与回落、V1 反批后不可引用、草稿删除后候选号复用、同一主体唯一开放候选、并发保存最多一个成功、只反批 latest approved，以及 subscriber 或 BOB current 写入失败时整笔事务回滚。客户还必须覆盖已有 Party 复用、客户创建原子建立默认账户、关系和账户独立 candidate、V2 不影响 current、关系/账户附件各自复制与只读、账户完整来源 snapshot、正式销售事实 blocker、V1 历史 exact entry 在 V2 切换后仍可校验，以及 current 投影失败时整笔事务回滚。员工、供应商、其他单位与销售合作方还必须覆盖 Party approved 前 submit/approve blocker、经营主体精确来源、current source、正式引用 blocker、反批回落和 VOU/ACC 历史快照不变；供应商还必须覆盖结算方式 stable-ID 快照、默认采购员精确来源、采购事实 blocker 及无供应商类别的 cutover 拒绝；销售合作方还必须覆盖能力移除 blocker。仓库还必须覆盖四类停用 blocker 与 VOU 精确版本引用 blocker；车辆还必须覆盖承运归属两种来源、车型 stable-ID 快照与承运方漂移、VOU 精确版本引用 blocker 和历史运输快照不变；资金账户还必须覆盖经营主体来源漂移、账号正式版与候选版共同占用及回落冲突、VOU 精确版本 blocker、VOU 快照不变，以及 ACC 通过不可变 VOU 来源保持可追溯；产品还必须覆盖完整单位/配方 snapshot、AUX current 后续变更不改写历史、原料来源漂移、条码占用、current 切换与回落、正式引用 blocker、VOU/库存/生产/ACC 历史不变。HTTP 与前端验收必须证明旧 BOB 写路由与权限不存在、DCL 页面独占 DCL 候选及生命周期编排、BOB 页面只读取当前正式投影、APP 深链进入 DCL，以及 BOB 引用仍能校验精确历史快照。会计映射还必须覆盖完整 snapshot、V1/V2 ACC 当前解释切换与回落、精确 `mappingApprovalEntryId` blocker、VOU 历史凭证身份和记账结果不变、旧 ACC 写路由与权限不存在、DCL 页面独占映射候选及生命周期编排、ACC 当前页面只读和字段目录，以及待批深链进入 DCL。报表定义还必须覆盖完整 payload snapshot、V1/V2 使用权限切换与回落、VALID/INVALID 独立技术有效性、APPROVED+INVALID 停止执行且不改用其他版本、runtime audit approval entry identity 不变、旧 RPT 写路由与权限不存在、DCL 页面独占定义候选及生命周期编排、RPT 当前页面只读和执行，以及待批深链进入 DCL。流程定义还必须覆盖 stable ID 与 Approval Entry identity 保留、完整脚本 snapshot、V1/V2 当前定义切换与回落、任一持久化实例精确 `approvalEntryId` blocker、新实例固定 latest APPROVED、既有实例继续固定原 entry、code/name 快照不变、试算零写入、旧 WFL 写路由与权限不存在、DCL 页面独占定义候选及生命周期编排、WFL 当前页面只读和实例/执行，以及待批深链进入 DCL。
+真实 PostgreSQL 验收必须覆盖 V1/V2 highest-approved 读取切换与回落、V1 反批后不可引用、未批准 V1 删除后候选号复用、同一主体唯一开放候选、并发保存最多一个成功、只反批 latest approved，以及 subscriber 失败时整笔事务回滚。Party 与关系型资料还必须证明 typed stable root 在 V1 approve 前存在、BOB 候选不可见、旧 BOB identity/current 表与 writer 不存在、cutover 后无 orphan 或重复 `entity+code`。客户还必须覆盖已有 Party 复用、客户创建原子建立默认账户、关系和账户独立 candidate、V2 不影响 latest-approved read、关系/账户附件各自复制与只读、账户完整来源 snapshot、正式销售事实 blocker，以及 V1 历史 exact entry 在 V2 切换后仍可校验。员工、供应商、其他单位与销售合作方还必须覆盖 Party approved 前 submit/approve blocker、经营主体精确来源、latest-approved source、正式引用 blocker、反批回落和 VOU/ACC 历史快照不变；供应商还必须覆盖结算方式 stable-ID 快照、默认采购员精确来源、采购事实 blocker 及无供应商类别的 cutover 拒绝；销售合作方还必须覆盖能力移除 blocker。仓库还必须覆盖四类停用 blocker 与 VOU 精确版本引用 blocker；车辆还必须覆盖承运归属两种来源、车型 stable-ID 快照与承运方漂移、VOU 精确版本引用 blocker 和历史运输快照不变；资金账户还必须覆盖经营主体来源漂移、账号正式版与候选版共同占用及回落冲突、VOU 精确版本 blocker、VOU 快照不变，以及 ACC 通过不可变 VOU 来源保持可追溯；产品还必须覆盖完整单位/配方 snapshot、AUX current 后续变更不改写历史、原料来源漂移、条码占用、latest-approved 读取切换与回落、正式引用 blocker、VOU/库存/生产/ACC 历史不变。HTTP 与前端验收必须证明旧 BOB 写路由与权限不存在、DCL 页面独占 DCL 候选及生命周期编排、BOB 页面只读取当前正式资料、APP 深链进入 DCL，以及 BOB 引用仍能校验精确历史快照。会计映射还必须覆盖完整 snapshot、V1/V2 ACC 当前解释切换与回落、精确 `mappingApprovalEntryId` blocker、VOU 历史凭证身份和记账结果不变、旧 ACC 写路由与权限不存在、DCL 页面独占映射候选及生命周期编排、ACC 当前页面只读和字段目录，以及待批深链进入 DCL。报表定义还必须覆盖完整 payload snapshot、V1/V2 使用权限切换与回落、VALID/INVALID 独立技术有效性、APPROVED+INVALID 停止执行且不改用其他版本、runtime audit approval entry identity 不变、旧 RPT 写路由与权限不存在、DCL 页面独占定义候选及生命周期编排、RPT 当前页面只读和执行，以及待批深链进入 DCL。流程定义还必须覆盖 stable ID 与 Approval Entry identity 保留、完整脚本 snapshot、V1/V2 当前定义切换与回落、任一持久化实例精确 `approvalEntryId` blocker、新实例固定 latest APPROVED、既有实例继续固定原 entry、code/name 快照不变、试算零写入、旧 WFL 写路由与权限不存在、DCL 页面独占定义候选及生命周期编排、WFL 当前页面只读和实例/执行，以及待批深链进入 DCL。

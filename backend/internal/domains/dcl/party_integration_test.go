@@ -3,7 +3,6 @@
 package dcl
 
 import (
-	"context"
 	"errors"
 	"sort"
 	"testing"
@@ -18,7 +17,7 @@ import (
 )
 
 // This is the public DCL lifecycle seam: the test only observes durable
-// Approval, typed snapshots, current BOB data and identifier claims.
+// Approval, typed snapshots, latest-approved visibility and identifier claims.
 func TestPartyDeclarationLifecycleControlsCurrentAndClaimsIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
@@ -173,7 +172,7 @@ func TestPartyIdentifierReuseReturnsApprovedPartyOnlyWhenReadableIntegration(t *
 		t.Fatal("hidden claimed Party unexpectedly reused")
 	}
 	var roots, entries int
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM bob_parties WHERE id=$1`, existing.PartyID).Scan(&roots); err != nil {
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_parties WHERE id=$1`, existing.PartyID).Scan(&roots); err != nil {
 		t.Fatal(err)
 	}
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM approval_entries WHERE domain='dcl' AND entity='party'`).Scan(&entries); err != nil {
@@ -184,7 +183,7 @@ func TestPartyIdentifierReuseReturnsApprovedPartyOnlyWhenReadableIntegration(t *
 	}
 }
 
-func TestPartyFirstRelationshipTransactionRollbackLeavesNoDeclarationOrCurrentIntegration(t *testing.T) {
+func TestPartyFirstRelationshipTransactionRollbackLeavesNoDeclarationIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	service := newPartyIntegrationService(pool, nil)
@@ -200,8 +199,8 @@ func TestPartyFirstRelationshipTransactionRollbackLeavesNoDeclarationOrCurrentIn
 		t.Fatalf("rollback relationship transaction: %v", err)
 	}
 	for table, predicate := range map[string]string{
-		"bob_parties": "id=$1", "dcl_subjects": "id=$1", "approval_entries": "subject_id=$1", "dcl_party_versions": "party_id=$1",
-		"bob_party_currents": "party_id=$1", "dcl_party_identifier_claims": "open_party_id=$1 OR approved_party_id=$1", "bob_party_identifiers": "party_id=$1",
+		"dcl_parties": "id=$1", "dcl_subjects": "id=$1", "approval_entries": "subject_id=$1", "dcl_party_versions": "party_id=$1",
+		"dcl_party_identifier_claims": "open_party_id=$1 OR approved_party_id=$1",
 	} {
 		var count int
 		if err = pool.QueryRow(t.Context(), "SELECT count(*) FROM "+table+" WHERE "+predicate, created.ID).Scan(&count); err != nil {
@@ -213,50 +212,7 @@ func TestPartyFirstRelationshipTransactionRollbackLeavesNoDeclarationOrCurrentIn
 	}
 }
 
-type failingPartyCurrentWriter struct {
-	partyCurrentWriter
-	failure error
-}
-
-func (w failingPartyCurrentWriter) Apply(ctx context.Context, tx pgx.Tx, partyID, entryID string, data bobdomain.PartyCreateData, identifiers []bobdomain.PartyIdentifierInput, actorID string) (bobdomain.PartyIdentity, error) {
-	identity, err := w.partyCurrentWriter.Apply(ctx, tx, partyID, entryID, data, identifiers, actorID)
-	if err != nil {
-		return bobdomain.PartyIdentity{}, err
-	}
-	return identity, w.failure
-}
-
-func TestPartyCurrentApplyFailureRollsBackApprovalSnapshotAndCurrentIntegration(t *testing.T) {
-	pool := dclIntegrationPool(t)
-	resetDCLIntegrationData(t, pool)
-	writer := bobdomain.NewPartyCurrentWriter(pool)
-	service := newPartyIntegrationService(pool, writer)
-	creatorID := ulid.Make().String()
-	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
-	v1 := createPartyDraft(t, service, partyDeclarationData("失败主体", "91310000APPLYFAIL01"), creator("create"))
-	v1, err := service.Submit(t.Context(), partyVersionInput(v1), creator("submit"))
-	if err != nil {
-		t.Fatalf("submit: %v", err)
-	}
-	failure := errors.New("Party current apply failed")
-	failing := newPartyIntegrationService(pool, failingPartyCurrentWriter{partyCurrentWriter: writer, failure: failure})
-	_, err = failing.Approve(t.Context(), partyVersionInput(v1), dclActor(t, ulid.Make().String(), "approve"))
-	if !errors.Is(err, failure) {
-		t.Fatalf("approve error = %v, want current apply failure", err)
-	}
-	assertApprovalState(t, pool, v1.Approval.ApprovalEntryID, approval.StatusPending, v1.Approval.Revision)
-	var snapshotCount, approvedEvents int
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_party_versions WHERE approval_entry_id=$1`, v1.Approval.ApprovalEntryID).Scan(&snapshotCount); err != nil || snapshotCount != 1 {
-		t.Fatalf("Party snapshot count = %d, err=%v, want 1", snapshotCount, err)
-	}
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM approval_events WHERE entry_id=$1 AND action='APPROVED'`, v1.Approval.ApprovalEntryID).Scan(&approvedEvents); err != nil || approvedEvents != 0 {
-		t.Fatalf("approved events = %d, err=%v, want none after rollback", approvedEvents, err)
-	}
-	assertPartyCurrent(t, pool, v1.PartyID, "", "")
-	assertPartyClaims(t, pool, []partyClaim{{bobdomain.PartyIdentifierUnifiedSocialCreditCode, "91310000APPLYFAIL01", "", "", v1.PartyID, v1.Approval.ApprovalEntryID}})
-}
-
-func TestPartyMergeDeletesSourceCurrentRetainsClaimsAndBlocksOpenCandidateIntegration(t *testing.T) {
+func TestPartyMergeHidesSourceRetainsClaimsAndBlocksOpenCandidateIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	service := newPartyIntegrationService(pool, nil)
@@ -313,11 +269,8 @@ func assertPartyMergeAudit(t *testing.T, service *PartyService, partyID string, 
 	t.Fatalf("Party %s audit has no MERGED event: %+v", partyID, history.Items)
 }
 
-func newPartyIntegrationService(pool *pgxpool.Pool, current partyCurrentWriter) *PartyService {
-	if current == nil {
-		current = bobdomain.NewPartyCurrentWriter(pool)
-	}
-	return NewPartyService(pool, current, bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.Func(nil), txevent.NewBus())
+func newPartyIntegrationService(pool *pgxpool.Pool, _ any) *PartyService {
+	return NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), txevent.NewBus())
 }
 func partyDeclarationData(name, identifier string) bobdomain.PartyCreateData {
 	return bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: name, StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: identifier}}}
@@ -364,14 +317,16 @@ func mergePreflight(source, target PartyMutation) bobdomain.PartyMergePreflightI
 func assertPartyCurrent(t *testing.T, pool *pgxpool.Pool, partyID, entryID, displayName string) {
 	t.Helper()
 	var gotEntry, gotName string
-	err := pool.QueryRow(t.Context(), `SELECT source_approval_entry_id,display_name FROM bob_party_currents WHERE party_id=$1`, partyID).Scan(&gotEntry, &gotName)
+	err := pool.QueryRow(t.Context(), `
+		SELECT entry.id,version.display_name
+		FROM approval_entries entry
+		JOIN dcl_party_versions version ON version.approval_entry_id=entry.id
+		JOIN dcl_parties party ON party.id=entry.subject_id AND party.merged_into_party_id IS NULL
+		WHERE entry.domain='dcl' AND entry.entity='party' AND entry.subject_id=$1 AND entry.status='APPROVED'
+		ORDER BY entry.version_no DESC LIMIT 1`, partyID).Scan(&gotEntry, &gotName)
 	if entryID == "" {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			t.Fatalf("Party %s current = (%q,%q,%v), want absent", partyID, gotEntry, gotName, err)
-		}
-		var identifiers int
-		if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM bob_party_identifiers WHERE party_id=$1`, partyID).Scan(&identifiers); err != nil || identifiers != 0 {
-			t.Fatalf("Party %s current identifiers = %d, err=%v, want none", partyID, identifiers, err)
 		}
 		return
 	}

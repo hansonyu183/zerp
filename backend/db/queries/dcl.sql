@@ -75,7 +75,7 @@ DELETE FROM dcl_party_version_identifiers WHERE approval_entry_id=sqlc.arg(appro
 WITH selected AS (
   SELECT subject.id
   FROM dcl_subjects subject
-  JOIN bob_parties party ON party.id=subject.id
+  JOIN dcl_parties party ON party.id=subject.id
   LEFT JOIN LATERAL (
     SELECT id,status FROM approval_entries
     WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
@@ -102,7 +102,7 @@ SELECT subject.id AS party_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
 FROM dcl_subjects subject
-JOIN bob_parties party ON party.id=subject.id
+JOIN dcl_parties party ON party.id=subject.id
 LEFT JOIN LATERAL (
   SELECT id,updated_at FROM approval_entries
   WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
@@ -144,7 +144,7 @@ ORDER BY approval_entry_id,identifier_type,normalized_value;
 SELECT
   (SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='party' AND subject_id=sqlc.arg(party_id))
   +
-  (SELECT count(*) FROM bob_party_merge_events WHERE source_party_id=sqlc.arg(party_id) OR target_party_id=sqlc.arg(party_id));
+  (SELECT count(*) FROM dcl_party_merge_events WHERE source_party_id=sqlc.arg(party_id) OR target_party_id=sqlc.arg(party_id));
 
 -- name: ListDCLPartyAuditEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
@@ -166,8 +166,8 @@ FROM (
          NULL::character varying AS to_status,NULL::bigint AS from_revision,
          NULL::bigint AS to_revision,merge_event.actor_id,NULL::text AS reason,
          merge_event.request_id,merge_event.occurred_at AS created_at
-  FROM bob_party_merge_events merge_event
-  JOIN bob_party_merge_preflights preflight ON preflight.id=merge_event.preflight_id
+  FROM dcl_party_merge_events merge_event
+  JOIN dcl_party_merge_preflights preflight ON preflight.id=merge_event.preflight_id
   WHERE merge_event.source_party_id=sqlc.arg(party_id) OR merge_event.target_party_id=sqlc.arg(party_id)
 ) audit
 ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
@@ -303,7 +303,7 @@ UPDATE dcl_supplier_versions SET short_name=sqlc.narg(short_name),tax_number=sql
 SELECT snapshot.*,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name
 FROM dcl_supplier_versions snapshot
 JOIN approval_entries entry ON entry.id=snapshot.approval_entry_id AND entry.domain='dcl' AND entry.entity='supplier'
-JOIN bob_supplier_relationships relationship ON relationship.object_id=entry.subject_id
+JOIN dcl_supplier_relationships relationship ON relationship.object_id=entry.subject_id
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name
   FROM approval_entries party_entry
@@ -324,11 +324,10 @@ DELETE FROM dcl_supplier_versions WHERE approval_entry_id=sqlc.arg(approval_entr
 
 -- name: CountDCLSuppliers :one
 SELECT count(*) FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity='supplier'
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
 JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
-JOIN bob_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN dcl_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name FROM approval_entries party_entry
   JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
@@ -336,13 +335,12 @@ JOIN LATERAL (
     AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
   ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
 ) party ON true
-WHERE subject.entity='supplier' AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
+WHERE subject.entity='supplier' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 
 -- name: ListDCLSuppliers :many
-SELECT object.id AS object_id,object.code,object.revision AS object_revision,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity='supplier'
-JOIN bob_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN dcl_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name FROM approval_entries party_entry
   JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
@@ -356,8 +354,8 @@ JOIN dcl_operating_entity_versions operating_current ON operating_current.approv
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
 JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
-WHERE subject.entity='supplier' AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
-ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN object.code END ASC,CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN object.code END DESC,CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN party.display_name END ASC,CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN party.display_name END DESC,object.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+WHERE subject.entity='supplier' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN subject.code END ASC,CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN subject.code END DESC,CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN party.display_name END ASC,CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN party.display_name END DESC,subject.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountDCLSupplierApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='supplier' AND subject_id=sqlc.arg(object_id);
@@ -371,8 +369,7 @@ SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_sta
 -- name: CountDCLCustomers :one
 SELECT count(*)
 FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity='customer'
-JOIN bob_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name FROM approval_entries party_entry
   JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
@@ -392,21 +389,20 @@ LEFT JOIN LATERAL (
 ) approved ON true
 JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity='customer'
-  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
   AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id))
   AND (sqlc.arg(party_id)::text='' OR relationship.party_id=sqlc.arg(party_id))
   AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
   AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 
 -- name: ListDCLCustomers :many
-SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,
        relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,display.operating_entity_code,display.operating_entity_name,
        display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
        COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity='customer'
-JOIN bob_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
+JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name FROM approval_entries party_entry
   JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
@@ -426,19 +422,19 @@ LEFT JOIN LATERAL (
 ) approved ON true
 JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity='customer'
-  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
   AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id))
   AND (sqlc.arg(party_id)::text='' OR relationship.party_id=sqlc.arg(party_id))
   AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
   AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
-ORDER BY object.code ASC,object.id ASC
+ORDER BY subject.code ASC,subject.id ASC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: GetDCLCustomerIdentity :one
-SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,
        relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id
-FROM bob_objects object
-JOIN bob_customer_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
+FROM dcl_subjects subject
+JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name FROM approval_entries party_entry
   JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
@@ -446,7 +442,7 @@ JOIN LATERAL (
     AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
   ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
 ) party ON true
-WHERE object.id=sqlc.arg(object_id) AND object.entity='customer';
+WHERE subject.id=sqlc.arg(object_id) AND subject.entity='customer';
 
 -- name: CountDCLCustomerApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=sqlc.arg(object_id);
@@ -506,7 +502,7 @@ SELECT snapshot.*,relationship.party_id,party.kind AS party_kind,
 FROM dcl_employee_versions snapshot
 JOIN approval_entries entry ON entry.id=snapshot.approval_entry_id
   AND entry.domain='dcl' AND entry.entity='employee'
-JOIN bob_employment_relationships relationship ON relationship.object_id=entry.subject_id
+JOIN dcl_employment_relationships relationship ON relationship.object_id=entry.subject_id
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name
   FROM approval_entries party_entry
@@ -555,11 +551,11 @@ DELETE FROM dcl_sales_partner_versions WHERE approval_entry_id=sqlc.arg(approval
 
 -- name: CountDCLRelationships :one
 WITH selected AS (
- SELECT subject.id FROM dcl_subjects subject JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
+ SELECT subject.id FROM dcl_subjects subject
  LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
  LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
- LEFT JOIN bob_service_relationships other_relation ON subject.entity='other-unit' AND other_relation.object_id=subject.id AND other_relation.merged_into_object_id IS NULL
- LEFT JOIN bob_sales_relationships sales_relation ON subject.entity='sales-partner' AND sales_relation.object_id=subject.id AND sales_relation.merged_into_object_id IS NULL
+ LEFT JOIN dcl_service_relationships other_relation ON subject.entity='other-unit' AND other_relation.object_id=subject.id AND other_relation.merged_into_object_id IS NULL
+ LEFT JOIN dcl_sales_relationships sales_relation ON subject.entity='sales-partner' AND sales_relation.object_id=subject.id AND sales_relation.merged_into_object_id IS NULL
  JOIN LATERAL (
   SELECT payload.kind,payload.display_name FROM approval_entries party_entry
   JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
@@ -570,23 +566,23 @@ WITH selected AS (
  ) party ON true
  LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
  LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
- WHERE subject.entity=sqlc.arg(entity) AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+ WHERE subject.entity=sqlc.arg(entity) AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
  AND (sqlc.arg(enabled_filter)::integer=-1 OR COALESCE(other_snapshot.enabled,sales_snapshot.enabled)=(sqlc.arg(enabled_filter)::integer=1))
  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
  AND (sqlc.arg(operating_entity_id)::text='' OR COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id)=sqlc.arg(operating_entity_id)::text)
 ) SELECT count(*) FROM selected;
 
 -- name: ListDCLRelationships :many
-SELECT subject.id AS object_id,object.code,object.revision AS object_revision,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
  operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
  COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
  COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
-FROM dcl_subjects subject JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
+FROM dcl_subjects subject
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
-LEFT JOIN bob_service_relationships other_relation ON subject.entity='other-unit' AND other_relation.object_id=subject.id AND other_relation.merged_into_object_id IS NULL
-LEFT JOIN bob_sales_relationships sales_relation ON subject.entity='sales-partner' AND sales_relation.object_id=subject.id AND sales_relation.merged_into_object_id IS NULL
+LEFT JOIN dcl_service_relationships other_relation ON subject.entity='other-unit' AND other_relation.object_id=subject.id AND other_relation.merged_into_object_id IS NULL
+LEFT JOIN dcl_sales_relationships sales_relation ON subject.entity='sales-partner' AND sales_relation.object_id=subject.id AND sales_relation.merged_into_object_id IS NULL
 JOIN LATERAL (
  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
@@ -600,21 +596,21 @@ JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='ope
 JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
 LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
-WHERE subject.entity=sqlc.arg(entity) AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+WHERE subject.entity=sqlc.arg(entity) AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
  AND (sqlc.arg(enabled_filter)::integer=-1 OR COALESCE(other_snapshot.enabled,sales_snapshot.enabled)=(sqlc.arg(enabled_filter)::integer=1))
  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
  AND (sqlc.arg(operating_entity_id)::text='' OR COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id)=sqlc.arg(operating_entity_id)::text)
-ORDER BY COALESCE(candidate.updated_at,approved.updated_at) DESC,object.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+ORDER BY COALESCE(candidate.updated_at,approved.updated_at) DESC,subject.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: GetDCLRelationshipIdentity :one
-SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,
  COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,
  party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
  operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name
-FROM bob_objects object
-LEFT JOIN bob_service_relationships other_relation ON sqlc.arg(entity)::text='other-unit' AND other_relation.object_id=object.id AND other_relation.merged_into_object_id IS NULL
-LEFT JOIN bob_sales_relationships sales_relation ON sqlc.arg(entity)::text='sales-partner' AND sales_relation.object_id=object.id AND sales_relation.merged_into_object_id IS NULL
+FROM dcl_subjects subject
+LEFT JOIN dcl_service_relationships other_relation ON sqlc.arg(entity)::text='other-unit' AND other_relation.object_id=subject.id AND other_relation.merged_into_object_id IS NULL
+LEFT JOIN dcl_sales_relationships sales_relation ON sqlc.arg(entity)::text='sales-partner' AND sales_relation.object_id=subject.id AND sales_relation.merged_into_object_id IS NULL
 JOIN LATERAL (
  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
@@ -626,7 +622,7 @@ JOIN LATERAL (
 JOIN dcl_subjects operating ON operating.id=COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AND operating.entity='operating-entity'
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
 JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
-WHERE object.id=sqlc.arg(object_id) AND object.entity=sqlc.arg(entity);
+WHERE subject.id=sqlc.arg(object_id) AND subject.entity=sqlc.arg(entity);
 
 -- name: CountDCLRelationshipApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity=sqlc.arg(entity) AND subject_id=sqlc.arg(object_id);
@@ -647,8 +643,7 @@ LIMIT 1;
 -- name: CountDCLEmployees :one
 SELECT count(*)
 FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity='employee'
-JOIN bob_employment_relationships relationship ON relationship.object_id=subject.id
+JOIN dcl_employment_relationships relationship ON relationship.object_id=subject.id
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name
   FROM approval_entries party_entry
@@ -675,7 +670,7 @@ LEFT JOIN LATERAL (
 ) approved ON true
 JOIN dcl_employee_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
-  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
   AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
   AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)::text)
   AND (sqlc.arg(employee_category_id)::text='' OR display.employee_category_id=sqlc.arg(employee_category_id)::text)
@@ -684,7 +679,7 @@ WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
   AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 
 -- name: ListDCLEmployees :many
-SELECT object.id AS object_id,object.code,object.revision AS object_revision,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,
        relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,operating.code AS operating_entity_code,
        operating_current.legal_name AS operating_entity_name,display.enabled,
@@ -694,8 +689,7 @@ SELECT object.id AS object_id,object.code,object.revision AS object_revision,
        COALESCE(candidate.version_no,approved.version_no) AS display_version_no,
        COALESCE(candidate.updated_at,approved.updated_at) AS updated_at
 FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity='employee'
-JOIN bob_employment_relationships relationship ON relationship.object_id=subject.id
+JOIN dcl_employment_relationships relationship ON relationship.object_id=subject.id
 JOIN LATERAL (
   SELECT payload.kind,payload.display_name
   FROM approval_entries party_entry
@@ -722,7 +716,7 @@ LEFT JOIN LATERAL (
 ) approved ON true
 JOIN dcl_employee_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
-  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
   AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
   AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)::text)
   AND (sqlc.arg(employee_category_id)::text='' OR display.employee_category_id=sqlc.arg(employee_category_id)::text)
@@ -731,11 +725,11 @@ WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
   AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
 ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
   CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN object.code END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN object.code END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN subject.code END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN subject.code END DESC,
   CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN party.display_name END ASC,
   CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN party.display_name END DESC,
-  object.id DESC
+  subject.id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountDCLEmployeeApprovalEvents :one
@@ -1300,3 +1294,49 @@ SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_sta
 SELECT id FROM wfl_definition_instances
 WHERE definition_approval_entry_id=sqlc.arg(approval_entry_id)
 ORDER BY id LIMIT 20;
+-- #308 typed DCL stable identities.  Subjects own ID/code; these roots own the
+-- immutable Party or Party-to-operating-entity relationship facts.
+-- name: InsertDCLPartyRoot :exec
+INSERT INTO dcl_parties(id) SELECT sqlc.arg(id) WHERE sqlc.arg(actor_id)::text IS NOT NULL;
+-- name: GetDCLPartyRoot :one
+SELECT id,merged_into_party_id,merged_at FROM dcl_parties WHERE id=sqlc.arg(id) FOR UPDATE;
+-- name: DeleteDCLPartyRoot :execrows
+DELETE FROM dcl_parties WHERE id=sqlc.arg(id) AND merged_into_party_id IS NULL;
+
+-- name: InsertDCLEmployeeRelationship :exec
+INSERT INTO dcl_employment_relationships(object_id,party_id,operating_entity_id) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id));
+-- name: GetDCLEmployeeRelationship :one
+SELECT * FROM dcl_employment_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
+-- name: DeleteDCLEmployeeRelationship :execrows
+DELETE FROM dcl_employment_relationships WHERE object_id=sqlc.arg(object_id) AND merged_into_object_id IS NULL;
+-- name: InsertDCLCustomerRelationship :exec
+INSERT INTO dcl_customer_relationships(object_id,party_id,operating_entity_id) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id));
+-- name: GetDCLCustomerRelationship :one
+SELECT * FROM dcl_customer_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
+-- name: DeleteDCLCustomerRelationship :execrows
+DELETE FROM dcl_customer_relationships WHERE object_id=sqlc.arg(object_id) AND merged_into_object_id IS NULL;
+-- name: InsertDCLSupplierRelationship :exec
+INSERT INTO dcl_supplier_relationships(object_id,party_id,operating_entity_id) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id));
+-- name: GetDCLSupplierRelationship :one
+SELECT * FROM dcl_supplier_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
+-- name: DeleteDCLSupplierRelationship :execrows
+DELETE FROM dcl_supplier_relationships WHERE object_id=sqlc.arg(object_id) AND merged_into_object_id IS NULL;
+-- name: InsertDCLOtherUnitRelationship :exec
+INSERT INTO dcl_service_relationships(object_id,party_id,operating_entity_id) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id));
+-- name: GetDCLOtherUnitRelationship :one
+SELECT * FROM dcl_service_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
+-- name: DeleteDCLOtherUnitRelationship :execrows
+DELETE FROM dcl_service_relationships WHERE object_id=sqlc.arg(object_id) AND merged_into_object_id IS NULL;
+-- name: InsertDCLSalesPartnerRelationship :exec
+INSERT INTO dcl_sales_relationships(object_id,party_id,operating_entity_id) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id));
+-- name: GetDCLSalesPartnerRelationship :one
+SELECT * FROM dcl_sales_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
+-- name: DeleteDCLSalesPartnerRelationship :execrows
+DELETE FROM dcl_sales_relationships WHERE object_id=sqlc.arg(object_id) AND merged_into_object_id IS NULL;
+
+-- name: InsertDCLCustomerAccountRoot :exec
+INSERT INTO dcl_customer_accounts(object_id,customer_relationship_id) VALUES(sqlc.arg(object_id),sqlc.arg(customer_relationship_id));
+-- name: GetDCLCustomerAccountRoot :one
+SELECT * FROM dcl_customer_accounts WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
+-- name: DeleteDCLCustomerAccountRoot :execrows
+DELETE FROM dcl_customer_accounts WHERE object_id=sqlc.arg(object_id);

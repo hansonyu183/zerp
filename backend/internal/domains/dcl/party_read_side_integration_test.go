@@ -17,7 +17,7 @@ func TestPartyDeclarationQueryFiltersAndReturnsTypedSnapshotsIntegration(t *test
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
-	service := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorization.Func(nil), txevent.NewBus())
+	service := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), txevent.NewBus())
 
 	approved := insertDCLPartyReadSideFixture(t, pool, creatorID, reviewerID, "阿尔法主体", "PERSON", approval.StatusApproved, "")
 	open := insertDCLPartyReadSideFixture(t, pool, creatorID, reviewerID, "贝塔候选", "ORGANIZATION", approval.StatusDraft, "")
@@ -55,11 +55,11 @@ type partyReadSideFixture struct{ partyID string }
 func insertDCLPartyReadSideFixture(t *testing.T, pool *pgxpool.Pool, creatorID, reviewerID, name, kind string, status approval.Status, mergedInto string) partyReadSideFixture {
 	t.Helper()
 	partyID, entryID := ulid.Make().String(), ulid.Make().String()
-	if _, err := pool.Exec(t.Context(), `INSERT INTO bob_parties(id,created_by,merged_into_party_id,merged_at) VALUES($1,$2,NULLIF($3,''),CASE WHEN $3='' THEN NULL ELSE now() END)`, partyID, creatorID, mergedInto); err != nil {
-		t.Fatalf("insert party root: %v", err)
-	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,created_by) VALUES($1,'party',$2)`, partyID, creatorID); err != nil {
 		t.Fatalf("insert Party subject: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_parties(id,merged_into_party_id,merged_at) VALUES($1,NULLIF($2,''),CASE WHEN $2='' THEN NULL ELSE now() END)`, partyID, mergedInto); err != nil {
+		t.Fatalf("insert party root: %v", err)
 	}
 	if status == approval.StatusApproved {
 		if _, err := pool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl','party',$2,1,'APPROVED',1,$3,now(),$3,now(),$3,now(),$4,now())`, entryID, partyID, creatorID, reviewerID); err != nil {

@@ -20,22 +20,10 @@ ORDER BY (id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC
 
 -- name: RptListBOBReferences :many
 WITH current_references AS (
-  SELECT object.id, object.code, object.code AS name
-  FROM bob_objects object
-  WHERE object.entity=sqlc.arg(entity)
-    AND CASE object.entity
-      WHEN 'customer-account' THEN EXISTS (SELECT 1 FROM bob_customer_account_currents current WHERE current.object_id=object.id)
-      WHEN 'supplier' THEN EXISTS (SELECT 1 FROM bob_suppliers current WHERE current.object_id=object.id)
-      WHEN 'other-unit' THEN EXISTS (SELECT 1 FROM bob_other_units current WHERE current.object_id=object.id)
-      WHEN 'employee' THEN EXISTS (SELECT 1 FROM bob_employees current WHERE current.object_id=object.id)
-      WHEN 'sales-partner' THEN EXISTS (SELECT 1 FROM bob_sales_partners current WHERE current.object_id=object.id)
-      ELSE false
-    END
-  UNION ALL
   SELECT subject.id, subject.code, subject.code AS name
   FROM dcl_subjects subject
   JOIN LATERAL (SELECT 1 FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
-  WHERE subject.entity=sqlc.arg(entity) AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product')
+  WHERE subject.entity=sqlc.arg(entity) AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','customer','customer-account','supplier','other-unit','employee','sales-partner')
   UNION ALL
   SELECT object.id, object.code, object.data->>'name' AS name
   FROM aux_objects object

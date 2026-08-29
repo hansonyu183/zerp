@@ -103,7 +103,7 @@ func (s *SupplierService) Get(ctx context.Context, in SupplierGetInput, actor ap
 		}
 		return SupplierView{}, translateError(err)
 	}
-	id, err := s.current.GetSupplierIdentity(ctx, tx, in.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntitySupplier, in.ObjectID)
 	if err != nil {
 		return SupplierView{}, translateError(err)
 	}
@@ -111,7 +111,7 @@ func (s *SupplierService) Get(ctx context.Context, in SupplierGetInput, actor ap
 	if err != nil {
 		return SupplierView{}, translateError(err)
 	}
-	operating, err := s.current.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, id.OperatingEntityID)
+	operating, err := s.rules.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, id.OperatingEntityID)
 	if err != nil {
 		return SupplierView{}, translateError(err)
 	}

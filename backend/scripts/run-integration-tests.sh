@@ -150,6 +150,41 @@ run_issue_305_cutover() {
 		<db/cutovers/issue-305-dcl-subject-core-masters.sql
 }
 
+run_issue_308_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-308-dcl-party-relationships.sql
+}
+
+verify_issue_308_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.bob_parties'"'"') IS NULL
+		  AND to_regclass('"'"'public.bob_party_currents'"'"') IS NULL
+		  AND to_regclass('"'"'public.bob_customer_relationships'"'"') IS NULL
+		  AND to_regclass('"'"'public.bob_customer_account_currents'"'"') IS NULL
+		  AND to_regclass('"'"'public.dcl_parties'"'"') IS NOT NULL
+		  AND to_regclass('"'"'public.dcl_customer_relationships'"'"') IS NOT NULL
+		  AND to_regclass('"'"'public.dcl_customer_accounts'"'"') IS NOT NULL
+			  AND to_regprocedure('"'"'public.bob_reject_merged_party_relationship()'"'"') IS NULL
+			  AND to_regprocedure('"'"'public.dcl_reject_merged_party_relationship()'"'"') IS NOT NULL
+			  AND to_regclass('"'"'public.dcl_party_merge_preflights_open_idx'"'"') IS NOT NULL
+			  AND to_regclass('"'"'public.dcl_party_relationship_merge_events_source_idx'"'"') IS NOT NULL
+			  AND EXISTS (SELECT 1 FROM pg_constraint
+			    WHERE conrelid='"'"'public.dcl_party_merge_events'"'"'::regclass
+			      AND conname='"'"'dcl_party_merge_events_preflight_id_key'"'"' AND contype='"'"'u'"'"')
+			  AND (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname IN (
+		    '"'"'dcl_customer_relationship_merged_party_ck'"'"',
+		    '"'"'dcl_employment_relationship_merged_party_ck'"'"',
+		    '"'"'dcl_supplier_relationship_merged_party_ck'"'"',
+		    '"'"'dcl_service_relationship_merged_party_ck'"'"',
+		    '"'"'dcl_sales_relationship_merged_party_ck'"'"'))=5
+		  AND NOT EXISTS (SELECT entity,upper(code) FROM dcl_subjects WHERE code IS NOT NULL GROUP BY entity,upper(code) HAVING count(*)>1)
+		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 verify_issue_305_cutover() {
 	local database="$1"
 	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
@@ -577,6 +612,8 @@ run_cutover_compatibility_tests() {
 	verify_pre_issue_305_fixture "$pre_issue_305_database"
 	run_issue_305_cutover "$pre_issue_305_database"
 	verify_issue_305_cutover "$pre_issue_305_database"
+	run_issue_308_cutover "$pre_issue_305_database"
+	verify_issue_308_cutover "$pre_issue_305_database"
 }
 
 initialize_current_schema_databases() {

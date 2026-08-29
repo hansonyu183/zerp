@@ -66,7 +66,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
-	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorization.Func(nil), bus)
+	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
@@ -82,7 +82,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	var partyID, operatingEntityID string
 	if err = pool.QueryRow(t.Context(), `
 		SELECT relationship.party_id,relationship.operating_entity_id
-		FROM bob_customer_relationships relationship
+		FROM dcl_customer_relationships relationship
 		JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity='customer'
 		ORDER BY subject.created_at LIMIT 1
 	`).Scan(&partyID, &operatingEntityID); err != nil {

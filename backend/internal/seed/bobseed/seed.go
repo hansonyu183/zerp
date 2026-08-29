@@ -135,6 +135,7 @@ type relationshipAwareLifecycleService struct {
 	customerAccounts  *dcldomain.CustomerAccountService
 	auxiliary         *auxdomain.Service
 	pool              *pgxpool.Pool
+	queries           *dbsqlc.Queries
 	operatingEntities *dcldomain.OperatingEntityService
 	warehouses        *dcldomain.WarehouseService
 	vehicles          *dcldomain.VehicleService
@@ -658,29 +659,11 @@ func (service relationshipAwareLifecycleService) approveCustomerRelationship(ctx
 }
 
 func (service relationshipAwareLifecycleService) customerPartyID(ctx context.Context, objectID string) (string, error) {
-	tx, err := service.pool.Begin(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	identity, err := service.business.GetCustomerIdentity(ctx, tx, objectID)
-	if err != nil {
-		return "", err
-	}
-	return identity.PartyID, nil
+	return service.queries.GetDCLCustomerRelationshipPartyIDForBOB(ctx, objectID)
 }
 
 func (service relationshipAwareLifecycleService) supplierPartyID(ctx context.Context, objectID string) (string, error) {
-	tx, err := service.pool.Begin(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	identity, err := service.business.GetSupplierIdentity(ctx, tx, objectID)
-	if err != nil {
-		return "", err
-	}
-	return identity.PartyID, nil
+	return service.queries.GetDCLSupplierRelationshipPartyIDForBOB(ctx, objectID)
 }
 
 func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input seedReverseInput, actor approval.Actor) (seedMutation, error) {
@@ -1179,7 +1162,7 @@ func New(pool *pgxpool.Pool) *Seeder {
 	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	bus := txevent.NewBus()
-	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentWriter(pool), bob.NewPartyCurrentReader(pool), bob.NewPartyMergeEngine(pool), authorizer, bus)
+	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentReader(pool), authorizer, bus)
 	service := bob.NewService(pool, auxiliaryResolver)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, service, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, service, authorizer, bus)
@@ -1193,7 +1176,7 @@ func New(pool *pgxpool.Pool) *Seeder {
 	customers := dcldomain.NewCustomerService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), accounts, authorizer, bus)
 	return &Seeder{
 		service: relationshipAwareLifecycleService{relationships: relationships,
-			business: service, customers: customers, customerAccounts: accounts, auxiliary: auxiliary, pool: pool, operatingEntities: operatingEntities, warehouses: warehouses,
+			business: service, customers: customers, customerAccounts: accounts, auxiliary: auxiliary, pool: pool, queries: dbsqlc.New(pool), operatingEntities: operatingEntities, warehouses: warehouses,
 			vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees,
 			suppliers: suppliers, parties: partyDeclarations},
 		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,

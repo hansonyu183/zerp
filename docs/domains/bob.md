@@ -257,7 +257,7 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 关系合并保留指定关系稳定 ID，把来源关系标记为已合并并指向保留关系。客户关系需要逐一转移不冲突的结算子账户；供应、雇佣、服务和销售合作关系分别校验自身专属当前资料。来源关系已有合同、交易、ACC 余额或其他历史引用不搬迁、不汇总、不改写，仍可按原快照完成既有业务的后续履约、结算和冲销；来源关系不得再被独立选择用于新的业务起点，之后新业务统一选择保留关系。
 
-全部关系合并与主体合并在同一事务完成。不冲突关系的原端点版本冻结并由受信系统操作者创建、提交和批准只替换主体端点的新版本；冲突来源关系写专门合并审计并转入永久只读。来源主体标记为已合并、记录保留主体 ID、移除 BOB current 与其 current identifiers，并永久只读，不物理删除；DCL 历史及其强标识 claim 保持审计占用。历史关系版本、VOU/ACC 引用及其主体、关系快照全部保持原值。任一步失败时不得产生部分关系转移、部分合并或主体状态变化。
+全部关系合并与主体合并在同一事务完成。不冲突关系的原端点版本冻结并由受信系统操作者创建、提交和批准只替换主体端点的新版本；冲突来源关系写专门合并审计并转入永久只读。来源主体在 DCL typed root 上标记为已合并并记录保留主体 ID，之后从 BOB latest-approved 查询消失且永久只读，不物理删除；DCL 历史及其强标识 claim 保持审计占用。历史关系版本、VOU/ACC 引用及其主体、关系快照全部保持原值。任一步失败时不得产生部分关系转移、部分合并或主体状态变化。
 
 ## 5. 领域动作
 
@@ -296,16 +296,16 @@ BOB 不注册 `create/save/enable/disable/submit/unsubmit/reject/approve/unappro
 ### 7.1 乐观并发
 
 - BOB HTTP 只读，不接收 revision 写入；
-- DCL identity reserve/delete 与 current apply/remove 必须使用锁定后的稳定 identity/source，并由外层 DCL Approval revision 保护整笔动作；
-- 来源、identity 或 current 已变化时返回稳定冲突，不能自动重放或退回旧来源。
+- DCL typed identity reserve/delete 必须使用锁定后的 stable subject 与 typed root，并由外层 DCL Approval revision 保护整笔动作；
+- 来源、identity 或 Approval 状态已变化时返回稳定冲突，不能自动重放或退回旧来源。
 
 ### 7.2 数据库锁
 
-DCL 创建候选、批准、反批与删除必须在事务内按固定顺序锁定 DCL subject、BOB stable identity、current 与相关引用，避免死锁和交错投影。BOB current apply/remove 不开启独立 transaction，也不调用第二个 coordinator；约束冲突转换为领域冲突，不能把 PostgreSQL 错误文本返回客户端。
+DCL 创建候选、批准、反批与删除必须在事务内按固定顺序锁定 DCL subject、typed stable root、Approval Entry 与相关引用，避免死锁和交错状态。BOB 不参与写事务；约束冲突转换为领域冲突，不能把 PostgreSQL 错误文本返回客户端。
 
 ### 7.3 幂等边界
 
-BOB HTTP 读接口天然幂等。内部 current apply/remove 随 DCL transaction 提交或回滚，不建立 BOB 幂等表、事件重放或补偿写入。
+BOB HTTP 读接口天然幂等。DCL lifecycle 写入只依赖自身事务提交或回滚，不建立 BOB current 写入、幂等表、事件重放或补偿写入。
 
 ## 8. 有效引用规则
 
@@ -377,8 +377,8 @@ BOB 验收以 current-only 公共边界为准，并由各 DCL 实体测试其写
 1. 每个 BOB entity 只注册 `query/get`，共享引用只注册 `reference/query`；全部已移除的写入、lifecycle、版本与审计路径返回不存在；
 2. query/get 只读取 current，不返回候选、Approval metadata 或历史读取模式；
 3. 每个 current 响应返回 DCL `sourceApprovalEntryId` 与 `sourceVersionNo`，两者来自同一实体、subject 和 approved entry；
-4. DCL V1/V2 批准与反批原子创建、替换、回落或移除 BOB current，候选待审期间仍读取上一 current；
-5. current apply/remove 失败时 DCL snapshot、Approval、event 与 BOB current 整体回滚；
+4. DCL V1/V2 批准与反批后，BOB typed query 分别自然出现、切换、回落或消失；候选待审期间仍读取上一批准版本；
+5. DCL lifecycle 事务失败时 stable subject、typed root、snapshot、Approval 与 event 整体回滚，不存在 BOB current 副本；
 6. 新引用只选择 current enabled 对象，已有业务继续按精确 DCL Approval Entry 校验历史来源；
 7. BOB 前端只调用 query/get/reference，没有隐藏写分支、lifecycle 控件、版本或审计弹窗；
 8. APP 工作台只聚合 DCL 资料待办，查看、编辑、提交、撤回、驳回和批准均深链或调用 `/dcl/{entity}`；

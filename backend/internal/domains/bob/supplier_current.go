@@ -98,7 +98,7 @@ func (s *Service) validateSupplierSnapshotReference(ctx context.Context, q *dbsq
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Supplier snapshot", err)
 	}
-	object, err := q.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: objectID, Entity: EntitySupplier})
+	object, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntitySupplier})
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Supplier identity", err)
 	}
@@ -115,5 +115,5 @@ func (s *Service) validateSupplierSnapshotReference(ctx context.Context, q *dbsq
 		day := payload.SettlementDayOfMonth
 		d.DayOfMonth = &day
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: object.Code, ApprovalEntryID: entryID, Data: d}, nil
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entryID, Data: d}, nil
 }

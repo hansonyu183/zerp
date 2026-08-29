@@ -104,7 +104,7 @@ func (s *EmployeeService) Get(ctx context.Context, input EmployeeGetInput, actor
 		}
 		return EmployeeView{}, translateError(err)
 	}
-	identity, err := s.current.GetEmployeeIdentity(ctx, tx, input.ObjectID)
+	identity, err := lockEmployeeIdentity(ctx, tx, input.ObjectID)
 	if err != nil {
 		return EmployeeView{}, translateError(err)
 	}
@@ -112,7 +112,7 @@ func (s *EmployeeService) Get(ctx context.Context, input EmployeeGetInput, actor
 	if err != nil {
 		return EmployeeView{}, translateError(err)
 	}
-	operating, err := s.current.ResolveLatestApprovedReference(ctx, tx, "operating-entity", identity.OperatingEntityID)
+	operating, err := s.rules.ResolveLatestApprovedReference(ctx, tx, "operating-entity", identity.OperatingEntityID)
 	if err != nil {
 		return EmployeeView{}, translateError(err)
 	}

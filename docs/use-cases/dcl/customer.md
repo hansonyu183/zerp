@@ -14,5 +14,5 @@
 ## 生命周期与验收
 
 1. 页面编排 `query|get|create|save|submit|unsubmit|reject|approve|unapprove|delete|versions|audit-history`，并按每个动作独立权限显示。
-2. 关系 V2 不影响 BOB V1 current；批准切换、反批回落和 current 写失败都必须原子。
+2. 关系 V2 不影响 BOB V1 正式资料；批准切换和反批回落由 highest APPROVED 查询自然体现，不执行 current 写入。
 3. 正式销售事实 blocker 与历史 exact entry 回读按 [DCL 引用规则](../../domains/dcl.md#361-客户与客户结算子账户申报) 验收。

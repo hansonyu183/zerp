@@ -580,15 +580,15 @@ func (s *Seeder) ensureRelationshipPartyApproved(ctx context.Context, entity, ob
 	var query string
 	switch entity {
 	case bobdomain.EntityEmployee:
-		query = `SELECT party_id FROM bob_employment_relationships WHERE object_id=$1`
+		query = `SELECT party_id FROM dcl_employment_relationships WHERE object_id=$1`
 	case bobdomain.EntitySupplier:
-		query = `SELECT party_id FROM bob_supplier_relationships WHERE object_id=$1`
+		query = `SELECT party_id FROM dcl_supplier_relationships WHERE object_id=$1`
 	case bobdomain.EntityOtherUnit:
-		query = `SELECT party_id FROM bob_service_relationships WHERE object_id=$1`
+		query = `SELECT party_id FROM dcl_service_relationships WHERE object_id=$1`
 	case bobdomain.EntityCustomerAccount:
 		query = `SELECT relationship.party_id
-			FROM bob_customer_accounts account
-			JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+			FROM dcl_customer_accounts account
+			JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
 			WHERE account.object_id=$1`
 	default:
 		return nil

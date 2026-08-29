@@ -345,8 +345,8 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 
 	var orderOperatingEntityID string
 	if err := pool.QueryRow(t.Context(), `SELECT relationship.operating_entity_id
-		FROM bob_customer_accounts account
-		JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+		FROM dcl_customer_accounts account
+		JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
 		WHERE account.object_id=$1`, refs.customer.ObjectID).Scan(&orderOperatingEntityID); err != nil {
 		t.Fatalf("read sale order operating entity: %v", err)
 	}

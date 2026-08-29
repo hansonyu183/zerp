@@ -162,7 +162,7 @@ func (s *RelationshipService) getOther(ctx context.Context, input RelationshipGe
 	if err != nil || e.SubjectID != input.ObjectID {
 		return OtherUnitView{}, translateError(err)
 	}
-	id, err := s.current.GetOtherUnitIdentity(ctx, tx, input.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntityOtherUnit, input.ObjectID)
 	if err != nil {
 		return OtherUnitView{}, translateError(err)
 	}
@@ -205,7 +205,7 @@ func (s *RelationshipService) GetSalesPartner(ctx context.Context, input Relatio
 	if err != nil || e.SubjectID != input.ObjectID {
 		return SalesPartnerView{}, translateError(err)
 	}
-	id, err := s.current.GetSalesPartnerIdentity(ctx, tx, input.ObjectID)
+	id, err := lockRelationshipIdentity(ctx, tx, EntitySalesPartner, input.ObjectID)
 	if err != nil {
 		return SalesPartnerView{}, translateError(err)
 	}

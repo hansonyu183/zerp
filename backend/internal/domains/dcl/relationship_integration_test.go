@@ -3,6 +3,7 @@
 package dcl
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
@@ -14,16 +15,16 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-// TestRelationshipDeclarationsOwnCurrentProjectionIntegration is the public
-// DCL-to-BOB seam for both typed relationships. Candidates are DCL-only;
-// approval applies the BOB current projection, and unapproval restores the
-// preceding approved snapshot atomically.
-func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
+// TestRelationshipDeclarationsDriveLatestApprovedReadsIntegration is the
+// public DCL-to-BOB seam for both typed relationships. Candidates are DCL-only;
+// BOB derives its view from the latest approved snapshot and naturally falls
+// back after unapproval.
+func TestRelationshipDeclarationsDriveLatestApprovedReadsIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
@@ -48,6 +49,14 @@ func TestRelationshipDeclarationsOwnCurrentProjectionIntegration(t *testing.T) {
 	}
 	if _, err = business.Get(t.Context(), bobdomain.EntityOtherUnit, bobdomain.GetInput{ObjectID: other.ObjectID}); err == nil {
 		t.Fatal("BOB exposed unapproved Other Unit")
+	} else {
+		var domainErr *bobdomain.DomainError
+		if !errors.As(err, &domainErr) || domainErr.Kind != bobdomain.ErrorValidation {
+			if domainErr != nil {
+				t.Fatalf("BOB candidate lookup error=%v cause=%v", err, domainErr.Cause)
+			}
+			t.Fatalf("BOB candidate lookup error=%v", err)
+		}
 	}
 	assertRelationshipCurrentQueryAbsent(t, business, bobdomain.EntityOtherUnit)
 	approveRelationshipParty(t, parties, other.PartyID, creator("other-unit-party-submit"), reviewer("other-unit-party-approve"))
@@ -166,6 +175,10 @@ func assertRelationshipCurrentQueryAbsent(t *testing.T, business *bobdomain.Serv
 	t.Helper()
 	page, err := business.Query(t.Context(), entity, bobdomain.QueryInput{Page: 1, PageSize: 20})
 	if err != nil {
+		var domainErr *bobdomain.DomainError
+		if errors.As(err, &domainErr) {
+			t.Fatalf("query BOB %s current with only a candidate: %v cause=%v", entity, err, domainErr.Cause)
+		}
 		t.Fatalf("query BOB %s current with only a candidate: %v", entity, err)
 	}
 	if page.Total != 0 || len(page.Items) != 0 {

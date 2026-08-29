@@ -221,7 +221,7 @@ func insertApprovedEmployeeReference(t *testing.T, pool *pgxpool.Pool, business 
 		t.Fatalf("create manager operating entity: %v", err)
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, dclActor(t, creatorID, "warehouse-manager-owner-submit"), dclActor(t, reviewerID, "warehouse-manager-owner-approve"))
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	employees := NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	created, err := employees.Create(t.Context(), EmployeeCreateInput{
 		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "仓库负责人"},

@@ -389,13 +389,13 @@ func (s *Service) validateCustomerAccountSnapshotReference(ctx context.Context, 
 	}
 	identity, err := q.GetBobCustomerAccountCurrent(ctx, objectID)
 	if err != nil {
-		// A historical entry can remain valid after the current projection fell
-		// back, so use the stable BOB object for code rather than current rows.
-		object, objectErr := q.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: objectID, Entity: EntityCustomerAccount})
+		// A historical entry can remain valid after there is no latest approved
+		// version, so use the stable DCL subject for its business code.
+		object, objectErr := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityCustomerAccount})
 		if objectErr != nil {
 			return EffectiveReference{}, s.internal("get customer account identity", objectErr)
 		}
-		return s.customerAccountEffectiveReference(ctx, q, object.ID, object.Code, approvalEntryID)
+		return s.customerAccountEffectiveReference(ctx, q, object.ID, deref(object.Code), approvalEntryID)
 	}
 	return s.customerAccountEffectiveReference(ctx, q, identity.ObjectID, identity.Code, approvalEntryID)
 }

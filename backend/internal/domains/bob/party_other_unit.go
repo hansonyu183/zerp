@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -210,29 +211,28 @@ func (s *Service) PartyQuery(ctx context.Context, input QueryInput) (Page[PartyL
 	if filters.Merged != nil {
 		return Page[PartyListItem]{}, domainError(ErrorValidation, "invalid Party query", nil, nil)
 	}
-	var total int64
-	err = s.pool.QueryRow(ctx, `SELECT count(*) FROM bob_party_currents current JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='party' AND source.status='APPROVED' WHERE ($1 = '' OR current.kind = $1) AND ($2 = '' OR current.legal_name ILIKE '%' || $2 || '%' OR current.display_name ILIKE '%' || $2 || '%')`, filters.PartyKind, filters.Keyword).Scan(&total)
+	total, err := s.queries.CountDCLApprovedPartiesForBOB(ctx, dbsqlc.CountDCLApprovedPartiesForBOBParams{
+		PartyKind: filters.PartyKind,
+		Keyword:   filters.Keyword,
+	})
 	if err != nil {
 		return Page[PartyListItem]{}, s.internal("count Parties", err)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT current.party_id,current.source_approval_entry_id,source.version_no,current.kind,current.legal_name,current.display_name,current.tax_number,current.phone,current.email,current.address,current.updated_at FROM bob_party_currents current JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='party' AND source.status='APPROVED' WHERE ($1 = '' OR current.kind = $1) AND ($2 = '' OR current.legal_name ILIKE '%' || $2 || '%' OR current.display_name ILIKE '%' || $2 || '%') ORDER BY current.display_name,current.party_id LIMIT $3 OFFSET $4`, filters.PartyKind, filters.Keyword, input.PageSize, offset)
+	rows, err := s.queries.ListDCLApprovedPartiesForBOB(ctx, dbsqlc.ListDCLApprovedPartiesForBOBParams{
+		PartyKind: filters.PartyKind,
+		Keyword:   filters.Keyword,
+		RowOffset: offset,
+		RowLimit:  int32(input.PageSize),
+	})
 	if err != nil {
 		return Page[PartyListItem]{}, s.internal("list Parties", err)
 	}
-	defer rows.Close()
 	items := make([]PartyListItem, 0, input.PageSize)
-	for rows.Next() {
-		row, scanErr := scanParty(rows)
-		if scanErr != nil {
-			return Page[PartyListItem]{}, s.internal("scan Party", scanErr)
-		}
+	for _, row := range rows {
 		item := PartyListItem{PartyID: row.ID, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo,
 			Kind: row.Kind, LegalName: row.LegalName,
 			DisplayName: row.DisplayName, UpdatedAt: row.UpdatedAt.Time.Format(time.RFC3339)}
 		items = append(items, item)
-	}
-	if err = rows.Err(); err != nil {
-		return Page[PartyListItem]{}, s.internal("list Parties", err)
 	}
 	return Page[PartyListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -241,19 +241,19 @@ func (s *Service) PartyGet(ctx context.Context, input PartyGetInput, visibility 
 	if !validID(input.PartyID) {
 		return PartyView{}, domainError(ErrorValidation, "invalid Party", nil, nil)
 	}
-	row, err := partyByID(ctx, s.pool, input.PartyID, false)
+	row, err := partyByID(ctx, s.queries, input.PartyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PartyView{}, domainError(ErrorValidation, "Party not found", nil, nil)
 	}
 	if err != nil {
 		return PartyView{}, s.internal("get Party", err)
 	}
-	identifiers, err := partyIdentifiers(ctx, s.pool, input.PartyID)
+	identifiers, err := partyIdentifiers(ctx, s.queries, input.PartyID)
 	if err != nil {
 		return PartyView{}, s.internal("list Party identifiers", err)
 	}
 	result := partyView(row, identifiers)
-	cards, cardErr := visiblePartyRelationshipCards(ctx, s.pool, input.PartyID, visibility)
+	cards, cardErr := visiblePartyRelationshipCards(ctx, s.queries, input.PartyID, visibility)
 	if cardErr != nil {
 		return PartyView{}, s.internal("list Party relationships", cardErr)
 	}
@@ -261,11 +261,11 @@ func (s *Service) PartyGet(ctx context.Context, input PartyGetInput, visibility 
 	return result, nil
 }
 
-func visiblePartyRelationshipCards(ctx context.Context, q partyQueryer, partyID string, visibility PartyRelationshipVisibility) ([]PartyRelationshipCard, error) {
+func visiblePartyRelationshipCards(ctx context.Context, queries *dbsqlc.Queries, partyID string, visibility PartyRelationshipVisibility) ([]PartyRelationshipCard, error) {
 	if !(visibility.Customer || visibility.Supplier || visibility.Employment || visibility.OtherUnit || visibility.SalesPartner) {
 		return []PartyRelationshipCard{}, nil
 	}
-	rows, err := partyRelationshipCards(ctx, q, partyID)
+	rows, err := partyRelationshipCards(ctx, queries, partyID)
 	if err != nil {
 		return nil, err
 	}
@@ -279,11 +279,6 @@ func visiblePartyRelationshipCards(ctx context.Context, q partyQueryer, partyID 
 	return result, nil
 }
 
-type partyQueryer interface {
-	Query(context.Context, string, ...any) (pgx.Rows, error)
-	QueryRow(context.Context, string, ...any) pgx.Row
-}
-
 type partyRelationshipCardRow struct {
 	ObjectID, Entity, Code, SourceApprovalEntryID string
 	SourceVersionNo                               int32
@@ -293,73 +288,43 @@ type partyRelationshipCardRow struct {
 	Enabled                                       bool
 }
 
-func scanParty(row interface{ Scan(...any) error }) (partyCurrentRow, error) {
-	var result partyCurrentRow
-	err := row.Scan(&result.ID, &result.SourceApprovalEntryID, &result.SourceVersionNo, &result.Kind, &result.LegalName, &result.DisplayName, &result.TaxNumber, &result.Phone, &result.Email, &result.Address, &result.UpdatedAt)
-	return result, err
+func partyByID(ctx context.Context, queries *dbsqlc.Queries, partyID string) (partyCurrentRow, error) {
+	row, err := queries.GetDCLApprovedPartyForBOB(ctx, partyID)
+	return partyCurrentRow{
+		ID: row.ID, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo,
+		Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName,
+		TaxNumber: row.TaxNumber, Phone: row.Phone, Email: row.Email, Address: row.Address,
+		UpdatedAt: row.UpdatedAt,
+	}, err
 }
 
-func partyByID(ctx context.Context, q partyQueryer, partyID string, lock bool) (partyCurrentRow, error) {
-	sql := `SELECT current.party_id,current.source_approval_entry_id,source.version_no,current.kind,current.legal_name,current.display_name,current.tax_number,current.phone,current.email,current.address,current.updated_at FROM bob_party_currents current JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='party' AND source.status='APPROVED' WHERE current.party_id=$1`
-	if lock {
-		sql += ` FOR UPDATE`
-	}
-	return scanParty(q.QueryRow(ctx, sql, partyID))
-}
-
-func partyIdentifiers(ctx context.Context, q partyQueryer, partyID string) ([]PartyIdentifierInput, error) {
-	rows, err := q.Query(ctx, `SELECT identifier_type,value FROM bob_party_identifiers WHERE party_id=$1 ORDER BY identifier_type,value`, partyID)
+func partyIdentifiers(ctx context.Context, queries *dbsqlc.Queries, partyID string) ([]PartyIdentifierInput, error) {
+	rows, err := queries.ListDCLApprovedPartyIdentifiersForBOB(ctx, partyID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := make([]PartyIdentifierInput, 0)
-	for rows.Next() {
-		var item PartyIdentifierInput
-		if err = rows.Scan(&item.Type, &item.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, item)
+	items := make([]PartyIdentifierInput, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, PartyIdentifierInput{Type: row.IdentifierType, Value: row.Value})
 	}
-	return items, rows.Err()
+	return items, nil
 }
 
-func partyRelationshipCards(ctx context.Context, q partyQueryer, partyID string) ([]partyRelationshipCardRow, error) {
-	rows, err := q.Query(ctx, `WITH relationships AS (
-		SELECT relation.object_id,'customer'::text AS entity,current.source_approval_entry_id,relation.operating_entity_id,current.enabled FROM bob_customer_relationships relation JOIN bob_customers current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
-		UNION ALL SELECT relation.object_id,'supplier',current.source_approval_entry_id,relation.operating_entity_id,current.enabled FROM bob_supplier_relationships relation JOIN bob_suppliers current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
-		UNION ALL SELECT relation.object_id,'employee',current.source_approval_entry_id,relation.operating_entity_id,current.enabled FROM bob_employment_relationships relation JOIN bob_employees current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
-		UNION ALL SELECT relation.object_id,'other-unit',current.source_approval_entry_id,relation.operating_entity_id,current.enabled FROM bob_service_relationships relation JOIN bob_other_units current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
-		UNION ALL SELECT relation.object_id,'sales-partner',current.source_approval_entry_id,relation.operating_entity_id,current.enabled FROM bob_sales_relationships relation JOIN bob_sales_partners current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
-	) SELECT r.object_id,r.entity,o.code,r.source_approval_entry_id,source.version_no,r.operating_entity_id,oe.code,COALESCE(ov.legal_name,''),r.enabled
-	FROM relationships r JOIN bob_objects o ON o.id=r.object_id
-	JOIN dcl_subjects oe ON oe.id=r.operating_entity_id AND oe.entity='operating-entity'
-	JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=oe.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
-	JOIN dcl_operating_entity_versions ov ON ov.approval_entry_id=operating_entry.id
-	JOIN approval_entries source ON source.id=r.source_approval_entry_id AND source.domain='dcl' AND source.entity=r.entity AND source.status='APPROVED'
-	ORDER BY o.code`, partyID)
+func partyRelationshipCards(ctx context.Context, queries *dbsqlc.Queries, partyID string) ([]partyRelationshipCardRow, error) {
+	rows, err := queries.ListDCLApprovedPartyRelationshipCardsForBOB(ctx, partyID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := make([]partyRelationshipCardRow, 0)
-	for rows.Next() {
-		var item partyRelationshipCardRow
-		if err = rows.Scan(&item.ObjectID, &item.Entity, &item.Code, &item.SourceApprovalEntryID, &item.SourceVersionNo, &item.OperatingEntityID, &item.OperatingEntityCode, &item.OperatingEntityName, &item.Enabled); err != nil {
-			return nil, err
-		}
-		items = append(items, item)
+	items := make([]partyRelationshipCardRow, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, partyRelationshipCardRow{
+			ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
+			SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo,
+			OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode,
+			OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled,
+		})
 	}
-	return items, rows.Err()
-}
-
-func insertPartyIdentifiers(ctx context.Context, tx pgx.Tx, partyID string, identifiers []PartyIdentifierInput) error {
-	for _, identifier := range identifiers {
-		if _, err := tx.Exec(ctx, `INSERT INTO bob_party_identifiers(party_id,identifier_type,value,normalized_value) VALUES($1,$2,$3,$4)`, partyID, identifier.Type, identifier.Value, normalizePartyIdentifier(identifier.Value)); err != nil {
-			return err
-		}
-	}
-	return nil
+	return items, nil
 }
 
 type relationshipParty struct {

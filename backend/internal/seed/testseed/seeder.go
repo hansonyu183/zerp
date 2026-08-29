@@ -140,7 +140,7 @@ func New(
 	events := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), seedAuthorizer{}, events)
+	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
 	business := bobdomain.NewService(pool, auxiliaryResolver)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, business, seedAuthorizer{}, events)
 	warehouses := dcldomain.NewWarehouseService(pool, business, seedAuthorizer{}, events)

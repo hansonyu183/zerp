@@ -261,7 +261,7 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in Reference
 		}
 		values := make([]ReferenceItem, len(rows))
 		for i, r := range rows {
-			values[i] = ReferenceItem{ID: r.ID, Code: r.Code, Name: r.Name}
+			values[i] = ReferenceItem{ID: r.ID, Code: value(r.Code), Name: value(r.Name)}
 		}
 		if len(rows) > 0 {
 			appendRows(values, rows[0].Total)

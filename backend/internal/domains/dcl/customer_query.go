@@ -183,7 +183,11 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 		}
 		return CustomerView{}, translateError(err)
 	}
-	identity, err := q.GetDCLCustomerIdentity(ctx, in.ObjectID)
+	identity, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, in.ObjectID)
+	if err != nil {
+		return CustomerView{}, translateError(err)
+	}
+	party, err := s.partyReader.ResolveForRelationship(ctx, tx, identity.PartyID)
 	if err != nil {
 		return CustomerView{}, translateError(err)
 	}
@@ -200,7 +204,7 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 	}
 	return CustomerView{
 		ObjectID: identity.ObjectID, Entity: EntityCustomer, Code: identity.Code, ObjectRevision: identity.ObjectRevision,
-		PartyID: identity.PartyID, PartyKind: identity.PartyKind, PartyDisplayName: identity.DisplayName,
+		PartyID: identity.PartyID, PartyKind: party.Kind, PartyDisplayName: party.DisplayName,
 		OperatingEntityID: identity.OperatingEntityID, OperatingEntityApprovalEntryID: stored.OperatingEntityApprovalEntryID,
 		OperatingEntityCode: stored.OperatingEntityCode, OperatingEntityName: stored.OperatingEntityName,
 		Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Attachments: attachments, UpdatedAt: entry.UpdatedAt,

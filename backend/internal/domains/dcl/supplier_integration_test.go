@@ -3,7 +3,6 @@
 package dcl
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -14,7 +13,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
@@ -28,7 +26,7 @@ func TestSupplierDraftRequiresExactPurchasingSnapshotsAtSubmitIntegration(t *tes
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	suppliers := NewSupplierService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
@@ -53,12 +51,12 @@ func TestSupplierDraftRequiresExactPurchasingSnapshotsAtSubmitIntegration(t *tes
 	}
 }
 
-func TestSupplierLifecycleCurrentProjectionAndPurchaseBlockerIntegration(t *testing.T) {
+func TestSupplierLifecycleLatestApprovedReadAndPurchaseBlockerIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), bobdomain.NewPartyCurrentReader(pool), bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
 	employees := NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
@@ -133,32 +131,6 @@ func TestSupplierLifecycleCurrentProjectionAndPurchaseBlockerIntegration(t *test
 	if !errors.As(err, &domainErr) || domainErr.ErrorKey != "bob_unapprove_blocked" {
 		t.Fatalf("Supplier exact purchase blocker = %v", err)
 	}
-	rollbackService := NewSupplierService(pool, failingSupplierCurrent{supplierCurrentWriter: business}, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	rollback, err := rollbackService.Create(t.Context(), SupplierCreateInput{OperatingEntityID: owner.ObjectID, NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "投影失败供应商", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108SUPROLL001"}}}, Data: SupplierData{SettlementMethodID: settlementID, DefaultPurchaserEmployeeID: purchaser.ObjectID}}, creator("rollback-create"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	approveRelationshipParty(t, parties, rollback.PartyID, creator("rollback-party-submit"), reviewer("rollback-party-approve"))
-	pending, err := rollbackService.Submit(t.Context(), SupplierVersionInput{ObjectID: rollback.ObjectID, ApprovalEntryID: rollback.Approval.ApprovalEntryID, ApprovalRevision: rollback.Approval.Revision}, creator("rollback-submit"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = rollbackService.Approve(t.Context(), SupplierVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer("rollback-approve")); err == nil {
-		t.Fatal("Supplier approve succeeded despite current projection failure")
-	}
-	var status string
-	if err = pool.QueryRow(t.Context(), `SELECT status FROM approval_entries WHERE id=$1`, pending.Approval.ApprovalEntryID).Scan(&status); err != nil || status != string(approval.StatusPending) {
-		t.Fatalf("rollback approval status=%s err=%v", status, err)
-	}
-	if _, err = business.Get(t.Context(), bobdomain.EntitySupplier, bobdomain.GetInput{ObjectID: rollback.ObjectID}); err == nil {
-		t.Fatal("failed Supplier projection created BOB current")
-	}
-}
-
-type failingSupplierCurrent struct{ supplierCurrentWriter }
-
-func (f failingSupplierCurrent) ApplySupplierCurrent(context.Context, pgx.Tx, bobdomain.RelationshipIdentity, string, bool, string) (bobdomain.RelationshipIdentity, error) {
-	return bobdomain.RelationshipIdentity{}, errors.New("forced supplier current failure")
 }
 
 func insertSupplierAux(t *testing.T, pool *pgxpool.Pool, entity, code string, data map[string]any, creatorID string) string {
@@ -220,7 +192,7 @@ func insertSupplierPurchaseReference(t *testing.T, pool *pgxpool.Pool, supplier 
 		_, err = tx.Exec(t.Context(), `INSERT INTO vou_documents(id,entity,document_no,approval_entry_id,business_date,currency,total_amount_cents) VALUES($1::text,'purchase-inquiry',$2::text,$3::text,'2026-08-28','CNY',0)`, documentID, documentNo, entryID)
 	}
 	if err == nil {
-		_, err = tx.Exec(t.Context(), `INSERT INTO vou_purchase_inquiry_details(document_id,supplier_object_id,supplier_approval_entry_id,supplier_code,supplier_name) SELECT $1::text,$2::text,$3::text,code,'供应商' FROM bob_objects WHERE id=$2::text`, documentID, supplier.ObjectID, supplier.Approval.ApprovalEntryID)
+		_, err = tx.Exec(t.Context(), `INSERT INTO vou_purchase_inquiry_details(document_id,supplier_object_id,supplier_approval_entry_id,supplier_code,supplier_name) SELECT $1::text,$2::text,$3::text,code,'供应商' FROM dcl_subjects WHERE id=$2::text AND entity='supplier'`, documentID, supplier.ObjectID, supplier.Approval.ApprovalEntryID)
 	}
 	if err == nil {
 		err = tx.Commit(t.Context())

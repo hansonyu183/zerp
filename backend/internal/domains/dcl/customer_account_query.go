@@ -84,11 +84,7 @@ func (s *CustomerAccountService) Get(ctx context.Context, in CustomerAccountGetI
 		return CustomerAccountView{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	id, err := s.current.GetCustomerAccountIdentity(ctx, tx, in.ObjectID)
-	if err != nil {
-		return CustomerAccountView{}, translateError(err)
-	}
-	relation, err := q.GetDCLCustomerAccountIdentity(ctx, in.ObjectID)
+	id, relation, err := lockCustomerAccountIdentity(ctx, tx, in.ObjectID)
 	if err != nil {
 		return CustomerAccountView{}, translateError(err)
 	}
@@ -164,7 +160,7 @@ func (s *CustomerAccountService) Query(ctx context.Context, in CustomerAccountQu
 	}
 	items := make([]CustomerAccountQueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := CustomerAccountQueryItem{ObjectID: row.ObjectID, Entity: EntityCustomerAccount, Code: row.Code, CustomerRelationshipID: row.CustomerRelationshipID, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
+		item := CustomerAccountQueryItem{ObjectID: row.ObjectID, Entity: EntityCustomerAccount, Code: stringValue(row.Code), CustomerRelationshipID: row.CustomerRelationshipID, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
 		if row.LatestApprovedEntryID != "" {
 			v, x := s.version(ctx, s.queries, row.LatestApprovedEntryID, row.ObjectID)
 			if x != nil {

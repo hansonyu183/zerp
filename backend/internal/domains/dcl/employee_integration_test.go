@@ -23,7 +23,7 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	partyReader := bobdomain.NewPartyCurrentReader(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), partyReader, bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, partyReader, authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	employees := NewEmployeeService(pool, business, parties, partyReader, authorizer, bus)
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
@@ -114,7 +114,7 @@ func TestEmployeeDraftSavePreservesDisabledAuxiliarySnapshotIntegration(t *testi
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	partyReader := bobdomain.NewPartyCurrentReader(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentWriter(pool), partyReader, bobdomain.NewPartyMergeEngine(pool), authorizer, bus)
+	parties := NewPartyService(pool, partyReader, authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	employees := NewEmployeeService(pool, business, parties, partyReader, authorizer, bus)
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
@@ -221,7 +221,7 @@ func insertEmployeeVoucherReference(t *testing.T, pool *pgxpool.Pool, employee E
 		_, err = tx.Exec(t.Context(), `INSERT INTO vou_documents(id,entity,document_no,approval_entry_id,business_date,currency,total_amount_cents) VALUES($1,'expense-reimbursement','VOU-20260828-0001',$2,'2026-08-28','CNY',100)`, documentID, entryID)
 	}
 	if err == nil {
-		_, err = tx.Exec(t.Context(), `INSERT INTO vou_expense_reimbursement_details(document_id,employee_object_id,employee_approval_entry_id,employee_code,employee_name) SELECT $1::text,$2::text,$3::text,code,'张三' FROM bob_objects WHERE id=$2::text`, documentID, employee.ObjectID, employee.Approval.ApprovalEntryID)
+		_, err = tx.Exec(t.Context(), `INSERT INTO vou_expense_reimbursement_details(document_id,employee_object_id,employee_approval_entry_id,employee_code,employee_name) SELECT $1::text,$2::text,$3::text,code,'张三' FROM dcl_subjects WHERE id=$2::text AND entity='employee'`, documentID, employee.ObjectID, employee.Approval.ApprovalEntryID)
 	}
 	if err == nil {
 		err = tx.Commit(t.Context())

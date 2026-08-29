@@ -1149,8 +1149,8 @@ SELECT document.document_no,approval.status,document.business_date,
 FROM vou_documents AS document
 JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_sale_outbound_details AS outbound ON outbound.document_id=document.id
-JOIN bob_customer_accounts AS account ON account.object_id=outbound.customer_object_id
-JOIN bob_customer_relationships AS relationship ON relationship.object_id=account.customer_relationship_id
+JOIN dcl_customer_accounts AS account ON account.object_id=outbound.customer_object_id
+JOIN dcl_customer_relationships AS relationship ON relationship.object_id=account.customer_relationship_id
 WHERE document.id=sqlc.arg(document_id) AND document.entity='sale-outbound'
 FOR UPDATE OF document,approval,outbound;
 

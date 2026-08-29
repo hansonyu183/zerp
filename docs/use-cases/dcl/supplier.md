@@ -20,6 +20,6 @@
 
 1. 既有 Party 与新 Party 创建均带准确 payload；缺经营主体或同时传两种 Party 入口不能提交。
 2. Party 或经营主体在创建后不可变；创建失败时页面保留输入并按 DCL 原子创建规则展示错误，不显示孤立的 Party 或供应关系。
-3. BOB current 在 DCL 批准或反批后原子切换或回落；无 BOB 直接写入口。
+3. BOB 直接读取 highest APPROVED snapshot，在 DCL 批准或反批后自然切换或回落；无 BOB 直接写入口。
 4. 默认采购员或结算方式缺失、失效、非 latest approved、权限不足或 revision 冲突时，页面显示后端结果，不伪造成功并保留可恢复输入。
 5. 深链可打开目标 candidate，状态和权限不允许的动作既不展示也不发起请求；含废弃 supplier category 的请求被拒绝。

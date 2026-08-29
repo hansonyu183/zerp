@@ -19,7 +19,7 @@
 
 1. submit 和 approve 前要求关联 Party 已有 current approved 版本；页面将未获批 Party 显示为 blocker，后端独立复核。
 2. 提交和批准时，服务端复核人员类别、部门、岗位与经营主体的已保存精确来源；来源漂移时保留 candidate 并返回稳定错误。
-3. 批准和反批后的 BOB current 切换、历史精确引用 blocker 与历史资料规则由 [DCL 员工申报](../../domains/dcl.md#36-员工申报) 统一定义。页面只展示结果，不自行迁移、清空或重建引用。
+3. 批准和反批后的 BOB latest-approved 可见性、历史精确引用 blocker 与历史资料规则由 [DCL 员工申报](../../domains/dcl.md#36-员工申报) 统一定义。页面只展示结果，不自行迁移、清空或重建引用。
 4. 保存或动作失败时保留输入、筛选和页面位置，显示稳定业务消息与 `requestId`。
 
 ## 验收场景

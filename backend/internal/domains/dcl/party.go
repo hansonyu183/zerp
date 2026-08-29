@@ -22,37 +22,27 @@ import (
 type PartyService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
-	current     partyCurrentWriter
 	reader      partyCurrentReader
-	merge       *bobdomain.PartyMergeEngine
+	merge       *PartyMergeEngine
 	coordinator *approval.Coordinator[dclapproval.PartyPayload]
 }
 
-// partyCurrentWriter is the narrow, transaction-bound BOB current-data seam
-// that Party declarations need. It is constructor-injected so an apply error
-// can be verified to roll back the Approval transition and snapshot state.
-type partyCurrentWriter interface {
-	CreateStableRoot(context.Context, pgx.Tx, string, string) (bobdomain.PartyIdentity, error)
-	Apply(context.Context, pgx.Tx, string, string, bobdomain.PartyCreateData, []bobdomain.PartyIdentifierInput, string) (bobdomain.PartyIdentity, error)
-	Remove(context.Context, pgx.Tx, string, string) (bobdomain.PartyIdentity, error)
-}
-
-// partyCurrentReader is the narrow BOB current-data port used for DCL's
-// impact preview. It keeps DCL independent from BOB Service construction.
+// partyCurrentReader is the narrow BOB latest-approved read port used for
+// DCL's impact preview. It keeps DCL independent from BOB Service construction.
 type partyCurrentReader interface {
 	RelationshipCards(context.Context, string, bobdomain.PartyRelationshipVisibility) ([]bobdomain.PartyRelationshipCard, error)
 	ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error)
 }
 
-func NewPartyService(pool *pgxpool.Pool, current partyCurrentWriter, reader partyCurrentReader, merge *bobdomain.PartyMergeEngine, authorizer approval.Authorizer, bus *txevent.Bus) *PartyService {
-	if pool == nil || current == nil || reader == nil || merge == nil || authorizer == nil || bus == nil {
-		panic("dcl: Party persistence, current writer/reader, authorizer and event bus are required")
+func NewPartyService(pool *pgxpool.Pool, reader partyCurrentReader, authorizer approval.Authorizer, bus *txevent.Bus) *PartyService {
+	if pool == nil || reader == nil || authorizer == nil || bus == nil {
+		panic("dcl: Party persistence, reader, merge engine, authorizer and event bus are required")
 	}
 	c, err := approval.NewCoordinator("dcl", EntityParty, authorizer, bus, dclapproval.PartyTopic)
 	if err != nil {
 		panic(err)
 	}
-	return &PartyService{pool: pool, queries: dbsqlc.New(pool), current: current, reader: reader, merge: merge, coordinator: c}
+	return &PartyService{pool: pool, queries: dbsqlc.New(pool), reader: reader, merge: NewPartyMergeEngine(pool), coordinator: c}
 }
 
 func (s *PartyService) MergePreflight(ctx context.Context, in bobdomain.PartyMergePreflightInput, visibility bobdomain.PartyRelationshipVisibility, actor approval.Actor) (bobdomain.PartyMergePreflightResult, error) {
@@ -107,11 +97,11 @@ func (s *PartyService) CreateForRelationship(ctx context.Context, tx pgx.Tx, inp
 		return resolved, nil
 	}
 	id := newPartyID()
-	if _, err = s.current.CreateStableRoot(ctx, tx, id, actor.ID()); err != nil {
-		return bobdomain.PartyRelationshipResolved{}, translateError(err)
-	}
 	q := s.queries.WithTx(tx)
 	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: id, Entity: EntityParty, ActorID: actor.ID()}); err != nil {
+		return bobdomain.PartyRelationshipResolved{}, translateError(err)
+	}
+	if err = q.InsertDCLPartyRoot(ctx, dbsqlc.InsertDCLPartyRootParams{ID: id, ActorID: actor.ID()}); err != nil {
 		return bobdomain.PartyRelationshipResolved{}, translateError(err)
 	}
 	e, err := s.coordinator.CreateFirstVersion(ctx, tx, id, actor, partyPayload(id, data))
@@ -490,31 +480,22 @@ func (s *PartyService) transition(ctx context.Context, in PartyVersionInput, rea
 		if err = reconcilePartyClaims(ctx, tx, in.PartyID, e.ID, identifiers, "", nil); err != nil {
 			return PartyMutation{}, translateError(err)
 		}
-		if _, err = s.current.Apply(ctx, tx, in.PartyID, e.ID, partyData(row, identifiers), identifiers, actor.ID()); err != nil {
-			return PartyMutation{}, translateError(err)
-		}
 	}
 	if action == approval.ActionUnapproved {
 		latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityParty, SubjectID: in.PartyID})
 		if errors.Is(latestErr, pgx.ErrNoRows) {
-			if _, err = s.current.Remove(ctx, tx, in.PartyID, actor.ID()); err != nil {
-				return PartyMutation{}, translateError(err)
-			}
 			if err = reconcilePartyClaims(ctx, tx, in.PartyID, "", nil, e.ID, identifiers); err != nil {
 				return PartyMutation{}, translateError(err)
 			}
 		} else if latestErr != nil {
 			return PartyMutation{}, translateError(latestErr)
 		} else {
-			fallback, fallbackErr := q.GetDCLPartyVersion(ctx, latest.ID)
+			_, fallbackErr := q.GetDCLPartyVersion(ctx, latest.ID)
 			if fallbackErr != nil {
 				return PartyMutation{}, translateError(fallbackErr)
 			}
 			fallbackIDs, fallbackErr := loadPartyIdentifiers(ctx, q, latest.ID)
 			if fallbackErr != nil {
-				return PartyMutation{}, translateError(fallbackErr)
-			}
-			if _, fallbackErr = s.current.Apply(ctx, tx, in.PartyID, latest.ID, partyData(fallback, fallbackIDs), fallbackIDs, actor.ID()); fallbackErr != nil {
 				return PartyMutation{}, translateError(fallbackErr)
 			}
 			if fallbackErr = reconcilePartyClaims(ctx, tx, in.PartyID, latest.ID, fallbackIDs, e.ID, identifiers); fallbackErr != nil {

@@ -58,226 +58,8 @@ SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_
 FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.id=sqlc.arg(object_id) AND subject.entity='warehouse' AND snapshot.enabled;
 
--- Employee relationship identity remains in BOB; DCL approval applies this
--- minimal current projection after an employee declaration is approved.
--- name: UpsertBobEmployeeCurrent :exec
-INSERT INTO bob_employees(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
-VALUES(sqlc.arg(object_id),sqlc.arg(source_approval_entry_id),sqlc.arg(enabled),now(),sqlc.arg(actor_id))
-ON CONFLICT(object_id) DO UPDATE SET
-  source_approval_entry_id=EXCLUDED.source_approval_entry_id,
-  enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by;
-
--- name: DeleteBobEmployeeCurrent :execrows
-DELETE FROM bob_employees WHERE object_id=sqlc.arg(object_id);
-
--- name: GetBobEmployeeCurrent :one
-SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
-       current.enabled,current.updated_at,relationship.party_id,
-       party.kind AS party_kind,relationship.operating_entity_id,
-       operating.code AS operating_entity_code,
-       operating_current.legal_name AS operating_entity_name,party.display_name,
-       snapshot.employee_category_id,snapshot.employee_category_code,snapshot.employee_category_name,snapshot.department_id,
-       snapshot.department_code,snapshot.department_name,
-       snapshot.position_id,snapshot.position_code,
-       snapshot.position_name,snapshot.phone,snapshot.email,snapshot.hire_date,snapshot.remark,
-       entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,
-       entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,
-       entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,
-       entry.approved_by,entry.approved_at
-FROM bob_objects object
-JOIN bob_employees current ON current.object_id=object.id
-JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id
-  AND operating.entity='operating-entity'
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
-JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
-JOIN approval_entries entry ON entry.id=current.source_approval_entry_id
-  AND entry.domain='dcl' AND entry.entity='employee' AND entry.subject_id=object.id
-  AND entry.status='APPROVED'
-JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE object.id=sqlc.arg(object_id) AND object.entity='employee'
-  AND relationship.merged_into_object_id IS NULL;
-
--- name: CountBobEmployees :one
-SELECT count(*) FROM bob_objects object
-JOIN bob_employees current ON current.object_id=object.id
-JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-WHERE object.entity='employee' AND relationship.merged_into_object_id IS NULL
-  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-  AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1));
-
--- name: ListBobEmployees :many
-SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
-       current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
-       party.display_name
-FROM bob_objects object
-JOIN bob_employees current ON current.object_id=object.id
-JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-WHERE object.entity='employee' AND relationship.merged_into_object_id IS NULL
-  AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-  AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
-ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN current.updated_at END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN current.updated_at END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN object.code END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN object.code END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN party.display_name END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN party.display_name END DESC,
-  object.id DESC
-LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
-
--- name: GetBobEmployeeCurrentReference :one
-SELECT object.id AS object_id,object.entity,object.code,
-       current.source_approval_entry_id AS approval_entry_id,party.display_name
-FROM bob_objects object
-JOIN bob_employees current ON current.object_id=object.id
-JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-WHERE object.id=sqlc.arg(object_id) AND object.entity='employee'
-  AND relationship.merged_into_object_id IS NULL AND current.enabled;
-
--- Other Unit and Sales Partner identities stay in BOB, while DCL approval
--- selects the sole current snapshot visible to BOB readers.
--- name: UpsertBobOtherUnitCurrent :exec
-INSERT INTO bob_other_units(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
-VALUES(sqlc.arg(object_id),sqlc.arg(source_approval_entry_id),sqlc.arg(enabled),now(),sqlc.arg(actor_id))
-ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=EXCLUDED.source_approval_entry_id,enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by;
--- name: DeleteBobOtherUnitCurrent :execrows
-DELETE FROM bob_other_units WHERE object_id=sqlc.arg(object_id);
--- name: GetBobOtherUnitCurrent :one
-SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled,current.updated_at,
-       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,
-       operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
-       snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.settlement_method_id,
-       snapshot.settlement_method_code,snapshot.settlement_method_name,
-       snapshot.settlement_term_code,snapshot.settlement_rule_type,snapshot.settlement_month_offset,snapshot.settlement_day_of_month,
-       snapshot.settlement_day_offset,snapshot.remark,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,
-       entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,
-       entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
-FROM bob_objects object JOIN bob_other_units current ON current.object_id=object.id
-JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
-JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
-JOIN approval_entries entry ON entry.id=current.source_approval_entry_id AND entry.domain='dcl' AND entry.entity='other-unit' AND entry.subject_id=object.id AND entry.status='APPROVED'
-JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE object.id=sqlc.arg(object_id) AND object.entity='other-unit';
--- name: GetBobOtherUnitCurrentReference :one
-SELECT object.id AS object_id,object.entity,object.code,current.source_approval_entry_id AS approval_entry_id,party.display_name
-FROM bob_objects object JOIN bob_other_units current ON current.object_id=object.id
-JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-WHERE object.id=sqlc.arg(object_id) AND object.entity='other-unit' AND current.enabled;
-
--- name: UpsertBobSalesPartnerCurrent :exec
-INSERT INTO bob_sales_partners(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
-VALUES(sqlc.arg(object_id),sqlc.arg(source_approval_entry_id),sqlc.arg(enabled),now(),sqlc.arg(actor_id))
-ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=EXCLUDED.source_approval_entry_id,enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by;
--- name: DeleteBobSalesPartnerCurrent :execrows
-DELETE FROM bob_sales_partners WHERE object_id=sqlc.arg(object_id);
--- name: GetBobSalesPartnerCurrent :one
-SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled,current.updated_at,
-       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,
-       operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
-       snapshot.capabilities,snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.remark,
-       entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,
-       entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
-FROM bob_objects object JOIN bob_sales_partners current ON current.object_id=object.id
-JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
-JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
-JOIN approval_entries entry ON entry.id=current.source_approval_entry_id AND entry.domain='dcl' AND entry.entity='sales-partner' AND entry.subject_id=object.id AND entry.status='APPROVED'
-JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE object.id=sqlc.arg(object_id) AND object.entity='sales-partner';
--- name: GetBobSalesPartnerCurrentReference :one
-SELECT object.id AS object_id,object.entity,object.code,current.source_approval_entry_id AS approval_entry_id,party.display_name
-FROM bob_objects object JOIN bob_sales_partners current ON current.object_id=object.id
-JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-WHERE object.id=sqlc.arg(object_id) AND object.entity='sales-partner' AND current.enabled;
-
--- BOB relationship lists read only their approved current projections. DCL
--- candidates are intentionally absent: they neither become query rows nor
--- affect the current row's filters, timestamp, ordering, or total.
--- name: CountBobRelationshipCurrents :one
-WITH selected AS (
-  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
-         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
-         party.display_name
-  FROM bob_objects object
-  JOIN bob_other_units current ON current.object_id=object.id
-  JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-  JOIN bob_party_currents party ON party.party_id=relationship.party_id
-  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
-    AND approved.domain='dcl' AND approved.entity='other-unit'
-    AND approved.subject_id=object.id AND approved.status='APPROVED'
-  WHERE object.entity='other-unit' AND sqlc.arg(entity)::text='other-unit'
-    AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-    AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
-  UNION ALL
-  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
-         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
-         party.display_name
-  FROM bob_objects object
-  JOIN bob_sales_partners current ON current.object_id=object.id
-  JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-  JOIN bob_party_currents party ON party.party_id=relationship.party_id
-  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
-    AND approved.domain='dcl' AND approved.entity='sales-partner'
-    AND approved.subject_id=object.id AND approved.status='APPROVED'
-  WHERE object.entity='sales-partner' AND sqlc.arg(entity)::text='sales-partner'
-    AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-    AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
-)
-SELECT count(*)
-FROM selected;
-
--- name: ListBobRelationshipCurrents :many
-WITH selected AS (
-  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
-         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
-         party.display_name
-  FROM bob_objects object
-  JOIN bob_other_units current ON current.object_id=object.id
-  JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-  JOIN bob_party_currents party ON party.party_id=relationship.party_id
-  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
-    AND approved.domain='dcl' AND approved.entity='other-unit'
-    AND approved.subject_id=object.id AND approved.status='APPROVED'
-  WHERE object.entity='other-unit' AND sqlc.arg(entity)::text='other-unit'
-    AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-    AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
-  UNION ALL
-  SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,
-         current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id,
-         party.display_name
-  FROM bob_objects object
-  JOIN bob_sales_partners current ON current.object_id=object.id
-  JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
-  JOIN bob_party_currents party ON party.party_id=relationship.party_id
-  JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
-    AND approved.domain='dcl' AND approved.entity='sales-partner'
-    AND approved.subject_id=object.id AND approved.status='APPROVED'
-  WHERE object.entity='sales-partner' AND sqlc.arg(entity)::text='sales-partner'
-    AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-    AND (sqlc.arg(enabled_filter)::integer=-1 OR current.enabled=(sqlc.arg(enabled_filter)::integer=1))
-)
-SELECT object_id,entity,code,object_revision,enabled,updated_at,approval_entry_id
-FROM selected
-ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN updated_at END ASC,
-         CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN updated_at END DESC,
-         CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN code END ASC,
-         CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN code END DESC,
-         CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN display_name END ASC,
-         CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN display_name END DESC,
-         object_id DESC
-LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
-
+-- BOB derives the current operating-entity view from the highest approved DCL
+-- entry and its typed snapshot.
 -- name: GetBobOperatingEntityCurrent :one
 SELECT subject.id AS object_id, subject.entity, subject.code,
        0::bigint AS object_revision, snapshot.enabled,
@@ -345,39 +127,13 @@ WHERE subject.entity='operating-entity' AND snapshot.enabled
 ORDER BY subject.code
 LIMIT 200;
 
--- name: GetBobParty :one
-SELECT party.id,current.kind,current.legal_name,current.display_name,current.tax_number,current.phone,current.email,current.address,
-       party.created_at,party.created_by,current.updated_at,current.updated_by,party.merged_into_party_id,party.merged_at
-FROM bob_parties party JOIN bob_party_currents current ON current.party_id=party.id
-WHERE party.id=sqlc.arg(party_id);
-
 -- name: ListBobCustomerAccountObjects :many
-SELECT o.id,o.entity,o.code,o.revision,o.enabled,o.created_at,o.created_by,o.updated_at,o.updated_by
-FROM bob_customer_accounts account
-JOIN bob_objects o ON o.id=account.object_id AND o.entity='customer-account'
+SELECT subject.id,subject.entity,subject.code,0::bigint AS revision,true AS enabled,
+       subject.created_at,subject.created_by,subject.created_at AS updated_at,subject.created_by AS updated_by
+FROM dcl_customer_accounts account
+JOIN dcl_subjects subject ON subject.id=account.object_id AND subject.entity='customer-account'
 WHERE account.customer_relationship_id=sqlc.arg(customer_relationship_id)
-ORDER BY o.code;
-
--- name: InsertBobEmploymentRelationship :exec
-INSERT INTO bob_employment_relationships(object_id,party_id,operating_entity_id,created_by)
-VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id),sqlc.arg(actor_id));
-
--- name: GetBobEmploymentRelationship :one
-SELECT object_id,party_id,operating_entity_id
-FROM bob_employment_relationships
-WHERE object_id=sqlc.arg(object_id);
-
--- name: GetBobEmploymentRelationshipIdentity :one
-SELECT relation.party_id,current.kind AS party_kind,current.display_name AS party_display_name,
-       relation.operating_entity_id,operating.code AS operating_entity_code,
-       operating_payload.legal_name AS operating_entity_name
-FROM bob_employment_relationships relation
-JOIN bob_parties party ON party.id=relation.party_id
-JOIN bob_party_currents current ON current.party_id=party.id
-JOIN dcl_subjects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
-JOIN dcl_operating_entity_versions operating_payload ON operating_payload.approval_entry_id=operating_entry.id
-WHERE relation.object_id=sqlc.arg(object_id);
+ORDER BY subject.code;
 
 -- name: LockBobObject :one
 SELECT id, entity, code, revision, enabled, created_at, created_by, updated_at, updated_by
@@ -409,68 +165,57 @@ WHERE domain = 'dcl' AND entity = 'supplier' AND subject_id = sqlc.arg(object_id
 ORDER BY version_no DESC
 LIMIT 1;
 
--- name: QueryBobReferenceCandidates :many
-SELECT o.id AS object_id, latest.id AS approval_entry_id, o.code,
-       COALESCE(customer_account.name, supplier_party.display_name, product.name, employee_party.display_name,
-                other_party.display_name, sales_party.display_name, '')::text AS name,
-       COALESCE(product.behavior_profile, '')::text AS behavior_profile,
-       COALESCE(product.default_input_unit_id, '')::text AS default_input_unit_id,
-       COALESCE(product.pricing_unit_id, '')::text AS pricing_unit_id
-FROM bob_objects o
-JOIN LATERAL (
-    SELECT id FROM approval_entries
-    WHERE domain=CASE WHEN o.entity IN ('customer','customer-account','product','employee','other-unit','sales-partner','supplier') THEN 'dcl' ELSE 'bob' END AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
-    ORDER BY version_no DESC LIMIT 1
-) latest ON true
-LEFT JOIN dcl_customer_account_versions customer_account ON customer_account.approval_entry_id=latest.id AND o.entity='customer-account'
-LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
-LEFT JOIN bob_party_currents supplier_party ON supplier_party.party_id=supplier_relation.party_id
-LEFT JOIN dcl_product_versions product ON product.approval_entry_id=latest.id
-LEFT JOIN bob_employment_relationships employee_relation ON employee_relation.object_id=o.id AND o.entity='employee' AND employee_relation.merged_into_object_id IS NULL
-LEFT JOIN bob_party_currents employee_party ON employee_party.party_id=employee_relation.party_id
-LEFT JOIN bob_service_relationships other_relation ON other_relation.object_id=o.id AND o.entity='other-unit'
-LEFT JOIN bob_party_currents other_party ON other_party.party_id=other_relation.party_id
-LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
-LEFT JOIN bob_party_currents sales_party ON sales_party.party_id=sales_relation.party_id
-WHERE o.entity=sqlc.arg(entity) AND o.enabled
-  AND (sqlc.arg(source_object_id)::text='' OR o.id<>sqlc.arg(source_object_id)::text)
-  AND (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%'
-       OR COALESCE(customer_account.name,supplier_party.display_name,product.name,employee_party.display_name,
-                   other_party.display_name,sales_party.display_name,'') ILIKE '%'||sqlc.arg(keyword)::text||'%')
-  AND (sqlc.arg(behavior_profile)::text='' OR product.behavior_profile=sqlc.arg(behavior_profile)::text)
-ORDER BY o.code
-LIMIT 200;
-
--- Typed blocker projections always join the latest APPROVED Approval entry.
--- Open drafts and historical payloads never block an unrelated lifecycle
--- action, while a newly approved payload becomes visible atomically.
--- name: ListCustomerSalesReferencesForEmployee :many
-SELECT o.id AS object_id, o.entity, 'customer-sales'::text AS role
-FROM bob_customer_account_currents current
-JOIN bob_objects o ON o.id=current.object_id AND o.entity='customer-account'
-JOIN dcl_customer_account_versions p ON p.approval_entry_id=current.source_approval_entry_id
-WHERE p.primary_sales_subject_id=sqlc.narg(source_object_id) AND p.primary_sales_attribution_type='INTERNAL_EMPLOYEE';
 -- name: ListSupplierPurchaserReferencesForEmployee :many
-SELECT o.id AS object_id, o.entity, 'supplier-purchaser'::text AS role FROM bob_objects o
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=o.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
+SELECT subject.id AS object_id, subject.entity, 'supplier-purchaser'::text AS role FROM dcl_subjects subject
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_supplier_versions p ON p.approval_entry_id=e.id WHERE p.default_purchaser_employee_id=sqlc.narg(source_object_id);
+-- Typed lifecycle blockers read only the latest approved DCL snapshots. Open
+-- candidates and historical snapshots must never create a blocker.
+-- name: ListCustomerSalesReferencesForEmployee :many
+SELECT subject.id AS object_id,subject.entity,'customer-sales'::text AS role
+FROM dcl_subjects subject
+JOIN dcl_customer_accounts account ON account.object_id=subject.id
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) entry ON true
+JOIN dcl_customer_account_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='customer-account' AND snapshot.enabled
+  AND snapshot.primary_sales_subject_id=sqlc.narg(source_object_id)
+  AND snapshot.primary_sales_attribution_type='INTERNAL_EMPLOYEE';
+-- name: ListCustomerSalesReferencesForSalesPartner :many
+SELECT subject.id AS object_id,subject.entity,
+       CASE snapshot.primary_sales_attribution_type
+         WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales' ELSE 'customer-channel-sales' END::text AS role
+FROM dcl_subjects subject
+JOIN dcl_customer_accounts account ON account.object_id=subject.id
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) entry ON true
+JOIN dcl_customer_account_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='customer-account' AND snapshot.enabled
+  AND snapshot.primary_sales_subject_id=sqlc.narg(source_object_id)
+  AND snapshot.primary_sales_attribution_type IN ('EXTERNAL_PART_TIME','CHANNEL_PARTNER');
+-- name: ListCustomerOperatingReferences :many
+SELECT subject.id AS object_id,subject.entity,'customer-operating'::text AS role
+FROM dcl_subjects subject
+JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) entry ON true
+JOIN dcl_customer_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='customer' AND snapshot.enabled AND relationship.merged_into_object_id IS NULL
+  AND relationship.operating_entity_id=sqlc.narg(source_object_id);
 -- name: ListWarehouseManagerReferencesForEmployee :many
 SELECT subject.id AS object_id,subject.entity,'warehouse-manager'::text AS role FROM dcl_subjects subject
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.entity='warehouse' AND snapshot.manager_employee_id=sqlc.narg(source_object_id);
--- name: ListCustomerSalesReferencesForSalesPartner :many
-SELECT o.id AS object_id,o.entity,CASE p.primary_sales_attribution_type WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales' ELSE 'customer-channel-sales' END::text AS role
-FROM bob_customer_account_currents current
-JOIN bob_objects o ON o.id=current.object_id AND o.entity='customer-account'
-JOIN dcl_customer_account_versions p ON p.approval_entry_id=current.source_approval_entry_id
-WHERE p.primary_sales_subject_id=sqlc.narg(source_object_id) AND p.primary_sales_attribution_type IN ('EXTERNAL_PART_TIME','CHANNEL_PARTNER');
--- name: ListCustomerOperatingReferences :many
-SELECT o.id AS object_id,o.entity,'customer-operating'::text AS role
-FROM bob_customers current
-JOIN bob_objects o ON o.id=current.object_id AND o.entity='customer'
-JOIN bob_customer_relationships relationship ON relationship.object_id=current.object_id
-WHERE relationship.operating_entity_id=sqlc.narg(source_object_id);
 -- name: ListFundOperatingReferences :many
 SELECT subject.id AS object_id,subject.entity,'fund-operating'::text AS role
 FROM dcl_subjects subject
@@ -557,11 +302,11 @@ DELETE FROM dcl_customer_account_credit_limits WHERE approval_entry_id=sqlc.arg(
 -- name: CopyDCLCustomerAccountCreditLimits :exec
 INSERT INTO dcl_customer_account_credit_limits(approval_entry_id,currency,amount_cents) SELECT sqlc.arg(new_approval_entry_id),source.currency,source.amount_cents FROM dcl_customer_account_credit_limits source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- name: GetDCLCustomerAccountIdentity :one
-SELECT account.customer_relationship_id FROM bob_customer_accounts account JOIN bob_objects object ON object.id=account.object_id AND object.entity='customer-account' WHERE account.object_id=sqlc.arg(object_id);
+SELECT account.customer_relationship_id FROM dcl_customer_accounts account JOIN dcl_subjects subject ON subject.id=account.object_id AND subject.entity='customer-account' WHERE account.object_id=sqlc.arg(object_id);
 -- name: CountDCLCustomerAccounts :one
-SELECT count(*) FROM dcl_subjects subject JOIN bob_customer_accounts account ON account.object_id=subject.id JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) JOIN bob_objects object ON object.id=subject.id AND object.entity='customer-account' WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
+SELECT count(*) FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)  WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 -- name: ListDCLCustomerAccounts :many
-SELECT object.id AS object_id,object.code,object.revision AS object_revision,account.customer_relationship_id,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject JOIN bob_customer_accounts account ON account.object_id=subject.id JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id JOIN bob_objects object ON object.id=subject.id AND object.entity='customer-account' LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[])) ORDER BY object.code LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+SELECT subject.id AS object_id,subject.code,0::bigint AS object_revision,account.customer_relationship_id,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id  LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[])) ORDER BY subject.code LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 -- name: CountDCLCustomerAccountApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer-account' AND subject_id=sqlc.arg(object_id);
 -- name: ListDCLCustomerAccountApprovalEvents :many
@@ -634,49 +379,23 @@ SELECT payload.* FROM dcl_vehicle_versions payload WHERE payload.approval_entry_
 -- name: CopyDCLProductSnapshot :exec
 INSERT INTO dcl_product_versions(approval_entry_id,entity,name,category_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,returnable,default_packaging_spec_micros,product_type_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,enabled)
 SELECT sqlc.arg(new_approval_entry_id),entity,name,category_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,returnable,default_packaging_spec_micros,product_type_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,enabled FROM dcl_product_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
--- Direct party rows remain BOB-owned identity relationships, independent of
--- approval payload state.
+-- BOB reads typed DCL relationship roots for business-rule validation. DCL is
+-- the only writer for these stable identities.
 -- name: GetBobCustomerRelationship :one
-SELECT * FROM bob_customer_relationships WHERE object_id=sqlc.arg(object_id);
--- name: ListBobPartyIdentifiers :many
-SELECT identifier_type,value FROM bob_party_identifiers WHERE party_id=sqlc.arg(party_id) ORDER BY identifier_type,value;
--- name: LockBobCustomerRelationship :one
-SELECT * FROM bob_customer_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
--- name: InsertBobCustomerRelationship :exec
-INSERT INTO bob_customer_relationships(object_id,party_id,operating_entity_id,created_by) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id),sqlc.arg(actor_id));
+SELECT * FROM dcl_customer_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobSupplierRelationship :one
-SELECT * FROM bob_supplier_relationships WHERE object_id=sqlc.arg(object_id);
--- name: LockBobSupplierRelationship :one
-SELECT * FROM bob_supplier_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
--- name: InsertBobSupplierRelationship :exec
-INSERT INTO bob_supplier_relationships(object_id,party_id,operating_entity_id,created_by) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id),sqlc.arg(actor_id));
+SELECT * FROM dcl_supplier_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobOtherUnitRelationship :one
-SELECT * FROM bob_service_relationships WHERE object_id=sqlc.arg(object_id);
--- name: LockBobOtherUnitRelationship :one
-SELECT * FROM bob_service_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
--- name: InsertBobOtherUnitRelationship :exec
-INSERT INTO bob_service_relationships(object_id,party_id,operating_entity_id,created_by) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id),sqlc.arg(actor_id));
+SELECT * FROM dcl_service_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobEmployeeRelationship :one
-SELECT * FROM bob_employment_relationships WHERE object_id=sqlc.arg(object_id);
--- name: LockBobEmployeeRelationship :one
-SELECT * FROM bob_employment_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
--- name: InsertBobEmployeeRelationship :exec
-INSERT INTO bob_employment_relationships(object_id,party_id,operating_entity_id,created_by) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id),sqlc.arg(actor_id));
+SELECT * FROM dcl_employment_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobSalesPartnerRelationship :one
-SELECT * FROM bob_sales_relationships WHERE object_id=sqlc.arg(object_id);
--- name: LockBobSalesPartnerRelationship :one
-SELECT * FROM bob_sales_relationships WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
--- name: InsertBobSalesPartnerRelationship :exec
-INSERT INTO bob_sales_relationships(object_id,party_id,operating_entity_id,created_by) VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id),sqlc.arg(actor_id));
--- name: InsertBobCustomerAccountRelationship :exec
-INSERT INTO bob_customer_accounts(object_id,customer_relationship_id,created_by) VALUES(sqlc.arg(object_id),sqlc.arg(customer_relationship_id),sqlc.arg(actor_id));
+SELECT * FROM dcl_sales_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobCustomerAccountRelationship :one
-SELECT * FROM bob_customer_accounts WHERE object_id=sqlc.arg(object_id);
--- name: LockBobCustomerAccountRelationship :one
-SELECT * FROM bob_customer_accounts WHERE object_id=sqlc.arg(object_id) FOR UPDATE;
+SELECT * FROM dcl_customer_accounts WHERE object_id=sqlc.arg(object_id);
 
--- DCL Product snapshots are keyed by their DCL Approval entry. BOB only reads
--- these rows through an explicit current projection; DCL owns every mutation.
+-- DCL Product snapshots are keyed by their DCL Approval entry; DCL owns every
+-- mutation and BOB reads the selected approved snapshot.
 -- name: GetDCLProductFormula :one
 SELECT * FROM dcl_product_formulas WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
 -- name: DeleteDCLProductFormula :exec
@@ -806,170 +525,6 @@ ORDER BY entity,document_no,document_id;
 -- name: UpdateDCLProductSnapshot :execrows
 UPDATE dcl_product_versions SET name=sqlc.arg(name),category_id=sqlc.narg(category_id),category_code=sqlc.narg(category_code),category_name=sqlc.narg(category_name),specification=sqlc.narg(specification),model=sqlc.narg(model),barcode=sqlc.narg(barcode),remark=sqlc.narg(remark),pricing_unit_id=sqlc.narg(pricing_unit_id),default_packaging_spec_micros=sqlc.narg(default_packaging_spec_micros),product_type_id=sqlc.narg(product_type_id),product_type_code=sqlc.narg(product_type_code),product_type_name=sqlc.narg(product_type_name),behavior_profile=sqlc.narg(behavior_profile),default_input_unit_id=sqlc.narg(default_input_unit_id),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
--- name: UpsertBobSupplierCurrent :exec
-INSERT INTO bob_suppliers(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
-VALUES(sqlc.arg(object_id),sqlc.arg(source_approval_entry_id),sqlc.arg(enabled),now(),sqlc.arg(actor_id))
-ON CONFLICT (object_id) DO UPDATE SET source_approval_entry_id=EXCLUDED.source_approval_entry_id,enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by;
--- name: DeleteBobSupplierCurrent :execrows
-DELETE FROM bob_suppliers WHERE object_id=sqlc.arg(object_id);
-
--- #287 projections are BOB-owned read models only.  DCL Customer and
--- Customer Account versions are the sole mutable declaration payloads.
--- name: UpsertBobCustomerCurrent :exec
-INSERT INTO bob_customers(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
-VALUES(sqlc.arg(object_id),sqlc.arg(source_approval_entry_id),sqlc.arg(enabled),now(),sqlc.arg(actor_id))
-ON CONFLICT (object_id) DO UPDATE SET source_approval_entry_id=EXCLUDED.source_approval_entry_id,enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by;
--- name: DeleteBobCustomerCurrent :execrows
-DELETE FROM bob_customers WHERE object_id=sqlc.arg(object_id);
--- name: UpsertBobCustomerAccountCurrent :exec
-INSERT INTO bob_customer_account_currents(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
-VALUES(sqlc.arg(object_id),sqlc.arg(source_approval_entry_id),sqlc.arg(enabled),now(),sqlc.arg(actor_id))
-ON CONFLICT (object_id) DO UPDATE SET source_approval_entry_id=EXCLUDED.source_approval_entry_id,enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by;
--- name: DeleteBobCustomerAccountCurrent :execrows
-DELETE FROM bob_customer_account_currents WHERE object_id=sqlc.arg(object_id);
--- name: GetBobCustomerCurrentReference :one
-SELECT o.id AS object_id,o.entity,o.code,c.source_approval_entry_id AS approval_entry_id
-FROM bob_customers c
-JOIN bob_objects o ON o.id=c.object_id AND o.entity='customer'
-JOIN approval_entries e ON e.id=c.source_approval_entry_id AND e.domain='dcl' AND e.entity='customer' AND e.status='APPROVED'
-WHERE c.object_id=sqlc.arg(object_id) AND c.enabled;
--- name: GetBobCustomerAccountCurrentReference :one
-SELECT o.id AS object_id,o.entity,o.code,c.source_approval_entry_id AS approval_entry_id,
-       payload.name,payload.settlement_method_id,payload.payment_method_id,payload.operating_entity_id,payload.operating_entity_approval_entry_id,
-       payload.primary_sales_attribution_type,payload.primary_sales_subject_id,payload.primary_sales_subject_approval_entry_id
-FROM bob_customer_account_currents c
-JOIN bob_objects o ON o.id=c.object_id AND o.entity='customer-account'
-JOIN approval_entries e ON e.id=c.source_approval_entry_id AND e.domain='dcl' AND e.entity='customer-account' AND e.status='APPROVED'
-JOIN dcl_customer_account_versions payload ON payload.approval_entry_id=e.id
-WHERE c.object_id=sqlc.arg(object_id) AND c.enabled;
-
--- #287 BOB Customer reads are current projections only. They intentionally do
--- not join DCL open candidates.
--- name: CountBobCustomerCurrents :one
-SELECT count(*)
-FROM bob_customers current
-JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
-JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
-JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
-WHERE (sqlc.arg(keyword)='' OR object.code ILIKE '%'||sqlc.arg(keyword)||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)||'%')
-  AND (sqlc.arg(enabled_filter)::int=-1 OR current.enabled=(sqlc.arg(enabled_filter)::int=1))
-  AND (sqlc.arg(operating_entity_id)='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id))
-  AND (sqlc.arg(party_id)='' OR relationship.party_id=sqlc.arg(party_id));
--- name: ListBobCustomerCurrents :many
-SELECT object.id AS object_id,object.code,relationship.party_id,party.kind AS party_kind,party.display_name,
-       relationship.operating_entity_id,payload.operating_entity_approval_entry_id,payload.operating_entity_code,payload.operating_entity_name,
-       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
-FROM bob_customers current
-JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
-JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
-JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
-WHERE (sqlc.arg(keyword)='' OR object.code ILIKE '%'||sqlc.arg(keyword)||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)||'%')
-  AND (sqlc.arg(enabled_filter)::int=-1 OR current.enabled=(sqlc.arg(enabled_filter)::int=1))
-  AND (sqlc.arg(operating_entity_id)='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id))
-  AND (sqlc.arg(party_id)='' OR relationship.party_id=sqlc.arg(party_id))
-ORDER BY object.code ASC
-LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
--- name: GetBobCustomerCurrent :one
-SELECT object.id AS object_id,object.code,relationship.party_id,party.kind AS party_kind,party.display_name,
-       relationship.operating_entity_id,payload.operating_entity_approval_entry_id,payload.operating_entity_code,payload.operating_entity_name,
-       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
-FROM bob_customers current
-JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer'
-JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer' AND source.status='APPROVED'
-JOIN bob_customer_relationships relationship ON relationship.object_id=object.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN dcl_customer_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
-WHERE current.object_id=sqlc.arg(object_id);
-
--- name: CountBobCustomerAccountCurrents :one
-SELECT count(*)
-FROM bob_customer_account_currents current
-JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
-JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
-JOIN bob_customer_accounts account ON account.object_id=object.id
-JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
-JOIN dcl_customer_account_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
-WHERE (sqlc.arg(keyword)='' OR object.code ILIKE '%'||sqlc.arg(keyword)||'%' OR payload.name ILIKE '%'||sqlc.arg(keyword)||'%')
-  AND (sqlc.arg(enabled_filter)::int=-1 OR current.enabled=(sqlc.arg(enabled_filter)::int=1))
-  AND (sqlc.arg(customer_relationship_id)='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id))
-  AND (sqlc.arg(operating_entity_id)='' OR payload.operating_entity_id=sqlc.arg(operating_entity_id))
-  AND (sqlc.arg(customer_type)='' OR payload.customer_type=sqlc.arg(customer_type))
-  AND (sqlc.arg(sales_attribution_type)='' OR payload.primary_sales_attribution_type=sqlc.arg(sales_attribution_type))
-  AND (sqlc.arg(sales_attribution_subject_id)='' OR payload.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id));
--- name: ListBobCustomerAccountCurrents :many
-SELECT object.id AS object_id,object.code,account.customer_relationship_id,relationship_object.code AS customer_relationship_code,
-       payload.name,payload.customer_type,payload.operating_entity_code,current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
-FROM bob_customer_account_currents current
-JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
-JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
-JOIN bob_customer_accounts account ON account.object_id=object.id
-JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
-JOIN dcl_customer_account_versions payload ON payload.approval_entry_id=current.source_approval_entry_id
-WHERE (sqlc.arg(keyword)='' OR object.code ILIKE '%'||sqlc.arg(keyword)||'%' OR payload.name ILIKE '%'||sqlc.arg(keyword)||'%')
-  AND (sqlc.arg(enabled_filter)::int=-1 OR current.enabled=(sqlc.arg(enabled_filter)::int=1))
-  AND (sqlc.arg(customer_relationship_id)='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id))
-  AND (sqlc.arg(operating_entity_id)='' OR payload.operating_entity_id=sqlc.arg(operating_entity_id))
-  AND (sqlc.arg(customer_type)='' OR payload.customer_type=sqlc.arg(customer_type))
-  AND (sqlc.arg(sales_attribution_type)='' OR payload.primary_sales_attribution_type=sqlc.arg(sales_attribution_type))
-  AND (sqlc.arg(sales_attribution_subject_id)='' OR payload.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id))
-ORDER BY object.code ASC
-LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
--- name: GetBobCustomerAccountCurrent :one
-SELECT object.id AS object_id,object.code,account.customer_relationship_id,relationship_object.code AS customer_relationship_code,
-       current.enabled,current.source_approval_entry_id,COALESCE(source.version_no, 0)::integer AS source_version_no,current.updated_at
-FROM bob_customer_account_currents current
-JOIN bob_objects object ON object.id=current.object_id AND object.entity='customer-account'
-JOIN approval_entries source ON source.id=current.source_approval_entry_id AND source.domain='dcl' AND source.entity='customer-account' AND source.status='APPROVED'
-JOIN bob_customer_accounts account ON account.object_id=object.id
-JOIN bob_objects relationship_object ON relationship_object.id=account.customer_relationship_id AND relationship_object.entity='customer'
-WHERE current.object_id=sqlc.arg(object_id);
--- name: GetBobSupplierCurrentReference :one
-SELECT o.id AS object_id,o.entity,o.code,p.source_approval_entry_id AS approval_entry_id
-FROM bob_suppliers p JOIN bob_objects o ON o.id=p.object_id AND o.entity='supplier'
-JOIN approval_entries e ON e.id=p.source_approval_entry_id AND e.domain='dcl' AND e.entity='supplier' AND e.status='APPROVED'
-WHERE p.object_id=sqlc.arg(object_id) AND p.enabled;
--- name: GetBobSupplierCurrent :one
-SELECT o.id AS object_id,o.entity,o.code,o.revision AS object_revision,p.enabled,p.updated_at,
-       e.id AS approval_entry_id,e.domain,e.version_no,e.status,e.revision AS approval_revision,e.created_by,e.created_at,e.updated_by,e.updated_at AS approval_updated_at,e.submitted_by,e.submitted_at,e.approved_by,e.approved_at,
-       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,
-       payload.short_name,payload.tax_number,payload.contact_name,payload.contact_phone,payload.email,payload.address,payload.remark,
-       payload.settlement_method_id,payload.settlement_method_code,payload.settlement_method_name,payload.settlement_term_code,payload.settlement_rule_type,payload.settlement_month_offset,payload.settlement_day_of_month,payload.settlement_day_offset,
-       payload.default_purchaser_employee_id,payload.default_purchaser_employee_approval_entry_id,payload.default_purchaser_employee_code,payload.default_purchaser_employee_name
-FROM bob_suppliers p
-JOIN bob_objects o ON o.id=p.object_id AND o.entity='supplier'
-JOIN approval_entries e ON e.id=p.source_approval_entry_id AND e.domain='dcl' AND e.entity='supplier' AND e.subject_id=o.id AND e.status='APPROVED'
-JOIN dcl_supplier_versions payload ON payload.approval_entry_id=e.id
-JOIN bob_supplier_relationships relationship ON relationship.object_id=o.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-WHERE p.object_id=sqlc.arg(object_id);
--- name: ListBobSuppliersCurrent :many
-SELECT o.id AS object_id,o.entity,o.code,o.revision AS object_revision,p.enabled,p.updated_at,p.source_approval_entry_id AS approval_entry_id,
-       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,
-       payload.default_purchaser_employee_code,payload.default_purchaser_employee_name
-FROM bob_suppliers p
-JOIN bob_objects o ON o.id=p.object_id AND o.entity='supplier'
-JOIN dcl_supplier_versions payload ON payload.approval_entry_id=p.source_approval_entry_id
-JOIN bob_supplier_relationships relationship ON relationship.object_id=o.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-WHERE (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-  AND (sqlc.arg(enabled_filter)::integer=-1 OR p.enabled=(sqlc.arg(enabled_filter)::integer=1))
-  AND (sqlc.arg(default_purchaser_employee_id)::text='' OR payload.default_purchaser_employee_id=sqlc.arg(default_purchaser_employee_id)::text)
-ORDER BY o.code ASC
-LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
--- name: CountBobSuppliersCurrent :one
-SELECT count(*)
-FROM bob_suppliers p
-JOIN bob_objects o ON o.id=p.object_id AND o.entity='supplier'
-JOIN dcl_supplier_versions payload ON payload.approval_entry_id=p.source_approval_entry_id
-JOIN bob_supplier_relationships relationship ON relationship.object_id=o.id
-JOIN bob_party_currents party ON party.party_id=relationship.party_id
-WHERE (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-  AND (sqlc.arg(enabled_filter)::integer=-1 OR p.enabled=(sqlc.arg(enabled_filter)::integer=1))
-  AND (sqlc.arg(default_purchaser_employee_id)::text='' OR payload.default_purchaser_employee_id=sqlc.arg(default_purchaser_employee_id)::text);
 -- name: GetBobProductCurrentReference :one
 SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id
 FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true

@@ -10035,3 +10035,144 @@ INSERT INTO public.bob_operating_entities (
 
 INSERT INTO public.object_number_counters (domain, entity, last_value)
 VALUES ('bob', 'operating-entity', 305);
+
+-- Representative Party and relationship inputs for the terminal #305 → #311
+-- chain. These are legacy BOB stable roots/current copies, with DCL already
+-- owning every versioned declaration and Approval history. The cutovers must
+-- retain IDs, codes, entries, revisions, snapshots, identity claims and merge
+-- audit while eliminating the BOB roots/current copies and counters.
+INSERT INTO public.dcl_subjects (id, entity, created_at, created_by) VALUES
+    ('01Z31100000000000000000001', 'party', '2026-08-29 03:10:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000002', 'party', '2026-08-29 03:11:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000011', 'customer', '2026-08-29 03:12:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000012', 'customer', '2026-08-29 03:13:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000013', 'employee', '2026-08-29 03:14:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000014', 'supplier', '2026-08-29 03:15:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000015', 'other-unit', '2026-08-29 03:16:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000016', 'sales-partner', '2026-08-29 03:17:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000017', 'customer-account', '2026-08-29 03:18:00+00', '01JAPPSYST3MACTR0000000000');
+
+INSERT INTO public.approval_entries (
+    id, domain, entity, subject_id, version_no, status, revision,
+    created_by, created_at, updated_by, updated_at,
+    submitted_by, submitted_at, approved_by, approved_at
+) VALUES
+    ('01Z31100000000000000000021', 'dcl', 'party', '01Z31100000000000000000001', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:10:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:12:00+00', '00000000000000000000000000', '2026-08-29 03:11:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:12:00+00'),
+    ('01Z31100000000000000000022', 'dcl', 'party', '01Z31100000000000000000002', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:11:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:13:00+00', '00000000000000000000000000', '2026-08-29 03:12:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:13:00+00'),
+    ('01Z31100000000000000000023', 'dcl', 'customer', '01Z31100000000000000000011', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:12:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:14:00+00', '00000000000000000000000000', '2026-08-29 03:13:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:14:00+00'),
+    ('01Z31100000000000000000024', 'dcl', 'customer', '01Z31100000000000000000012', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:13:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:15:00+00', '00000000000000000000000000', '2026-08-29 03:14:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:15:00+00'),
+    ('01Z31100000000000000000025', 'dcl', 'employee', '01Z31100000000000000000013', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:14:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:16:00+00', '00000000000000000000000000', '2026-08-29 03:15:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:16:00+00'),
+    ('01Z31100000000000000000026', 'dcl', 'supplier', '01Z31100000000000000000014', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:15:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:17:00+00', '00000000000000000000000000', '2026-08-29 03:16:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:17:00+00'),
+    ('01Z31100000000000000000027', 'dcl', 'other-unit', '01Z31100000000000000000015', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:16:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:18:00+00', '00000000000000000000000000', '2026-08-29 03:17:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:18:00+00'),
+    ('01Z31100000000000000000028', 'dcl', 'sales-partner', '01Z31100000000000000000016', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:17:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:19:00+00', '00000000000000000000000000', '2026-08-29 03:18:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:19:00+00'),
+    ('01Z31100000000000000000029', 'dcl', 'customer-account', '01Z31100000000000000000017', 1, 'APPROVED', 3, '01JAPPSYST3MACTR0000000000', '2026-08-29 03:18:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:20:00+00', '00000000000000000000000000', '2026-08-29 03:19:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:20:00+00');
+
+INSERT INTO public.dcl_customer_versions (approval_entry_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, enabled) VALUES
+    ('01Z31100000000000000000023', '01Z30500000000000000000002', 'ENT-0305', 'Issue 305 Operating Entity V1', true),
+    ('01Z31100000000000000000024', '01Z30500000000000000000002', 'ENT-0305', 'Issue 305 Operating Entity V1', true);
+INSERT INTO public.dcl_employee_versions (approval_entry_id, enabled) VALUES
+    ('01Z31100000000000000000025', true);
+INSERT INTO public.dcl_supplier_versions (approval_entry_id, enabled) VALUES
+    ('01Z31100000000000000000026', true);
+INSERT INTO public.dcl_other_unit_versions (approval_entry_id, enabled) VALUES
+    ('01Z31100000000000000000027', true);
+INSERT INTO public.dcl_sales_partner_versions (approval_entry_id, enabled) VALUES
+    ('01Z31100000000000000000028', true);
+INSERT INTO public.dcl_customer_account_versions (
+    approval_entry_id, name, customer_type_code, customer_type_name,
+    operating_entity_id, operating_entity_approval_entry_id, operating_entity_code,
+    operating_entity_name, enabled
+) VALUES (
+    '01Z31100000000000000000029', 'Issue 311 Customer Account', 'RETAIL', 'Retail Customer',
+    '01Z30500000000000000000001', '01Z30500000000000000000002', 'ENT-0305',
+    'Issue 305 Operating Entity V1', true
+);
+
+INSERT INTO public.bob_parties (id, created_at, created_by, merged_into_party_id, merged_at) VALUES
+    ('01Z31100000000000000000001', '2026-08-29 03:10:00+00', '01JAPPSYST3MACTR0000000000', NULL, NULL),
+    ('01Z31100000000000000000002', '2026-08-29 03:11:00+00', '01JAPPSYST3MACTR0000000000', NULL, NULL);
+INSERT INTO public.bob_party_currents (party_id, source_approval_entry_id, kind, legal_name, display_name, tax_number, updated_at, updated_by) VALUES
+    ('01Z31100000000000000000001', '01Z31100000000000000000021', 'ORGANIZATION', 'Issue 311 Target Party', 'Issue 311 Target', 'TAX-311-TARGET', '2026-08-29 03:12:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000002', '01Z31100000000000000000022', 'ORGANIZATION', 'Issue 311 Source Party', 'Issue 311 Source', 'TAX-311-SOURCE', '2026-08-29 03:13:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.dcl_party_versions (approval_entry_id, party_id, kind, legal_name, display_name) VALUES
+    ('01Z31100000000000000000021', '01Z31100000000000000000001', 'ORGANIZATION', 'Issue 311 Target Party', 'Issue 311 Target'),
+    ('01Z31100000000000000000022', '01Z31100000000000000000002', 'ORGANIZATION', 'Issue 311 Source Party', 'Issue 311 Source');
+INSERT INTO public.dcl_party_version_identifiers (approval_entry_id, identifier_type, value, normalized_value) VALUES
+    ('01Z31100000000000000000021', 'TAX_NUMBER', 'TAX-311-TARGET', 'TAX-311-TARGET'),
+    ('01Z31100000000000000000022', 'TAX_NUMBER', 'TAX-311-SOURCE', 'TAX-311-SOURCE');
+INSERT INTO public.dcl_party_identifier_claims (identifier_type, normalized_value, approved_party_id, approved_approval_entry_id) VALUES
+    ('TAX_NUMBER', 'TAX-311-TARGET', '01Z31100000000000000000001', '01Z31100000000000000000021');
+INSERT INTO public.bob_party_identifiers (party_id, identifier_type, value, normalized_value) VALUES
+    ('01Z31100000000000000000001', 'TAX_NUMBER', 'TAX-311-TARGET', 'TAX-311-TARGET'),
+    ('01Z31100000000000000000002', 'TAX_NUMBER', 'TAX-311-SOURCE', 'TAX-311-SOURCE');
+
+INSERT INTO public.bob_objects (id, entity, code, revision, created_at, created_by, updated_at, updated_by, enabled) VALUES
+    ('01Z31100000000000000000011', 'customer', 'CUS-0311', 7, '2026-08-29 03:12:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:14:00+00', '01JAPPSYST3MACTR0000000000', true),
+    ('01Z31100000000000000000012', 'customer', 'CUS-0312', 7, '2026-08-29 03:13:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:15:00+00', '01JAPPSYST3MACTR0000000000', true),
+    ('01Z31100000000000000000013', 'employee', 'EMP-0311', 7, '2026-08-29 03:14:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:16:00+00', '01JAPPSYST3MACTR0000000000', true),
+    ('01Z31100000000000000000014', 'supplier', 'SUP-0311', 7, '2026-08-29 03:15:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:17:00+00', '01JAPPSYST3MACTR0000000000', true),
+    ('01Z31100000000000000000015', 'other-unit', 'UNT-0311', 7, '2026-08-29 03:16:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:18:00+00', '01JAPPSYST3MACTR0000000000', true),
+    ('01Z31100000000000000000016', 'sales-partner', 'SAL-0311', 7, '2026-08-29 03:17:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:19:00+00', '01JAPPSYST3MACTR0000000000', true),
+    ('01Z31100000000000000000017', 'customer-account', 'ACC-0311', 7, '2026-08-29 03:18:00+00', '01JAPPSYST3MACTR0000000000', '2026-08-29 03:20:00+00', '01JAPPSYST3MACTR0000000000', true);
+INSERT INTO public.bob_customer_relationships (object_id, party_id, operating_entity_id, merged_into_object_id, merged_at, created_at, created_by) VALUES
+    ('01Z31100000000000000000011', '01Z31100000000000000000001', '01Z30500000000000000000001', NULL, NULL, '2026-08-29 03:12:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000012', '01Z31100000000000000000002', '01Z30500000000000000000001', '01Z31100000000000000000011', '2026-08-29 03:21:00+00', '2026-08-29 03:13:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_employment_relationships (object_id, party_id, operating_entity_id, created_at, created_by) VALUES
+    ('01Z31100000000000000000013', '01Z31100000000000000000001', '01Z30500000000000000000001', '2026-08-29 03:14:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_supplier_relationships (object_id, party_id, operating_entity_id, created_at, created_by) VALUES
+    ('01Z31100000000000000000014', '01Z31100000000000000000001', '01Z30500000000000000000001', '2026-08-29 03:15:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_service_relationships (object_id, party_id, operating_entity_id, created_at, created_by) VALUES
+    ('01Z31100000000000000000015', '01Z31100000000000000000001', '01Z30500000000000000000001', '2026-08-29 03:16:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_sales_relationships (object_id, party_id, operating_entity_id, created_at, created_by) VALUES
+    ('01Z31100000000000000000016', '01Z31100000000000000000001', '01Z30500000000000000000001', '2026-08-29 03:17:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_customer_accounts (object_id, customer_relationship_id, created_at, created_by) VALUES
+    ('01Z31100000000000000000017', '01Z31100000000000000000011', '2026-08-29 03:18:00+00', '01JAPPSYST3MACTR0000000000');
+UPDATE public.bob_parties
+SET merged_into_party_id='01Z31100000000000000000001', merged_at='2026-08-29 03:21:00+00'
+WHERE id='01Z31100000000000000000002';
+INSERT INTO public.bob_customers (object_id, source_approval_entry_id, enabled, updated_at, updated_by) VALUES
+    ('01Z31100000000000000000011', '01Z31100000000000000000023', true, '2026-08-29 03:14:00+00', '01JAPPSYST3MACTR0000000000'),
+    ('01Z31100000000000000000012', '01Z31100000000000000000024', true, '2026-08-29 03:15:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_employees (object_id, source_approval_entry_id, enabled, updated_at, updated_by) VALUES
+    ('01Z31100000000000000000013', '01Z31100000000000000000025', true, '2026-08-29 03:16:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_suppliers (object_id, source_approval_entry_id, enabled, updated_at, updated_by) VALUES
+    ('01Z31100000000000000000014', '01Z31100000000000000000026', true, '2026-08-29 03:17:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_other_units (object_id, source_approval_entry_id, enabled, updated_at, updated_by) VALUES
+    ('01Z31100000000000000000015', '01Z31100000000000000000027', true, '2026-08-29 03:18:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_sales_partners (object_id, source_approval_entry_id, enabled, updated_at, updated_by) VALUES
+    ('01Z31100000000000000000016', '01Z31100000000000000000028', true, '2026-08-29 03:19:00+00', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.bob_customer_account_currents (object_id, source_approval_entry_id, enabled, updated_at, updated_by) VALUES
+    ('01Z31100000000000000000017', '01Z31100000000000000000029', true, '2026-08-29 03:20:00+00', '01JAPPSYST3MACTR0000000000');
+
+INSERT INTO public.bob_party_merge_preflights (
+    id, source_party_id, target_party_id, source_approval_entry_id, target_approval_entry_id,
+    source_approval_revision, target_approval_revision, state_fingerprint, created_at, created_by,
+    request_id, consumed_at, consumed_by
+) VALUES (
+    '01Z31100000000000000000031', '01Z31100000000000000000002', '01Z31100000000000000000001',
+    '01Z31100000000000000000022', '01Z31100000000000000000021', 3, 3,
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '2026-08-29 03:20:00+00',
+    '01JAPPSYST3MACTR0000000000', 'issue-311-party-merge', '2026-08-29 03:21:00+00', '01JAPPSYST3MACTR0000000000'
+);
+INSERT INTO public.bob_party_merge_events (id, preflight_id, source_party_id, target_party_id, actor_id, request_id, occurred_at) VALUES
+    ('01Z31100000000000000000032', '01Z31100000000000000000031', '01Z31100000000000000000002', '01Z31100000000000000000001', '01JAPPSYST3MACTR0000000000', 'issue-311-party-merge', '2026-08-29 03:21:00+00');
+INSERT INTO public.bob_party_relationship_merge_events (
+    id, merge_event_id, relationship_type, source_object_id, target_object_id, operating_entity_id, action, occurred_at
+) VALUES (
+    '01Z31100000000000000000033', '01Z31100000000000000000032', 'customer', '01Z31100000000000000000012',
+    '01Z31100000000000000000011', '01Z30500000000000000000001', 'MERGED', '2026-08-29 03:21:00+00'
+);
+
+INSERT INTO public.approval_events (
+    id, entry_id, domain, entity, subject_id, version_no, action,
+    from_status, to_status, from_revision, to_revision, actor_id, reason, request_id, created_at
+)
+SELECT overlay('01Z31100000000000000000040' placing right(entry.id, 1) from 26 for 1), entry.id, entry.domain, entry.entity,
+       entry.subject_id, entry.version_no, 'APPROVED', 'PENDING', 'APPROVED', 2, entry.revision,
+       entry.approved_by, NULL, 'issue-311-fixture-approved', entry.approved_at
+FROM public.approval_entries AS entry
+WHERE entry.id BETWEEN '01Z31100000000000000000021' AND '01Z31100000000000000000029';
+
+INSERT INTO public.object_number_counters (domain, entity, last_value) VALUES
+    ('bob', 'customer', 312), ('bob', 'employee', 311), ('bob', 'supplier', 311),
+    ('bob', 'other-unit', 311), ('bob', 'sales-partner', 311), ('bob', 'customer-account', 311);

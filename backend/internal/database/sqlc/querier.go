@@ -268,9 +268,12 @@ type Querier interface {
 	FindAppRoleIDByNormalizedNameExcludingID(ctx context.Context, arg FindAppRoleIDByNormalizedNameExcludingIDParams) (string, error)
 	FindAuxObjectByCodeOrName(ctx context.Context, arg FindAuxObjectByCodeOrNameParams) (string, error)
 	FindAuxObjectByName(ctx context.Context, arg FindAuxObjectByNameParams) (string, error)
-	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
 	FindDCLFundAccountIdentifierConflict(ctx context.Context, objectID string) (interface{}, error)
 	FindDCLProductBarcodeConflict(ctx context.Context, objectID string) (interface{}, error)
+	// BOB exposes current read models for DCL-owned stable identities and typed
+	// snapshots. Every resolver selects the latest APPROVED entry and never falls
+	// back to an open candidate or a stored current copy.
+	FindDCLSeedSubjectID(ctx context.Context, arg FindDCLSeedSubjectIDParams) (string, error)
 	FindDCLVehicleIdentifierConflict(ctx context.Context, objectID string) (FindDCLVehicleIdentifierConflictRow, error)
 	FindEnabledAppUserIDExcludingID(ctx context.Context, excludedUserID string) (string, error)
 	FindEnabledProductTypeByBehaviorProfile(ctx context.Context, behaviorProfile string) (string, error)
@@ -783,10 +786,6 @@ type Querier interface {
 	NextAppRoleCode(ctx context.Context) (string, error)
 	NextDCLSubjectCode(ctx context.Context, entity string) (int32, error)
 	NextDclRptDefinitionCode(ctx context.Context) (string, error)
-	// BOB owns stable identities and typed approval payloads.  Version state is
-	// exclusively stored in approval_entries; every resolver below selects the
-	// latest APPROVED entry and never falls back to an open candidate.
-	NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	Ping(ctx context.Context) (int32, error)
 	// AUX is stable-ID current data. These queries intentionally expose no

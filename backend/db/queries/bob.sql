@@ -1,23 +1,15 @@
--- BOB owns stable identities and typed approval payloads.  Version state is
--- exclusively stored in approval_entries; every resolver below selects the
--- latest APPROVED entry and never falls back to an open candidate.
+-- BOB exposes current read models for DCL-owned stable identities and typed
+-- snapshots. Every resolver selects the latest APPROVED entry and never falls
+-- back to an open candidate or a stored current copy.
 
--- name: NextObjectNumberCounter :one
-INSERT INTO object_number_counters (domain, entity, last_value)
-VALUES (sqlc.arg(domain), sqlc.arg(entity), 1)
-ON CONFLICT (domain, entity)
-DO UPDATE SET last_value = object_number_counters.last_value + 1
-WHERE object_number_counters.last_value < 9999
-RETURNING last_value;
-
--- name: FindBobSeedObjectID :one
+-- name: FindDCLSeedSubjectID :one
 SELECT subject_id
 FROM approval_events
-WHERE domain=CASE WHEN sqlc.arg(entity)::text IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','other-unit','sales-partner') THEN 'dcl' ELSE 'bob' END
-  AND entity=sqlc.arg(entity)
-  AND request_id='seed-bob-' || sqlc.arg(seed_code)::text || '-create'
-  AND action='CREATED'
-ORDER BY created_at,id
+WHERE domain = 'dcl'
+  AND entity = sqlc.arg(entity)
+  AND request_id = sqlc.arg(request_id)
+  AND action = 'CREATED'
+ORDER BY created_at, id
 LIMIT 1;
 
 -- name: HasApprovalEntryApprovedEvent :one

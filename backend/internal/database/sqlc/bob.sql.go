@@ -373,24 +373,28 @@ func (q *Queries) DeleteDCLProductUnitConversions(ctx context.Context, productAp
 	return err
 }
 
-const findBobSeedObjectID = `-- name: FindBobSeedObjectID :one
+const findDCLSeedSubjectID = `-- name: FindDCLSeedSubjectID :one
+
 SELECT subject_id
 FROM approval_events
-WHERE domain=CASE WHEN $1::text IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','other-unit','sales-partner') THEN 'dcl' ELSE 'bob' END
-  AND entity=$1
-  AND request_id='seed-bob-' || $2::text || '-create'
-  AND action='CREATED'
-ORDER BY created_at,id
+WHERE domain = 'dcl'
+  AND entity = $1
+  AND request_id = $2
+  AND action = 'CREATED'
+ORDER BY created_at, id
 LIMIT 1
 `
 
-type FindBobSeedObjectIDParams struct {
-	Entity   string `db:"entity" json:"entity"`
-	SeedCode string `db:"seed_code" json:"seed_code"`
+type FindDCLSeedSubjectIDParams struct {
+	Entity    string `db:"entity" json:"entity"`
+	RequestID string `db:"request_id" json:"request_id"`
 }
 
-func (q *Queries) FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error) {
-	row := q.db.QueryRow(ctx, findBobSeedObjectID, arg.Entity, arg.SeedCode)
+// BOB exposes current read models for DCL-owned stable identities and typed
+// snapshots. Every resolver selects the latest APPROVED entry and never falls
+// back to an open candidate or a stored current copy.
+func (q *Queries) FindDCLSeedSubjectID(ctx context.Context, arg FindDCLSeedSubjectIDParams) (string, error) {
+	row := q.db.QueryRow(ctx, findDCLSeedSubjectID, arg.Entity, arg.RequestID)
 	var subject_id string
 	err := row.Scan(&subject_id)
 	return subject_id, err
@@ -3312,31 +3316,6 @@ func (q *Queries) MarkCustomerFileReady(ctx context.Context, fileID string) (int
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const nextObjectNumberCounter = `-- name: NextObjectNumberCounter :one
-
-INSERT INTO object_number_counters (domain, entity, last_value)
-VALUES ($1, $2, 1)
-ON CONFLICT (domain, entity)
-DO UPDATE SET last_value = object_number_counters.last_value + 1
-WHERE object_number_counters.last_value < 9999
-RETURNING last_value
-`
-
-type NextObjectNumberCounterParams struct {
-	Domain string `db:"domain" json:"domain"`
-	Entity string `db:"entity" json:"entity"`
-}
-
-// BOB owns stable identities and typed approval payloads.  Version state is
-// exclusively stored in approval_entries; every resolver below selects the
-// latest APPROVED entry and never falls back to an open candidate.
-func (q *Queries) NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error) {
-	row := q.db.QueryRow(ctx, nextObjectNumberCounter, arg.Domain, arg.Entity)
-	var last_value int32
-	err := row.Scan(&last_value)
-	return last_value, err
 }
 
 const queryBobProductReferenceCandidates = `-- name: QueryBobProductReferenceCandidates :many

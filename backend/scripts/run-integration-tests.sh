@@ -138,9 +138,15 @@ verify_pre_issue_305_fixture() {
 			 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z30500000000000000000006'"'"' AND status='"'"'PENDING'"'"' AND revision=2)
 			 AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z30500000000000000000001'"'"' AND created_at='"'"'2026-08-29 03:05:00+00'"'"' AND created_by='"'"'00000000000000000000000000'"'"')
 			 AND EXISTS (SELECT 1 FROM bob_objects WHERE id='"'"'01Z30500000000000000000001'"'"' AND code='"'"'ENT-0305'"'"' AND revision=7)
-		 AND EXISTS (SELECT 1 FROM bob_operating_entities WHERE object_id='"'"'01Z30500000000000000000001'"'"' AND source_approval_entry_id='"'"'01Z30500000000000000000002'"'"')
-		 AND EXISTS (SELECT 1 FROM object_number_counters WHERE domain='"'"'bob'"'"' AND entity='"'"'operating-entity'"'"' AND last_value=305)
-		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+			 AND EXISTS (SELECT 1 FROM bob_operating_entities WHERE object_id='"'"'01Z30500000000000000000001'"'"' AND source_approval_entry_id='"'"'01Z30500000000000000000002'"'"')
+			 AND EXISTS (SELECT 1 FROM object_number_counters WHERE domain='"'"'bob'"'"' AND entity='"'"'operating-entity'"'"' AND last_value=305)
+			 AND (SELECT count(*) FROM bob_objects WHERE id IN ('"'"'01Z31100000000000000000011'"'"','"'"'01Z31100000000000000000012'"'"','"'"'01Z31100000000000000000013'"'"','"'"'01Z31100000000000000000014'"'"','"'"'01Z31100000000000000000015'"'"','"'"'01Z31100000000000000000016'"'"','"'"'01Z31100000000000000000017'"'"'))=7
+			 AND EXISTS (SELECT 1 FROM bob_customer_relationships WHERE object_id='"'"'01Z31100000000000000000012'"'"' AND merged_into_object_id='"'"'01Z31100000000000000000011'"'"')
+			 AND EXISTS (SELECT 1 FROM bob_party_relationship_merge_events WHERE id='"'"'01Z31100000000000000000033'"'"' AND action='"'"'MERGED'"'"')
+			 AND (SELECT count(*) FROM approval_entries WHERE id BETWEEN '"'"'01Z31100000000000000000021'"'"' AND '"'"'01Z31100000000000000000029'"'"' AND domain='"'"'dcl'"'"' AND status='"'"'APPROVED'"'"' AND revision=3)=9
+			 AND (SELECT count(*) FROM approval_events WHERE entry_id BETWEEN '"'"'01Z31100000000000000000021'"'"' AND '"'"'01Z31100000000000000000029'"'"' AND action='"'"'APPROVED'"'"')=9
+			 AND (SELECT count(*) FROM object_number_counters WHERE domain='"'"'bob'"'"' AND entity IN ('"'"'customer'"'"','"'"'employee'"'"','"'"'supplier'"'"','"'"'other-unit'"'"','"'"'sales-partner'"'"','"'"'customer-account'"'"'))=6
+			 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
 }
 
 run_issue_305_cutover() {
@@ -169,6 +175,34 @@ run_issue_310_cutover() {
 	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
 		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
 		<db/cutovers/issue-310-read-contract.sql
+}
+
+run_issue_311_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-311-final-cutover.sql
+}
+
+verify_issue_311_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.bob_objects'"'"') IS NULL
+			 AND NOT EXISTS (SELECT 1 FROM object_number_counters WHERE domain='"'"'bob'"'"')
+			 AND NOT EXISTS (SELECT 1 FROM approval_entries WHERE domain='"'"'bob'"'"' AND version_no IS NOT NULL)
+			 AND (SELECT count(*) FROM dcl_subjects WHERE id IN ('"'"'01Z31100000000000000000001'"'"','"'"'01Z31100000000000000000002'"'"','"'"'01Z31100000000000000000011'"'"','"'"'01Z31100000000000000000012'"'"','"'"'01Z31100000000000000000013'"'"','"'"'01Z31100000000000000000014'"'"','"'"'01Z31100000000000000000015'"'"','"'"'01Z31100000000000000000016'"'"','"'"'01Z31100000000000000000017'"'"'))=9
+			 AND EXISTS (SELECT 1 FROM dcl_customer_relationships WHERE object_id='"'"'01Z31100000000000000000012'"'"' AND merged_into_object_id='"'"'01Z31100000000000000000011'"'"')
+			 AND EXISTS (SELECT 1 FROM dcl_party_merge_events WHERE id='"'"'01Z31100000000000000000032'"'"' AND preflight_id='"'"'01Z31100000000000000000031'"'"')
+			 AND EXISTS (SELECT 1 FROM dcl_party_relationship_merge_events WHERE id='"'"'01Z31100000000000000000033'"'"' AND source_object_id='"'"'01Z31100000000000000000012'"'"' AND target_object_id='"'"'01Z31100000000000000000011'"'"')
+			 AND EXISTS (SELECT 1 FROM dcl_party_identifier_claims WHERE normalized_value='"'"'TAX-311-TARGET'"'"' AND approved_party_id='"'"'01Z31100000000000000000001'"'"' AND approved_approval_entry_id='"'"'01Z31100000000000000000021'"'"')
+			 AND (SELECT count(*) FROM approval_entries WHERE id BETWEEN '"'"'01Z31100000000000000000021'"'"' AND '"'"'01Z31100000000000000000029'"'"' AND domain='"'"'dcl'"'"' AND version_no=1 AND revision=3)=9
+			 AND EXISTS (SELECT 1 FROM approval_events WHERE id='"'"'01Z31100000000000000000041'"'"' AND entry_id='"'"'01Z31100000000000000000021'"'"' AND action='"'"'APPROVED'"'"' AND to_revision=3)
+			 AND EXISTS (SELECT 1 FROM dcl_customer_account_versions WHERE approval_entry_id='"'"'01Z31100000000000000000029'"'"' AND name='"'"'Issue 311 Customer Account'"'"')
+			 AND (SELECT count(*) FROM object_number_counters WHERE domain='"'"'dcl'"'"' AND entity IN ('"'"'customer'"'"','"'"'employee'"'"','"'"'supplier'"'"','"'"'other-unit'"'"','"'"'sales-partner'"'"','"'"'customer-account'"'"'))=6
+			 AND NOT EXISTS (SELECT entity,upper(code) FROM dcl_subjects WHERE code IS NOT NULL GROUP BY entity,upper(code) HAVING count(*)>1)
+		  AND position('"'"'bob'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'object_number_counters'"'"'::regclass AND conname='"'"'object_number_counters_domain_check'"'"')))=0
+		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
 }
 
 verify_issue_310_cutover() {
@@ -206,6 +240,19 @@ verify_issue_308_cutover() {
 		  AND to_regclass('"'"'public.dcl_parties'"'"') IS NOT NULL
 		  AND to_regclass('"'"'public.dcl_customer_relationships'"'"') IS NOT NULL
 		  AND to_regclass('"'"'public.dcl_customer_accounts'"'"') IS NOT NULL
+			  AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z31100000000000000000011'"'"' AND entity='"'"'customer'"'"' AND code='"'"'CUS-0311'"'"')
+			  AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z31100000000000000000017'"'"' AND entity='"'"'customer-account'"'"' AND code='"'"'ACC-0311'"'"')
+			  AND EXISTS (SELECT 1 FROM dcl_parties WHERE id='"'"'01Z31100000000000000000002'"'"' AND merged_into_party_id='"'"'01Z31100000000000000000001'"'"')
+			  AND EXISTS (SELECT 1 FROM dcl_customer_relationships WHERE object_id='"'"'01Z31100000000000000000012'"'"' AND merged_into_object_id='"'"'01Z31100000000000000000011'"'"')
+			  AND EXISTS (SELECT 1 FROM dcl_customer_accounts WHERE object_id='"'"'01Z31100000000000000000017'"'"' AND customer_relationship_id='"'"'01Z31100000000000000000011'"'"')
+			  AND EXISTS (SELECT 1 FROM dcl_party_identifier_claims WHERE normalized_value='"'"'TAX-311-TARGET'"'"' AND approved_party_id='"'"'01Z31100000000000000000001'"'"' AND approved_approval_entry_id='"'"'01Z31100000000000000000021'"'"')
+			  AND EXISTS (SELECT 1 FROM dcl_party_merge_events WHERE id='"'"'01Z31100000000000000000032'"'"' AND preflight_id='"'"'01Z31100000000000000000031'"'"')
+			  AND EXISTS (SELECT 1 FROM dcl_party_relationship_merge_events WHERE id='"'"'01Z31100000000000000000033'"'"' AND source_object_id='"'"'01Z31100000000000000000012'"'"' AND target_object_id='"'"'01Z31100000000000000000011'"'"')
+			  AND (SELECT count(*) FROM approval_entries WHERE id BETWEEN '"'"'01Z31100000000000000000021'"'"' AND '"'"'01Z31100000000000000000029'"'"' AND version_no=1 AND revision=3)=9
+			  AND EXISTS (SELECT 1 FROM approval_events WHERE id='"'"'01Z31100000000000000000041'"'"' AND entry_id='"'"'01Z31100000000000000000021'"'"' AND action='"'"'APPROVED'"'"' AND to_revision=3)
+			  AND EXISTS (SELECT 1 FROM dcl_party_versions WHERE approval_entry_id='"'"'01Z31100000000000000000021'"'"' AND party_id='"'"'01Z31100000000000000000001'"'"')
+			  AND EXISTS (SELECT 1 FROM dcl_customer_account_versions WHERE approval_entry_id='"'"'01Z31100000000000000000029'"'"' AND name='"'"'Issue 311 Customer Account'"'"')
+			  AND (SELECT count(*) FROM object_number_counters WHERE domain='"'"'dcl'"'"' AND entity IN ('"'"'customer'"'"','"'"'employee'"'"','"'"'supplier'"'"','"'"'other-unit'"'"','"'"'sales-partner'"'"','"'"'customer-account'"'"'))=6
 			  AND to_regprocedure('"'"'public.bob_reject_merged_party_relationship()'"'"') IS NULL
 			  AND to_regprocedure('"'"'public.dcl_reject_merged_party_relationship()'"'"') IS NOT NULL
 			  AND to_regclass('"'"'public.dcl_party_merge_preflights_open_idx'"'"') IS NOT NULL
@@ -656,6 +703,38 @@ run_cutover_compatibility_tests() {
 	verify_issue_309_cutover "$pre_issue_305_database"
 	run_issue_310_cutover "$pre_issue_305_database"
 	verify_issue_310_cutover "$pre_issue_305_database"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' <<'SQL'
+INSERT INTO approval_entries(
+  id,domain,entity,subject_id,version_no,status,revision,
+  created_by,created_at,updated_by,updated_at
+) VALUES (
+  '01Z31100000000000000000091','bob','legacy-party','legacy-bob-311',1,'DRAFT',1,
+  '01JAPPSYST3MACTR0000000000','2026-08-29 03:30:00+00','01JAPPSYST3MACTR0000000000','2026-08-29 03:30:00+00'
+);
+INSERT INTO approval_events(
+  id,entry_id,domain,entity,subject_id,version_no,action,
+  from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
+) VALUES (
+  '01Z31100000000000000000092','01Z31100000000000000000091','bob','legacy-party','legacy-bob-311',1,'CREATED',
+  NULL,'DRAFT',NULL,1,'01JAPPSYST3MACTR0000000000',NULL,'issue-311-versioned-bob-guard','2026-08-29 03:30:00+00'
+);
+SQL
+	if run_issue_311_cutover "$pre_issue_305_database" >/dev/null 2>&1; then
+		fail "issue-311 cutover accepted versioned BOB Approval history"
+	fi
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z31100000000000000000091'"'"' AND domain='"'"'bob'"'"' AND version_no=1)
+		 AND EXISTS (SELECT 1 FROM approval_events WHERE id='"'"'01Z31100000000000000000092'"'"' AND entry_id='"'"'01Z31100000000000000000091'"'"' AND domain='"'"'bob'"'"' AND version_no=1)
+		 AND EXISTS (SELECT 1 FROM object_number_counters WHERE domain='"'"'bob'"'"' AND entity='"'"'customer'"'"' AND last_value=312)
+		 AND position('"'"'bob'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'object_number_counters'"'"'::regclass AND conname='"'"'object_number_counters_domain_check'"'"')))>0
+		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+		 "DELETE FROM approval_events WHERE id='"'"'01Z31100000000000000000092'"'"'; DELETE FROM approval_entries WHERE id='"'"'01Z31100000000000000000091'"'"'"' </dev/null
+	run_issue_311_cutover "$pre_issue_305_database"
+	verify_issue_311_cutover "$pre_issue_305_database"
 }
 
 initialize_current_schema_databases() {

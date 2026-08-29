@@ -141,18 +141,14 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 			continue
 		}
 		var status string
-		approvalDomain := "bob"
-		if item.entity == bob.EntityCustomer || item.entity == bob.EntityCustomerAccount || item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse || item.entity == bob.EntityVehicle || item.entity == bob.EntityFundAccount || item.entity == bob.EntityProduct || item.entity == bob.EntityEmployee || item.entity == bob.EntitySupplier || item.entity == bob.EntityOtherUnit || item.entity == bob.EntitySalesPartner {
-			approvalDomain = "dcl"
-		}
 		if err = pool.QueryRow(t.Context(), `
 			SELECT entry.status
 			FROM approval_entries entry
-			WHERE entry.domain=$3 AND entry.entity=$1 AND entry.subject_id=$2
+			WHERE entry.domain='dcl' AND entry.entity=$1 AND entry.subject_id=$2
 			  AND entry.version_no IS NOT NULL
 			ORDER BY entry.version_no DESC
 			LIMIT 1
-		`, item.entity, objectID, approvalDomain).Scan(&status); err != nil {
+		`, item.entity, objectID).Scan(&status); err != nil {
 			t.Fatalf("query %s %s status: %v", item.entity, item.data.Code, err)
 		}
 		counts[status]++
@@ -185,25 +181,17 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		bob.EntityOperatingEntity: "dcl_operating_entity_versions",
 	}
 	for _, entity := range allEntities {
-		approvalDomain := "bob"
-		if entity == bob.EntityCustomer || entity == bob.EntityCustomerAccount || entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntitySupplier || entity == bob.EntityOtherUnit || entity == bob.EntitySalesPartner {
-			approvalDomain = "dcl"
-		}
 		var objectCount, entryCount, payloadCount int
-		objectTable := "bob_objects"
-		if approvalDomain == "dcl" {
-			objectTable = "dcl_subjects"
-		}
-		objectQuery := fmt.Sprintf(`
+		objectQuery := `
 			SELECT count(*),
-			       (SELECT count(*) FROM approval_entries entry WHERE entry.domain=$2 AND entry.entity=$1)
-			FROM %s object WHERE object.entity=$1
-		`, objectTable)
-		if err = pool.QueryRow(t.Context(), objectQuery, entity, approvalDomain).Scan(&objectCount, &entryCount); err != nil {
+			       (SELECT count(*) FROM approval_entries entry WHERE entry.domain='dcl' AND entry.entity=$1)
+			FROM dcl_subjects object WHERE object.entity=$1
+		`
+		if err = pool.QueryRow(t.Context(), objectQuery, entity).Scan(&objectCount, &entryCount); err != nil {
 			t.Fatalf("query %s central coverage: %v", entity, err)
 		}
-		payloadQuery := fmt.Sprintf(`SELECT count(*) FROM %s payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id WHERE entry.domain=$2 AND entry.entity=$1`, payloadTables[entity])
-		if err = pool.QueryRow(t.Context(), payloadQuery, entity, approvalDomain).Scan(&payloadCount); err != nil {
+		payloadQuery := fmt.Sprintf(`SELECT count(*) FROM %s payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id WHERE entry.domain='dcl' AND entry.entity=$1`, payloadTables[entity])
+		if err = pool.QueryRow(t.Context(), payloadQuery, entity).Scan(&payloadCount); err != nil {
 			t.Fatalf("query %s payload coverage: %v", entity, err)
 		}
 		if objectCount == 0 || entryCount == 0 || payloadCount == 0 {

@@ -414,18 +414,14 @@ func (s *Seeder) ensureBusiness(
 	ctx context.Context,
 	sample bobSample,
 ) (seedBusinessView, outcome, error) {
-	approvalDomain := "bob"
-	if sample.entity == bobdomain.EntityCustomerAccount || sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle || sample.entity == bobdomain.EntityFundAccount || sample.entity == bobdomain.EntityProduct || sample.entity == bobdomain.EntityEmployee || sample.entity == bobdomain.EntitySupplier {
-		approvalDomain = "dcl"
-	}
 	var objectID string
 	err := s.pool.QueryRow(ctx, `
 		SELECT subject_id
 		FROM approval_events
-		WHERE domain=$3 AND entity=$2 AND request_id=$1 AND action='CREATED'
+		WHERE domain='dcl' AND entity=$2 AND request_id=$1 AND action='CREATED'
 		ORDER BY created_at,id
 		LIMIT 1
-	`, requestID(sample.key, "create"), sample.entity, approvalDomain).Scan(&objectID)
+	`, requestID(sample.key, "create"), sample.entity).Scan(&objectID)
 	created := false
 	if errors.Is(err, pgx.ErrNoRows) {
 		data := sample.data(s)
@@ -553,8 +549,8 @@ func (s *Seeder) ensureBusiness(
 		if err = s.pool.QueryRow(ctx, `
 			SELECT count(*)
 			FROM approval_events
-			WHERE domain=$3 AND subject_id=$1 AND request_id NOT LIKE $2
-		`, objectID, seedPrefix+"%", approvalDomain).Scan(&external); err != nil {
+			WHERE domain='dcl' AND subject_id=$1 AND request_id NOT LIKE $2
+		`, objectID, seedPrefix+"%").Scan(&external); err != nil {
 			return seedBusinessView{}, 0, err
 		}
 		if external == 0 {

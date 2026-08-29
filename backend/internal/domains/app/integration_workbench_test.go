@@ -172,7 +172,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		}
 		defer tx.Rollback(t.Context()) //nolint:errcheck
 		_, _ = tx.Exec(t.Context(), `SET CONSTRAINTS ALL DEFERRED`)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_events WHERE domain IN ('bob','dcl') AND subject_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_events WHERE domain='dcl' AND subject_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_fund_account_identifier_claims WHERE object_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_fund_account_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_barcode_claims WHERE object_id=ANY($1::text[])`, allObjectIDs)
@@ -183,8 +183,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_warehouse_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_operating_entity_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_subjects WHERE id=ANY($1::text[])`, allObjectIDs)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_objects WHERE id=ANY($1::text[])`, allObjectIDs)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_entries WHERE domain IN ('bob','dcl') AND subject_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_entries WHERE domain='dcl' AND subject_id=ANY($1::text[])`, allObjectIDs)
 		_ = tx.Commit(t.Context())
 	})
 

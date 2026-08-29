@@ -71,6 +71,30 @@ func TestRelationshipStableIdentityAndSnapshotsAreDclOwnedIntegration(t *testing
 	}
 }
 
+func TestFinalCutoverRetiresBobVersionAndCounterOwnershipIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	var versionedEntries, versionedEvents, counters int
+	if err := pool.QueryRow(t.Context(), `
+		SELECT
+			(SELECT count(*) FROM approval_entries WHERE domain='bob' AND version_no IS NOT NULL),
+			(SELECT count(*) FROM approval_events WHERE domain='bob' AND version_no IS NOT NULL),
+			(SELECT count(*) FROM object_number_counters WHERE domain='bob')
+	`).Scan(&versionedEntries, &versionedEvents, &counters); err != nil {
+		t.Fatalf("query final BOB ownership tombstones: %v", err)
+	}
+	if versionedEntries != 0 || versionedEvents != 0 || counters != 0 {
+		t.Fatalf("BOB ownership remains: entries=%d events=%d counters=%d", versionedEntries, versionedEvents, counters)
+	}
+
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO object_number_counters(domain,entity,last_value)
+		VALUES('bob','issue-311-tombstone',1)
+	`); err == nil {
+		_, _ = pool.Exec(t.Context(), `DELETE FROM object_number_counters WHERE domain='bob' AND entity='issue-311-tombstone'`)
+		t.Fatal("current schema accepted the retired BOB number-counter namespace")
+	}
+}
+
 func TestCustomerLifecycleDrivesLatestApprovedBobReadIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)

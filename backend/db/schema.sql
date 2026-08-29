@@ -1785,7 +1785,7 @@ CREATE TABLE public.object_number_counters (
     domain character varying(3) NOT NULL,
     entity character varying(32) NOT NULL,
     last_value integer NOT NULL,
-    CONSTRAINT object_number_counters_domain_check CHECK (((domain)::text = ANY ((ARRAY['bob'::character varying, 'aux'::character varying, 'acc'::character varying, 'dcl'::character varying])::text[]))),
+    CONSTRAINT object_number_counters_domain_check CHECK (((domain)::text = ANY ((ARRAY['aux'::character varying, 'acc'::character varying, 'dcl'::character varying])::text[]))),
     CONSTRAINT object_number_counters_last_value_check CHECK (((last_value >= 1) AND (last_value <= 9999)))
 );
 
@@ -4450,11 +4450,6 @@ WHERE payload.object_id=object.id AND payload.entity=object.entity;
 
 --
 -- Data for Name: dcl_fund_account_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
--- Data for Name: bob_operating_entities; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 

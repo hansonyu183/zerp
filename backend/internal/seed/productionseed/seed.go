@@ -143,19 +143,14 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 
 func (s *Seeder) references(ctx context.Context) (references, error) {
 	resolve := func(entity, code string) (voudomain.ReferenceInput, error) {
-		domain := "bob"
-		if entity == bobdomain.EntityWarehouse || entity == bobdomain.EntityProduct || entity == bobdomain.EntityCustomerAccount ||
-			entity == bobdomain.EntitySupplier || entity == bobdomain.EntityEmployee {
-			domain = "dcl"
-		}
 		var objectID string
 		err := s.pool.QueryRow(ctx, `
 			SELECT subject_id
 			FROM approval_events
-			WHERE domain=$1 AND entity=$2 AND request_id=$3 AND action='CREATED'
+			WHERE domain='dcl' AND entity=$1 AND request_id=$2 AND action='CREATED'
 			ORDER BY created_at,id
 			LIMIT 1
-		`, domain, entity, "seed-bob-"+code+"-create").Scan(&objectID)
+		`, entity, "seed-bob-"+code+"-create").Scan(&objectID)
 		if err != nil {
 			return voudomain.ReferenceInput{}, fmt.Errorf("find BOB demo object %s: %w", code, err)
 		}

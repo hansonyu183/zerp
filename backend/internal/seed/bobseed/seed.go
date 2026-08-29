@@ -1109,20 +1109,9 @@ type objectLookup interface {
 
 type queryLookup struct {
 	queries *dbsqlc.Queries
-	pool    *pgxpool.Pool
 }
 
 func (l queryLookup) Find(ctx context.Context, entity, code string) (string, bool, error) {
-	if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount || entity == bob.EntityProduct || entity == bob.EntityEmployee || entity == bob.EntitySupplier {
-		var id string
-		err := l.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
-			WHERE domain='dcl' AND entity=$1 AND request_id=$2 AND action='CREATED'
-			ORDER BY created_at,id LIMIT 1`, entity, requestID(code, "create")).Scan(&id)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return "", false, nil
-		}
-		return id, err == nil, err
-	}
 	if auxiliaryEntity, ok := auxiliarySeedEntity(entity); ok {
 		seedName := code
 		for _, item := range samples {
@@ -1146,9 +1135,8 @@ func (l queryLookup) Find(ctx context.Context, entity, code string) (string, boo
 		}
 		return id, err == nil, err
 	}
-	id, err := l.queries.FindBobSeedObjectID(ctx, dbsqlc.FindBobSeedObjectIDParams{
-		Entity:   entity,
-		SeedCode: code,
+	id, err := l.queries.FindDCLSeedSubjectID(ctx, dbsqlc.FindDCLSeedSubjectIDParams{
+		Entity: entity, RequestID: requestID(code, "create"),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
@@ -1185,7 +1173,7 @@ func New(pool *pgxpool.Pool) *Seeder {
 			business: service, customers: customers, customerAccounts: accounts, auxiliary: auxiliary, pool: pool, queries: dbsqlc.New(pool), operatingEntities: operatingEntities, warehouses: warehouses,
 			vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees,
 			suppliers: suppliers, parties: partyDeclarations},
-		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,
+		lookup: queryLookup{queries: dbsqlc.New(pool)}, pool: pool,
 		auxiliary: auxiliary,
 	}
 }

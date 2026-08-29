@@ -1169,3 +1169,117 @@ SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='rpt-definiti
 -- name: ListDclRptDefinitionApprovalEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='rpt-definition'
   AND subject_id=sqlc.arg(subject_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- ── WFL Process Definition (DCL-owned) ──────────────────────────────────
+
+-- name: InsertDclWflProcessDefinition :exec
+INSERT INTO wfl_process_definitions(id, code, enabled, revision, created_by, updated_by)
+VALUES(sqlc.arg(definition_id), sqlc.arg(code), false, 1, sqlc.arg(actor_id), sqlc.arg(actor_id));
+
+-- name: DeleteDclWflProcessDefinition :execrows
+DELETE FROM wfl_process_definitions
+WHERE id=sqlc.arg(definition_id) AND revision=sqlc.arg(revision);
+
+-- name: DclWflGetLatestApprovedPayload :one
+SELECT v.approval_entry_id, v.definition_id, v.script, v.diagnostic, v.compiled FROM approval_entries e JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
+WHERE e.domain='dcl' AND e.entity='wfl-process-definition' AND e.subject_id=sqlc.arg(definition_id) AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1;
+
+-- name: DclWflGetVersionPayload :one
+SELECT approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision
+FROM dcl_wfl_process_definition_versions
+WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND definition_id=sqlc.arg(definition_id);
+
+-- name: DclWflInsertVersionPayload :exec
+INSERT INTO dcl_wfl_process_definition_versions(approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES(sqlc.arg(approval_entry_id), sqlc.arg(definition_id), sqlc.arg(script), sqlc.narg(diagnostic), sqlc.arg(compiled), NULL, sqlc.arg(actor_id), sqlc.arg(actor_id));
+
+-- name: DclWflCopyVersionPayload :exec
+INSERT INTO dcl_wfl_process_definition_versions(approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by)
+SELECT sqlc.arg(new_approval_entry_id), source.definition_id, source.script, source.diagnostic, source.compiled, NULL, sqlc.arg(actor_id), sqlc.arg(actor_id)
+FROM dcl_wfl_process_definition_versions source
+WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id)
+  AND source.definition_id=sqlc.arg(target_definition_id);
+
+-- name: DclWflUpdateDraftPayload :exec
+UPDATE dcl_wfl_process_definition_versions SET script=sqlc.arg(script), diagnostic=sqlc.narg(diagnostic), compiled=sqlc.arg(compiled), last_trial_approval_revision=NULL, updated_at=now(), updated_by=sqlc.arg(actor_id) WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND definition_id=sqlc.arg(definition_id);
+
+-- name: DclWflDeleteVersionPayload :execrows
+DELETE FROM dcl_wfl_process_definition_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND definition_id=sqlc.arg(definition_id);
+
+-- name: DclWflSetDefinitionEnabled :one
+UPDATE wfl_process_definitions SET enabled=sqlc.arg(enabled), revision=revision+1, updated_at=now(), updated_by=sqlc.arg(actor_id) WHERE id=sqlc.arg(definition_id) AND revision=sqlc.arg(revision) RETURNING id, code, enabled, revision;
+
+-- name: DclWflRecordTrial :execrows
+UPDATE dcl_wfl_process_definition_versions SET last_trial_approval_revision=sqlc.arg(approval_revision), updated_at=now()
+WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: GetDclWflProcessDefinitionByCode :one
+SELECT id, code, enabled, revision
+FROM wfl_process_definitions
+WHERE code=sqlc.arg(code);
+
+-- name: CountDclWflProcessDefinitions :one
+WITH selected AS (
+  SELECT d.id
+  FROM wfl_process_definitions d
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+      AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+  ) open_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+      AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) approved_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT compiled->>'name' AS name FROM dcl_wfl_process_definition_versions
+    WHERE approval_entry_id=approved_entry.id
+  ) approved_version ON true
+  WHERE (sqlc.arg(enabled_filter)::integer=-1 OR d.enabled=(sqlc.arg(enabled_filter)::integer=1))
+    AND (sqlc.arg(keyword)::text='' OR d.code ILIKE '%'||sqlc.arg(keyword)||'%' OR approved_version.name ILIKE '%'||sqlc.arg(keyword)||'%')
+    AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY(sqlc.arg(status_filter)::text[]))
+)
+SELECT count(*) FROM selected;
+
+-- name: ListDclWflProcessDefinitions :many
+SELECT d.id AS definition_id, d.code, d.enabled, d.revision AS object_revision,
+       COALESCE(approved_entry.id,'')::text AS approved_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM wfl_process_definitions d
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+    AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+LEFT JOIN LATERAL (
+  SELECT compiled->>'name' AS name FROM dcl_wfl_process_definition_versions
+  WHERE approval_entry_id=approved_entry.id
+) approved_version ON true
+WHERE (sqlc.arg(enabled_filter)::integer=-1 OR d.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (sqlc.arg(keyword)::text='' OR d.code ILIKE '%'||sqlc.arg(keyword)||'%' OR approved_version.name ILIKE '%'||sqlc.arg(keyword)||'%')
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY d.code ASC
+OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
+
+-- name: CountDclWflProcessDefinitionApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='wfl-process-definition'
+  AND subject_id=sqlc.arg(subject_id);
+
+-- name: ListDclWflProcessDefinitionApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='wfl-process-definition'
+  AND subject_id=sqlc.arg(subject_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: DclWflListPersistedInstanceIDs :many
+SELECT id FROM wfl_definition_instances
+WHERE definition_approval_entry_id=sqlc.arg(approval_entry_id)
+ORDER BY id LIMIT 20;

@@ -164,7 +164,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
 	}
-	_, err = wfldomain.NewService(pool, seedAuthorizer{}, events, workflowactions.New(vouchers), logger)
+	_, err = wfldomain.NewService(pool, events, workflowactions.New(vouchers), logger)
 	if err != nil {
 		return nil, fmt.Errorf("create workflow service: %w", err)
 	}

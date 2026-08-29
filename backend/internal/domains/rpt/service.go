@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"strings"
 	"time"
 
@@ -21,8 +20,6 @@ import (
 
 const reportTimeout = 5 * time.Second
 const reportExportTimeout = 30 * time.Second
-
-var codePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{1,62}[a-z0-9]$`)
 
 type Service struct {
 	pool    *pgxpool.Pool
@@ -123,13 +120,6 @@ func approvedAtPtr(t pgtype.Timestamptz) *time.Time {
 	}
 	x := t.Time
 	return &x
-}
-
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 func (s *Service) QueryDirectory(ctx context.Context, in DirectoryQueryInput, permissions []string) (Page, error) {

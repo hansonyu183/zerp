@@ -1170,7 +1170,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -3527,10 +3527,10 @@ CREATE TABLE public.wfl_definition_instances (
 
 
 --
--- Name: wfl_definition_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_wfl_process_definition_versions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.wfl_definition_versions (
+CREATE TABLE public.dcl_wfl_process_definition_versions (
     approval_entry_id character varying(26) NOT NULL,
     definition_id character varying(26) NOT NULL,
     script text NOT NULL,
@@ -3541,7 +3541,7 @@ CREATE TABLE public.wfl_definition_versions (
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    CONSTRAINT wfl_definition_versions_trial_revision_check CHECK (((last_trial_approval_revision IS NULL) OR (last_trial_approval_revision > 0)))
+    CONSTRAINT dcl_wfl_process_definition_versions_trial_revision_check CHECK (((last_trial_approval_revision IS NULL) OR (last_trial_approval_revision > 0)))
 );
 
 
@@ -4138,19 +4138,6 @@ INSERT INTO public.app_permissions VALUES ('PR368237ea43d461d2f10853b5', '/vou/p
 INSERT INTO public.app_permissions VALUES ('PR12172b138550ec14f3f50594', '/vou/sale-order/price-reference', 'vou', 'sale-order', 'price-reference', '解析销售参考价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR43225f79219cbcd86326e4f7', '/vou/purchase-order/price-reference', 'vou', 'purchase-order', 'price-reference', '解析采购参考价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('WG97a91cf1d6594be99cbcc468', '/wfl/process-definition/get', 'wfl', 'process-definition', 'get', '读取流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('WGaeb45c648bc71c8a7cd97aec', '/wfl/process-definition/create', 'wfl', 'process-definition', 'create', '新建流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('WGd6e65556b0f2761f2666649d', '/wfl/process-definition/save', 'wfl', 'process-definition', 'save', '保存流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('WG45cc51ab6fa077508670df15', '/wfl/process-definition/enable', 'wfl', 'process-definition', 'enable', '启用流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('WG855f746f2476c3c06c7132e9', '/wfl/process-definition/disable', 'wfl', 'process-definition', 'disable', '停用流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('WG8cce66a1abfe87c2efebdd54', '/wfl/process-definition/delete', 'wfl', 'process-definition', 'delete', '删除流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000001', '/wfl/process-definition/versions', 'wfl', 'process-definition', 'versions', '查看流程定义版本', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000002', '/wfl/process-definition/submit', 'wfl', 'process-definition', 'submit', '提交流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000003', '/wfl/process-definition/unsubmit', 'wfl', 'process-definition', 'unsubmit', '撤回流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000004', '/wfl/process-definition/reject', 'wfl', 'process-definition', 'reject', '驳回流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000005', '/wfl/process-definition/approve', 'wfl', 'process-definition', 'approve', '批准流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000006', '/wfl/process-definition/unapprove', 'wfl', 'process-definition', 'unapprove', '反批准流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000007', '/wfl/process-definition/create-version', 'wfl', 'process-definition', 'create-version', '创建下一流程定义版本', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000008', '/wfl/process-definition/delete-version', 'wfl', 'process-definition', 'delete-version', '删除流程定义草稿版本', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE70b2c2b2f72e9ba6e39a8b11', '/vou/expense-payment/get', 'vou', 'expense-payment', 'get', '读取费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE78afc21477bcad85cec9a8b7', '/vou/expense-payment/save', 'vou', 'expense-payment', 'save', '保存费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE82ca63143d458d5531c729c2', '/vou/expense-payment/delete', 'vou', 'expense-payment', 'delete', '删除费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
@@ -4248,6 +4235,19 @@ INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000014', '/dcl/r
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000015', '/dcl/rpt-definition/create-next', 'dcl', 'rpt-definition', 'create-next', '创建下一报表定义声明版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-29 00:00:00+00', NULL, 2, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000016', '/dcl/rpt-definition/delete-version', 'dcl', 'rpt-definition', 'delete-version', '删除报表定义声明草稿版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-29 00:00:00+00', NULL, 2, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000017', '/dcl/rpt-definition/audit-history', 'dcl', 'rpt-definition', 'audit-history', '查看报表定义声明审核记录', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000010', '/dcl/wfl-process-definition/create', 'dcl', 'wfl-process-definition', 'create', '创建流程定义声明', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000011', '/dcl/wfl-process-definition/save', 'dcl', 'wfl-process-definition', 'save', '保存流程定义声明草稿', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000012', '/dcl/wfl-process-definition/submit', 'dcl', 'wfl-process-definition', 'submit', '提交流程定义声明审核', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000013', '/dcl/wfl-process-definition/unsubmit', 'dcl', 'wfl-process-definition', 'unsubmit', '撤回流程定义声明审核', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000014', '/dcl/wfl-process-definition/reject', 'dcl', 'wfl-process-definition', 'reject', '审核驳回流程定义声明', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000015', '/dcl/wfl-process-definition/approve', 'dcl', 'wfl-process-definition', 'approve', '审核通过流程定义声明', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000016', '/dcl/wfl-process-definition/unapprove', 'dcl', 'wfl-process-definition', 'unapprove', '反审核流程定义声明', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000017', '/dcl/wfl-process-definition/enable', 'dcl', 'wfl-process-definition', 'enable', '启用流程定义', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000018', '/dcl/wfl-process-definition/disable', 'dcl', 'wfl-process-definition', 'disable', '停用流程定义', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000019', '/dcl/wfl-process-definition/create-next', 'dcl', 'wfl-process-definition', 'create-next', '创建下一流程定义声明版本', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000020', '/dcl/wfl-process-definition/delete-version', 'dcl', 'wfl-process-definition', 'delete-version', '删除流程定义声明草稿版本', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000021', '/dcl/wfl-process-definition/versions', 'dcl', 'wfl-process-definition', 'versions', '查看流程定义声明版本', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000022', '/dcl/wfl-process-definition/audit-history', 'dcl', 'wfl-process-definition', 'audit-history', '查看流程定义声明审核记录', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('IC2c4435f69ea3212ccae40054', '/vou/inventory-count/approve', 'vou', 'inventory-count', 'approve', '批准库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('ICffc1d3e27a63c4e98cdc5492', '/vou/inventory-count/unapprove', 'vou', 'inventory-count', 'unapprove', '反批准库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('IC36e546bc5758280fefe3ef6e', '/vou/inventory-count/audit-history', 'vou', 'inventory-count', 'audit-history', '查看库存盘点单审计', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
@@ -4479,6 +4479,8 @@ INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000104', '/acc/s
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000105', '/acc/subject/delete', 'acc', 'subject', 'delete', '删除会计科目', 'ENABLED', '2026-08-24 15:23:49.772282+00', NULL, '2026-08-24 15:23:49.772282+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000001', '/dcl/rpt-definition/query', 'dcl', 'rpt-definition', 'query', '查询报表定义声明', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-29 00:00:00+00', NULL, 2, 80);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000002', '/dcl/rpt-definition/get', 'dcl', 'rpt-definition', 'get', '查看报表定义声明', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-29 00:00:00+00', NULL, 2, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000008', '/dcl/wfl-process-definition/query', 'dcl', 'wfl-process-definition', 'query', '查询流程定义声明', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, 90);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000009', '/dcl/wfl-process-definition/get', 'dcl', 'wfl-process-definition', 'get', '查看流程定义声明', 'ENABLED', '2026-08-29 00:00:00+00', NULL, '2026-08-29 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('RPP7a626dbdbe5d3a35df07791', '/rpt/account-journal/query', 'rpt', 'account-journal', 'query', '查询科目流水', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('RPPec001420157de7fdaba47ff', '/rpt/account-journal/export', 'rpt', 'account-journal', 'export', '导出科目流水', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('RPPd42dcb1aab9083fd01a9dd8', '/rpt/subject-balance/query', 'rpt', 'subject-balance', 'query', '查询科目余额', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
@@ -5619,7 +5621,7 @@ globalThis.calculate = function calculate(input) {
 
 
 --
--- Data for Name: wfl_definition_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_wfl_process_definition_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -5638,19 +5640,19 @@ INSERT INTO public.wfl_process_definitions (id, code, enabled, revision, created
     ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
     ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
     ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
-INSERT INTO public.wfl_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE0f7b734eecb146455d2f051', 'WFD0f7b734eecb146455d2f051', 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
+INSERT INTO public.dcl_wfl_process_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE0f7b734eecb146455d2f051', 'WFD0f7b734eecb146455d2f051', 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
 workflow(code="expense-payment", name="费用报销付款", root=reimbursement, edges=[edge(source=reimbursement, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": ""}))])', NULL, '{"edges": [{"relation": "payment", "sourceKey": "reimbursement", "targetKey": "payment", "actionName": "expense_payment"}], "nodes": [{"key": "reimbursement", "name": "费用报销", "entity": "expense-reimbursement"}, {"key": "payment", "name": "费用付款", "entity": "expense-payment"}], "rootKey": "reimbursement"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
-INSERT INTO public.wfl_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE811182d17c4453955c72f85', 'WFD811182d17c4453955c72f85', 'purchase = node(key="purchase-order", name="采购订单", entity="purchase-order")
+INSERT INTO public.dcl_wfl_process_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE811182d17c4453955c72f85', 'WFD811182d17c4453955c72f85', 'purchase = node(key="purchase-order", name="采购订单", entity="purchase-order")
 inbound = node(key="purchase-inbound", name="采购入库", entity="purchase-inbound")
 workflow(code="purchase-fulfillment", name="采购履约", root=purchase, edges=[edge(source=purchase, target=inbound, relation="inbound", action=purchase_inbound(initial={}))])', NULL, '{"edges": [{"relation": "inbound", "sourceKey": "purchase-order", "targetKey": "purchase-inbound", "actionName": "purchase_inbound"}], "nodes": [{"key": "purchase-order", "name": "采购订单", "entity": "purchase-order"}, {"key": "purchase-inbound", "name": "采购入库", "entity": "purchase-inbound"}], "rootKey": "purchase-order"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
-INSERT INTO public.wfl_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVEcd6f1eaebf0d5b6055c58fe', 'WFDcd6f1eaebf0d5b6055c58fe', 'order = node(key="sale-order", name="销售订单", entity="sale-order")
+INSERT INTO public.dcl_wfl_process_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVEcd6f1eaebf0d5b6055c58fe', 'WFDcd6f1eaebf0d5b6055c58fe', 'order = node(key="sale-order", name="销售订单", entity="sale-order")
 outbound = node(key="sale-outbound", name="销售出库", entity="sale-outbound")
 delivery = node(key="sale-delivery", name="销售送货", entity="sale-delivery")
 signoff = node(key="sale-signoff", name="销售签收", entity="sale-signoff")
 refusal_return = node(key="sale-return", name="拒收退货", entity="sale-return")
 workflow(code="sales-fulfillment", name="销售履约", root=order, edges=[edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial={})), edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial={"carrierServiceRelationshipObjectId":"","vehicleObjectId":""})), edge(source=delivery, target=signoff, relation="signoff", action=sale_signoff(initial={})), edge(source=signoff, target=refusal_return, relation="refusal-return", action=sale_return(initial={}))])', NULL, '{"edges": [{"relation": "outbound", "sourceKey": "sale-order", "targetKey": "sale-outbound", "actionName": "sale_outbound"}, {"relation": "delivery", "sourceKey": "sale-outbound", "targetKey": "sale-delivery", "actionName": "sale_delivery"}, {"relation": "signoff", "sourceKey": "sale-delivery", "targetKey": "sale-signoff", "actionName": "sale_signoff"}, {"relation": "refusal-return", "sourceKey": "sale-signoff", "targetKey": "sale-return", "actionName": "sale_return"}], "nodes": [{"key": "sale-order", "name": "销售订单", "entity": "sale-order"}, {"key": "sale-outbound", "name": "销售出库", "entity": "sale-outbound"}, {"key": "sale-delivery", "name": "销售送货", "entity": "sale-delivery"}, {"key": "sale-signoff", "name": "销售签收", "entity": "sale-signoff"}, {"key": "sale-return", "name": "拒收退货", "entity": "sale-return"}], "rootKey": "sale-order"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
-UPDATE public.wfl_definition_versions
+UPDATE public.dcl_wfl_process_definition_versions
 SET compiled=jsonb_set(compiled, '{name}', to_jsonb(CASE definition_id
     WHEN 'WFD0f7b734eecb146455d2f051' THEN '费用报销付款'
     WHEN 'WFD811182d17c4453955c72f85' THEN '采购履约'
@@ -7229,11 +7231,11 @@ ALTER TABLE ONLY public.wfl_definition_instances
 
 
 --
--- Name: wfl_definition_versions wfl_definition_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_wfl_process_definition_versions dcl_wfl_process_definition_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.wfl_definition_versions
-    ADD CONSTRAINT wfl_definition_versions_pkey PRIMARY KEY (approval_entry_id);
+ALTER TABLE ONLY public.dcl_wfl_process_definition_versions
+    ADD CONSTRAINT dcl_wfl_process_definition_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -9723,15 +9725,15 @@ ALTER TABLE ONLY public.wfl_definition_instances
 --
 
 ALTER TABLE ONLY public.wfl_definition_instances
-    ADD CONSTRAINT wfl_definition_instances_approval_entry_id_fkey FOREIGN KEY (definition_approval_entry_id) REFERENCES public.wfl_definition_versions(approval_entry_id) ON DELETE RESTRICT;
+    ADD CONSTRAINT wfl_definition_instances_approval_entry_id_fkey FOREIGN KEY (definition_approval_entry_id) REFERENCES public.dcl_wfl_process_definition_versions(approval_entry_id) ON DELETE RESTRICT;
 
 
 --
--- Name: wfl_definition_versions wfl_definition_versions_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_wfl_process_definition_versions dcl_wfl_process_definition_versions_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.wfl_definition_versions
-    ADD CONSTRAINT wfl_definition_versions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_wfl_process_definition_versions
+    ADD CONSTRAINT dcl_wfl_process_definition_versions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE CASCADE;
 
 
 --
@@ -9807,17 +9809,35 @@ SELECT substr(md5(payload.approval_entry_id || ':APPROVED'), 1, 26), payload.app
        'PENDING', 'APPROVED', 2, 3, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-rpt-v1', payload.created_at
 FROM public.dcl_rpt_definition_versions AS payload;
 
--- WFL ordinary seeds are central V1 drafts. They are not enabled and are not
--- treated differently from definitions created through the public service.
+-- WFL process definitions are DCL-owned. Baseline seeds use domain='dcl',
+-- entity='wfl-process-definition'. They are not enabled and are not treated
+-- differently from definitions created through the public service.
+INSERT INTO public.dcl_subjects (id, entity, created_at, created_by)
+SELECT id, 'wfl-process-definition', created_at, created_by
+FROM public.wfl_process_definitions;
+
 INSERT INTO public.approval_entries (
     id, domain, entity, subject_id, version_no, status, revision,
     created_by, created_at, updated_by, updated_at
 )
 SELECT
-    payload.approval_entry_id, 'wfl', 'process-definition', payload.definition_id, 1, 'DRAFT', 1,
+    payload.approval_entry_id, 'dcl', 'wfl-process-definition', payload.definition_id, 1, 'DRAFT', 1,
     '01JAPPSYST3MACTR0000000000', payload.created_at,
     '01JAPPSYST3MACTR0000000000', payload.updated_at
-FROM public.wfl_definition_versions AS payload;
+FROM public.dcl_wfl_process_definition_versions AS payload;
+
+INSERT INTO public.approval_events (
+    id, entry_id, domain, entity, subject_id, version_no, action,
+    from_status, to_status, from_revision, to_revision, actor_id, reason, request_id, created_at
+)
+SELECT substr(md5(payload.approval_entry_id || ':CREATED'), 1, 26), payload.approval_entry_id,
+       'dcl', 'wfl-process-definition', payload.definition_id, 1, 'CREATED',
+       NULL, 'DRAFT', NULL, 1, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-wfl-v1', payload.created_at
+FROM public.dcl_wfl_process_definition_versions AS payload;
+
+ALTER TABLE ONLY public.dcl_wfl_process_definition_versions
+    ADD CONSTRAINT dcl_wfl_process_definition_versions_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_employee_versions
     ADD CONSTRAINT dcl_employee_versions_approval_entry_id_fkey

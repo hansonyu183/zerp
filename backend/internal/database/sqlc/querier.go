@@ -76,6 +76,9 @@ type Querier interface {
 	CountBobSuppliersCurrent(ctx context.Context, arg CountBobSuppliersCurrentParams) (int64, error)
 	CountBobVehicles(ctx context.Context, arg CountBobVehiclesParams) (int64, error)
 	CountBobWarehouses(ctx context.Context, arg CountBobWarehousesParams) (int64, error)
+	// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
+	// approval_entries; this table owns only identity, enabled and object revision.
+	CountCurrentWorkflowDefinitions(ctx context.Context, arg CountCurrentWorkflowDefinitionsParams) (int64, error)
 	CountDCLAccMappingApprovalEvents(ctx context.Context, subjectID string) (int64, error)
 	CountDCLAccMappings(ctx context.Context, arg CountDCLAccMappingsParams) (int64, error)
 	CountDCLCustomerAccountApprovalEvents(ctx context.Context, objectID string) (int64, error)
@@ -111,6 +114,8 @@ type Querier interface {
 	CountDCLWarehouses(ctx context.Context, arg CountDCLWarehousesParams) (int64, error)
 	CountDclRptDefinitionApprovalEvents(ctx context.Context, subjectID string) (int64, error)
 	CountDclRptDefinitions(ctx context.Context, arg CountDclRptDefinitionsParams) (int64, error)
+	CountDclWflProcessDefinitionApprovalEvents(ctx context.Context, subjectID string) (int64, error)
+	CountDclWflProcessDefinitions(ctx context.Context, arg CountDclWflProcessDefinitionsParams) (int64, error)
 	CountDefinitionInstances(ctx context.Context, arg CountDefinitionInstancesParams) (int64, error)
 	CountEnabledAppPermissionsByIDs(ctx context.Context, ids []string) (int64, error)
 	CountEnabledAppRolesByIDs(ctx context.Context, ids []string) (int64, error)
@@ -126,9 +131,6 @@ type Querier interface {
 	CountVouProductionAttributes(ctx context.Context, targetDocumentID string) (CountVouProductionAttributesRow, error)
 	CountWorkbenchBobItems(ctx context.Context, arg CountWorkbenchBobItemsParams) (int64, error)
 	CountWorkbenchVouItems(ctx context.Context, arg CountWorkbenchVouItemsParams) (int64, error)
-	// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
-	// approval_entries; this table owns only identity, enabled and object revision.
-	CountWorkflowDefinitions(ctx context.Context, arg CountWorkflowDefinitionsParams) (int64, error)
 	CountWorkflowRuntimeAudits(ctx context.Context, processID *string) (int64, error)
 	CreateAccountingAsset(ctx context.Context, arg CreateAccountingAssetParams) error
 	CreateAccountingAssetBookValue(ctx context.Context, arg CreateAccountingAssetBookValueParams) error
@@ -148,9 +150,7 @@ type Querier interface {
 	CreateWorkflowActionExecution(ctx context.Context, arg CreateWorkflowActionExecutionParams) error
 	CreateWorkflowActionNodeInstance(ctx context.Context, arg CreateWorkflowActionNodeInstanceParams) error
 	CreateWorkflowCreateChildRequest(ctx context.Context, arg CreateWorkflowCreateChildRequestParams) error
-	CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error
 	CreateWorkflowDefinitionInstance(ctx context.Context, arg CreateWorkflowDefinitionInstanceParams) error
-	CreateWorkflowDefinitionVersion(ctx context.Context, arg CreateWorkflowDefinitionVersionParams) error
 	CreateWorkflowRootNodeInstance(ctx context.Context, arg CreateWorkflowRootNodeInstanceParams) error
 	CreateWorkflowRuntimeAudit(ctx context.Context, arg CreateWorkflowRuntimeAuditParams) error
 	DCLAccMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error)
@@ -164,6 +164,15 @@ type Querier interface {
 	DclRptInsertVersionPayload(ctx context.Context, arg DclRptInsertVersionPayloadParams) error
 	DclRptSetDefinitionEnabled(ctx context.Context, arg DclRptSetDefinitionEnabledParams) (DclRptSetDefinitionEnabledRow, error)
 	DclRptUpdateDraftPayload(ctx context.Context, arg DclRptUpdateDraftPayloadParams) error
+	DclWflCopyVersionPayload(ctx context.Context, arg DclWflCopyVersionPayloadParams) error
+	DclWflDeleteVersionPayload(ctx context.Context, arg DclWflDeleteVersionPayloadParams) (int64, error)
+	DclWflGetLatestApprovedPayload(ctx context.Context, definitionID string) (DclWflGetLatestApprovedPayloadRow, error)
+	DclWflGetVersionPayload(ctx context.Context, arg DclWflGetVersionPayloadParams) (DclWflGetVersionPayloadRow, error)
+	DclWflInsertVersionPayload(ctx context.Context, arg DclWflInsertVersionPayloadParams) error
+	DclWflListPersistedInstanceIDs(ctx context.Context, approvalEntryID string) ([]string, error)
+	DclWflRecordTrial(ctx context.Context, arg DclWflRecordTrialParams) (int64, error)
+	DclWflSetDefinitionEnabled(ctx context.Context, arg DclWflSetDefinitionEnabledParams) (DclWflSetDefinitionEnabledRow, error)
+	DclWflUpdateDraftPayload(ctx context.Context, arg DclWflUpdateDraftPayloadParams) error
 	DeleteAccountingAssetBookValues(ctx context.Context, bookID string) error
 	DeleteAccountingBillBookValues(ctx context.Context, bookID string) error
 	DeleteAccountingBook(ctx context.Context, bookID string) error
@@ -229,6 +238,7 @@ type Querier interface {
 	DeleteDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error
 	DeleteDCLVehicleVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteDclWflProcessDefinition(ctx context.Context, arg DeleteDclWflProcessDefinitionParams) (int64, error)
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
 	DeleteMergedPartyCurrent(ctx context.Context, sourcePartyID string) (int64, error)
 	DeleteMergedPartyCurrentIdentifiers(ctx context.Context, sourcePartyID string) (int64, error)
@@ -263,8 +273,6 @@ type Querier interface {
 	DeleteVouSaleReturnLines(ctx context.Context, documentID string) error
 	DeleteVouSaleSignoffDetails(ctx context.Context, documentID string) error
 	DeleteVouSaleSignoffLines(ctx context.Context, documentID string) error
-	DeleteWorkflowDefinition(ctx context.Context, id string) error
-	DeleteWorkflowDefinitionVersion(ctx context.Context, arg DeleteWorkflowDefinitionVersionParams) (int64, error)
 	DisableMergedPartyRelationshipObject(ctx context.Context, arg DisableMergedPartyRelationshipObjectParams) (int64, error)
 	DisposeAccountingAsset(ctx context.Context, arg DisposeAccountingAssetParams) (int64, error)
 	FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error)
@@ -385,12 +393,14 @@ type Querier interface {
 	// The persisted query/export permissions are enabled iff the stable definition
 	// is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
 	GetDclRptDefinitionByCode(ctx context.Context, code string) (GetDclRptDefinitionByCodeRow, error)
+	GetDclWflProcessDefinitionByCode(ctx context.Context, code string) (GetDclWflProcessDefinitionByCodeRow, error)
 	GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error)
 	GetEnabledAuxCurrentReference(ctx context.Context, arg GetEnabledAuxCurrentReferenceParams) (GetEnabledAuxCurrentReferenceRow, error)
 	GetEnabledAuxObjectData(ctx context.Context, arg GetEnabledAuxObjectDataParams) ([]byte, error)
 	GetEnabledAuxParentID(ctx context.Context, arg GetEnabledAuxParentIDParams) (string, error)
 	GetEnabledAuxReferenceByCode(ctx context.Context, arg GetEnabledAuxReferenceByCodeParams) (GetEnabledAuxReferenceByCodeRow, error)
 	GetEnabledDictionaryType(ctx context.Context, objectID string) (GetEnabledDictionaryTypeRow, error)
+	GetEnabledWorkflowDefinitionForShare(ctx context.Context, definitionID string) (GetEnabledWorkflowDefinitionForShareRow, error)
 	GetLatestApprovedDCLEmployeeVersionExcluding(ctx context.Context, arg GetLatestApprovedDCLEmployeeVersionExcludingParams) (ApprovalEntry, error)
 	GetLatestApprovedDCLVehicleVersionExcluding(ctx context.Context, arg GetLatestApprovedDCLVehicleVersionExcludingParams) (ApprovalEntry, error)
 	GetLatestApprovedDCLWarehouseVersionExcluding(ctx context.Context, arg GetLatestApprovedDCLWarehouseVersionExcludingParams) (ApprovalEntry, error)
@@ -435,11 +445,10 @@ type Querier interface {
 	GetVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error)
 	GetWorkflowActionExecutionResult(ctx context.Context, arg GetWorkflowActionExecutionResultParams) (GetWorkflowActionExecutionResultRow, error)
 	GetWorkflowCreateChildExecutionResult(ctx context.Context, id string) (GetWorkflowCreateChildExecutionResultRow, error)
-	GetWorkflowDefinitionVersion(ctx context.Context, arg GetWorkflowDefinitionVersionParams) (GetWorkflowDefinitionVersionRow, error)
+	GetWorkflowDefinitionPayloadByEntry(ctx context.Context, arg GetWorkflowDefinitionPayloadByEntryParams) (GetWorkflowDefinitionPayloadByEntryRow, error)
 	GetWorkflowInstanceDefinition(ctx context.Context, id string) (GetWorkflowInstanceDefinitionRow, error)
-	GetWorkflowLatestApprovedVersion(ctx context.Context, subjectID string) (string, error)
+	GetWorkflowLatestApprovedDefinitionPayload(ctx context.Context, definitionID string) (GetWorkflowLatestApprovedDefinitionPayloadRow, error)
 	GetWorkflowNodeDocumentEntity(ctx context.Context, id string) (string, error)
-	GetWorkflowOpenVersion(ctx context.Context, subjectID string) (string, error)
 	HasAccountingBookOperateAccess(ctx context.Context, arg HasAccountingBookOperateAccessParams) (bool, error)
 	HasAccountingBookQueryAccess(ctx context.Context, arg HasAccountingBookQueryAccessParams) (bool, error)
 	HasApprovedIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
@@ -513,6 +522,8 @@ type Querier interface {
 	// columns are retained only to preserve pre-cutover snapshots and are never
 	// supplied by the Warehouse declaration API.
 	InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWarehouseVersionParams) error
+	// ── WFL Process Definition (DCL-owned) ──────────────────────────────────
+	InsertDclWflProcessDefinition(ctx context.Context, arg InsertDclWflProcessDefinitionParams) error
 	InsertPartyMergeEvent(ctx context.Context, arg InsertPartyMergeEventParams) error
 	InsertPartyMergePreflight(ctx context.Context, arg InsertPartyMergePreflightParams) error
 	InsertPartyRelationshipMergeEvent(ctx context.Context, arg InsertPartyRelationshipMergeEventParams) error
@@ -613,6 +624,7 @@ type Querier interface {
 	ListBobVehicles(ctx context.Context, arg ListBobVehiclesParams) ([]ListBobVehiclesRow, error)
 	ListBobWarehouses(ctx context.Context, arg ListBobWarehousesParams) ([]ListBobWarehousesRow, error)
 	ListCompletedWorkflowActionTargets(ctx context.Context, processID string) ([]ListCompletedWorkflowActionTargetsRow, error)
+	ListCurrentWorkflowDefinitions(ctx context.Context, arg ListCurrentWorkflowDefinitionsParams) ([]ListCurrentWorkflowDefinitionsRow, error)
 	ListCustomerOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListCustomerOperatingReferencesRow, error)
 	// Typed blocker projections always join the latest APPROVED Approval entry.
 	// Open drafts and historical payloads never block an unrelated lifecycle
@@ -658,10 +670,12 @@ type Querier interface {
 	ListDCLWarehouses(ctx context.Context, arg ListDCLWarehousesParams) ([]ListDCLWarehousesRow, error)
 	ListDclRptDefinitionApprovalEvents(ctx context.Context, arg ListDclRptDefinitionApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDclRptDefinitions(ctx context.Context, arg ListDclRptDefinitionsParams) ([]ListDclRptDefinitionsRow, error)
+	ListDclWflProcessDefinitionApprovalEvents(ctx context.Context, arg ListDclWflProcessDefinitionApprovalEventsParams) ([]ApprovalEvent, error)
+	ListDclWflProcessDefinitions(ctx context.Context, arg ListDclWflProcessDefinitionsParams) ([]ListDclWflProcessDefinitionsRow, error)
 	ListDefinitionInstances(ctx context.Context, arg ListDefinitionInstancesParams) ([]ListDefinitionInstancesRow, error)
 	ListEnabledAppPermissionIDsForUser(ctx context.Context, userID string) ([]string, error)
 	ListEnabledAppRolePermissionIDs(ctx context.Context, roleID string) ([]string, error)
-	ListEnabledWorkflowDefinitionsForShare(ctx context.Context) ([]ListEnabledWorkflowDefinitionsForShareRow, error)
+	ListEnabledWorkflowDefinitionIDsForShare(ctx context.Context) ([]string, error)
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
 	ListFormulaMaterialReferences(ctx context.Context, sourceObjectID string) ([]ListFormulaMaterialReferencesRow, error)
 	ListFundOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListFundOperatingReferencesRow, error)
@@ -707,7 +721,6 @@ type Querier interface {
 	ListWarehouseManagerReferencesForEmployee(ctx context.Context, sourceObjectID *string) ([]ListWarehouseManagerReferencesForEmployeeRow, error)
 	ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBobItemsParams) ([]ListWorkbenchBobItemsRow, error)
 	ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVouItemsParams) ([]ListWorkbenchVouItemsRow, error)
-	ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowDefinitionsParams) ([]ListWorkflowDefinitionsRow, error)
 	ListWorkflowInstanceNodes(ctx context.Context, processID string) ([]ListWorkflowInstanceNodesRow, error)
 	ListWorkflowRuntimeAudits(ctx context.Context, arg ListWorkflowRuntimeAuditsParams) ([]ListWorkflowRuntimeAuditsRow, error)
 	LockAccountingBalanceKey(ctx context.Context, lockKey string) error
@@ -753,7 +766,6 @@ type Querier interface {
 	LockWorkflowActionExecution(ctx context.Context, arg LockWorkflowActionExecutionParams) (LockWorkflowActionExecutionRow, error)
 	LockWorkflowCreateChildRequest(ctx context.Context, arg LockWorkflowCreateChildRequestParams) (LockWorkflowCreateChildRequestRow, error)
 	LockWorkflowCreateChildSourceNode(ctx context.Context, arg LockWorkflowCreateChildSourceNodeParams) (LockWorkflowCreateChildSourceNodeRow, error)
-	LockWorkflowDefinition(ctx context.Context, id string) (LockWorkflowDefinitionRow, error)
 	LockWorkflowExpenseReimbursement(ctx context.Context, reimbursementID string) (LockWorkflowExpenseReimbursementRow, error)
 	LockWorkflowNodeByProcessAndDocument(ctx context.Context, arg LockWorkflowNodeByProcessAndDocumentParams) (LockWorkflowNodeByProcessAndDocumentRow, error)
 	LockWorkflowNodesForDocument(ctx context.Context, documentID *string) ([]LockWorkflowNodesForDocumentRow, error)
@@ -792,7 +804,6 @@ type Querier interface {
 	RebuildDCLProductBarcodeClaims(ctx context.Context, objectID string) error
 	RebuildDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)
-	RecordWorkflowDefinitionTrial(ctx context.Context, arg RecordWorkflowDefinitionTrialParams) (int64, error)
 	RecordWorkflowTrialAudit(ctx context.Context, arg RecordWorkflowTrialAuditParams) error
 	RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error)
 	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
@@ -823,7 +834,6 @@ type Querier interface {
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
 	RptUpsertUsePermission(ctx context.Context, arg RptUpsertUsePermissionParams) error
-	SaveWorkflowDefinitionVersion(ctx context.Context, arg SaveWorkflowDefinitionVersionParams) (int64, error)
 	SetAccountingOpeningVoucher(ctx context.Context, arg SetAccountingOpeningVoucherParams) error
 	SetAppRoleStatus(ctx context.Context, arg SetAppRoleStatusParams) (int64, error)
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
@@ -831,7 +841,6 @@ type Querier interface {
 	SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SetWorkflowCreateChildRequestExecution(ctx context.Context, arg SetWorkflowCreateChildRequestExecutionParams) error
-	SetWorkflowDefinitionEnabled(ctx context.Context, arg SetWorkflowDefinitionEnabledParams) (int64, error)
 	SettleAccountingBill(ctx context.Context, arg SettleAccountingBillParams) (int64, error)
 	SumVouBillLineFaceAmounts(ctx context.Context, documentID string) (int64, error)
 	TouchAccountingOpening(ctx context.Context, arg TouchAccountingOpeningParams) error

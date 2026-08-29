@@ -8,11 +8,6 @@
         'page': { 'type': 'integer', 'minimum': 1 },
         'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
         'keyword': { 'type': 'string' },
-        'approvalStatuses':
-          {
-            'type': 'array',
-            'items': { '$ref': './common.yaml#/ApprovalStatus' },
-          },
         'enabled': { 'type': 'boolean' },
       },
   }
@@ -21,35 +16,7 @@
     'type': 'object',
     'required': ['definitionId'],
     'additionalProperties': false,
-    'properties':
-      {
-        'definitionId': { 'type': 'string' },
-        'approvalEntryId':
-          {
-            'type': 'string',
-            'description': '精确读取该 Approval Version；省略时读取 latest APPROVED 或开放候选。',
-          },
-      },
-  }
-'WflDefinitionCreateRequest':
-  {
-    'type': 'object',
-    'required': ['script'],
-    'additionalProperties': false,
-    'properties': { 'script': { 'type': 'string', 'minLength': 1 } },
-  }
-'WflDefinitionSaveRequest':
-  {
-    'type': 'object',
-    'required': ['definitionId', 'approvalEntryId', 'revision', 'script'],
-    'additionalProperties': false,
-    'properties':
-      {
-        'definitionId': { 'type': 'string' },
-        'approvalEntryId': { 'type': 'string' },
-        'revision': { 'type': 'integer', 'format': 'int64' },
-        'script': { 'type': 'string', 'minLength': 1 },
-      },
+    'properties': { 'definitionId': { 'type': 'string' } },
   }
 'WflDefinitionTrialRequest':
   {
@@ -72,61 +39,6 @@
                 'documentId': { 'type': 'string' },
               },
           },
-      },
-  }
-'WflDefinitionActionRequest':
-  {
-    'type': 'object',
-    'required': ['definitionId', 'approvalEntryId', 'revision'],
-    'additionalProperties': false,
-    'properties':
-      {
-        'definitionId': { 'type': 'string' },
-        'approvalEntryId': { 'type': 'string' },
-        'revision': { 'type': 'integer', 'format': 'int64' },
-      },
-  }
-'WflDefinitionReasonActionRequest':
-  {
-    'type': 'object',
-    'required': ['definitionId', 'approvalEntryId', 'revision', 'reason'],
-    'additionalProperties': false,
-    'properties':
-      {
-        'definitionId': { 'type': 'string' },
-        'approvalEntryId': { 'type': 'string' },
-        'revision': { 'type': 'integer', 'format': 'int64' },
-        'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
-      },
-  }
-'WflDefinitionVersionCreateRequest':
-  {
-    'type': 'object',
-    'required': ['definitionId'],
-    'additionalProperties': false,
-    'properties': { 'definitionId': { 'type': 'string' } },
-  }
-'WflDefinitionVersionsRequest':
-  {
-    'type': 'object',
-    'required': ['definitionId', 'page', 'pageSize'],
-    'additionalProperties': false,
-    'properties':
-      {
-        'definitionId': { 'type': 'string' },
-        'page': { 'type': 'integer', 'minimum': 1 },
-        'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
-      },
-  }
-'WflDefinitionToggleRequest':
-  {
-    'type': 'object',
-    'required': ['definitionId', 'revision'],
-    'additionalProperties': false,
-    'properties':
-      {
-        'definitionId': { 'type': 'string' },
-        'revision': { 'type': 'integer', 'format': 'int64' },
       },
   }
 'WflDefinitionDiagnostic':
@@ -392,32 +304,6 @@
             'type': 'object',
             'nullable': true,
             'allOf': [{ '$ref': '#/WflDefinitionTrialResult' }],
-          },
-        'requestId': { 'type': 'string' },
-      },
-  }
-'WflDefinitionDeleteResult':
-  {
-    'type': 'object',
-    'required': ['definitionId'],
-    'additionalProperties': false,
-    'properties': { 'definitionId': { 'type': 'string' } },
-  }
-'WflDefinitionDeleteResponse':
-  {
-    'type': 'object',
-    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-    'additionalProperties': false,
-    'properties':
-      {
-        'code': { 'type': 'integer', 'format': 'int32' },
-        'errorKey': { 'type': 'string' },
-        'message': { 'type': 'string' },
-        'data':
-          {
-            'type': 'object',
-            'nullable': true,
-            'allOf': [{ '$ref': '#/WflDefinitionDeleteResult' }],
           },
         'requestId': { 'type': 'string' },
       },

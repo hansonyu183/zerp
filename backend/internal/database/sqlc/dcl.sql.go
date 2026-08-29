@@ -823,6 +823,58 @@ func (q *Queries) CountDclRptDefinitions(ctx context.Context, arg CountDclRptDef
 	return count, err
 }
 
+const countDclWflProcessDefinitionApprovalEvents = `-- name: CountDclWflProcessDefinitionApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='wfl-process-definition'
+  AND subject_id=$1
+`
+
+func (q *Queries) CountDclWflProcessDefinitionApprovalEvents(ctx context.Context, subjectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDclWflProcessDefinitionApprovalEvents, subjectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDclWflProcessDefinitions = `-- name: CountDclWflProcessDefinitions :one
+WITH selected AS (
+  SELECT d.id
+  FROM wfl_process_definitions d
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+      AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+  ) open_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT id,status FROM approval_entries
+    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+      AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) approved_entry ON true
+  LEFT JOIN LATERAL (
+    SELECT compiled->>'name' AS name FROM dcl_wfl_process_definition_versions
+    WHERE approval_entry_id=approved_entry.id
+  ) approved_version ON true
+  WHERE ($1::integer=-1 OR d.enabled=($1::integer=1))
+    AND ($2::text='' OR d.code ILIKE '%'||$2||'%' OR approved_version.name ILIKE '%'||$2||'%')
+    AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
+)
+SELECT count(*) FROM selected
+`
+
+type CountDclWflProcessDefinitionsParams struct {
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	Keyword       string   `db:"keyword" json:"keyword"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountDclWflProcessDefinitions(ctx context.Context, arg CountDclWflProcessDefinitionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDclWflProcessDefinitions, arg.EnabledFilter, arg.Keyword, arg.StatusFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const dCLAccMappingVersionReferenced = `-- name: DCLAccMappingVersionReferenced :one
 SELECT EXISTS(
   SELECT 1 FROM acc_vouchers voucher
@@ -1075,6 +1127,237 @@ func (q *Queries) DclRptUpdateDraftPayload(ctx context.Context, arg DclRptUpdate
 	return err
 }
 
+const dclWflCopyVersionPayload = `-- name: DclWflCopyVersionPayload :exec
+INSERT INTO dcl_wfl_process_definition_versions(approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by)
+SELECT $1, source.definition_id, source.script, source.diagnostic, source.compiled, NULL, $2, $2
+FROM dcl_wfl_process_definition_versions source
+WHERE source.approval_entry_id=$3
+  AND source.definition_id=$4
+`
+
+type DclWflCopyVersionPayloadParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	ActorID               string `db:"actor_id" json:"actor_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	TargetDefinitionID    string `db:"target_definition_id" json:"target_definition_id"`
+}
+
+func (q *Queries) DclWflCopyVersionPayload(ctx context.Context, arg DclWflCopyVersionPayloadParams) error {
+	_, err := q.db.Exec(ctx, dclWflCopyVersionPayload,
+		arg.NewApprovalEntryID,
+		arg.ActorID,
+		arg.SourceApprovalEntryID,
+		arg.TargetDefinitionID,
+	)
+	return err
+}
+
+const dclWflDeleteVersionPayload = `-- name: DclWflDeleteVersionPayload :execrows
+DELETE FROM dcl_wfl_process_definition_versions WHERE approval_entry_id=$1 AND definition_id=$2
+`
+
+type DclWflDeleteVersionPayloadParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+}
+
+func (q *Queries) DclWflDeleteVersionPayload(ctx context.Context, arg DclWflDeleteVersionPayloadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, dclWflDeleteVersionPayload, arg.ApprovalEntryID, arg.DefinitionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const dclWflGetLatestApprovedPayload = `-- name: DclWflGetLatestApprovedPayload :one
+SELECT v.approval_entry_id, v.definition_id, v.script, v.diagnostic, v.compiled FROM approval_entries e JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
+WHERE e.domain='dcl' AND e.entity='wfl-process-definition' AND e.subject_id=$1 AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1
+`
+
+type DclWflGetLatestApprovedPayloadRow struct {
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string  `db:"definition_id" json:"definition_id"`
+	Script          string  `db:"script" json:"script"`
+	Diagnostic      *string `db:"diagnostic" json:"diagnostic"`
+	Compiled        []byte  `db:"compiled" json:"compiled"`
+}
+
+func (q *Queries) DclWflGetLatestApprovedPayload(ctx context.Context, definitionID string) (DclWflGetLatestApprovedPayloadRow, error) {
+	row := q.db.QueryRow(ctx, dclWflGetLatestApprovedPayload, definitionID)
+	var i DclWflGetLatestApprovedPayloadRow
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.DefinitionID,
+		&i.Script,
+		&i.Diagnostic,
+		&i.Compiled,
+	)
+	return i, err
+}
+
+const dclWflGetVersionPayload = `-- name: DclWflGetVersionPayload :one
+SELECT approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision
+FROM dcl_wfl_process_definition_versions
+WHERE approval_entry_id=$1 AND definition_id=$2
+`
+
+type DclWflGetVersionPayloadParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+}
+
+type DclWflGetVersionPayloadRow struct {
+	ApprovalEntryID           string  `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID              string  `db:"definition_id" json:"definition_id"`
+	Script                    string  `db:"script" json:"script"`
+	Diagnostic                *string `db:"diagnostic" json:"diagnostic"`
+	Compiled                  []byte  `db:"compiled" json:"compiled"`
+	LastTrialApprovalRevision *int64  `db:"last_trial_approval_revision" json:"last_trial_approval_revision"`
+}
+
+func (q *Queries) DclWflGetVersionPayload(ctx context.Context, arg DclWflGetVersionPayloadParams) (DclWflGetVersionPayloadRow, error) {
+	row := q.db.QueryRow(ctx, dclWflGetVersionPayload, arg.ApprovalEntryID, arg.DefinitionID)
+	var i DclWflGetVersionPayloadRow
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.DefinitionID,
+		&i.Script,
+		&i.Diagnostic,
+		&i.Compiled,
+		&i.LastTrialApprovalRevision,
+	)
+	return i, err
+}
+
+const dclWflInsertVersionPayload = `-- name: DclWflInsertVersionPayload :exec
+INSERT INTO dcl_wfl_process_definition_versions(approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES($1, $2, $3, $4, $5, NULL, $6, $6)
+`
+
+type DclWflInsertVersionPayloadParams struct {
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string  `db:"definition_id" json:"definition_id"`
+	Script          string  `db:"script" json:"script"`
+	Diagnostic      *string `db:"diagnostic" json:"diagnostic"`
+	Compiled        []byte  `db:"compiled" json:"compiled"`
+	ActorID         string  `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) DclWflInsertVersionPayload(ctx context.Context, arg DclWflInsertVersionPayloadParams) error {
+	_, err := q.db.Exec(ctx, dclWflInsertVersionPayload,
+		arg.ApprovalEntryID,
+		arg.DefinitionID,
+		arg.Script,
+		arg.Diagnostic,
+		arg.Compiled,
+		arg.ActorID,
+	)
+	return err
+}
+
+const dclWflListPersistedInstanceIDs = `-- name: DclWflListPersistedInstanceIDs :many
+SELECT id FROM wfl_definition_instances
+WHERE definition_approval_entry_id=$1
+ORDER BY id LIMIT 20
+`
+
+func (q *Queries) DclWflListPersistedInstanceIDs(ctx context.Context, approvalEntryID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, dclWflListPersistedInstanceIDs, approvalEntryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const dclWflRecordTrial = `-- name: DclWflRecordTrial :execrows
+UPDATE dcl_wfl_process_definition_versions SET last_trial_approval_revision=$1, updated_at=now()
+WHERE approval_entry_id=$2
+`
+
+type DclWflRecordTrialParams struct {
+	ApprovalRevision *int64 `db:"approval_revision" json:"approval_revision"`
+	ApprovalEntryID  string `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) DclWflRecordTrial(ctx context.Context, arg DclWflRecordTrialParams) (int64, error) {
+	result, err := q.db.Exec(ctx, dclWflRecordTrial, arg.ApprovalRevision, arg.ApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const dclWflSetDefinitionEnabled = `-- name: DclWflSetDefinitionEnabled :one
+UPDATE wfl_process_definitions SET enabled=$1, revision=revision+1, updated_at=now(), updated_by=$2 WHERE id=$3 AND revision=$4 RETURNING id, code, enabled, revision
+`
+
+type DclWflSetDefinitionEnabledParams struct {
+	Enabled      bool   `db:"enabled" json:"enabled"`
+	ActorID      string `db:"actor_id" json:"actor_id"`
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	Revision     int64  `db:"revision" json:"revision"`
+}
+
+type DclWflSetDefinitionEnabledRow struct {
+	ID       string `db:"id" json:"id"`
+	Code     string `db:"code" json:"code"`
+	Enabled  bool   `db:"enabled" json:"enabled"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) DclWflSetDefinitionEnabled(ctx context.Context, arg DclWflSetDefinitionEnabledParams) (DclWflSetDefinitionEnabledRow, error) {
+	row := q.db.QueryRow(ctx, dclWflSetDefinitionEnabled,
+		arg.Enabled,
+		arg.ActorID,
+		arg.DefinitionID,
+		arg.Revision,
+	)
+	var i DclWflSetDefinitionEnabledRow
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Enabled,
+		&i.Revision,
+	)
+	return i, err
+}
+
+const dclWflUpdateDraftPayload = `-- name: DclWflUpdateDraftPayload :exec
+UPDATE dcl_wfl_process_definition_versions SET script=$1, diagnostic=$2, compiled=$3, last_trial_approval_revision=NULL, updated_at=now(), updated_by=$4 WHERE approval_entry_id=$5 AND definition_id=$6
+`
+
+type DclWflUpdateDraftPayloadParams struct {
+	Script          string  `db:"script" json:"script"`
+	Diagnostic      *string `db:"diagnostic" json:"diagnostic"`
+	Compiled        []byte  `db:"compiled" json:"compiled"`
+	ActorID         string  `db:"actor_id" json:"actor_id"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string  `db:"definition_id" json:"definition_id"`
+}
+
+func (q *Queries) DclWflUpdateDraftPayload(ctx context.Context, arg DclWflUpdateDraftPayloadParams) error {
+	_, err := q.db.Exec(ctx, dclWflUpdateDraftPayload,
+		arg.Script,
+		arg.Diagnostic,
+		arg.Compiled,
+		arg.ActorID,
+		arg.ApprovalEntryID,
+		arg.DefinitionID,
+	)
+	return err
+}
+
 const deleteDCLAccMappingSubjectIfEmpty = `-- name: DeleteDCLAccMappingSubjectIfEmpty :execrows
 DELETE FROM acc_mappings mapping
 WHERE mapping.id=$1
@@ -1249,6 +1532,24 @@ DELETE FROM dcl_warehouse_versions WHERE approval_entry_id=$1
 
 func (q *Queries) DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDCLWarehouseVersion, approvalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDclWflProcessDefinition = `-- name: DeleteDclWflProcessDefinition :execrows
+DELETE FROM wfl_process_definitions
+WHERE id=$1 AND revision=$2
+`
+
+type DeleteDclWflProcessDefinitionParams struct {
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	Revision     int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) DeleteDclWflProcessDefinition(ctx context.Context, arg DeleteDclWflProcessDefinitionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDclWflProcessDefinition, arg.DefinitionID, arg.Revision)
 	if err != nil {
 		return 0, err
 	}
@@ -1829,6 +2130,31 @@ type GetDclRptDefinitionByCodeRow struct {
 func (q *Queries) GetDclRptDefinitionByCode(ctx context.Context, code string) (GetDclRptDefinitionByCodeRow, error) {
 	row := q.db.QueryRow(ctx, getDclRptDefinitionByCode, code)
 	var i GetDclRptDefinitionByCodeRow
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Enabled,
+		&i.Revision,
+	)
+	return i, err
+}
+
+const getDclWflProcessDefinitionByCode = `-- name: GetDclWflProcessDefinitionByCode :one
+SELECT id, code, enabled, revision
+FROM wfl_process_definitions
+WHERE code=$1
+`
+
+type GetDclWflProcessDefinitionByCodeRow struct {
+	ID       string `db:"id" json:"id"`
+	Code     string `db:"code" json:"code"`
+	Enabled  bool   `db:"enabled" json:"enabled"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) GetDclWflProcessDefinitionByCode(ctx context.Context, code string) (GetDclWflProcessDefinitionByCodeRow, error) {
+	row := q.db.QueryRow(ctx, getDclWflProcessDefinitionByCode, code)
+	var i GetDclWflProcessDefinitionByCodeRow
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
@@ -2419,6 +2745,24 @@ func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWa
 		arg.Remark,
 		arg.Enabled,
 	)
+	return err
+}
+
+const insertDclWflProcessDefinition = `-- name: InsertDclWflProcessDefinition :exec
+
+INSERT INTO wfl_process_definitions(id, code, enabled, revision, created_by, updated_by)
+VALUES($1, $2, false, 1, $3, $3)
+`
+
+type InsertDclWflProcessDefinitionParams struct {
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	Code         string `db:"code" json:"code"`
+	ActorID      string `db:"actor_id" json:"actor_id"`
+}
+
+// ── WFL Process Definition (DCL-owned) ──────────────────────────────────
+func (q *Queries) InsertDclWflProcessDefinition(ctx context.Context, arg InsertDclWflProcessDefinitionParams) error {
+	_, err := q.db.Exec(ctx, insertDclWflProcessDefinition, arg.DefinitionID, arg.Code, arg.ActorID)
 	return err
 }
 
@@ -4199,6 +4543,134 @@ func (q *Queries) ListDclRptDefinitions(ctx context.Context, arg ListDclRptDefin
 	items := []ListDclRptDefinitionsRow{}
 	for rows.Next() {
 		var i ListDclRptDefinitionsRow
+		if err := rows.Scan(
+			&i.DefinitionID,
+			&i.Code,
+			&i.Enabled,
+			&i.ObjectRevision,
+			&i.ApprovedEntryID,
+			&i.OpenEntryID,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDclWflProcessDefinitionApprovalEvents = `-- name: ListDclWflProcessDefinitionApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='wfl-process-definition'
+  AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDclWflProcessDefinitionApprovalEventsParams struct {
+	SubjectID string `db:"subject_id" json:"subject_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDclWflProcessDefinitionApprovalEvents(ctx context.Context, arg ListDclWflProcessDefinitionApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDclWflProcessDefinitionApprovalEvents, arg.SubjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDclWflProcessDefinitions = `-- name: ListDclWflProcessDefinitions :many
+SELECT d.id AS definition_id, d.code, d.enabled, d.revision AS object_revision,
+       COALESCE(approved_entry.id,'')::text AS approved_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM wfl_process_definitions d
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+    AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+LEFT JOIN LATERAL (
+  SELECT compiled->>'name' AS name FROM dcl_wfl_process_definition_versions
+  WHERE approval_entry_id=approved_entry.id
+) approved_version ON true
+WHERE ($1::integer=-1 OR d.enabled=($1::integer=1))
+  AND ($2::text='' OR d.code ILIKE '%'||$2||'%' OR approved_version.name ILIKE '%'||$2||'%')
+  AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
+ORDER BY d.code ASC
+OFFSET $4 LIMIT $5
+`
+
+type ListDclWflProcessDefinitionsParams struct {
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	Keyword       string   `db:"keyword" json:"keyword"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	RowOffset     int32    `db:"row_offset" json:"row_offset"`
+	RowLimit      int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDclWflProcessDefinitionsRow struct {
+	DefinitionID    string             `db:"definition_id" json:"definition_id"`
+	Code            string             `db:"code" json:"code"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
+	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
+	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListDclWflProcessDefinitions(ctx context.Context, arg ListDclWflProcessDefinitionsParams) ([]ListDclWflProcessDefinitionsRow, error) {
+	rows, err := q.db.Query(ctx, listDclWflProcessDefinitions,
+		arg.EnabledFilter,
+		arg.Keyword,
+		arg.StatusFilter,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDclWflProcessDefinitionsRow{}
+	for rows.Next() {
+		var i ListDclWflProcessDefinitionsRow
 		if err := rows.Scan(
 			&i.DefinitionID,
 			&i.Code,

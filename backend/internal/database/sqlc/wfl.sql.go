@@ -29,6 +29,38 @@ func (q *Queries) ClearWorkflowNodeDocument(ctx context.Context, documentID *str
 	return err
 }
 
+const countCurrentWorkflowDefinitions = `-- name: CountCurrentWorkflowDefinitions :one
+
+SELECT count(*)
+FROM wfl_process_definitions definition
+JOIN LATERAL (
+  SELECT id
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition'
+    AND subject_id=definition.id AND status='APPROVED'
+  ORDER BY version_no DESC
+  LIMIT 1
+) approval ON true
+JOIN dcl_wfl_process_definition_versions version ON version.approval_entry_id=approval.id
+WHERE ($1::integer=-1 OR definition.enabled=($1::integer=1))
+  AND ($2::text='' OR definition.code ILIKE '%'||$2||'%'
+       OR version.compiled->>'name' ILIKE '%'||$2||'%')
+`
+
+type CountCurrentWorkflowDefinitionsParams struct {
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+	Keyword       string `db:"keyword" json:"keyword"`
+}
+
+// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
+// approval_entries; this table owns only identity, enabled and object revision.
+func (q *Queries) CountCurrentWorkflowDefinitions(ctx context.Context, arg CountCurrentWorkflowDefinitionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCurrentWorkflowDefinitions, arg.EnabledFilter, arg.Keyword)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countDefinitionInstances = `-- name: CountDefinitionInstances :one
 SELECT count(*)
 FROM wfl_definition_instances instance
@@ -47,40 +79,6 @@ type CountDefinitionInstancesParams struct {
 
 func (q *Queries) CountDefinitionInstances(ctx context.Context, arg CountDefinitionInstancesParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countDefinitionInstances, arg.DefinitionID, arg.PartyObjectID, arg.Keyword)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countWorkflowDefinitions = `-- name: CountWorkflowDefinitions :one
-SELECT count(*)
-FROM wfl_process_definitions definition
-JOIN LATERAL (
-  SELECT candidate.id,candidate.status
-  FROM approval_entries candidate
-  WHERE candidate.subject_id=definition.id
-    AND candidate.domain='wfl' AND candidate.entity='process-definition'
-    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
-           candidate.version_no DESC
-  LIMIT 1
-) approval ON true
-JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE ($1::text = '' OR definition.code ILIKE '%' || $1::text || '%' OR version.compiled->>'name' ILIKE '%' || $1::text || '%')
-  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR approval.status = ANY($2::text[]))
-  AND ($3::boolean IS NULL OR definition.enabled=$3::boolean)
-`
-
-type CountWorkflowDefinitionsParams struct {
-	Keyword          string   `db:"keyword" json:"keyword"`
-	ApprovalStatuses []string `db:"approval_statuses" json:"approval_statuses"`
-	Enabled          *bool    `db:"enabled" json:"enabled"`
-}
-
-// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
-// approval_entries; this table owns only identity, enabled and object revision.
-func (q *Queries) CountWorkflowDefinitions(ctx context.Context, arg CountWorkflowDefinitionsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countWorkflowDefinitions, arg.Keyword, arg.ApprovalStatuses, arg.Enabled)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -189,22 +187,6 @@ func (q *Queries) CreateWorkflowCreateChildRequest(ctx context.Context, arg Crea
 	return err
 }
 
-const createWorkflowDefinition = `-- name: CreateWorkflowDefinition :exec
-INSERT INTO wfl_process_definitions(id,code,enabled,created_by,updated_by)
-VALUES($1,$2,false,$3,$3)
-`
-
-type CreateWorkflowDefinitionParams struct {
-	ID        string `db:"id" json:"id"`
-	Code      string `db:"code" json:"code"`
-	CreatedBy string `db:"created_by" json:"created_by"`
-}
-
-func (q *Queries) CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error {
-	_, err := q.db.Exec(ctx, createWorkflowDefinition, arg.ID, arg.Code, arg.CreatedBy)
-	return err
-}
-
 const createWorkflowDefinitionInstance = `-- name: CreateWorkflowDefinitionInstance :exec
 INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,party_object_id,party_code,party_name,definition_approval_entry_id,created_by,updated_by)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
@@ -239,32 +221,6 @@ func (q *Queries) CreateWorkflowDefinitionInstance(ctx context.Context, arg Crea
 		arg.PartyName,
 		arg.DefinitionApprovalEntryID,
 		arg.ActorID,
-	)
-	return err
-}
-
-const createWorkflowDefinitionVersion = `-- name: CreateWorkflowDefinitionVersion :exec
-INSERT INTO wfl_definition_versions(approval_entry_id,definition_id,script,diagnostic,compiled,last_trial_approval_revision,created_by,updated_by)
-VALUES($1,$2,$3,$4,$5,NULL,$6,$6)
-`
-
-type CreateWorkflowDefinitionVersionParams struct {
-	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
-	DefinitionID    string  `db:"definition_id" json:"definition_id"`
-	Script          string  `db:"script" json:"script"`
-	Diagnostic      *string `db:"diagnostic" json:"diagnostic"`
-	Compiled        []byte  `db:"compiled" json:"compiled"`
-	CreatedBy       string  `db:"created_by" json:"created_by"`
-}
-
-func (q *Queries) CreateWorkflowDefinitionVersion(ctx context.Context, arg CreateWorkflowDefinitionVersionParams) error {
-	_, err := q.db.Exec(ctx, createWorkflowDefinitionVersion,
-		arg.ApprovalEntryID,
-		arg.DefinitionID,
-		arg.Script,
-		arg.Diagnostic,
-		arg.Compiled,
-		arg.CreatedBy,
 	)
 	return err
 }
@@ -333,34 +289,6 @@ func (q *Queries) CreateWorkflowRuntimeAudit(ctx context.Context, arg CreateWork
 	return err
 }
 
-const deleteWorkflowDefinition = `-- name: DeleteWorkflowDefinition :exec
-DELETE FROM wfl_process_definitions WHERE id=$1
-`
-
-func (q *Queries) DeleteWorkflowDefinition(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, deleteWorkflowDefinition, id)
-	return err
-}
-
-const deleteWorkflowDefinitionVersion = `-- name: DeleteWorkflowDefinitionVersion :execrows
-DELETE FROM wfl_definition_versions
-WHERE approval_entry_id=$1
-  AND definition_id=$2
-`
-
-type DeleteWorkflowDefinitionVersionParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	DefinitionID    string `db:"definition_id" json:"definition_id"`
-}
-
-func (q *Queries) DeleteWorkflowDefinitionVersion(ctx context.Context, arg DeleteWorkflowDefinitionVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteWorkflowDefinitionVersion, arg.ApprovalEntryID, arg.DefinitionID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const getDefinitionInstance = `-- name: GetDefinitionInstance :one
 SELECT id process_id,definition_id,definition_code,definition_name,revision,
        COALESCE(root_document_id,'') root_document_id,root_document_no,root_entity,
@@ -400,6 +328,42 @@ func (q *Queries) GetDefinitionInstance(ctx context.Context, id string) (GetDefi
 		&i.PartyName,
 		&i.DefinitionApprovalEntryID,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getEnabledWorkflowDefinitionForShare = `-- name: GetEnabledWorkflowDefinitionForShare :one
+SELECT d.id, d.code, e.id AS approval_entry_id, v.compiled->>'name' name, v.script
+FROM wfl_process_definitions d
+JOIN LATERAL (
+  SELECT id
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition'
+    AND subject_id=d.id AND status='APPROVED'
+  ORDER BY version_no DESC
+  LIMIT 1
+) e ON true
+JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
+WHERE d.id=$1 AND d.enabled
+`
+
+type GetEnabledWorkflowDefinitionForShareRow struct {
+	ID              string      `db:"id" json:"id"`
+	Code            string      `db:"code" json:"code"`
+	ApprovalEntryID string      `db:"approval_entry_id" json:"approval_entry_id"`
+	Name            interface{} `db:"name" json:"name"`
+	Script          string      `db:"script" json:"script"`
+}
+
+func (q *Queries) GetEnabledWorkflowDefinitionForShare(ctx context.Context, definitionID string) (GetEnabledWorkflowDefinitionForShareRow, error) {
+	row := q.db.QueryRow(ctx, getEnabledWorkflowDefinitionForShare, definitionID)
+	var i GetEnabledWorkflowDefinitionForShareRow
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.ApprovalEntryID,
+		&i.Name,
+		&i.Script,
 	)
 	return i, err
 }
@@ -454,77 +418,27 @@ func (q *Queries) GetWorkflowCreateChildExecutionResult(ctx context.Context, id 
 	return i, err
 }
 
-const getWorkflowDefinitionVersion = `-- name: GetWorkflowDefinitionVersion :one
-SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,definition.enabled,definition.revision,
-       approval.id approval_entry_id,approval.version_no,approval.status,approval.revision approval_revision,
-       approval.created_by approval_created_by,approval.created_at approval_created_at,
-       approval.updated_by approval_updated_by,approval.updated_at approval_updated_at,
-       approval.submitted_by,approval.submitted_at,approval.approved_by,approval.approved_at,
-       version.script,version.diagnostic,version.compiled,version.last_trial_approval_revision,definition.updated_at
-FROM wfl_process_definitions definition
-JOIN approval_entries approval ON approval.subject_id=definition.id
-  AND approval.domain='wfl' AND approval.entity='process-definition'
-JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE definition.id=$1 AND approval.id=$2
+const getWorkflowDefinitionPayloadByEntry = `-- name: GetWorkflowDefinitionPayloadByEntry :one
+SELECT v.script, v.diagnostic, v.compiled
+FROM dcl_wfl_process_definition_versions v
+WHERE v.approval_entry_id=$1 AND v.definition_id=$2
 `
 
-type GetWorkflowDefinitionVersionParams struct {
-	DefinitionID    string `db:"definition_id" json:"definition_id"`
+type GetWorkflowDefinitionPayloadByEntryParams struct {
 	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
 }
 
-type GetWorkflowDefinitionVersionRow struct {
-	ID                        string             `db:"id" json:"id"`
-	Code                      string             `db:"code" json:"code"`
-	Name                      string             `db:"name" json:"name"`
-	Enabled                   bool               `db:"enabled" json:"enabled"`
-	Revision                  int64              `db:"revision" json:"revision"`
-	ApprovalEntryID           string             `db:"approval_entry_id" json:"approval_entry_id"`
-	VersionNo                 *int32             `db:"version_no" json:"version_no"`
-	Status                    string             `db:"status" json:"status"`
-	ApprovalRevision          int64              `db:"approval_revision" json:"approval_revision"`
-	ApprovalCreatedBy         string             `db:"approval_created_by" json:"approval_created_by"`
-	ApprovalCreatedAt         pgtype.Timestamptz `db:"approval_created_at" json:"approval_created_at"`
-	ApprovalUpdatedBy         string             `db:"approval_updated_by" json:"approval_updated_by"`
-	ApprovalUpdatedAt         pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
-	SubmittedBy               *string            `db:"submitted_by" json:"submitted_by"`
-	SubmittedAt               pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	ApprovedBy                *string            `db:"approved_by" json:"approved_by"`
-	ApprovedAt                pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	Script                    string             `db:"script" json:"script"`
-	Diagnostic                *string            `db:"diagnostic" json:"diagnostic"`
-	Compiled                  []byte             `db:"compiled" json:"compiled"`
-	LastTrialApprovalRevision *int64             `db:"last_trial_approval_revision" json:"last_trial_approval_revision"`
-	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+type GetWorkflowDefinitionPayloadByEntryRow struct {
+	Script     string  `db:"script" json:"script"`
+	Diagnostic *string `db:"diagnostic" json:"diagnostic"`
+	Compiled   []byte  `db:"compiled" json:"compiled"`
 }
 
-func (q *Queries) GetWorkflowDefinitionVersion(ctx context.Context, arg GetWorkflowDefinitionVersionParams) (GetWorkflowDefinitionVersionRow, error) {
-	row := q.db.QueryRow(ctx, getWorkflowDefinitionVersion, arg.DefinitionID, arg.ApprovalEntryID)
-	var i GetWorkflowDefinitionVersionRow
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Name,
-		&i.Enabled,
-		&i.Revision,
-		&i.ApprovalEntryID,
-		&i.VersionNo,
-		&i.Status,
-		&i.ApprovalRevision,
-		&i.ApprovalCreatedBy,
-		&i.ApprovalCreatedAt,
-		&i.ApprovalUpdatedBy,
-		&i.ApprovalUpdatedAt,
-		&i.SubmittedBy,
-		&i.SubmittedAt,
-		&i.ApprovedBy,
-		&i.ApprovedAt,
-		&i.Script,
-		&i.Diagnostic,
-		&i.Compiled,
-		&i.LastTrialApprovalRevision,
-		&i.UpdatedAt,
-	)
+func (q *Queries) GetWorkflowDefinitionPayloadByEntry(ctx context.Context, arg GetWorkflowDefinitionPayloadByEntryParams) (GetWorkflowDefinitionPayloadByEntryRow, error) {
+	row := q.db.QueryRow(ctx, getWorkflowDefinitionPayloadByEntry, arg.ApprovalEntryID, arg.DefinitionID)
+	var i GetWorkflowDefinitionPayloadByEntryRow
+	err := row.Scan(&i.Script, &i.Diagnostic, &i.Compiled)
 	return i, err
 }
 
@@ -544,19 +458,25 @@ func (q *Queries) GetWorkflowInstanceDefinition(ctx context.Context, id string) 
 	return i, err
 }
 
-const getWorkflowLatestApprovedVersion = `-- name: GetWorkflowLatestApprovedVersion :one
-SELECT approval.id
-FROM approval_entries approval
-WHERE approval.domain='wfl' AND approval.entity='process-definition'
-  AND approval.subject_id=$1 AND approval.status='APPROVED'
-ORDER BY approval.version_no DESC LIMIT 1
+const getWorkflowLatestApprovedDefinitionPayload = `-- name: GetWorkflowLatestApprovedDefinitionPayload :one
+SELECT v.script, v.compiled
+FROM approval_entries e
+JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
+WHERE e.domain='dcl' AND e.entity='wfl-process-definition'
+  AND e.subject_id=$1 AND e.status='APPROVED'
+ORDER BY e.version_no DESC LIMIT 1
 `
 
-func (q *Queries) GetWorkflowLatestApprovedVersion(ctx context.Context, subjectID string) (string, error) {
-	row := q.db.QueryRow(ctx, getWorkflowLatestApprovedVersion, subjectID)
-	var id string
-	err := row.Scan(&id)
-	return id, err
+type GetWorkflowLatestApprovedDefinitionPayloadRow struct {
+	Script   string `db:"script" json:"script"`
+	Compiled []byte `db:"compiled" json:"compiled"`
+}
+
+func (q *Queries) GetWorkflowLatestApprovedDefinitionPayload(ctx context.Context, definitionID string) (GetWorkflowLatestApprovedDefinitionPayloadRow, error) {
+	row := q.db.QueryRow(ctx, getWorkflowLatestApprovedDefinitionPayload, definitionID)
+	var i GetWorkflowLatestApprovedDefinitionPayloadRow
+	err := row.Scan(&i.Script, &i.Compiled)
+	return i, err
 }
 
 const getWorkflowNodeDocumentEntity = `-- name: GetWorkflowNodeDocumentEntity :one
@@ -568,21 +488,6 @@ func (q *Queries) GetWorkflowNodeDocumentEntity(ctx context.Context, id string) 
 	var document_entity string
 	err := row.Scan(&document_entity)
 	return document_entity, err
-}
-
-const getWorkflowOpenVersion = `-- name: GetWorkflowOpenVersion :one
-SELECT approval.id
-FROM approval_entries approval
-WHERE approval.domain='wfl' AND approval.entity='process-definition'
-  AND approval.subject_id=$1 AND approval.status IN ('DRAFT','PENDING')
-ORDER BY approval.version_no DESC LIMIT 1
-`
-
-func (q *Queries) GetWorkflowOpenVersion(ctx context.Context, subjectID string) (string, error) {
-	row := q.db.QueryRow(ctx, getWorkflowOpenVersion, subjectID)
-	var id string
-	err := row.Scan(&id)
-	return id, err
 }
 
 const listCompletedWorkflowActionTargets = `-- name: ListCompletedWorkflowActionTargets :many
@@ -607,6 +512,77 @@ func (q *Queries) ListCompletedWorkflowActionTargets(ctx context.Context, proces
 	for rows.Next() {
 		var i ListCompletedWorkflowActionTargetsRow
 		if err := rows.Scan(&i.SourceNodeInstanceID, &i.TargetNodeKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCurrentWorkflowDefinitions = `-- name: ListCurrentWorkflowDefinitions :many
+SELECT definition.id AS definition_id,definition.code,definition.enabled,
+       definition.revision AS object_revision,approval.id AS approval_entry_id,
+       version.compiled,approval.updated_at
+FROM wfl_process_definitions definition
+JOIN LATERAL (
+  SELECT id,updated_at
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='wfl-process-definition'
+    AND subject_id=definition.id AND status='APPROVED'
+  ORDER BY version_no DESC
+  LIMIT 1
+) approval ON true
+JOIN dcl_wfl_process_definition_versions version ON version.approval_entry_id=approval.id
+WHERE ($1::integer=-1 OR definition.enabled=($1::integer=1))
+  AND ($2::text='' OR definition.code ILIKE '%'||$2||'%'
+       OR version.compiled->>'name' ILIKE '%'||$2||'%')
+ORDER BY definition.code
+OFFSET $3 LIMIT $4
+`
+
+type ListCurrentWorkflowDefinitionsParams struct {
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+	Keyword       string `db:"keyword" json:"keyword"`
+	PageOffset    int32  `db:"page_offset" json:"page_offset"`
+	PageSize      int32  `db:"page_size" json:"page_size"`
+}
+
+type ListCurrentWorkflowDefinitionsRow struct {
+	DefinitionID    string             `db:"definition_id" json:"definition_id"`
+	Code            string             `db:"code" json:"code"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
+	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	Compiled        []byte             `db:"compiled" json:"compiled"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListCurrentWorkflowDefinitions(ctx context.Context, arg ListCurrentWorkflowDefinitionsParams) ([]ListCurrentWorkflowDefinitionsRow, error) {
+	rows, err := q.db.Query(ctx, listCurrentWorkflowDefinitions,
+		arg.EnabledFilter,
+		arg.Keyword,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCurrentWorkflowDefinitionsRow{}
+	for rows.Next() {
+		var i ListCurrentWorkflowDefinitionsRow
+		if err := rows.Scan(
+			&i.DefinitionID,
+			&i.Code,
+			&i.Enabled,
+			&i.ObjectRevision,
+			&i.ApprovalEntryID,
+			&i.Compiled,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -693,50 +669,26 @@ func (q *Queries) ListDefinitionInstances(ctx context.Context, arg ListDefinitio
 	return items, nil
 }
 
-const listEnabledWorkflowDefinitionsForShare = `-- name: ListEnabledWorkflowDefinitionsForShare :many
-SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,approval.id approval_entry_id,version.script
-FROM wfl_process_definitions definition
-JOIN LATERAL (
-  SELECT candidate.id
-  FROM approval_entries candidate
-  WHERE candidate.subject_id=definition.id
-    AND candidate.domain='wfl' AND candidate.entity='process-definition'
-    AND candidate.status='APPROVED'
-  ORDER BY candidate.version_no DESC
-  LIMIT 1
-) approval ON true
-JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE definition.enabled
-ORDER BY definition.id FOR SHARE OF definition
+const listEnabledWorkflowDefinitionIDsForShare = `-- name: ListEnabledWorkflowDefinitionIDsForShare :many
+SELECT id
+FROM wfl_process_definitions
+WHERE enabled
+ORDER BY id
 `
 
-type ListEnabledWorkflowDefinitionsForShareRow struct {
-	ID              string `db:"id" json:"id"`
-	Code            string `db:"code" json:"code"`
-	Name            string `db:"name" json:"name"`
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Script          string `db:"script" json:"script"`
-}
-
-func (q *Queries) ListEnabledWorkflowDefinitionsForShare(ctx context.Context) ([]ListEnabledWorkflowDefinitionsForShareRow, error) {
-	rows, err := q.db.Query(ctx, listEnabledWorkflowDefinitionsForShare)
+func (q *Queries) ListEnabledWorkflowDefinitionIDsForShare(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listEnabledWorkflowDefinitionIDsForShare)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListEnabledWorkflowDefinitionsForShareRow{}
+	items := []string{}
 	for rows.Next() {
-		var i ListEnabledWorkflowDefinitionsForShareRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Code,
-			&i.Name,
-			&i.ApprovalEntryID,
-			&i.Script,
-		); err != nil {
+		var id string
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -949,110 +901,6 @@ func (q *Queries) ListSalesOrderBaseQuantitySummaries(ctx context.Context, order
 			&i.InTransitBaseQuantityMicros,
 			&i.SignedBaseQuantityMicros,
 			&i.NetSignedBaseQuantityMicros,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWorkflowDefinitions = `-- name: ListWorkflowDefinitions :many
-SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,definition.enabled,definition.revision,
-       approval.id approval_entry_id,approval.version_no,approval.status,approval.revision approval_revision,
-       approval.created_by approval_created_by,approval.created_at approval_created_at,
-       approval.updated_by approval_updated_by,approval.updated_at approval_updated_at,
-       approval.submitted_by,approval.submitted_at,approval.approved_by,approval.approved_at,
-       version.compiled,approval.updated_at
-FROM wfl_process_definitions definition
-JOIN LATERAL (
-  SELECT candidate.id,candidate.version_no,candidate.status,candidate.revision,
-         candidate.created_by,candidate.created_at,candidate.updated_by,candidate.updated_at,
-         candidate.submitted_by,candidate.submitted_at,candidate.approved_by,candidate.approved_at
-  FROM approval_entries candidate
-  WHERE candidate.subject_id=definition.id
-    AND candidate.domain='wfl' AND candidate.entity='process-definition'
-    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
-           candidate.version_no DESC
-  LIMIT 1
-) approval ON true
-JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE ($1::text = '' OR definition.code ILIKE '%' || $1::text || '%' OR version.compiled->>'name' ILIKE '%' || $1::text || '%')
-  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR approval.status = ANY($2::text[]))
-  AND ($3::boolean IS NULL OR definition.enabled=$3::boolean)
-ORDER BY approval.updated_at DESC,definition.id DESC
-LIMIT $5 OFFSET $4
-`
-
-type ListWorkflowDefinitionsParams struct {
-	Keyword          string   `db:"keyword" json:"keyword"`
-	ApprovalStatuses []string `db:"approval_statuses" json:"approval_statuses"`
-	Enabled          *bool    `db:"enabled" json:"enabled"`
-	PageOffset       int32    `db:"page_offset" json:"page_offset"`
-	PageSize         int32    `db:"page_size" json:"page_size"`
-}
-
-type ListWorkflowDefinitionsRow struct {
-	ID                string             `db:"id" json:"id"`
-	Code              string             `db:"code" json:"code"`
-	Name              string             `db:"name" json:"name"`
-	Enabled           bool               `db:"enabled" json:"enabled"`
-	Revision          int64              `db:"revision" json:"revision"`
-	ApprovalEntryID   string             `db:"approval_entry_id" json:"approval_entry_id"`
-	VersionNo         *int32             `db:"version_no" json:"version_no"`
-	Status            string             `db:"status" json:"status"`
-	ApprovalRevision  int64              `db:"approval_revision" json:"approval_revision"`
-	ApprovalCreatedBy string             `db:"approval_created_by" json:"approval_created_by"`
-	ApprovalCreatedAt pgtype.Timestamptz `db:"approval_created_at" json:"approval_created_at"`
-	ApprovalUpdatedBy string             `db:"approval_updated_by" json:"approval_updated_by"`
-	ApprovalUpdatedAt pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
-	SubmittedBy       *string            `db:"submitted_by" json:"submitted_by"`
-	SubmittedAt       pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	ApprovedBy        *string            `db:"approved_by" json:"approved_by"`
-	ApprovedAt        pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	Compiled          []byte             `db:"compiled" json:"compiled"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-func (q *Queries) ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowDefinitionsParams) ([]ListWorkflowDefinitionsRow, error) {
-	rows, err := q.db.Query(ctx, listWorkflowDefinitions,
-		arg.Keyword,
-		arg.ApprovalStatuses,
-		arg.Enabled,
-		arg.PageOffset,
-		arg.PageSize,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListWorkflowDefinitionsRow{}
-	for rows.Next() {
-		var i ListWorkflowDefinitionsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Code,
-			&i.Name,
-			&i.Enabled,
-			&i.Revision,
-			&i.ApprovalEntryID,
-			&i.VersionNo,
-			&i.Status,
-			&i.ApprovalRevision,
-			&i.ApprovalCreatedBy,
-			&i.ApprovalCreatedAt,
-			&i.ApprovalUpdatedBy,
-			&i.ApprovalUpdatedAt,
-			&i.SubmittedBy,
-			&i.SubmittedAt,
-			&i.ApprovedBy,
-			&i.ApprovedAt,
-			&i.Compiled,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1289,29 +1137,6 @@ func (q *Queries) LockWorkflowCreateChildSourceNode(ctx context.Context, arg Loc
 	return i, err
 }
 
-const lockWorkflowDefinition = `-- name: LockWorkflowDefinition :one
-SELECT id,code,enabled,revision FROM wfl_process_definitions WHERE id=$1 FOR UPDATE
-`
-
-type LockWorkflowDefinitionRow struct {
-	ID       string `db:"id" json:"id"`
-	Code     string `db:"code" json:"code"`
-	Enabled  bool   `db:"enabled" json:"enabled"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) LockWorkflowDefinition(ctx context.Context, id string) (LockWorkflowDefinitionRow, error) {
-	row := q.db.QueryRow(ctx, lockWorkflowDefinition, id)
-	var i LockWorkflowDefinitionRow
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Enabled,
-		&i.Revision,
-	)
-	return i, err
-}
-
 const lockWorkflowNodeByProcessAndDocument = `-- name: LockWorkflowNodeByProcessAndDocument :one
 SELECT id,node_key,COALESCE(parent_node_instance_id,'') parent_node_instance_id,COALESCE(relation_name,'') relation_name
 FROM wfl_node_instances WHERE process_id=$1 AND document_id=$2 FOR UPDATE
@@ -1430,24 +1255,6 @@ func (q *Queries) MarkWorkflowRootDocumentDeleted(ctx context.Context, arg MarkW
 	return err
 }
 
-const recordWorkflowDefinitionTrial = `-- name: RecordWorkflowDefinitionTrial :execrows
-UPDATE wfl_definition_versions SET last_trial_approval_revision=$1,updated_at=now()
-WHERE approval_entry_id=$2
-`
-
-type RecordWorkflowDefinitionTrialParams struct {
-	LastTrialApprovalRevision *int64 `db:"last_trial_approval_revision" json:"last_trial_approval_revision"`
-	ApprovalEntryID           string `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) RecordWorkflowDefinitionTrial(ctx context.Context, arg RecordWorkflowDefinitionTrialParams) (int64, error) {
-	result, err := q.db.Exec(ctx, recordWorkflowDefinitionTrial, arg.LastTrialApprovalRevision, arg.ApprovalEntryID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const recordWorkflowTrialAudit = `-- name: RecordWorkflowTrialAudit :exec
 INSERT INTO wfl_runtime_audit_events(id,definition_id,definition_approval_entry_id,event_type,document_id,actor_id,request_id,summary)
 VALUES($1,$2,$3,'TRIAL',$4,$5,$6,$7)
@@ -1523,34 +1330,6 @@ func (q *Queries) RestoreWorkflowNodeInstance(ctx context.Context, arg RestoreWo
 	return err
 }
 
-const saveWorkflowDefinitionVersion = `-- name: SaveWorkflowDefinitionVersion :execrows
-UPDATE wfl_definition_versions
-SET script=$1,diagnostic=$2,compiled=$3,last_trial_approval_revision=NULL,updated_at=now(),updated_by=$4
-WHERE approval_entry_id=$5
-`
-
-type SaveWorkflowDefinitionVersionParams struct {
-	Script          string  `db:"script" json:"script"`
-	Diagnostic      *string `db:"diagnostic" json:"diagnostic"`
-	Compiled        []byte  `db:"compiled" json:"compiled"`
-	UpdatedBy       string  `db:"updated_by" json:"updated_by"`
-	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) SaveWorkflowDefinitionVersion(ctx context.Context, arg SaveWorkflowDefinitionVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, saveWorkflowDefinitionVersion,
-		arg.Script,
-		arg.Diagnostic,
-		arg.Compiled,
-		arg.UpdatedBy,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const setWorkflowCreateChildRequestExecution = `-- name: SetWorkflowCreateChildRequestExecution :exec
 UPDATE wfl_create_child_requests SET action_execution_id=$1
 WHERE definition_id=$2 AND request_key=$3
@@ -1565,32 +1344,6 @@ type SetWorkflowCreateChildRequestExecutionParams struct {
 func (q *Queries) SetWorkflowCreateChildRequestExecution(ctx context.Context, arg SetWorkflowCreateChildRequestExecutionParams) error {
 	_, err := q.db.Exec(ctx, setWorkflowCreateChildRequestExecution, arg.ActionExecutionID, arg.DefinitionID, arg.RequestKey)
 	return err
-}
-
-const setWorkflowDefinitionEnabled = `-- name: SetWorkflowDefinitionEnabled :execrows
-UPDATE wfl_process_definitions
-SET enabled=$1,revision=revision+1,updated_at=now(),updated_by=$2
-WHERE id=$3 AND revision=$4
-`
-
-type SetWorkflowDefinitionEnabledParams struct {
-	Enabled   bool   `db:"enabled" json:"enabled"`
-	UpdatedBy string `db:"updated_by" json:"updated_by"`
-	ID        string `db:"id" json:"id"`
-	Revision  int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) SetWorkflowDefinitionEnabled(ctx context.Context, arg SetWorkflowDefinitionEnabledParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setWorkflowDefinitionEnabled,
-		arg.Enabled,
-		arg.UpdatedBy,
-		arg.ID,
-		arg.Revision,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const upsertWorkflowDefinitionPermission = `-- name: UpsertWorkflowDefinitionPermission :exec

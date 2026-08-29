@@ -106,3 +106,10 @@ type RptDefinitionPayload struct {
 }
 
 var RptDefinitionTopic = approval.MustTopic[RptDefinitionPayload]("dcl.rpt-definition.approval")
+
+type WflProcessDefinitionPayload struct {
+	DefinitionID string `json:"definitionId"`
+	Code         string `json:"code"`
+}
+
+var WflProcessDefinitionTopic = approval.MustTopic[WflProcessDefinitionPayload]("dcl.wfl-process-definition.approval")

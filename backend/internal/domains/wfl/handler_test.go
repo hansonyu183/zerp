@@ -24,25 +24,15 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Path] = route.Method
 	}
-	if len(routes) != 22 {
-		t.Fatalf("route count = %d, want 22", len(routes))
+	// WFL now only has read-only definition routes (query/get/trial) and instance routes
+	// Lifecycle routes (create/save/submit/approve/etc) are now under /dcl/wfl-process-definition
+	if len(routes) != 10 {
+		t.Fatalf("route count = %d, want 10", len(routes))
 	}
 	for _, path := range []string{
 		"/wfl/process-definition/query",
 		"/wfl/process-definition/get",
-		"/wfl/process-definition/create",
-		"/wfl/process-definition/save",
 		"/wfl/process-definition/trial",
-		"/wfl/process-definition/create-version",
-		"/wfl/process-definition/versions",
-		"/wfl/process-definition/enable",
-		"/wfl/process-definition/disable",
-		"/wfl/process-definition/submit",
-		"/wfl/process-definition/unsubmit",
-		"/wfl/process-definition/reject",
-		"/wfl/process-definition/approve",
-		"/wfl/process-definition/unapprove",
-		"/wfl/process-definition/delete-version",
 		"/wfl/process-instance/query",
 		"/wfl/process-instance/get",
 		"/wfl/process-instance/audit-history",
@@ -55,18 +45,24 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 			t.Fatalf("missing POST %s", path)
 		}
 	}
+	// Verify lifecycle routes are NOT registered in WFL (they're in DCL now)
 	for _, path := range []string{
+		"/wfl/process-definition/create",
+		"/wfl/process-definition/save",
+		"/wfl/process-definition/create-version",
+		"/wfl/process-definition/versions",
+		"/wfl/process-definition/enable",
+		"/wfl/process-definition/disable",
+		"/wfl/process-definition/submit",
+		"/wfl/process-definition/unsubmit",
+		"/wfl/process-definition/reject",
+		"/wfl/process-definition/approve",
+		"/wfl/process-definition/unapprove",
+		"/wfl/process-definition/delete-version",
 		"/wfl/process-definition/delete",
-		"/wfl/intermediary-trade/query",
-		"/wfl/sales-fulfillment/create",
-		"/wfl/sales-fulfillment/outbound-save",
-		"/wfl/purchase-fulfillment/create",
-		"/wfl/purchase-fulfillment/inbound-create",
-		"/wfl/sales-fulfillment/short-close-request",
-		"/wfl/purchase-fulfillment/short-close-confirm",
 	} {
 		if _, exists := routes[path]; exists {
-			t.Fatalf("removed workflow route is still registered: %s", path)
+			t.Fatalf("lifecycle route should not be registered in WFL: %s", path)
 		}
 	}
 }

@@ -1,76 +1,50 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
-import {
-  documentEntityText,
-  workflowActionText,
-} from '@/components/wfl/config'
-import {
-  ApprovalStatusBadge,
-  approvalActionLabels,
-  approvalStatusPresentation,
-} from '@/shared/approval'
+import { documentEntityText } from '@/components/wfl/config'
+import { ApprovalStatusBadge } from '@/shared/approval'
 import { useProcessDefinitionViewModel } from './vm'
 
 const vm = useProcessDefinitionViewModel()
-const scriptEditor = ref<{ $el?: HTMLElement } | null>(null)
+const router = useRouter()
 
-function locateScriptDiagnostic(): void {
-  const diagnostic = vm.scriptDiagnostic.value
-  const textarea = scriptEditor.value?.$el?.querySelector('textarea')
-  if (!diagnostic || !textarea) return
-  const offset =
-    vm.scriptText.value
-      .split('\n')
-      .slice(0, (diagnostic.line ?? 1) - 1)
-      .reduce((total, line) => total + line.length + 1, 0) +
-    Math.max(0, (diagnostic.column ?? 1) - 1)
-  textarea.focus()
-  textarea.setSelectionRange(offset, offset)
+function navigateToMaintenance(item: { code: string }): void {
+  router.push({
+    path: '/dcl/wfl-process-definition',
+    query: { code: item.code },
+  })
 }
 </script>
 
 <template>
   <v-container fluid class="pa-4 pa-md-7">
+    <div class="d-flex align-center flex-wrap ga-3 mb-5">
+      <div>
+        <h1 class="text-h5">当前流程定义</h1>
+        <div class="text-body-2 text-medium-emphasis">
+          只读查看当前已批准的正式版本。流程定义的创建、编辑、审批等维护操作请前往
+          <router-link to="/dcl/wfl-process-definition">流程定义申报</router-link>。
+        </div>
+      </div>
+    </div>
+
     <EntityListControls
       :keyword="vm.keyword.value"
       :loading="vm.loading.value"
       search-label="流程编码或名称"
-      filterable
       @apply-filters="vm.query"
       @query="vm.query"
       @reset-filters="vm.resetFilters"
       @update:keyword="vm.keyword.value = $event"
-    >
-      <template #filters
-        ><v-select
-          v-model="vm.status.value"
-          :items="Object.entries(approvalStatusPresentation).map(([value, item]) => ({ value, title: item.label }))"
-          clearable
-          hide-details
-          item-title="title"
-          item-value="value"
-          label="审批状态"
-          variant="outlined"
-      /></template>
-      <template #toolbar
-        ><v-btn
-          v-if="vm.can('create')"
-          color="primary"
-          prepend-icon="mdi-plus"
-          @click="vm.create"
-          >新建流程</v-btn
-        ></template
-      >
-    </EntityListControls>
+    />
     <AppSnackbar
       :message="vm.errorMessage.value"
       @dismiss="vm.errorMessage.value = null"
     />
     <v-card variant="outlined">
-      <v-table class="definition-list__desktop"
-        ><thead>
+      <v-table class="definition-list__desktop">
+        <thead>
           <tr>
             <th>编码</th>
             <th>名称</th>
@@ -78,6 +52,7 @@ function locateScriptDiagnostic(): void {
             <th>节点</th>
             <th>状态</th>
             <th>更新时间</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -95,14 +70,21 @@ function locateScriptDiagnostic(): void {
               <ApprovalStatusBadge :status="item.approval.status" />
             </td>
             <td>{{ new Date(item.updatedAt).toLocaleString() }}</td>
+            <td>
+              <v-btn
+                size="small"
+                variant="text"
+                @click.stop="navigateToMaintenance(item)"
+              >维护</v-btn>
+            </td>
           </tr>
           <tr v-if="!vm.loading.value && vm.definitions.value.length === 0">
-            <td colspan="6" class="text-center py-8 text-medium-emphasis">
+            <td colspan="7" class="text-center py-8 text-medium-emphasis">
               暂无流程定义
             </td>
           </tr>
-        </tbody></v-table
-      >
+        </tbody>
+      </v-table>
       <div class="definition-list__mobile">
         <button
           v-for="item in vm.definitions.value"
@@ -111,11 +93,16 @@ function locateScriptDiagnostic(): void {
           type="button"
           @click="vm.open(item)"
         >
-          <span class="definition-card__title">{{ item.name }}</span
-          ><ApprovalStatusBadge :status="item.approval.status" />
-          ><span>编码：{{ item.code }}</span
-          ><span>根单据：{{ documentEntityText(item.rootEntity) }}</span
-          ><span>节点：{{ item.nodeCount }}</span>
+          <span class="definition-card__title">{{ item.name }}</span>
+          <ApprovalStatusBadge :status="item.approval.status" />
+          <span>编码：{{ item.code }}</span>
+          <span>根单据：{{ documentEntityText(item.rootEntity) }}</span>
+          <span>节点：{{ item.nodeCount }}</span>
+          <v-btn
+            size="small"
+            variant="text"
+            @click.stop="navigateToMaintenance(item)"
+          >维护</v-btn>
         </button>
         <div
           v-if="!vm.loading.value && vm.definitions.value.length === 0"
@@ -126,195 +113,40 @@ function locateScriptDiagnostic(): void {
       </div>
     </v-card>
     <v-dialog
-      v-model="vm.editorOpen.value"
+      v-model="vm.viewerOpen.value"
       fullscreen
       transition="dialog-bottom-transition"
-      ><v-card v-if="vm.selected.value" class="definition-editor">
-        <v-toolbar color="surface"
-          ><v-btn
-            icon="mdi-close"
-            @click="vm.editorOpen.value = false"
-          /><v-toolbar-title>{{
-            vm.selected.value.definitionId ? '编辑流程' : '新建流程'
-          }}</v-toolbar-title
-          ><v-spacer />
+    >
+      <v-card v-if="vm.selected.value" class="definition-editor">
+        <v-toolbar color="surface">
+          <v-btn icon="mdi-close" @click="vm.viewerOpen.value = false" />
+          <v-toolbar-title>流程定义 · {{ vm.selected.value.code }}</v-toolbar-title>
+          <v-spacer />
           <v-btn
-            v-if="
-              vm.selected.value.definitionId ? vm.can('save') : vm.can('create')
-            "
-            :loading="vm.saving.value"
-            color="primary"
-            @click="vm.save"
-            >保存草稿</v-btn
-          >
-          <v-btn
-            v-if="
-              vm.selected.value.definitionId &&
-              vm.selected.value.approval.status === 'APPROVED' &&
-              vm.can('save')
-            "
-            :loading="vm.saving.value"
             color="primary"
             variant="tonal"
-            @click="vm.createVersion"
-            >创建新版本</v-btn
-          >
-          <v-btn
-            v-if="
-              vm.selected.value.definitionId &&
-              !vm.selected.value.enabled &&
-              vm.can('enable')
-            "
-            :loading="vm.saving.value"
-            color="success"
-            @click="vm.action('enable')"
-            >启用</v-btn
-          >
-          <v-btn
-            v-if="vm.selected.value.enabled && vm.can('disable')"
-            :loading="vm.saving.value"
-            color="warning"
-            @click="vm.action('disable')"
-            >停用</v-btn
-          >
-          <v-btn
-            v-if="vm.selected.value.approval.status === 'DRAFT' && vm.can('delete-version')"
-            :loading="vm.saving.value"
-            color="error"
-            variant="text"
-            @click="vm.action('delete-version')"
-            >删除草稿版本</v-btn
-          >
+            @click="navigateToMaintenance(vm.selected.value)"
+          >前往维护</v-btn>
         </v-toolbar>
-        <v-card-text class="definition-editor__body"
-          ><aside class="definition-editor__sidebar">
-            <div class="text-h6 mb-1">Starlark 流程脚本</div>
-            <div class="text-body-2 text-medium-emphasis mb-4">
-              脚本是唯一可编辑来源；右侧是保存后编译的只读流程图。
-            </div>
-            <v-alert
-              v-if="vm.errorMessage.value || vm.scriptDiagnostic.value"
-              class="mb-4"
-              type="error"
-              variant="tonal"
-              ><div v-if="vm.errorMessage.value">
-                {{ vm.errorMessage.value }}
+        <v-card-text class="definition-editor__body">
+          <aside class="definition-editor__sidebar">
+            <div class="d-flex flex-column ga-4">
+              <v-text-field :model-value="vm.selected.value.code" label="流程编码" readonly />
+              <v-text-field :model-value="vm.selected.value.name" label="流程名称" readonly />
+              <v-text-field :model-value="documentEntityText(vm.selected.value.rootEntity)" label="根单据" readonly />
+              <div class="text-caption text-medium-emphasis">
+                版本 {{ vm.selected.value.approval.versionNo }}
+                · {{ vm.selected.value.nodeCount }} 节点
               </div>
-              <div v-else>{{ vm.scriptDiagnostic.value?.message }}</div>
-              <template v-if="vm.scriptDiagnostic.value"
-                ><div
-                  v-if="vm.scriptDiagnostic.value.line"
-                  class="mt-2 text-caption"
-                >
-                  第 {{ vm.scriptDiagnostic.value.line }} 行，第
-                  {{ vm.scriptDiagnostic.value.column ?? 1 }} 列
-                </div>
-                <v-btn
-                  v-if="vm.scriptDiagnostic.value.line"
-                  class="mt-2"
-                  size="small"
-                  variant="text"
-                  @click="locateScriptDiagnostic"
-                  >定位到脚本</v-btn
-                ></template
-              ></v-alert
-            >
-            <v-textarea
-              ref="scriptEditor"
-              v-model="vm.scriptText.value"
-              class="definition-script"
-              label="流程脚本"
-              rows="18"
-              variant="outlined"
-              spellcheck="false"
-              hint="使用 node、edge 和 workflow 声明单根树；保存时编译并校验。"
-              persistent-hint
-            />
-            <template v-if="vm.selected.value.definitionId"
-              ><v-divider class="my-5" />
-              <div class="text-subtitle-1 mb-2">
-                当前版本 · V{{ vm.selected.value.approval.versionNo }}
-                <ApprovalStatusBadge :status="vm.selected.value.approval.status" />
-              </div>
-              <v-text-field
-                v-if="['PENDING', 'APPROVED'].includes(vm.selected.value.approval.status)"
-                v-model="vm.reviewReason.value"
-                label="审核意见（驳回或反批准时必填）"
-                variant="outlined"
-              />
-              <div class="d-flex flex-wrap ga-2 mb-5">
-                <v-btn
-                  v-for="approvalAction in vm.lifecycleActions.value"
-                  :key="approvalAction"
-                  size="small"
-                  variant="tonal"
-                  :loading="vm.saving.value"
-                  @click="vm.action(approvalAction)"
-                  >{{ approvalActionLabels[approvalAction] }}</v-btn
-                >
-              </div>
-              <div class="text-subtitle-1 mb-2">真实单据试算</div>
-              <v-text-field
-                :model-value="vm.trialEntityText.value"
-                label="源单据类型"
+              <v-textarea
+                :model-value="vm.selected.value.script"
+                label="Starlark 脚本"
+                auto-grow
+                rows="18"
                 readonly
-                variant="outlined"
-              /><v-text-field
-                v-model="vm.trialDocumentId.value"
-                label="已有源单据 ID"
-                variant="outlined"
-                hint="试算仅读取现有 VOU 单据，不创建或修改业务数据。"
-                persistent-hint
-              /><v-btn
-                v-if="vm.selected.value.approval.status === 'DRAFT' && vm.can('save')"
-                block
-                color="primary"
-                variant="tonal"
-                :loading="vm.trialing.value"
-                @click="vm.trial"
-                >试算当前草稿</v-btn
-              >
-              <v-card
-                v-if="vm.trialResult.value"
-                class="mt-4"
-                color="success"
-                variant="tonal"
-                ><v-card-text
-                  ><div class="font-weight-medium mb-2">
-                    {{
-                      vm.trialResult.value.matched
-                        ? '试算完成（零写入）'
-                        : '未命中流程'
-                    }}
-                  </div>
-                  <div
-                    v-for="(trace, index) in vm.trialResult.value.trace"
-                    :key="`${trace.targetNodeKey}-${index}`"
-                    class="text-body-2"
-                  >
-                    {{ trace.sourceNodeKey }} → {{ trace.targetNodeKey }} ·
-                    {{ workflowActionText(trace.action) }}
-                  </div>
-                  <div
-                    v-for="action in vm.trialResult.value.plannedActions ?? []"
-                    :key="`${action.action}-${action.sourceDocumentId}`"
-                    class="text-body-2"
-                  >
-                    计划动作 · {{ workflowActionText(action.action) }} →
-                    {{ documentEntityText(action.result.entity) }}
-                  </div>
-                  <div
-                    v-if="
-                      (vm.trialResult.value.uncoveredBranches?.length ?? 0) > 0
-                    "
-                    class="text-body-2"
-                  >
-                    未覆盖分支 ·
-                    {{ vm.trialResult.value.uncoveredBranches?.join('、') }}
-                  </div></v-card-text
-                ></v-card
-              >
-            </template>
+                class="definition-script"
+              />
+            </div>
           </aside>
           <section class="definition-canvas" aria-label="编译流程图">
             <svg class="definition-canvas__edges" width="1400" height="900">
@@ -333,19 +165,10 @@ function locateScriptDiagnostic(): void {
               <line
                 v-for="edge in vm.selected.value.edges"
                 :key="`${edge.sourceNodeKey}-${edge.targetNodeKey}`"
-                :x1="
-                  (vm.nodeMap.value.get(edge.sourceNodeKey)?.positionX ?? 0) +
-                  190
-                "
-                :y1="
-                  (vm.nodeMap.value.get(edge.sourceNodeKey)?.positionY ?? 0) +
-                  42
-                "
+                :x1="(vm.nodeMap.value.get(edge.sourceNodeKey)?.positionX ?? 0) + 190"
+                :y1="(vm.nodeMap.value.get(edge.sourceNodeKey)?.positionY ?? 0) + 42"
                 :x2="vm.nodeMap.value.get(edge.targetNodeKey)?.positionX ?? 0"
-                :y2="
-                  (vm.nodeMap.value.get(edge.targetNodeKey)?.positionY ?? 0) +
-                  42
-                "
+                :y2="(vm.nodeMap.value.get(edge.targetNodeKey)?.positionY ?? 0) + 42"
                 marker-end="url(#arrow)"
               />
             </svg>
@@ -358,23 +181,23 @@ function locateScriptDiagnostic(): void {
                 top: `${node.positionY}px`,
               }"
             >
-              <v-icon size="20">mdi-file-document-outline</v-icon
-              ><span>{{ node.name }}</span
-              ><small
-                >{{ node.key }} ·
-                {{ documentEntityText(node.documentEntity) }}</small
-              >
+              <v-icon size="20">mdi-file-document-outline</v-icon>
+              <span>{{ node.name }}</span>
+              <small>{{ node.key }} · {{ documentEntityText(node.documentEntity) }}</small>
             </article>
           </section>
         </v-card-text>
-      </v-card></v-dialog
-    >
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <style scoped>
 .definition-row {
   cursor: pointer;
+}
+.definition-row:hover {
+  background: rgb(var(--v-theme-surface-variant), 0.35);
 }
 .definition-list__mobile {
   display: none;
@@ -397,9 +220,6 @@ function locateScriptDiagnostic(): void {
 }
 .definition-card__title {
   font-weight: 600;
-}
-.definition-row:hover {
-  background: rgb(var(--v-theme-surface-variant), 0.35);
 }
 .definition-editor__body {
   display: grid;

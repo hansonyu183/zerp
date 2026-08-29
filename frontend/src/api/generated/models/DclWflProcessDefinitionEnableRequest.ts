@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WflDefinitionToggleRequest = {
-  definitionId: string;
+export type DclWflProcessDefinitionEnableRequest = {
+  code: string;
   revision: number;
 };

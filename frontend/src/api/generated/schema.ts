@@ -2182,6 +2182,126 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.VouMutationResponse } } };
     };
   };
+  "/dcl/wfl-process-definition/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/create-next": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionViewResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/delete-version": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionDeleteRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/enable": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionEnableRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/disable": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionEnableRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionMutationResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionQueryResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionViewResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWflProcessDefinitionVersionPageResponse } } };
+    };
+  };
+  "/dcl/wfl-process-definition/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWflProcessDefinitionHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
+    };
+  };
   "/wfl/process-definition/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -2198,108 +2318,12 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
     };
   };
-  "/wfl/process-definition/create": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
   "/wfl/process-definition/trial": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.WflDefinitionTrialRequest } };
       responses: { 200: { content: { 'application/json': Models.WflDefinitionTrialResponse } } };
-    };
-  };
-  "/wfl/process-definition/create-version": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionVersionCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/versions": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionVersionsRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionQueryResponse } } };
-    };
-  };
-  "/wfl/process-definition/delete-version": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionDeleteResponse } } };
-    };
-  };
-  "/wfl/process-definition/submit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/unsubmit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/reject": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionReasonActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/approve": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/unapprove": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionReasonActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/enable": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionToggleRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/disable": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionToggleRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
     };
   };
   "/wfl/process-instance/query": {
@@ -2962,30 +2986,41 @@ export interface components {
       "VouAttachmentDownloadResult": Models.VouAttachmentDownloadResult;
       "VouAttachmentDownloadResponse": Models.VouAttachmentDownloadResponse;
       "VouAttachmentRemoveRequest": Models.VouAttachmentRemoveRequest;
+      "DclWflProcessDefinitionCreateRequest": Models.DclWflProcessDefinitionCreateRequest;
+      "DclWflProcessDefinitionMutation": Models.DclWflProcessDefinitionMutation;
+      "DclWflProcessDefinitionMutationResponse": Models.DclWflProcessDefinitionMutationResponse;
+      "DclWflProcessDefinitionVersionRequest": Models.DclWflProcessDefinitionVersionRequest;
+      "DclWflProcessDefinitionSaveRequest": Models.DclWflProcessDefinitionSaveRequest;
+      "WflDefinitionDiagnostic": Models.WflDefinitionDiagnostic;
+      "WflDefinitionNode": Models.WflDefinitionNode;
+      "WflDefinitionEdge": Models.WflDefinitionEdge;
+      "DclWflProcessDefinitionView": Models.DclWflProcessDefinitionView;
+      "DclWflProcessDefinitionViewResponse": Models.DclWflProcessDefinitionViewResponse;
+      "DclWflProcessDefinitionReviewRequest": Models.DclWflProcessDefinitionReviewRequest;
+      "DclWflProcessDefinitionDeleteRequest": Models.DclWflProcessDefinitionDeleteRequest;
+      "DclWflProcessDefinitionEnableRequest": Models.DclWflProcessDefinitionEnableRequest;
+      "DclWflProcessDefinitionQueryRequest": Models.DclWflProcessDefinitionQueryRequest;
+      "DclWflProcessDefinitionVersionSummary": Models.DclWflProcessDefinitionVersionSummary;
+      "DclWflProcessDefinitionListItem": Models.DclWflProcessDefinitionListItem;
+      "DclWflProcessDefinitionQueryPageData": Models.DclWflProcessDefinitionQueryPageData;
+      "DclWflProcessDefinitionQueryResponse": Models.DclWflProcessDefinitionQueryResponse;
+      "DclWflProcessDefinitionGetRequest": Models.DclWflProcessDefinitionGetRequest;
+      "DclWflProcessDefinitionHistoryRequest": Models.DclWflProcessDefinitionHistoryRequest;
+      "DclWflProcessDefinitionVersionView": Models.DclWflProcessDefinitionVersionView;
+      "DclWflProcessDefinitionVersionPageData": Models.DclWflProcessDefinitionVersionPageData;
+      "DclWflProcessDefinitionVersionPageResponse": Models.DclWflProcessDefinitionVersionPageResponse;
       "WflDefinitionQueryRequest": Models.WflDefinitionQueryRequest;
       "WflDefinitionListItem": Models.WflDefinitionListItem;
       "WflDefinitionQueryResponse": Models.WflDefinitionQueryResponse;
       "WflDefinitionGetRequest": Models.WflDefinitionGetRequest;
-      "WflDefinitionDiagnostic": Models.WflDefinitionDiagnostic;
-      "WflDefinitionNode": Models.WflDefinitionNode;
-      "WflDefinitionEdge": Models.WflDefinitionEdge;
       "WflDefinitionView": Models.WflDefinitionView;
       "WflDefinitionViewResponse": Models.WflDefinitionViewResponse;
-      "WflDefinitionCreateRequest": Models.WflDefinitionCreateRequest;
-      "WflDefinitionSaveRequest": Models.WflDefinitionSaveRequest;
       "WflDefinitionTrialRequest": Models.WflDefinitionTrialRequest;
       "WflBusinessObjectReference": Models.WflBusinessObjectReference;
       "WflExecutionTrace": Models.WflExecutionTrace;
       "WflPlannedAction": Models.WflPlannedAction;
       "WflDefinitionTrialResult": Models.WflDefinitionTrialResult;
       "WflDefinitionTrialResponse": Models.WflDefinitionTrialResponse;
-      "WflDefinitionVersionCreateRequest": Models.WflDefinitionVersionCreateRequest;
-      "WflDefinitionVersionsRequest": Models.WflDefinitionVersionsRequest;
-      "WflDefinitionActionRequest": Models.WflDefinitionActionRequest;
-      "WflDefinitionDeleteResult": Models.WflDefinitionDeleteResult;
-      "WflDefinitionDeleteResponse": Models.WflDefinitionDeleteResponse;
-      "WflDefinitionReasonActionRequest": Models.WflDefinitionReasonActionRequest;
-      "WflDefinitionToggleRequest": Models.WflDefinitionToggleRequest;
       "WflInstanceQueryRequest": Models.WflInstanceQueryRequest;
       "WflInstanceListItem": Models.WflInstanceListItem;
       "WflInstancePage": Models.WflInstancePage;

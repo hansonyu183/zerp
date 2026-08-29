@@ -1,22 +1,22 @@
-# 流程定义管理
+# WFL 当前流程定义页面用例
 
-## 页面目标
+权威业务规则见 [WFL 定义与 Approval Version](../../domains/wfl.md#2-定义与-approval-version) 与 [DCL 流程定义申报](../../domains/dcl.md#310-流程定义申报)，线协议见 [OpenAPI](../../../contracts/openapi/openapi.yaml)，维护编排见 [DCL 流程定义申报页面用例](../dcl/wfl-process-definition.md)。
 
-流程管理员管理稳定流程定义及其 Approval Version 脚本。定义、试算、版本和 enabled 规则见 [WFL 定义与 Approval Version](../../domains/wfl.md#2-定义与-approval-version)；HTTP 线协议见 [OpenAPI](../../../contracts/openapi/openapi.yaml)。状态、徽标、动作和版本历史中文文案使用 `frontend/src/shared/approval/` 的统一映射。
+## 1. 页面与权限边界
 
-## 主流程
+1. `/wfl/process-definition` 只读展示每个启用或筛选命中的 stable definition 的 latest APPROVED 版本，只调用 `POST /wfl/process-definition/query|get`。
+2. 页面只检查 WFL `query|get` 权限，不因用户具有 DCL 权限而显示创建、保存、审批、启停或版本动作。
+3. 页面与 DCL 维护页使用独立 ViewModel；候选版本和 DCL 编辑状态不得进入 WFL 当前读模型。
 
-1. 页面查询定义时，每个 stable definition 只显示唯一开放候选（`DRAFT`/`PENDING`）或没有候选时的最新已批准 entry；名称取该 entry 的编译图。选择历史中的精确 `approvalEntryId` 时展示该版本脚本、名称、诊断和只读编译图。
-2. 管理员创建定义会得到 V1 DRAFT；保存时提交 definitionId、approvalEntryId、当前 Approval revision 和完整脚本。冲突时重新读取该 entry，不覆盖服务端草稿。
-3. 已批准定义要修改时，管理员创建下一候选版本；页面可读取 versions，DRAFT 候选可删除。候选不影响正在运行的实例。
-4. 管理员输入存在的 VOU entity 和 documentId 试算当前 DRAFT entry。页面展示命中轨迹、计划动作和未覆盖分支，不搜索或展示 VOU 正文。
-5. 试算成功后按 `submit`、`approve` 完成审批；`unsubmit`、`reject`、`unapprove` 按统一生命周期处理，reject 和 unapprove 必须填写非空 reason。
-6. 有 latest APPROVED entry 后，管理员可独立启用或停用 definition；启用只影响未来根单据，既有实例继续固定自己的 approvalEntryId。
+## 2. 查询与详情
 
-## 异常分支
+1. 列表按编码或名称查询，显示名称、根单据、节点数、启停状态、Approval 版本身份和更新时间。
+2. 详情展示 latest APPROVED 的冻结脚本、编译节点与边，只读字段不得触发保存请求。
+3. 即使存在更高版本号的 DRAFT 或 PENDING 候选，列表和详情仍解析并显示 latest APPROVED。
+4. “维护”与“前往维护”进入 `/dcl/wfl-process-definition?code={code}`，由 DCL 页面重新鉴权和读取。
 
-- 编译失败：保存脚本和诊断，禁止试算、提交和批准该 entry。
-- 试算对象不存在或类型与根节点不同：显示业务 errorKey，不记录成功证明。
-- Approval revision 冲突：不覆盖服务端草稿。
-- 未成功试算的候选提交/批准、非 DRAFT 保存/删除、非最新批准反批：服务端返回稳定 errorKey。
-- enabled 为 true 但不存在 latest APPROVED：服务端拒绝。
+## 3. 异常与验收
+
+1. 不存在 latest APPROVED 时不返回该定义；无权限或读取失败时展示稳定业务消息与 `requestId`。
+2. 浏览器网络记录中不得出现 WFL 定义生命周期路径；WFL handler 墓碑测试证明旧写路由未注册。
+3. 真实 PostgreSQL 覆盖候选存在时的 current 可见性与精确 Approval identity；真实 E2E 覆盖只读查询、详情和 DCL 维护深链。

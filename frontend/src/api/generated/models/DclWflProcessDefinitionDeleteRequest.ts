@@ -2,9 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WflDefinitionReasonActionRequest = {
-  definitionId: string;
+export type DclWflProcessDefinitionDeleteRequest = {
+  code: string;
   approvalEntryId: string;
-  revision: number;
-  reason: string;
+  approvalRevision: number;
 };

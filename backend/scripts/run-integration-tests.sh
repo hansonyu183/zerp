@@ -3,6 +3,8 @@
 # Build one schema-initialized template database, then give every integration
 # package a private clone. Keeping orchestration here makes cleanup reliable
 # even when a package, schema load, or signal terminates the full test gate.
+# Variables inside single-quoted docker exec commands expand in the container.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 : "${ENV_FILE:=.env.local}"
@@ -289,6 +291,94 @@ verify_issue_292_cutover() {
 		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
 }
 
+seed_issue_293_workflow_fixture() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' <<'SQL'
+INSERT INTO app_roles(id,code,name,status,created_by,updated_by)
+VALUES('01Z29300000000000000000005','ROL-0293','Issue 293 role','ENABLED','01JAPPSYST3MACTR0000000000','01JAPPSYST3MACTR0000000000');
+INSERT INTO app_role_permissions(role_id,permission_id,created_by)
+VALUES
+  ('01Z29300000000000000000005','WG766d7129dcc7b17ec75871ae','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','WG97a91cf1d6594be99cbcc468','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','WGaeb45c648bc71c8a7cd97aec','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','WGd6e65556b0f2761f2666649d','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','WG45cc51ab6fa077508670df15','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','WG855f746f2476c3c06c7132e9','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','WG8cce66a1abfe87c2efebdd54','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','WG6ba149ae2772987659e7e433','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','01KWFL00000000000000000001','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','01KWFL00000000000000000002','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','01KWFL00000000000000000005','01JAPPSYST3MACTR0000000000'),
+  ('01Z29300000000000000000005','01KWFL00000000000000000008','01JAPPSYST3MACTR0000000000');
+INSERT INTO wfl_process_definitions(id,code,enabled,revision,created_at,created_by,updated_at,updated_by)
+VALUES(
+  '01Z29300000000000000000001','issue-293-workflow',true,7,
+  '2026-08-29 01:02:03+00','01JAPPSYST3MACTR0000000000','2026-08-29 02:03:04+00','01JAPPSYST3MACTR0000000000'
+);
+INSERT INTO approval_entries(
+  id,domain,entity,subject_id,version_no,status,revision,
+  created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+) VALUES(
+  '01Z29300000000000000000002','wfl','process-definition','01Z29300000000000000000001',4,'APPROVED',9,
+  '01Z29300000000000000000006','2026-08-29 01:02:03+00','01Z29300000000000000000007','2026-08-29 02:03:04+00',
+  '01Z29300000000000000000006','2026-08-29 01:30:00+00','01Z29300000000000000000007','2026-08-29 02:00:00+00'
+);
+INSERT INTO wfl_definition_versions(
+  approval_entry_id,definition_id,script,diagnostic,compiled,last_trial_approval_revision,
+  created_at,created_by,updated_at,updated_by
+) VALUES(
+  '01Z29300000000000000000002','01Z29300000000000000000001',
+  'root = node(key="root", name="Issue 293", entity="sale-order")\nworkflow(code="issue-293-workflow", name="Issue 293 workflow", root=root, edges=[])',
+  NULL,'{"name":"Issue 293 workflow","rootKey":"root","nodes":[{"key":"root","name":"Issue 293","entity":"sale-order"}],"edges":[]}'::jsonb,8,
+  '2026-08-29 01:02:03+00','01JAPPSYST3MACTR0000000000','2026-08-29 02:03:04+00','01JAPPSYST3MACTR0000000000'
+);
+INSERT INTO approval_events(
+  id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
+  from_revision,to_revision,actor_id,request_id,created_at
+) VALUES(
+  '01Z29300000000000000000003','01Z29300000000000000000002','wfl','process-definition',
+  '01Z29300000000000000000001',4,'APPROVED','PENDING','APPROVED',8,9,
+  '01Z29300000000000000000007','issue-293-cutover','2026-08-29 02:00:00+00'
+);
+INSERT INTO wfl_definition_instances(
+  id,definition_id,definition_approval_entry_id,definition_code,definition_name,
+  root_document_no,root_entity,revision,created_at,created_by,updated_at,updated_by
+) VALUES(
+  '01Z29300000000000000000004','01Z29300000000000000000001','01Z29300000000000000000002',
+  'issue-293-workflow','Issue 293 workflow','SO-293','sale-order',5,
+  '2026-08-29 02:05:00+00','01JAPPSYST3MACTR0000000000','2026-08-29 02:06:00+00','01JAPPSYST3MACTR0000000000'
+);
+SQL
+}
+
+run_issue_293_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-293-dcl-wfl-process-definition.sql
+}
+
+verify_issue_293_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.wfl_definition_versions'"'"') IS NULL
+		 AND EXISTS (SELECT 1 FROM wfl_process_definitions WHERE id='"'"'01Z29300000000000000000001'"'"' AND code='"'"'issue-293-workflow'"'"' AND enabled AND revision=7)
+		 AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z29300000000000000000001'"'"' AND entity='"'"'wfl-process-definition'"'"')
+		 AND EXISTS (SELECT 1 FROM dcl_wfl_process_definition_versions WHERE approval_entry_id='"'"'01Z29300000000000000000002'"'"' AND definition_id='"'"'01Z29300000000000000000001'"'"' AND last_trial_approval_revision=8 AND compiled->>'"'"'name'"'"'='"'"'Issue 293 workflow'"'"')
+		 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z29300000000000000000002'"'"' AND domain='"'"'dcl'"'"' AND entity='"'"'wfl-process-definition'"'"' AND subject_id='"'"'01Z29300000000000000000001'"'"' AND version_no=4 AND status='"'"'APPROVED'"'"' AND revision=9)
+		 AND EXISTS (SELECT 1 FROM approval_events WHERE id='"'"'01Z29300000000000000000003'"'"' AND entry_id='"'"'01Z29300000000000000000002'"'"' AND domain='"'"'dcl'"'"' AND entity='"'"'wfl-process-definition'"'"' AND request_id='"'"'issue-293-cutover'"'"')
+		 AND EXISTS (SELECT 1 FROM wfl_definition_instances WHERE id='"'"'01Z29300000000000000000004'"'"' AND definition_id='"'"'01Z29300000000000000000001'"'"' AND definition_approval_entry_id='"'"'01Z29300000000000000000002'"'"' AND revision=5)
+		 AND NOT EXISTS (SELECT 1 FROM approval_entries WHERE domain='"'"'wfl'"'"' AND entity='"'"'process-definition'"'"')
+		 AND NOT EXISTS (SELECT 1 FROM approval_events WHERE domain='"'"'wfl'"'"' AND entity='"'"'process-definition'"'"')
+		 AND NOT EXISTS (SELECT 1 FROM app_permissions WHERE id='"'"'WG8cce66a1abfe87c2efebdd54'"'"')
+		 AND (SELECT count(*) FROM app_role_permissions WHERE role_id='"'"'01Z29300000000000000000005'"'"')=14
+		 AND (SELECT count(*) FROM app_role_permissions role_permission JOIN app_permissions permission ON permission.id=role_permission.permission_id WHERE role_permission.role_id='"'"'01Z29300000000000000000005'"'"' AND permission.domain='"'"'wfl'"'"')=3
+		 AND (SELECT count(*) FROM app_role_permissions role_permission JOIN app_permissions permission ON permission.id=role_permission.permission_id WHERE role_permission.role_id='"'"'01Z29300000000000000000005'"'"' AND permission.domain='"'"'dcl'"'"' AND permission.entity='"'"'wfl-process-definition'"'"')=11
+		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 wait_for_packages() {
 	local failed=0
 	local index exit_code status
@@ -382,6 +472,9 @@ verify_issue_291_cutover "$cutover_database"
 seed_issue_292_report_fixture "$cutover_database"
 run_issue_292_cutover "$cutover_database"
 verify_issue_292_cutover "$cutover_database"
+seed_issue_293_workflow_fixture "$cutover_database"
+run_issue_293_cutover "$cutover_database"
+verify_issue_293_cutover "$cutover_database"
 
 recreate_database "$cutover_database"
 initialize_pre_cutover_schema "$cutover_database"

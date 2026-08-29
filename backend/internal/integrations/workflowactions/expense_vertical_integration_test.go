@@ -4,6 +4,7 @@ package workflowactions
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
@@ -172,6 +173,21 @@ func approveWorkflowEmployee(t *testing.T, pool *pgxpool.Pool, business *bobdoma
 	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }
 
+type testWflCompiler struct{}
+
+func (testWflCompiler) Compile(script string) (string, *string, []byte, error) {
+	definition, err := wfldomain.CompileDefinitionScript(script)
+	if err != nil {
+		message := err.Error()
+		return "", &message, nil, err
+	}
+	encoded, jsonErr := json.Marshal(definition)
+	if jsonErr != nil {
+		return "", nil, nil, jsonErr
+	}
+	return definition.Code, nil, encoded, nil
+}
+
 func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	pool := workflowActionIntegrationPool(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -195,12 +211,11 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create VOU service: %v", err)
 	}
-	wflService, err := wfldomain.NewService(pool, authorization.Func(nil), bus, New(vouService), logger)
+	wflService, err := wfldomain.NewService(pool, bus, New(vouService), logger)
 	if err != nil {
 		t.Fatalf("create WFL service: %v", err)
 	}
 
-	trialSource := createApprovedReimbursement(t, vouService, employee, actorID, "wfl-trial-source")
 	code := "expense-" + suffix
 	script := `root = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
@@ -208,50 +223,52 @@ workflow(code="` + code + `", name="费用付款纵切", root=root, edges=[
   edge(source=root, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId":"` + fund.ObjectID + `"})),
 ])`
 	definitionActor := workflowActor(t, "wfl-definition-create")
-	definition, err := wflService.DefinitionCreate(t.Context(), wfldomain.DefinitionCreateInput{Script: script}, definitionActor)
+	dclWflService := dcldomain.NewWflProcessDefinitionService(pool, testWflCompiler{}, authorization.Func(nil), bus)
+	created, err := dclWflService.Create(t.Context(), dcldomain.WflProcessDefinitionCreateInput{Script: script}, definitionActor)
 	if err != nil {
-		t.Fatalf("create definition: %v", err)
+		t.Fatalf("create workflow definition: %v", err)
 	}
-	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), `DELETE FROM app_role_permissions WHERE permission_id IN (SELECT id FROM app_permissions WHERE domain='wfl' AND entity=$1)`, code)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM app_permissions WHERE domain='wfl' AND entity=$1`, code)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_runtime_audit_events WHERE definition_id=$1`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_create_child_requests WHERE definition_id=$1`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_action_executions WHERE process_id IN (SELECT id FROM wfl_definition_instances WHERE definition_id=$1)`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_node_instances WHERE process_id IN (SELECT id FROM wfl_definition_instances WHERE definition_id=$1)`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_definition_instances WHERE definition_id=$1`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_definition_versions WHERE definition_id=$1`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_events WHERE domain='wfl' AND entity='process-definition' AND subject_id=$1`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_entries WHERE domain='wfl' AND entity='process-definition' AND subject_id=$1`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_process_definitions WHERE id=$1`, definition.DefinitionID)
-	})
+	trialSource := createApprovedReimbursement(t, vouService, employee, actorID, "wfl-trial-source")
 	trial, err := wflService.DefinitionTrial(t.Context(), wfldomain.DefinitionTrialInput{
-		DefinitionID: definition.DefinitionID, ApprovalEntryID: definition.Approval.ApprovalEntryID, Revision: definition.Approval.Revision,
+		DefinitionID: created.DefinitionID, ApprovalEntryID: created.Approval.ApprovalEntryID, Revision: created.Approval.Revision,
 		Source: wfldomain.DefinitionTrialSource{Entity: voudomain.EntityExpenseReimbursement, DocumentID: trialSource.DocumentID},
 	}, definitionActor)
 	if err != nil || !trial.Matched || len(trial.PlannedActions) != 1 {
 		t.Fatalf("real trial = %+v, err=%v", trial, err)
 	}
-	submittedValue, err := wflService.DefinitionAction(t.Context(), "submit", wfldomain.DefinitionActionInput{
-		DefinitionID: definition.DefinitionID, ApprovalEntryID: definition.Approval.ApprovalEntryID, Revision: definition.Approval.Revision,
+	submittedDef, err := dclWflService.Submit(t.Context(), dcldomain.WflProcessDefinitionVersionInput{
+		Code: created.Code, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
 	}, definitionActor)
 	if err != nil {
-		t.Fatalf("submit definition: %v", err)
+		t.Fatalf("submit workflow definition: %v", err)
 	}
-	submitted := submittedValue.(wfldomain.DefinitionView)
-	approvedValue, err := wflService.DefinitionAction(t.Context(), "approve", wfldomain.DefinitionActionInput{
-		DefinitionID: definition.DefinitionID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, Revision: submitted.Approval.Revision,
+	approvedDef, err := dclWflService.Approve(t.Context(), dcldomain.WflProcessDefinitionVersionInput{
+		Code: submittedDef.Code, ApprovalEntryID: submittedDef.Approval.ApprovalEntryID, ApprovalRevision: submittedDef.Approval.Revision,
 	}, workflowActor(t, "wfl-definition-approve"))
 	if err != nil {
-		t.Fatalf("approve definition: %v", err)
+		t.Fatalf("approve workflow definition: %v", err)
 	}
-	approvedDefinition := approvedValue.(wfldomain.DefinitionView)
-	if _, err = wflService.DefinitionToggle(t.Context(), true, wfldomain.DefinitionToggleInput{
-		DefinitionID: definition.DefinitionID, Revision: approvedDefinition.Revision,
-	}, definitionActor); err != nil {
-		t.Fatalf("enable definition: %v", err)
+	enabled, err := dclWflService.Enable(t.Context(), dcldomain.WflProcessDefinitionEnableInput{
+		Code: approvedDef.Code, Revision: approvedDef.Revision,
+	}, definitionActor)
+	if err != nil {
+		t.Fatalf("enable workflow definition: %v", err)
 	}
-
+	definitionID := enabled.DefinitionID
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM app_role_permissions WHERE permission_id IN (SELECT id FROM app_permissions WHERE domain='wfl' AND entity=$1)`, code)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM app_permissions WHERE domain='wfl' AND entity=$1`, code)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_runtime_audit_events WHERE definition_id=$1`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_create_child_requests WHERE definition_id=$1`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_action_executions WHERE process_id IN (SELECT id FROM wfl_definition_instances WHERE definition_id=$1)`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_node_instances WHERE process_id IN (SELECT id FROM wfl_definition_instances WHERE definition_id=$1)`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_definition_instances WHERE definition_id=$1`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM dcl_wfl_process_definition_versions WHERE definition_id=$1`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_events WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=$1`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_entries WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=$1`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM dcl_subjects WHERE entity='wfl-process-definition' AND id=$1`, definitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_process_definitions WHERE id=$1`, definitionID)
+	})
 	approved := createApprovedReimbursement(t, vouService, employee, actorID, "wfl-formal-source")
 	instances, err := wflService.InstanceQueryByDefinitionCode(t.Context(), code, wfldomain.InstanceQueryInput{Page: 1, PageSize: 20})
 	if err != nil || instances.Total != 1 {

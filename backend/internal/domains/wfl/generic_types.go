@@ -8,37 +8,13 @@ import (
 )
 
 type DefinitionQueryInput struct {
-	Page             int      `json:"page"`
-	PageSize         int      `json:"pageSize"`
-	Keyword          string   `json:"keyword,omitempty"`
-	ApprovalStatuses []string `json:"approvalStatuses,omitempty"`
-	Enabled          *bool    `json:"enabled,omitempty"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+	Keyword  string `json:"keyword,omitempty"`
+	Enabled  *bool  `json:"enabled,omitempty"`
 }
 type DefinitionGetInput struct {
-	DefinitionID    string `json:"definitionId"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
-}
-type DefinitionCreateInput struct {
-	Script string `json:"script"`
-}
-type DefinitionVersionCreateInput struct {
 	DefinitionID string `json:"definitionId"`
-}
-type DefinitionSaveInput struct {
-	DefinitionID    string `json:"definitionId"`
-	ApprovalEntryID string `json:"approvalEntryId"`
-	Revision        int64  `json:"revision"`
-	Script          string `json:"script"`
-}
-type DefinitionActionInput struct {
-	DefinitionID    string `json:"definitionId"`
-	ApprovalEntryID string `json:"approvalEntryId"`
-	Revision        int64  `json:"revision"`
-	Reason          string `json:"reason,omitempty"`
-}
-type DefinitionToggleInput struct {
-	DefinitionID string `json:"definitionId"`
-	Revision     int64  `json:"revision"`
 }
 type DefinitionDiagnostic struct {
 	Message string `json:"message"`

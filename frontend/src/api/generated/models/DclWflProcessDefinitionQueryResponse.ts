@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { WflDefinitionDeleteResult } from './WflDefinitionDeleteResult';
-export type WflDefinitionDeleteResponse = {
+import type { DclWflProcessDefinitionQueryPageData } from './DclWflProcessDefinitionQueryPageData';
+export type DclWflProcessDefinitionQueryResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: WflDefinitionDeleteResult | null;
+  data: DclWflProcessDefinitionQueryPageData | null;
   requestId: string;
 };

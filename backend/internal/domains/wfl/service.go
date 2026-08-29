@@ -4,41 +4,36 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/events/wflapproval"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
 
+// Service is the WFL domain service. It owns only runtime workflow execution
+// (starting instances from VOU approval events, creating child documents) and
+// read-only current-definition queries. Lifecycle (create/save/approve/etc)
+// is owned exclusively by the DCL WFL process-definition service.
 type Service struct {
-	pool     *pgxpool.Pool
-	queries  *sqlc.Queries
-	runtime  WorkflowRuntime
-	logger   *slog.Logger
-	approval *approval.Coordinator[wflapproval.Payload]
+	pool    *pgxpool.Pool
+	queries *sqlc.Queries
+	runtime WorkflowRuntime
+	logger  *slog.Logger
 }
 
 func NewService(
 	pool *pgxpool.Pool,
-	authorizer authorization.Authorizer,
 	events *txevent.Bus,
 	runtime WorkflowRuntime,
 	logger *slog.Logger,
 ) (*Service, error) {
-	if pool == nil || authorizer == nil || events == nil || runtime == nil {
-		return nil, errors.New("WFL pool, authorizer, event bus, and runtime are required")
+	if pool == nil || events == nil || runtime == nil {
+		return nil, errors.New("WFL pool, event bus, and runtime are required")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	coordinator, err := approval.NewCoordinator("wfl", "process-definition", authorizer, events, wflapproval.Topic())
-	if err != nil {
-		return nil, err
-	}
-	service := &Service{pool: pool, queries: sqlc.New(pool), runtime: runtime, logger: logger, approval: coordinator}
+	service := &Service{pool: pool, queries: sqlc.New(pool), runtime: runtime, logger: logger}
 	if err := service.registerSubscriptions(events); err != nil {
 		return nil, err
 	}

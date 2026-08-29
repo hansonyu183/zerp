@@ -467,12 +467,24 @@ func (c *Coordinator[T]) entryForVersionLock(ctx context.Context, queries *dbsql
 }
 
 func (c *Coordinator[T]) lockVersionSubject(ctx context.Context, tx pgx.Tx, subjectID string) error {
-	if err := dbsqlc.New(tx).LockApprovalVersionSubject(ctx, dbsqlc.LockApprovalVersionSubjectParams{
-		Domain: stringPointer(c.domain), Entity: stringPointer(c.entity), SubjectID: stringPointer(subjectID),
-	}); err != nil {
+	if err := LockVersionSubject(ctx, tx, c.domain, c.entity, subjectID); err != nil {
 		return c.databaseError("lock approval version subject", err)
 	}
 	return nil
+}
+
+// LockVersionSubject serializes consumers that must select and persist an
+// exact Approval Version identity in the same transaction as lifecycle writes.
+func LockVersionSubject(ctx context.Context, tx pgx.Tx, domain, entity, subjectID string) error {
+	domain = strings.TrimSpace(domain)
+	entity = strings.TrimSpace(entity)
+	subjectID = strings.TrimSpace(subjectID)
+	if tx == nil || domain == "" || entity == "" || subjectID == "" || len(domain) > 64 || len(entity) > 64 || len(subjectID) > 128 {
+		return newError(ErrorValidation, "approval_invalid_request", "invalid approval request", nil)
+	}
+	return dbsqlc.New(tx).LockApprovalVersionSubject(ctx, dbsqlc.LockApprovalVersionSubjectParams{
+		Domain: stringPointer(domain), Entity: stringPointer(entity), SubjectID: stringPointer(subjectID),
+	})
 }
 
 func (c *Coordinator[T]) requireLatestApprovedVersion(ctx context.Context, tx pgx.Tx, entry Entry) error {

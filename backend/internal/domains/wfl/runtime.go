@@ -73,7 +73,8 @@ func (s *Service) handleApproval(ctx context.Context, tx pgx.Tx, source approval
 	if hasExistingRoot {
 		return nil
 	}
-	rows, err := s.queries.WithTx(tx).ListEnabledWorkflowDefinitionsForShare(ctx)
+	queries := s.queries.WithTx(tx)
+	definitionIDs, err := queries.ListEnabledWorkflowDefinitionIDsForShare(ctx)
 	if err != nil {
 		return err
 	}
@@ -83,12 +84,24 @@ func (s *Service) handleApproval(ctx context.Context, tx pgx.Tx, source approval
 		compiled        compiledScriptDefinition
 	}
 	candidates := []candidate{}
-	for _, row := range rows {
+	for _, definitionID := range definitionIDs {
+		if err = approval.LockVersionSubject(ctx, tx, "dcl", "wfl-process-definition", definitionID); err != nil {
+			return err
+		}
+		row, currentErr := queries.GetEnabledWorkflowDefinitionForShare(ctx, definitionID)
+		if errors.Is(currentErr, pgx.ErrNoRows) {
+			continue
+		}
+		if currentErr != nil {
+			return currentErr
+		}
 		var item candidate
-		item.id, item.code, item.name = row.ID, row.Code, row.Name
-		item.approvalEntryID = row.ApprovalEntryID
+		item.id, item.code, item.approvalEntryID = row.ID, row.Code, row.ApprovalEntryID
+		if nameStr, ok := row.Name.(string); ok {
+			item.name = nameStr
+		}
 		var revisionErr error
-		item.compiled, revisionErr = compileDefinitionScript(row.Script)
+		item.compiled, revisionErr = CompileDefinitionScript(row.Script)
 		if revisionErr != nil {
 			return revisionErr
 		}
@@ -195,13 +208,13 @@ func (s *Service) executeExistingNodes(ctx context.Context, tx pgx.Tx, event wor
 		nodes = append(nodes, node{id: row.ID, processID: row.ProcessID, key: row.NodeKey, definitionID: row.DefinitionID, approvalEntryID: row.DefinitionApprovalEntryID})
 	}
 	for _, item := range nodes {
-		revision, revisionErr := s.queries.WithTx(tx).GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{
+		revision, revisionErr := s.queries.WithTx(tx).DclWflGetVersionPayload(ctx, sqlc.DclWflGetVersionPayloadParams{
 			DefinitionID: item.definitionID, ApprovalEntryID: item.approvalEntryID,
 		})
 		if revisionErr != nil {
 			return revisionErr
 		}
-		compiled, compileErr := compileDefinitionScript(revision.Script)
+		compiled, compileErr := CompileDefinitionScript(revision.Script)
 		if compileErr != nil {
 			return compileErr
 		}
@@ -392,13 +405,13 @@ func (s *Service) CreateChildByDefinitionCode(ctx context.Context, code string, 
 	if err != nil {
 		return BusinessObjectReference{}, err
 	}
-	revision, err := queries.GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{
+	revision, err := queries.DclWflGetVersionPayload(ctx, sqlc.DclWflGetVersionPayloadParams{
 		DefinitionID: definitionID, ApprovalEntryID: sourceNode.DefinitionApprovalEntryID,
 	})
 	if err != nil {
 		return BusinessObjectReference{}, err
 	}
-	compiled, err := compileDefinitionScript(revision.Script)
+	compiled, err := CompileDefinitionScript(revision.Script)
 	if err != nil {
 		return BusinessObjectReference{}, err
 	}

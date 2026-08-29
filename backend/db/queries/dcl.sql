@@ -286,8 +286,8 @@ WHERE domain='dcl' AND entity='operating-entity' AND subject_id=sqlc.arg(object_
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
--- Supplier keeps its Party-to-operating-entity relationship in BOB. DCL owns
--- all mutable commercial facts and the exact snapshots used by purchasing.
+-- DCL owns the immutable Party-to-operating-entity supplier relationship.
+-- The typed version stores mutable commercial facts and exact purchasing snapshots.
 -- name: InsertDCLSupplierVersion :exec
 INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
 VALUES(sqlc.arg(approval_entry_id),sqlc.narg(short_name),sqlc.narg(tax_number),sqlc.narg(contact_name),sqlc.narg(contact_phone),sqlc.narg(email),sqlc.narg(address),sqlc.narg(remark),sqlc.narg(settlement_method_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.arg(settlement_month_offset),sqlc.arg(settlement_day_of_month),sqlc.arg(settlement_day_offset),sqlc.narg(default_purchaser_employee_id),sqlc.narg(default_purchaser_employee_approval_entry_id),sqlc.narg(default_purchaser_employee_code),sqlc.narg(default_purchaser_employee_name),sqlc.arg(enabled));
@@ -364,8 +364,8 @@ SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='supplier' AN
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='supplier' AND subject_id=sqlc.arg(object_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- Customer is the DCL-owned declaration for the immutable Party x operating
--- entity relationship.  The stable relationship continues to live in BOB;
--- only DCL versions are eligible for candidate/list/read hydration.
+-- entity relationship. DCL owns the stable relationship and typed versions
+-- used for candidate/list/read hydration.
 -- name: CountDCLCustomers :one
 SELECT count(*)
 FROM dcl_subjects subject
@@ -452,8 +452,8 @@ SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_sta
 FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=sqlc.arg(object_id)
 ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
--- Employee keeps Party identity in BOB's immutable employment relationship;
--- this DCL declaration stores only its versioned employment facts.
+-- DCL owns Party identity linkage through the immutable employment relationship;
+-- this typed declaration stores the versioned employment facts.
 -- name: InsertDCLEmployeeVersion :exec
 INSERT INTO dcl_employee_versions(
   approval_entry_id,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,

@@ -3,7 +3,7 @@
 -- Purpose: exercise the ordered #289-#293 cutover chain without reading a
 -- historical Git object or using the network. The frozen schema includes
 -- representative seeded AUX objects, Approval entries, and payloads.
--- Provenance: backend/db/schema.sql at d505c567; this comment is documentary.
+-- Provenance: the historical pre-#289 schema captured in this fixture.
 
 -- The report reader is cluster-scoped while schema initialization is database-scoped.
 DO $$ BEGIN

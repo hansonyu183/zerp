@@ -1480,8 +1480,8 @@ type InsertDCLCustomerAccountVersionParams struct {
 	Enabled                            bool    `db:"enabled" json:"enabled"`
 }
 
-// #287 Customer Account is a distinct DCL Approval subject. BOB owns only
-// the immutable account-to-customer binding and the approved-current row.
+// #287 Customer Account is a distinct DCL Approval subject. DCL owns
+// the immutable account-to-customer binding; BOB reads latest APPROVED data.
 func (q *Queries) InsertDCLCustomerAccountVersion(ctx context.Context, arg InsertDCLCustomerAccountVersionParams) error {
 	_, err := q.db.Exec(ctx, insertDCLCustomerAccountVersion,
 		arg.ApprovalEntryID,

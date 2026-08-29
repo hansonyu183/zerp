@@ -85,8 +85,8 @@ type Querier interface {
 	CountDCLCustomerApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLCustomerAttachments(ctx context.Context, approvalEntryID string) (int64, error)
 	// Customer is the DCL-owned declaration for the immutable Party x operating
-	// entity relationship.  The stable relationship continues to live in BOB;
-	// only DCL versions are eligible for candidate/list/read hydration.
+	// entity relationship. DCL owns the stable relationship and typed versions
+	// used for candidate/list/read hydration.
 	CountDCLCustomers(ctx context.Context, arg CountDCLCustomersParams) (int64, error)
 	CountDCLEmployeeApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLEmployees(ctx context.Context, arg CountDCLEmployeesParams) (int64, error)
@@ -481,16 +481,16 @@ type Querier interface {
 	InsertDCLCustomerAccountAttachment(ctx context.Context, arg InsertDCLCustomerAccountAttachmentParams) error
 	InsertDCLCustomerAccountCreditLimit(ctx context.Context, arg InsertDCLCustomerAccountCreditLimitParams) error
 	InsertDCLCustomerAccountRoot(ctx context.Context, arg InsertDCLCustomerAccountRootParams) error
-	// #287 Customer Account is a distinct DCL Approval subject. BOB owns only
-	// the immutable account-to-customer binding and the approved-current row.
+	// #287 Customer Account is a distinct DCL Approval subject. DCL owns
+	// the immutable account-to-customer binding; BOB reads latest APPROVED data.
 	InsertDCLCustomerAccountVersion(ctx context.Context, arg InsertDCLCustomerAccountVersionParams) error
 	InsertDCLCustomerAttachment(ctx context.Context, arg InsertDCLCustomerAttachmentParams) error
 	InsertDCLCustomerRelationship(ctx context.Context, arg InsertDCLCustomerRelationshipParams) error
 	// #287 DCL Customer relationship declaration payload.
 	InsertDCLCustomerVersion(ctx context.Context, arg InsertDCLCustomerVersionParams) error
 	InsertDCLEmployeeRelationship(ctx context.Context, arg InsertDCLEmployeeRelationshipParams) error
-	// Employee keeps Party identity in BOB's immutable employment relationship;
-	// this DCL declaration stores only its versioned employment facts.
+	// DCL owns Party identity linkage through the immutable employment relationship;
+	// this typed declaration stores the versioned employment facts.
 	InsertDCLEmployeeVersion(ctx context.Context, arg InsertDCLEmployeeVersionParams) error
 	InsertDCLFundAccountVersion(ctx context.Context, arg InsertDCLFundAccountVersionParams) error
 	InsertDCLOperatingEntityVersion(ctx context.Context, arg InsertDCLOperatingEntityVersionParams) error
@@ -514,8 +514,8 @@ type Querier interface {
 	// Approval Version.  It deliberately stores no current/base/next pointer.
 	InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectParams) error
 	InsertDCLSupplierRelationship(ctx context.Context, arg InsertDCLSupplierRelationshipParams) error
-	// Supplier keeps its Party-to-operating-entity relationship in BOB. DCL owns
-	// all mutable commercial facts and the exact snapshots used by purchasing.
+	// DCL owns the immutable Party-to-operating-entity supplier relationship.
+	// The typed version stores mutable commercial facts and exact purchasing snapshots.
 	InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSupplierVersionParams) error
 	InsertDCLVehicleVersion(ctx context.Context, arg InsertDCLVehicleVersionParams) error
 	// Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category

@@ -123,6 +123,18 @@ export function createDclRptDefinitionViewModel() {
       return null
     }
   })
+  const canSetFormEnabled = (enabled: boolean): boolean =>
+    permissions.value[enabled ? 'enable' : 'disable']
+  const canPersistForm = computed(() => {
+    if (!selected.value)
+      return permissions.value.create && canSetFormEnabled(form.enabled)
+    return (
+      permissions.value.save &&
+      selected.value.approval.status === 'DRAFT' &&
+      (selected.value.enabled === form.enabled ||
+        canSetFormEnabled(form.enabled))
+    )
+  })
 
   function resetForm(): void {
     selected.value = null
@@ -218,6 +230,7 @@ export function createDclRptDefinitionViewModel() {
   }
 
   async function save(): Promise<void> {
+    if (!canPersistForm.value) return
     if (!parsedData.value) {
       errorMessage.value = '定义数据必须包含 sql、parameters 和 columns。'
       return
@@ -230,11 +243,6 @@ export function createDclRptDefinitionViewModel() {
     errorMessage.value = null
     try {
       if (selected.value) {
-        if (
-          !permissions.value.save ||
-          selected.value.approval.status !== 'DRAFT'
-        )
-          return
         await saveRptDefinition({
           ...selected.value,
           name: form.name.trim(),
@@ -243,7 +251,6 @@ export function createDclRptDefinitionViewModel() {
           data: parsedData.value,
         })
       } else {
-        if (!permissions.value.create) return
         await createRptDefinition({
           name: form.name.trim(),
           description: form.description.trim(),
@@ -359,6 +366,8 @@ export function createDclRptDefinitionViewModel() {
   return reactive({
     auditEvents,
     auditOpen,
+    canPersistForm,
+    canSetFormEnabled,
     changeEnabled,
     changePage,
     editorOpen,

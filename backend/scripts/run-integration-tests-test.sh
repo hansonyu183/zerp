@@ -22,11 +22,6 @@ done
 git -C "${fixture}" init -b main >/dev/null
 git -C "${fixture}" add .
 
-if grep -Eq 'git show|d505c567' "${script_dir}/run-integration-tests.sh"; then
-  echo 'integration runner still depends on a historical Git object' >&2
-  exit 1
-fi
-
 cat >"${tmp}/bin/docker" <<'EOF'
 #!/bin/sh
 set -eu

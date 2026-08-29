@@ -30,6 +30,17 @@ func (rptQueryOnlyAuthorizer) RequirePermission(_ context.Context, _ authorizati
 	return errors.New("permission denied: " + path)
 }
 
+type rptPermissionAuthorizer struct {
+	allowed map[string]bool
+}
+
+func (a *rptPermissionAuthorizer) RequirePermission(_ context.Context, _ authorization.Principal, path, _ string) error {
+	if a.allowed[path] {
+		return nil
+	}
+	return authorization.NewError(authorization.ErrorForbidden, "permission denied: "+path, nil)
+}
+
 func resetRptDefinitionIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanup := func(ctx context.Context) error {
@@ -256,6 +267,68 @@ func TestRptDefinitionOwnershipIsSplitAcrossDclApprovalAndRptIntegration(t *test
 		if columns[rptOwnedColumn] {
 			t.Fatalf("RPT-owned technical state remains in DCL snapshot: %s", rptOwnedColumn)
 		}
+	}
+}
+
+func TestDclRptDefinitionCreateAndSaveCannotBypassEnabledPermissionsIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetRptDefinitionIntegrationData(t, pool)
+	rptService, err := rptdomain.NewService(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorizer := &rptPermissionAuthorizer{allowed: map[string]bool{
+		"/dcl/rpt-definition/create": true,
+	}}
+	service := NewRptDefinitionService(pool, rptService, authorizer, txevent.NewBus())
+	actor := dclActor(t, rptDefinitionCreatorID, "dcl-rpt-enabled-permissions")
+
+	_, err = service.Create(t.Context(), RptDefinitionCreateInput{
+		Name: "权限验证", Enabled: true, Data: rptDefinitionTestData(t, "enabled"),
+	}, actor)
+	assertRptDefinitionForbidden(t, err)
+
+	authorizer.allowed["/dcl/rpt-definition/enable"] = true
+	created, err := service.Create(t.Context(), RptDefinitionCreateInput{
+		Name: "权限验证", Enabled: true, Data: rptDefinitionTestData(t, "enabled"),
+	}, actor)
+	if err != nil {
+		t.Fatalf("create with create and enable permissions: %v", err)
+	}
+
+	authorizer.allowed["/dcl/rpt-definition/save"] = true
+	name := "权限验证已保存"
+	saved, err := service.Save(t.Context(), RptDefinitionSaveInput{
+		Code: created.Code, ApprovalEntryID: created.Approval.ApprovalEntryID,
+		ApprovalRevision: created.Approval.Revision, Name: &name, Enabled: true,
+		Data: rptDefinitionTestData(t, "saved"),
+	}, actor)
+	if err != nil {
+		t.Fatalf("save without changing enabled state: %v", err)
+	}
+
+	_, err = service.Save(t.Context(), RptDefinitionSaveInput{
+		Code: saved.Code, ApprovalEntryID: saved.Approval.ApprovalEntryID,
+		ApprovalRevision: saved.Approval.Revision, Name: &name, Enabled: false,
+		Data: rptDefinitionTestData(t, "disabled"),
+	}, actor)
+	assertRptDefinitionForbidden(t, err)
+
+	authorizer.allowed["/dcl/rpt-definition/disable"] = true
+	if _, err = service.Save(t.Context(), RptDefinitionSaveInput{
+		Code: saved.Code, ApprovalEntryID: saved.Approval.ApprovalEntryID,
+		ApprovalRevision: saved.Approval.Revision, Name: &name, Enabled: false,
+		Data: rptDefinitionTestData(t, "disabled"),
+	}, actor); err != nil {
+		t.Fatalf("save enabled change with disable permission: %v", err)
+	}
+}
+
+func assertRptDefinitionForbidden(t *testing.T, err error) {
+	t.Helper()
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorForbidden {
+		t.Fatalf("error = %v, want DCL forbidden", err)
 	}
 }
 

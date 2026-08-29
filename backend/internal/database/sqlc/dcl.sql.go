@@ -330,8 +330,8 @@ type CountDCLCustomersParams struct {
 }
 
 // Customer is the DCL-owned declaration for the immutable Party x operating
-// entity relationship.  The stable relationship continues to live in BOB;
-// only DCL versions are eligible for candidate/list/read hydration.
+// entity relationship. DCL owns the stable relationship and typed versions
+// used for candidate/list/read hydration.
 func (q *Queries) CountDCLCustomers(ctx context.Context, arg CountDCLCustomersParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countDCLCustomers,
 		arg.Keyword,
@@ -2569,8 +2569,8 @@ type InsertDCLEmployeeVersionParams struct {
 	Enabled              bool        `db:"enabled" json:"enabled"`
 }
 
-// Employee keeps Party identity in BOB's immutable employment relationship;
-// this DCL declaration stores only its versioned employment facts.
+// DCL owns Party identity linkage through the immutable employment relationship;
+// this typed declaration stores the versioned employment facts.
 func (q *Queries) InsertDCLEmployeeVersion(ctx context.Context, arg InsertDCLEmployeeVersionParams) error {
 	_, err := q.db.Exec(ctx, insertDCLEmployeeVersion,
 		arg.ApprovalEntryID,
@@ -2913,8 +2913,8 @@ type InsertDCLSupplierVersionParams struct {
 	Enabled                                 bool    `db:"enabled" json:"enabled"`
 }
 
-// Supplier keeps its Party-to-operating-entity relationship in BOB. DCL owns
-// all mutable commercial facts and the exact snapshots used by purchasing.
+// DCL owns the immutable Party-to-operating-entity supplier relationship.
+// The typed version stores mutable commercial facts and exact purchasing snapshots.
 func (q *Queries) InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSupplierVersionParams) error {
 	_, err := q.db.Exec(ctx, insertDCLSupplierVersion,
 		arg.ApprovalEntryID,

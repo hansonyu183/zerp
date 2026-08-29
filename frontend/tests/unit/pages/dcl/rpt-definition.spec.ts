@@ -198,4 +198,51 @@ describe('DCL report definition boundary', () => {
       expect.objectContaining({ approvalEntryId: approval.approvalEntryId }),
     )
   })
+
+  it('requires the target enabled-state permission when creating or saving', async () => {
+    const session = useSessionStore()
+    session.permissions = ['/dcl/rpt-definition/create']
+    const createVm = createDclRptDefinitionViewModel()
+    createVm.form.name = definition.name
+
+    expect(createVm.canPersistForm).toBe(false)
+    await createVm.save()
+    expect(mockedPost).not.toHaveBeenCalled()
+
+    session.permissions = [
+      '/dcl/rpt-definition/create',
+      '/dcl/rpt-definition/enable',
+    ]
+    mockedPost.mockResolvedValue({ data: {} } as never)
+    expect(createVm.canPersistForm).toBe(true)
+    await createVm.save()
+    expect(mockedPost).toHaveBeenCalledWith(
+      'dcl/rpt-definition/create',
+      expect.objectContaining({ enabled: true }),
+    )
+
+    vi.clearAllMocks()
+    session.permissions = ['/dcl/rpt-definition/save']
+    const saveVm = createDclRptDefinitionViewModel()
+    saveVm.selected = definition
+    saveVm.form.name = definition.name
+    saveVm.form.enabled = false
+    saveVm.form.dataText = JSON.stringify(data)
+
+    expect(saveVm.canPersistForm).toBe(false)
+    await saveVm.save()
+    expect(mockedPost).not.toHaveBeenCalled()
+
+    session.permissions = [
+      '/dcl/rpt-definition/save',
+      '/dcl/rpt-definition/disable',
+    ]
+    mockedPost.mockResolvedValue({ data: {} } as never)
+    expect(saveVm.canPersistForm).toBe(true)
+    await saveVm.save()
+    expect(mockedPost).toHaveBeenCalledWith(
+      'dcl/rpt-definition/save',
+      expect.objectContaining({ enabled: false }),
+    )
+  })
 })

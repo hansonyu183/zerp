@@ -153,7 +153,8 @@ void vm.query().then(() => {
           <v-checkbox
             v-model="vm.form.enabled"
             :disabled="
-              Boolean(vm.selected && vm.selected.approval.status !== 'DRAFT')
+              Boolean(vm.selected && vm.selected.approval.status !== 'DRAFT') ||
+              !vm.canSetFormEnabled(!vm.form.enabled)
             "
             label="本候选版本启用"
             hide-details
@@ -180,10 +181,7 @@ void vm.query().then(() => {
         <v-card-actions class="flex-wrap">
           <v-btn @click="vm.editorOpen = false">关闭</v-btn>
           <v-btn
-            v-if="
-              !vm.selected ||
-              (vm.selected.approval.status === 'DRAFT' && vm.permissions.save)
-            "
+            v-if="vm.canPersistForm"
             color="primary"
             :loading="vm.saving"
             @click="vm.save"

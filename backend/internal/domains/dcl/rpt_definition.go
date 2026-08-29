@@ -198,6 +198,9 @@ func (s *RptDefinitionService) Create(ctx context.Context, input RptDefinitionCr
 	if err := s.validator.ValidateDefinitionShape(input.Data.SQL, input.Data.Parameters, input.Data.Columns); err != nil {
 		return RptDefinitionMutation{}, newError(ErrorValidation, "report_definition_invalid", err.Error(), nil, err)
 	}
+	if err := s.coordinator.Authorize(ctx, actor, enabledPermissionAction(input.Enabled)); err != nil {
+		return RptDefinitionMutation{}, translateError(err)
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return RptDefinitionMutation{}, translateError(err)
@@ -281,6 +284,18 @@ func (s *RptDefinitionService) Save(ctx context.Context, input RptDefinitionSave
 		return RptDefinitionMutation{}, newError(ErrorConflict, "approval_invalid_transition", "only a draft report definition can be saved", nil, nil)
 	}
 	entry := approvalEntry(stored)
+	version, err := q.DclRptGetVersionPayload(ctx, dbsqlc.DclRptGetVersionPayloadParams{
+		ApprovalEntryID: entry.ID,
+		DefinitionID:    def.ID,
+	})
+	if err != nil {
+		return RptDefinitionMutation{}, translateError(err)
+	}
+	if version.Enabled != input.Enabled {
+		if err := s.coordinator.Authorize(ctx, actor, enabledPermissionAction(input.Enabled)); err != nil {
+			return RptDefinitionMutation{}, translateError(err)
+		}
+	}
 
 	if err := q.DclRptUpdateDraftPayload(ctx, dbsqlc.DclRptUpdateDraftPayloadParams{
 		Name: input.Name, Description: input.Description,
@@ -304,6 +319,13 @@ func (s *RptDefinitionService) Save(ctx context.Context, input RptDefinitionSave
 		Code: input.Code, DefinitionID: def.ID, Enabled: input.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry),
 	}, nil
+}
+
+func enabledPermissionAction(enabled bool) string {
+	if enabled {
+		return "enable"
+	}
+	return "disable"
 }
 
 func (s *RptDefinitionService) transition(ctx context.Context, entryID string, revision int64, code string, action approval.Action, actor approval.Actor, reason string, validationParameters map[string]any) (RptDefinitionMutation, error) {

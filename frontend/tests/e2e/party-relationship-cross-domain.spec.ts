@@ -19,7 +19,6 @@ interface Envelope<T> {
 interface Mutation {
   objectId: string
   partyId?: string
-  objectRevision: number
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -53,7 +52,6 @@ interface VoucherMutation {
 interface BobView {
   objectId: string
   code: string
-  objectRevision: number
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -69,7 +67,6 @@ interface BobView {
 interface BobCurrentView {
   objectId: string
   code: string
-  objectRevision: number
   enabled: boolean
   sourceApprovalEntryId: string
   sourceVersionNo: number

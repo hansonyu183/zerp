@@ -116,7 +116,7 @@ func TestSupplierLifecycleLatestApprovedReadAndPurchaseBlockerIntegration(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = business.ValidateApprovedSnapshotReference(t.Context(), validationTx, bobdomain.EntitySupplier, v1.ObjectID, v1.Approval.ApprovalEntryID)
+	_, err = business.ValidateHistoricalReference(t.Context(), validationTx, bobdomain.EntitySupplier, v1.ObjectID, v1.Approval.ApprovalEntryID)
 	_ = validationTx.Rollback(t.Context())
 	if err != nil {
 		t.Fatalf("resolve historical v1 supplier snapshot: %v", err)

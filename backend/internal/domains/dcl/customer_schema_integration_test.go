@@ -44,6 +44,7 @@ func TestRelationshipStableIdentityAndSnapshotsAreDclOwnedIntegration(t *testing
 		}
 	}
 	for _, table := range []string{
+		"bob_objects",
 		"bob_parties",
 		"bob_party_currents",
 		"bob_party_identifiers",

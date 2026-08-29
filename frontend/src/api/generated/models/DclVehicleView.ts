@@ -8,7 +8,6 @@ export type DclVehicleView = {
   objectId: string;
   entity: 'vehicle';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   approval: ApprovalVersionMeta;
   data: DclVehicleData;

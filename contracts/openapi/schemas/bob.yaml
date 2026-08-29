@@ -119,7 +119,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'sourceApprovalEntryId',
           'sourceVersionNo',
@@ -132,7 +131,6 @@
           'objectId': { 'type': 'string' },
           'entity': { '$ref': '#/BobEntity' },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
           'sourceVersionNo':
@@ -1133,7 +1131,6 @@
           'objectId',
           'entity',
           'code',
-          'objectRevision',
           'enabled',
           'sourceApprovalEntryId',
           'sourceVersionNo',
@@ -1146,7 +1143,6 @@
           'objectId': { 'type': 'string' },
           'entity': { '$ref': '#/BobEntity' },
           'code': { 'type': 'string' },
-          'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId':
             {

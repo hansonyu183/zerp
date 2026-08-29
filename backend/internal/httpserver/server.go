@@ -62,7 +62,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	if err != nil {
 		return nil, err
 	}
-	accService := accdomain.NewService(db, authorizer, eventBus)
+	accService := accdomain.NewService(db, bobService, authorizer, eventBus)
 	dclAccMappingService := dcldomain.NewAccMappingService(db, accService, authorizer, eventBus)
 	rptService, err := rptdomain.NewService(db)
 	if err != nil {

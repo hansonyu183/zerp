@@ -7,7 +7,6 @@ export type DclProductListItem = {
   objectId: string;
   entity: 'product';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclProductVersionView | null;
   openVersion: DclProductVersionView | null;

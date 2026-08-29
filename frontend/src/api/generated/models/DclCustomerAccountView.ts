@@ -10,7 +10,6 @@ export type DclCustomerAccountView = {
   entity: 'customer-account';
   code: string;
   customerRelationshipId: string;
-  objectRevision: number;
   enabled: boolean;
   approval: ApprovalVersionMeta;
   data: DclCustomerAccountData;

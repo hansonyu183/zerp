@@ -20,17 +20,16 @@ WHERE domain=CASE WHEN sqlc.arg(entity)::text IN ('operating-entity','warehouse'
 ORDER BY created_at,id
 LIMIT 1;
 
--- name: InsertBobObject :exec
-INSERT INTO bob_objects (id, entity, code, revision, created_by, updated_by)
-VALUES (sqlc.arg(id), sqlc.arg(entity), sqlc.arg(code), 1, sqlc.arg(actor_id), sqlc.arg(actor_id));
-
--- name: GetBobObject :one
-SELECT id, entity, code, revision, enabled, created_at, created_by, updated_at, updated_by
-FROM bob_objects
-WHERE id = sqlc.arg(object_id) AND entity = sqlc.arg(entity);
+-- name: HasApprovalEntryApprovedEvent :one
+SELECT EXISTS (
+  SELECT 1
+  FROM approval_events
+  WHERE entry_id=sqlc.arg(approval_entry_id)
+    AND action='APPROVED'
+);
 
 -- name: GetBobWarehouseCurrent :one
-SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.enabled,snapshot.name,snapshot.address,snapshot.contact_name,snapshot.contact_phone,snapshot.manager_employee_id,snapshot.manager_employee_approval_entry_id,snapshot.remark,entry.updated_at,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.enabled,snapshot.name,snapshot.address,snapshot.contact_name,snapshot.contact_phone,snapshot.manager_employee_id,snapshot.manager_employee_approval_entry_id,snapshot.remark,entry.updated_at,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
 FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.id=sqlc.arg(object_id) AND subject.entity='warehouse';
@@ -41,7 +40,7 @@ WHERE subject.entity='warehouse' AND (sqlc.arg(keyword)::text='' OR subject.code
 AND (sqlc.arg(enabled_filter)::integer=-1 OR snapshot.enabled=(sqlc.arg(enabled_filter)::integer=1));
 
 -- name: ListBobWarehouses :many
-SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id
 FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.entity='warehouse' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.name ILIKE '%'||sqlc.arg(keyword)::text||'%')
 AND (sqlc.arg(enabled_filter)::integer=-1 OR snapshot.enabled=(sqlc.arg(enabled_filter)::integer=1))
@@ -54,7 +53,7 @@ CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: GetBobWarehouseCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id,snapshot.name,snapshot.address,snapshot.contact_name,snapshot.contact_phone,snapshot.manager_employee_id,snapshot.manager_employee_approval_entry_id,snapshot.remark
+SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id,entry.version_no,snapshot.name,snapshot.address,snapshot.contact_name,snapshot.contact_phone,snapshot.manager_employee_id,snapshot.manager_employee_approval_entry_id,snapshot.remark
 FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.id=sqlc.arg(object_id) AND subject.entity='warehouse' AND snapshot.enabled;
 
@@ -62,7 +61,7 @@ WHERE subject.id=sqlc.arg(object_id) AND subject.entity='warehouse' AND snapshot
 -- entry and its typed snapshot.
 -- name: GetBobOperatingEntityCurrent :one
 SELECT subject.id AS object_id, subject.entity, subject.code,
-       0::bigint AS object_revision, snapshot.enabled,
+	       snapshot.enabled,
        snapshot.legal_name, snapshot.short_name, snapshot.tax_number,
        snapshot.address, snapshot.phone, snapshot.remark,
        entry.updated_at, entry.id AS approval_entry_id, entry.domain,
@@ -88,7 +87,7 @@ WHERE subject.entity='operating-entity'
 
 -- name: ListBobOperatingEntities :many
 SELECT subject.id AS object_id, subject.entity, subject.code,
-       0::bigint AS object_revision, snapshot.enabled, entry.updated_at,
+	       snapshot.enabled, entry.updated_at,
        entry.id AS approval_entry_id,
        ''::text AS open_approval_entry_id
 FROM dcl_subjects subject
@@ -109,7 +108,7 @@ LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: GetBobOperatingEntityCurrentReference :one
 SELECT subject.id AS object_id, subject.entity, subject.code, snapshot.enabled,
-       entry.id AS approval_entry_id, snapshot.legal_name, snapshot.short_name, snapshot.tax_number,
+       entry.id AS approval_entry_id, entry.version_no, snapshot.legal_name, snapshot.short_name, snapshot.tax_number,
        snapshot.address, snapshot.phone, snapshot.remark
 FROM dcl_subjects subject
 JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
@@ -134,27 +133,6 @@ FROM dcl_customer_accounts account
 JOIN dcl_subjects subject ON subject.id=account.object_id AND subject.entity='customer-account'
 WHERE account.customer_relationship_id=sqlc.arg(customer_relationship_id)
 ORDER BY subject.code;
-
--- name: LockBobObject :one
-SELECT id, entity, code, revision, enabled, created_at, created_by, updated_at, updated_by
-FROM bob_objects
-WHERE id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
-FOR UPDATE;
-
--- name: SetBobObjectEnabled :execrows
-UPDATE bob_objects
-SET enabled = sqlc.arg(enabled), revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(object_id) AND entity = sqlc.arg(entity) AND revision = sqlc.arg(object_revision);
-
--- name: DeleteBobObject :execrows
-DELETE FROM bob_objects
-WHERE id = sqlc.arg(object_id) AND entity = sqlc.arg(entity) AND revision = sqlc.arg(object_revision);
-
--- name: TouchBobObject :one
-UPDATE bob_objects
-SET revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
-RETURNING id, entity, code, revision, enabled, created_at, created_by, updated_at, updated_by;
 
 -- name: GetDCLSupplierOpenEntry :one
 SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at,
@@ -235,9 +213,9 @@ JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='veh
 JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE snapshot.carrier_service_relationship_object_id=sqlc.narg(source_object_id);
 -- name: GetBobVehicleCurrent :one
-SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.approval_entry_id AS source_approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=sqlc.arg(object_id) AND subject.entity='vehicle';
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS source_approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=sqlc.arg(object_id) AND subject.entity='vehicle';
 -- name: ListBobVehicles :many
-SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.enabled AS current_enabled,entry.updated_at FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.name ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.plate_number ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR snapshot.enabled=(sqlc.arg(enabled_filter)::integer=1))
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.enabled AS current_enabled,entry.updated_at FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.name ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.plate_number ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR snapshot.enabled=(sqlc.arg(enabled_filter)::integer=1))
 ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN entry.updated_at END ASC,
 CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN entry.updated_at END DESC,
 CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN subject.code END ASC,
@@ -249,15 +227,15 @@ LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 SELECT count(*) FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.name ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.plate_number ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR snapshot.enabled=(sqlc.arg(enabled_filter)::integer=1));
 
 -- name: GetBobFundAccountCurrent :one
-SELECT subject.id object_id,subject.entity,subject.code,0::bigint object_revision,snapshot.approval_entry_id source_approval_entry_id,snapshot.name,snapshot.currency,snapshot.account_name,snapshot.bank_name,snapshot.bank_branch,snapshot.account_number,snapshot.remark,snapshot.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision approval_revision,entry.created_by,entry.created_at,entry.updated_by approval_updated_by,entry.updated_at approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=sqlc.arg(object_id) AND subject.entity='fund-account';
+SELECT subject.id object_id,subject.entity,subject.code,snapshot.approval_entry_id source_approval_entry_id,snapshot.name,snapshot.currency,snapshot.account_name,snapshot.bank_name,snapshot.bank_branch,snapshot.account_number,snapshot.remark,snapshot.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision approval_revision,entry.created_by,entry.created_at,entry.updated_by approval_updated_by,entry.updated_at approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=sqlc.arg(object_id) AND subject.entity='fund-account';
 -- name: ListBobFundAccounts :many
-SELECT subject.id object_id,subject.entity,subject.code,0::bigint object_revision,snapshot.enabled current_enabled,entry.updated_at FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR snapshot.enabled=(sqlc.arg(enabled_filter)::integer=1)) ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN entry.updated_at END ASC, CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN entry.updated_at END DESC, CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN subject.code END ASC, CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN subject.code END DESC, CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN snapshot.name END ASC, CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN snapshot.name END DESC,subject.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+SELECT subject.id object_id,subject.entity,subject.code,snapshot.enabled current_enabled,entry.updated_at FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR snapshot.enabled=(sqlc.arg(enabled_filter)::integer=1)) ORDER BY CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN entry.updated_at END ASC, CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN entry.updated_at END DESC, CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN subject.code END ASC, CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN subject.code END DESC, CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN snapshot.name END ASC, CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN snapshot.name END DESC,subject.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 -- name: CountBobFundAccounts :one
 SELECT count(*) FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR snapshot.enabled=(sqlc.arg(enabled_filter)::integer=1));
 -- name: GetBobFundAccountCurrentReference :one
-SELECT subject.id object_id,subject.entity,subject.code,snapshot.approval_entry_id approval_entry_id,snapshot.name,snapshot.currency,snapshot.account_name,snapshot.bank_name,snapshot.bank_branch,snapshot.account_number,snapshot.remark,snapshot.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=sqlc.arg(object_id) AND subject.entity='fund-account' AND snapshot.enabled;
+SELECT subject.id object_id,subject.entity,subject.code,snapshot.approval_entry_id approval_entry_id,entry.version_no,snapshot.name,snapshot.currency,snapshot.account_name,snapshot.bank_name,snapshot.bank_branch,snapshot.account_number,snapshot.remark,snapshot.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name FROM dcl_subjects subject JOIN LATERAL (SELECT id,version_no FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=sqlc.arg(object_id) AND subject.entity='fund-account' AND snapshot.enabled;
 -- name: GetBobVehicleCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=sqlc.arg(object_id) AND subject.entity='vehicle' AND snapshot.enabled;
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS approval_entry_id,entry.version_no,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable FROM dcl_subjects subject JOIN LATERAL (SELECT id,version_no FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=sqlc.arg(object_id) AND subject.entity='vehicle' AND snapshot.enabled;
 -- name: ListFormulaMaterialReferences :many
 SELECT subject.id AS object_id,subject.entity,'formula-material'::text AS role FROM dcl_subjects subject
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
@@ -306,7 +284,7 @@ SELECT account.customer_relationship_id FROM dcl_customer_accounts account JOIN 
 -- name: CountDCLCustomerAccounts :one
 SELECT count(*) FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)  WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 -- name: ListDCLCustomerAccounts :many
-SELECT subject.id AS object_id,subject.code,0::bigint AS object_revision,account.customer_relationship_id,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id  LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[])) ORDER BY subject.code LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+SELECT subject.id AS object_id,subject.code,account.customer_relationship_id,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id  LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[])) ORDER BY subject.code LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 -- name: CountDCLCustomerAccountApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer-account' AND subject_id=sqlc.arg(object_id);
 -- name: ListDCLCustomerAccountApprovalEvents :many
@@ -526,7 +504,7 @@ ORDER BY entity,document_no,document_id;
 UPDATE dcl_product_versions SET name=sqlc.arg(name),category_id=sqlc.narg(category_id),category_code=sqlc.narg(category_code),category_name=sqlc.narg(category_name),specification=sqlc.narg(specification),model=sqlc.narg(model),barcode=sqlc.narg(barcode),remark=sqlc.narg(remark),pricing_unit_id=sqlc.narg(pricing_unit_id),default_packaging_spec_micros=sqlc.narg(default_packaging_spec_micros),product_type_id=sqlc.narg(product_type_id),product_type_code=sqlc.narg(product_type_code),product_type_name=sqlc.narg(product_type_name),behavior_profile=sqlc.narg(behavior_profile),default_input_unit_id=sqlc.narg(default_input_unit_id),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
 -- name: GetBobProductCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id
+SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id,entry.version_no
 FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_product_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.id=sqlc.arg(object_id) AND subject.entity='product' AND snapshot.enabled;
@@ -535,7 +513,7 @@ SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_
 FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 WHERE subject.id=sqlc.arg(object_id) AND subject.entity='product';
 -- name: ListBobProductsCurrent :many
-SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id
 FROM dcl_subjects subject JOIN LATERAL (SELECT * FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_product_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR snapshot.name ILIKE '%'||sqlc.arg(keyword)::text||'%')

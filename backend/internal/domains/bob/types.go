@@ -450,7 +450,6 @@ type ObjectView struct {
 	ObjectID              string                    `json:"objectId"`
 	Entity                string                    `json:"entity"`
 	Code                  string                    `json:"code"`
-	ObjectRevision        int64                     `json:"objectRevision"`
 	Enabled               bool                      `json:"enabled"`
 	SourceApprovalEntryID string                    `json:"sourceApprovalEntryId"`
 	SourceVersionNo       int32                     `json:"sourceVersionNo"`
@@ -472,7 +471,6 @@ type QueryItem struct {
 	ObjectID              string                    `json:"objectId"`
 	Entity                string                    `json:"entity"`
 	Code                  string                    `json:"code"`
-	ObjectRevision        int64                     `json:"objectRevision"`
 	Enabled               bool                      `json:"enabled"`
 	SourceApprovalEntryID string                    `json:"sourceApprovalEntryId"`
 	SourceVersionNo       int32                     `json:"sourceVersionNo"`
@@ -493,6 +491,7 @@ type EffectiveReference struct {
 	Entity          string     `json:"entity"`
 	Code            string     `json:"code"`
 	ApprovalEntryID string     `json:"approvalEntryId"`
+	VersionNo       int32      `json:"versionNo"`
 	Data            DetailView `json:"data"`
 }
 

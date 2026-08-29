@@ -17,8 +17,8 @@ import (
 )
 
 type customerAccountBusinessRules interface {
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
-	ValidateApprovedSnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	ResolveCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error)
 	ResolveCustomerTypeReference(context.Context, pgx.Tx, string) (bobdomain.EffectiveReference, error)
 	ValidateCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string, string, string, string) error
@@ -45,7 +45,7 @@ func customerAccountPayload(id bobdomain.RelationshipIdentity, relationshipID, n
 	return dclapproval.CustomerAccountPayload{SubjectID: id.ObjectID, Code: id.Code, CustomerRelationshipID: relationshipID, Name: name, Enabled: enabled}
 }
 func customerAccountMutation(id bobdomain.RelationshipIdentity, relation string, enabled bool, e approval.Entry) CustomerAccountMutation {
-	return CustomerAccountMutation{ObjectID: id.ObjectID, ObjectRevision: id.ObjectRevision, CustomerRelationshipID: relation, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+	return CustomerAccountMutation{ObjectID: id.ObjectID, CustomerRelationshipID: relation, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 
 func (s *CustomerAccountService) Create(ctx context.Context, in CustomerAccountCreateInput, actor approval.Actor) (CustomerAccountMutation, error) {
@@ -105,7 +105,7 @@ func (s *CustomerAccountService) resolve(ctx context.Context, tx pgx.Tx, relatio
 	if err != nil {
 		return CustomerAccountData{}, err
 	}
-	op, err := s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, relationship.OperatingEntityID)
+	op, err := s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, relationship.OperatingEntityID)
 	if err != nil {
 		return CustomerAccountData{}, err
 	}
@@ -372,7 +372,7 @@ func (s *CustomerAccountService) transition(ctx context.Context, in CustomerAcco
 		if identityErr != nil {
 			return CustomerAccountMutation{}, translateError(identityErr)
 		}
-		if _, err = s.rules.ValidateApprovedSnapshotReference(ctx, tx, bobdomain.EntityOperatingEntity, stored.OperatingEntityID, stored.OperatingEntityApprovalEntryID); err == nil {
+		if _, err = s.rules.ValidateHistoricalReference(ctx, tx, bobdomain.EntityOperatingEntity, stored.OperatingEntityID, stored.OperatingEntityApprovalEntryID); err == nil {
 			err = s.rules.ValidateCustomerAccountReferences(ctx, tx, customer.PartyID, stringValue(stored.SettlementMethodID), "", stringValue(stored.PaymentMethodID), "", stringValue(stored.PrimarySalesAttributionType), stringValue(stored.PrimarySalesSubjectID), stringValue(stored.PrimarySalesSubjectApprovalEntryID))
 		}
 		if err != nil {

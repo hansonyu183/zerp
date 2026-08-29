@@ -157,6 +157,27 @@ run_issue_308_cutover() {
 		<db/cutovers/issue-308-dcl-party-relationships.sql
 }
 
+run_issue_309_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-309-dcl-reference-and-rpt-ownership.sql
+}
+
+verify_issue_309_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.bob_objects'"'"') IS NULL
+		  AND to_regclass('"'"'public.rpt_definitions'"'"') IS NULL
+		  AND to_regclass('"'"'public.rpt_definition_validities'"'"') IS NOT NULL
+		  AND NOT EXISTS (SELECT 1 FROM dcl_subjects WHERE entity='"'"'rpt-definition'"'"' AND code IS NULL)
+		  AND NOT EXISTS (SELECT entity,upper(code) FROM dcl_subjects WHERE code IS NOT NULL GROUP BY entity,upper(code) HAVING count(*)>1)
+		  AND (SELECT count(*) FROM dcl_rpt_definition_versions)=(SELECT count(*) FROM rpt_definition_validities)
+		  AND NOT EXISTS (SELECT 1 FROM dcl_rpt_definition_versions snapshot LEFT JOIN rpt_definition_validities validity ON validity.approval_entry_id=snapshot.approval_entry_id WHERE validity.approval_entry_id IS NULL)
+		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 verify_issue_308_cutover() {
 	local database="$1"
 	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
@@ -614,6 +635,8 @@ run_cutover_compatibility_tests() {
 	verify_issue_305_cutover "$pre_issue_305_database"
 	run_issue_308_cutover "$pre_issue_305_database"
 	verify_issue_308_cutover "$pre_issue_305_database"
+	run_issue_309_cutover "$pre_issue_305_database"
+	verify_issue_309_cutover "$pre_issue_305_database"
 }
 
 initialize_current_schema_databases() {

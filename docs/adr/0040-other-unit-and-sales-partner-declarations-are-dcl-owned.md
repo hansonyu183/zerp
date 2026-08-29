@@ -1,7 +1,8 @@
 ---
 id: ADR-0040
 date: 2026-08-28
-status: accepted
+status: superseded
+superseded_by: ADR-0047
 ---
 
 # 服务关系与销售合作关系申报由 DCL 拥有

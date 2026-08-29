@@ -204,7 +204,7 @@ func (service relationshipAwareLifecycleService) Create(
 				Email: input.Data.Email, Address: input.Data.Address,
 				SettlementMethodID: input.Data.SettlementMethodID, Remark: input.Data.Remark},
 		}, actor)
-		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	case bob.EntityCustomerAccount:
 		paymentMethodID, err := service.ensurePaymentMethod(ctx, actor)
 		if err != nil {
@@ -241,7 +241,7 @@ func (service relationshipAwareLifecycleService) Create(
 		}
 		account := accounts.Items[0]
 		return seedMutation{
-			ObjectID: account.ObjectID, ObjectRevision: account.ObjectRevision,
+			ObjectID: account.ObjectID, ObjectRevision: account.OpenVersion.Approval.Revision,
 			Enabled: account.Enabled, Approval: account.OpenVersion.Approval,
 		}, nil
 	}
@@ -492,7 +492,7 @@ func (service relationshipAwareLifecycleService) Get(
 		return seedObjectView{}, err
 	}
 	return seedObjectView{ObjectID: view.ObjectID, Entity: entity, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled,
 		Approval: view.Approval,
 		Data: bob.DetailView{Name: view.PartyDisplayName, ContactName: view.Data.ContactName,
 			ContactPhone: view.Data.ContactPhone, Email: view.Data.Email, Address: view.Data.Address,
@@ -577,7 +577,7 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 			}
 		}
 		result, err := service.relationships.SubmitOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
-		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityProduct {
 		result, err := service.products.Submit(ctx, dcldomain.ProductVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
@@ -681,7 +681,7 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 	}
 	if entity == bob.EntityOtherUnit {
 		result, err := service.relationships.UnsubmitOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
-		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityProduct {
 		result, err := service.products.Unsubmit(ctx, dcldomain.ProductReviewInput{
@@ -729,7 +729,7 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 	}
 	if entity == bob.EntityOtherUnit {
 		result, err := service.relationships.ApproveOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
-		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityEmployee {
 		result, err := service.employees.Approve(ctx, dcldomain.EmployeeVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
@@ -773,7 +773,7 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 	}
 	if entity == bob.EntityOtherUnit {
 		result, err := service.relationships.UnapproveOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
-		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityEmployee {
 		result, err := service.employees.Unapprove(ctx, dcldomain.EmployeeReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
@@ -837,7 +837,7 @@ func (service relationshipAwareLifecycleService) Reject(ctx context.Context, ent
 			reason = *input.Reason
 		}
 		result, err := service.relationships.RejectOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: reason}, actor)
-		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}, err
+		return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityEmployee {
 		reason := ""
@@ -930,12 +930,12 @@ func supplierData(data bob.CreateDetailInput) dcldomain.SupplierData {
 }
 
 func supplierMutation(result dcldomain.SupplierMutation) seedMutation {
-	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func supplierView(view dcldomain.SupplierView) seedObjectView {
 	return seedObjectView{ObjectID: view.ObjectID, Entity: bob.EntitySupplier, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{Name: view.PartyDisplayName, ShortName: view.Data.ShortName,
 			TaxNumber: view.Data.TaxNumber, ContactName: view.Data.ContactName,
 			ContactPhone: view.Data.ContactPhone, Email: view.Data.Email, Address: view.Data.Address,
@@ -945,12 +945,12 @@ func supplierView(view dcldomain.SupplierView) seedObjectView {
 }
 
 func customerAccountMutation(result dcldomain.CustomerAccountMutation) seedMutation {
-	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func customerAccountView(view dcldomain.CustomerAccountView) seedObjectView {
 	return seedObjectView{ObjectID: view.ObjectID, Entity: bob.EntityCustomerAccount, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{Name: view.Data.Name, ShortName: view.Data.ShortName,
 			CustomerType: view.Data.CustomerTypeID, ContactName: view.Data.ContactName,
 			ContactPhone: view.Data.ContactPhone, Email: view.Data.Email, Address: view.Data.Address,
@@ -970,16 +970,16 @@ func productInputFromView(data dcldomain.ProductData) dcldomain.ProductInput {
 }
 
 func productMutation(result dcldomain.ProductMutation) seedMutation {
-	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func productViewMutation(result dcldomain.ProductView) seedMutation {
-	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func productView(view dcldomain.ProductView) seedObjectView {
 	return seedObjectView{ObjectID: view.ObjectID, Entity: bob.EntityProduct, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{
 			Name: view.Data.Name, CategoryID: view.Data.CategoryID,
 			Specification: view.Data.Specification, Model: view.Data.Model,
@@ -994,7 +994,7 @@ func productView(view dcldomain.ProductView) seedObjectView {
 
 func operatingEntityMutation(result dcldomain.OperatingEntityMutation) seedMutation {
 	return seedMutation{
-		ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision,
+		ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision,
 		Enabled: result.Enabled, Approval: result.Approval,
 	}
 }
@@ -1002,7 +1002,7 @@ func operatingEntityMutation(result dcldomain.OperatingEntityMutation) seedMutat
 func operatingEntityView(view dcldomain.OperatingEntityView) seedObjectView {
 	return seedObjectView{
 		ObjectID: view.ObjectID, Entity: bob.EntityOperatingEntity, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{
 			Name: view.Data.Name, ShortName: view.Data.ShortName, TaxNumber: view.Data.TaxNumber,
 			Address: view.Data.Address, Phone: view.Data.Phone, Remark: view.Data.Remark,
@@ -1019,7 +1019,7 @@ func warehouseData(data bob.CreateDetailInput) dcldomain.WarehouseData {
 
 func warehouseMutation(result dcldomain.WarehouseMutation) seedMutation {
 	return seedMutation{
-		ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision,
+		ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision,
 		Enabled: result.Enabled, Approval: result.Approval,
 	}
 }
@@ -1033,13 +1033,13 @@ func vehicleData(data bob.CreateDetailInput) dcldomain.VehicleData {
 }
 
 func vehicleMutation(result dcldomain.VehicleMutation) seedMutation {
-	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func vehicleView(view dcldomain.VehicleView) seedObjectView {
 	return seedObjectView{
 		ObjectID: view.ObjectID, Entity: bob.EntityVehicle, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{
 			Name: view.Data.Name, PlateNumber: view.Data.PlateNumber, VehicleType: view.Data.VehicleType,
 			CarrierAffiliation: view.Data.CarrierAffiliation, BulkLiquidCapable: view.Data.BulkLiquidCapable,
@@ -1058,13 +1058,13 @@ func fundAccountData(data bob.CreateDetailInput) dcldomain.FundAccountData {
 }
 
 func fundAccountMutation(result dcldomain.FundAccountMutation) seedMutation {
-	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func fundAccountView(view dcldomain.FundAccountView) seedObjectView {
 	return seedObjectView{
 		ObjectID: view.ObjectID, Entity: bob.EntityFundAccount, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{
 			Name: view.Data.Name, Currency: view.Data.Currency, OperatingEntityID: view.Data.OperatingEntityID,
 			AccountName: view.Data.AccountName, BankName: view.Data.BankName, BankBranch: view.Data.BankBranch,
@@ -1074,12 +1074,12 @@ func fundAccountView(view dcldomain.FundAccountView) seedObjectView {
 }
 
 func employeeMutation(result dcldomain.EmployeeMutation) seedMutation {
-	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+	return seedMutation{ObjectID: result.ObjectID, ObjectRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}
 }
 
 func employeeView(view dcldomain.EmployeeView) seedObjectView {
 	return seedObjectView{ObjectID: view.ObjectID, Entity: bob.EntityEmployee, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{Name: view.PartyDisplayName, OperatingEntityID: view.OperatingEntityID,
 			DepartmentID: view.Data.DepartmentID, PositionID: view.Data.PositionID, Phone: view.Data.Phone,
 			Email: view.Data.Email, HireDate: view.Data.HireDate, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
@@ -1088,7 +1088,7 @@ func employeeView(view dcldomain.EmployeeView) seedObjectView {
 func warehouseView(view dcldomain.WarehouseView) seedObjectView {
 	return seedObjectView{
 		ObjectID: view.ObjectID, Entity: bob.EntityWarehouse, Code: view.Code,
-		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		ObjectRevision: view.Approval.Revision, Enabled: view.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{
 			Name: view.Data.Name, Address: view.Data.Address, ContactName: view.Data.ContactName,
 			ContactPhone: view.Data.ContactPhone, ManagerEmployeeID: view.Data.ManagerEmployeeID,

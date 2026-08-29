@@ -27,7 +27,6 @@ const otherUnitRow: DclRelationshipListItem = {
   objectId: 'OUT-1',
   entity: 'other-unit',
   code: 'OUT-0001',
-  objectRevision: 1,
   partyId: 'PARTY-1',
   partyKind: 'ORGANIZATION',
   partyDisplayName: '服务主体',

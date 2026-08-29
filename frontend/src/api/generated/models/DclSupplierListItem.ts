@@ -14,7 +14,6 @@ export type DclSupplierListItem = {
   operatingEntityId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclSupplierVersionView | null;
   openVersion: DclSupplierVersionView | null;

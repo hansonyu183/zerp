@@ -16,7 +16,6 @@ export type DclCustomerView = {
   operatingEntityApprovalEntryId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  objectRevision: number;
   enabled: boolean;
   approval: ApprovalVersionMeta;
   attachments: Array<DclCustomerAttachmentView>;

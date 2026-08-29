@@ -35,8 +35,12 @@ WITH snapshot_references(entity, field, entry_id) AS (
 	UNION ALL SELECT 'product','formula-material',payload.material_approval_entry_id
 	FROM dcl_product_formula_lines payload JOIN approval_entries current_entry ON current_entry.id=payload.product_approval_entry_id
 	WHERE current_entry.domain='dcl' AND current_entry.entity='product' AND current_entry.status='APPROVED'
-	UNION ALL SELECT 'acc-inventory-entry','product',entry.product_approval_entry_id
-	FROM acc_inventory_entries entry
+    UNION ALL SELECT 'acc-inventory-entry','product',entry.product_approval_entry_id
+    FROM acc_inventory_entries entry
+	UNION ALL SELECT 'acc-bill','originating-party',entry.origin_party_approval_entry_id
+	FROM acc_bills entry
+	UNION ALL SELECT 'acc-opening-bill','originating-party',entry.origin_party_approval_entry_id
+	FROM acc_opening_bills entry
     UNION ALL SELECT 'vehicle','vehicle-carrier-operating',payload.carrier_operating_entity_approval_entry_id
     FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='vehicle' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
     UNION ALL SELECT 'vehicle','vehicle-carrier-service',payload.carrier_service_relationship_approval_entry_id

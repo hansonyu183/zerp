@@ -506,18 +506,6 @@ type AuxObject struct {
 	UpdatedBy string             `db:"updated_by" json:"updated_by"`
 }
 
-type BobObject struct {
-	ID        string             `db:"id" json:"id"`
-	Entity    string             `db:"entity" json:"entity"`
-	Code      string             `db:"code" json:"code"`
-	Revision  int64              `db:"revision" json:"revision"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy string             `db:"created_by" json:"created_by"`
-	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy string             `db:"updated_by" json:"updated_by"`
-	Enabled   bool               `db:"enabled" json:"enabled"`
-}
-
 type DclAccMappingVersion struct {
 	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
 	MappingID       string `db:"mapping_id" json:"mapping_id"`
@@ -888,15 +876,12 @@ type DclRptDefinitionCodeCounter struct {
 
 type DclRptDefinitionVersion struct {
 	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
-	DefinitionID    string             `db:"definition_id" json:"definition_id"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
 	Name            string             `db:"name" json:"name"`
 	Description     string             `db:"description" json:"description"`
-	Validity        string             `db:"validity" json:"validity"`
 	SqlText         string             `db:"sql_text" json:"sql_text"`
 	Parameters      []byte             `db:"parameters" json:"parameters"`
 	Columns         []byte             `db:"columns" json:"columns"`
-	InvalidatedAt   pgtype.Timestamptz `db:"invalidated_at" json:"invalidated_at"`
-	InvalidReason   *string            `db:"invalid_reason" json:"invalid_reason"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy       string             `db:"created_by" json:"created_by"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -1044,15 +1029,15 @@ type ObjectNumberCounter struct {
 	LastValue int32  `db:"last_value" json:"last_value"`
 }
 
-type RptDefinition struct {
-	ID        string             `db:"id" json:"id"`
-	Code      string             `db:"code" json:"code"`
-	Enabled   bool               `db:"enabled" json:"enabled"`
-	Revision  int64              `db:"revision" json:"revision"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy string             `db:"created_by" json:"created_by"`
-	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy string             `db:"updated_by" json:"updated_by"`
+type RptDefinitionValidity struct {
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	Validity        string             `db:"validity" json:"validity"`
+	InvalidatedAt   pgtype.Timestamptz `db:"invalidated_at" json:"invalidated_at"`
+	InvalidReason   *string            `db:"invalid_reason" json:"invalid_reason"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
 }
 
 type RptRuntimeAuditEvent struct {

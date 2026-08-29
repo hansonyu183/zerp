@@ -7,7 +7,6 @@ export type DclFundAccountListItem = {
   objectId: string;
   entity: 'fund-account';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclFundAccountVersionView | null;
   openVersion: DclFundAccountVersionView | null;

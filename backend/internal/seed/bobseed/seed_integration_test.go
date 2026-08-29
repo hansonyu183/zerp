@@ -285,17 +285,17 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin reference check: %v", err)
 	}
-	if _, err = business.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v2.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("draft V2 was resolvable as an approved reference")
 	}
-	if _, err = business.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, unrelated.ObjectID, v1.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("approval entry resolved for a different BOB object")
 	}
-	latest, err := business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err := business.ResolveCurrentReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest during V2 draft = %+v err=%v, want V1", latest, err)
 	}
@@ -308,7 +308,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	`, forgedEntryID, created.ObjectID, "01J00000000000000000000000", "01J00000000000000000000001"); err != nil {
 		t.Fatalf("insert forged approved BOB metadata: %v", err)
 	}
-	if _, err = business.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, forgedEntryID,
 	); err == nil {
 		t.Fatal("approved metadata without a BOB version payload resolved as a snapshot")
@@ -328,7 +328,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin pending reference check: %v", err)
 	}
-	if _, err = business.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v2Pending.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("pending V2 was resolvable as an approved snapshot")
@@ -347,13 +347,13 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin approved reference check: %v", err)
 	}
-	snapshot, err := business.ValidateApprovedSnapshotReference(
+	snapshot, err := business.ValidateHistoricalReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v1.Approval.ApprovalEntryID,
 	)
 	if err != nil || snapshot.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("validate V1 snapshot after V2 approval = %+v err=%v, want V1", snapshot, err)
 	}
-	latest, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err = business.ResolveCurrentReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v2Approved.Approval.ApprovalEntryID {
 		t.Fatalf("latest reference after V2 approval = %+v err=%v, want V2", latest, err)
 	}
@@ -371,7 +371,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin fallback check: %v", err)
 	}
-	latest, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err = business.ResolveCurrentReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest after V2 unapprove = %+v err=%v, want V1", latest, err)
 	}
@@ -402,7 +402,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin unavailable check: %v", err)
 	}
-	if _, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID); err == nil {
+	if _, err = business.ResolveCurrentReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID); err == nil {
 		t.Fatal("BOB reference remained available after V1 unapprove")
 	}
 	if err = tx.Rollback(t.Context()); err != nil {

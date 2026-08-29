@@ -52,7 +52,7 @@ func (s *EmployeeService) Query(ctx context.Context, input EmployeeQueryInput, a
 	}
 	items := make([]EmployeeQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := EmployeeQueryItem{ObjectID: r.ObjectID, Entity: EntityEmployee, Code: r.Code, ObjectRevision: r.ObjectRevision, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: stringValue(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		item := EmployeeQueryItem{ObjectID: r.ObjectID, Entity: EntityEmployee, Code: r.Code, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: stringValue(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.LatestApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.LatestApprovedEntryID, r.ObjectID)
 			if e != nil {
@@ -112,11 +112,11 @@ func (s *EmployeeService) Get(ctx context.Context, input EmployeeGetInput, actor
 	if err != nil {
 		return EmployeeView{}, translateError(err)
 	}
-	operating, err := s.rules.ResolveLatestApprovedReference(ctx, tx, "operating-entity", identity.OperatingEntityID)
+	operating, err := s.rules.ResolveCurrentReference(ctx, tx, "operating-entity", identity.OperatingEntityID)
 	if err != nil {
 		return EmployeeView{}, translateError(err)
 	}
-	return EmployeeView{ObjectID: identity.ObjectID, Entity: EntityEmployee, Code: identity.Code, ObjectRevision: identity.ObjectRevision, PartyID: stored.PartyID, PartyKind: stored.PartyKind, PartyDisplayName: stored.DisplayName, OperatingEntityID: stored.OperatingEntityID, OperatingEntityApprovalEntryID: operating.ApprovalEntryID, OperatingEntityCode: stringValue(stored.OperatingEntityCode), OperatingEntityName: stored.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: employeeVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
+	return EmployeeView{ObjectID: identity.ObjectID, Entity: EntityEmployee, Code: identity.Code, PartyID: stored.PartyID, PartyKind: stored.PartyKind, PartyDisplayName: stored.DisplayName, OperatingEntityID: stored.OperatingEntityID, OperatingEntityApprovalEntryID: operating.ApprovalEntryID, OperatingEntityCode: stringValue(stored.OperatingEntityCode), OperatingEntityName: stored.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: employeeVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
 }
 
 func (s *EmployeeService) Versions(ctx context.Context, input EmployeeHistoryInput, actor approval.Actor) (Page[EmployeeVersionView], error) {

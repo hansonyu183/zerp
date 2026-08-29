@@ -7,7 +7,6 @@ export type DclVehicleListItem = {
   objectId: string;
   entity: 'vehicle';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclVehicleVersionView | null;
   openVersion: DclVehicleVersionView | null;

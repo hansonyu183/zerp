@@ -7,11 +7,12 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/oklog/ulid/v2"
 )
 
-func saveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, input SaveOpeningInput) error {
+func (s *Service) saveOpeningRegisters(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, input SaveOpeningInput) error {
 	for _, remove := range []func(context.Context, string) error{q.DeleteAccountingOpeningAssets, q.DeleteAccountingOpeningBills, q.DeleteAccountingOpeningContainers} {
 		if err := remove(ctx, input.BookID); err != nil {
 			return databaseError("replace accounting opening registers", err)
@@ -66,7 +67,7 @@ func saveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, input SaveOpen
 		}
 	}
 	for index, bill := range input.Bills {
-		if err := saveOpeningBill(ctx, q, input.BookID, index, bill); err != nil {
+		if err := s.saveOpeningBill(ctx, tx, q, input.BookID, index, bill); err != nil {
 			return err
 		}
 	}
@@ -84,7 +85,7 @@ func saveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, input SaveOpen
 	return nil
 }
 
-func saveOpeningBill(ctx context.Context, q *dbsqlc.Queries, bookID string, index int, bill OpeningBillInput) error {
+func (s *Service) saveOpeningBill(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID string, index int, bill OpeningBillInput) error {
 	bill.BillID = strings.TrimSpace(bill.BillID)
 	createObject := bill.BillID == ""
 	if createObject {
@@ -117,6 +118,12 @@ func saveOpeningBill(ctx context.Context, q *dbsqlc.Queries, bookID string, inde
 			bill.AnnualRateBps < 0 || bill.InterestDays < 0 || !validID(bill.OriginatingParty.ObjectID) || !validID(bill.OriginatingParty.ApprovalEntryID) {
 			return domainError(ErrorValidation, "invalid opening bill facts", firstError(err, interestErr, costErr, issueErr, maturityErr))
 		}
+		reference, referenceErr := s.references.ValidateHistoricalReference(ctx, tx, bill.OriginatingParty.Entity, bill.OriginatingParty.ObjectID, bill.OriginatingParty.ApprovalEntryID)
+		if referenceErr != nil {
+			return domainError(ErrorConflict, "opening bill originating party approval snapshot is unavailable", referenceErr)
+		}
+		bill.OriginatingParty.Code = reference.Code
+		bill.OriginatingParty.Name = reference.Data.Name
 		issue = pgtype.Date{Time: issueDate, Valid: true}
 		maturity = pgtype.Date{Time: maturityDate, Valid: true}
 	}

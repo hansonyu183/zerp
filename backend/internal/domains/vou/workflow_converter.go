@@ -237,7 +237,7 @@ func (s *Service) resolveWorkflowDefault(ctx context.Context, tx pgx.Tx, entity,
 	if objectID == "" {
 		return bobdomain.EffectiveReference{}, domainError(ErrorConflict, field+" is required by workflow", nil, nil)
 	}
-	ref, err := s.resolver.ResolveLatestApprovedReference(ctx, tx, entity, objectID)
+	ref, err := s.resolver.ResolveCurrentReference(ctx, tx, entity, objectID)
 	if err != nil {
 		return ref, domainError(ErrorConflict, field+" is not effective", nil, err)
 	}

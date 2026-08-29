@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -26,7 +25,6 @@ type EmployeeData struct {
 
 type EmployeeIdentity struct {
 	ObjectID, Code, PartyID, OperatingEntityID string
-	ObjectRevision                             int64
 }
 
 type EmployeeCurrent struct {
@@ -149,10 +147,7 @@ func (s *Service) ResolveEmployeeDraftAuxiliaryReferences(ctx context.Context, t
 }
 
 func (s *Service) EnsureEmployeeUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
-	if tx == nil || !validID(entryID) {
-		return domainError(ErrorValidation, "invalid Employee unapprove request", nil, nil)
-	}
-	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
+	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
 
 func (s *Service) EnsureEmployeeDisableAllowed(ctx context.Context, tx pgx.Tx, objectID string) error {
@@ -192,7 +187,7 @@ func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (Objec
 	}
 	entry := dbsqlc.ApprovalEntry{ID: row.ApprovalEntryID, Domain: row.Domain, Entity: EntityEmployee, SubjectID: row.ObjectID, VersionNo: row.VersionNo, Status: row.Status, Revision: row.ApprovalRevision, CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedBy: row.UpdatedBy, UpdatedAt: row.ApprovalUpdatedAt, SubmittedBy: row.SubmittedBy, SubmittedAt: row.SubmittedAt, ApprovedBy: row.ApprovedBy, ApprovedAt: row.ApprovedAt}
 	return ObjectView{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision,
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
 		Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: employeeDetailFromCurrent(row), UpdatedAt: row.UpdatedAt.Time,
 		Relationship: &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: deref(row.OperatingEntityCode), OperatingEntityName: row.OperatingEntityName},
 	}, nil
@@ -237,18 +232,15 @@ func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryI
 		if getErr != nil {
 			return Page[QueryItem]{}, getErr
 		}
-		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
 func (s *Service) validateEmployeeSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityEmployee})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (entry.SubjectID != objectID || entry.Status != string(approval.StatusApproved))) {
-		return EffectiveReference{}, domainError(ErrorConflict, "Employee approval snapshot is unavailable", nil, nil)
-	}
+	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntityEmployee, objectID, "Employee approval snapshot is unavailable")
 	if err != nil {
-		return EffectiveReference{}, s.internal("validate Employee snapshot", err)
+		return EffectiveReference{}, err
 	}
 	row, err := q.GetDCLEmployeeVersion(ctx, entryID)
 	if err != nil {
@@ -258,7 +250,7 @@ func (s *Service) validateEmployeeSnapshotReference(ctx context.Context, q *dbsq
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Employee identity", err)
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, Data: DetailView{Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), PositionID: deref(row.PositionID), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}}, nil
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), PositionID: deref(row.PositionID), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}}, nil
 }
 
 func (s *Service) resolveEmployeeCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
@@ -269,5 +261,5 @@ func (s *Service) resolveEmployeeCurrentReference(ctx context.Context, q *dbsqlc
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve Employee current", err)
 	}
-	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, Data: DetailView{Name: row.DisplayName}}, nil
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: DetailView{Name: row.DisplayName}}, nil
 }

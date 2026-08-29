@@ -73,7 +73,6 @@ interface AccountingMappingView {
 
 interface BobMutation {
   objectId: string
-  objectRevision: number
   partyId?: string
   enabled: boolean
   approval: {

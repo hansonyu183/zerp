@@ -48,7 +48,6 @@ type partyMergeRelationship struct {
 	objectCode          string
 	operatingEntityID   string
 	operatingEntityName string
-	objectRevision      int64
 	enabled             bool
 	openApprovalEntryID string
 	latestApprovedID    string
@@ -347,7 +346,7 @@ func mapPartyMergeRelationships(rows []dbsqlc.ListPartyMergeRelationshipsRow) []
 	for _, row := range rows {
 		result = append(result, partyMergeRelationship{relationshipType: row.RelationshipType, objectID: row.ObjectID,
 			objectCode: stringValue(row.ObjectCode), operatingEntityID: row.OperatingEntityID, operatingEntityName: row.OperatingEntityName,
-			objectRevision: row.ObjectRevision, enabled: row.Enabled,
+			enabled:             row.Enabled,
 			openApprovalEntryID: row.OpenApprovalEntryID, latestApprovedID: row.LatestApprovedEntryID, visibleStatus: row.VisibleStatus,
 			visibleRevision: row.VisibleApprovalRevision, mergedIntoObjectID: deref(row.MergedIntoObjectID)})
 	}
@@ -401,8 +400,8 @@ func partyMergeFingerprint(source, target dbsqlc.LockPartyMergePartyRow, sourceR
 		fmt.Sprintf("target:%s:%s:%s:%d:%s", target.ID, target.Kind, target.SourceApprovalEntryID, target.Revision, deref(target.MergedIntoPartyID))}
 	for side, relationships := range map[string][]partyMergeRelationship{"source": sourceRelationships, "target": targetRelationships} {
 		for _, relationship := range relationships {
-			parts = append(parts, fmt.Sprintf("%s:%s:%s:%s:%d:%t:%s:%s:%s:%d:%s", side, relationship.relationshipType,
-				relationship.objectID, relationship.operatingEntityID, relationship.objectRevision, relationship.enabled,
+			parts = append(parts, fmt.Sprintf("%s:%s:%s:%s:%t:%s:%s:%s:%d:%s", side, relationship.relationshipType,
+				relationship.objectID, relationship.operatingEntityID, relationship.enabled,
 				relationship.openApprovalEntryID, relationship.latestApprovedID, relationship.visibleStatus, relationship.visibleRevision,
 				relationship.mergedIntoObjectID))
 		}

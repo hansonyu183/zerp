@@ -14,7 +14,6 @@ export type DclEmployeeListItem = {
   operatingEntityId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  objectRevision: number;
   enabled: boolean;
   latestApproved: DclEmployeeVersionView | null;
   openVersion: DclEmployeeVersionView | null;

@@ -131,7 +131,7 @@ func (q *Queries) InsertPartyRelationshipMergeEvent(ctx context.Context, arg Ins
 const listPartyMergeRelationships = `-- name: ListPartyMergeRelationships :many
 SELECT object.entity AS relationship_type, object.id AS object_id, object.code AS object_code,
        party_rel.operating_entity_id, operating_detail.legal_name AS operating_entity_name,
-       0::bigint AS object_revision, true AS enabled,
+       true AS enabled,
        COALESCE(open_entry.id,'')::text AS open_approval_entry_id,
        approved.id AS latest_approved_entry_id,
        COALESCE(open_entry.status,approved.status)::text AS visible_status,
@@ -162,7 +162,6 @@ type ListPartyMergeRelationshipsRow struct {
 	ObjectCode              *string `db:"object_code" json:"object_code"`
 	OperatingEntityID       string  `db:"operating_entity_id" json:"operating_entity_id"`
 	OperatingEntityName     string  `db:"operating_entity_name" json:"operating_entity_name"`
-	ObjectRevision          int64   `db:"object_revision" json:"object_revision"`
 	Enabled                 bool    `db:"enabled" json:"enabled"`
 	OpenApprovalEntryID     string  `db:"open_approval_entry_id" json:"open_approval_entry_id"`
 	LatestApprovedEntryID   string  `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
@@ -186,7 +185,6 @@ func (q *Queries) ListPartyMergeRelationships(ctx context.Context, partyID strin
 			&i.ObjectCode,
 			&i.OperatingEntityID,
 			&i.OperatingEntityName,
-			&i.ObjectRevision,
 			&i.Enabled,
 			&i.OpenApprovalEntryID,
 			&i.LatestApprovedEntryID,

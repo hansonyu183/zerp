@@ -16,7 +16,6 @@ export type DclSupplierView = {
   operatingEntityApprovalEntryId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  objectRevision: number;
   enabled: boolean;
   approval: ApprovalVersionMeta;
   data: DclSupplierData;

@@ -4,5 +4,6 @@
 /* eslint-disable */
 export type DclRptDefinitionEnableRequest = {
   code: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
 };

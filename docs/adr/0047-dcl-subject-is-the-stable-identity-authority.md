@@ -15,8 +15,10 @@ Operating Entity、Warehouse、Vehicle、Fund Account 与 Product 首先按本�
 
 Party、Customer Account、Employee、Customer、Supplier、Other Unit 与 Sales Partner 随后按同一决策收口。`dcl_parties` 保存 Party 合并状态；各 `dcl_*_relationships` 与 `dcl_customer_accounts` 在 V1 批准前保存不可变的强类型关系边界，`dcl_subjects` 保存其 stable ID 与 business code。Party identifier claim、merge preflight、merge event 和关系冲突处理均由 DCL Party 专属实现持有。各实体的 latest-approved payload 只存在于 `dcl_*_versions`；旧 `bob_objects` identity 行、`bob_*` typed root、Party current/identifier 和各 1:1 current 表不再参与这些实体的运行路径。
 
+报表定义同样按本决策终态收口：`dcl_subjects(entity=rpt-definition)` 原位保留既有 stable ID、code 与创建审计，Approval 原位保留 entry、version、revision 与事件，`dcl_rpt_definition_versions` 保存所有业务 snapshot（包括 `enabled`）。RPT 只以 `rpt_definition_validities(approvalEntryId)` 保存技术有效性，以 runtime audit 保存实际执行 entry；它不保存 definition root、root revision 或 current pointer。完成此切片后物理 `bob_objects` 与 `rpt_definitions` 均删除，BOB current 只由 typed subject、highest APPROVED entry 与 snapshot 查询派生；所有编码计数器保留且不回退。
+
 V1 草稿在 BOB 不可见；V1 批准后无需额外写入即可被 BOB 读取；V2 `DRAFT` 或 `PENDING` 时仍读取 V1；V2 批准后读取 V2；V2 反批后自然回到 V1；V1 反批且无其他批准版本时自然不可见。已有业务按 stable ID 与精确 Approval Entry 校验历史来源，不要求该 entry 仍为 latest approved；持久化精确引用仍阻止不安全反批。
 
 本 ADR 取代 ADR-0033 至 ADR-0042 中“stable root 或 business code 归 BOB”“BOB 保存 current projection”以及“approve/unapprove 同事务 apply/remove/rollback current”的条款，也取代 ADR-0046 中“BOB 保存 current projection”的表述。上述 ADR 的强类型业务规则、DCL 写边界、Approval 所有权、页面边界、历史 snapshot 和精确引用规则继续有效。后续版本化实体必须沿同一所有权收口，不得建立改名的 stable root、current store、view、cache、fallback、兼容 alias 或通用 query engine。
 
-对应 GitHub [#305](https://github.com/hansonyu183/zerp/issues/305)、核心 typed-master 切片 [#307](https://github.com/hansonyu183/zerp/issues/307) 与 Party/Relationship 切片 [#308](https://github.com/hansonyu183/zerp/issues/308)。
+对应 GitHub [#305](https://github.com/hansonyu183/zerp/issues/305)、核心 typed-master 切片 [#307](https://github.com/hansonyu183/zerp/issues/307)、Party/Relationship 切片 [#308](https://github.com/hansonyu183/zerp/issues/308) 与终态收口 [#309](https://github.com/hansonyu183/zerp/issues/309)。

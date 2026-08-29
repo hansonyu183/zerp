@@ -139,7 +139,7 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 			return OpeningView{}, databaseError("accounting opening line cannot be saved", err)
 		}
 	}
-	if err = saveOpeningRegisters(ctx, qtx, input); err != nil {
+	if err = s.saveOpeningRegisters(ctx, tx, qtx, input); err != nil {
 		return OpeningView{}, err
 	}
 	payload := accapproval.Payload{BookID: input.BookID}

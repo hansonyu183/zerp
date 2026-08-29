@@ -51,7 +51,7 @@ func newDCLIntegrationBOBService(pool *pgxpool.Pool, auxiliary *auxdomain.Servic
 func resetDCLIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
-		TRUNCATE dcl_customer_download_tokens, dcl_customer_files, dcl_subjects, bob_objects, aux_objects, approval_events, approval_entries, object_number_counters CASCADE
+		TRUNCATE dcl_customer_download_tokens, dcl_customer_files, dcl_subjects, aux_objects, approval_events, approval_entries, object_number_counters CASCADE
 	`); err != nil {
 		t.Fatalf("reset DCL integration data: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestOperatingEntityDeclarationControlsBOBCurrentDataIntegration(t *testing.
 	if err != nil {
 		t.Fatalf("begin exact historical reference check: %v", err)
 	}
-	historical, referenceErr := business.ValidateApprovedSnapshotReference(
+	historical, referenceErr := business.ValidateHistoricalReference(
 		t.Context(), tx, bobdomain.EntityOperatingEntity, v1.ObjectID, v1.Approval.ApprovalEntryID,
 	)
 	if referenceErr != nil || historical.ApprovalEntryID != v1.Approval.ApprovalEntryID {

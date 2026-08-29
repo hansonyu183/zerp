@@ -10,7 +10,9 @@ import (
 	"time"
 
 	db "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/events/dclapproval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -31,6 +33,29 @@ func NewService(pool *pgxpool.Pool) (*Service, error) {
 		return nil, errors.New("rpt persistence is required")
 	}
 	return &Service{pool: pool, queries: db.New(pool)}, nil
+}
+
+// RegisterDefinitionSubscriptions makes RPT the transactional owner of report
+// validity and use permissions while DCL remains the declaration writer.
+func (s *Service) RegisterDefinitionSubscriptions(bus *txevent.Bus) error {
+	return dclapproval.RptDefinitionTopic.Subscribe(bus, "rpt-definition-lifecycle", s.handleDefinitionApproval)
+}
+
+func (s *Service) handleDefinitionApproval(ctx context.Context, tx pgx.Tx, event approval.Event[dclapproval.RptDefinitionPayload]) error {
+	q := s.queries.WithTx(tx)
+	switch event.Action {
+	case approval.ActionCreated, approval.ActionSaved:
+		if err := q.RptUpsertDefinitionValidity(ctx, db.RptUpsertDefinitionValidityParams{
+			ApprovalEntryID: event.Entry.ID,
+			ActorID:         event.ActorID,
+		}); err != nil {
+			return internal("initialize report validity", err)
+		}
+	}
+	if err := s.syncUsePermissions(ctx, q, event.Entry.SubjectID, event.ActorID); err != nil {
+		return internal("sync report permissions", err)
+	}
+	return nil
 }
 
 func newID() string                  { return ulid.Make().String() }

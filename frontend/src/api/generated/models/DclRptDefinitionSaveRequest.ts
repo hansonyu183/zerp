@@ -9,5 +9,6 @@ export type DclRptDefinitionSaveRequest = {
   approvalRevision: number;
   name?: string;
   description?: string;
+  enabled: boolean;
   data: RptVersionData;
 };

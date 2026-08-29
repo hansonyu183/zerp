@@ -153,14 +153,12 @@ type Querier interface {
 	CreateWorkflowRuntimeAudit(ctx context.Context, arg CreateWorkflowRuntimeAuditParams) error
 	DCLAccMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error)
 	DclRptCopyVersionPayload(ctx context.Context, arg DclRptCopyVersionPayloadParams) error
-	DclRptDeleteDefinition(ctx context.Context, arg DclRptDeleteDefinitionParams) (int64, error)
 	DclRptDeleteVersionPayload(ctx context.Context, arg DclRptDeleteVersionPayloadParams) (int64, error)
 	// ── RPT Definition (DCL-owned) ──────────────────────────────────
 	DclRptGetLatestApprovedPayload(ctx context.Context, definitionID string) (DclRptGetLatestApprovedPayloadRow, error)
 	DclRptGetVersionPayload(ctx context.Context, arg DclRptGetVersionPayloadParams) (DclRptGetVersionPayloadRow, error)
-	DclRptInsertDefinition(ctx context.Context, arg DclRptInsertDefinitionParams) error
 	DclRptInsertVersionPayload(ctx context.Context, arg DclRptInsertVersionPayloadParams) error
-	DclRptSetDefinitionEnabled(ctx context.Context, arg DclRptSetDefinitionEnabledParams) (DclRptSetDefinitionEnabledRow, error)
+	DclRptSetDraftEnabled(ctx context.Context, arg DclRptSetDraftEnabledParams) (int64, error)
 	DclRptUpdateDraftPayload(ctx context.Context, arg DclRptUpdateDraftPayloadParams) error
 	DclWflCopyVersionPayload(ctx context.Context, arg DclWflCopyVersionPayloadParams) error
 	DclWflDeleteVersionPayload(ctx context.Context, arg DclWflDeleteVersionPayloadParams) (int64, error)
@@ -201,7 +199,6 @@ type Querier interface {
 	DeleteAutomaticAccountingVoucher(ctx context.Context, arg DeleteAutomaticAccountingVoucherParams) ([]string, error)
 	DeleteAuxObject(ctx context.Context, arg DeleteAuxObjectParams) (int64, error)
 	DeleteAvailableAccountingBillsBySource(ctx context.Context, documentID string) error
-	DeleteBobObject(ctx context.Context, arg DeleteBobObjectParams) (int64, error)
 	DeleteDCLAccMappingSubjectIfEmpty(ctx context.Context, mappingID string) (int64, error)
 	DeleteDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLCustomerAccountAttachment(ctx context.Context, arg DeleteDCLCustomerAccountAttachmentParams) (int64, error)
@@ -336,7 +333,6 @@ type Querier interface {
 	GetBobEmployeeRelationship(ctx context.Context, objectID string) (DclEmploymentRelationship, error)
 	GetBobFundAccountCurrent(ctx context.Context, objectID string) (GetBobFundAccountCurrentRow, error)
 	GetBobFundAccountCurrentReference(ctx context.Context, objectID string) (GetBobFundAccountCurrentReferenceRow, error)
-	GetBobObject(ctx context.Context, arg GetBobObjectParams) (GetBobObjectRow, error)
 	GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error)
 	// BOB derives the current operating-entity view from the highest approved DCL
 	// entry and its typed snapshot.
@@ -391,8 +387,6 @@ type Querier interface {
 	GetDCLSupplierVersion(ctx context.Context, approvalEntryID string) (GetDCLSupplierVersionRow, error)
 	GetDCLVehicleVersion(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error)
 	GetDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (DclWarehouseVersion, error)
-	// The persisted query/export permissions are enabled iff the stable definition
-	// is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
 	GetDclRptDefinitionByCode(ctx context.Context, code string) (GetDclRptDefinitionByCodeRow, error)
 	GetDclWflProcessDefinitionByCode(ctx context.Context, code string) (GetDclWflProcessDefinitionByCodeRow, error)
 	GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error)
@@ -452,6 +446,7 @@ type Querier interface {
 	GetWorkflowNodeDocumentEntity(ctx context.Context, id string) (string, error)
 	HasAccountingBookOperateAccess(ctx context.Context, arg HasAccountingBookOperateAccessParams) (bool, error)
 	HasAccountingBookQueryAccess(ctx context.Context, arg HasAccountingBookQueryAccessParams) (bool, error)
+	HasApprovalEntryApprovedEvent(ctx context.Context, approvalEntryID string) (bool, error)
 	HasApprovedIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
 	HasIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
 	HasVouPurchaseInboundLines(ctx context.Context, documentID string) (bool, error)
@@ -474,7 +469,6 @@ type Querier interface {
 	InsertAppUserRole(ctx context.Context, arg InsertAppUserRoleParams) error
 	InsertApprovalEvent(ctx context.Context, arg InsertApprovalEventParams) error
 	InsertAuxObject(ctx context.Context, arg InsertAuxObjectParams) error
-	InsertBobObject(ctx context.Context, arg InsertBobObjectParams) error
 	InsertCustomerDownloadToken(ctx context.Context, arg InsertCustomerDownloadTokenParams) error
 	InsertCustomerFile(ctx context.Context, arg InsertCustomerFileParams) error
 	// ACC mapping declarations are DCL-owned. The stable subject (bookId, vouEntity)
@@ -736,7 +730,6 @@ type Querier interface {
 	LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error)
 	LockApprovalVersionSubject(ctx context.Context, arg LockApprovalVersionSubjectParams) error
 	LockApprovedAccountingMappingVersion(ctx context.Context, approvalEntryID string) (string, error)
-	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
 	LockDCLCustomerAccountAttachmentOwner(ctx context.Context, approvalEntryID string) (ApprovalEntry, error)
 	LockDCLCustomerAttachmentOwner(ctx context.Context, approvalEntryID string) (ApprovalEntry, error)
 	LockDCLFundAccountIdentifierClaims(ctx context.Context) error
@@ -825,7 +818,8 @@ type Querier interface {
 	RptGetActiveDefinition(ctx context.Context, code string) (RptGetActiveDefinitionRow, error)
 	RptInsertRuntimeAuditEvent(ctx context.Context, arg RptInsertRuntimeAuditEventParams) error
 	RptInvalidateVersion(ctx context.Context, arg RptInvalidateVersionParams) error
-	// RPT owns only stable definition identity and version payload. Approval owns lifecycle.
+	// RPT owns runtime validity, permission projection, and audit only. DCL owns
+	// the stable subject and approved typed payload.
 	RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error)
 	RptListAssetReferences(ctx context.Context, arg RptListAssetReferencesParams) ([]RptListAssetReferencesRow, error)
 	RptListBOBReferences(ctx context.Context, arg RptListBOBReferencesParams) ([]RptListBOBReferencesRow, error)
@@ -833,11 +827,11 @@ type Querier interface {
 	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
+	RptUpsertDefinitionValidity(ctx context.Context, arg RptUpsertDefinitionValidityParams) error
 	RptUpsertUsePermission(ctx context.Context, arg RptUpsertUsePermissionParams) error
 	SetAccountingOpeningVoucher(ctx context.Context, arg SetAccountingOpeningVoucherParams) error
 	SetAppRoleStatus(ctx context.Context, arg SetAppRoleStatusParams) (int64, error)
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
-	SetBobObjectEnabled(ctx context.Context, arg SetBobObjectEnabledParams) (int64, error)
 	SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SetWorkflowCreateChildRequestExecution(ctx context.Context, arg SetWorkflowCreateChildRequestExecutionParams) error
@@ -845,7 +839,6 @@ type Querier interface {
 	SumVouBillLineFaceAmounts(ctx context.Context, documentID string) (int64, error)
 	TouchAccountingOpening(ctx context.Context, arg TouchAccountingOpeningParams) error
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
-	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) (TouchBobObjectRow, error)
 	UnlockAccountingPeriodRow(ctx context.Context, arg UnlockAccountingPeriodRowParams) (int64, error)
 	UpdateAccountingBook(ctx context.Context, arg UpdateAccountingBookParams) (int64, error)
 	UpdateAccountingSubject(ctx context.Context, arg UpdateAccountingSubjectParams) (int64, error)

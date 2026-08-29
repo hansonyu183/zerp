@@ -12,12 +12,19 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
+
+type accMappingReferenceResolver struct{}
+
+func (accMappingReferenceResolver) ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error) {
+	return bobdomain.EffectiveReference{}, nil
+}
 
 const (
 	accMappingCreatorID  = "01JDCM00000000000000000001"
@@ -106,7 +113,7 @@ func TestAccMappingDeclarationSwitchFallbackAndExactVoucherBlockerIntegration(t 
 	resetAccMappingIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	accounting := accdomain.NewService(pool, authorizer, bus)
+	accounting := accdomain.NewService(pool, accMappingReferenceResolver{}, authorizer, bus)
 	service := NewAccMappingService(pool, accounting, authorizer, bus)
 	creator := dclActor(t, accMappingCreatorID, "mapping-creator")
 	reviewer := dclActor(t, accMappingReviewerID, "mapping-reviewer")
@@ -232,7 +239,7 @@ func TestAccMappingApprovalRollsBackWhenACCRegistrationFailsIntegration(t *testi
 	resetAccMappingIntegrationData(t, pool)
 	authorizer := authorization.Func(nil)
 	bus := txevent.NewBus()
-	accounting := accdomain.NewService(pool, authorizer, bus)
+	accounting := accdomain.NewService(pool, accMappingReferenceResolver{}, authorizer, bus)
 	service := NewAccMappingService(pool, failingAccMappingHandler{real: accounting}, authorizer, bus)
 	creator := dclActor(t, accMappingCreatorID, "rollback-creator")
 	reviewer := dclActor(t, accMappingReviewerID, "rollback-reviewer")

@@ -49,7 +49,7 @@ func (s *Service) resolveReference(
 	if input == nil {
 		return nil, nil
 	}
-	ref, err := s.resolver.ValidateApprovedSnapshotReference(ctx, tx, kind, input.ObjectID, input.ApprovalEntryID)
+	ref, err := s.resolver.ValidateHistoricalReference(ctx, tx, kind, input.ObjectID, input.ApprovalEntryID)
 	if err != nil {
 		return nil, domainError(ErrorConflict, kind+" reference is not effective", nil, err)
 	}
@@ -70,9 +70,9 @@ func (s *Service) resolveSelectedReference(
 	var ref bobdomain.EffectiveReference
 	var err error
 	if !newDocument && preserved != nil && input.ObjectID == preserved.ObjectID && input.ApprovalEntryID == preserved.ApprovalEntryID {
-		ref, err = s.resolver.ValidateApprovedSnapshotReference(ctx, tx, kind, input.ObjectID, input.ApprovalEntryID)
+		ref, err = s.resolver.ValidateHistoricalReference(ctx, tx, kind, input.ObjectID, input.ApprovalEntryID)
 	} else {
-		ref, err = s.resolver.ResolveLatestApprovedReference(ctx, tx, kind, input.ObjectID)
+		ref, err = s.resolver.ResolveCurrentReference(ctx, tx, kind, input.ObjectID)
 		if err == nil && input.ApprovalEntryID != "" && input.ApprovalEntryID != ref.ApprovalEntryID {
 			return nil, domainError(ErrorConflict, kind+" reference does not match the latest approved version", nil, nil)
 		}
@@ -206,7 +206,7 @@ func (s *Service) resolveCurrentEmployee(
 	objectID string,
 	field string,
 ) (*bobdomain.EffectiveReference, error) {
-	ref, err := s.resolver.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityEmployee, objectID)
+	ref, err := s.resolver.ResolveCurrentReference(ctx, tx, bobdomain.EntityEmployee, objectID)
 	if err != nil {
 		return nil, domainError(ErrorConflict, field+" is not an effective employee", nil, err)
 	}
@@ -410,7 +410,7 @@ func (s *Service) resolveDraftProducts(
 		materials := make([]bobdomain.EffectiveReference, 0, len(line.Formula.Components))
 		for componentIndex := range line.Formula.Components {
 			component := &line.Formula.Components[componentIndex]
-			material, materialErr := s.resolver.ResolveLatestApprovedReference(
+			material, materialErr := s.resolver.ResolveCurrentReference(
 				ctx,
 				tx,
 				bobdomain.EntityProduct,
@@ -470,7 +470,7 @@ func (s *Service) resolveDraftProducts(
 func (s *Service) resolveCurrentProduct(
 	ctx context.Context, tx pgx.Tx, objectID string,
 ) (*bobdomain.EffectiveReference, error) {
-	product, err := s.resolver.ResolveLatestApprovedReference(
+	product, err := s.resolver.ResolveCurrentReference(
 		ctx, tx, bobdomain.EntityProduct, objectID,
 	)
 	if err != nil {

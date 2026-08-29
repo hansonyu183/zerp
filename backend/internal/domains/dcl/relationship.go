@@ -17,7 +17,7 @@ import (
 
 type relationshipBusinessRules interface {
 	ResolveOtherUnitDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bool) (bobdomain.DetailView, error)
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	EnsureOtherUnitUnapproveAllowed(context.Context, pgx.Tx, string) error
 	EnsureSalesPartnerUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
@@ -61,7 +61,7 @@ func otherPayload(id bobdomain.RelationshipIdentity, enabled bool) dclapproval.O
 	return dclapproval.OtherUnitPayload{SubjectID: id.ObjectID, Code: id.Code, PartyID: id.PartyID, Enabled: enabled}
 }
 func otherMutation(id bobdomain.RelationshipIdentity, enabled bool, e approval.Entry) RelationshipMutation {
-	return RelationshipMutation{ObjectID: id.ObjectID, ObjectRevision: id.ObjectRevision, Enabled: enabled, PartyID: id.PartyID, Approval: approval.VersionMetaFromEntry(e)}
+	return RelationshipMutation{ObjectID: id.ObjectID, Enabled: enabled, PartyID: id.PartyID, Approval: approval.VersionMetaFromEntry(e)}
 }
 
 func (s *RelationshipService) CreateOtherUnit(ctx context.Context, in OtherUnitCreateInput, actor approval.Actor) (RelationshipMutation, error) {
@@ -73,7 +73,7 @@ func (s *RelationshipService) CreateOtherUnit(ctx context.Context, in OtherUnitC
 		return RelationshipMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID); err != nil {
+	if _, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID); err != nil {
 		return RelationshipMutation{}, translateError(err)
 	}
 	var party bobdomain.PartyRelationshipResolved
@@ -255,7 +255,7 @@ func (s *RelationshipService) transitionOther(ctx context.Context, in Relationsh
 	_ = detail
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-			_, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
+			_, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
 		}
 		if err != nil {
 			return RelationshipMutation{}, translateError(err)
@@ -362,7 +362,7 @@ func (s *RelationshipService) CreateSalesPartner(ctx context.Context, in SalesPa
 		return RelationshipMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID); err != nil {
+	if _, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID); err != nil {
 		return RelationshipMutation{}, translateError(err)
 	}
 	var party bobdomain.PartyRelationshipResolved
@@ -530,7 +530,7 @@ func (s *RelationshipService) transitionSales(ctx context.Context, in Relationsh
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-			_, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
+			_, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
 		}
 		if err != nil {
 			return RelationshipMutation{}, translateError(err)

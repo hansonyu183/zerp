@@ -8,7 +8,6 @@ export type DclFundAccountView = {
   objectId: string;
   entity: 'fund-account';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   approval: ApprovalVersionMeta;
   data: DclFundAccountData;

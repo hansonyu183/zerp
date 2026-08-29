@@ -50,7 +50,8 @@ const columns: readonly BusinessObjectColumn<RptDefinitionListItem>[] = [
   {
     key: 'enabled',
     label: '启停',
-    value: (row) => (row.enabled ? '启用' : '停用'),
+    value: (row) =>
+      activeRptDefinitionVersion(row)?.enabled ? '启用' : '停用',
     sizing: 'compact',
   },
 ]
@@ -138,6 +139,12 @@ void vm.query().then(() => {
             <v-text-field v-if="vm.selected" :model-value="vm.selected.code" label="报表编码" readonly />
             <v-text-field v-model="vm.form.name" label="名称" />
           </div>
+          <v-checkbox
+            v-model="vm.form.enabled"
+            :disabled="Boolean(vm.selected && vm.selected.approval.status !== 'DRAFT')"
+            label="本候选版本启用"
+            hide-details
+          />
           <v-textarea v-model="vm.form.description" label="说明" rows="2" />
           <v-textarea v-model="vm.form.dataText" label="类型化定义 JSON" auto-grow rows="12" />
           <v-textarea v-model="vm.form.validationParametersText" label="提交/批准校验参数 JSON" rows="3" />
@@ -162,8 +169,9 @@ void vm.query().then(() => {
             <v-btn v-if="vm.selected.approval.status === 'PENDING' && vm.permissions.approve" @click="vm.run('approve')">批准</v-btn>
             <v-btn v-if="vm.selected.approval.status === 'APPROVED' && vm.permissions['create-next']" @click="vm.run('create-next')">创建下一版本</v-btn>
             <v-btn v-if="vm.selected.approval.status === 'APPROVED' && vm.permissions.unapprove" @click="vm.run('unapprove')">反批</v-btn>
-            <v-btn v-if="!vm.selected.enabled && vm.permissions.enable" @click="vm.changeEnabled(true)">启用</v-btn>
-            <v-btn v-if="vm.selected.enabled && vm.permissions.disable" @click="vm.changeEnabled(false)">停用</v-btn>
+            <v-btn v-if="vm.selected.approval.status === 'DRAFT' && !vm.selected.enabled && vm.permissions.enable" @click="vm.changeEnabled(true)">启用草稿</v-btn>
+            <v-btn v-if="vm.selected.approval.status === 'DRAFT' && vm.selected.enabled && vm.permissions.disable" @click="vm.changeEnabled(false)">停用草稿</v-btn>
+            <span v-if="vm.selected.approval.status === 'APPROVED'" class="text-caption text-medium-emphasis">启停请先创建下一版本。</span>
             <v-btn v-if="vm.permissions.versions" @click="vm.loadVersions">版本历史</v-btn>
             <v-btn v-if="vm.permissions['audit-history']" @click="vm.loadAudit">审核记录</v-btn>
           </template>
@@ -173,9 +181,9 @@ void vm.query().then(() => {
 
     <v-dialog v-model="vm.versionsOpen" max-width="850">
       <v-card><v-card-title>版本历史</v-card-title><v-card-text>
-        <v-table><thead><tr><th>版本</th><th>状态</th><th>有效性</th><th>名称</th></tr></thead>
+        <v-table><thead><tr><th>版本</th><th>状态</th><th>启停</th><th>有效性</th><th>名称</th></tr></thead>
           <tbody><tr v-for="version in vm.versions" :key="version.approval.approvalEntryId">
-            <td>{{ version.approval.versionNo }}</td><td>{{ approvalStatusPresentation[version.approval.status].label }}</td><td>{{ rptDefinitionValidityPresentation[version.validity].label }}</td><td>{{ version.name }}</td>
+            <td>{{ version.approval.versionNo }}</td><td>{{ approvalStatusPresentation[version.approval.status].label }}</td><td>{{ version.enabled ? '启用' : '停用' }}</td><td>{{ rptDefinitionValidityPresentation[version.validity].label }}</td><td>{{ version.name }}</td>
           </tr></tbody></v-table>
       </v-card-text></v-card>
     </v-dialog>

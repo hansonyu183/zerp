@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -39,10 +38,7 @@ func ValidateOperatingEntityData(input OperatingEntityData) (OperatingEntityData
 }
 
 func (s *Service) EnsureOperatingEntityUnapproveAllowed(ctx context.Context, tx pgx.Tx, approvalEntryID string) error {
-	if tx == nil || !validID(approvalEntryID) {
-		return domainError(ErrorValidation, "invalid operating entity unapprove request", nil, nil)
-	}
-	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), approvalEntryID)
+	return s.EnsureUnapproveAllowed(ctx, tx, approvalEntryID)
 }
 
 func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
@@ -66,7 +62,7 @@ func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput)
 	}
 	return ObjectView{
 		ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code),
-		ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo),
+		Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo),
 		Data: DetailView{Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
 			Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark)},
 		UpdatedAt: row.UpdatedAt.Time,
@@ -123,7 +119,7 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 		}
 		items = append(items, QueryItem{
 			ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code),
-			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID,
+			Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID,
 			SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
@@ -136,14 +132,9 @@ func (s *Service) validateOperatingEntitySnapshotReference(
 	objectID string,
 	approvalEntryID string,
 ) (EffectiveReference, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{
-		ID: approvalEntryID, Domain: "dcl", Entity: EntityOperatingEntity,
-	})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (entry.SubjectID != objectID || entry.Status != string(approval.StatusApproved))) {
-		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
-	}
+	entry, err := s.requireHistoricalApprovalEntry(ctx, q, approvalEntryID, EntityOperatingEntity, objectID, "BOB approval snapshot is unavailable")
 	if err != nil {
-		return EffectiveReference{}, s.internal("validate DCL operating entity snapshot", err)
+		return EffectiveReference{}, err
 	}
 	identity, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityOperatingEntity})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -160,7 +151,7 @@ func (s *Service) validateOperatingEntitySnapshotReference(
 		return EffectiveReference{}, s.internal("load DCL operating entity snapshot", err)
 	}
 	return EffectiveReference{
-		ObjectID: identity.ID, Entity: identity.Entity, Code: deref(identity.Code), ApprovalEntryID: entry.ID,
+		ObjectID: identity.ID, Entity: identity.Entity, Code: deref(identity.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo),
 		Data: DetailView{
 			Name: stored.LegalName, ShortName: deref(stored.ShortName), TaxNumber: deref(stored.TaxNumber),
 			Address: deref(stored.Address), Phone: deref(stored.Phone), Remark: deref(stored.Remark),
@@ -177,7 +168,7 @@ func (s *Service) resolveOperatingEntityCurrentReference(ctx context.Context, q 
 		return EffectiveReference{}, s.internal("resolve operating entity current reference", err)
 	}
 	return EffectiveReference{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code), ApprovalEntryID: row.ApprovalEntryID,
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code), ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo),
 		Data: DetailView{
 			Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
 			Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark),

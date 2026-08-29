@@ -149,7 +149,7 @@ func New(
 	products := dcldomain.NewProductService(pool, business, seedAuthorizer{}, events)
 	employees := dcldomain.NewEmployeeService(pool, business, partyDeclarations, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
 	relationships := dcldomain.NewRelationshipService(pool, business, partyDeclarations, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
-	accounting := accdomain.NewService(pool, seedAuthorizer{}, events)
+	accounting := accdomain.NewService(pool, business, seedAuthorizer{}, events)
 	accountMappings := dcldomain.NewAccMappingService(pool, accounting, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(
 		pool,

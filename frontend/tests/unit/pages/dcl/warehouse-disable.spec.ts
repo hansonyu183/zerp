@@ -14,7 +14,6 @@ function enabledWarehouse(openVersionEnabled?: boolean): DclWarehouseListItem {
     objectId: '01J00000000000000000000001',
     entity: 'warehouse',
     code: 'WHS-0001',
-    objectRevision: 3,
     enabled: true,
     latestApproved: {
       approval: {
@@ -110,7 +109,7 @@ describe('DCL warehouse disable request', () => {
         new ApiError('business', 'warehouse availability changed', {
           code: 3001,
           errorKey: 'conflict',
-          details: { objectRevision: 2 },
+          details: {},
         }),
       ),
     ).toBeNull()

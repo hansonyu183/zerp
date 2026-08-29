@@ -16,8 +16,8 @@ import (
 
 type supplierBusinessRules interface {
 	ResolveOtherUnitDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bool) (bobdomain.DetailView, error)
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
-	ValidateApprovedSnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	EnsureSupplierUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 type supplierPartyReader interface {
@@ -50,7 +50,7 @@ func supplierPayload(id bobdomain.RelationshipIdentity, enabled bool) dclapprova
 	return dclapproval.SupplierPayload{SubjectID: id.ObjectID, Code: id.Code, PartyID: id.PartyID, Enabled: enabled}
 }
 func supplierMutation(id bobdomain.RelationshipIdentity, enabled bool, e approval.Entry) SupplierMutation {
-	return SupplierMutation{ObjectID: id.ObjectID, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+	return SupplierMutation{ObjectID: id.ObjectID, PartyID: id.PartyID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 func supplierVersionInput(i SupplierReviewInput) SupplierVersionInput {
 	return SupplierVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
@@ -137,9 +137,9 @@ func (s *SupplierService) resolve(ctx context.Context, tx pgx.Tx, data SupplierD
 	if data.DefaultPurchaserEmployeeID != "" {
 		var ref bobdomain.EffectiveReference
 		if exact {
-			ref, err = s.rules.ValidateApprovedSnapshotReference(ctx, tx, bobdomain.EntityEmployee, data.DefaultPurchaserEmployeeID, data.DefaultPurchaserApprovalEntryID)
+			ref, err = s.rules.ValidateHistoricalReference(ctx, tx, bobdomain.EntityEmployee, data.DefaultPurchaserEmployeeID, data.DefaultPurchaserApprovalEntryID)
 		} else {
-			ref, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityEmployee, data.DefaultPurchaserEmployeeID)
+			ref, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityEmployee, data.DefaultPurchaserEmployeeID)
 		}
 		if err != nil {
 			return SupplierData{}, err
@@ -171,7 +171,7 @@ func (s *SupplierService) Create(ctx context.Context, in SupplierCreateInput, ac
 		return SupplierMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID); err != nil {
+	if _, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID); err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
 	var party bobdomain.PartyRelationshipResolved
@@ -312,7 +312,7 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-			_, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
+			_, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
 		}
 		if err == nil {
 			_, err = s.resolve(ctx, tx, data, true)

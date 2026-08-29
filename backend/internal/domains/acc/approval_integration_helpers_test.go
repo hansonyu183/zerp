@@ -98,7 +98,7 @@ func createAccountingProductVersion(t *testing.T, pool *pgxpool.Pool, previous a
 }
 
 func integrationACCService(pool *pgxpool.Pool, bus *txevent.Bus) *Service {
-	return NewService(pool, authorization.Func(nil), bus)
+	return NewService(pool, newAccountingIntegrationBOBService(pool, bus), authorization.Func(nil), bus)
 }
 
 func defaultIntegrationACCService(pool *pgxpool.Pool) *Service {

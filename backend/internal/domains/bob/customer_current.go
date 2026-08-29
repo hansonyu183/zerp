@@ -373,34 +373,28 @@ func (s *Service) resolveCustomerAccountCurrentReference(ctx context.Context, q 
 	if err != nil {
 		return EffectiveReference{}, s.internal("get current customer account reference", err)
 	}
-	return s.customerAccountEffectiveReference(ctx, q, row.ObjectID, row.Code, row.ApprovalEntryID)
+	return s.customerAccountEffectiveReference(ctx, q, row.ObjectID, row.Code, row.ApprovalEntryID, versionNumber(row.VersionNo))
 }
 
 // validateCustomerAccountSnapshotReference intentionally does not require the
 // entry to remain current: executed sales documents retain the exact approved
 // customer-account declaration they recorded.
 func (s *Service) validateCustomerAccountSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, approvalEntryID string) (EffectiveReference, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: approvalEntryID, Domain: "dcl", Entity: EntityCustomerAccount})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (entry.SubjectID != objectID || entry.Status != "APPROVED")) {
+	entry, err := s.requireHistoricalApprovalEntry(ctx, q, approvalEntryID, EntityCustomerAccount, objectID, "customer account approval snapshot is unavailable")
+	if err != nil {
+		return EffectiveReference{}, err
+	}
+	identity, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityCustomerAccount})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "customer account approval snapshot is unavailable", nil, nil)
 	}
 	if err != nil {
-		return EffectiveReference{}, s.internal("get customer account approval snapshot", err)
+		return EffectiveReference{}, s.internal("get customer account identity", err)
 	}
-	identity, err := q.GetBobCustomerAccountCurrent(ctx, objectID)
-	if err != nil {
-		// A historical entry can remain valid after there is no latest approved
-		// version, so use the stable DCL subject for its business code.
-		object, objectErr := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityCustomerAccount})
-		if objectErr != nil {
-			return EffectiveReference{}, s.internal("get customer account identity", objectErr)
-		}
-		return s.customerAccountEffectiveReference(ctx, q, object.ID, deref(object.Code), approvalEntryID)
-	}
-	return s.customerAccountEffectiveReference(ctx, q, identity.ObjectID, identity.Code, approvalEntryID)
+	return s.customerAccountEffectiveReference(ctx, q, identity.ID, deref(identity.Code), approvalEntryID, versionNumber(entry.VersionNo))
 }
 
-func (s *Service) customerAccountEffectiveReference(ctx context.Context, q *dbsqlc.Queries, objectID, code, approvalEntryID string) (EffectiveReference, error) {
+func (s *Service) customerAccountEffectiveReference(ctx context.Context, q *dbsqlc.Queries, objectID, code, approvalEntryID string, versionNo int32) (EffectiveReference, error) {
 	payload, err := q.GetDCLCustomerAccountVersion(ctx, approvalEntryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("get customer account snapshot", err)
@@ -417,5 +411,5 @@ func (s *Service) customerAccountEffectiveReference(ctx context.Context, q *dbsq
 		detail.SettlementMethodID, detail.SettlementMethodCode, detail.SettlementMethodName = data.SettlementMethodID, data.SettlementMethod.Code, data.SettlementMethod.Name
 		detail.TermCode, detail.RuleType, detail.DueDays, detail.MonthOffset, detail.CutoffDay, detail.DefaultSalesSurcharge = data.SettlementMethod.TermCode, data.SettlementMethod.RuleType, data.SettlementMethod.DueDays, data.SettlementMethod.MonthOffset, data.SettlementMethod.CutoffDay, data.SettlementMethod.DefaultSalesSurcharge
 	}
-	return EffectiveReference{ObjectID: objectID, Entity: EntityCustomerAccount, Code: code, ApprovalEntryID: approvalEntryID, Data: detail}, nil
+	return EffectiveReference{ObjectID: objectID, Entity: EntityCustomerAccount, Code: code, ApprovalEntryID: approvalEntryID, VersionNo: versionNo, Data: detail}, nil
 }

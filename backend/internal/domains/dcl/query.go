@@ -64,7 +64,7 @@ func (s *OperatingEntityService) Query(
 	for _, row := range rows {
 		item := OperatingEntityQueryItem{
 			ObjectID: row.ObjectID, Entity: EntityOperatingEntity, Code: stringValue(row.Code),
-			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
+			Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
 		}
 		if row.ApprovedEntryID != "" {
 			view, loadErr := s.loadVersionView(ctx, s.queries, row.ApprovedEntryID, row.ObjectID)

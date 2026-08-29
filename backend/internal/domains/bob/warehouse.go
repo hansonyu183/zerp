@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -42,9 +41,9 @@ func (s *Service) ResolveWarehouseManager(ctx context.Context, tx pgx.Tx, data W
 		if data.ManagerEmployeeApprovalEntryID == "" {
 			return WarehouseData{}, domainError(ErrorConflict, "employee approval snapshot is missing", nil, nil)
 		}
-		ref, err = s.ValidateApprovedSnapshotReference(ctx, tx, EntityEmployee, data.ManagerEmployeeID, data.ManagerEmployeeApprovalEntryID)
+		ref, err = s.ValidateHistoricalReference(ctx, tx, EntityEmployee, data.ManagerEmployeeID, data.ManagerEmployeeApprovalEntryID)
 	} else {
-		ref, err = s.ResolveLatestApprovedReference(ctx, tx, EntityEmployee, data.ManagerEmployeeID)
+		ref, err = s.ResolveCurrentReference(ctx, tx, EntityEmployee, data.ManagerEmployeeID)
 	}
 	if err != nil {
 		return WarehouseData{}, err
@@ -54,10 +53,7 @@ func (s *Service) ResolveWarehouseManager(ctx context.Context, tx pgx.Tx, data W
 }
 
 func (s *Service) EnsureWarehouseUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
-	if tx == nil || !validID(entryID) {
-		return domainError(ErrorValidation, "invalid warehouse unapprove request", nil, nil)
-	}
-	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entryID)
+	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
 
 func (s *Service) EnsureWarehouseDisableAllowed(ctx context.Context, tx pgx.Tx, warehouseID string) (WarehouseDisableBlockers, error) {
@@ -90,7 +86,7 @@ func (s *Service) getWarehouseCurrent(ctx context.Context, input GetInput) (Obje
 		return ObjectView{}, s.internal("get warehouse current", err)
 	}
 	entry := dbsqlc.ApprovalEntry{ID: r.ApprovalEntryID, Domain: r.Domain, Entity: EntityWarehouse, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.UpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}, UpdatedAt: r.UpdatedAt.Time}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}, UpdatedAt: r.UpdatedAt.Time}, nil
 }
 
 func (s *Service) queryWarehouses(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
@@ -131,18 +127,15 @@ func (s *Service) queryWarehouses(ctx context.Context, input QueryInput) (Page[Q
 		if e != nil {
 			return Page[QueryItem]{}, e
 		}
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: v.Data, UpdatedAt: r.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: v.Data, UpdatedAt: r.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
 func (s *Service) validateWarehouseSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityWarehouse})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (entry.SubjectID != objectID || entry.Status != string(approval.StatusApproved))) {
-		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
-	}
+	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntityWarehouse, objectID, "BOB approval snapshot is unavailable")
 	if err != nil {
-		return EffectiveReference{}, s.internal("validate DCL warehouse snapshot", err)
+		return EffectiveReference{}, err
 	}
 	o, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityWarehouse})
 	if err != nil {
@@ -152,7 +145,7 @@ func (s *Service) validateWarehouseSnapshotReference(ctx context.Context, q *dbs
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL warehouse snapshot", err)
 	}
-	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: deref(o.Code), ApprovalEntryID: entry.ID, Data: warehouseDetail(warehouseData(stored))}, nil
+	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: deref(o.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: warehouseDetail(warehouseData(stored))}, nil
 }
 func (s *Service) resolveWarehouseCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
 	r, err := q.GetBobWarehouseCurrentReference(ctx, objectID)
@@ -162,5 +155,5 @@ func (s *Service) resolveWarehouseCurrentReference(ctx context.Context, q *dbsql
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve warehouse current", err)
 	}
-	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}}, nil
+	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}}, nil
 }

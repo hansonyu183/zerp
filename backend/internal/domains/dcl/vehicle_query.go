@@ -52,7 +52,7 @@ func (s *VehicleService) Query(ctx context.Context, input VehicleQueryInput, act
 	}
 	items := make([]VehicleQueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := VehicleQueryItem{ObjectID: row.ObjectID, Entity: EntityVehicle, Code: stringValue(row.Code), ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
+		item := VehicleQueryItem{ObjectID: row.ObjectID, Entity: EntityVehicle, Code: stringValue(row.Code), Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
 		if row.ApprovedEntryID != "" {
 			view, viewErr := s.loadVehicleVersionView(ctx, s.queries, row.ApprovedEntryID, row.ObjectID)
 			if viewErr != nil {

@@ -1,7 +1,8 @@
 ---
 id: ADR-0042
 date: 2026-08-28
-status: accepted
+status: superseded
+superseded_by: ADR-0047
 ---
 
 # 客户与客户结算子账户申报由 DCL 拥有并投影到 BOB 当前业务面

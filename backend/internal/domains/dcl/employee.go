@@ -19,7 +19,7 @@ import (
 type employeeBusinessRules interface {
 	ResolveEmployeeAuxiliaryReferences(context.Context, pgx.Tx, bobdomain.EmployeeData, bool) (bobdomain.EmployeeData, error)
 	ResolveEmployeeDraftAuxiliaryReferences(context.Context, pgx.Tx, bobdomain.EmployeeData, bobdomain.EmployeeData) (bobdomain.EmployeeData, error)
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	EnsureEmployeeDisableAllowed(context.Context, pgx.Tx, string) error
 	EnsureEmployeeUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
@@ -81,7 +81,7 @@ func employeePayload(i bobdomain.EmployeeIdentity, enabled bool, data EmployeeDa
 	return dclapproval.EmployeePayload{SubjectID: i.ObjectID, Code: i.Code, PartyID: i.PartyID, Enabled: enabled}
 }
 func employeeMutation(i bobdomain.EmployeeIdentity, enabled bool, e approval.Entry) EmployeeMutation {
-	return EmployeeMutation{ObjectID: i.ObjectID, ObjectRevision: i.ObjectRevision, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+	return EmployeeMutation{ObjectID: i.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 func employeeInput(i EmployeeReviewInput) EmployeeVersionInput {
 	return EmployeeVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
@@ -117,7 +117,7 @@ func (s *EmployeeService) Create(ctx context.Context, input EmployeeCreateInput,
 		return EmployeeMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, input.OperatingEntityID); err != nil {
+	if _, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, input.OperatingEntityID); err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
 	var party bobdomain.PartyRelationshipResolved
@@ -276,7 +276,7 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-			_, err = s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
+			_, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
 		}
 		if err == nil {
 			data, err = s.rules.ResolveEmployeeAuxiliaryReferences(ctx, tx, data, true)

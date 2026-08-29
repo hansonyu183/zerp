@@ -8,7 +8,6 @@ export type DclProductView = {
   objectId: string;
   entity: 'product';
   code: string;
-  objectRevision: number;
   enabled: boolean;
   approval: ApprovalVersionMeta;
   data: DclProductData;

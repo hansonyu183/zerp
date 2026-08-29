@@ -52,7 +52,7 @@ func (s *WarehouseService) Query(ctx context.Context, input WarehouseQueryInput,
 	}
 	items := make([]WarehouseQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := WarehouseQueryItem{ObjectID: r.ObjectID, Entity: EntityWarehouse, Code: stringValue(r.Code), ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		item := WarehouseQueryItem{ObjectID: r.ObjectID, Entity: EntityWarehouse, Code: stringValue(r.Code), Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.ApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.ApprovedEntryID, r.ObjectID)
 			if e != nil {

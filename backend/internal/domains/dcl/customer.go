@@ -15,8 +15,8 @@ import (
 )
 
 type customerBusinessRules interface {
-	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
-	ValidateApprovedSnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	EnsureCustomerUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 
@@ -51,7 +51,7 @@ func customerPayload(id bobdomain.RelationshipIdentity, enabled bool) dclapprova
 	return dclapproval.CustomerPayload{SubjectID: id.ObjectID, Code: id.Code, PartyID: id.PartyID, Enabled: enabled}
 }
 func customerMutation(id bobdomain.RelationshipIdentity, enabled bool, entry approval.Entry) CustomerMutation {
-	return CustomerMutation{ObjectID: id.ObjectID, ObjectRevision: id.ObjectRevision, PartyID: id.PartyID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
+	return CustomerMutation{ObjectID: id.ObjectID, PartyID: id.PartyID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
 }
 func customerVersionInput(in CustomerReviewInput) CustomerVersionInput {
 	return CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}
@@ -66,7 +66,7 @@ func (s *CustomerService) Create(ctx context.Context, in CustomerCreateInput, ac
 		return CustomerMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	operating, err := s.rules.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID)
+	operating, err := s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, in.OperatingEntityID)
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
@@ -198,7 +198,7 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
-			_, err = s.rules.ValidateApprovedSnapshotReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID, stored.OperatingEntityApprovalEntryID)
+			_, err = s.rules.ValidateHistoricalReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID, stored.OperatingEntityApprovalEntryID)
 		}
 		if err != nil {
 			return CustomerMutation{}, translateError(err)

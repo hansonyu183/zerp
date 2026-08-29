@@ -41,7 +41,6 @@ function row(enabled = true): DclWarehouseListItem {
     objectId: 'OBJECT-1',
     entity: 'warehouse',
     code: 'WHS-0001',
-    objectRevision: 1,
     enabled,
     latestApproved: { approval, data: warehouseData, enabled },
     openVersion: null,
@@ -88,7 +87,6 @@ describe('DCL warehouse view model', () => {
       .mockResolvedValueOnce({
         data: {
           objectId: 'OBJECT-1',
-          objectRevision: 1,
           enabled: true,
           approval,
         },
@@ -126,7 +124,6 @@ describe('DCL warehouse view model', () => {
           objectId: 'OBJECT-1',
           entity: 'warehouse',
           code: 'WHS-0001',
-          objectRevision: 1,
           enabled: true,
           approval,
           data: warehouseData,

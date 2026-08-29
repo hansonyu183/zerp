@@ -12,11 +12,11 @@ func TestPartyMergeAssessmentFindsTypedOperatingEntityConflict(t *testing.T) {
 	source := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: bobdomain.PartyKindOrganization, Revision: 2}
 	target := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: bobdomain.PartyKindOrganization, Revision: 4}
 	sourceRelationships := []partyMergeRelationship{{
-		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: newID(), objectRevision: 1,
+		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: newID(),
 		enabled: true, latestApprovedID: "v1", visibleStatus: string(approval.StatusApproved), visibleRevision: 1,
 	}}
 	targetRelationships := []partyMergeRelationship{{
-		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: sourceRelationships[0].operatingEntityID, objectRevision: 1,
+		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: sourceRelationships[0].operatingEntityID,
 		enabled: true, latestApprovedID: "v2", visibleStatus: string(approval.StatusApproved), visibleRevision: 1,
 	}}
 	assessment, _, _ := partyMergeAssessmentWithRelationships(source, target, sourceRelationships, targetRelationships)
@@ -37,7 +37,7 @@ func TestPartyMergeAssessmentBlocksCandidateOrMergedParty(t *testing.T) {
 	source := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: bobdomain.PartyKindPerson, Revision: 1, MergedIntoPartyID: &mergedInto}
 	target := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: bobdomain.PartyKindPerson, Revision: 1}
 	relationships := []partyMergeRelationship{{
-		relationshipType: EntityEmployee, objectID: newID(), operatingEntityID: newID(), objectRevision: 1,
+		relationshipType: EntityEmployee, objectID: newID(), operatingEntityID: newID(),
 		enabled: true, openApprovalEntryID: "candidate", latestApprovedID: "effective", visibleStatus: string(approval.StatusDraft), visibleRevision: 1,
 	}}
 	assessment, _, _ := partyMergeAssessmentWithRelationships(source, target, relationships, nil)
@@ -84,7 +84,7 @@ func TestPartyMergeFingerprintChangesWithRelationshipState(t *testing.T) {
 	source := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: bobdomain.PartyKindOrganization, Revision: 1}
 	target := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: bobdomain.PartyKindOrganization, Revision: 1}
 	relationships := []partyMergeRelationship{{
-		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: newID(), objectRevision: 1,
+		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: newID(),
 		enabled: true, openApprovalEntryID: "effective", latestApprovedID: "effective", visibleStatus: string(approval.StatusApproved), visibleRevision: 1,
 	}}
 	before := partyMergeFingerprint(source, target, relationships, nil)

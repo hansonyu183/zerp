@@ -5,6 +5,7 @@ import {
   createRptDefinition,
   getRptDefinitionAuditHistory,
   runRptDefinitionVersionAction,
+  setRptDefinitionEnabled,
   type RptDefinition,
 } from '@/pages/dcl/rpt-definition/api'
 import { createDclRptDefinitionViewModel } from '@/pages/dcl/rpt-definition/vm'
@@ -47,7 +48,6 @@ const definition: RptDefinition = {
   name: '测试报表',
   description: '',
   enabled: true,
-  revision: 1,
   approval,
   validity: 'VALID',
   data,
@@ -65,14 +65,17 @@ describe('DCL report definition boundary', () => {
     await createRptDefinition({
       name: definition.name,
       description: '',
+      enabled: true,
       data,
     })
     await runRptDefinitionVersionAction('submit', definition, { bookId: 'B1' })
     await getRptDefinitionAuditHistory(definition.code)
+    await setRptDefinitionEnabled(definition, false)
 
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/rpt-definition/create', {
       name: definition.name,
       description: '',
+      enabled: true,
       data,
     })
     expect(mockedPost).toHaveBeenNthCalledWith(2, 'dcl/rpt-definition/submit', {
@@ -86,6 +89,11 @@ describe('DCL report definition boundary', () => {
       'dcl/rpt-definition/audit-history',
       { code: definition.code, page: 1, pageSize: 100 },
     )
+    expect(mockedPost).toHaveBeenNthCalledWith(4, 'dcl/rpt-definition/disable', {
+      code: definition.code,
+      approvalEntryId: approval.approvalEntryId,
+      approvalRevision: approval.revision,
+    })
   })
 
   it('orchestrates the sole maintenance VM without RPT lifecycle permissions', async () => {
@@ -109,11 +117,11 @@ describe('DCL report definition boundary', () => {
                 name: definition.name,
                 description: '',
                 enabled: true,
-                revision: 1,
                 latestApproved: null,
                 openVersion: {
                   name: definition.name,
                   description: '',
+                  enabled: true,
                   approval,
                   validity: 'VALID',
                 },

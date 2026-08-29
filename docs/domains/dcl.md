@@ -113,11 +113,11 @@ VOU 收付款、费用支付、其他收入和票据资金行继续保存 fund a
 
 ## 3.9 报表定义申报
 
-报表定义的 stable subject 是 `(definitionId, code)`；创建时由系统按 `rpt-NNNNNN` 分配 `code`，创建后永久冻结。`dcl_rpt_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 `name`、`description`、`validity`（`VALID` 或 `INVALID`）、`sql_text`、`parameters` 和 `columns`；所有可变字段随候选版本冻结，不直接修改 RPT 当前执行面。VALID/INVALID 是 RPT 独有的技术有效性，独立于 Approval 状态；`APPROVED + INVALID` 合法但不可执行。
+报表定义的 stable subject 是 DCL 的 `(definitionId, code)`；创建时由系统按 `rpt-NNNNNN` 分配 `code`，创建审计与 code 永久冻结在 `dcl_subjects`。`dcl_rpt_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 `name`、`description`、`enabled`、`sql_text`、`parameters` 和 `columns`；所有可变字段随候选版本冻结。RPT 以 `rpt_definition_validities(approvalEntryId)` 保存 `VALID | INVALID` 及其技术失效审计，独立于 Approval 状态；`APPROVED + INVALID` 合法但不可执行。不存在 RPT root、root revision 或 current pointer。
 
 `/dcl/rpt-definition` 是报表定义唯一维护入口，候选查询、详情、全部写动作和版本历史固定使用 `/dcl/rpt-definition/*`。`/rpt/directory` 和 `/rpt/{code}/query|export` 只提供当前有效定义的查询和执行，不在 RPT 内创建、保存或审批候选。APP 工作台和审批深链固定进入 DCL 页面。
 
-批准或反批在同一事务内原子注册或停用 RPT 的 `query`/`export` 使用权限：首次批准时 RPT 与 APP 在同一事务注册该 code 的精确权限；新版本批准后切换使用权限到新 entry；反批后回落到上一正式版本或停用。已执行报表的 runtime audit 继续保存原 `approvalEntryId`，定义后续改版不重解释历史运行。execution 只使用当前最新 APPROVED + VALID 定义，不回退旧版本或候选。
+新建和保存必须发送 `enabled`；只有 `DRAFT` candidate 可改启停，已经 `APPROVED` 的定义必须先创建下一候选。批准或反批在同一事务内原子注册或停用 RPT 的 `query`/`export` 使用权限：首次批准时 RPT 与 APP 在同一事务注册该 code 的精确权限；新版本批准后切换使用权限到新 entry；反批后回落到上一正式版本或停用。已执行报表的 runtime audit 继续保存原 `approvalEntryId`，定义后续改版不重解释历史运行。execution 只使用当前最新 `APPROVED + enabled + VALID` 定义，不回退旧版本或候选。
 
 ## 3.10 流程定义申报
 

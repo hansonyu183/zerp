@@ -10,7 +10,7 @@ FOR UPDATE;
 -- name: ListPartyMergeRelationships :many
 SELECT object.entity AS relationship_type, object.id AS object_id, object.code AS object_code,
        party_rel.operating_entity_id, operating_detail.legal_name AS operating_entity_name,
-       0::bigint AS object_revision, true AS enabled,
+       true AS enabled,
        COALESCE(open_entry.id,'')::text AS open_approval_entry_id,
        approved.id AS latest_approved_entry_id,
        COALESCE(open_entry.status,approved.status)::text AS visible_status,

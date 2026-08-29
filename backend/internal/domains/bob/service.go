@@ -3,6 +3,7 @@ package bob
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
@@ -96,7 +97,7 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	return ObjectView{}, domainError(ErrorValidation, "invalid get entity", nil, nil)
 }
 
-func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (EffectiveReference, error) {
+func (s *Service) ValidateHistoricalReference(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (EffectiveReference, error) {
 	if !validEntity(entity) || !validID(objectID) || !validID(approvalEntryID) {
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid BOB reference", nil, nil)
 	}
@@ -134,7 +135,7 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	return EffectiveReference{}, domainError(ErrorValidation, "unsupported BOB snapshot reference entity", nil, nil)
 }
 
-func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx, entity, objectID string) (EffectiveReference, error) {
+func (s *Service) ResolveCurrentReference(ctx context.Context, tx pgx.Tx, entity, objectID string) (EffectiveReference, error) {
 	if !validEntity(entity) || !validID(objectID) {
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid BOB reference", nil, nil)
 	}
@@ -172,7 +173,11 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	return EffectiveReference{}, domainError(ErrorValidation, "unsupported BOB current reference entity", nil, nil)
 }
 
-func (s *Service) ensureUnapproveAllowed(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
+func (s *Service) EnsureUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
+	if tx == nil || !validID(entryID) {
+		return domainError(ErrorValidation, "invalid unapprove request", nil, nil)
+	}
+	q := s.queries.WithTx(tx)
 	counts, err := listBobApprovalEntryReferenceCounts(ctx, q, entryID)
 	if err != nil {
 		return s.internal("scan exact BOB approval-entry references before unapprove", err)
@@ -190,6 +195,30 @@ func (s *Service) ensureUnapproveAllowed(ctx context.Context, q *dbsqlc.Queries,
 	return nil
 }
 
+// requireHistoricalApprovalEntry validates an exact DCL approval snapshot.
+// The snapshot need not be the current approved version: an APPROVED audit
+// event remains the durable proof after a later unapprove transition.
+func (s *Service) requireHistoricalApprovalEntry(ctx context.Context, q *dbsqlc.Queries, entryID, entity, objectID, unavailableMessage string) (dbsqlc.ApprovalEntry, error) {
+	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: entity})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && entry.SubjectID != objectID) {
+		return dbsqlc.ApprovalEntry{}, domainError(ErrorConflict, unavailableMessage, nil, nil)
+	}
+	if err != nil {
+		return dbsqlc.ApprovalEntry{}, s.internal("get historical approval snapshot", err)
+	}
+	if entry.Status == string(approval.StatusApproved) {
+		return entry, nil
+	}
+	approved, err := q.HasApprovalEntryApprovedEvent(ctx, entryID)
+	if err != nil {
+		return dbsqlc.ApprovalEntry{}, s.internal("verify historical approval event", err)
+	}
+	if !approved {
+		return dbsqlc.ApprovalEntry{}, domainError(ErrorConflict, unavailableMessage, nil, nil)
+	}
+	return entry, nil
+}
+
 func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx, entity, objectID string, data DetailView, exact bool) (DetailView, error) {
 	resolveBob := func(referenceEntity, referenceObjectID string, approvalEntryID *string) error {
 		if referenceObjectID == "" {
@@ -205,9 +234,9 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 			if *approvalEntryID == "" {
 				return domainError(ErrorConflict, referenceEntity+" approval snapshot is missing", nil, nil)
 			}
-			reference, err = s.ValidateApprovedSnapshotReference(ctx, tx, referenceEntity, referenceObjectID, *approvalEntryID)
+			reference, err = s.ValidateHistoricalReference(ctx, tx, referenceEntity, referenceObjectID, *approvalEntryID)
 		} else {
-			reference, err = s.ResolveLatestApprovedReference(ctx, tx, referenceEntity, referenceObjectID)
+			reference, err = s.ResolveCurrentReference(ctx, tx, referenceEntity, referenceObjectID)
 		}
 		if err != nil {
 			return err

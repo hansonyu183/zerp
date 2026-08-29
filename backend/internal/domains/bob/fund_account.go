@@ -47,9 +47,9 @@ func (s *Service) ResolveFundAccountOperating(ctx context.Context, tx pgx.Tx, d 
 		if d.OperatingEntityApprovalEntryID == "" {
 			return FundAccountData{}, domainErrorWithKey(ErrorConflict, "fund_account_operating_reference_stale", "operating entity snapshot is missing", nil, nil)
 		}
-		r, e = s.ValidateApprovedSnapshotReference(ctx, tx, EntityOperatingEntity, d.OperatingEntityID, d.OperatingEntityApprovalEntryID)
+		r, e = s.ValidateHistoricalReference(ctx, tx, EntityOperatingEntity, d.OperatingEntityID, d.OperatingEntityApprovalEntryID)
 		if e == nil {
-			latest, latestErr := s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, d.OperatingEntityID)
+			latest, latestErr := s.ResolveCurrentReference(ctx, tx, EntityOperatingEntity, d.OperatingEntityID)
 			if latestErr != nil {
 				e = latestErr
 			} else if latest.ApprovalEntryID != r.ApprovalEntryID {
@@ -57,7 +57,7 @@ func (s *Service) ResolveFundAccountOperating(ctx context.Context, tx pgx.Tx, d 
 			}
 		}
 	} else {
-		r, e = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, d.OperatingEntityID)
+		r, e = s.ResolveCurrentReference(ctx, tx, EntityOperatingEntity, d.OperatingEntityID)
 	}
 	if e != nil {
 		return FundAccountData{}, domainErrorWithKey(ErrorConflict, "fund_account_operating_reference_stale", "operating entity reference is stale", nil, e)
@@ -67,7 +67,7 @@ func (s *Service) ResolveFundAccountOperating(ctx context.Context, tx pgx.Tx, d 
 }
 
 func (s *Service) EnsureFundAccountUnapproveAllowed(ctx context.Context, tx pgx.Tx, entry string) error {
-	return s.ensureUnapproveAllowed(ctx, s.queries.WithTx(tx), entry)
+	return s.EnsureUnapproveAllowed(ctx, tx, entry)
 }
 
 func fundAccountDetail(r dbsqlc.GetBobFundAccountCurrentRow) DetailView {
@@ -86,7 +86,7 @@ func (s *Service) getFundAccountCurrent(ctx context.Context, in GetInput) (Objec
 		return ObjectView{}, s.internal("get fund account current", e)
 	}
 	entry := dbsqlc.ApprovalEntry{ID: r.SourceApprovalEntryID, Domain: r.Domain, Entity: EntityFundAccount, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.ApprovalUpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: fundAccountDetail(r), UpdatedAt: r.UpdatedAt.Time}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: fundAccountDetail(r), UpdatedAt: r.UpdatedAt.Time}, nil
 }
 
 func (s *Service) queryFundAccounts(ctx context.Context, in QueryInput) (Page[QueryItem], error) {
@@ -129,18 +129,15 @@ func (s *Service) queryFundAccounts(ctx context.Context, in QueryInput) (Page[Qu
 		}
 		summary := v.Data
 		summary.AccountNumber = ""
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ObjectRevision: r.ObjectRevision, Enabled: r.CurrentEnabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: summary, UpdatedAt: r.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.CurrentEnabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: summary, UpdatedAt: r.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
 
 func (s *Service) validateFundAccountSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityFundAccount})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (entry.SubjectID != objectID || entry.Status != "APPROVED")) {
-		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
-	}
+	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntityFundAccount, objectID, "BOB approval snapshot is unavailable")
 	if err != nil {
-		return EffectiveReference{}, s.internal("validate DCL fund account snapshot", err)
+		return EffectiveReference{}, err
 	}
 	identity, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityFundAccount})
 	if err != nil {
@@ -150,7 +147,7 @@ func (s *Service) validateFundAccountSnapshotReference(ctx context.Context, q *d
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL fund account snapshot", err)
 	}
-	return EffectiveReference{ObjectID: identity.ID, Entity: identity.Entity, Code: deref(identity.Code), ApprovalEntryID: entry.ID, Data: DetailView{Name: stored.Name, Currency: stored.Currency, AccountName: deref(stored.AccountName), BankName: deref(stored.BankName), BankBranch: deref(stored.BankBranch), AccountNumber: deref(stored.AccountNumber), Remark: deref(stored.Remark), OperatingEntityID: stored.OperatingEntityID, OperatingEntityApprovalEntryID: stored.OperatingEntityApprovalEntryID, OperatingEntityCode: stored.OperatingEntityCode, OperatingEntityName: stored.OperatingEntityName}}, nil
+	return EffectiveReference{ObjectID: identity.ID, Entity: identity.Entity, Code: deref(identity.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: stored.Name, Currency: stored.Currency, AccountName: deref(stored.AccountName), BankName: deref(stored.BankName), BankBranch: deref(stored.BankBranch), AccountNumber: deref(stored.AccountNumber), Remark: deref(stored.Remark), OperatingEntityID: stored.OperatingEntityID, OperatingEntityApprovalEntryID: stored.OperatingEntityApprovalEntryID, OperatingEntityCode: stored.OperatingEntityCode, OperatingEntityName: stored.OperatingEntityName}}, nil
 }
 
 func (s *Service) resolveFundAccountCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
@@ -161,5 +158,5 @@ func (s *Service) resolveFundAccountCurrentReference(ctx context.Context, q *dbs
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve fund account current", err)
 	}
-	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: r.Name, Currency: r.Currency, AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), AccountNumber: deref(r.AccountNumber), Remark: deref(r.Remark), OperatingEntityID: r.OperatingEntityID, OperatingEntityApprovalEntryID: r.OperatingEntityApprovalEntryID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}}, nil
+	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Currency: r.Currency, AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), AccountNumber: deref(r.AccountNumber), Remark: deref(r.Remark), OperatingEntityID: r.OperatingEntityID, OperatingEntityApprovalEntryID: r.OperatingEntityApprovalEntryID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}}, nil
 }

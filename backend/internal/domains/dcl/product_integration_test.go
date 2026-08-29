@@ -428,7 +428,7 @@ func TestDisabledProductCurrentIsReadableButNotEffectiveReferenceIntegration(t *
 		t.Fatal(err)
 	}
 	defer tx.Rollback(t.Context())
-	if _, err = business.ResolveLatestApprovedReference(t.Context(), tx, bobdomain.EntityProduct, v1.ObjectID); err == nil {
+	if _, err = business.ResolveCurrentReference(t.Context(), tx, bobdomain.EntityProduct, v1.ObjectID); err == nil {
 		t.Fatal("disabled product resolved as effective reference")
 	}
 	_ = v2
@@ -460,10 +460,9 @@ func mustCreateProduct(t *testing.T, service *ProductService, data ProductInput,
 
 func productMutationFromView(view ProductView) ProductMutation {
 	return ProductMutation{
-		ObjectID:       view.ObjectID,
-		ObjectRevision: view.ObjectRevision,
-		Enabled:        view.Enabled,
-		Approval:       view.Approval,
+		ObjectID: view.ObjectID,
+		Enabled:  view.Enabled,
+		Approval: view.Approval,
 	}
 }
 

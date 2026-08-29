@@ -184,7 +184,7 @@ func TestCustomerAccountLifecycleCopiesCandidateAttachmentsAndFallsBackIntegrati
 	if err != nil {
 		t.Fatal(err)
 	}
-	v1Exact, err := business.ValidateApprovedSnapshotReference(t.Context(), tx, bobdomain.EntityCustomerAccount, accountID, account.Approval.ApprovalEntryID)
+	v1Exact, err := business.ValidateHistoricalReference(t.Context(), tx, bobdomain.EntityCustomerAccount, accountID, account.Approval.ApprovalEntryID)
 	_ = tx.Rollback(t.Context())
 	if err != nil || v1Exact.Data.Name != "账户 V1" {
 		t.Fatalf("historical V1 exact snapshot after V2 approval=%+v err=%v", v1Exact, err)

@@ -26,7 +26,6 @@ const vehicleView = {
   objectId: 'VEH-1',
   entity: 'vehicle' as const,
   code: 'VEH-0001',
-  objectRevision: 1,
   enabled: true,
   approval,
   data: {
@@ -78,7 +77,6 @@ describe('DCL vehicle view model', () => {
               objectId: 'VEH-1',
               entity: 'vehicle',
               code: 'VEH-0001',
-              objectRevision: 1,
               enabled: true,
               latestApproved: null,
               openVersion: {
@@ -230,7 +228,6 @@ describe('DCL vehicle view model', () => {
                     objectId: 'OUT-1',
                     entity: 'other-unit',
                     code: 'OUT-0001',
-                    objectRevision: 1,
                     enabled: true,
                     sourceApprovalEntryId: 'VER-1',
                     sourceVersionNo: 1,

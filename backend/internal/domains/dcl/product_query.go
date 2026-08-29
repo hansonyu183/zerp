@@ -53,7 +53,7 @@ func (s *ProductService) Query(ctx context.Context, input ProductQueryInput, act
 	}
 	items := make([]ProductQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := ProductQueryItem{ObjectID: r.ObjectID, Entity: EntityProduct, Code: stringValue(r.Code), ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		item := ProductQueryItem{ObjectID: r.ObjectID, Entity: EntityProduct, Code: stringValue(r.Code), Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.ApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.ApprovedEntryID, r.ObjectID)
 			if e != nil {

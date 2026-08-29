@@ -7,7 +7,6 @@ export type DclRelationshipListIdentity = {
   objectId: string;
   entity: 'other-unit' | 'sales-partner';
   code: string;
-  objectRevision: number;
   partyId: string;
   partyKind: PartyKind;
   partyDisplayName: string;

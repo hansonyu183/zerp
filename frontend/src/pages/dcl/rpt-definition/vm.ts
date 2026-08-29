@@ -84,6 +84,7 @@ export function createDclRptDefinitionViewModel() {
   const form = reactive({
     name: '',
     description: '',
+    enabled: true,
     dataText: JSON.stringify(initialData, null, 2),
     validationParametersText: '{}',
   })
@@ -123,6 +124,7 @@ export function createDclRptDefinitionViewModel() {
     selected.value = null
     form.name = ''
     form.description = ''
+    form.enabled = true
     form.dataText = JSON.stringify(initialData, null, 2)
     form.validationParametersText = '{}'
     reason.value = ''
@@ -132,6 +134,7 @@ export function createDclRptDefinitionViewModel() {
     selected.value = definition
     form.name = definition.name
     form.description = definition.description
+    form.enabled = definition.enabled
     form.dataText = JSON.stringify(definition.data, null, 2)
   }
 
@@ -226,6 +229,7 @@ export function createDclRptDefinitionViewModel() {
           ...selected.value,
           name: form.name.trim(),
           description: form.description.trim(),
+          enabled: form.enabled,
           data: parsedData.value,
         })
       } else {
@@ -233,6 +237,7 @@ export function createDclRptDefinitionViewModel() {
         await createRptDefinition({
           name: form.name.trim(),
           description: form.description.trim(),
+          enabled: form.enabled,
           data: parsedData.value,
         })
       }

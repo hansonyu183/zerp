@@ -784,7 +784,7 @@ func (q *Queries) CountDclRptDefinitionApprovalEvents(ctx context.Context, subje
 const countDclRptDefinitions = `-- name: CountDclRptDefinitions :one
 WITH selected AS (
   SELECT d.id
-  FROM rpt_definitions d
+  FROM dcl_subjects d
   LEFT JOIN LATERAL (
     SELECT id,status FROM approval_entries
     WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
@@ -799,7 +799,8 @@ WITH selected AS (
   ) approved_entry ON true
   LEFT JOIN dcl_rpt_definition_versions open_v ON open_v.approval_entry_id=open_entry.id
   LEFT JOIN dcl_rpt_definition_versions approved_v ON approved_v.approval_entry_id=approved_entry.id
-  WHERE ($1::boolean OR d.enabled)
+  WHERE d.entity='rpt-definition'
+    AND ($1::boolean OR coalesce(open_v.enabled, approved_v.enabled, false))
     AND ($2::text='' OR d.code ILIKE '%'||$2::text||'%' OR COALESCE(open_v.name, approved_v.name,'') ILIKE '%'||$2::text||'%')
     AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
 )
@@ -886,12 +887,16 @@ func (q *Queries) DCLAccMappingVersionReferenced(ctx context.Context, approvalEn
 }
 
 const dclRptCopyVersionPayload = `-- name: DclRptCopyVersionPayload :exec
-INSERT INTO dcl_rpt_definition_versions(approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by)
-SELECT $1, source.definition_id, source.name, source.description, source.validity, source.sql_text,
+INSERT INTO dcl_rpt_definition_versions(approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by)
+SELECT $1, source.enabled, source.name, source.description, source.sql_text,
        source.parameters, source.columns, $2, $2
 FROM dcl_rpt_definition_versions source
 WHERE source.approval_entry_id=$3
-  AND source.definition_id=$4
+  AND EXISTS (
+    SELECT 1
+    FROM approval_entries source_entry
+    WHERE source_entry.id=source.approval_entry_id AND source_entry.subject_id=$4
+  )
 `
 
 type DclRptCopyVersionPayloadParams struct {
@@ -911,25 +916,14 @@ func (q *Queries) DclRptCopyVersionPayload(ctx context.Context, arg DclRptCopyVe
 	return err
 }
 
-const dclRptDeleteDefinition = `-- name: DclRptDeleteDefinition :execrows
-DELETE FROM rpt_definitions WHERE id=$1 AND revision=$2
-`
-
-type DclRptDeleteDefinitionParams struct {
-	DefinitionID string `db:"definition_id" json:"definition_id"`
-	Revision     int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) DclRptDeleteDefinition(ctx context.Context, arg DclRptDeleteDefinitionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, dclRptDeleteDefinition, arg.DefinitionID, arg.Revision)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const dclRptDeleteVersionPayload = `-- name: DclRptDeleteVersionPayload :execrows
-DELETE FROM dcl_rpt_definition_versions WHERE approval_entry_id=$1 AND definition_id=$2
+DELETE FROM dcl_rpt_definition_versions
+WHERE approval_entry_id=$1
+  AND EXISTS (
+    SELECT 1
+    FROM approval_entries source_entry
+    WHERE source_entry.id=$1 AND source_entry.subject_id=$2
+  )
 `
 
 type DclRptDeleteVersionPayloadParams struct {
@@ -947,7 +941,10 @@ func (q *Queries) DclRptDeleteVersionPayload(ctx context.Context, arg DclRptDele
 
 const dclRptGetLatestApprovedPayload = `-- name: DclRptGetLatestApprovedPayload :one
 
-SELECT v.approval_entry_id, v.definition_id, v.name, v.description, v.validity, v.sql_text, v.parameters, v.columns FROM approval_entries e JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+SELECT v.approval_entry_id, e.subject_id AS definition_id, v.name, v.description, v.enabled, coalesce(validity.validity, 'VALID') AS validity, v.sql_text, v.parameters, v.columns
+FROM approval_entries e
+JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+LEFT JOIN rpt_definition_validities validity ON validity.approval_entry_id=e.id
 WHERE e.domain='dcl' AND e.entity='rpt-definition' AND e.subject_id=$1 AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1
 `
 
@@ -956,6 +953,7 @@ type DclRptGetLatestApprovedPayloadRow struct {
 	DefinitionID    string `db:"definition_id" json:"definition_id"`
 	Name            string `db:"name" json:"name"`
 	Description     string `db:"description" json:"description"`
+	Enabled         bool   `db:"enabled" json:"enabled"`
 	Validity        string `db:"validity" json:"validity"`
 	SqlText         string `db:"sql_text" json:"sql_text"`
 	Parameters      []byte `db:"parameters" json:"parameters"`
@@ -971,6 +969,7 @@ func (q *Queries) DclRptGetLatestApprovedPayload(ctx context.Context, definition
 		&i.DefinitionID,
 		&i.Name,
 		&i.Description,
+		&i.Enabled,
 		&i.Validity,
 		&i.SqlText,
 		&i.Parameters,
@@ -980,7 +979,11 @@ func (q *Queries) DclRptGetLatestApprovedPayload(ctx context.Context, definition
 }
 
 const dclRptGetVersionPayload = `-- name: DclRptGetVersionPayload :one
-SELECT approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns FROM dcl_rpt_definition_versions WHERE approval_entry_id=$1 AND definition_id=$2
+SELECT v.approval_entry_id, e.subject_id AS definition_id, v.name, v.description, v.enabled, coalesce(validity.validity, 'VALID') AS validity, v.sql_text, v.parameters, v.columns
+FROM dcl_rpt_definition_versions v
+JOIN approval_entries e ON e.id=v.approval_entry_id
+LEFT JOIN rpt_definition_validities validity ON validity.approval_entry_id=v.approval_entry_id
+WHERE v.approval_entry_id=$1 AND e.subject_id=$2
 `
 
 type DclRptGetVersionPayloadParams struct {
@@ -993,6 +996,7 @@ type DclRptGetVersionPayloadRow struct {
 	DefinitionID    string `db:"definition_id" json:"definition_id"`
 	Name            string `db:"name" json:"name"`
 	Description     string `db:"description" json:"description"`
+	Enabled         bool   `db:"enabled" json:"enabled"`
 	Validity        string `db:"validity" json:"validity"`
 	SqlText         string `db:"sql_text" json:"sql_text"`
 	Parameters      []byte `db:"parameters" json:"parameters"`
@@ -1007,6 +1011,7 @@ func (q *Queries) DclRptGetVersionPayload(ctx context.Context, arg DclRptGetVers
 		&i.DefinitionID,
 		&i.Name,
 		&i.Description,
+		&i.Enabled,
 		&i.Validity,
 		&i.SqlText,
 		&i.Parameters,
@@ -1015,28 +1020,14 @@ func (q *Queries) DclRptGetVersionPayload(ctx context.Context, arg DclRptGetVers
 	return i, err
 }
 
-const dclRptInsertDefinition = `-- name: DclRptInsertDefinition :exec
-INSERT INTO rpt_definitions(id, code, created_by, updated_by) VALUES($1, $2, $3, $3)
-`
-
-type DclRptInsertDefinitionParams struct {
-	ID      string `db:"id" json:"id"`
-	Code    string `db:"code" json:"code"`
-	ActorID string `db:"actor_id" json:"actor_id"`
-}
-
-func (q *Queries) DclRptInsertDefinition(ctx context.Context, arg DclRptInsertDefinitionParams) error {
-	_, err := q.db.Exec(ctx, dclRptInsertDefinition, arg.ID, arg.Code, arg.ActorID)
-	return err
-}
-
 const dclRptInsertVersionPayload = `-- name: DclRptInsertVersionPayload :exec
-INSERT INTO dcl_rpt_definition_versions(approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES($1, $2, $3, $4, 'VALID', $5, $6, $7, $8, $8)
+INSERT INTO dcl_rpt_definition_versions(approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $8)
 `
 
 type DclRptInsertVersionPayloadParams struct {
 	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	DefinitionID    string `db:"definition_id" json:"definition_id"`
+	Enabled         bool   `db:"enabled" json:"enabled"`
 	Name            string `db:"name" json:"name"`
 	Description     string `db:"description" json:"description"`
 	SqlText         string `db:"sql_text" json:"sql_text"`
@@ -1048,7 +1039,7 @@ type DclRptInsertVersionPayloadParams struct {
 func (q *Queries) DclRptInsertVersionPayload(ctx context.Context, arg DclRptInsertVersionPayloadParams) error {
 	_, err := q.db.Exec(ctx, dclRptInsertVersionPayload,
 		arg.ApprovalEntryID,
-		arg.DefinitionID,
+		arg.Enabled,
 		arg.Name,
 		arg.Description,
 		arg.SqlText,
@@ -1059,48 +1050,55 @@ func (q *Queries) DclRptInsertVersionPayload(ctx context.Context, arg DclRptInse
 	return err
 }
 
-const dclRptSetDefinitionEnabled = `-- name: DclRptSetDefinitionEnabled :one
-UPDATE rpt_definitions SET enabled=$1, revision=revision+1, updated_at=now(), updated_by=$2 WHERE id=$3 AND revision=$4 RETURNING id, code, enabled, revision
+const dclRptSetDraftEnabled = `-- name: DclRptSetDraftEnabled :execrows
+UPDATE dcl_rpt_definition_versions
+SET enabled=$1, updated_at=now(), updated_by=$2
+WHERE approval_entry_id=$3
+  AND EXISTS (
+    SELECT 1
+    FROM approval_entries source_entry
+    WHERE source_entry.id=dcl_rpt_definition_versions.approval_entry_id AND source_entry.subject_id=$4
+  )
 `
 
-type DclRptSetDefinitionEnabledParams struct {
-	Enabled      bool   `db:"enabled" json:"enabled"`
-	ActorID      string `db:"actor_id" json:"actor_id"`
-	DefinitionID string `db:"definition_id" json:"definition_id"`
-	Revision     int64  `db:"revision" json:"revision"`
+type DclRptSetDraftEnabledParams struct {
+	Enabled         bool   `db:"enabled" json:"enabled"`
+	ActorID         string `db:"actor_id" json:"actor_id"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
 }
 
-type DclRptSetDefinitionEnabledRow struct {
-	ID       string `db:"id" json:"id"`
-	Code     string `db:"code" json:"code"`
-	Enabled  bool   `db:"enabled" json:"enabled"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) DclRptSetDefinitionEnabled(ctx context.Context, arg DclRptSetDefinitionEnabledParams) (DclRptSetDefinitionEnabledRow, error) {
-	row := q.db.QueryRow(ctx, dclRptSetDefinitionEnabled,
+func (q *Queries) DclRptSetDraftEnabled(ctx context.Context, arg DclRptSetDraftEnabledParams) (int64, error) {
+	result, err := q.db.Exec(ctx, dclRptSetDraftEnabled,
 		arg.Enabled,
 		arg.ActorID,
+		arg.ApprovalEntryID,
 		arg.DefinitionID,
-		arg.Revision,
 	)
-	var i DclRptSetDefinitionEnabledRow
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Enabled,
-		&i.Revision,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const dclRptUpdateDraftPayload = `-- name: DclRptUpdateDraftPayload :exec
-UPDATE dcl_rpt_definition_versions SET name=coalesce($1, name), description=coalesce($2, description), sql_text=$3, parameters=$4, columns=$5, validity='VALID', invalidated_at=NULL, invalid_reason=NULL, updated_at=now(), updated_by=$6 WHERE approval_entry_id=$7 AND definition_id=$8
+UPDATE dcl_rpt_definition_versions
+SET name=coalesce($1, name),
+    description=coalesce($2, description),
+    enabled=$3,
+    sql_text=$4, parameters=$5, columns=$6, updated_at=now(), updated_by=$7
+WHERE approval_entry_id=$8
+  AND EXISTS (
+    SELECT 1
+    FROM approval_entries source_entry
+    WHERE source_entry.id=$8 AND source_entry.subject_id=$9
+  )
 `
 
 type DclRptUpdateDraftPayloadParams struct {
 	Name            *string `db:"name" json:"name"`
 	Description     *string `db:"description" json:"description"`
+	Enabled         bool    `db:"enabled" json:"enabled"`
 	SqlText         string  `db:"sql_text" json:"sql_text"`
 	Parameters      []byte  `db:"parameters" json:"parameters"`
 	Columns         []byte  `db:"columns" json:"columns"`
@@ -1113,6 +1111,7 @@ func (q *Queries) DclRptUpdateDraftPayload(ctx context.Context, arg DclRptUpdate
 	_, err := q.db.Exec(ctx, dclRptUpdateDraftPayload,
 		arg.Name,
 		arg.Description,
+		arg.Enabled,
 		arg.SqlText,
 		arg.Parameters,
 		arg.Columns,
@@ -1746,7 +1745,7 @@ func (q *Queries) GetDCLCustomerAccountRoot(ctx context.Context, objectID string
 }
 
 const getDCLCustomerIdentity = `-- name: GetDCLCustomerIdentity :one
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id
 FROM dcl_subjects subject
 JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
@@ -1763,7 +1762,6 @@ WHERE subject.id=$1 AND subject.entity='customer'
 type GetDCLCustomerIdentityRow struct {
 	ObjectID          string `db:"object_id" json:"object_id"`
 	Code              string `db:"code" json:"code"`
-	ObjectRevision    int64  `db:"object_revision" json:"object_revision"`
 	PartyID           string `db:"party_id" json:"party_id"`
 	PartyKind         string `db:"party_kind" json:"party_kind"`
 	DisplayName       string `db:"display_name" json:"display_name"`
@@ -1776,7 +1774,6 @@ func (q *Queries) GetDCLCustomerIdentity(ctx context.Context, objectID string) (
 	err := row.Scan(
 		&i.ObjectID,
 		&i.Code,
-		&i.ObjectRevision,
 		&i.PartyID,
 		&i.PartyKind,
 		&i.DisplayName,
@@ -2038,7 +2035,7 @@ func (q *Queries) GetDCLPartyVersion(ctx context.Context, approvalEntryID string
 }
 
 const getDCLRelationshipIdentity = `-- name: GetDCLRelationshipIdentity :one
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
  COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,
  party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
@@ -2068,7 +2065,6 @@ type GetDCLRelationshipIdentityParams struct {
 type GetDCLRelationshipIdentityRow struct {
 	ObjectID            string  `db:"object_id" json:"object_id"`
 	Code                string  `db:"code" json:"code"`
-	ObjectRevision      int64   `db:"object_revision" json:"object_revision"`
 	PartyID             string  `db:"party_id" json:"party_id"`
 	PartyKind           string  `db:"party_kind" json:"party_kind"`
 	DisplayName         string  `db:"display_name" json:"display_name"`
@@ -2083,7 +2079,6 @@ func (q *Queries) GetDCLRelationshipIdentity(ctx context.Context, arg GetDCLRela
 	err := row.Scan(
 		&i.ObjectID,
 		&i.Code,
-		&i.ObjectRevision,
 		&i.PartyID,
 		&i.PartyKind,
 		&i.DisplayName,
@@ -2322,30 +2317,20 @@ func (q *Queries) GetDCLWarehouseVersion(ctx context.Context, approvalEntryID st
 }
 
 const getDclRptDefinitionByCode = `-- name: GetDclRptDefinitionByCode :one
-
-SELECT id, code, enabled, revision
-FROM rpt_definitions
-WHERE code=$1
+SELECT id, coalesce(code,'') AS code
+FROM dcl_subjects
+WHERE entity='rpt-definition' AND code=$1::text
 `
 
 type GetDclRptDefinitionByCodeRow struct {
-	ID       string `db:"id" json:"id"`
-	Code     string `db:"code" json:"code"`
-	Enabled  bool   `db:"enabled" json:"enabled"`
-	Revision int64  `db:"revision" json:"revision"`
+	ID   string `db:"id" json:"id"`
+	Code string `db:"code" json:"code"`
 }
 
-// The persisted query/export permissions are enabled iff the stable definition
-// is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
 func (q *Queries) GetDclRptDefinitionByCode(ctx context.Context, code string) (GetDclRptDefinitionByCodeRow, error) {
 	row := q.db.QueryRow(ctx, getDclRptDefinitionByCode, code)
 	var i GetDclRptDefinitionByCodeRow
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Enabled,
-		&i.Revision,
-	)
+	err := row.Scan(&i.ID, &i.Code)
 	return i, err
 }
 
@@ -3270,7 +3255,7 @@ func (q *Queries) ListDCLCustomerApprovalEvents(ctx context.Context, arg ListDCL
 }
 
 const listDCLCustomers = `-- name: ListDCLCustomers :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,display.operating_entity_code,display.operating_entity_name,
        display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
@@ -3318,7 +3303,6 @@ type ListDCLCustomersParams struct {
 type ListDCLCustomersRow struct {
 	ObjectID              string             `db:"object_id" json:"object_id"`
 	Code                  string             `db:"code" json:"code"`
-	ObjectRevision        int64              `db:"object_revision" json:"object_revision"`
 	PartyID               string             `db:"party_id" json:"party_id"`
 	PartyKind             string             `db:"party_kind" json:"party_kind"`
 	DisplayName           string             `db:"display_name" json:"display_name"`
@@ -3351,7 +3335,6 @@ func (q *Queries) ListDCLCustomers(ctx context.Context, arg ListDCLCustomersPara
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.PartyID,
 			&i.PartyKind,
 			&i.DisplayName,
@@ -3425,7 +3408,7 @@ func (q *Queries) ListDCLEmployeeApprovalEvents(ctx context.Context, arg ListDCL
 }
 
 const listDCLEmployees = `-- name: ListDCLEmployees :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,operating.code AS operating_entity_code,
        operating_current.legal_name AS operating_entity_name,display.enabled,
@@ -3496,7 +3479,6 @@ type ListDCLEmployeesParams struct {
 type ListDCLEmployeesRow struct {
 	ObjectID              string             `db:"object_id" json:"object_id"`
 	Code                  string             `db:"code" json:"code"`
-	ObjectRevision        int64              `db:"object_revision" json:"object_revision"`
 	PartyID               string             `db:"party_id" json:"party_id"`
 	PartyKind             string             `db:"party_kind" json:"party_kind"`
 	DisplayName           string             `db:"display_name" json:"display_name"`
@@ -3535,7 +3517,6 @@ func (q *Queries) ListDCLEmployees(ctx context.Context, arg ListDCLEmployeesPara
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.PartyID,
 			&i.PartyKind,
 			&i.DisplayName,
@@ -3606,7 +3587,7 @@ func (q *Queries) ListDCLFundAccountApprovalEvents(ctx context.Context, arg List
 }
 
 const listDCLFundAccounts = `-- name: ListDCLFundAccounts :many
-SELECT s.id object_id,s.code,0::bigint object_revision,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_fund_account_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='fund-account' AND ($1::text='' OR s.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) ORDER BY CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $4::text='code' AND $5::text='asc' THEN s.code END ASC, CASE WHEN $4::text='code' AND $5::text='desc' THEN s.code END DESC, CASE WHEN $4::text='name' AND $5::text='asc' THEN d.name END ASC, CASE WHEN $4::text='name' AND $5::text='desc' THEN d.name END DESC, CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, s.id DESC LIMIT $7 OFFSET $6
+SELECT s.id object_id,s.code,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_fund_account_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='fund-account' AND ($1::text='' OR s.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) ORDER BY CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $4::text='code' AND $5::text='asc' THEN s.code END ASC, CASE WHEN $4::text='code' AND $5::text='desc' THEN s.code END DESC, CASE WHEN $4::text='name' AND $5::text='asc' THEN d.name END ASC, CASE WHEN $4::text='name' AND $5::text='desc' THEN d.name END DESC, CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, s.id DESC LIMIT $7 OFFSET $6
 `
 
 type ListDCLFundAccountsParams struct {
@@ -3622,7 +3603,6 @@ type ListDCLFundAccountsParams struct {
 type ListDCLFundAccountsRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
 	Code            *string            `db:"code" json:"code"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
@@ -3649,7 +3629,6 @@ func (q *Queries) ListDCLFundAccounts(ctx context.Context, arg ListDCLFundAccoun
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.Enabled,
 			&i.UpdatedAt,
 			&i.ApprovedEntryID,
@@ -3666,7 +3645,7 @@ func (q *Queries) ListDCLFundAccounts(ctx context.Context, arg ListDCLFundAccoun
 }
 
 const listDCLOperatingEntities = `-- name: ListDCLOperatingEntities :many
-SELECT subject.id AS object_id, subject.code, 0::bigint AS object_revision,
+SELECT subject.id AS object_id, subject.code,
        display.enabled, COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
        COALESCE(approved.id,'')::text AS approved_entry_id,
        COALESCE(candidate.id,'')::text AS open_entry_id
@@ -3721,7 +3700,6 @@ type ListDCLOperatingEntitiesParams struct {
 type ListDCLOperatingEntitiesRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
 	Code            *string            `db:"code" json:"code"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
@@ -3748,7 +3726,6 @@ func (q *Queries) ListDCLOperatingEntities(ctx context.Context, arg ListDCLOpera
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.Enabled,
 			&i.UpdatedAt,
 			&i.ApprovedEntryID,
@@ -4150,7 +4127,7 @@ func (q *Queries) ListDCLProductApprovalEvents(ctx context.Context, arg ListDCLP
 }
 
 const listDCLProducts = `-- name: ListDCLProducts :many
-SELECT s.id object_id,s.code,0::bigint object_revision,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_product_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='product' AND ($1::text='' OR s.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) AND ($4::text='' OR d.product_type_id=$4::text) AND ($5::text='' OR d.category_id=$5::text) ORDER BY CASE WHEN $6::text='updatedAt' AND $7::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $6::text='updatedAt' AND $7::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $6::text='code' AND $7::text='asc' THEN s.code END ASC, CASE WHEN $6::text='code' AND $7::text='desc' THEN s.code END DESC, CASE WHEN $6::text='name' AND $7::text='asc' THEN d.name END ASC, CASE WHEN $6::text='name' AND $7::text='desc' THEN d.name END DESC, CASE WHEN $6::text='status' AND $7::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $6::text='status' AND $7::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $6::text='version' AND $7::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $6::text='version' AND $7::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, s.id DESC LIMIT $9 OFFSET $8
+SELECT s.id object_id,s.code,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_product_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='product' AND ($1::text='' OR s.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) AND ($4::text='' OR d.product_type_id=$4::text) AND ($5::text='' OR d.category_id=$5::text) ORDER BY CASE WHEN $6::text='updatedAt' AND $7::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $6::text='updatedAt' AND $7::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $6::text='code' AND $7::text='asc' THEN s.code END ASC, CASE WHEN $6::text='code' AND $7::text='desc' THEN s.code END DESC, CASE WHEN $6::text='name' AND $7::text='asc' THEN d.name END ASC, CASE WHEN $6::text='name' AND $7::text='desc' THEN d.name END DESC, CASE WHEN $6::text='status' AND $7::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $6::text='status' AND $7::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $6::text='version' AND $7::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $6::text='version' AND $7::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, s.id DESC LIMIT $9 OFFSET $8
 `
 
 type ListDCLProductsParams struct {
@@ -4168,7 +4145,6 @@ type ListDCLProductsParams struct {
 type ListDCLProductsRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
 	Code            *string            `db:"code" json:"code"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
@@ -4197,7 +4173,6 @@ func (q *Queries) ListDCLProducts(ctx context.Context, arg ListDCLProductsParams
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.Enabled,
 			&i.UpdatedAt,
 			&i.ApprovedEntryID,
@@ -4268,7 +4243,7 @@ func (q *Queries) ListDCLRelationshipApprovalEvents(ctx context.Context, arg Lis
 }
 
 const listDCLRelationships = `-- name: ListDCLRelationships :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
  operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
  COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
@@ -4311,7 +4286,6 @@ type ListDCLRelationshipsParams struct {
 type ListDCLRelationshipsRow struct {
 	ObjectID            string             `db:"object_id" json:"object_id"`
 	Code                string             `db:"code" json:"code"`
-	ObjectRevision      int64              `db:"object_revision" json:"object_revision"`
 	PartyID             string             `db:"party_id" json:"party_id"`
 	PartyKind           string             `db:"party_kind" json:"party_kind"`
 	DisplayName         string             `db:"display_name" json:"display_name"`
@@ -4344,7 +4318,6 @@ func (q *Queries) ListDCLRelationships(ctx context.Context, arg ListDCLRelations
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.PartyID,
 			&i.PartyKind,
 			&i.DisplayName,
@@ -4413,7 +4386,7 @@ func (q *Queries) ListDCLSupplierApprovalEvents(ctx context.Context, arg ListDCL
 }
 
 const listDCLSuppliers = `-- name: ListDCLSuppliers :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,0::bigint AS object_revision,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
 JOIN dcl_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (
@@ -4447,7 +4420,6 @@ type ListDCLSuppliersParams struct {
 type ListDCLSuppliersRow struct {
 	ObjectID              string             `db:"object_id" json:"object_id"`
 	Code                  string             `db:"code" json:"code"`
-	ObjectRevision        int64              `db:"object_revision" json:"object_revision"`
 	PartyID               string             `db:"party_id" json:"party_id"`
 	PartyKind             string             `db:"party_kind" json:"party_kind"`
 	DisplayName           string             `db:"display_name" json:"display_name"`
@@ -4481,7 +4453,6 @@ func (q *Queries) ListDCLSuppliers(ctx context.Context, arg ListDCLSuppliersPara
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.PartyID,
 			&i.PartyKind,
 			&i.DisplayName,
@@ -4550,7 +4521,7 @@ func (q *Queries) ListDCLVehicleApprovalEvents(ctx context.Context, arg ListDCLV
 }
 
 const listDCLVehicles = `-- name: ListDCLVehicles :many
-SELECT subject.id AS object_id,subject.code,0::bigint AS object_revision,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_vehicle_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='vehicle' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%' OR display.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
+SELECT subject.id AS object_id,subject.code,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_vehicle_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='vehicle' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%' OR display.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
 ORDER BY
  CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
  CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
@@ -4578,7 +4549,6 @@ type ListDCLVehiclesParams struct {
 type ListDCLVehiclesRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
 	Code            *string            `db:"code" json:"code"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
@@ -4605,7 +4575,6 @@ func (q *Queries) ListDCLVehicles(ctx context.Context, arg ListDCLVehiclesParams
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.Enabled,
 			&i.UpdatedAt,
 			&i.ApprovedEntryID,
@@ -4670,7 +4639,7 @@ func (q *Queries) ListDCLWarehouseApprovalEvents(ctx context.Context, arg ListDC
 }
 
 const listDCLWarehouses = `-- name: ListDCLWarehouses :many
-SELECT subject.id AS object_id,subject.code,0::bigint AS object_revision,display.enabled,
+SELECT subject.id AS object_id,subject.code,display.enabled,
  COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
  COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
@@ -4712,7 +4681,6 @@ type ListDCLWarehousesParams struct {
 type ListDCLWarehousesRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
 	Code            *string            `db:"code" json:"code"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
@@ -4739,7 +4707,6 @@ func (q *Queries) ListDCLWarehouses(ctx context.Context, arg ListDCLWarehousesPa
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Code,
-			&i.ObjectRevision,
 			&i.Enabled,
 			&i.UpdatedAt,
 			&i.ApprovedEntryID,
@@ -4803,11 +4770,11 @@ func (q *Queries) ListDclRptDefinitionApprovalEvents(ctx context.Context, arg Li
 }
 
 const listDclRptDefinitions = `-- name: ListDclRptDefinitions :many
-SELECT d.id AS definition_id, d.code, d.enabled, d.revision AS object_revision,
+SELECT d.id AS definition_id, coalesce(d.code,'') AS code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
-FROM rpt_definitions d
+FROM dcl_subjects d
 LEFT JOIN LATERAL (
   SELECT id,status,version_no,updated_at FROM approval_entries
   WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id
@@ -4822,7 +4789,8 @@ LEFT JOIN LATERAL (
 ) approved_entry ON true
 LEFT JOIN dcl_rpt_definition_versions open_v ON open_v.approval_entry_id=open_entry.id
 LEFT JOIN dcl_rpt_definition_versions approved_v ON approved_v.approval_entry_id=approved_entry.id
-WHERE ($1::boolean OR d.enabled)
+WHERE d.entity='rpt-definition'
+  AND ($1::boolean OR coalesce(open_v.enabled, approved_v.enabled, false))
   AND ($2::text='' OR d.code ILIKE '%'||$2::text||'%' OR COALESCE(open_v.name, approved_v.name,'') ILIKE '%'||$2::text||'%')
   AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
 ORDER BY d.code ASC
@@ -4841,7 +4809,6 @@ type ListDclRptDefinitionsRow struct {
 	DefinitionID    string             `db:"definition_id" json:"definition_id"`
 	Code            string             `db:"code" json:"code"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
 	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -4866,7 +4833,6 @@ func (q *Queries) ListDclRptDefinitions(ctx context.Context, arg ListDclRptDefin
 			&i.DefinitionID,
 			&i.Code,
 			&i.Enabled,
-			&i.ObjectRevision,
 			&i.ApprovedEntryID,
 			&i.OpenEntryID,
 			&i.UpdatedAt,

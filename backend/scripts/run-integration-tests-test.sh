@@ -7,19 +7,48 @@ cleanup() { rm -rf "${tmp}"; }
 trap cleanup EXIT HUP INT TERM
 
 fixture="${tmp}/backend"
-mkdir -p "${fixture}/db" \
+mkdir -p "${fixture}/db/fixtures/cutovers" "${fixture}/db/cutovers" \
   "${fixture}/tools" "${tmp}/bin"
 for package in a b c d; do
   mkdir -p "${fixture}/internal/${package}"
   printf '//go:build integration\n' >"${fixture}/internal/${package}/${package}_test.go"
 done
 printf '%s\n' '-- schema' >"${fixture}/db/schema.sql"
+printf '%s\n' '-- historical pre-issue-289 fixture' >"${fixture}/db/fixtures/cutovers/historical-pre-issue-289.sql"
+printf '%s\n' '-- pre-issue-305 fixture' >"${fixture}/db/fixtures/cutovers/pre-issue-305.sql"
+for issue in 289-aux-snapshots 290-aux-direct-crud 291-dcl-acc-mapping 292-dcl-rpt-definition 293-dcl-wfl-process-definition; do
+  printf '%s\n' "-- issue-${issue}" >"${fixture}/db/cutovers/issue-${issue}.sql"
+done
 git -C "${fixture}" init -b main >/dev/null
 git -C "${fixture}" add .
 
+if grep -Eq 'git show|d505c567' "${script_dir}/run-integration-tests.sh"; then
+  echo 'integration runner still depends on a historical Git object' >&2
+  exit 1
+fi
+
 cat >"${tmp}/bin/docker" <<'EOF'
 #!/bin/sh
-exit 0
+set -eu
+input=$(cat)
+case "${input}" in
+  *issue-289-aux-snapshots*)
+    count_file="${MOCK_DOCKER_STATE}.issue-289"
+    count=0
+    [ ! -f "${count_file}" ] || count=$(cat "${count_file}")
+    count=$((count + 1))
+    printf '%s\n' "${count}" >"${count_file}"
+    [ "${count}" -ne 2 ] || exit 1
+    ;;
+  *issue-290-aux-direct-crud*)
+    count_file="${MOCK_DOCKER_STATE}.issue-290"
+    count=0
+    [ ! -f "${count_file}" ] || count=$(cat "${count_file}")
+    count=$((count + 1))
+    printf '%s\n' "${count}" >"${count_file}"
+    case "${count}" in 1|3) exit 1 ;; esac
+    ;;
+esac
 EOF
 chmod +x "${tmp}/bin/docker"
 
@@ -39,12 +68,14 @@ EOF
 chmod +x "${tmp}/bin/go"
 
 run_runner() {
+  rm -f "${tmp}/docker-state.issue-289" "${tmp}/docker-state.issue-290"
   (
     cd "${fixture}"
     PATH="${tmp}/bin:${PATH}" \
       POSTGRES_USER=tester POSTGRES_PASSWORD=secret POSTGRES_PORT=5432 \
       TEST_POSTGRES_DB=runner_test TEST_POSTGRES_PORT=55434 \
       TEST_INTEGRATION_JOBS=2 MOCK_INTEGRATION_RUNS="${tmp}/runs" \
+      MOCK_DOCKER_STATE="${tmp}/docker-state" \
       MOCK_INTEGRATION_FAIL_PACKAGE="${MOCK_INTEGRATION_FAIL_PACKAGE:-}" \
       TEST_INTEGRATION_PACKAGES_FILE="${TEST_INTEGRATION_PACKAGES_FILE:-}" \
       TEST_INTEGRATION_RESULT_FILE="${tmp}/result.json" \

@@ -44,7 +44,7 @@ func (s *Service) writeServiceContractDetail(
 		CounterpartyCode: refs.Counterparty.Code, CounterpartyName: refs.Counterparty.Data.Name,
 		PartyID: identity.PartyID, PartyName: identity.PartyName,
 		OperatingEntityObjectID: identity.OperatingEntityObjectID, OperatingEntityApprovalEntryID: identity.OperatingEntityApprovalEntryID,
-		OperatingEntityCode: identity.OperatingEntityCode, OperatingEntityName: identity.OperatingEntityName,
+		OperatingEntityCode: deref(identity.OperatingEntityCode), OperatingEntityName: identity.OperatingEntityName,
 		HandlerObjectID: refs.Handler.ObjectID, HandlerApprovalEntryID: refs.Handler.ApprovalEntryID,
 		HandlerCode: refs.Handler.Code, HandlerName: refs.Handler.Data.Name,
 		Capabilities: draft.ServiceContract.Capabilities, ApplicableFrom: optionalContractDate(draft.ServiceContract.ApplicableFrom),

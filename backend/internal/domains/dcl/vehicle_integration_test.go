@@ -3,7 +3,6 @@
 package dcl
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -14,7 +13,6 @@ import (
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
@@ -326,64 +324,6 @@ func TestVehicleIdentifierClaimsAcrossApprovedAndOpenVersionsIntegration(t *test
 	assertVehicleIdentifierClaim(t, pool, "VIN", v1Data.VIN, v1.ObjectID, v1.Approval.ApprovalEntryID, "")
 	assertVehicleIdentifierClaim(t, pool, "PLATE", v2Data.PlateNumber, v2.ObjectID, "", v2.Approval.ApprovalEntryID)
 	assertVehicleIdentifierClaim(t, pool, "VIN", v2Data.VIN, v2.ObjectID, "", v2.Approval.ApprovalEntryID)
-}
-
-type failingVehicleCurrentWriter struct {
-	vehicleCurrentWriter
-	failure error
-}
-
-func (writer failingVehicleCurrentWriter) ApplyVehicleCurrent(ctx context.Context, tx pgx.Tx, objectID, entryID string, enabled bool, data bobdomain.VehicleData, actorID string) (bobdomain.VehicleCurrent, error) {
-	current, err := writer.vehicleCurrentWriter.ApplyVehicleCurrent(ctx, tx, objectID, entryID, enabled, data, actorID)
-	if err != nil {
-		return bobdomain.VehicleCurrent{}, err
-	}
-	return current, writer.failure
-}
-
-func TestVehicleCurrentApplyFailureRollsBackIntegration(t *testing.T) {
-	pool := dclIntegrationPool(t)
-	resetDCLIntegrationData(t, pool)
-	seedVehicleType(t, pool)
-	authorizer := authorization.Func(nil)
-	bus := txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool)
-	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
-	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
-	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
-	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
-	operating := NewOperatingEntityService(pool, business, authorizer, bus)
-	carrier, err := operating.Create(t.Context(), OperatingEntityCreateInput{Data: OperatingEntityData{Name: "回滚承运主体"}}, creator("rollback-carrier-create"))
-	if err != nil {
-		t.Fatalf("create rollback carrier: %v", err)
-	}
-	carrier = submitAndApproveOperatingEntity(t, operating, carrier, creator("rollback-carrier-submit"), reviewer("rollback-carrier-approve"))
-	service := NewVehicleService(pool, business, authorizer, bus)
-	draft, err := service.Create(t.Context(), VehicleCreateInput{Data: VehicleData{Name: "回滚车辆", PlateNumber: "苏A10001", VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: carrier.ObjectID}}}, creator("rollback-vehicle-create"))
-	if err != nil {
-		t.Fatalf("create rollback vehicle: %v", err)
-	}
-	pending, err := service.Submit(t.Context(), VehicleVersionInput{ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID, ApprovalRevision: draft.Approval.Revision}, creator("rollback-vehicle-submit"))
-	if err != nil {
-		t.Fatalf("submit rollback vehicle: %v", err)
-	}
-	failure := errors.New("BOB vehicle current apply failure")
-	failingService := NewVehicleService(pool, failingVehicleCurrentWriter{vehicleCurrentWriter: business, failure: failure}, authorizer, bus)
-	_, err = failingService.Approve(t.Context(), VehicleVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer("rollback-vehicle-approve"))
-	if !errors.Is(err, failure) {
-		t.Fatalf("approve error = %s, want injected failure", vehicleErrorChain(err))
-	}
-	assertApprovalState(t, pool, pending.Approval.ApprovalEntryID, approval.StatusPending, pending.Approval.Revision)
-	if _, err = business.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: pending.ObjectID}); err == nil {
-		t.Fatal("BOB current exists after failed vehicle apply")
-	}
-	var openEntryID *string
-	if err = pool.QueryRow(t.Context(), `SELECT open_entry_id FROM dcl_vehicle_identifier_claims WHERE identifier_kind='PLATE' AND normalized_value='苏A10001'`).Scan(&openEntryID); err != nil {
-		t.Fatalf("read rolled-back vehicle claim: %v", err)
-	}
-	if openEntryID == nil || *openEntryID != pending.Approval.ApprovalEntryID {
-		t.Fatalf("rolled-back vehicle claim open entry = %v", openEntryID)
-	}
 }
 
 func seedVehicleType(t *testing.T, pool *pgxpool.Pool) string {

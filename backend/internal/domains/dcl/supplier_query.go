@@ -52,7 +52,7 @@ func (s *SupplierService) Query(ctx context.Context, in SupplierQueryInput, acto
 	}
 	items := make([]SupplierQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := SupplierQueryItem{RelationshipIdentityView: RelationshipIdentityView{ObjectID: r.ObjectID, Entity: EntitySupplier, Code: r.Code, ObjectRevision: r.ObjectRevision, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, Enabled: r.Enabled}, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName, UpdatedAt: r.UpdatedAt.Time}
+		item := SupplierQueryItem{RelationshipIdentityView: RelationshipIdentityView{ObjectID: r.ObjectID, Entity: EntitySupplier, Code: r.Code, ObjectRevision: r.ObjectRevision, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, Enabled: r.Enabled}, OperatingEntityCode: stringValue(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName, UpdatedAt: r.UpdatedAt.Time}
 		if r.LatestApprovedEntryID != "" {
 			v, e := s.version(ctx, s.queries, r.LatestApprovedEntryID, r.ObjectID)
 			if e != nil {

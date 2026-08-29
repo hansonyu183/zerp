@@ -52,7 +52,7 @@ func (s *WarehouseService) Query(ctx context.Context, input WarehouseQueryInput,
 	}
 	items := make([]WarehouseQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := WarehouseQueryItem{ObjectID: r.ObjectID, Entity: EntityWarehouse, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		item := WarehouseQueryItem{ObjectID: r.ObjectID, Entity: EntityWarehouse, Code: stringValue(r.Code), ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.ApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.ApprovedEntryID, r.ObjectID)
 			if e != nil {
@@ -104,7 +104,7 @@ func (s *WarehouseService) Get(ctx context.Context, input WarehouseGetInput, act
 		}
 		return WarehouseView{}, translateError(err)
 	}
-	identity, err := s.current.GetWarehouseIdentity(ctx, tx, input.ObjectID)
+	identity, err := s.queries.WithTx(tx).GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: input.ObjectID, Entity: EntityWarehouse})
 	if err != nil {
 		return WarehouseView{}, translateError(err)
 	}
@@ -112,7 +112,7 @@ func (s *WarehouseService) Get(ctx context.Context, input WarehouseGetInput, act
 	if err != nil {
 		return WarehouseView{}, translateError(err)
 	}
-	return WarehouseView{ObjectID: identity.ObjectID, Entity: EntityWarehouse, Code: identity.Code, ObjectRevision: identity.ObjectRevision, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: warehouseVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
+	return WarehouseView{ObjectID: identity.ID, Entity: EntityWarehouse, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: warehouseVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
 }
 
 func (s *WarehouseService) Versions(ctx context.Context, input WarehouseHistoryInput, actor approval.Actor) (Page[WarehouseVersionView], error) {

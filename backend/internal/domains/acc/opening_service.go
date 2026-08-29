@@ -368,7 +368,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 				ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, VoucherLineID: lineID,
 				SubjectID: line.subjectID, ProductID: line.dimensions[DimensionProduct], WarehouseID: line.dimensions[DimensionWarehouse],
 				ProductApprovalEntryID: product.ProductApprovalEntryID,
-				ProductCode:            product.ProductCode, ProductName: product.ProductName,
+				ProductCode:            *product.ProductCode, ProductName: product.ProductName,
 				BusinessDate: pgtype.Date{Time: startDate, Valid: true}, QuantityDeltaMicros: *line.quantityMicros, SourceLineID: line.id,
 				CostCounterpartDimensions: []byte(`{}`),
 			}); err != nil {

@@ -3,7 +3,6 @@
 package dcl
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -382,36 +381,6 @@ func TestProductBarcodeClaimConflictAndHistoricalReleaseIntegration(t *testing.T
 	if _, err := service.Create(t.Context(), ProductCreateInput{Data: reused}, dclActor(t, actor.ID(), "reuse")); err != nil {
 		t.Fatalf("historical barcode was not released: %v", err)
 	}
-}
-
-type failingProductCurrentWriter struct {
-	productCurrentWriter
-	failure error
-}
-
-func (w failingProductCurrentWriter) ApplyProductCurrent(ctx context.Context, tx pgx.Tx, objectID, entryID string, enabled bool, data bobdomain.DetailView, actorID string) (bobdomain.ProductCurrent, error) {
-	return bobdomain.ProductCurrent{}, w.failure
-}
-
-func TestProductCurrentProjectionFailureRollsBackApprovalAndCurrentIntegration(t *testing.T) {
-	pool := dclIntegrationPool(t)
-	resetDCLIntegrationData(t, pool)
-	ensureProductAuxiliaries(t, pool)
-	bus := txevent.NewBus()
-	business, service := newProductIntegrationServices(t, pool, bus, nil)
-	actorID := ulid.Make().String()
-	draft := mustCreateProduct(t, service, productData("回滚产品", productRawTypeID, nil), dclActor(t, actorID, "create"))
-	pending, err := service.Submit(t.Context(), ProductVersionInput{ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID, ApprovalRevision: draft.Approval.Revision}, dclActor(t, actorID, "submit"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	failure := errors.New("injected product projection failure")
-	failing := NewProductService(pool, failingProductCurrentWriter{productCurrentWriter: business, failure: failure}, authorization.Func(nil), bus)
-	if _, err = failing.Approve(t.Context(), ProductVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, dclActor(t, ulid.Make().String(), "approve")); !errors.Is(err, failure) {
-		t.Fatalf("approve err=%v", err)
-	}
-	assertApprovalState(t, pool, pending.Approval.ApprovalEntryID, approval.StatusPending, pending.Approval.Revision)
-	assertProductAbsent(t, business, pending.ObjectID)
 }
 
 func TestProductQueryFiltersProductTypeAndCategoryIntegration(t *testing.T) {

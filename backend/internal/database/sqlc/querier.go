@@ -206,15 +206,10 @@ type Querier interface {
 	DeleteBobCustomerAccountCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobCustomerCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobEmployeeCurrent(ctx context.Context, objectID string) (int64, error)
-	DeleteBobFundAccountCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobObject(ctx context.Context, arg DeleteBobObjectParams) (int64, error)
-	DeleteBobOperatingEntityCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobOtherUnitCurrent(ctx context.Context, objectID string) (int64, error)
-	DeleteBobProductCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobSalesPartnerCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteBobSupplierCurrent(ctx context.Context, objectID string) (int64, error)
-	DeleteBobVehicleCurrent(ctx context.Context, objectID string) (int64, error)
-	DeleteBobWarehouseCurrent(ctx context.Context, objectID string) (int64, error)
 	DeleteDCLAccMappingSubjectIfEmpty(ctx context.Context, mappingID string) (int64, error)
 	DeleteDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLCustomerAccountAttachment(ctx context.Context, arg DeleteDCLCustomerAccountAttachmentParams) (int64, error)
@@ -743,6 +738,7 @@ type Querier interface {
 	LockDCLCustomerAttachmentOwner(ctx context.Context, approvalEntryID string) (ApprovalEntry, error)
 	LockDCLFundAccountIdentifierClaims(ctx context.Context) error
 	LockDCLProductBarcodeClaims(ctx context.Context) error
+	LockDCLSubject(ctx context.Context, arg LockDCLSubjectParams) (DclSubject, error)
 	LockDCLVehicleIdentifierClaims(ctx context.Context) error
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
 	LockLatestApprovedVersion(ctx context.Context, arg LockLatestApprovedVersionParams) (ApprovalEntry, error)
@@ -788,6 +784,7 @@ type Querier interface {
 	MoveSupplierRelationshipParty(ctx context.Context, arg MoveSupplierRelationshipPartyParams) (int64, error)
 	NextAccountingBookNumber(ctx context.Context) (int32, error)
 	NextAppRoleCode(ctx context.Context) (string, error)
+	NextDCLSubjectCode(ctx context.Context, entity string) (int32, error)
 	NextDclRptDefinitionCode(ctx context.Context) (string, error)
 	// BOB owns stable identities and typed approval payloads.  Version state is
 	// exclusively stored in approval_entries; every resolver below selects the
@@ -899,20 +896,11 @@ type Querier interface {
 	// Employee relationship identity remains in BOB; DCL approval applies this
 	// minimal current projection after an employee declaration is approved.
 	UpsertBobEmployeeCurrent(ctx context.Context, arg UpsertBobEmployeeCurrentParams) error
-	UpsertBobFundAccountCurrent(ctx context.Context, arg UpsertBobFundAccountCurrentParams) error
-	// Operating Entity is the first DCL-owned BOB slice. bob_objects keeps only
-	// its stable ID/code allocation; this table is the current approved BOB data.
-	UpsertBobOperatingEntityCurrent(ctx context.Context, arg UpsertBobOperatingEntityCurrentParams) error
 	// Other Unit and Sales Partner identities stay in BOB, while DCL approval
 	// selects the sole current snapshot visible to BOB readers.
 	UpsertBobOtherUnitCurrent(ctx context.Context, arg UpsertBobOtherUnitCurrentParams) error
-	UpsertBobProductCurrent(ctx context.Context, arg UpsertBobProductCurrentParams) error
 	UpsertBobSalesPartnerCurrent(ctx context.Context, arg UpsertBobSalesPartnerCurrentParams) error
 	UpsertBobSupplierCurrent(ctx context.Context, arg UpsertBobSupplierCurrentParams) error
-	UpsertBobVehicleCurrent(ctx context.Context, arg UpsertBobVehicleCurrentParams) error
-	// Warehouse declaration lifecycle belongs to DCL; BOB only exposes the
-	// approved current projection and reference resolution surface.
-	UpsertBobWarehouseCurrent(ctx context.Context, arg UpsertBobWarehouseCurrentParams) error
 	UpsertWorkflowDefinitionPermission(ctx context.Context, arg UpsertWorkflowDefinitionPermissionParams) error
 	UserHoldsSuperadminRole(ctx context.Context, userID string) (bool, error)
 	VouEntityExistsOnBusinessDate(ctx context.Context, arg VouEntityExistsOnBusinessDateParams) (bool, error)

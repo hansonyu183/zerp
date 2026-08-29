@@ -19,11 +19,6 @@ import (
 )
 
 type operatingEntityCurrentWriter interface {
-	ReserveOperatingEntityIdentity(context.Context, pgx.Tx, string) (bobdomain.OperatingEntityIdentity, error)
-	GetOperatingEntityIdentity(context.Context, pgx.Tx, string) (bobdomain.OperatingEntityIdentity, error)
-	ApplyOperatingEntityCurrent(context.Context, pgx.Tx, string, string, bool, bobdomain.OperatingEntityData, string) (bobdomain.OperatingEntityCurrent, error)
-	RemoveOperatingEntityCurrent(context.Context, pgx.Tx, string, string) (bobdomain.OperatingEntityIdentity, error)
-	DeleteOperatingEntityIdentity(context.Context, pgx.Tx, string, int64) error
 	EnsureOperatingEntityUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 
@@ -63,14 +58,11 @@ func (s *OperatingEntityService) Create(ctx context.Context, input OperatingEnti
 		return OperatingEntityMutation{}, translateError(fmt.Errorf("begin DCL operating entity create: %w", err))
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	identity, err := s.current.ReserveOperatingEntityIdentity(ctx, tx, actor.ID())
+	identity, err := reserveSubject(ctx, tx, EntityOperatingEntity, "OPE", actor.ID())
 	if err != nil {
 		return OperatingEntityMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: identity.ObjectID, Entity: EntityOperatingEntity, ActorID: actor.ID()}); err != nil {
-		return OperatingEntityMutation{}, translateError(fmt.Errorf("insert DCL subject: %w", err))
-	}
 	payload := declarationPayload(identity, true, data)
 	entry, err := s.coordinator.CreateFirstVersion(ctx, tx, identity.ObjectID, actor, payload)
 	if err != nil {
@@ -109,7 +101,7 @@ func (s *OperatingEntityService) Save(ctx context.Context, input OperatingEntity
 		}
 		return OperatingEntityMutation{}, translateError(err)
 	}
-	identity, err := s.current.GetOperatingEntityIdentity(ctx, tx, input.ObjectID)
+	identity, err := lockSubject(ctx, tx, EntityOperatingEntity, input.ObjectID)
 	if err != nil {
 		return OperatingEntityMutation{}, translateError(err)
 	}
@@ -192,7 +184,7 @@ func (s *OperatingEntityService) transition(
 		}
 		return OperatingEntityMutation{}, translateError(err)
 	}
-	identity, err := s.current.GetOperatingEntityIdentity(ctx, tx, input.ObjectID)
+	identity, err := lockSubject(ctx, tx, EntityOperatingEntity, input.ObjectID)
 	if err != nil {
 		return OperatingEntityMutation{}, translateError(err)
 	}
@@ -213,52 +205,10 @@ func (s *OperatingEntityService) transition(
 	if err != nil {
 		return OperatingEntityMutation{}, translateError(err)
 	}
-	resultIdentity := identity
-	resultEnabled := stored.Enabled
-	if action == approval.ActionApproved {
-		current, applyErr := s.current.ApplyOperatingEntityCurrent(ctx, tx, input.ObjectID, entry.ID, stored.Enabled, data, actor.ID())
-		if applyErr != nil {
-			return OperatingEntityMutation{}, translateError(applyErr)
-		}
-		resultIdentity, resultEnabled = current.OperatingEntityIdentity, current.Enabled
-	}
-	if action == approval.ActionUnapproved {
-		resultIdentity, resultEnabled, err = s.restoreLatestApproved(ctx, tx, identity, actor.ID())
-		if err != nil {
-			return OperatingEntityMutation{}, err
-		}
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return OperatingEntityMutation{}, translateError(fmt.Errorf("commit DCL operating entity lifecycle: %w", err))
 	}
-	return operatingEntityMutation(resultIdentity, resultEnabled, entry), nil
-}
-
-func (s *OperatingEntityService) restoreLatestApproved(
-	ctx context.Context,
-	tx pgx.Tx,
-	identity bobdomain.OperatingEntityIdentity,
-	actorID string,
-) (bobdomain.OperatingEntityIdentity, bool, error) {
-	latest, err := s.queries.WithTx(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{
-		Domain: "dcl", Entity: EntityOperatingEntity, SubjectID: identity.ObjectID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		removed, removeErr := s.current.RemoveOperatingEntityCurrent(ctx, tx, identity.ObjectID, actorID)
-		return removed, false, translateError(removeErr)
-	}
-	if err != nil {
-		return bobdomain.OperatingEntityIdentity{}, false, translateError(err)
-	}
-	stored, err := s.queries.WithTx(tx).GetDCLOperatingEntityVersion(ctx, latest.ID)
-	if err != nil {
-		return bobdomain.OperatingEntityIdentity{}, false, translateError(err)
-	}
-	current, err := s.current.ApplyOperatingEntityCurrent(ctx, tx, identity.ObjectID, latest.ID, stored.Enabled, operatingEntityData(stored), actorID)
-	if err != nil {
-		return bobdomain.OperatingEntityIdentity{}, false, translateError(err)
-	}
-	return current.OperatingEntityIdentity, current.Enabled, nil
+	return operatingEntityMutation(identity, stored.Enabled, entry), nil
 }
 
 func (s *OperatingEntityService) Delete(ctx context.Context, input OperatingEntityDeleteInput, actor approval.Actor) error {
@@ -273,7 +223,7 @@ func (s *OperatingEntityService) Delete(ctx context.Context, input OperatingEnti
 	if err = s.coordinator.LockVersionSubject(ctx, tx, input.ObjectID); err != nil {
 		return translateError(err)
 	}
-	identity, err := s.current.GetOperatingEntityIdentity(ctx, tx, input.ObjectID)
+	identity, err := lockSubject(ctx, tx, EntityOperatingEntity, input.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
@@ -303,9 +253,6 @@ func (s *OperatingEntityService) Delete(ctx context.Context, input OperatingEnti
 				deleteErr = errors.New("DCL subject changed")
 			}
 			return translateError(deleteErr)
-		}
-		if err = s.current.DeleteOperatingEntityIdentity(ctx, tx, input.ObjectID, identity.ObjectRevision); err != nil {
-			return translateError(err)
 		}
 	} else if latestErr != nil {
 		return translateError(latestErr)
@@ -347,7 +294,7 @@ func (s *OperatingEntityService) Get(ctx context.Context, input OperatingEntityG
 		}
 		return OperatingEntityView{}, translateError(err)
 	}
-	identity, err := s.current.GetOperatingEntityIdentity(ctx, tx, input.ObjectID)
+	identity, err := s.queries.WithTx(tx).GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: input.ObjectID, Entity: EntityOperatingEntity})
 	if err != nil {
 		return OperatingEntityView{}, translateError(err)
 	}
@@ -356,18 +303,18 @@ func (s *OperatingEntityService) Get(ctx context.Context, input OperatingEntityG
 		return OperatingEntityView{}, translateError(err)
 	}
 	return OperatingEntityView{
-		ObjectID: identity.ObjectID, Entity: EntityOperatingEntity, Code: identity.Code,
-		ObjectRevision: identity.ObjectRevision, Enabled: stored.Enabled,
+		ObjectID: identity.ID, Entity: EntityOperatingEntity, Code: stringValue(identity.Code),
+		Enabled:  stored.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry), Data: operatingEntityData(stored), UpdatedAt: entry.UpdatedAt,
 	}, nil
 }
 
-func declarationPayload(identity bobdomain.OperatingEntityIdentity, enabled bool, data OperatingEntityData) dclapproval.OperatingEntityPayload {
+func declarationPayload(identity subjectIdentity, enabled bool, data OperatingEntityData) dclapproval.OperatingEntityPayload {
 	return dclapproval.OperatingEntityPayload{SubjectID: identity.ObjectID, Code: identity.Code, Enabled: enabled, Name: data.Name}
 }
 
-func operatingEntityMutation(identity bobdomain.OperatingEntityIdentity, enabled bool, entry approval.Entry) OperatingEntityMutation {
-	return OperatingEntityMutation{ObjectID: identity.ObjectID, ObjectRevision: identity.ObjectRevision, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
+func operatingEntityMutation(identity subjectIdentity, enabled bool, entry approval.Entry) OperatingEntityMutation {
+	return OperatingEntityMutation{ObjectID: identity.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
 }
 
 func insertOperatingEntityVersion(ctx context.Context, q *dbsqlc.Queries, entryID string, enabled bool, data OperatingEntityData) error {

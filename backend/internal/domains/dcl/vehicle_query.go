@@ -52,7 +52,7 @@ func (s *VehicleService) Query(ctx context.Context, input VehicleQueryInput, act
 	}
 	items := make([]VehicleQueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := VehicleQueryItem{ObjectID: row.ObjectID, Entity: EntityVehicle, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
+		item := VehicleQueryItem{ObjectID: row.ObjectID, Entity: EntityVehicle, Code: stringValue(row.Code), ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
 		if row.ApprovedEntryID != "" {
 			view, viewErr := s.loadVehicleVersionView(ctx, s.queries, row.ApprovedEntryID, row.ObjectID)
 			if viewErr != nil {
@@ -104,7 +104,7 @@ func (s *VehicleService) Get(ctx context.Context, input VehicleGetInput, actor a
 		}
 		return VehicleView{}, translateError(err)
 	}
-	identity, err := s.current.GetVehicleIdentity(ctx, tx, input.ObjectID)
+	identity, err := s.queries.WithTx(tx).GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: input.ObjectID, Entity: EntityVehicle})
 	if err != nil {
 		return VehicleView{}, translateError(err)
 	}
@@ -112,7 +112,7 @@ func (s *VehicleService) Get(ctx context.Context, input VehicleGetInput, actor a
 	if err != nil {
 		return VehicleView{}, translateError(err)
 	}
-	return VehicleView{ObjectID: identity.ObjectID, Entity: EntityVehicle, Code: identity.Code, ObjectRevision: identity.ObjectRevision, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: vehicleDCLData(vehicleStoredData(stored)), UpdatedAt: entry.UpdatedAt}, nil
+	return VehicleView{ObjectID: identity.ID, Entity: EntityVehicle, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: vehicleDCLData(vehicleStoredData(stored)), UpdatedAt: entry.UpdatedAt}, nil
 }
 
 func (s *VehicleService) Versions(ctx context.Context, input VehicleHistoryInput, actor approval.Actor) (Page[VehicleVersionView], error) {

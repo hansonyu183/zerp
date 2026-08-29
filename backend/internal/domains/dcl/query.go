@@ -63,7 +63,7 @@ func (s *OperatingEntityService) Query(
 	items := make([]OperatingEntityQueryItem, 0, len(rows))
 	for _, row := range rows {
 		item := OperatingEntityQueryItem{
-			ObjectID: row.ObjectID, Entity: EntityOperatingEntity, Code: row.Code,
+			ObjectID: row.ObjectID, Entity: EntityOperatingEntity, Code: stringValue(row.Code),
 			ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
 		}
 		if row.ApprovedEntryID != "" {

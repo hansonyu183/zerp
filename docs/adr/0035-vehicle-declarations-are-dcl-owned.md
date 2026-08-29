@@ -1,7 +1,8 @@
 ---
 id: ADR-0035
 date: 2026-08-28
-status: accepted
+status: superseded
+superseded_by: ADR-0047
 ---
 
 # 车辆由 DCL 申报并投影到 BOB 当前业务面

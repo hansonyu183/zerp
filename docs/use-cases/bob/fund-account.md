@@ -7,7 +7,7 @@
 1. 页面入口为 `/bob/fund-account`，只调用 `POST /bob/fund-account/query` 和 `POST /bob/fund-account/get`，展示当前最新正式资金账户档案。
 2. 列表不显示完整账号；详情在具有 `get` 权限后展示编码、名称、币种、经营主体快照、户名、银行、支行、完整账号、备注、Stable ID、来源 Approval Entry ID 与启停状态。
 3. 页面没有新建、编辑、启停、删除、提交、撤回、审核、反批、驳回、版本或审计动作，也不请求任何 `/bob/fund-account/*` 写路径。
-4. 当前版本只随 DCL 批准或反批原子切换；业务选择返回 stable ID、当前来源 Approval Entry ID 和必要快照。
+4. 每次查询直接连接 DCL subject、highest APPROVED Approval Entry 与资金账户 typed snapshot；DCL 批准或反批后无需额外写入即可切换、回落或隐藏，业务选择返回 stable ID、当前来源 Approval Entry ID 和必要快照。
 
 ## 2. 可见性与异常
 

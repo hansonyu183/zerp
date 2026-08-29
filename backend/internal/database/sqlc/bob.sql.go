@@ -217,7 +217,7 @@ func (q *Queries) CountBobEmployees(ctx context.Context, arg CountBobEmployeesPa
 }
 
 const countBobFundAccounts = `-- name: CountBobFundAccounts :one
-SELECT count(*) FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR c.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR c.enabled=($2::integer=1))
+SELECT count(*) FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
 `
 
 type CountBobFundAccountsParams struct {
@@ -233,15 +233,12 @@ func (q *Queries) CountBobFundAccounts(ctx context.Context, arg CountBobFundAcco
 }
 
 const countBobOperatingEntities = `-- name: CountBobOperatingEntities :one
-SELECT count(*)
-FROM bob_objects object
-JOIN bob_operating_entities current ON current.object_id=object.id
-JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
-  AND approved.domain='dcl' AND approved.entity='operating-entity'
-WHERE object.entity='operating-entity'
-  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
-       OR current.legal_name ILIKE '%'||$1::text||'%')
-  AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+SELECT count(*) FROM dcl_subjects subject
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_operating_entity_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='operating-entity'
+  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.legal_name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
 `
 
 type CountBobOperatingEntitiesParams struct {
@@ -257,8 +254,8 @@ func (q *Queries) CountBobOperatingEntities(ctx context.Context, arg CountBobOpe
 }
 
 const countBobProductsCurrent = `-- name: CountBobProductsCurrent :one
-SELECT count(*) FROM bob_products p JOIN bob_objects o ON o.id=p.object_id AND o.entity='product' JOIN dcl_product_versions v ON v.approval_entry_id=p.source_approval_entry_id
-WHERE ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR v.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR p.enabled=($2::integer=1)) AND ($3::text='' OR v.category_id=$3::text) AND ($4::text='' OR v.product_type_id=$4::text)
+SELECT count(*) FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_product_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) AND ($3::text='' OR snapshot.category_id=$3::text) AND ($4::text='' OR snapshot.product_type_id=$4::text)
 `
 
 type CountBobProductsCurrentParams struct {
@@ -356,7 +353,7 @@ func (q *Queries) CountBobSuppliersCurrent(ctx context.Context, arg CountBobSupp
 }
 
 const countBobVehicles = `-- name: CountBobVehicles :one
-SELECT count(*) FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id WHERE ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR current.name ILIKE '%'||$1::text||'%' OR current.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+SELECT count(*) FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.name ILIKE '%'||$1::text||'%' OR snapshot.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
 `
 
 type CountBobVehiclesParams struct {
@@ -372,9 +369,9 @@ func (q *Queries) CountBobVehicles(ctx context.Context, arg CountBobVehiclesPara
 }
 
 const countBobWarehouses = `-- name: CountBobWarehouses :one
-SELECT count(*) FROM bob_objects object JOIN bob_warehouses current ON current.object_id=object.id
-WHERE object.entity='warehouse' AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR current.name ILIKE '%'||$1::text||'%')
-AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+SELECT count(*) FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='warehouse' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.name ILIKE '%'||$1::text||'%')
+AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
 `
 
 type CountBobWarehousesParams struct {
@@ -489,18 +486,6 @@ func (q *Queries) DeleteBobEmployeeCurrent(ctx context.Context, objectID string)
 	return result.RowsAffected(), nil
 }
 
-const deleteBobFundAccountCurrent = `-- name: DeleteBobFundAccountCurrent :execrows
-DELETE FROM bob_fund_accounts WHERE object_id=$1
-`
-
-func (q *Queries) DeleteBobFundAccountCurrent(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobFundAccountCurrent, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteBobObject = `-- name: DeleteBobObject :execrows
 DELETE FROM bob_objects
 WHERE id = $1 AND entity = $2 AND revision = $3
@@ -520,36 +505,12 @@ func (q *Queries) DeleteBobObject(ctx context.Context, arg DeleteBobObjectParams
 	return result.RowsAffected(), nil
 }
 
-const deleteBobOperatingEntityCurrent = `-- name: DeleteBobOperatingEntityCurrent :execrows
-DELETE FROM bob_operating_entities WHERE object_id=$1
-`
-
-func (q *Queries) DeleteBobOperatingEntityCurrent(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobOperatingEntityCurrent, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteBobOtherUnitCurrent = `-- name: DeleteBobOtherUnitCurrent :execrows
 DELETE FROM bob_other_units WHERE object_id=$1
 `
 
 func (q *Queries) DeleteBobOtherUnitCurrent(ctx context.Context, objectID string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteBobOtherUnitCurrent, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteBobProductCurrent = `-- name: DeleteBobProductCurrent :execrows
-DELETE FROM bob_products WHERE object_id=$1
-`
-
-func (q *Queries) DeleteBobProductCurrent(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobProductCurrent, objectID)
 	if err != nil {
 		return 0, err
 	}
@@ -574,30 +535,6 @@ DELETE FROM bob_suppliers WHERE object_id=$1
 
 func (q *Queries) DeleteBobSupplierCurrent(ctx context.Context, objectID string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteBobSupplierCurrent, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteBobVehicleCurrent = `-- name: DeleteBobVehicleCurrent :execrows
-DELETE FROM bob_vehicles WHERE object_id=$1
-`
-
-func (q *Queries) DeleteBobVehicleCurrent(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobVehicleCurrent, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteBobWarehouseCurrent = `-- name: DeleteBobWarehouseCurrent :execrows
-DELETE FROM bob_warehouses WHERE object_id=$1
-`
-
-func (q *Queries) DeleteBobWarehouseCurrent(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobWarehouseCurrent, objectID)
 	if err != nil {
 		return 0, err
 	}
@@ -943,9 +880,10 @@ FROM bob_objects object
 JOIN bob_employees current ON current.object_id=object.id
 JOIN bob_employment_relationships relationship ON relationship.object_id=object.id
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id
   AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 JOIN approval_entries entry ON entry.id=current.source_approval_entry_id
   AND entry.domain='dcl' AND entry.entity='employee' AND entry.subject_id=object.id
   AND entry.status='APPROVED'
@@ -964,7 +902,7 @@ type GetBobEmployeeCurrentRow struct {
 	PartyID              string             `db:"party_id" json:"party_id"`
 	PartyKind            string             `db:"party_kind" json:"party_kind"`
 	OperatingEntityID    string             `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode  string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityCode  *string            `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName  string             `db:"operating_entity_name" json:"operating_entity_name"`
 	DisplayName          string             `db:"display_name" json:"display_name"`
 	EmployeeCategoryID   *string            `db:"employee_category_id" json:"employee_category_id"`
@@ -1120,18 +1058,19 @@ SELECT relation.party_id,current.kind AS party_kind,current.display_name AS part
 FROM bob_employment_relationships relation
 JOIN bob_parties party ON party.id=relation.party_id
 JOIN bob_party_currents current ON current.party_id=party.id
-JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_payload ON operating_payload.object_id=operating.id
+JOIN dcl_subjects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_payload ON operating_payload.approval_entry_id=operating_entry.id
 WHERE relation.object_id=$1
 `
 
 type GetBobEmploymentRelationshipIdentityRow struct {
-	PartyID             string `db:"party_id" json:"party_id"`
-	PartyKind           string `db:"party_kind" json:"party_kind"`
-	PartyDisplayName    string `db:"party_display_name" json:"party_display_name"`
-	OperatingEntityID   string `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode string `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName string `db:"operating_entity_name" json:"operating_entity_name"`
+	PartyID             string  `db:"party_id" json:"party_id"`
+	PartyKind           string  `db:"party_kind" json:"party_kind"`
+	PartyDisplayName    string  `db:"party_display_name" json:"party_display_name"`
+	OperatingEntityID   string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode *string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName string  `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
 func (q *Queries) GetBobEmploymentRelationshipIdentity(ctx context.Context, objectID string) (GetBobEmploymentRelationshipIdentityRow, error) {
@@ -1149,15 +1088,14 @@ func (q *Queries) GetBobEmploymentRelationshipIdentity(ctx context.Context, obje
 }
 
 const getBobFundAccountCurrent = `-- name: GetBobFundAccountCurrent :one
-SELECT o.id object_id,o.entity,o.code,o.revision object_revision,c.object_id, c.source_approval_entry_id, c.name, c.currency, c.account_name, c.bank_name, c.bank_branch, c.account_number, c.remark, c.operating_entity_id, c.operating_entity_approval_entry_id, c.operating_entity_code, c.operating_entity_name, c.enabled, c.updated_at, c.updated_by,e.domain,e.version_no,e.status,e.revision approval_revision,e.created_by,e.created_at,e.updated_by approval_updated_by,e.updated_at approval_updated_at,e.submitted_by,e.submitted_at,e.approved_by,e.approved_at FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id JOIN approval_entries e ON e.id=c.source_approval_entry_id WHERE c.object_id=$1
+SELECT subject.id object_id,subject.entity,subject.code,0::bigint object_revision,snapshot.approval_entry_id source_approval_entry_id,snapshot.name,snapshot.currency,snapshot.account_name,snapshot.bank_name,snapshot.bank_branch,snapshot.account_number,snapshot.remark,snapshot.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision approval_revision,entry.created_by,entry.created_at,entry.updated_by approval_updated_by,entry.updated_at approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='fund-account'
 `
 
 type GetBobFundAccountCurrentRow struct {
 	ObjectID                       string             `db:"object_id" json:"object_id"`
 	Entity                         string             `db:"entity" json:"entity"`
-	Code                           string             `db:"code" json:"code"`
+	Code                           *string            `db:"code" json:"code"`
 	ObjectRevision                 int64              `db:"object_revision" json:"object_revision"`
-	ObjectID_2                     string             `db:"object_id_2" json:"object_id_2"`
 	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
 	Name                           string             `db:"name" json:"name"`
 	Currency                       string             `db:"currency" json:"currency"`
@@ -1195,7 +1133,6 @@ func (q *Queries) GetBobFundAccountCurrent(ctx context.Context, objectID string)
 		&i.Entity,
 		&i.Code,
 		&i.ObjectRevision,
-		&i.ObjectID_2,
 		&i.SourceApprovalEntryID,
 		&i.Name,
 		&i.Currency,
@@ -1228,13 +1165,13 @@ func (q *Queries) GetBobFundAccountCurrent(ctx context.Context, objectID string)
 }
 
 const getBobFundAccountCurrentReference = `-- name: GetBobFundAccountCurrentReference :one
-SELECT o.id object_id,o.entity,o.code,c.source_approval_entry_id approval_entry_id,c.name,c.currency,c.account_name,c.bank_name,c.bank_branch,c.account_number,c.remark,c.operating_entity_id,c.operating_entity_approval_entry_id,c.operating_entity_code,c.operating_entity_name FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE c.object_id=$1 AND c.enabled
+SELECT subject.id object_id,subject.entity,subject.code,snapshot.approval_entry_id approval_entry_id,snapshot.name,snapshot.currency,snapshot.account_name,snapshot.bank_name,snapshot.bank_branch,snapshot.account_number,snapshot.remark,snapshot.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='fund-account' AND snapshot.enabled
 `
 
 type GetBobFundAccountCurrentReferenceRow struct {
 	ObjectID                       string  `db:"object_id" json:"object_id"`
 	Entity                         string  `db:"entity" json:"entity"`
-	Code                           string  `db:"code" json:"code"`
+	Code                           *string `db:"code" json:"code"`
 	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
 	Name                           string  `db:"name" json:"name"`
 	Currency                       string  `db:"currency" json:"currency"`
@@ -1346,26 +1283,28 @@ func (q *Queries) GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID 
 }
 
 const getBobOperatingEntityCurrent = `-- name: GetBobOperatingEntityCurrent :one
-SELECT object.id AS object_id, object.entity, object.code,
-       object.revision AS object_revision, current.enabled,
-       current.legal_name, current.short_name, current.tax_number,
-       current.address, current.phone, current.remark,
-       current.updated_at, entry.id AS approval_entry_id, entry.domain,
+SELECT subject.id AS object_id, subject.entity, subject.code,
+       0::bigint AS object_revision, snapshot.enabled,
+       snapshot.legal_name, snapshot.short_name, snapshot.tax_number,
+       snapshot.address, snapshot.phone, snapshot.remark,
+       entry.updated_at, entry.id AS approval_entry_id, entry.domain,
        entry.version_no, entry.status, entry.revision AS approval_revision,
        entry.created_by, entry.created_at, entry.updated_by, entry.updated_at AS approval_updated_at,
        entry.submitted_by, entry.submitted_at, entry.approved_by, entry.approved_at
-FROM bob_objects object
-JOIN bob_operating_entities current ON current.object_id=object.id
-JOIN approval_entries entry ON entry.id=current.source_approval_entry_id
-  AND entry.domain='dcl' AND entry.entity='operating-entity'
-  AND entry.subject_id=object.id AND entry.status='APPROVED'
-WHERE object.id=$1 AND object.entity='operating-entity'
+FROM dcl_subjects subject
+JOIN LATERAL (
+  SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries
+  WHERE domain='dcl' AND entity='operating-entity' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) entry ON true
+JOIN dcl_operating_entity_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.id=$1 AND subject.entity='operating-entity'
 `
 
 type GetBobOperatingEntityCurrentRow struct {
 	ObjectID          string             `db:"object_id" json:"object_id"`
 	Entity            string             `db:"entity" json:"entity"`
-	Code              string             `db:"code" json:"code"`
+	Code              *string            `db:"code" json:"code"`
 	ObjectRevision    int64              `db:"object_revision" json:"object_revision"`
 	Enabled           bool               `db:"enabled" json:"enabled"`
 	LegalName         string             `db:"legal_name" json:"legal_name"`
@@ -1424,19 +1363,19 @@ func (q *Queries) GetBobOperatingEntityCurrent(ctx context.Context, objectID str
 }
 
 const getBobOperatingEntityCurrentReference = `-- name: GetBobOperatingEntityCurrentReference :one
-SELECT object.id AS object_id, object.entity, object.code, current.enabled,
-       current.source_approval_entry_id AS approval_entry_id,
-       current.legal_name, current.short_name, current.tax_number,
-       current.address, current.phone, current.remark
-FROM bob_objects object
-JOIN bob_operating_entities current ON current.object_id=object.id
-WHERE object.id=$1 AND object.entity='operating-entity' AND current.enabled
+SELECT subject.id AS object_id, subject.entity, subject.code, snapshot.enabled,
+       entry.id AS approval_entry_id, snapshot.legal_name, snapshot.short_name, snapshot.tax_number,
+       snapshot.address, snapshot.phone, snapshot.remark
+FROM dcl_subjects subject
+JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_operating_entity_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.id=$1 AND subject.entity='operating-entity' AND snapshot.enabled
 `
 
 type GetBobOperatingEntityCurrentReferenceRow struct {
 	ObjectID        string  `db:"object_id" json:"object_id"`
 	Entity          string  `db:"entity" json:"entity"`
-	Code            string  `db:"code" json:"code"`
+	Code            *string `db:"code" json:"code"`
 	Enabled         bool    `db:"enabled" json:"enabled"`
 	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
 	LegalName       string  `db:"legal_name" json:"legal_name"`
@@ -1479,8 +1418,9 @@ SELECT object.id AS object_id,object.entity,object.code,object.revision AS objec
 FROM bob_objects object JOIN bob_other_units current ON current.object_id=object.id
 JOIN bob_service_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 JOIN approval_entries entry ON entry.id=current.source_approval_entry_id AND entry.domain='dcl' AND entry.entity='other-unit' AND entry.subject_id=object.id AND entry.status='APPROVED'
 JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE object.id=$1 AND object.entity='other-unit'
@@ -1497,7 +1437,7 @@ type GetBobOtherUnitCurrentRow struct {
 	PartyKind             string             `db:"party_kind" json:"party_kind"`
 	DisplayName           string             `db:"display_name" json:"display_name"`
 	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityCode   *string            `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
 	ContactName           *string            `db:"contact_name" json:"contact_name"`
 	ContactPhone          *string            `db:"contact_phone" json:"contact_phone"`
@@ -1670,17 +1610,16 @@ func (q *Queries) GetBobParty(ctx context.Context, partyID string) (GetBobPartyR
 }
 
 const getBobProductCurrent = `-- name: GetBobProductCurrent :one
-SELECT o.id AS object_id,o.entity,o.code,p.source_approval_entry_id AS approval_entry_id
-FROM bob_products p JOIN bob_objects o ON o.id=p.object_id AND o.entity='product'
-JOIN approval_entries e ON e.id=p.source_approval_entry_id AND e.domain='dcl' AND e.entity='product' AND e.status='APPROVED'
-WHERE p.object_id=$1
+SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id
+FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+WHERE subject.id=$1 AND subject.entity='product'
 `
 
 type GetBobProductCurrentRow struct {
-	ObjectID        string `db:"object_id" json:"object_id"`
-	Entity          string `db:"entity" json:"entity"`
-	Code            string `db:"code" json:"code"`
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	ObjectID        string  `db:"object_id" json:"object_id"`
+	Entity          string  `db:"entity" json:"entity"`
+	Code            *string `db:"code" json:"code"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
 }
 
 func (q *Queries) GetBobProductCurrent(ctx context.Context, objectID string) (GetBobProductCurrentRow, error) {
@@ -1696,17 +1635,17 @@ func (q *Queries) GetBobProductCurrent(ctx context.Context, objectID string) (Ge
 }
 
 const getBobProductCurrentReference = `-- name: GetBobProductCurrentReference :one
-SELECT o.id AS object_id,o.entity,o.code,p.source_approval_entry_id AS approval_entry_id
-FROM bob_products p JOIN bob_objects o ON o.id=p.object_id AND o.entity='product'
-JOIN approval_entries e ON e.id=p.source_approval_entry_id AND e.domain='dcl' AND e.entity='product' AND e.status='APPROVED'
-WHERE p.object_id=$1 AND p.enabled
+SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id
+FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_product_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.id=$1 AND subject.entity='product' AND snapshot.enabled
 `
 
 type GetBobProductCurrentReferenceRow struct {
-	ObjectID        string `db:"object_id" json:"object_id"`
-	Entity          string `db:"entity" json:"entity"`
-	Code            string `db:"code" json:"code"`
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	ObjectID        string  `db:"object_id" json:"object_id"`
+	Entity          string  `db:"entity" json:"entity"`
+	Code            *string `db:"code" json:"code"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
 }
 
 func (q *Queries) GetBobProductCurrentReference(ctx context.Context, objectID string) (GetBobProductCurrentReferenceRow, error) {
@@ -1731,8 +1670,9 @@ SELECT object.id AS object_id,object.entity,object.code,object.revision AS objec
 FROM bob_objects object JOIN bob_sales_partners current ON current.object_id=object.id
 JOIN bob_sales_relationships relationship ON relationship.object_id=object.id AND relationship.merged_into_object_id IS NULL
 JOIN bob_party_currents party ON party.party_id=relationship.party_id
-JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 JOIN approval_entries entry ON entry.id=current.source_approval_entry_id AND entry.domain='dcl' AND entry.entity='sales-partner' AND entry.subject_id=object.id AND entry.status='APPROVED'
 JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE object.id=$1 AND object.entity='sales-partner'
@@ -1749,7 +1689,7 @@ type GetBobSalesPartnerCurrentRow struct {
 	PartyKind           string             `db:"party_kind" json:"party_kind"`
 	DisplayName         string             `db:"display_name" json:"display_name"`
 	OperatingEntityID   string             `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityCode *string            `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName string             `db:"operating_entity_name" json:"operating_entity_name"`
 	Capabilities        []string           `db:"capabilities" json:"capabilities"`
 	ContactName         *string            `db:"contact_name" json:"contact_name"`
@@ -2020,15 +1960,14 @@ func (q *Queries) GetBobSupplierRelationship(ctx context.Context, objectID strin
 }
 
 const getBobVehicleCurrent = `-- name: GetBobVehicleCurrent :one
-SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.object_id, current.source_approval_entry_id, current.name, current.plate_number, current.vehicle_type, current.vehicle_type_object_id, current.vehicle_type_name, current.vin, current.engine_number, current.load_capacity_kg, current.remark, current.carrier_affiliation_type, current.carrier_operating_entity_id, current.carrier_operating_entity_approval_entry_id, current.carrier_service_relationship_object_id, current.carrier_service_relationship_approval_entry_id, current.bulk_liquid_capable, current.enabled, current.updated_at, current.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id JOIN approval_entries entry ON entry.id=current.source_approval_entry_id WHERE current.object_id=$1
+SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.approval_entry_id AS source_approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle'
 `
 
 type GetBobVehicleCurrentRow struct {
 	ObjectID                                  string             `db:"object_id" json:"object_id"`
 	Entity                                    string             `db:"entity" json:"entity"`
-	Code                                      string             `db:"code" json:"code"`
+	Code                                      *string            `db:"code" json:"code"`
 	ObjectRevision                            int64              `db:"object_revision" json:"object_revision"`
-	ObjectID_2                                string             `db:"object_id_2" json:"object_id_2"`
 	SourceApprovalEntryID                     string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
 	Name                                      string             `db:"name" json:"name"`
 	PlateNumber                               string             `db:"plate_number" json:"plate_number"`
@@ -2070,7 +2009,6 @@ func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (Ge
 		&i.Entity,
 		&i.Code,
 		&i.ObjectRevision,
-		&i.ObjectID_2,
 		&i.SourceApprovalEntryID,
 		&i.Name,
 		&i.PlateNumber,
@@ -2107,13 +2045,13 @@ func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (Ge
 }
 
 const getBobVehicleCurrentReference = `-- name: GetBobVehicleCurrentReference :one
-SELECT object.id AS object_id,object.entity,object.code,current.source_approval_entry_id AS approval_entry_id,current.name,current.plate_number,current.vehicle_type,current.vehicle_type_object_id,current.vehicle_type_name,current.vin,current.engine_number,current.load_capacity_kg,current.remark,current.carrier_affiliation_type,current.carrier_operating_entity_id,current.carrier_operating_entity_approval_entry_id,current.carrier_service_relationship_object_id,current.carrier_service_relationship_approval_entry_id,current.bulk_liquid_capable FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id WHERE current.object_id=$1 AND current.enabled
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable FROM dcl_subjects subject JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle' AND snapshot.enabled
 `
 
 type GetBobVehicleCurrentReferenceRow struct {
 	ObjectID                                  string         `db:"object_id" json:"object_id"`
 	Entity                                    string         `db:"entity" json:"entity"`
-	Code                                      string         `db:"code" json:"code"`
+	Code                                      *string        `db:"code" json:"code"`
 	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
 	Name                                      string         `db:"name" json:"name"`
 	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
@@ -2160,16 +2098,16 @@ func (q *Queries) GetBobVehicleCurrentReference(ctx context.Context, objectID st
 }
 
 const getBobWarehouseCurrent = `-- name: GetBobWarehouseCurrent :one
-SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled,current.name,current.address,current.contact_name,current.contact_phone,current.manager_employee_id,current.manager_employee_approval_entry_id,current.remark,current.updated_at,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
-FROM bob_objects object JOIN bob_warehouses current ON current.object_id=object.id
-JOIN approval_entries entry ON entry.id=current.source_approval_entry_id AND entry.domain='dcl' AND entry.entity='warehouse' AND entry.subject_id=object.id AND entry.status='APPROVED'
-WHERE object.id=$1 AND object.entity='warehouse'
+SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.enabled,snapshot.name,snapshot.address,snapshot.contact_name,snapshot.contact_phone,snapshot.manager_employee_id,snapshot.manager_employee_approval_entry_id,snapshot.remark,entry.updated_at,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
+FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.id=$1 AND subject.entity='warehouse'
 `
 
 type GetBobWarehouseCurrentRow struct {
 	ObjectID                       string             `db:"object_id" json:"object_id"`
 	Entity                         string             `db:"entity" json:"entity"`
-	Code                           string             `db:"code" json:"code"`
+	Code                           *string            `db:"code" json:"code"`
 	ObjectRevision                 int64              `db:"object_revision" json:"object_revision"`
 	Enabled                        bool               `db:"enabled" json:"enabled"`
 	Name                           string             `db:"name" json:"name"`
@@ -2230,15 +2168,15 @@ func (q *Queries) GetBobWarehouseCurrent(ctx context.Context, objectID string) (
 }
 
 const getBobWarehouseCurrentReference = `-- name: GetBobWarehouseCurrentReference :one
-SELECT object.id AS object_id,object.entity,object.code,current.source_approval_entry_id AS approval_entry_id,current.name,current.address,current.contact_name,current.contact_phone,current.manager_employee_id,current.manager_employee_approval_entry_id,current.remark
-FROM bob_objects object JOIN bob_warehouses current ON current.object_id=object.id
-WHERE object.id=$1 AND object.entity='warehouse' AND current.enabled
+SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id,snapshot.name,snapshot.address,snapshot.contact_name,snapshot.contact_phone,snapshot.manager_employee_id,snapshot.manager_employee_approval_entry_id,snapshot.remark
+FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.id=$1 AND subject.entity='warehouse' AND snapshot.enabled
 `
 
 type GetBobWarehouseCurrentReferenceRow struct {
 	ObjectID                       string  `db:"object_id" json:"object_id"`
 	Entity                         string  `db:"entity" json:"entity"`
-	Code                           string  `db:"code" json:"code"`
+	Code                           *string `db:"code" json:"code"`
 	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
 	Name                           string  `db:"name" json:"name"`
 	Address                        *string `db:"address" json:"address"`
@@ -3344,7 +3282,7 @@ func (q *Queries) ListBobEmployees(ctx context.Context, arg ListBobEmployeesPara
 }
 
 const listBobFundAccounts = `-- name: ListBobFundAccounts :many
-SELECT o.id object_id,o.entity,o.code,o.revision object_revision,c.enabled current_enabled,c.updated_at FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR c.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR c.enabled=($2::integer=1)) ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN c.updated_at END ASC, CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN c.updated_at END DESC, CASE WHEN $3::text='code' AND $4::text='asc' THEN o.code END ASC, CASE WHEN $3::text='code' AND $4::text='desc' THEN o.code END DESC, CASE WHEN $3::text='name' AND $4::text='asc' THEN c.name END ASC, CASE WHEN $3::text='name' AND $4::text='desc' THEN c.name END DESC,o.id DESC LIMIT $6 OFFSET $5
+SELECT subject.id object_id,subject.entity,subject.code,0::bigint object_revision,snapshot.enabled current_enabled,entry.updated_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN entry.updated_at END ASC, CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN entry.updated_at END DESC, CASE WHEN $3::text='code' AND $4::text='asc' THEN subject.code END ASC, CASE WHEN $3::text='code' AND $4::text='desc' THEN subject.code END DESC, CASE WHEN $3::text='name' AND $4::text='asc' THEN snapshot.name END ASC, CASE WHEN $3::text='name' AND $4::text='desc' THEN snapshot.name END DESC,subject.id DESC LIMIT $6 OFFSET $5
 `
 
 type ListBobFundAccountsParams struct {
@@ -3359,7 +3297,7 @@ type ListBobFundAccountsParams struct {
 type ListBobFundAccountsRow struct {
 	ObjectID       string             `db:"object_id" json:"object_id"`
 	Entity         string             `db:"entity" json:"entity"`
-	Code           string             `db:"code" json:"code"`
+	Code           *string            `db:"code" json:"code"`
 	ObjectRevision int64              `db:"object_revision" json:"object_revision"`
 	CurrentEnabled bool               `db:"current_enabled" json:"current_enabled"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -3400,26 +3338,24 @@ func (q *Queries) ListBobFundAccounts(ctx context.Context, arg ListBobFundAccoun
 }
 
 const listBobOperatingEntities = `-- name: ListBobOperatingEntities :many
-SELECT object.id AS object_id, object.entity, object.code,
-       object.revision AS object_revision, current.enabled, current.updated_at,
-       approved.id AS approval_entry_id,
+SELECT subject.id AS object_id, subject.entity, subject.code,
+       0::bigint AS object_revision, snapshot.enabled, entry.updated_at,
+       entry.id AS approval_entry_id,
        ''::text AS open_approval_entry_id
-FROM bob_objects object
-JOIN bob_operating_entities current ON current.object_id=object.id
-JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
-  AND approved.domain='dcl' AND approved.entity='operating-entity'
-WHERE object.entity='operating-entity'
-  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
-       OR current.legal_name ILIKE '%'||$1::text||'%')
-  AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+FROM dcl_subjects subject
+JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_operating_entity_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='operating-entity'
+  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.legal_name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
 ORDER BY
-  CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN current.updated_at END ASC,
-  CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN current.updated_at END DESC,
-  CASE WHEN $3::text='code' AND $4::text='asc' THEN object.code END ASC,
-  CASE WHEN $3::text='code' AND $4::text='desc' THEN object.code END DESC,
-  CASE WHEN $3::text='name' AND $4::text='asc' THEN current.legal_name END ASC,
-  CASE WHEN $3::text='name' AND $4::text='desc' THEN current.legal_name END DESC,
-  object.id DESC
+  CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN entry.updated_at END ASC,
+  CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN entry.updated_at END DESC,
+  CASE WHEN $3::text='code' AND $4::text='asc' THEN subject.code END ASC,
+  CASE WHEN $3::text='code' AND $4::text='desc' THEN subject.code END DESC,
+  CASE WHEN $3::text='name' AND $4::text='asc' THEN snapshot.legal_name END ASC,
+  CASE WHEN $3::text='name' AND $4::text='desc' THEN snapshot.legal_name END DESC,
+  subject.id DESC
 LIMIT $6 OFFSET $5
 `
 
@@ -3435,7 +3371,7 @@ type ListBobOperatingEntitiesParams struct {
 type ListBobOperatingEntitiesRow struct {
 	ObjectID            string             `db:"object_id" json:"object_id"`
 	Entity              string             `db:"entity" json:"entity"`
-	Code                string             `db:"code" json:"code"`
+	Code                *string            `db:"code" json:"code"`
 	ObjectRevision      int64              `db:"object_revision" json:"object_revision"`
 	Enabled             bool               `db:"enabled" json:"enabled"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -3480,15 +3416,14 @@ func (q *Queries) ListBobOperatingEntities(ctx context.Context, arg ListBobOpera
 }
 
 const listBobOperatingEntityReferenceCandidates = `-- name: ListBobOperatingEntityReferenceCandidates :many
-SELECT object.id AS object_id, current.source_approval_entry_id AS approval_entry_id,
-       object.code, current.legal_name AS name
-FROM bob_objects object
-JOIN bob_operating_entities current ON current.object_id=object.id
-WHERE object.entity='operating-entity' AND current.enabled
-  AND ($1::text='' OR object.id<>$1::text)
-  AND ($2::text='' OR object.code ILIKE '%'||$2::text||'%'
-       OR current.legal_name ILIKE '%'||$2::text||'%')
-ORDER BY object.code
+SELECT subject.id AS object_id, entry.id AS approval_entry_id, subject.code, snapshot.legal_name AS name
+FROM dcl_subjects subject
+JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_operating_entity_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='operating-entity' AND snapshot.enabled
+  AND ($1::text='' OR subject.id<>$1::text)
+  AND ($2::text='' OR subject.code ILIKE '%'||$2::text||'%' OR snapshot.legal_name ILIKE '%'||$2::text||'%')
+ORDER BY subject.code
 LIMIT 200
 `
 
@@ -3498,10 +3433,10 @@ type ListBobOperatingEntityReferenceCandidatesParams struct {
 }
 
 type ListBobOperatingEntityReferenceCandidatesRow struct {
-	ObjectID        string `db:"object_id" json:"object_id"`
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Code            string `db:"code" json:"code"`
-	Name            string `db:"name" json:"name"`
+	ObjectID        string  `db:"object_id" json:"object_id"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Code            *string `db:"code" json:"code"`
+	Name            string  `db:"name" json:"name"`
 }
 
 func (q *Queries) ListBobOperatingEntityReferenceCandidates(ctx context.Context, arg ListBobOperatingEntityReferenceCandidatesParams) ([]ListBobOperatingEntityReferenceCandidatesRow, error) {
@@ -3559,14 +3494,14 @@ func (q *Queries) ListBobPartyIdentifiers(ctx context.Context, partyID string) (
 }
 
 const listBobProductsCurrent = `-- name: ListBobProductsCurrent :many
-SELECT o.id AS object_id,o.entity,o.code,o.revision AS object_revision,p.enabled,p.updated_at,p.source_approval_entry_id AS approval_entry_id
-FROM bob_products p JOIN bob_objects o ON o.id=p.object_id AND o.entity='product'
-JOIN dcl_product_versions v ON v.approval_entry_id=p.source_approval_entry_id
-WHERE ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR v.name ILIKE '%'||$1::text||'%')
-  AND ($2::integer=-1 OR p.enabled=($2::integer=1))
-  AND ($3::text='' OR v.category_id=$3::text)
-  AND ($4::text='' OR v.product_type_id=$4::text)
-ORDER BY CASE WHEN $5::text='updatedAt' AND $6::text='asc' THEN p.updated_at END ASC,CASE WHEN $5::text='updatedAt' AND $6::text='desc' THEN p.updated_at END DESC,CASE WHEN $5::text='code' AND $6::text='asc' THEN o.code END ASC,CASE WHEN $5::text='code' AND $6::text='desc' THEN o.code END DESC,CASE WHEN $5::text='name' AND $6::text='asc' THEN v.name END ASC,CASE WHEN $5::text='name' AND $6::text='desc' THEN v.name END DESC,o.id DESC LIMIT $8 OFFSET $7
+SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id
+FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_product_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
+  AND ($3::text='' OR snapshot.category_id=$3::text)
+  AND ($4::text='' OR snapshot.product_type_id=$4::text)
+ORDER BY CASE WHEN $5::text='updatedAt' AND $6::text='asc' THEN entry.updated_at END ASC,CASE WHEN $5::text='updatedAt' AND $6::text='desc' THEN entry.updated_at END DESC,CASE WHEN $5::text='code' AND $6::text='asc' THEN subject.code END ASC,CASE WHEN $5::text='code' AND $6::text='desc' THEN subject.code END DESC,CASE WHEN $5::text='name' AND $6::text='asc' THEN snapshot.name END ASC,CASE WHEN $5::text='name' AND $6::text='desc' THEN snapshot.name END DESC,subject.id DESC LIMIT $8 OFFSET $7
 `
 
 type ListBobProductsCurrentParams struct {
@@ -3583,7 +3518,7 @@ type ListBobProductsCurrentParams struct {
 type ListBobProductsCurrentRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
 	Entity          string             `db:"entity" json:"entity"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -3806,13 +3741,13 @@ func (q *Queries) ListBobSuppliersCurrent(ctx context.Context, arg ListBobSuppli
 }
 
 const listBobVehicles = `-- name: ListBobVehicles :many
-SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled AS current_enabled,current.updated_at FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id WHERE ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR current.name ILIKE '%'||$1::text||'%' OR current.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR current.enabled=($2::integer=1))
-ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN current.updated_at END ASC,
-CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN current.updated_at END DESC,
-CASE WHEN $3::text='code' AND $4::text='asc' THEN object.code END ASC,
-CASE WHEN $3::text='code' AND $4::text='desc' THEN object.code END DESC,
-CASE WHEN $3::text='name' AND $4::text='asc' THEN current.name END ASC,
-CASE WHEN $3::text='name' AND $4::text='desc' THEN current.name END DESC,object.id DESC
+SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.enabled AS current_enabled,entry.updated_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.name ILIKE '%'||$1::text||'%' OR snapshot.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
+ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN entry.updated_at END ASC,
+CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN entry.updated_at END DESC,
+CASE WHEN $3::text='code' AND $4::text='asc' THEN subject.code END ASC,
+CASE WHEN $3::text='code' AND $4::text='desc' THEN subject.code END DESC,
+CASE WHEN $3::text='name' AND $4::text='asc' THEN snapshot.name END ASC,
+CASE WHEN $3::text='name' AND $4::text='desc' THEN snapshot.name END DESC,subject.id DESC
 LIMIT $6 OFFSET $5
 `
 
@@ -3828,7 +3763,7 @@ type ListBobVehiclesParams struct {
 type ListBobVehiclesRow struct {
 	ObjectID       string             `db:"object_id" json:"object_id"`
 	Entity         string             `db:"entity" json:"entity"`
-	Code           string             `db:"code" json:"code"`
+	Code           *string            `db:"code" json:"code"`
 	ObjectRevision int64              `db:"object_revision" json:"object_revision"`
 	CurrentEnabled bool               `db:"current_enabled" json:"current_enabled"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -3869,16 +3804,16 @@ func (q *Queries) ListBobVehicles(ctx context.Context, arg ListBobVehiclesParams
 }
 
 const listBobWarehouses = `-- name: ListBobWarehouses :many
-SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id
-FROM bob_objects object JOIN bob_warehouses current ON current.object_id=object.id
-WHERE object.entity='warehouse' AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR current.name ILIKE '%'||$1::text||'%')
-AND ($2::integer=-1 OR current.enabled=($2::integer=1))
-ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN current.updated_at END ASC,
-CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN current.updated_at END DESC,
-CASE WHEN $3::text='code' AND $4::text='asc' THEN object.code END ASC,
-CASE WHEN $3::text='code' AND $4::text='desc' THEN object.code END DESC,
-CASE WHEN $3::text='name' AND $4::text='asc' THEN current.name END ASC,
-CASE WHEN $3::text='name' AND $4::text='desc' THEN current.name END DESC,object.id DESC
+SELECT subject.id AS object_id,subject.entity,subject.code,0::bigint AS object_revision,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id
+FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='warehouse' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.name ILIKE '%'||$1::text||'%')
+AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
+ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN entry.updated_at END ASC,
+CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN entry.updated_at END DESC,
+CASE WHEN $3::text='code' AND $4::text='asc' THEN subject.code END ASC,
+CASE WHEN $3::text='code' AND $4::text='desc' THEN subject.code END DESC,
+CASE WHEN $3::text='name' AND $4::text='asc' THEN snapshot.name END ASC,
+CASE WHEN $3::text='name' AND $4::text='desc' THEN snapshot.name END DESC,subject.id DESC
 LIMIT $6 OFFSET $5
 `
 
@@ -3894,7 +3829,7 @@ type ListBobWarehousesParams struct {
 type ListBobWarehousesRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
 	Entity          string             `db:"entity" json:"entity"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -4327,13 +4262,13 @@ func (q *Queries) ListDCLProductApprovalEntriesByEntryIDs(ctx context.Context, p
 }
 
 const listDCLProductFormulaLines = `-- name: ListDCLProductFormulaLines :many
-SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.entered_unit_quantity_scale, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
+SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_entity, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.entered_unit_quantity_scale, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
        material.behavior_profile AS material_behavior_profile
 FROM dcl_product_formula_lines line
 JOIN approval_entries material_entry ON material_entry.id=line.material_approval_entry_id
   AND material_entry.domain='dcl' AND material_entry.entity='product'
   AND material_entry.subject_id=line.material_object_id
-JOIN bob_objects material_object ON material_object.id=line.material_object_id
+JOIN dcl_subjects material_object ON material_object.id=line.material_object_id
   AND material_object.entity='product'
 JOIN dcl_product_versions material ON material.approval_entry_id=material_entry.id
 WHERE line.product_approval_entry_id=$1
@@ -4344,6 +4279,7 @@ type ListDCLProductFormulaLinesRow struct {
 	ProductApprovalEntryID   string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
 	LineNo                   int32   `db:"line_no" json:"line_no"`
 	MaterialObjectID         string  `db:"material_object_id" json:"material_object_id"`
+	MaterialEntity           string  `db:"material_entity" json:"material_entity"`
 	MaterialApprovalEntryID  string  `db:"material_approval_entry_id" json:"material_approval_entry_id"`
 	BaseQuantityMicros       int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
 	EnteredQuantityMicros    int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
@@ -4354,7 +4290,7 @@ type ListDCLProductFormulaLinesRow struct {
 	EnteredUnitQuantityScale int32   `db:"entered_unit_quantity_scale" json:"entered_unit_quantity_scale"`
 	ResolutionStatus         string  `db:"resolution_status" json:"resolution_status"`
 	RequiresConfirmation     bool    `db:"requires_confirmation" json:"requires_confirmation"`
-	MaterialCode             string  `db:"material_code" json:"material_code"`
+	MaterialCode             *string `db:"material_code" json:"material_code"`
 	MaterialName             string  `db:"material_name" json:"material_name"`
 	MaterialBehaviorProfile  *string `db:"material_behavior_profile" json:"material_behavior_profile"`
 }
@@ -4372,6 +4308,7 @@ func (q *Queries) ListDCLProductFormulaLines(ctx context.Context, productApprova
 			&i.ProductApprovalEntryID,
 			&i.LineNo,
 			&i.MaterialObjectID,
+			&i.MaterialEntity,
 			&i.MaterialApprovalEntryID,
 			&i.BaseQuantityMicros,
 			&i.EnteredQuantityMicros,
@@ -4397,13 +4334,13 @@ func (q *Queries) ListDCLProductFormulaLines(ctx context.Context, productApprova
 }
 
 const listDCLProductFormulaLinesByEntryIDs = `-- name: ListDCLProductFormulaLinesByEntryIDs :many
-SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.entered_unit_quantity_scale, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
+SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_entity, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.entered_unit_quantity_scale, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
        material.behavior_profile AS material_behavior_profile
 FROM dcl_product_formula_lines line
 JOIN approval_entries material_entry ON material_entry.id=line.material_approval_entry_id
   AND material_entry.domain='dcl' AND material_entry.entity='product'
   AND material_entry.subject_id=line.material_object_id
-JOIN bob_objects material_object ON material_object.id=line.material_object_id
+JOIN dcl_subjects material_object ON material_object.id=line.material_object_id
   AND material_object.entity='product'
 JOIN dcl_product_versions material ON material.approval_entry_id=material_entry.id
 WHERE line.product_approval_entry_id=ANY($1::text[])
@@ -4414,6 +4351,7 @@ type ListDCLProductFormulaLinesByEntryIDsRow struct {
 	ProductApprovalEntryID   string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
 	LineNo                   int32   `db:"line_no" json:"line_no"`
 	MaterialObjectID         string  `db:"material_object_id" json:"material_object_id"`
+	MaterialEntity           string  `db:"material_entity" json:"material_entity"`
 	MaterialApprovalEntryID  string  `db:"material_approval_entry_id" json:"material_approval_entry_id"`
 	BaseQuantityMicros       int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
 	EnteredQuantityMicros    int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
@@ -4424,7 +4362,7 @@ type ListDCLProductFormulaLinesByEntryIDsRow struct {
 	EnteredUnitQuantityScale int32   `db:"entered_unit_quantity_scale" json:"entered_unit_quantity_scale"`
 	ResolutionStatus         string  `db:"resolution_status" json:"resolution_status"`
 	RequiresConfirmation     bool    `db:"requires_confirmation" json:"requires_confirmation"`
-	MaterialCode             string  `db:"material_code" json:"material_code"`
+	MaterialCode             *string `db:"material_code" json:"material_code"`
 	MaterialName             string  `db:"material_name" json:"material_name"`
 	MaterialBehaviorProfile  *string `db:"material_behavior_profile" json:"material_behavior_profile"`
 }
@@ -4442,6 +4380,7 @@ func (q *Queries) ListDCLProductFormulaLinesByEntryIDs(ctx context.Context, prod
 			&i.ProductApprovalEntryID,
 			&i.LineNo,
 			&i.MaterialObjectID,
+			&i.MaterialEntity,
 			&i.MaterialApprovalEntryID,
 			&i.BaseQuantityMicros,
 			&i.EnteredQuantityMicros,
@@ -4615,8 +4554,8 @@ func (q *Queries) ListDCLProductUnitConversionsByEntryIDs(ctx context.Context, p
 }
 
 const listFormulaMaterialReferences = `-- name: ListFormulaMaterialReferences :many
-SELECT o.id AS object_id,o.entity,'formula-material'::text AS role FROM bob_objects o
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=o.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
+SELECT subject.id AS object_id,subject.entity,'formula-material'::text AS role FROM dcl_subjects subject
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_product_formula_lines p ON p.product_approval_entry_id=e.id WHERE p.material_object_id=$1
 `
 
@@ -4647,8 +4586,11 @@ func (q *Queries) ListFormulaMaterialReferences(ctx context.Context, sourceObjec
 }
 
 const listFundOperatingReferences = `-- name: ListFundOperatingReferences :many
-SELECT o.id AS object_id,o.entity,'fund-operating'::text AS role FROM bob_objects o
-JOIN bob_fund_accounts p ON p.object_id=o.id WHERE p.operating_entity_id=$1
+SELECT subject.id AS object_id,subject.entity,'fund-operating'::text AS role
+FROM dcl_subjects subject
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE snapshot.operating_entity_id=$1
 `
 
 type ListFundOperatingReferencesRow struct {
@@ -4710,8 +4652,11 @@ func (q *Queries) ListSupplierPurchaserReferencesForEmployee(ctx context.Context
 }
 
 const listVehicleCarrierOperatingReferences = `-- name: ListVehicleCarrierOperatingReferences :many
-SELECT o.id AS object_id,o.entity,'vehicle-carrier-operating'::text AS role FROM bob_objects o
-JOIN bob_vehicles current ON current.object_id=o.id WHERE current.carrier_operating_entity_id=$1
+SELECT subject.id AS object_id,subject.entity,'vehicle-carrier-operating'::text AS role
+FROM dcl_subjects subject
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE snapshot.carrier_operating_entity_id=$1
 `
 
 type ListVehicleCarrierOperatingReferencesRow struct {
@@ -4741,8 +4686,11 @@ func (q *Queries) ListVehicleCarrierOperatingReferences(ctx context.Context, sou
 }
 
 const listVehicleCarrierServiceReferences = `-- name: ListVehicleCarrierServiceReferences :many
-SELECT o.id AS object_id,o.entity,'vehicle-carrier-service'::text AS role FROM bob_objects o
-JOIN bob_vehicles current ON current.object_id=o.id WHERE current.carrier_service_relationship_object_id=$1
+SELECT subject.id AS object_id,subject.entity,'vehicle-carrier-service'::text AS role
+FROM dcl_subjects subject
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE snapshot.carrier_service_relationship_object_id=$1
 `
 
 type ListVehicleCarrierServiceReferencesRow struct {
@@ -4876,7 +4824,7 @@ SELECT entry.product_id, object.code AS product_code, product.name AS product_na
        sum(entry.quantity_delta_micros)::bigint AS quantity_micros
 FROM acc_inventory_entries entry
 JOIN acc_books book ON book.id=entry.book_id AND book.control_book
-JOIN bob_objects object ON object.id=entry.product_id AND object.entity='product'
+JOIN dcl_subjects object ON object.id=entry.product_id AND object.entity='product'
 JOIN LATERAL (
   SELECT approval_entry.id
   FROM approval_entries approval_entry
@@ -4893,10 +4841,10 @@ ORDER BY object.code,entry.product_id
 `
 
 type ListWarehouseDisableInventoryRow struct {
-	ProductID      string `db:"product_id" json:"product_id"`
-	ProductCode    string `db:"product_code" json:"product_code"`
-	ProductName    string `db:"product_name" json:"product_name"`
-	QuantityMicros int64  `db:"quantity_micros" json:"quantity_micros"`
+	ProductID      string  `db:"product_id" json:"product_id"`
+	ProductCode    *string `db:"product_code" json:"product_code"`
+	ProductName    string  `db:"product_name" json:"product_name"`
+	QuantityMicros int64   `db:"quantity_micros" json:"quantity_micros"`
 }
 
 func (q *Queries) ListWarehouseDisableInventory(ctx context.Context, warehouseObjectID string) ([]ListWarehouseDisableInventoryRow, error) {
@@ -4925,9 +4873,10 @@ func (q *Queries) ListWarehouseDisableInventory(ctx context.Context, warehouseOb
 }
 
 const listWarehouseManagerReferencesForEmployee = `-- name: ListWarehouseManagerReferencesForEmployee :many
-SELECT o.id AS object_id,o.entity,'warehouse-manager'::text AS role FROM bob_objects o
-JOIN bob_warehouses current ON current.object_id=o.id
-WHERE o.entity='warehouse' AND current.manager_employee_id=$1
+SELECT subject.id AS object_id,subject.entity,'warehouse-manager'::text AS role FROM dcl_subjects subject
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_warehouse_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE subject.entity='warehouse' AND snapshot.manager_employee_id=$1
 `
 
 type ListWarehouseManagerReferencesForEmployeeRow struct {
@@ -5270,9 +5219,9 @@ func (q *Queries) NextObjectNumberCounter(ctx context.Context, arg NextObjectNum
 }
 
 const queryBobProductReferenceCandidates = `-- name: QueryBobProductReferenceCandidates :many
-SELECT o.id AS object_id,p.source_approval_entry_id AS approval_entry_id,o.code,v.name,COALESCE(v.behavior_profile,'')::text AS behavior_profile,COALESCE(v.default_input_unit_id,'')::text AS default_input_unit_id,COALESCE(v.pricing_unit_id,'')::text AS pricing_unit_id
-FROM bob_products p JOIN bob_objects o ON o.id=p.object_id AND o.entity='product' JOIN dcl_product_versions v ON v.approval_entry_id=p.source_approval_entry_id
-WHERE p.enabled AND ($1::text='' OR o.id<>$1::text) AND ($2::text='' OR o.code ILIKE '%'||$2::text||'%' OR v.name ILIKE '%'||$2::text||'%') AND ($3::text='' OR v.behavior_profile=$3::text) ORDER BY o.code LIMIT 200
+SELECT subject.id AS object_id,entry.id AS approval_entry_id,subject.code,snapshot.name,COALESCE(snapshot.behavior_profile,'')::text AS behavior_profile,COALESCE(snapshot.default_input_unit_id,'')::text AS default_input_unit_id,COALESCE(snapshot.pricing_unit_id,'')::text AS pricing_unit_id
+FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_product_versions snapshot ON snapshot.approval_entry_id=entry.id
+WHERE snapshot.enabled AND ($1::text='' OR subject.id<>$1::text) AND ($2::text='' OR subject.code ILIKE '%'||$2::text||'%' OR snapshot.name ILIKE '%'||$2::text||'%') AND ($3::text='' OR snapshot.behavior_profile=$3::text) ORDER BY subject.code LIMIT 200
 `
 
 type QueryBobProductReferenceCandidatesParams struct {
@@ -5282,13 +5231,13 @@ type QueryBobProductReferenceCandidatesParams struct {
 }
 
 type QueryBobProductReferenceCandidatesRow struct {
-	ObjectID           string `db:"object_id" json:"object_id"`
-	ApprovalEntryID    string `db:"approval_entry_id" json:"approval_entry_id"`
-	Code               string `db:"code" json:"code"`
-	Name               string `db:"name" json:"name"`
-	BehaviorProfile    string `db:"behavior_profile" json:"behavior_profile"`
-	DefaultInputUnitID string `db:"default_input_unit_id" json:"default_input_unit_id"`
-	PricingUnitID      string `db:"pricing_unit_id" json:"pricing_unit_id"`
+	ObjectID           string  `db:"object_id" json:"object_id"`
+	ApprovalEntryID    string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Code               *string `db:"code" json:"code"`
+	Name               string  `db:"name" json:"name"`
+	BehaviorProfile    string  `db:"behavior_profile" json:"behavior_profile"`
+	DefaultInputUnitID string  `db:"default_input_unit_id" json:"default_input_unit_id"`
+	PricingUnitID      string  `db:"pricing_unit_id" json:"pricing_unit_id"`
 }
 
 func (q *Queries) QueryBobProductReferenceCandidates(ctx context.Context, arg QueryBobProductReferenceCandidatesParams) ([]QueryBobProductReferenceCandidatesRow, error) {
@@ -5733,105 +5682,6 @@ func (q *Queries) UpsertBobEmployeeCurrent(ctx context.Context, arg UpsertBobEmp
 	return err
 }
 
-const upsertBobFundAccountCurrent = `-- name: UpsertBobFundAccountCurrent :exec
-INSERT INTO bob_fund_accounts(object_id,source_approval_entry_id,name,currency,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled,updated_by)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=excluded.source_approval_entry_id,name=excluded.name,currency=excluded.currency,account_name=excluded.account_name,bank_name=excluded.bank_name,bank_branch=excluded.bank_branch,account_number=excluded.account_number,remark=excluded.remark,operating_entity_id=excluded.operating_entity_id,operating_entity_approval_entry_id=excluded.operating_entity_approval_entry_id,operating_entity_code=excluded.operating_entity_code,operating_entity_name=excluded.operating_entity_name,enabled=excluded.enabled,updated_at=now(),updated_by=excluded.updated_by
-`
-
-type UpsertBobFundAccountCurrentParams struct {
-	ObjectID                       string  `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID          string  `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	Name                           string  `db:"name" json:"name"`
-	Currency                       string  `db:"currency" json:"currency"`
-	AccountName                    *string `db:"account_name" json:"account_name"`
-	BankName                       *string `db:"bank_name" json:"bank_name"`
-	BankBranch                     *string `db:"bank_branch" json:"bank_branch"`
-	AccountNumber                  *string `db:"account_number" json:"account_number"`
-	Remark                         *string `db:"remark" json:"remark"`
-	OperatingEntityID              string  `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityApprovalEntryID string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode            string  `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName            string  `db:"operating_entity_name" json:"operating_entity_name"`
-	Enabled                        bool    `db:"enabled" json:"enabled"`
-	ActorID                        string  `db:"actor_id" json:"actor_id"`
-}
-
-func (q *Queries) UpsertBobFundAccountCurrent(ctx context.Context, arg UpsertBobFundAccountCurrentParams) error {
-	_, err := q.db.Exec(ctx, upsertBobFundAccountCurrent,
-		arg.ObjectID,
-		arg.SourceApprovalEntryID,
-		arg.Name,
-		arg.Currency,
-		arg.AccountName,
-		arg.BankName,
-		arg.BankBranch,
-		arg.AccountNumber,
-		arg.Remark,
-		arg.OperatingEntityID,
-		arg.OperatingEntityApprovalEntryID,
-		arg.OperatingEntityCode,
-		arg.OperatingEntityName,
-		arg.Enabled,
-		arg.ActorID,
-	)
-	return err
-}
-
-const upsertBobOperatingEntityCurrent = `-- name: UpsertBobOperatingEntityCurrent :exec
-INSERT INTO bob_operating_entities(
-  object_id, source_approval_entry_id, legal_name, short_name, tax_number,
-  address, phone, remark, enabled, updated_by
-)
-VALUES(
-  $1, $2, $3,
-  $4, $5, $6, $7,
-  $8, $9, $10
-)
-ON CONFLICT (object_id) DO UPDATE SET
-  source_approval_entry_id=excluded.source_approval_entry_id,
-  legal_name=excluded.legal_name,
-  short_name=excluded.short_name,
-  tax_number=excluded.tax_number,
-  address=excluded.address,
-  phone=excluded.phone,
-  remark=excluded.remark,
-  enabled=excluded.enabled,
-  updated_at=now(),
-  updated_by=excluded.updated_by
-`
-
-type UpsertBobOperatingEntityCurrentParams struct {
-	ObjectID              string  `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID string  `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	LegalName             string  `db:"legal_name" json:"legal_name"`
-	ShortName             *string `db:"short_name" json:"short_name"`
-	TaxNumber             *string `db:"tax_number" json:"tax_number"`
-	Address               *string `db:"address" json:"address"`
-	Phone                 *string `db:"phone" json:"phone"`
-	Remark                *string `db:"remark" json:"remark"`
-	Enabled               bool    `db:"enabled" json:"enabled"`
-	ActorID               string  `db:"actor_id" json:"actor_id"`
-}
-
-// Operating Entity is the first DCL-owned BOB slice. bob_objects keeps only
-// its stable ID/code allocation; this table is the current approved BOB data.
-func (q *Queries) UpsertBobOperatingEntityCurrent(ctx context.Context, arg UpsertBobOperatingEntityCurrentParams) error {
-	_, err := q.db.Exec(ctx, upsertBobOperatingEntityCurrent,
-		arg.ObjectID,
-		arg.SourceApprovalEntryID,
-		arg.LegalName,
-		arg.ShortName,
-		arg.TaxNumber,
-		arg.Address,
-		arg.Phone,
-		arg.Remark,
-		arg.Enabled,
-		arg.ActorID,
-	)
-	return err
-}
-
 const upsertBobOtherUnitCurrent = `-- name: UpsertBobOtherUnitCurrent :exec
 INSERT INTO bob_other_units(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
 VALUES($1,$2,$3,now(),$4)
@@ -5849,29 +5699,6 @@ type UpsertBobOtherUnitCurrentParams struct {
 // selects the sole current snapshot visible to BOB readers.
 func (q *Queries) UpsertBobOtherUnitCurrent(ctx context.Context, arg UpsertBobOtherUnitCurrentParams) error {
 	_, err := q.db.Exec(ctx, upsertBobOtherUnitCurrent,
-		arg.ObjectID,
-		arg.SourceApprovalEntryID,
-		arg.Enabled,
-		arg.ActorID,
-	)
-	return err
-}
-
-const upsertBobProductCurrent = `-- name: UpsertBobProductCurrent :exec
-INSERT INTO bob_products(object_id,source_approval_entry_id,enabled,updated_at,updated_by)
-VALUES($1,$2,$3,now(),$4)
-ON CONFLICT (object_id) DO UPDATE SET source_approval_entry_id=EXCLUDED.source_approval_entry_id,enabled=EXCLUDED.enabled,updated_at=EXCLUDED.updated_at,updated_by=EXCLUDED.updated_by
-`
-
-type UpsertBobProductCurrentParams struct {
-	ObjectID              string `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	Enabled               bool   `db:"enabled" json:"enabled"`
-	ActorID               string `db:"actor_id" json:"actor_id"`
-}
-
-func (q *Queries) UpsertBobProductCurrent(ctx context.Context, arg UpsertBobProductCurrentParams) error {
-	_, err := q.db.Exec(ctx, upsertBobProductCurrent,
 		arg.ObjectID,
 		arg.SourceApprovalEntryID,
 		arg.Enabled,
@@ -5920,100 +5747,6 @@ func (q *Queries) UpsertBobSupplierCurrent(ctx context.Context, arg UpsertBobSup
 	_, err := q.db.Exec(ctx, upsertBobSupplierCurrent,
 		arg.ObjectID,
 		arg.SourceApprovalEntryID,
-		arg.Enabled,
-		arg.ActorID,
-	)
-	return err
-}
-
-const upsertBobVehicleCurrent = `-- name: UpsertBobVehicleCurrent :exec
-INSERT INTO bob_vehicles(object_id,source_approval_entry_id,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_name,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,bulk_liquid_capable,enabled,updated_by)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=excluded.source_approval_entry_id,name=excluded.name,plate_number=excluded.plate_number,vehicle_type=excluded.vehicle_type,vehicle_type_object_id=excluded.vehicle_type_object_id,vin=excluded.vin,engine_number=excluded.engine_number,load_capacity_kg=excluded.load_capacity_kg,remark=excluded.remark,carrier_affiliation_type=excluded.carrier_affiliation_type,carrier_operating_entity_id=excluded.carrier_operating_entity_id,carrier_operating_entity_approval_entry_id=excluded.carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id=excluded.carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id=excluded.carrier_service_relationship_approval_entry_id,bulk_liquid_capable=excluded.bulk_liquid_capable,enabled=excluded.enabled,updated_at=now(),updated_by=excluded.updated_by
-`
-
-type UpsertBobVehicleCurrentParams struct {
-	ObjectID                                  string         `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID                     string         `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	Name                                      string         `db:"name" json:"name"`
-	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
-	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
-	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
-	Vin                                       *string        `db:"vin" json:"vin"`
-	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string        `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
-	Enabled                                   bool           `db:"enabled" json:"enabled"`
-	ActorID                                   string         `db:"actor_id" json:"actor_id"`
-}
-
-func (q *Queries) UpsertBobVehicleCurrent(ctx context.Context, arg UpsertBobVehicleCurrentParams) error {
-	_, err := q.db.Exec(ctx, upsertBobVehicleCurrent,
-		arg.ObjectID,
-		arg.SourceApprovalEntryID,
-		arg.Name,
-		arg.PlateNumber,
-		arg.VehicleType,
-		arg.VehicleTypeObjectID,
-		arg.VehicleTypeName,
-		arg.Vin,
-		arg.EngineNumber,
-		arg.LoadCapacityKg,
-		arg.Remark,
-		arg.CarrierAffiliationType,
-		arg.CarrierOperatingEntityID,
-		arg.CarrierOperatingEntityApprovalEntryID,
-		arg.CarrierServiceRelationshipObjectID,
-		arg.CarrierServiceRelationshipApprovalEntryID,
-		arg.BulkLiquidCapable,
-		arg.Enabled,
-		arg.ActorID,
-	)
-	return err
-}
-
-const upsertBobWarehouseCurrent = `-- name: UpsertBobWarehouseCurrent :exec
-INSERT INTO bob_warehouses(object_id,source_approval_entry_id,category_id,name,address,contact_name,contact_phone,manager_employee_id,manager_employee_approval_entry_id,remark,enabled,updated_by)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=excluded.source_approval_entry_id,category_id=excluded.category_id,name=excluded.name,address=excluded.address,contact_name=excluded.contact_name,contact_phone=excluded.contact_phone,manager_employee_id=excluded.manager_employee_id,manager_employee_approval_entry_id=excluded.manager_employee_approval_entry_id,remark=excluded.remark,enabled=excluded.enabled,updated_at=now(),updated_by=excluded.updated_by
-`
-
-type UpsertBobWarehouseCurrentParams struct {
-	ObjectID                       string  `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID          string  `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	CategoryID                     *string `db:"category_id" json:"category_id"`
-	Name                           string  `db:"name" json:"name"`
-	Address                        *string `db:"address" json:"address"`
-	ContactName                    *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                   *string `db:"contact_phone" json:"contact_phone"`
-	ManagerEmployeeID              *string `db:"manager_employee_id" json:"manager_employee_id"`
-	ManagerEmployeeApprovalEntryID *string `db:"manager_employee_approval_entry_id" json:"manager_employee_approval_entry_id"`
-	Remark                         *string `db:"remark" json:"remark"`
-	Enabled                        bool    `db:"enabled" json:"enabled"`
-	ActorID                        string  `db:"actor_id" json:"actor_id"`
-}
-
-// Warehouse declaration lifecycle belongs to DCL; BOB only exposes the
-// approved current projection and reference resolution surface.
-func (q *Queries) UpsertBobWarehouseCurrent(ctx context.Context, arg UpsertBobWarehouseCurrentParams) error {
-	_, err := q.db.Exec(ctx, upsertBobWarehouseCurrent,
-		arg.ObjectID,
-		arg.SourceApprovalEntryID,
-		arg.CategoryID,
-		arg.Name,
-		arg.Address,
-		arg.ContactName,
-		arg.ContactPhone,
-		arg.ManagerEmployeeID,
-		arg.ManagerEmployeeApprovalEntryID,
-		arg.Remark,
 		arg.Enabled,
 		arg.ActorID,
 	)

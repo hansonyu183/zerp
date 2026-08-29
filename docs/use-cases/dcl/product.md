@@ -25,8 +25,8 @@
 ## 4. 提交、批准与当前投影
 
 1. 页面在提交前用统一前端检查定位产品类型、默认包装规格、单位配置与固定配方问题；后端在提交和批准时独立重复完整校验。
-2. V1 批准后原子创建 BOB current；后续版本批准原子切换 current source；反批后原子回落到上一 approved snapshot，反批首版后移除 current。BOB 由 current source 读取同一完整 DCL snapshot，不复制第二份单位或配方事实。
-3. latest approved 与唯一 open candidate 共同占用非空条码。条码冲突、并发候选、revision 冲突、原料来源漂移、正式业务引用 blocker 或投影失败均返回稳定错误，且 DCL snapshot、Approval、占用与 BOB current 全部保持原状；AUX current 后续变化不使已存 snapshot 漂移。
+2. V1 批准后 BOB typed query 直接读取该 snapshot；后续版本批准或反批后，不经额外写入即可自然切换、回落或隐藏。BOB 不保存 current source，也不复制第二份单位或配方事实。
+3. latest approved 与唯一 open candidate 共同占用非空条码。条码冲突、并发候选、revision 冲突、原料来源漂移或正式业务引用 blocker 均返回稳定错误，且 DCL snapshot、Approval 与占用全部保持原状；AUX current 后续变化不使已存 snapshot 漂移。
 4. 任一库存、订单、生产或其他正式业务事实精确引用目标 Approval Entry 时禁止反批。产品后续改版不重算历史数量、配方、金额、库存或 ACC 事实。
 
 ## 5. 查询、历史与异常恢复
@@ -38,6 +38,6 @@
 ## 6. 验收场景
 
 1. 全部产品维护与生命周期请求只发送到 `/dcl/product/*`，BOB 当前页面没有任何写、启停或审批动作。
-2. 真实 PostgreSQL 覆盖完整 snapshot、V1/V2 current 切换与回落、AUX/原料精确来源、条码占用、正式引用 blocker、并发 candidate 和事务回滚。
-3. 真实全栈流程覆盖三类产品、固定配方、候选换版和独立 BOB current 读取；待办深链进入 DCL。
+2. 真实 PostgreSQL 覆盖完整 snapshot、V1/V2 highest-approved 读取与回落、AUX/原料精确来源、条码占用、正式引用 blocker、并发 candidate 和事务回滚。
+3. 真实全栈流程覆盖三类产品、固定配方、候选换版和独立 BOB 只读资料；待办深链进入 DCL。
 4. 产品换版后，既有 VOU、库存、生产与 ACC 仍保留原 stable ID、Approval Entry、数量与名称等不可变快照。

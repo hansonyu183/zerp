@@ -1197,19 +1197,19 @@ func (q *Queries) GetAccountingPartyBalance(ctx context.Context, arg GetAccounti
 }
 
 const getAccountingProductCurrentSnapshot = `-- name: GetAccountingProductCurrentSnapshot :one
-SELECT object.id AS product_id,current.source_approval_entry_id AS product_approval_entry_id,
-       object.code AS product_code,version.name AS product_name
-FROM bob_products current
-JOIN bob_objects object ON object.id=current.object_id AND object.entity='product'
-JOIN dcl_product_versions version ON version.approval_entry_id=current.source_approval_entry_id
-WHERE current.object_id=$1 AND current.enabled
+SELECT subject.id AS product_id,entry.id AS product_approval_entry_id,
+       subject.code AS product_code,version.name AS product_name
+FROM dcl_subjects subject
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
+JOIN dcl_product_versions version ON version.approval_entry_id=entry.id
+WHERE subject.id=$1 AND subject.entity='product' AND version.enabled
 `
 
 type GetAccountingProductCurrentSnapshotRow struct {
-	ProductID              string `db:"product_id" json:"product_id"`
-	ProductApprovalEntryID string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
-	ProductCode            string `db:"product_code" json:"product_code"`
-	ProductName            string `db:"product_name" json:"product_name"`
+	ProductID              string  `db:"product_id" json:"product_id"`
+	ProductApprovalEntryID string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode            *string `db:"product_code" json:"product_code"`
+	ProductName            string  `db:"product_name" json:"product_name"`
 }
 
 func (q *Queries) GetAccountingProductCurrentSnapshot(ctx context.Context, productID string) (GetAccountingProductCurrentSnapshotRow, error) {

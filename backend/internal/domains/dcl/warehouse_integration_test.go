@@ -274,7 +274,7 @@ func insertWarehouseInventoryBalance(t *testing.T, pool *pgxpool.Pool, warehouse
 		sql  string
 		args []any
 	}{
-		{`INSERT INTO bob_objects(id,entity,code,enabled,revision,created_by,updated_by) VALUES($1,'product','PRD-0001',true,1,$2,$2)`, []any{productID, userID}},
+		{`INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'product','PRD-0001',$2)`, []any{productID, userID}},
 		{`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl','product',$2,1,'APPROVED',3,$3,now(),$4,now(),$3,now(),$4,now())`, []any{productEntryID, productID, userID, reviewerID}},
 		{`INSERT INTO dcl_product_versions(approval_entry_id,name) VALUES($1,'库存产品')`, []any{productEntryID}},
 		{`INSERT INTO acc_books(id,code,name,start_month,base_currency,control_book,created_by,updated_by) VALUES($1,'INV-FIXTURE','库存阻断账簿','2026-08-01','CNY',true,$2,$2)`, []any{bookID, userID}},

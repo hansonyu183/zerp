@@ -7,7 +7,7 @@
 1. 页面入口为 `/bob/vehicle`，只调用 `POST /bob/vehicle/query` 和 `POST /bob/vehicle/get`，展示当前最新正式车辆档案。
 2. 列表与详情展示编码、名称、车牌、车型、承运归属、VIN、发动机号、核定载重、散水承运能力、Stable ID、来源 Approval Entry ID 与启停状态；不显示候选草稿，也不把候选资料当作当前运输事实。
 3. 页面没有新建、编辑、启停、删除、提交、撤回、审核、反批、驳回、版本或审计动作，也不请求任何 `/bob/vehicle/*` 写路径。
-4. 当前版本只随 DCL 批准或反批原子切换。车辆 Stable ID、编码和来源 Approval Entry ID 供送货、运输和历史引用追溯。
+4. 每次查询直接连接 DCL subject、highest APPROVED Approval Entry 与车辆 typed snapshot；DCL 批准或反批后无需额外写入即可切换、回落或隐藏。车辆 Stable ID、编码和来源 Approval Entry ID 供送货、运输和历史引用追溯。
 
 ## 2. 可见性与异常
 

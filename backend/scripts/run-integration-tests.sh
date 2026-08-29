@@ -135,10 +135,33 @@ verify_pre_issue_305_fixture() {
 		 AND to_regclass('"'"'public.dcl_wfl_process_definition_versions'"'"') IS NOT NULL
 		 AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z30500000000000000000001'"'"' AND entity='"'"'operating-entity'"'"')
 		 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z30500000000000000000002'"'"' AND status='"'"'APPROVED'"'"' AND revision=3)
-		 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z30500000000000000000006'"'"' AND status='"'"'PENDING'"'"' AND revision=2)
-		 AND EXISTS (SELECT 1 FROM bob_objects WHERE id='"'"'01Z30500000000000000000001'"'"' AND code='"'"'ENT-0305'"'"' AND revision=7)
+			 AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z30500000000000000000006'"'"' AND status='"'"'PENDING'"'"' AND revision=2)
+			 AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z30500000000000000000001'"'"' AND created_at='"'"'2026-08-29 03:05:00+00'"'"' AND created_by='"'"'00000000000000000000000000'"'"')
+			 AND EXISTS (SELECT 1 FROM bob_objects WHERE id='"'"'01Z30500000000000000000001'"'"' AND code='"'"'ENT-0305'"'"' AND revision=7)
 		 AND EXISTS (SELECT 1 FROM bob_operating_entities WHERE object_id='"'"'01Z30500000000000000000001'"'"' AND source_approval_entry_id='"'"'01Z30500000000000000000002'"'"')
 		 AND EXISTS (SELECT 1 FROM object_number_counters WHERE domain='"'"'bob'"'"' AND entity='"'"'operating-entity'"'"' AND last_value=305)
+		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
+run_issue_305_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-305-dcl-subject-core-masters.sql
+}
+
+verify_issue_305_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.bob_operating_entities'"'"') IS NULL
+		  AND to_regclass('"'"'public.bob_warehouses'"'"') IS NULL
+		  AND to_regclass('"'"'public.bob_vehicles'"'"') IS NULL
+		  AND to_regclass('"'"'public.bob_fund_accounts'"'"') IS NULL
+		  AND to_regclass('"'"'public.bob_products'"'"') IS NULL
+		  AND NOT EXISTS (SELECT 1 FROM bob_objects WHERE entity IN ('"'"'operating-entity'"'"','"'"'warehouse'"'"','"'"'vehicle'"'"','"'"'fund-account'"'"','"'"'product'"'"'))
+		  AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z30500000000000000000001'"'"' AND entity='"'"'operating-entity'"'"' AND code='"'"'ENT-0305'"'"' AND created_at='"'"'2026-08-29 03:00:00+00'"'"' AND created_by='"'"'01JAPPSYST3MACTR0000000000'"'"')
+		  AND EXISTS (SELECT 1 FROM object_number_counters WHERE domain='"'"'dcl'"'"' AND entity='"'"'operating-entity'"'"' AND last_value>=305)
 		 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
 }
 
@@ -538,6 +561,22 @@ run_cutover_compatibility_tests() {
 	recreate_database "$pre_issue_305_database"
 	initialize_pre_issue_305_schema "$pre_issue_305_database"
 	verify_pre_issue_305_fixture "$pre_issue_305_database"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+			 "INSERT INTO bob_objects(id,entity,code,created_by,updated_by) VALUES ('"'"'01Z30500000000000000000009'"'"','"'"'warehouse'"'"','"'"'WHS-0306'"'"','"'"'01JAPPSYST3MACTR0000000000'"'"','"'"'01JAPPSYST3MACTR0000000000'"'"')"' </dev/null
+	if run_issue_305_cutover "$pre_issue_305_database" >/dev/null 2>&1; then
+		fail "issue-305 cutover accepted a BOB core identity without a matching DCL subject"
+	fi
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+			 "SELECT CASE WHEN to_regclass('"'"'public.bob_operating_entities'"'"') IS NOT NULL
+			 AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='"'"'public'"'"' AND table_name='"'"'dcl_subjects'"'"' AND column_name='"'"'code'"'"')
+			 THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+	recreate_database "$pre_issue_305_database"
+	initialize_pre_issue_305_schema "$pre_issue_305_database"
+	verify_pre_issue_305_fixture "$pre_issue_305_database"
+	run_issue_305_cutover "$pre_issue_305_database"
+	verify_issue_305_cutover "$pre_issue_305_database"
 }
 
 initialize_current_schema_databases() {

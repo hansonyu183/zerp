@@ -332,8 +332,10 @@ func partyRelationshipCards(ctx context.Context, q partyQueryer, partyID string)
 		UNION ALL SELECT relation.object_id,'other-unit',current.source_approval_entry_id,relation.operating_entity_id,current.enabled FROM bob_service_relationships relation JOIN bob_other_units current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
 		UNION ALL SELECT relation.object_id,'sales-partner',current.source_approval_entry_id,relation.operating_entity_id,current.enabled FROM bob_sales_relationships relation JOIN bob_sales_partners current ON current.object_id=relation.object_id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
 	) SELECT r.object_id,r.entity,o.code,r.source_approval_entry_id,source.version_no,r.operating_entity_id,oe.code,COALESCE(ov.legal_name,''),r.enabled
-	FROM relationships r JOIN bob_objects o ON o.id=r.object_id JOIN bob_objects oe ON oe.id=r.operating_entity_id
-	JOIN bob_operating_entities ov ON ov.object_id=oe.id
+	FROM relationships r JOIN bob_objects o ON o.id=r.object_id
+	JOIN dcl_subjects oe ON oe.id=r.operating_entity_id AND oe.entity='operating-entity'
+	JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=oe.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+	JOIN dcl_operating_entity_versions ov ON ov.approval_entry_id=operating_entry.id
 	JOIN approval_entries source ON source.id=r.source_approval_entry_id AND source.domain='dcl' AND source.entity=r.entity AND source.status='APPROVED'
 	ORDER BY o.code`, partyID)
 	if err != nil {

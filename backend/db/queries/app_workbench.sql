@@ -2,6 +2,7 @@
 SELECT count(*)
 FROM approval_entries entry
 LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN dcl_subjects subject ON subject.id=entry.subject_id AND subject.entity=entry.entity
 LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
 LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
 LEFT JOIN rpt_definitions report_definition ON entry.entity='rpt-definition' AND report_definition.id=entry.subject_id
@@ -41,7 +42,7 @@ WHERE entry.domain='dcl'
   )
   AND (
     sqlc.arg(keyword)::text = ''
-    OR object.code ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR COALESCE(subject.code, object.code) ILIKE '%' || sqlc.arg(keyword) || '%'
     OR mapping.vou_entity ILIKE '%' || sqlc.arg(keyword) || '%'
     OR mapping_book.name ILIKE '%' || sqlc.arg(keyword) || '%'
     OR report_definition.code ILIKE '%' || sqlc.arg(keyword) || '%'
@@ -49,18 +50,19 @@ WHERE entry.domain='dcl'
   );
 
 -- name: ListWorkbenchBobItems :many
-SELECT entry.subject_id AS object_id, entry.entity, COALESCE(object.code, mapping.vou_entity, report_definition.code, '') AS code,
+SELECT entry.subject_id AS object_id, entry.entity, COALESCE(subject.code, object.code, mapping.vou_entity, report_definition.code, '') AS code,
        named.name,
        COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
        COALESCE(object.revision, report_definition.revision, 1) AS object_revision,
        entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision,
-       COALESCE(object.updated_at, mapping.updated_at, report_definition.updated_at, entry.updated_at) AS object_updated_at,
+       COALESCE(object.updated_at, subject.created_at, mapping.updated_at, report_definition.updated_at, entry.updated_at) AS object_updated_at,
        CASE
          WHEN entry.submitted_by = sqlc.arg(actor_id)::text THEN true
          ELSE false
        END AS is_submitted_by_actor
 FROM approval_entries entry
 LEFT JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+LEFT JOIN dcl_subjects subject ON subject.id=entry.subject_id AND subject.entity=entry.entity
 LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
 LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
 LEFT JOIN rpt_definitions report_definition ON entry.entity='rpt-definition' AND report_definition.id=entry.subject_id
@@ -100,13 +102,13 @@ WHERE entry.domain='dcl'
   )
   AND (
     sqlc.arg(keyword)::text = ''
-    OR object.code ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR COALESCE(subject.code, object.code) ILIKE '%' || sqlc.arg(keyword) || '%'
     OR mapping.vou_entity ILIKE '%' || sqlc.arg(keyword) || '%'
     OR mapping_book.name ILIKE '%' || sqlc.arg(keyword) || '%'
     OR report_definition.code ILIKE '%' || sqlc.arg(keyword) || '%'
     OR named.name ILIKE '%' || sqlc.arg(keyword) || '%'
   )
-ORDER BY COALESCE(object.updated_at,mapping.updated_at,report_definition.updated_at,entry.updated_at) DESC, entry.subject_id ASC
+ORDER BY COALESCE(object.updated_at,subject.created_at,mapping.updated_at,report_definition.updated_at,entry.updated_at) DESC, entry.subject_id ASC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: CountWorkbenchVouItems :one

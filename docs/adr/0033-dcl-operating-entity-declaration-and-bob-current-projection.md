@@ -1,7 +1,8 @@
 ---
 id: ADR-0033
 date: 2026-08-27
-status: accepted
+status: superseded
+superseded_by: ADR-0047
 ---
 
 # 经营主体由 DCL 申报并投影到 BOB 当前业务面

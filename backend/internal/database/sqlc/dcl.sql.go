@@ -373,9 +373,10 @@ JOIN LATERAL (
   ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
   LIMIT 1
 ) party ON true
-JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id
   AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 LEFT JOIN LATERAL (
   SELECT id,status,version_no,updated_at FROM approval_entries
   WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
@@ -434,7 +435,7 @@ func (q *Queries) CountDCLFundAccountApprovalEvents(ctx context.Context, objectI
 }
 
 const countDCLFundAccounts = `-- name: CountDCLFundAccounts :one
-SELECT count(*) FROM dcl_subjects s JOIN bob_objects o ON o.id=s.id AND o.entity=s.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_fund_account_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='fund-account' AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[]))
+SELECT count(*) FROM dcl_subjects s LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_fund_account_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='fund-account' AND ($1::text='' OR s.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[]))
 `
 
 type CountDCLFundAccountsParams struct {
@@ -453,7 +454,6 @@ func (q *Queries) CountDCLFundAccounts(ctx context.Context, arg CountDCLFundAcco
 const countDCLOperatingEntities = `-- name: CountDCLOperatingEntities :one
 SELECT count(*)
 FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
 LEFT JOIN LATERAL (
   SELECT entry.id, entry.status, entry.version_no, entry.updated_at
   FROM approval_entries entry
@@ -471,7 +471,7 @@ LEFT JOIN LATERAL (
 JOIN dcl_operating_entity_versions display
   ON display.approval_entry_id=COALESCE(candidate.id, approved.id)
 WHERE subject.entity='operating-entity'
-  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
+  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%'
        OR display.legal_name ILIKE '%'||$1::text||'%')
   AND ($2::integer=-1 OR display.enabled=($2::integer=1))
   AND (cardinality($3::text[])=0
@@ -573,7 +573,7 @@ func (q *Queries) CountDCLProductApprovalEvents(ctx context.Context, objectID st
 }
 
 const countDCLProducts = `-- name: CountDCLProducts :one
-SELECT count(*) FROM dcl_subjects s JOIN bob_objects o ON o.id=s.id AND o.entity=s.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_product_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='product' AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) AND ($4::text='' OR d.product_type_id=$4::text) AND ($5::text='' OR d.category_id=$5::text)
+SELECT count(*) FROM dcl_subjects s LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_product_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='product' AND ($1::text='' OR s.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) AND ($4::text='' OR d.product_type_id=$4::text) AND ($5::text='' OR d.category_id=$5::text)
 `
 
 type CountDCLProductsParams struct {
@@ -717,7 +717,7 @@ func (q *Queries) CountDCLVehicleApprovalEvents(ctx context.Context, objectID st
 }
 
 const countDCLVehicles = `-- name: CountDCLVehicles :one
-SELECT count(*) FROM dcl_subjects subject JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_vehicle_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='vehicle' AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%' OR display.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
+SELECT count(*) FROM dcl_subjects subject LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_vehicle_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='vehicle' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%' OR display.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
 `
 
 type CountDCLVehiclesParams struct {
@@ -746,7 +746,6 @@ func (q *Queries) CountDCLWarehouseApprovalEvents(ctx context.Context, objectID 
 
 const countDCLWarehouses = `-- name: CountDCLWarehouses :one
 SELECT count(*) FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
  WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
  ORDER BY version_no DESC LIMIT 1) candidate ON true
@@ -755,7 +754,7 @@ LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
  ORDER BY version_no DESC LIMIT 1) approved ON true
 JOIN dcl_warehouse_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity='warehouse'
- AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%')
+ AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%')
  AND ($2::integer=-1 OR display.enabled=($2::integer=1))
  AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
 `
@@ -1713,9 +1712,10 @@ JOIN LATERAL (
   ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
   LIMIT 1
 ) party ON true
-JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id
   AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 WHERE snapshot.approval_entry_id=$1
   AND relationship.merged_into_object_id IS NULL
 `
@@ -1740,7 +1740,7 @@ type GetDCLEmployeeVersionRow struct {
 	PartyKind            string      `db:"party_kind" json:"party_kind"`
 	DisplayName          string      `db:"display_name" json:"display_name"`
 	OperatingEntityID    string      `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode  string      `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityCode  *string     `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName  string      `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
@@ -1774,7 +1774,7 @@ func (q *Queries) GetDCLEmployeeVersion(ctx context.Context, approvalEntryID str
 }
 
 const getDCLFundAccountVersion = `-- name: GetDCLFundAccountVersion :one
-SELECT approval_entry_id, entity, name, currency, account_name, bank_name, bank_branch, account_number, remark, operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, enabled FROM dcl_fund_account_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, entity, name, currency, account_name, bank_name, bank_branch, account_number, remark, operating_entity_id, operating_entity_entity, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, enabled FROM dcl_fund_account_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLFundAccountVersion(ctx context.Context, approvalEntryID string) (DclFundAccountVersion, error) {
@@ -1791,6 +1791,7 @@ func (q *Queries) GetDCLFundAccountVersion(ctx context.Context, approvalEntryID 
 		&i.AccountNumber,
 		&i.Remark,
 		&i.OperatingEntityID,
+		&i.OperatingEntityEntity,
 		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
 		&i.OperatingEntityName,
@@ -1887,8 +1888,9 @@ JOIN LATERAL (
    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
 ) party ON true
-JOIN bob_objects operating ON operating.id=COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN dcl_subjects operating ON operating.id=COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 WHERE object.id=$2 AND object.entity=$1
 `
 
@@ -1898,15 +1900,15 @@ type GetDCLRelationshipIdentityParams struct {
 }
 
 type GetDCLRelationshipIdentityRow struct {
-	ObjectID            string `db:"object_id" json:"object_id"`
-	Code                string `db:"code" json:"code"`
-	ObjectRevision      int64  `db:"object_revision" json:"object_revision"`
-	PartyID             string `db:"party_id" json:"party_id"`
-	PartyKind           string `db:"party_kind" json:"party_kind"`
-	DisplayName         string `db:"display_name" json:"display_name"`
-	OperatingEntityID   string `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode string `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName string `db:"operating_entity_name" json:"operating_entity_name"`
+	ObjectID            string  `db:"object_id" json:"object_id"`
+	Code                string  `db:"code" json:"code"`
+	ObjectRevision      int64   `db:"object_revision" json:"object_revision"`
+	PartyID             string  `db:"party_id" json:"party_id"`
+	PartyKind           string  `db:"party_kind" json:"party_kind"`
+	DisplayName         string  `db:"display_name" json:"display_name"`
+	OperatingEntityID   string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode *string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName string  `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
 func (q *Queries) GetDCLRelationshipIdentity(ctx context.Context, arg GetDCLRelationshipIdentityParams) (GetDCLRelationshipIdentityRow, error) {
@@ -1947,7 +1949,7 @@ func (q *Queries) GetDCLSalesPartnerVersion(ctx context.Context, approvalEntryID
 }
 
 const getDCLSubject = `-- name: GetDCLSubject :one
-SELECT id, entity, created_at, created_by
+SELECT id, entity, code, created_at, created_by
 FROM dcl_subjects
 WHERE id=$1 AND entity=$2
 `
@@ -1963,6 +1965,7 @@ func (q *Queries) GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (D
 	err := row.Scan(
 		&i.ID,
 		&i.Entity,
+		&i.Code,
 		&i.CreatedAt,
 		&i.CreatedBy,
 	)
@@ -1984,8 +1987,9 @@ JOIN LATERAL (
   ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
   LIMIT 1
 ) party ON true
-JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 WHERE snapshot.approval_entry_id=$1 AND relationship.merged_into_object_id IS NULL
 `
 
@@ -2015,7 +2019,7 @@ type GetDCLSupplierVersionRow struct {
 	PartyKind                               string  `db:"party_kind" json:"party_kind"`
 	DisplayName                             string  `db:"display_name" json:"display_name"`
 	OperatingEntityID                       string  `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode                     string  `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityCode                     *string `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName                     string  `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
@@ -2584,20 +2588,26 @@ func (q *Queries) InsertDCLSalesPartnerVersion(ctx context.Context, arg InsertDC
 
 const insertDCLSubject = `-- name: InsertDCLSubject :exec
 
-INSERT INTO dcl_subjects(id, entity, created_by)
-VALUES($1, $2, $3)
+INSERT INTO dcl_subjects(id, entity, code, created_by)
+VALUES($1, $2, $3, $4)
 `
 
 type InsertDCLSubjectParams struct {
-	ID      string `db:"id" json:"id"`
-	Entity  string `db:"entity" json:"entity"`
-	ActorID string `db:"actor_id" json:"actor_id"`
+	ID      string  `db:"id" json:"id"`
+	Entity  string  `db:"entity" json:"entity"`
+	Code    *string `db:"code" json:"code"`
+	ActorID string  `db:"actor_id" json:"actor_id"`
 }
 
 // DCL keeps one stable subject and one typed full snapshot per central
 // Approval Version.  It deliberately stores no current/base/next pointer.
 func (q *Queries) InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectParams) error {
-	_, err := q.db.Exec(ctx, insertDCLSubject, arg.ID, arg.Entity, arg.ActorID)
+	_, err := q.db.Exec(ctx, insertDCLSubject,
+		arg.ID,
+		arg.Entity,
+		arg.Code,
+		arg.ActorID,
+	)
 	return err
 }
 
@@ -3127,9 +3137,10 @@ JOIN LATERAL (
   ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC
   LIMIT 1
 ) party ON true
-JOIN bob_objects operating ON operating.id=relationship.operating_entity_id
+JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id
   AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 LEFT JOIN LATERAL (
   SELECT id,status,version_no,updated_at FROM approval_entries
   WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id
@@ -3181,7 +3192,7 @@ type ListDCLEmployeesRow struct {
 	PartyKind             string             `db:"party_kind" json:"party_kind"`
 	DisplayName           string             `db:"display_name" json:"display_name"`
 	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityCode   *string            `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
 	Enabled               bool               `db:"enabled" json:"enabled"`
 	LatestApprovedEntryID string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
@@ -3286,7 +3297,7 @@ func (q *Queries) ListDCLFundAccountApprovalEvents(ctx context.Context, arg List
 }
 
 const listDCLFundAccounts = `-- name: ListDCLFundAccounts :many
-SELECT o.id object_id,o.code,o.revision object_revision,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s JOIN bob_objects o ON o.id=s.id AND o.entity=s.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_fund_account_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='fund-account' AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) ORDER BY CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $4::text='code' AND $5::text='asc' THEN o.code END ASC, CASE WHEN $4::text='code' AND $5::text='desc' THEN o.code END DESC, CASE WHEN $4::text='name' AND $5::text='asc' THEN d.name END ASC, CASE WHEN $4::text='name' AND $5::text='desc' THEN d.name END DESC, CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, o.id DESC LIMIT $7 OFFSET $6
+SELECT s.id object_id,s.code,0::bigint object_revision,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_fund_account_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='fund-account' AND ($1::text='' OR s.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) ORDER BY CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $4::text='code' AND $5::text='asc' THEN s.code END ASC, CASE WHEN $4::text='code' AND $5::text='desc' THEN s.code END DESC, CASE WHEN $4::text='name' AND $5::text='asc' THEN d.name END ASC, CASE WHEN $4::text='name' AND $5::text='desc' THEN d.name END DESC, CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, s.id DESC LIMIT $7 OFFSET $6
 `
 
 type ListDCLFundAccountsParams struct {
@@ -3301,7 +3312,7 @@ type ListDCLFundAccountsParams struct {
 
 type ListDCLFundAccountsRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -3346,12 +3357,11 @@ func (q *Queries) ListDCLFundAccounts(ctx context.Context, arg ListDCLFundAccoun
 }
 
 const listDCLOperatingEntities = `-- name: ListDCLOperatingEntities :many
-SELECT object.id AS object_id, object.code, object.revision AS object_revision,
+SELECT subject.id AS object_id, subject.code, 0::bigint AS object_revision,
        display.enabled, COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
        COALESCE(approved.id,'')::text AS approved_entry_id,
        COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
 LEFT JOIN LATERAL (
   SELECT entry.id, entry.status, entry.version_no, entry.updated_at
   FROM approval_entries entry
@@ -3369,7 +3379,7 @@ LEFT JOIN LATERAL (
 JOIN dcl_operating_entity_versions display
   ON display.approval_entry_id=COALESCE(candidate.id, approved.id)
 WHERE subject.entity='operating-entity'
-  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
+  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%'
        OR display.legal_name ILIKE '%'||$1::text||'%')
   AND ($2::integer=-1 OR display.enabled=($2::integer=1))
   AND (cardinality($3::text[])=0
@@ -3377,15 +3387,15 @@ WHERE subject.entity='operating-entity'
 ORDER BY
   CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
   CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
-  CASE WHEN $4::text='code' AND $5::text='asc' THEN object.code END ASC,
-  CASE WHEN $4::text='code' AND $5::text='desc' THEN object.code END DESC,
+  CASE WHEN $4::text='code' AND $5::text='asc' THEN subject.code END ASC,
+  CASE WHEN $4::text='code' AND $5::text='desc' THEN subject.code END DESC,
   CASE WHEN $4::text='name' AND $5::text='asc' THEN display.legal_name END ASC,
   CASE WHEN $4::text='name' AND $5::text='desc' THEN display.legal_name END DESC,
   CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(candidate.status,approved.status) END ASC,
   CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(candidate.status,approved.status) END DESC,
   CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(candidate.version_no,approved.version_no) END ASC,
   CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(candidate.version_no,approved.version_no) END DESC,
-  object.id DESC
+  subject.id DESC
 LIMIT $7 OFFSET $6
 `
 
@@ -3401,7 +3411,7 @@ type ListDCLOperatingEntitiesParams struct {
 
 type ListDCLOperatingEntitiesRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -3831,7 +3841,7 @@ func (q *Queries) ListDCLProductApprovalEvents(ctx context.Context, arg ListDCLP
 }
 
 const listDCLProducts = `-- name: ListDCLProducts :many
-SELECT o.id object_id,o.code,o.revision object_revision,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s JOIN bob_objects o ON o.id=s.id AND o.entity=s.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_product_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='product' AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) AND ($4::text='' OR d.product_type_id=$4::text) AND ($5::text='' OR d.category_id=$5::text) ORDER BY CASE WHEN $6::text='updatedAt' AND $7::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $6::text='updatedAt' AND $7::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $6::text='code' AND $7::text='asc' THEN o.code END ASC, CASE WHEN $6::text='code' AND $7::text='desc' THEN o.code END DESC, CASE WHEN $6::text='name' AND $7::text='asc' THEN d.name END ASC, CASE WHEN $6::text='name' AND $7::text='desc' THEN d.name END DESC, CASE WHEN $6::text='status' AND $7::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $6::text='status' AND $7::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $6::text='version' AND $7::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $6::text='version' AND $7::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, o.id DESC LIMIT $9 OFFSET $8
+SELECT s.id object_id,s.code,0::bigint object_revision,d.enabled,COALESCE(c.updated_at,a.updated_at) updated_at,COALESCE(a.id,'')::text approved_entry_id,COALESCE(c.id,'')::text open_entry_id FROM dcl_subjects s LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) c ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=s.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) a ON true JOIN dcl_product_versions d ON d.approval_entry_id=COALESCE(c.id,a.id) WHERE s.entity='product' AND ($1::text='' OR s.code ILIKE '%'||$1::text||'%' OR d.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR d.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(c.status,a.status)=ANY($3::text[])) AND ($4::text='' OR d.product_type_id=$4::text) AND ($5::text='' OR d.category_id=$5::text) ORDER BY CASE WHEN $6::text='updatedAt' AND $7::text='asc' THEN COALESCE(c.updated_at,a.updated_at) END ASC, CASE WHEN $6::text='updatedAt' AND $7::text='desc' THEN COALESCE(c.updated_at,a.updated_at) END DESC, CASE WHEN $6::text='code' AND $7::text='asc' THEN s.code END ASC, CASE WHEN $6::text='code' AND $7::text='desc' THEN s.code END DESC, CASE WHEN $6::text='name' AND $7::text='asc' THEN d.name END ASC, CASE WHEN $6::text='name' AND $7::text='desc' THEN d.name END DESC, CASE WHEN $6::text='status' AND $7::text='asc' THEN COALESCE(c.status,a.status) END ASC, CASE WHEN $6::text='status' AND $7::text='desc' THEN COALESCE(c.status,a.status) END DESC, CASE WHEN $6::text='version' AND $7::text='asc' THEN COALESCE(c.version_no,a.version_no) END ASC, CASE WHEN $6::text='version' AND $7::text='desc' THEN COALESCE(c.version_no,a.version_no) END DESC, s.id DESC LIMIT $9 OFFSET $8
 `
 
 type ListDCLProductsParams struct {
@@ -3848,7 +3858,7 @@ type ListDCLProductsParams struct {
 
 type ListDCLProductsRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -3967,8 +3977,9 @@ JOIN LATERAL (
    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
 ) party ON true
-JOIN bob_objects operating ON operating.id=COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN dcl_subjects operating ON operating.id=COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
 LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity=$1 AND ($2::text='' OR object.code ILIKE '%'||$2::text||'%' OR party.display_name ILIKE '%'||$2::text||'%')
@@ -3996,7 +4007,7 @@ type ListDCLRelationshipsRow struct {
 	PartyKind           string             `db:"party_kind" json:"party_kind"`
 	DisplayName         string             `db:"display_name" json:"display_name"`
 	OperatingEntityID   string             `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityCode *string            `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName string             `db:"operating_entity_name" json:"operating_entity_name"`
 	Enabled             bool               `db:"enabled" json:"enabled"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -4104,8 +4115,9 @@ JOIN LATERAL (
     AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
   ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
 ) party ON true
-JOIN bob_objects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
-JOIN bob_operating_entities operating_current ON operating_current.object_id=operating.id
+JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity'
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
+JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
 JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
@@ -4132,7 +4144,7 @@ type ListDCLSuppliersRow struct {
 	PartyKind             string             `db:"party_kind" json:"party_kind"`
 	DisplayName           string             `db:"display_name" json:"display_name"`
 	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityCode   *string            `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
 	Enabled               bool               `db:"enabled" json:"enabled"`
 	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -4230,19 +4242,19 @@ func (q *Queries) ListDCLVehicleApprovalEvents(ctx context.Context, arg ListDCLV
 }
 
 const listDCLVehicles = `-- name: ListDCLVehicles :many
-SELECT object.id AS object_id,object.code,object.revision AS object_revision,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_vehicle_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='vehicle' AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%' OR display.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
+SELECT subject.id AS object_id,subject.code,0::bigint AS object_revision,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_vehicle_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='vehicle' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%' OR display.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
 ORDER BY
  CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
  CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
- CASE WHEN $4::text='code' AND $5::text='asc' THEN object.code END ASC,
- CASE WHEN $4::text='code' AND $5::text='desc' THEN object.code END DESC,
+ CASE WHEN $4::text='code' AND $5::text='asc' THEN subject.code END ASC,
+ CASE WHEN $4::text='code' AND $5::text='desc' THEN subject.code END DESC,
  CASE WHEN $4::text='name' AND $5::text='asc' THEN display.name END ASC,
  CASE WHEN $4::text='name' AND $5::text='desc' THEN display.name END DESC,
  CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(candidate.status,approved.status) END ASC,
  CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(candidate.status,approved.status) END DESC,
  CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(candidate.version_no,approved.version_no) END ASC,
  CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(candidate.version_no,approved.version_no) END DESC,
- object.id DESC LIMIT $7 OFFSET $6
+ subject.id DESC LIMIT $7 OFFSET $6
 `
 
 type ListDCLVehiclesParams struct {
@@ -4257,7 +4269,7 @@ type ListDCLVehiclesParams struct {
 
 type ListDCLVehiclesRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -4350,11 +4362,10 @@ func (q *Queries) ListDCLWarehouseApprovalEvents(ctx context.Context, arg ListDC
 }
 
 const listDCLWarehouses = `-- name: ListDCLWarehouses :many
-SELECT object.id AS object_id,object.code,object.revision AS object_revision,display.enabled,
+SELECT subject.id AS object_id,subject.code,0::bigint AS object_revision,display.enabled,
  COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
  COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
-JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
  WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
  ORDER BY version_no DESC LIMIT 1) candidate ON true
@@ -4363,21 +4374,21 @@ LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
  ORDER BY version_no DESC LIMIT 1) approved ON true
 JOIN dcl_warehouse_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity='warehouse'
- AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%')
+ AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%')
  AND ($2::integer=-1 OR display.enabled=($2::integer=1))
  AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
 ORDER BY
  CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
  CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
- CASE WHEN $4::text='code' AND $5::text='asc' THEN object.code END ASC,
- CASE WHEN $4::text='code' AND $5::text='desc' THEN object.code END DESC,
+ CASE WHEN $4::text='code' AND $5::text='asc' THEN subject.code END ASC,
+ CASE WHEN $4::text='code' AND $5::text='desc' THEN subject.code END DESC,
  CASE WHEN $4::text='name' AND $5::text='asc' THEN display.name END ASC,
  CASE WHEN $4::text='name' AND $5::text='desc' THEN display.name END DESC,
  CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(candidate.status,approved.status) END ASC,
  CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(candidate.status,approved.status) END DESC,
  CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(candidate.version_no,approved.version_no) END ASC,
  CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(candidate.version_no,approved.version_no) END DESC,
- object.id DESC LIMIT $7 OFFSET $6
+ subject.id DESC LIMIT $7 OFFSET $6
 `
 
 type ListDCLWarehousesParams struct {
@@ -4392,7 +4403,7 @@ type ListDCLWarehousesParams struct {
 
 type ListDCLWarehousesRow struct {
 	ObjectID        string             `db:"object_id" json:"object_id"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -4708,6 +4719,31 @@ func (q *Queries) LockDCLProductBarcodeClaims(ctx context.Context) error {
 	return err
 }
 
+const lockDCLSubject = `-- name: LockDCLSubject :one
+SELECT id, entity, code, created_at, created_by
+FROM dcl_subjects
+WHERE id=$1 AND entity=$2
+FOR UPDATE
+`
+
+type LockDCLSubjectParams struct {
+	ID     string `db:"id" json:"id"`
+	Entity string `db:"entity" json:"entity"`
+}
+
+func (q *Queries) LockDCLSubject(ctx context.Context, arg LockDCLSubjectParams) (DclSubject, error) {
+	row := q.db.QueryRow(ctx, lockDCLSubject, arg.ID, arg.Entity)
+	var i DclSubject
+	err := row.Scan(
+		&i.ID,
+		&i.Entity,
+		&i.Code,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
 const lockDCLVehicleIdentifierClaims = `-- name: LockDCLVehicleIdentifierClaims :exec
 SELECT pg_advisory_xact_lock(74155002)
 `
@@ -4715,6 +4751,22 @@ SELECT pg_advisory_xact_lock(74155002)
 func (q *Queries) LockDCLVehicleIdentifierClaims(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, lockDCLVehicleIdentifierClaims)
 	return err
+}
+
+const nextDCLSubjectCode = `-- name: NextDCLSubjectCode :one
+INSERT INTO object_number_counters (domain, entity, last_value)
+VALUES ('dcl', $1, 1)
+ON CONFLICT (domain, entity)
+DO UPDATE SET last_value = object_number_counters.last_value + 1
+WHERE object_number_counters.last_value < 9999
+RETURNING last_value
+`
+
+func (q *Queries) NextDCLSubjectCode(ctx context.Context, entity string) (int32, error) {
+	row := q.db.QueryRow(ctx, nextDCLSubjectCode, entity)
+	var last_value int32
+	err := row.Scan(&last_value)
+	return last_value, err
 }
 
 const nextDclRptDefinitionCode = `-- name: NextDclRptDefinitionCode :one

@@ -562,25 +562,6 @@ type BobEmploymentRelationship struct {
 	CreatedBy             string             `db:"created_by" json:"created_by"`
 }
 
-type BobFundAccount struct {
-	ObjectID                       string             `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	Name                           string             `db:"name" json:"name"`
-	Currency                       string             `db:"currency" json:"currency"`
-	AccountName                    *string            `db:"account_name" json:"account_name"`
-	BankName                       *string            `db:"bank_name" json:"bank_name"`
-	BankBranch                     *string            `db:"bank_branch" json:"bank_branch"`
-	AccountNumber                  *string            `db:"account_number" json:"account_number"`
-	Remark                         *string            `db:"remark" json:"remark"`
-	OperatingEntityID              string             `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityApprovalEntryID string             `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode            string             `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName            string             `db:"operating_entity_name" json:"operating_entity_name"`
-	Enabled                        bool               `db:"enabled" json:"enabled"`
-	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
-}
-
 type BobObject struct {
 	ID        string             `db:"id" json:"id"`
 	Entity    string             `db:"entity" json:"entity"`
@@ -591,20 +572,6 @@ type BobObject struct {
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy string             `db:"updated_by" json:"updated_by"`
 	Enabled   bool               `db:"enabled" json:"enabled"`
-}
-
-type BobOperatingEntity struct {
-	ObjectID              string             `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	LegalName             string             `db:"legal_name" json:"legal_name"`
-	ShortName             *string            `db:"short_name" json:"short_name"`
-	TaxNumber             *string            `db:"tax_number" json:"tax_number"`
-	Address               *string            `db:"address" json:"address"`
-	Phone                 *string            `db:"phone" json:"phone"`
-	Remark                *string            `db:"remark" json:"remark"`
-	Enabled               bool               `db:"enabled" json:"enabled"`
-	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
 }
 
 type BobOtherUnit struct {
@@ -678,22 +645,15 @@ type BobPartyRelationshipEndpoint struct {
 }
 
 type BobPartyRelationshipMergeEvent struct {
-	ID                string             `db:"id" json:"id"`
-	MergeEventID      string             `db:"merge_event_id" json:"merge_event_id"`
-	RelationshipType  string             `db:"relationship_type" json:"relationship_type"`
-	SourceObjectID    string             `db:"source_object_id" json:"source_object_id"`
-	TargetObjectID    *string            `db:"target_object_id" json:"target_object_id"`
-	OperatingEntityID string             `db:"operating_entity_id" json:"operating_entity_id"`
-	Action            string             `db:"action" json:"action"`
-	OccurredAt        pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-}
-
-type BobProduct struct {
-	ObjectID              string             `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	Enabled               bool               `db:"enabled" json:"enabled"`
-	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy             string             `db:"updated_by" json:"updated_by"`
+	ID                    string             `db:"id" json:"id"`
+	MergeEventID          string             `db:"merge_event_id" json:"merge_event_id"`
+	RelationshipType      string             `db:"relationship_type" json:"relationship_type"`
+	SourceObjectID        string             `db:"source_object_id" json:"source_object_id"`
+	TargetObjectID        *string            `db:"target_object_id" json:"target_object_id"`
+	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityEntity string             `db:"operating_entity_entity" json:"operating_entity_entity"`
+	Action                string             `db:"action" json:"action"`
+	OccurredAt            pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 }
 
 type BobSalesPartner struct {
@@ -746,45 +706,6 @@ type BobSupplierRelationship struct {
 	MergedAt              pgtype.Timestamptz `db:"merged_at" json:"merged_at"`
 	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy             string             `db:"created_by" json:"created_by"`
-}
-
-type BobVehicle struct {
-	ObjectID                                  string             `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID                     string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	Name                                      string             `db:"name" json:"name"`
-	PlateNumber                               string             `db:"plate_number" json:"plate_number"`
-	VehicleType                               string             `db:"vehicle_type" json:"vehicle_type"`
-	VehicleTypeObjectID                       string             `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeName                           string             `db:"vehicle_type_name" json:"vehicle_type_name"`
-	Vin                                       *string            `db:"vin" json:"vin"`
-	EngineNumber                              *string            `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric     `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string            `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string             `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string            `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string            `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string            `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string            `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool               `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
-	Enabled                                   bool               `db:"enabled" json:"enabled"`
-	UpdatedAt                                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy                                 string             `db:"updated_by" json:"updated_by"`
-}
-
-type BobWarehouse struct {
-	ObjectID                       string             `db:"object_id" json:"object_id"`
-	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	CategoryID                     *string            `db:"category_id" json:"category_id"`
-	Name                           string             `db:"name" json:"name"`
-	Address                        *string            `db:"address" json:"address"`
-	ContactName                    *string            `db:"contact_name" json:"contact_name"`
-	ContactPhone                   *string            `db:"contact_phone" json:"contact_phone"`
-	ManagerEmployeeID              *string            `db:"manager_employee_id" json:"manager_employee_id"`
-	ManagerEmployeeApprovalEntryID *string            `db:"manager_employee_approval_entry_id" json:"manager_employee_approval_entry_id"`
-	Remark                         *string            `db:"remark" json:"remark"`
-	Enabled                        bool               `db:"enabled" json:"enabled"`
-	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
 }
 
 type DclAccMappingVersion struct {
@@ -922,6 +843,7 @@ type DclEmployeeVersion struct {
 type DclFundAccountIdentifierClaim struct {
 	NormalizedAccountNumber string  `db:"normalized_account_number" json:"normalized_account_number"`
 	ObjectID                string  `db:"object_id" json:"object_id"`
+	ObjectEntity            string  `db:"object_entity" json:"object_entity"`
 	ApprovedEntryID         *string `db:"approved_entry_id" json:"approved_entry_id"`
 	OpenEntryID             *string `db:"open_entry_id" json:"open_entry_id"`
 }
@@ -937,6 +859,7 @@ type DclFundAccountVersion struct {
 	AccountNumber                  *string `db:"account_number" json:"account_number"`
 	Remark                         *string `db:"remark" json:"remark"`
 	OperatingEntityID              string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityEntity          string  `db:"operating_entity_entity" json:"operating_entity_entity"`
 	OperatingEntityApprovalEntryID string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
 	OperatingEntityCode            string  `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName            string  `db:"operating_entity_name" json:"operating_entity_name"`
@@ -1003,6 +926,7 @@ type DclPartyVersionIdentifier struct {
 type DclProductBarcodeClaim struct {
 	NormalizedBarcode string  `db:"normalized_barcode" json:"normalized_barcode"`
 	ObjectID          string  `db:"object_id" json:"object_id"`
+	ObjectEntity      string  `db:"object_entity" json:"object_entity"`
 	ApprovedEntryID   *string `db:"approved_entry_id" json:"approved_entry_id"`
 	OpenEntryID       *string `db:"open_entry_id" json:"open_entry_id"`
 }
@@ -1022,6 +946,7 @@ type DclProductFormulaLine struct {
 	ProductApprovalEntryID   string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
 	LineNo                   int32  `db:"line_no" json:"line_no"`
 	MaterialObjectID         string `db:"material_object_id" json:"material_object_id"`
+	MaterialEntity           string `db:"material_entity" json:"material_entity"`
 	MaterialApprovalEntryID  string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
 	BaseQuantityMicros       int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
 	EnteredQuantityMicros    int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
@@ -1103,6 +1028,7 @@ type DclSalesPartnerVersion struct {
 type DclSubject struct {
 	ID        string             `db:"id" json:"id"`
 	Entity    string             `db:"entity" json:"entity"`
+	Code      *string            `db:"code" json:"code"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy string             `db:"created_by" json:"created_by"`
 }
@@ -1135,6 +1061,7 @@ type DclVehicleIdentifierClaim struct {
 	IdentifierKind  string  `db:"identifier_kind" json:"identifier_kind"`
 	NormalizedValue string  `db:"normalized_value" json:"normalized_value"`
 	ObjectID        string  `db:"object_id" json:"object_id"`
+	ObjectEntity    string  `db:"object_entity" json:"object_entity"`
 	ApprovedEntryID *string `db:"approved_entry_id" json:"approved_entry_id"`
 	OpenEntryID     *string `db:"open_entry_id" json:"open_entry_id"`
 }

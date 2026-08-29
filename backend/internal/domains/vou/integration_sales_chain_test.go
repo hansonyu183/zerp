@@ -503,8 +503,8 @@ func TestSaleDeliveryExactVehicleSnapshotBlocksDCLUnapproveIntegration(t *testin
 		t.Fatalf("get DCL vehicle before unapprove: %v", err)
 	}
 	var currentEntryBefore string
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_vehicles WHERE object_id=$1`, refs.vehicle.ObjectID).Scan(&currentEntryBefore); err != nil {
-		t.Fatalf("read BOB vehicle current before blocked unapprove: %v", err)
+	if err = pool.QueryRow(t.Context(), `SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status='APPROVED' ORDER BY version_no DESC LIMIT 1`, refs.vehicle.ObjectID).Scan(&currentEntryBefore); err != nil {
+		t.Fatalf("read latest approved vehicle before blocked unapprove: %v", err)
 	}
 
 	_, err = declarations.Unapprove(t.Context(), dcldomain.VehicleReviewInput{
@@ -530,11 +530,11 @@ func TestSaleDeliveryExactVehicleSnapshotBlocksDCLUnapproveIntegration(t *testin
 		t.Fatalf("vehicle approval changed after blocked unapprove: before=%+v after=%+v", vehicle.Approval, vehicleAfter.Approval)
 	}
 	var currentEntryAfter string
-	if err = pool.QueryRow(t.Context(), `SELECT source_approval_entry_id FROM bob_vehicles WHERE object_id=$1`, refs.vehicle.ObjectID).Scan(&currentEntryAfter); err != nil {
-		t.Fatalf("read BOB vehicle current after blocked unapprove: %v", err)
+	if err = pool.QueryRow(t.Context(), `SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status='APPROVED' ORDER BY version_no DESC LIMIT 1`, refs.vehicle.ObjectID).Scan(&currentEntryAfter); err != nil {
+		t.Fatalf("read latest approved vehicle after blocked unapprove: %v", err)
 	}
 	if currentEntryAfter != currentEntryBefore || currentEntryAfter != vehicle.Approval.ApprovalEntryID {
-		t.Fatalf("BOB vehicle current changed after blocked unapprove: before=%s after=%s", currentEntryBefore, currentEntryAfter)
+		t.Fatalf("latest approved vehicle changed after blocked unapprove: before=%s after=%s", currentEntryBefore, currentEntryAfter)
 	}
 	deliveryAfter, err := vouService.Get(t.Context(), EntitySaleDelivery, GetInput{DocumentID: delivery.DocumentID})
 	if err != nil {

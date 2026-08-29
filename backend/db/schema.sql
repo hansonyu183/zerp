@@ -1166,10 +1166,13 @@ COMMENT ON INDEX public.approval_entries_latest_approved_idx IS
 CREATE TABLE public.dcl_subjects (
     id character varying(26) NOT NULL,
     entity character varying(64) NOT NULL,
+    code character varying(64),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
+    CONSTRAINT dcl_subjects_code_check CHECK ((code IS NULL) OR ((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)),
+    CONSTRAINT dcl_subjects_core_code_required_ck CHECK (((entity)::text <> ALL ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying])::text[])) OR code IS NOT NULL),
     CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))
 );
 
@@ -1613,34 +1616,25 @@ CREATE TABLE public.dcl_fund_account_versions (
     account_number character varying(64),
     remark character varying(1000),
     operating_entity_id character varying(26) NOT NULL,
+	operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
     operating_entity_approval_entry_id character varying(26) NOT NULL,
     operating_entity_code character varying(16) NOT NULL,
     operating_entity_name character varying(200) NOT NULL,
     enabled boolean NOT NULL,
     CONSTRAINT dcl_fund_account_versions_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT dcl_fund_account_versions_entity_check CHECK (((entity)::text = 'fund-account'::text)),
+	CONSTRAINT dcl_fund_account_versions_operating_entity_check CHECK (((operating_entity_entity)::text = 'operating-entity'::text)),
     CONSTRAINT dcl_fund_account_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
 );
 
 CREATE TABLE public.dcl_fund_account_identifier_claims (
     normalized_account_number character varying(64) NOT NULL PRIMARY KEY,
     object_id character varying(26) NOT NULL,
+	object_entity character varying(16) DEFAULT 'fund-account'::character varying NOT NULL,
     approved_entry_id character varying(26),
     open_entry_id character varying(26),
-    CONSTRAINT dcl_fund_account_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
-);
-
-CREATE TABLE public.bob_fund_accounts (
-    object_id character varying(26) NOT NULL PRIMARY KEY,
-    source_approval_entry_id character varying(26) NOT NULL UNIQUE,
-    name character varying(200) NOT NULL,
-    currency character varying(3) NOT NULL,
-    account_name character varying(200), bank_name character varying(200), bank_branch character varying(200),
-    account_number character varying(64), remark character varying(1000),
-    operating_entity_id character varying(26) NOT NULL,
-    operating_entity_approval_entry_id character varying(26) NOT NULL,
-    operating_entity_code character varying(16) NOT NULL, operating_entity_name character varying(200) NOT NULL,
-    enabled boolean NOT NULL, updated_at timestamp with time zone DEFAULT now() NOT NULL, updated_by character varying(26) NOT NULL
+	CONSTRAINT dcl_fund_account_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL),
+	CONSTRAINT dcl_fund_account_identifier_claims_object_entity_ck CHECK ((object_entity)::text = 'fund-account'::text)
 );
 
 --
@@ -1658,75 +1652,9 @@ CREATE TABLE public.bob_objects (
     updated_by character varying(26) NOT NULL,
     enabled boolean DEFAULT true NOT NULL,
     CONSTRAINT bob_objects_code_check CHECK (((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)),
-    CONSTRAINT bob_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['customer'::character varying, 'customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying, 'product'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'operating-entity'::character varying])::text[]))),
+    CONSTRAINT bob_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['customer'::character varying, 'customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT bob_objects_revision_check CHECK ((revision >= 1))
 );
-
---
--- Name: bob_operating_entities; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_operating_entities (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    legal_name character varying(200) NOT NULL,
-    short_name character varying(100),
-    tax_number character varying(100),
-    address character varying(500),
-    phone character varying(100),
-    remark character varying(1000),
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_operating_entities_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_operating_entities_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
-    CONSTRAINT bob_operating_entities_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
-);
-
-CREATE TABLE public.bob_warehouses (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    category_id character varying(26),
-    name character varying(200) NOT NULL,
-    address character varying(500),
-    contact_name character varying(100),
-    contact_phone character varying(32),
-    manager_employee_id character varying(26),
-    manager_employee_approval_entry_id character varying(26),
-    remark character varying(1000),
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_warehouses_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_warehouses_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
-    CONSTRAINT bob_warehouses_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
-);
-
-CREATE TABLE public.bob_vehicles (
-    object_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL,
-    name character varying(200) NOT NULL,
-    plate_number character varying(32) NOT NULL,
-    vehicle_type character varying(64) NOT NULL,
-    vehicle_type_object_id character varying(26) NOT NULL,
-    vehicle_type_name character varying(200) NOT NULL,
-    vin character varying(17),
-    engine_number character varying(200),
-    load_capacity_kg numeric(12,3),
-    remark character varying(1000),
-    carrier_affiliation_type character varying(16) NOT NULL,
-    carrier_operating_entity_id character varying(26),
-    carrier_operating_entity_approval_entry_id character varying(26),
-    carrier_service_relationship_object_id character varying(26),
-    carrier_service_relationship_approval_entry_id character varying(26),
-    bulk_liquid_capable boolean DEFAULT false NOT NULL,
-    enabled boolean NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT bob_vehicles_pkey PRIMARY KEY (object_id),
-    CONSTRAINT bob_vehicles_source_approval_entry_id_key UNIQUE (source_approval_entry_id)
-);
-
 
 --
 -- Name: bob_parties; Type: TABLE; Schema: public; Owner: -
@@ -1926,11 +1854,13 @@ CREATE TABLE public.bob_party_relationship_merge_events (
     source_object_id character varying(26) NOT NULL,
     target_object_id character varying(26),
     operating_entity_id character varying(26) CONSTRAINT bob_party_relationship_merge_event_operating_entity_id_not_null NOT NULL,
+	operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
     action character varying(16) NOT NULL,
     occurred_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT bob_party_relationship_merge_events_action_check CHECK (((action)::text = ANY ((ARRAY['TRANSFERRED'::character varying, 'MERGED'::character varying])::text[]))),
     CONSTRAINT bob_party_relationship_merge_events_check CHECK (((((action)::text = 'TRANSFERRED'::text) AND (target_object_id IS NULL)) OR (((action)::text = 'MERGED'::text) AND (target_object_id IS NOT NULL)))),
-    CONSTRAINT bob_party_relationship_merge_events_relationship_type_check CHECK (((relationship_type)::text = ANY ((ARRAY['customer'::character varying, 'supplier'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying])::text[])))
+	CONSTRAINT bob_party_relationship_merge_events_relationship_type_check CHECK (((relationship_type)::text = ANY ((ARRAY['customer'::character varying, 'supplier'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying])::text[]))),
+	CONSTRAINT bob_party_relationship_merge_events_operating_entity_entity_ck CHECK ((operating_entity_entity)::text = 'operating-entity'::text)
 );
 
 
@@ -1942,6 +1872,7 @@ CREATE TABLE public.dcl_product_formula_lines (
     product_approval_entry_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     material_object_id character varying(26) NOT NULL,
+	material_entity character varying(16) DEFAULT 'product'::character varying NOT NULL,
     material_approval_entry_id character varying(26) NOT NULL,
     base_quantity_micros bigint CONSTRAINT dcl_product_formula_lines_quantity_micros_not_null NOT NULL,
     entered_quantity_micros bigint NOT NULL,
@@ -1955,7 +1886,8 @@ CREATE TABLE public.dcl_product_formula_lines (
     CONSTRAINT dcl_product_formula_lines_line_no_check CHECK ((line_no >= 1)),
     CONSTRAINT dcl_product_formula_lines_quantity_micros_check CHECK ((base_quantity_micros > 0)),
     CONSTRAINT dcl_product_formula_lines_quantity_scale_check CHECK (((entered_unit_quantity_scale >= 0) AND (entered_unit_quantity_scale <= 6))),
-    CONSTRAINT dcl_product_formula_lines_resolution_status_check CHECK (((resolution_status)::text = ANY ((ARRAY['CURRENT'::character varying, 'UNRESOLVED'::character varying])::text[])))
+	CONSTRAINT dcl_product_formula_lines_resolution_status_check CHECK (((resolution_status)::text = ANY ((ARRAY['CURRENT'::character varying, 'UNRESOLVED'::character varying])::text[]))),
+	CONSTRAINT dcl_product_formula_lines_material_entity_ck CHECK ((material_entity)::text = 'product'::text)
 );
 
 
@@ -2028,9 +1960,11 @@ CREATE TABLE public.dcl_product_versions (
 CREATE TABLE public.dcl_product_barcode_claims (
     normalized_barcode character varying(64) NOT NULL PRIMARY KEY,
     object_id character varying(26) NOT NULL,
+	object_entity character varying(16) DEFAULT 'product'::character varying NOT NULL,
     approved_entry_id character varying(26),
     open_entry_id character varying(26),
-    CONSTRAINT dcl_product_barcode_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
+	CONSTRAINT dcl_product_barcode_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL),
+	CONSTRAINT dcl_product_barcode_claims_object_entity_ck CHECK ((object_entity)::text = 'product'::text)
 );
 
 
@@ -2078,10 +2012,12 @@ CREATE TABLE public.dcl_vehicle_identifier_claims (
     identifier_kind character varying(8) NOT NULL CHECK (((identifier_kind)::text = ANY ((ARRAY['PLATE'::character varying, 'VIN'::character varying])::text[]))),
     normalized_value character varying(64) NOT NULL CHECK (length(btrim(normalized_value)) > 0),
     object_id character varying(26) NOT NULL,
+	object_entity character varying(16) DEFAULT 'vehicle'::character varying NOT NULL,
     approved_entry_id character varying(26),
     open_entry_id character varying(26),
     CONSTRAINT dcl_vehicle_identifier_claims_pkey PRIMARY KEY (identifier_kind, normalized_value),
-    CONSTRAINT dcl_vehicle_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
+	CONSTRAINT dcl_vehicle_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL),
+	CONSTRAINT dcl_vehicle_identifier_claims_object_entity_ck CHECK ((object_entity)::text = 'vehicle'::text)
 );
 
 
@@ -2093,7 +2029,7 @@ CREATE TABLE public.object_number_counters (
     domain character varying(3) NOT NULL,
     entity character varying(32) NOT NULL,
     last_value integer NOT NULL,
-    CONSTRAINT object_number_counters_domain_check CHECK (((domain)::text = ANY ((ARRAY['bob'::character varying, 'aux'::character varying, 'acc'::character varying])::text[]))),
+    CONSTRAINT object_number_counters_domain_check CHECK (((domain)::text = ANY ((ARRAY['bob'::character varying, 'aux'::character varying, 'acc'::character varying, 'dcl'::character varying])::text[]))),
     CONSTRAINT object_number_counters_last_value_check CHECK (((last_value >= 1) AND (last_value <= 9999)))
 );
 
@@ -7430,17 +7366,17 @@ CREATE UNIQUE INDEX bob_objects_entity_code_uq ON public.bob_objects USING btree
 
 
 --
+-- Name: dcl_subjects_entity_code_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX dcl_subjects_entity_code_uq ON public.dcl_subjects USING btree (entity, upper((code)::text)) WHERE (code IS NOT NULL);
+
+
+--
 -- Name: bob_objects_entity_updated_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX bob_objects_entity_updated_idx ON public.bob_objects USING btree (entity, updated_at DESC, id DESC);
-
-
---
--- Name: bob_operating_entities_tax_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_operating_entities_tax_idx ON public.bob_operating_entities USING btree (upper(btrim((tax_number)::text))) WHERE ((tax_number IS NOT NULL) AND (btrim((tax_number)::text) <> ''::text));
 
 
 --
@@ -7946,12 +7882,6 @@ CREATE CONSTRAINT TRIGGER vou_sale_return_detail_ck AFTER INSERT OR DELETE OR UP
 --
 
 CREATE CONSTRAINT TRIGGER vou_sale_signoff_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.vou_sale_signoff_details DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.vou_validate_document_detail();
-
-CREATE TABLE public.bob_products (
-    object_id character varying(26) NOT NULL PRIMARY KEY REFERENCES public.bob_objects(id) ON DELETE RESTRICT,
-    source_approval_entry_id character varying(26) NOT NULL UNIQUE REFERENCES public.approval_entries(id) ON DELETE RESTRICT,
-    enabled boolean NOT NULL, updated_at timestamp with time zone DEFAULT now() NOT NULL, updated_by character varying(26) NOT NULL
-);
 
 
 --
@@ -8513,7 +8443,7 @@ ALTER TABLE ONLY public.bob_customer_relationships
 --
 
 ALTER TABLE ONLY public.bob_customer_relationships
-    ADD CONSTRAINT bob_customer_relationships_operating_entity_id_operating_e_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_customer_relationships_operating_entity_id_operating_e_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8545,7 +8475,7 @@ ALTER TABLE ONLY public.bob_employment_relationships
 --
 
 ALTER TABLE ONLY public.bob_employment_relationships
-    ADD CONSTRAINT bob_employment_relationships_operating_entity_id_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_employment_relationships_operating_entity_id_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8561,7 +8491,7 @@ ALTER TABLE ONLY public.bob_employment_relationships
 --
 
 ALTER TABLE ONLY public.dcl_fund_account_versions
-    ADD CONSTRAINT dcl_fund_account_operating_object_fk FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT dcl_fund_account_operating_object_fk FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8582,37 +8512,17 @@ ALTER TABLE ONLY public.dcl_fund_account_versions
     ADD CONSTRAINT dcl_fund_account_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
-    ADD CONSTRAINT dcl_fund_account_identifier_claims_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_fund_account_identifier_claims_object_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE CASCADE;
 ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
     ADD CONSTRAINT dcl_fund_account_identifier_claims_approved_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
     ADD CONSTRAINT dcl_fund_account_identifier_claims_open_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_product_barcode_claims
-    ADD CONSTRAINT dcl_product_barcode_claims_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_product_barcode_claims_object_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE CASCADE;
 ALTER TABLE ONLY public.dcl_product_barcode_claims
     ADD CONSTRAINT dcl_product_barcode_claims_approved_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_product_barcode_claims
     ADD CONSTRAINT dcl_product_barcode_claims_open_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_fund_accounts
-    ADD CONSTRAINT bob_fund_accounts_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_fund_accounts
-    ADD CONSTRAINT bob_fund_accounts_source_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_fund_accounts
-    ADD CONSTRAINT bob_fund_accounts_operating_object_fkey FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.bob_fund_accounts
-    ADD CONSTRAINT bob_fund_accounts_operating_version_fkey FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_operating_entities bob_operating_entities_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_operating_entities
-    ADD CONSTRAINT bob_operating_entities_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.bob_operating_entities
-    ADD CONSTRAINT bob_operating_entities_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
 ALTER TABLE ONLY public.dcl_operating_entity_versions
     ADD CONSTRAINT dcl_operating_entity_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
@@ -8730,7 +8640,7 @@ ALTER TABLE ONLY public.bob_party_relationship_merge_events
 --
 
 ALTER TABLE ONLY public.bob_party_relationship_merge_events
-    ADD CONSTRAINT bob_party_relationship_merge_events_operating_entity_id_fkey FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_party_relationship_merge_events_operating_entity_id_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8754,7 +8664,7 @@ ALTER TABLE ONLY public.bob_party_relationship_merge_events
 --
 
 ALTER TABLE ONLY public.dcl_product_formula_lines
-    ADD CONSTRAINT dcl_product_formula_lines_material_object_id_fkey FOREIGN KEY (material_object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT dcl_product_formula_lines_material_object_id_fkey FOREIGN KEY (material_object_id, material_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8827,7 +8737,7 @@ ALTER TABLE ONLY public.bob_sales_relationships
 --
 
 ALTER TABLE ONLY public.bob_sales_relationships
-    ADD CONSTRAINT bob_sales_relationships_operating_entity_id_operating_enti_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_sales_relationships_operating_entity_id_operating_enti_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8860,7 +8770,7 @@ ALTER TABLE ONLY public.bob_service_relationships
 --
 
 ALTER TABLE ONLY public.bob_service_relationships
-    ADD CONSTRAINT bob_service_relationships_operating_entity_id_operating_en_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_service_relationships_operating_entity_id_operating_en_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8892,7 +8802,7 @@ ALTER TABLE ONLY public.bob_supplier_relationships
 --
 
 ALTER TABLE ONLY public.bob_supplier_relationships
-    ADD CONSTRAINT bob_supplier_relationships_operating_entity_id_operating_e_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_supplier_relationships_operating_entity_id_operating_e_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
 
 
 --
@@ -8911,7 +8821,7 @@ ALTER TABLE ONLY public.bob_supplier_relationships
 --
 
 ALTER TABLE ONLY public.dcl_vehicle_versions
-    ADD CONSTRAINT dcl_vehicle_versions_carrier_operating_fk FOREIGN KEY (carrier_operating_entity_id, carrier_operating_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT dcl_vehicle_versions_carrier_operating_fk FOREIGN KEY (carrier_operating_entity_id, carrier_operating_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -8961,20 +8871,8 @@ ALTER TABLE ONLY public.dcl_warehouse_versions
 ALTER TABLE ONLY public.dcl_warehouse_versions
     ADD CONSTRAINT dcl_warehouse_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
-ALTER TABLE ONLY public.bob_warehouses
-    ADD CONSTRAINT bob_warehouses_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.bob_warehouses
-    ADD CONSTRAINT bob_warehouses_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.bob_vehicles
-    ADD CONSTRAINT bob_vehicles_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.bob_vehicles
-    ADD CONSTRAINT bob_vehicles_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
 ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
-    ADD CONSTRAINT dcl_vehicle_identifier_claims_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_vehicle_identifier_claims_object_id_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
     ADD CONSTRAINT dcl_vehicle_identifier_claims_approved_entry_id_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;

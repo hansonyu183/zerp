@@ -17,13 +17,8 @@ import (
 )
 
 type vehicleCurrentWriter interface {
-	ReserveVehicleIdentity(context.Context, pgx.Tx, string) (bobdomain.VehicleIdentity, error)
-	GetVehicleIdentity(context.Context, pgx.Tx, string) (bobdomain.VehicleIdentity, error)
 	ResolveVehicleType(context.Context, pgx.Tx, bobdomain.VehicleData, bool) (bobdomain.VehicleData, error)
 	ResolveVehicleCarrier(context.Context, pgx.Tx, bobdomain.VehicleData, bool) (bobdomain.VehicleData, error)
-	ApplyVehicleCurrent(context.Context, pgx.Tx, string, string, bool, bobdomain.VehicleData, string) (bobdomain.VehicleCurrent, error)
-	RemoveVehicleCurrent(context.Context, pgx.Tx, string, string) (bobdomain.VehicleIdentity, error)
-	DeleteVehicleIdentity(context.Context, pgx.Tx, string, int64) error
 	EnsureVehicleUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 type VehicleService struct {
@@ -49,11 +44,11 @@ func vehicleBobData(d VehicleData) bobdomain.VehicleData {
 func vehicleDCLData(d bobdomain.VehicleData) VehicleData {
 	return VehicleData{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, CarrierAffiliation: d.CarrierAffiliation, BulkLiquidCapable: d.BulkLiquidCapable, VIN: d.VIN, EngineNumber: d.EngineNumber, LoadCapacityKG: d.LoadCapacityKG, Remark: d.Remark}
 }
-func vehiclePayload(i bobdomain.VehicleIdentity, enabled bool, d VehicleData) dclapproval.VehiclePayload {
+func vehiclePayload(i subjectIdentity, enabled bool, d VehicleData) dclapproval.VehiclePayload {
 	return dclapproval.VehiclePayload{SubjectID: i.ObjectID, Code: i.Code, Name: d.Name, Enabled: enabled}
 }
-func vehicleMutation(i bobdomain.VehicleIdentity, enabled bool, e approval.Entry) VehicleMutation {
-	return VehicleMutation{ObjectID: i.ObjectID, ObjectRevision: i.ObjectRevision, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
+func vehicleMutation(i subjectIdentity, enabled bool, e approval.Entry) VehicleMutation {
+	return VehicleMutation{ObjectID: i.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(e)}
 }
 func vehicleInput(i VehicleReviewInput) VehicleVersionInput {
 	return VehicleVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
@@ -72,7 +67,7 @@ func (s *VehicleService) Create(ctx context.Context, in VehicleCreateInput, a ap
 		return VehicleMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	i, err := s.current.ReserveVehicleIdentity(ctx, tx, a.ID())
+	i, err := reserveSubject(ctx, tx, EntityVehicle, "VEH", a.ID())
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
@@ -85,9 +80,6 @@ func (s *VehicleService) Create(ctx context.Context, in VehicleCreateInput, a ap
 		return VehicleMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
-	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: i.ObjectID, Entity: EntityVehicle, ActorID: a.ID()}); err != nil {
-		return VehicleMutation{}, translateError(err)
-	}
 	e, err := s.coordinator.CreateFirstVersion(ctx, tx, i.ObjectID, a, vehiclePayload(i, true, vehicleDCLData(d)))
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
@@ -127,7 +119,7 @@ func (s *VehicleService) Save(ctx context.Context, in VehicleSaveInput, a approv
 		}
 		return VehicleMutation{}, translateError(err)
 	}
-	i, err := s.current.GetVehicleIdentity(ctx, tx, in.ObjectID)
+	i, err := lockSubject(ctx, tx, EntityVehicle, in.ObjectID)
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
@@ -213,7 +205,7 @@ func (s *VehicleService) transition(ctx context.Context, in VehicleVersionInput,
 		}
 		return VehicleMutation{}, translateError(err)
 	}
-	i, err := s.current.GetVehicleIdentity(ctx, tx, in.ObjectID)
+	i, err := lockSubject(ctx, tx, EntityVehicle, in.ObjectID)
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
@@ -248,47 +240,10 @@ func (s *VehicleService) transition(ctx context.Context, in VehicleVersionInput,
 	if err = refreshVehicleIdentifierClaims(ctx, q, in.ObjectID); err != nil {
 		return VehicleMutation{}, err
 	}
-	result := i
-	enabled := stored.Enabled
-	if action == approval.ActionApproved {
-		c, applyErr := s.current.ApplyVehicleCurrent(ctx, tx, in.ObjectID, e.ID, stored.Enabled, d, a.ID())
-		if applyErr != nil {
-			return VehicleMutation{}, translateError(applyErr)
-		}
-		result = c.VehicleIdentity
-		enabled = c.Enabled
-	} else if action == approval.ActionUnapproved {
-		latest, findErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityVehicle, SubjectID: in.ObjectID})
-		if errors.Is(findErr, pgx.ErrNoRows) {
-			removed, removeErr := s.current.RemoveVehicleCurrent(ctx, tx, in.ObjectID, a.ID())
-			if removeErr != nil {
-				return VehicleMutation{}, translateError(removeErr)
-			}
-			result = removed
-			enabled = false
-		} else if findErr == nil {
-			v, loadErr := q.GetDCLVehicleVersion(ctx, latest.ID)
-			if loadErr != nil {
-				return VehicleMutation{}, translateError(loadErr)
-			}
-			fallback, validErr := bobdomain.ValidateVehicleData(vehicleStoredData(v))
-			if validErr != nil {
-				return VehicleMutation{}, translateError(validErr)
-			}
-			c, applyErr := s.current.ApplyVehicleCurrent(ctx, tx, in.ObjectID, latest.ID, v.Enabled, fallback, a.ID())
-			if applyErr != nil {
-				return VehicleMutation{}, translateError(applyErr)
-			}
-			result = c.VehicleIdentity
-			enabled = c.Enabled
-		} else {
-			return VehicleMutation{}, translateError(findErr)
-		}
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
-	return vehicleMutation(result, enabled, e), nil
+	return vehicleMutation(i, stored.Enabled, e), nil
 }
 
 func (s *VehicleService) Delete(ctx context.Context, input VehicleDeleteInput, actor approval.Actor) error {
@@ -303,7 +258,7 @@ func (s *VehicleService) Delete(ctx context.Context, input VehicleDeleteInput, a
 	if err = s.coordinator.LockVersionSubject(ctx, tx, input.ObjectID); err != nil {
 		return translateError(err)
 	}
-	identity, err := s.current.GetVehicleIdentity(ctx, tx, input.ObjectID)
+	identity, err := lockSubject(ctx, tx, EntityVehicle, input.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
@@ -335,9 +290,6 @@ func (s *VehicleService) Delete(ctx context.Context, input VehicleDeleteInput, a
 				deleteErr = errors.New("DCL subject changed")
 			}
 			return translateError(deleteErr)
-		}
-		if err = s.current.DeleteVehicleIdentity(ctx, tx, input.ObjectID, identity.ObjectRevision); err != nil {
-			return translateError(err)
 		}
 	} else if latestErr != nil {
 		return translateError(latestErr)

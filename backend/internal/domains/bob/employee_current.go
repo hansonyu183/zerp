@@ -302,7 +302,7 @@ func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (Objec
 	return ObjectView{
 		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision,
 		Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: employeeDetailFromCurrent(row), UpdatedAt: row.UpdatedAt.Time,
-		Relationship: &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName},
+		Relationship: &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: deref(row.OperatingEntityCode), OperatingEntityName: row.OperatingEntityName},
 	}, nil
 }
 

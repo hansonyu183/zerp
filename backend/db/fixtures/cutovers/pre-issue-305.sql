@@ -9984,7 +9984,7 @@ SELECT rpt_validate_current_reports();
 -- cutover must preserve the stable ID, code, Approval identity/history and the
 -- consumed BOB number-counter value while deleting the duplicate BOB storage.
 INSERT INTO public.dcl_subjects (id, entity, created_at, created_by) VALUES
-    ('01Z30500000000000000000001', 'operating-entity', '2026-08-29 03:00:00+00', '01JAPPSYST3MACTR0000000000');
+    ('01Z30500000000000000000001', 'operating-entity', '2026-08-29 03:05:00+00', '00000000000000000000000000');
 
 INSERT INTO public.approval_entries (
     id, domain, entity, subject_id, version_no, status, revision,

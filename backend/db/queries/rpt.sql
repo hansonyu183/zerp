@@ -29,11 +29,13 @@ WITH current_references AS (
       WHEN 'other-unit' THEN EXISTS (SELECT 1 FROM bob_other_units current WHERE current.object_id=object.id)
       WHEN 'employee' THEN EXISTS (SELECT 1 FROM bob_employees current WHERE current.object_id=object.id)
       WHEN 'sales-partner' THEN EXISTS (SELECT 1 FROM bob_sales_partners current WHERE current.object_id=object.id)
-      WHEN 'product' THEN EXISTS (SELECT 1 FROM bob_products current WHERE current.object_id=object.id)
-      WHEN 'warehouse' THEN EXISTS (SELECT 1 FROM bob_warehouses current WHERE current.object_id=object.id)
-      WHEN 'fund-account' THEN EXISTS (SELECT 1 FROM bob_fund_accounts current WHERE current.object_id=object.id)
       ELSE false
     END
+  UNION ALL
+  SELECT subject.id, subject.code, subject.code AS name
+  FROM dcl_subjects subject
+  JOIN LATERAL (SELECT 1 FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+  WHERE subject.entity=sqlc.arg(entity) AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product')
   UNION ALL
   SELECT object.id, object.code, object.data->>'name' AS name
   FROM aux_objects object

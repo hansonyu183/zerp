@@ -13,7 +13,7 @@
 
 1. 只有 BOB `product/query` 权限时可加载列表；打开详情还必须具有 `product/get` 权限。具有 DCL 写权限不自动授予 BOB 读取权限。
 2. DCL 候选处于草稿、待审、驳回或撤回状态时，BOB 继续显示旧正式版本；候选批准后重新查询显示新 current，反批后回落或消失。
-3. 页面不根据当前 AUX 名称或当前原料版本改写产品已存 snapshot；查询或详情失败时显示业务消息与 `requestId`，不回退 DCL 写 API、旧 BOB lifecycle 或本地假数据。
+3. 页面不根据当前 AUX 名称或当前原料版本改写产品已存 snapshot；查询或详情失败时显示业务消息与 `requestId`，并保留当前页面上下文。
 4. `/bob/product` 可导航至同一 stable ID 的 `/dcl/product`，但所有维护动作都在 DCL 页面完成。
 
 ## 3. 验收场景

@@ -82,7 +82,7 @@ payment-method PMT
 
 `payment-method` 表达客户采用什么付款媒介，不表达何时付款；预付、现结、货到若干天和月结规则仍只属于结算方式。
 
-字段为 `name`、`defaultSalesSurcharge` 和 `description`。对象可配置创建、修改、启停和在未被引用时删除，不把 OIT/KY 的承兑代码或混合字段名固化成协议枚举。`defaultSalesSurcharge` 为非负、最多两位小数的元/kg 定点字符串，默认 `0.00`。
+字段为 `name`、`defaultSalesSurcharge` 和 `description`。对象可配置创建、修改、启停和在未被引用时删除；协议不固化承兑代码或其他混合字段名。`defaultSalesSurcharge` 为非负、最多两位小数的元/kg 定点字符串，默认 `0.00`。
 
 客户选择当前启用的收款方式时，直接把 `paymentMethodId`、`paymentMethodCode`、`paymentMethodName` 和 `paymentMethodSalesSurcharge` 保存进客户版本。来源后续改名、调价或停用均不追溯改变客户；客户显式重新选择时才整体替换。新销售订单默认复制客户快照，制单人可以改选另一当前启用的收款方式，订单保存最终方式和加价快照。
 

@@ -13,7 +13,7 @@
 1. 加载列表、详情与引用候选分别要求 BOB `employee/query`、`employee/get` 与 `employee/reference` 权限；DCL 权限不会隐式授予当前有效资料读取权限。
 2. DCL 候选待审、驳回或撤回期间，BOB 持续显示上一正式版本；批准后显示新 current，反批后显示上一 approved version 或移除 current。
 3. 页面不使用 Party 当前姓名、当前 AUX 名称或当前经营主体资料重写 employee current snapshot，也不在 BOB 内推断审批来源。
-4. 请求失败时显示稳定业务消息与 `requestId`，不回退到 DCL 写 API、旧 BOB lifecycle 或本地假数据。
+4. 请求失败时显示稳定业务消息与 `requestId`，并保留当前页面上下文。
 
 ## 验收场景
 

@@ -225,7 +225,7 @@ _Authority_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额�
 
 **Third-party Intermediary Cost（第三方居间成本）**:
 为不具名第三方居间预留的销售成本。
-_Avoid_: 要求客户资料绑定具名收款方、把 `fd_price` 解释为客户返点、把员工销售提成统称为第三方居间费
+_Avoid_: 要求客户资料绑定具名收款方、把客户优惠或员工销售提成解释为第三方居间成本
 _Authority_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
 
 **Customer Credit Limit（客户信用额度）**:

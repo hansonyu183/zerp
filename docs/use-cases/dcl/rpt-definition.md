@@ -31,6 +31,6 @@
 
 ## 5. 验收场景
 
-1. 全部维护与生命周期请求只发送到 `/dcl/rpt-definition/*`，旧 `/rpt/definition/*` 路径和权限不可达。
+1. 全部维护与生命周期请求只发送到 `/dcl/rpt-definition/*`。
 2. 真实 PostgreSQL 覆盖 V1/V2 正式版本切换与反批回落、VALID/INVALID 独立、最新 INVALID 不回退、runtime audit 身份、草稿删除复号及 subscriber 失败整笔回滚。
 3. 前端覆盖独立 DCL 菜单和 VM、普通 RPT 只读执行面，以及工作台深链进入 DCL。

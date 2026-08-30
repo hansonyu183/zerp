@@ -1670,6 +1670,26 @@ func (q *Queries) RecordSigninFailure(ctx context.Context, arg RecordSigninFailu
 	return i, err
 }
 
+const refreshAppSession = `-- name: RefreshAppSession :execrows
+UPDATE app_sessions SET csrf_token_hash = $1, last_seen_at = now(),
+  idle_expires_at = LEAST($2, absolute_expires_at)
+WHERE id = $3 AND revoked_at IS NULL AND idle_expires_at > now() AND absolute_expires_at > now()
+`
+
+type RefreshAppSessionParams struct {
+	CsrfTokenHash []byte             `db:"csrf_token_hash" json:"csrf_token_hash"`
+	IdleExpiresAt pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
+	ID            string             `db:"id" json:"id"`
+}
+
+func (q *Queries) RefreshAppSession(ctx context.Context, arg RefreshAppSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, refreshAppSession, arg.CsrfTokenHash, arg.IdleExpiresAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const resetAppSystemParameterValue = `-- name: ResetAppSystemParameterValue :one
 UPDATE app_system_parameters
 SET configured_value = default_value,
@@ -1773,26 +1793,6 @@ type RevokeAppUserSessionsParams struct {
 func (q *Queries) RevokeAppUserSessions(ctx context.Context, arg RevokeAppUserSessionsParams) error {
 	_, err := q.db.Exec(ctx, revokeAppUserSessions, arg.Reason, arg.UserID)
 	return err
-}
-
-const rotateAppSessionCSRF = `-- name: RotateAppSessionCSRF :execrows
-UPDATE app_sessions SET csrf_token_hash = $1, last_seen_at = now(),
-  idle_expires_at = LEAST($2, absolute_expires_at)
-WHERE id = $3 AND revoked_at IS NULL AND idle_expires_at > now() AND absolute_expires_at > now()
-`
-
-type RotateAppSessionCSRFParams struct {
-	CsrfTokenHash []byte             `db:"csrf_token_hash" json:"csrf_token_hash"`
-	IdleExpiresAt pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
-	ID            string             `db:"id" json:"id"`
-}
-
-func (q *Queries) RotateAppSessionCSRF(ctx context.Context, arg RotateAppSessionCSRFParams) (int64, error) {
-	result, err := q.db.Exec(ctx, rotateAppSessionCSRF, arg.CsrfTokenHash, arg.IdleExpiresAt, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const setAppRoleStatus = `-- name: SetAppRoleStatus :execrows

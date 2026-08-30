@@ -137,6 +137,7 @@ type SessionResult struct {
 type Principal struct {
 	SessionID              string
 	User                   UserSummary
+	CSRFToken              string
 	CSRFHash               []byte
 	Permissions            []string
 	PasswordChangeRequired bool

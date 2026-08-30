@@ -88,6 +88,11 @@ func newRawToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(value), nil
 }
 
+func sessionCSRFToken(sessionToken string) string {
+	digest := sha256.Sum256([]byte("zerp-session-csrf:" + sessionToken))
+	return base64.RawURLEncoding.EncodeToString(digest[:])
+}
+
 func tokenHash(value string) []byte {
 	digest := sha256.Sum256([]byte(value))
 	return digest[:]

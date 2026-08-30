@@ -803,6 +803,7 @@ type Querier interface {
 	RebuildDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)
 	RecordWorkflowTrialAudit(ctx context.Context, arg RecordWorkflowTrialAuditParams) error
+	RefreshAppSession(ctx context.Context, arg RefreshAppSessionParams) (int64, error)
 	RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error)
 	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
 	ReplaceDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) (int64, error)
@@ -818,7 +819,6 @@ type Querier interface {
 	ReverseAccountingAssetDepreciation(ctx context.Context, arg ReverseAccountingAssetDepreciationParams) error
 	RevokeAppSession(ctx context.Context, arg RevokeAppSessionParams) error
 	RevokeAppUserSessions(ctx context.Context, arg RevokeAppUserSessionsParams) error
-	RotateAppSessionCSRF(ctx context.Context, arg RotateAppSessionCSRFParams) (int64, error)
 	RptDisableUsePermissions(ctx context.Context, arg RptDisableUsePermissionsParams) error
 	RptGetActiveDefinition(ctx context.Context, code string) (RptGetActiveDefinitionRow, error)
 	RptInsertRuntimeAuditEvent(ctx context.Context, arg RptInsertRuntimeAuditEventParams) error

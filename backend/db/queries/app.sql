@@ -45,7 +45,7 @@ JOIN app_users u ON u.id = s.user_id
 LEFT JOIN app_user_profiles p ON p.user_id = u.id
 WHERE s.token_hash = sqlc.arg(token_hash) LIMIT 1;
 
--- name: RotateAppSessionCSRF :execrows
+-- name: RefreshAppSession :execrows
 UPDATE app_sessions SET csrf_token_hash = sqlc.arg(csrf_token_hash), last_seen_at = now(),
   idle_expires_at = LEAST(sqlc.arg(idle_expires_at), absolute_expires_at)
 WHERE id = sqlc.arg(id) AND revoked_at IS NULL AND idle_expires_at > now() AND absolute_expires_at > now();

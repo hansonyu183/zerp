@@ -194,7 +194,7 @@ func currentPrincipal(c *gin.Context) Principal {
 	return Principal{
 		SessionID: principal.SessionID,
 		User:      UserSummary{ID: principal.ActorID, Username: principal.Username, DisplayName: principal.DisplayName, AvatarURL: principal.AvatarURL},
-		CSRFHash:  principal.CSRFHash, Permissions: principal.Permissions,
+		CSRFToken: principal.CSRFToken, CSRFHash: principal.CSRFHash, Permissions: principal.Permissions,
 		PasswordChangeRequired: principal.PasswordChangeRequired,
 		IdleExpires:            principal.IdleExpires, AbsoluteEnds: principal.AbsoluteEnds,
 	}

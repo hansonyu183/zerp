@@ -112,6 +112,25 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 			t.Fatalf("test account %s is not immediately usable", account.username)
 		}
 	}
+	adminSignin, err := seeder.app.Signin(t.Context(), "test-admin", "Admin-password-1!", "verify-test-workbench")
+	if err != nil {
+		t.Fatalf("sign in test administrator for workbench: %v", err)
+	}
+	workbench, err := seeder.app.QueryWorkbench(t.Context(), appdomain.Principal{
+		User: adminSignin.Data.User, Permissions: adminSignin.Data.Permissions,
+	}, appdomain.WorkbenchQueryInput{Category: "BOB", Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("query seeded workbench: %v", err)
+	}
+	foundOtherUnit := false
+	for _, item := range workbench.Items {
+		if item.Entity == "other-unit" {
+			foundOtherUnit = item.Name != ""
+		}
+	}
+	if !foundOtherUnit {
+		t.Fatalf("seeded Other Unit workbench item is missing its display name: %+v", workbench.Items)
+	}
 	userSignin, err := seeder.app.Signin(t.Context(), "test-user", "User-password-1!", "change-test-user-password")
 	if err != nil {
 		t.Fatalf("sign in test user before password change: %v", err)

@@ -27,7 +27,12 @@ async function selectValue(
 ): Promise<void> {
   const input = scope.getByRole('combobox', { name: label, exact: true })
   await input.locator('..').click()
-  await page.getByRole('option', { name: value, exact: true }).click()
+  const menuID = await input.getAttribute('aria-controls')
+  if (!menuID) throw new Error(`${label}选择器未关联候选列表。`)
+  await page
+    .locator(`[id="${menuID}"]`)
+    .getByRole('option', { name: value, exact: true })
+    .click()
 }
 
 async function createProductType(
@@ -156,11 +161,9 @@ async function openProductCreate(page: Page): Promise<Locator> {
     data: { items: Array<{ data: { name?: string } }> }
   }
   expect(String(envelope.code)).toBe('0')
-  expect(
-    envelope.data.items.some(
-      (item) => item.data.name === '千克',
-    ),
-  ).toBe(true)
+  expect(envelope.data.items.some((item) => item.data.name === '千克')).toBe(
+    true,
+  )
   return page.locator('.bob-entity-drawer')
 }
 

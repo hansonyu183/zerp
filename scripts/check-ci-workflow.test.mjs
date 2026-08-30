@@ -6,6 +6,7 @@ const workflowPath = new URL('../.github/workflows/ci.yml', import.meta.url)
 const workflowsDirectory = new URL('../.github/workflows/', import.meta.url)
 const packagePath = new URL('../package.json', import.meta.url)
 const makefilePath = new URL('../Makefile', import.meta.url)
+const composePath = new URL('../compose.yaml', import.meta.url)
 
 function jobBlock(workflow, jobId) {
   const jobs = [...workflow.matchAll(/^  ([a-z0-9-]+):\n/gm)]
@@ -103,4 +104,13 @@ test('the workflow contract is a local gate and disposable resources are always 
       `${jobId} must always remove disposable resources`,
     )
   }
+})
+
+test('PostgreSQL readiness waits for the final TCP server', async () => {
+  const compose = await readFile(composePath, 'utf8')
+
+  assert.match(
+    compose,
+    /pg_isready -h 127\.0\.0\.1 -U \$\$\{POSTGRES_USER\} -d \$\$\{POSTGRES_DB\}/,
+  )
 })

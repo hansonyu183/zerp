@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, reactive, ref } from 'vue'
 import { apiClient, type ApiPostRequest } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import { getErrorMessage } from '@/api/types'
+import { getDiagnosticErrorMessage } from '@/api/types'
 import { localDate } from '@/utils/date'
 import { useSessionStore } from '@/stores/session'
 import {
@@ -269,7 +269,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       total.value = pageResult.total
     } catch (error) {
       if (current === sequence && !controller.signal.aborted)
-        errorMessage.value = getErrorMessage(error)
+        errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       if (current === sequence) loading.value = false
     }
@@ -365,7 +365,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         edit && data.approval.status === 'DRAFT' && actionAvailability.value.save
     } catch (error) {
       if (current === documentLoadSequence && !requestController.signal.aborted)
-        errorMessage.value = getErrorMessage(error)
+        errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       if (current === documentLoadSequence) loading.value = false
       if (documentLoadController === requestController)
@@ -436,7 +436,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       ])
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
       return false
     } finally {
       saving.value = false
@@ -476,7 +476,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         documentView.value.approval = result.data.approval
       }
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       actionLoading.value = null
     }
@@ -496,7 +496,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       await query()
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
       return false
     } finally {
       actionLoading.value = null
@@ -723,7 +723,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       ]
     } catch (error) {
       if (current === heldSequence && !requestController.signal.aborted)
-        errorMessage.value = getErrorMessage(error)
+        errorMessage.value = getDiagnosticErrorMessage(error)
     }
   }
   async function openHeldDialog() {

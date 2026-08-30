@@ -392,6 +392,43 @@ test('applies legacy language checks to current-state documents but not ADRs', (
   assert.doesNotMatch(failures, /docs\/adr\/0046-cutover\.md/)
 })
 
+test('rejects Chinese-qualified old artifacts and original permission tombstones', () => {
+  const failures = validateCurrentStateLegacyLanguage([
+    {
+      file: 'docs/domains/bob.md',
+      source: '旧客户字段\n旧审批实体\n原权限',
+    },
+    {
+      file: 'frontend/AGENTS.md',
+      source: '异步搜索必须防止旧请求覆盖新结果。',
+    },
+    { file: 'docs/adr/0046-history.md', source: '旧客户字段\n原权限' },
+  ]).join('\n')
+
+  assert.match(failures, /docs\/domains\/bob\.md:1/)
+  assert.match(failures, /docs\/domains\/bob\.md:2/)
+  assert.match(failures, /docs\/domains\/bob\.md:3/)
+  assert.doesNotMatch(failures, /frontend\/AGENTS\.md/)
+  assert.doesNotMatch(failures, /docs\/adr\/0046-history\.md/)
+})
+
+test('only exempts the explicit current boundary phrase from legacy checks', () => {
+  const failures = validateCurrentStateLegacyLanguage([
+    {
+      file: 'docs/domains/dcl.md',
+      source: [
+        '不提供 fallback。',
+        '不保留兼容层。',
+        '旧路径清理。',
+        'DCL 不保留兼容层；历史 cutover 从旧表搬迁。',
+      ].join('\n'),
+    },
+  ]).join('\n')
+
+  assert.match(failures, /docs\/domains\/dcl\.md:4/)
+  assert.doesNotMatch(failures, /docs\/domains\/dcl\.md:[1-3]/)
+})
+
 test('protects BOB, AUX, and operations current architecture boundaries', () => {
   const failures = validateCurrentArchitectureAssertions([
     {
@@ -445,6 +482,37 @@ test('protects BOB, AUX, and operations current architecture boundaries', () => 
     ]),
     [],
   )
+})
+
+test('protects BOB writer and candidate boundaries in every current-state document', () => {
+  const failures = validateCurrentArchitectureAssertions([
+    { file: 'CONTEXT.md', source: 'BOB is the writer.' },
+    { file: 'README.md', source: 'BOB manages customer candidates.' },
+    { file: 'AGENTS.md', source: 'BOB 是写入方。' },
+    { file: 'frontend/AGENTS.md', source: 'BOB 创建候选。' },
+    { file: 'docs/agents/guide.md', source: 'BOB is a candidate owner.' },
+    { file: 'docs/domains/dcl.md', source: 'BOB acts as a writer.' },
+    { file: 'docs/use-cases/dcl/customer.md', source: 'BOB 保存候选。' },
+    { file: 'docs/operations/release.md', source: 'BOB owns the writer.' },
+    { file: 'docs/adr/0046-history.md', source: 'BOB is the writer.' },
+  ]).join('\n')
+
+  for (const file of [
+    'CONTEXT.md',
+    'README.md',
+    'AGENTS.md',
+    'frontend/AGENTS.md',
+    'docs/agents/guide.md',
+    'docs/domains/dcl.md',
+    'docs/use-cases/dcl/customer.md',
+  ]) {
+    assert.match(failures, new RegExp(file.replaceAll('.', '\\.')))
+  }
+  assert.match(
+    failures,
+    /docs\/operations\/release\.md:1.*operations 不得将 BOB 列为 writer/,
+  )
+  assert.doesNotMatch(failures, /docs\/adr\/0046-history\.md/)
 })
 
 test('rejects newly missing use cases and stale baseline debt', () => {

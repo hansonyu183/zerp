@@ -13,6 +13,7 @@ type Principal struct {
 	Username               string
 	DisplayName            string
 	AvatarURL              *string
+	CSRFToken              string
 	CSRFHash               []byte
 	Permissions            []string
 	PasswordChangeRequired bool

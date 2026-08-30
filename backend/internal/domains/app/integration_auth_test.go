@@ -22,11 +22,15 @@ func TestAuthenticationAndSessionIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
-	if restored.Data.CSRFToken == signin.Data.CSRFToken {
-		t.Fatal("session restore did not rotate CSRF")
+	if restored.Data.CSRFToken != signin.Data.CSRFToken {
+		t.Fatal("session restore changed the session CSRF token")
 	}
-	if _, err = authorizeForTest(service, t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/app/user/profile", "old-csrf"); !errorIsKind(err, ErrorForbidden) {
-		t.Fatalf("old CSRF error = %v", err)
+	restoredAgain, err := restoreSessionForTest(service, t.Context(), signin.SessionToken)
+	if err != nil || restoredAgain.Data.CSRFToken != signin.Data.CSRFToken {
+		t.Fatalf("repeated restore CSRF = %q, err = %v", restoredAgain.Data.CSRFToken, err)
+	}
+	if _, err = authorizeForTest(service, t.Context(), signin.SessionToken, "wrong-csrf", "/app/user/profile", "wrong-csrf"); !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("wrong CSRF error = %v", err)
 	}
 	principal, err := authorizeForTest(service, t.Context(), signin.SessionToken, restored.Data.CSRFToken, signoutPath, "signout-authorize")
 	if err != nil {
@@ -57,7 +61,7 @@ func TestAuthenticationAndSessionIntegration(t *testing.T) {
 		FROM app_audit_events WHERE event_type = 'AUTHORIZATION_DENIED'
 		ORDER BY created_at DESC LIMIT 1
 	`).Scan(&path, &reason, &requestID)
-	if err != nil || path != "/app/user/profile" || reason != "csrf" || requestID != "old-csrf" {
+	if err != nil || path != "/app/user/profile" || reason != "csrf" || requestID != "wrong-csrf" {
 		t.Fatalf("authorization audit path=%q reason=%q requestID=%q err=%v", path, reason, requestID, err)
 	}
 }

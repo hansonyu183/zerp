@@ -36,7 +36,7 @@ func (a appAuthorizer) AuthenticateSession(ctx context.Context, request *http.Re
 	return authorization.Principal{
 		SessionID: principal.SessionID, ActorID: principal.User.ID,
 		Username: principal.User.Username, DisplayName: principal.User.DisplayName, AvatarURL: principal.User.AvatarURL,
-		CSRFHash: principal.CSRFHash, Permissions: principal.Permissions,
+		CSRFToken: principal.CSRFToken, CSRFHash: principal.CSRFHash, Permissions: principal.Permissions,
 		PasswordChangeRequired: principal.PasswordChangeRequired,
 		IdleExpires:            principal.IdleExpires, AbsoluteEnds: principal.AbsoluteEnds,
 	}, nil
@@ -49,7 +49,7 @@ func (a appAuthorizer) RequirePermission(ctx context.Context, principal authoriz
 			ID: principal.ActorID, Username: principal.Username,
 			DisplayName: principal.DisplayName, AvatarURL: principal.AvatarURL,
 		},
-		CSRFHash: principal.CSRFHash, Permissions: principal.Permissions,
+		CSRFToken: principal.CSRFToken, CSRFHash: principal.CSRFHash, Permissions: principal.Permissions,
 		PasswordChangeRequired: principal.PasswordChangeRequired,
 		IdleExpires:            principal.IdleExpires, AbsoluteEnds: principal.AbsoluteEnds,
 	}, path, requestID)

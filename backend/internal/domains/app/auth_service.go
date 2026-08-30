@@ -76,10 +76,7 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 	if err != nil {
 		return SessionResult{}, s.internal("generate session token", err)
 	}
-	csrfToken, err := newRawToken()
-	if err != nil {
-		return SessionResult{}, s.internal("generate csrf token", err)
-	}
+	csrfToken := sessionCSRFToken(sessionToken)
 	idleEnds := now.Add(s.cfg.SessionIdleTimeout)
 	absoluteEnds := now.Add(s.cfg.SessionAbsoluteTimeout)
 
@@ -120,21 +117,17 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 }
 
 func (s *Service) RestoreSession(ctx context.Context, principal Principal) (SessionResult, error) {
-	csrfToken, err := newRawToken()
-	if err != nil {
-		return SessionResult{}, s.internal("generate csrf token", err)
-	}
 	idleEnds := time.Now().UTC().Add(s.cfg.SessionIdleTimeout)
-	rows, err := s.queries.RotateAppSessionCSRF(ctx, dbsqlc.RotateAppSessionCSRFParams{
-		ID: principal.SessionID, CsrfTokenHash: tokenHash(csrfToken), IdleExpiresAt: timestamptz(idleEnds),
+	rows, err := s.queries.RefreshAppSession(ctx, dbsqlc.RefreshAppSessionParams{
+		ID: principal.SessionID, CsrfTokenHash: tokenHash(principal.CSRFToken), IdleExpiresAt: timestamptz(idleEnds),
 	})
 	if err != nil {
-		return SessionResult{}, s.internal("rotate csrf token", err)
+		return SessionResult{}, s.internal("refresh session", err)
 	}
 	if rows != 1 {
 		return SessionResult{}, domainError(ErrorUnauthenticated, "session expired", nil)
 	}
-	return SessionResult{Data: SessionData{User: principal.User, CSRFToken: csrfToken, Permissions: principal.Permissions,
+	return SessionResult{Data: SessionData{User: principal.User, CSRFToken: principal.CSRFToken, Permissions: principal.Permissions,
 		PasswordChangeRequired: principal.PasswordChangeRequired, PasswordMinLength: s.cfg.PasswordMinLength}, ExpiresAt: principal.AbsoluteEnds}, nil
 }
 
@@ -228,7 +221,8 @@ func (s *Service) loadPrincipal(ctx context.Context, rawToken string) (Principal
 			ID: session.UserID, Username: session.Username,
 			DisplayName: session.DisplayName, AvatarURL: session.AvatarUrl,
 		},
-		CSRFHash: session.CsrfTokenHash, Permissions: permissions, PasswordChangeRequired: session.PasswordChangeRequired,
+		CSRFToken: sessionCSRFToken(rawToken), CSRFHash: session.CsrfTokenHash,
+		Permissions: permissions, PasswordChangeRequired: session.PasswordChangeRequired,
 		IdleExpires: session.IdleExpiresAt.Time, AbsoluteEnds: session.AbsoluteExpiresAt.Time,
 	}, nil
 }

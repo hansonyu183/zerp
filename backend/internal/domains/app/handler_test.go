@@ -63,7 +63,7 @@ func (a handlerAuthorizer) AuthenticateSession(_ context.Context, _ *http.Reques
 	return authorization.Principal{
 		SessionID: principal.SessionID, ActorID: principal.User.ID,
 		Username: principal.User.Username, DisplayName: principal.User.DisplayName, AvatarURL: principal.User.AvatarURL,
-		CSRFHash: principal.CSRFHash, Permissions: principal.Permissions,
+		CSRFToken: principal.CSRFToken, CSRFHash: principal.CSRFHash, Permissions: principal.Permissions,
 		PasswordChangeRequired: principal.PasswordChangeRequired,
 		IdleExpires:            principal.IdleExpires, AbsoluteEnds: principal.AbsoluteEnds,
 	}, nil

@@ -20,6 +20,6 @@
 ## 验收场景
 
 1. BOB 页面不存在创建、保存、启停、提交、撤回、驳回、批准、反批、删除、版本或审计请求。
-2. DCL 批准或反批后，BOB current 原子切换、回落或移除；详情不展示开放候选。
+2. DCL 批准或反批后，BOB 下一次查询按 highest APPROVED 读取新版本、回落版本或不再返回该关系；详情不展示开放候选。
 3. 结算方式展示实际采用的 AUX stable ID 与类型化快照，不展示 AUX Approval Entry；默认采购员展示 DCL stable ID、精确 Approval Entry 与名称快照。后续来源变更不改写已批准供应关系或采购历史。
-4. 供应关系无 supplier category；任何携带废弃类别字段的 cutover 请求由后端拒绝且不产生部分状态。
+4. 供应关系不包含类别字段。

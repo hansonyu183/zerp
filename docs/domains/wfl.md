@@ -10,7 +10,7 @@ WFL 是以 VOU 单据为节点的用户可管理流程引擎。VOU 独立负责�
 
 Starlark 脚本是流程定义的唯一可编辑来源。`node` 声明稳定节点 key、名称和 VOU entity；`edge` 声明具名关系、分支条件和一个静态动作；`workflow` 声明稳定 code、名称、唯一根节点和可选启动条件。编译图只读展示；编译必须得到单根、单父、连通且无环的树，并拒绝重复 key、不兼容来源/目标动作和动态动作调用。
 
-流程定义的 stable subject `wfl-process-definition` 由 `dcl_subjects` 唯一持有 stable ID、code 与创建审计。WFL 只拥有 `wfl_definition_runtime_states(subjectId, enabled, updatedAt, updatedBy)` 这一 typed dependent；版本、实例与子单请求均通过其 subjectId FK 归属同一身份，`wfl_process_definitions`、第二 stable root 和过渡视图均不存在。`/dcl/wfl-process-definition` 是定义唯一维护入口，覆盖创建、保存、创建候选、删除草稿、提交、撤回、驳回、批准、反批、启用、停用、版本历史和审计。WFL 只读取当前定义和 latest APPROVED entry，不提供版本写入、生命周期或候选查询。
+流程定义的 stable subject `wfl-process-definition` 由 `dcl_subjects` 唯一持有 stable ID、code 与创建审计。WFL 以 `wfl_definition_runtime_states(subjectId, enabled, updatedAt, updatedBy)` 保存运行开关，版本、实例与子单请求均通过 subjectId 归属同一身份。`/dcl/wfl-process-definition` 是定义唯一维护入口，覆盖创建、保存、创建候选、删除草稿、提交、撤回、驳回、批准、反批、启用、停用、版本历史和审计。WFL 只读取当前定义和 latest APPROVED entry。
 
 `workflow(code, name, root)` 中的 name 与成功编译图是唯一的版本化名称事实；每个脚本、名称、诊断和编译图属于一个中央 Approval Version entry。`enabled` 是 stable definition 上独立的布尔开关，不是审批状态；不存在 publish、published revision、current revision、stable name 或任何 version pointer。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`。
 
@@ -36,8 +36,8 @@ WFL 复用 VOU 的同步事务事件总线。根单据批准时允许零个或�
 
 新环境由数据库初始化费用、采购和销售三条普通 Starlark DRAFT 定义；它们与管理员定义使用同一表和 API，无系统类型、保护位、隐藏 converter 或专用运行时。默认不启用，不创建实例或业务单据，删除/修改后也不会自动补回。
 
-公开动作、路径和数据结构以 [OpenAPI WFL Schema](../../contracts/openapi/schemas/wfl.yaml) 为准。定义管理的 DCL 权限由 APP 注册；WFL 当前定义只读权限和实例/执行权限独立注册。停用保留既有角色关联，使已有实例仍可查询和运行。定义管理页面已迁入 `/dcl/wfl-process-definition`，WFL 业务页面只暴露当前定义只读查询和流程实例/执行。页面编排见[流程定义用例](../use-cases/wfl/process-definition.md)和[流程实例用例](../use-cases/wfl/process-instance.md)。WFL 结构不按节点 VOU 详情权限裁剪；打开正文和创建下级仍由相应 VOU/WFL 操作精确鉴权。工作项和定义深链进入 DCL 页面。
+公开动作、路径和数据结构以 [OpenAPI WFL Schema](../../contracts/openapi/schemas/wfl.yaml) 为准。定义管理的 DCL 权限由 APP 注册；WFL 当前定义只读权限和实例/执行权限独立注册。停用保留既有角色关联，使已有实例仍可查询和运行。定义管理页面为 `/dcl/wfl-process-definition`，WFL 业务页面只暴露当前定义只读查询和流程实例/执行。页面编排见[流程定义用例](../use-cases/wfl/process-definition.md)和[流程实例用例](../use-cases/wfl/process-instance.md)。WFL 结构不按节点 VOU 详情权限裁剪；打开正文和创建下级仍由相应 VOU/WFL 操作精确鉴权。工作项和定义深链进入 DCL 页面。
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收覆盖 current 定义切换与回落、任一持久化实例精确 `approvalEntryId` blocker、新实例固定 latest APPROVED、既有实例继续固定原 entry、code/name 快照不变、回滚、历史审计身份保留、单/零/多匹配、六个动作、重试、反批准、删除、并发与任一失败全事务回滚，以及旧 WFL 定义写路由与权限不可达。OpenAPI、生成客户端、后端、前端、领域文档和 ADR 只描述这一套模型。
+真实 PostgreSQL 验收覆盖 current 定义切换与回落、任一持久化实例精确 `approvalEntryId` blocker、新实例固定 latest APPROVED、既有实例继续固定原 entry、code/name 快照不变、回滚、历史审计身份保留、单/零/多匹配、六个动作、重试、反批准、删除、并发与任一失败全事务回滚。OpenAPI、生成客户端、后端、前端、领域文档和 ADR 统一描述当前模型。

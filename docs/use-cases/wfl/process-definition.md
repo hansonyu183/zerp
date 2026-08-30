@@ -18,5 +18,5 @@
 ## 3. 异常与验收
 
 1. 不存在 latest APPROVED 时不返回该定义；无权限或读取失败时展示稳定业务消息与 `requestId`。
-2. 浏览器网络记录中不得出现 WFL 定义生命周期路径；WFL handler 墓碑测试证明旧写路由未注册。
+2. 浏览器网络记录中的定义维护请求只使用 DCL 路径。
 3. 真实 PostgreSQL 覆盖候选存在时的 current 可见性与精确 Approval identity；真实 E2E 覆盖只读查询、详情和 DCL 维护深链。

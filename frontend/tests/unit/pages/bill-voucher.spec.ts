@@ -3,6 +3,7 @@ import { effectScope } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import { apiClient } from '@/api/client'
+import { ApiError } from '@/api/types'
 import {
   buildBillPaymentPayload,
   buildBillIssuePayload,
@@ -774,6 +775,27 @@ describe('bill maturity payload', () => {
 })
 
 describe('bill voucher view model behavior', () => {
+  it('keeps the request id in displayed API errors', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/vou/bill-receipt/query'] })
+    mockedPost.mockRejectedValueOnce(
+      new ApiError('business', 'query failed', {
+        code: 3001,
+        errorKey: 'bill_query_failed',
+        requestId: 'REQ-BILL-1',
+      }),
+    )
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-receipt']),
+    )!
+
+    await vm.query()
+
+    expect(vm.errorMessage.value).toContain('请求标识：REQ-BILL-1')
+    scope.stop()
+  })
+
   it('restores the bill receipt list after the clearable keyword emits null', async () => {
     const session = useSessionStore()
     session.$patch({ permissions: ['/vou/bill-receipt/query'] })

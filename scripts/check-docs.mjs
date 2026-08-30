@@ -29,9 +29,9 @@ const LEGACY_EXCEPTION_REASONS = new Set([
   'version-history',
 ])
 const LEGACY_LANGUAGE =
-  /\blegacy\b|\bdeprecated\b|\bfallback\b|(?<!不)兼容(?:层|字段|视图|路径|客户端|数据|迁移)?|旧(?:\s*`?[A-Za-z0-9_.-]+`?)?(?:字段|实体|路径|聚合|生命周期|OIT)|已删除的?\s*(?:实体|路径|聚合|接口)|\bhistorical\s+cutover\b|历史\s*cutover|\bold(?:\s+BOB)?\s+(?:write\s+)?(?:route|path)\b|旧(?:\s*BOB)?\s*(?:写(?:入)?\s*)?(?:路由|路径)|\bhandler\b.{0,40}(?:\btombstone\b|墓碑)|(?:\btombstone\b|墓碑).{0,40}\bhandler\b|\b(?:old|legacy)\s+BOB\s+lifecycle\b|\bBOB\s+(?:old|legacy)\s+lifecycle\b|旧\s*BOB\s*(?:lifecycle|生命周期)|BOB\s*旧\s*(?:lifecycle|生命周期)|\b(?:customer\s+BOB|BOB\s+customer)\s+candidate\b|(?:客户\s*BOB|BOB\s*客户)\s*候选|\bOIT\s*\/\s*KY\b/iu
+  /\blegacy\b|\bdeprecated\b|\bfallback\b|(?<!不)兼容(?:层|字段|视图|路径|客户端|数据|迁移)?|旧(?:\s*(?:`?[A-Za-z0-9_.-]+`?|[\p{Script=Han}]+))?\s*(?:字段|实体|路径|聚合|生命周期|OIT)|原权限|已删除的?\s*(?:实体|路径|聚合|接口)|\bhistorical\s+cutover\b|历史\s*cutover|\bold(?:\s+BOB)?\s+(?:write\s+)?(?:route|path)\b|旧(?:\s+BOB)?\s*(?:写(?:入)?\s*)?(?:路由|路径)|\bhandler\b.{0,40}(?:\btombstone\b|墓碑)|(?:\btombstone\b|墓碑).{0,40}\bhandler\b|\b(?:old|legacy)\s+BOB\s+lifecycle\b|\bBOB\s+(?:old|legacy)\s+lifecycle\b|旧\s*BOB\s*(?:lifecycle|生命周期)|BOB\s*旧\s*(?:lifecycle|生命周期)|\b(?:customer\s+BOB|BOB\s+customer)\s+candidate\b|(?:客户\s*BOB|BOB\s*客户)\s*候选|\bOIT\s*\/\s*KY\b/iu
 const EXPLICIT_CURRENT_BOUNDARY =
-  /(?:不(?:得|进入|引入|保留|提供)|禁止).{0,80}(?:\blegacy\b|\bdeprecated\b|\bfallback\b|兼容)|(?:\blegacy\b|\bdeprecated\b|\bfallback\b|兼容).{0,80}不(?:得|进入|引入|保留|提供)|旧路径清理/iu
+  /(?:不(?:得|进入|引入|保留|提供)|禁止)[^；。\n]{0,80}(?:\blegacy\b|\bdeprecated\b|\bfallback\b|兼容(?:层|字段|视图|路径|客户端|数据|迁移)?)|(?:\blegacy\b|\bdeprecated\b|\bfallback\b|兼容(?:层|字段|视图|路径|客户端|数据|迁移)?)[^；。\n]{0,80}不(?:得|进入|引入|保留|提供)|旧\s*路径清理/giu
 
 function relative(file) {
   return path.relative(root, file)
@@ -369,12 +369,10 @@ export function validateLegacyLanguage(
             marker[2],
         )
       }
-      if (
-        LEGACY_LANGUAGE.test(line) &&
-        !marker &&
-        (!allowExplicitCurrentBoundaries ||
-          !EXPLICIT_CURRENT_BOUNDARY.test(line))
-      ) {
+      const uncheckedLine = allowExplicitCurrentBoundaries
+        ? line.replace(EXPLICIT_CURRENT_BOUNDARY, '')
+        : line
+      if (LEGACY_LANGUAGE.test(uncheckedLine) && !marker) {
         legacyFailures.push(
           `${normalizedFile}:${index + 1} 使用 legacy/旧/兼容语义时必须标注严格例外`,
         )
@@ -397,7 +395,6 @@ export function validateCurrentStateLegacyLanguage(
 
 export function validateCurrentArchitectureAssertions(documents) {
   const architectureFailures = []
-  const bobCurrentDocument = /^docs\/(?:domains\/bob\.md|use-cases\/bob\/)/u
   const bobWriterOrCandidate =
     /\bBOB\b\s+(?:is|are|acts?\s+as|serves\s+as|becomes?)\s+(?:an?\s+|the\s+)?(?:\w+\s+){0,4}(?:writer|candidates?)\b|\bBOB\b\s+(?:creates?|saves?|submits?|manages?|maintains?)\s+(?:\w+\s+){0,4}candidates?\b|BOB\s*(?:是|作为|成为)\s*(?:[\p{L}\p{N}_-]+\s*){0,4}(?:写入方|写服务|候选)|BOB\s*(?:创建|保存|提交|管理|维护)\s*(?:[\p{L}\p{N}_-]+\s*){0,4}候选/iu
   const auxSettlementOrPaymentReference =
@@ -410,10 +407,17 @@ export function validateCurrentArchitectureAssertions(documents) {
     if (!isCurrentStateDocument(normalizedFile)) continue
 
     for (const [index, line] of source.split('\n').entries()) {
-      if (
-        bobCurrentDocument.test(normalizedFile) &&
-        bobWriterOrCandidate.test(line)
-      ) {
+      if (normalizedFile.startsWith('docs/operations/')) {
+        if (operationBobWriter.test(line)) {
+          architectureFailures.push(
+            `${normalizedFile}:${index + 1} operations 不得将 BOB 列为 writer`,
+          )
+        } else if (bobWriterOrCandidate.test(line)) {
+          architectureFailures.push(
+            `${normalizedFile}:${index + 1} BOB current 文档不得将 BOB 描述为 writer 或 candidate`,
+          )
+        }
+      } else if (bobWriterOrCandidate.test(line)) {
         architectureFailures.push(
           `${normalizedFile}:${index + 1} BOB current 文档不得将 BOB 描述为 writer 或 candidate`,
         )
@@ -421,14 +425,6 @@ export function validateCurrentArchitectureAssertions(documents) {
       if (auxSettlementOrPaymentReference.test(line)) {
         architectureFailures.push(
           `${normalizedFile}:${index + 1} AUX 结算或付款引用不得要求 AUX Approval Entry 或 current 回查`,
-        )
-      }
-      if (
-        normalizedFile.startsWith('docs/operations/') &&
-        operationBobWriter.test(line)
-      ) {
-        architectureFailures.push(
-          `${normalizedFile}:${index + 1} operations 不得将 BOB 列为 writer`,
         )
       }
     }

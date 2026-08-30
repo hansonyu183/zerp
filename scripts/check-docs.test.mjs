@@ -6,6 +6,7 @@ import {
   generateAdrIndex,
   validateAdrIndex,
   validateAdrDocuments,
+  validateCurrentArchitectureAssertions,
   validateCurrentStateLegacyLanguage,
   validateBobFormalTerminology,
   validateLegacyLanguage,
@@ -359,16 +360,91 @@ test('applies legacy language checks to current-state documents but not ADRs', (
   const failures = validateCurrentStateLegacyLanguage([
     { file: 'CONTEXT.md', source: 'legacy wording' },
     { file: 'README.md', source: 'deprecated wording' },
+    { file: 'AGENTS.md', source: 'old write route' },
     { file: 'frontend/README.md', source: 'fallback wording' },
+    { file: 'frontend/AGENTS.md', source: 'handler 墓碑' },
     { file: 'backend/README.md', source: '旧实体' },
+    { file: 'backend/AGENTS.md', source: 'historical cutover' },
+    { file: 'docs/operations/release.md', source: 'old BOB lifecycle' },
+    { file: 'docs/agents/guide.md', source: 'BOB customer candidate' },
+    { file: 'docs/domains/bob.md', source: 'OIT / KY' },
+    { file: 'docs/agents/integration.md', source: 'OIT integration guide' },
     { file: 'docs/adr/0001-history.md', source: 'legacy wording' },
+    {
+      file: 'docs/adr/0046-cutover.md',
+      source:
+        'historical cutover; old write path; handler tombstone; old BOB lifecycle; BOB customer candidate; OIT / KY',
+    },
   ]).join('\n')
 
   assert.match(failures, /CONTEXT\.md:1/)
   assert.match(failures, /README\.md:1/)
+  assert.match(failures, /AGENTS\.md:1/)
   assert.match(failures, /frontend\/README\.md:1/)
+  assert.match(failures, /frontend\/AGENTS\.md:1/)
   assert.match(failures, /backend\/README\.md:1/)
+  assert.match(failures, /backend\/AGENTS\.md:1/)
+  assert.match(failures, /docs\/operations\/release\.md:1/)
+  assert.match(failures, /docs\/agents\/guide\.md:1/)
+  assert.match(failures, /docs\/domains\/bob\.md:1/)
+  assert.doesNotMatch(failures, /docs\/agents\/integration\.md/)
   assert.doesNotMatch(failures, /docs\/adr\/0001-history\.md/)
+  assert.doesNotMatch(failures, /docs\/adr\/0046-cutover\.md/)
+})
+
+test('protects BOB, AUX, and operations current architecture boundaries', () => {
+  const failures = validateCurrentArchitectureAssertions([
+    {
+      file: 'docs/use-cases/bob/customer.md',
+      source: 'BOB is the writer for customer candidates.',
+    },
+    {
+      file: 'docs/domains/bob.md',
+      source: '客户结算方式引用必须保存 AUX Approval Entry。',
+    },
+    {
+      file: 'docs/use-cases/dcl/customer.md',
+      source: '收款方式引用必须回查 AUX current。',
+    },
+    {
+      file: 'docs/domains/bob.md',
+      source:
+        '选择结算方式时保存来源 approvalEntryId，并在提交时确认它仍是 latest approved。',
+    },
+    {
+      file: 'docs/operations/release.md',
+      source: '| Domain | Owner |\n| BOB | writer |',
+    },
+    {
+      file: 'docs/adr/0046-history.md',
+      source:
+        'BOB is the writer for customer candidates. 结算方式引用必须回查 AUX current。 | BOB | writer |',
+    },
+  ]).join('\n')
+
+  assert.match(failures, /use-cases\/bob\/customer\.md:1.*writer 或 candidate/)
+  assert.match(failures, /domains\/bob\.md:1.*AUX Approval Entry/)
+  assert.match(
+    failures,
+    /use-cases\/dcl\/customer\.md:1.*AUX Approval Entry 或 current 回查/,
+  )
+  assert.match(failures, /domains\/bob\.md:1.*current 回查/)
+  assert.match(failures, /docs\/operations\/release\.md:2.*BOB 列为 writer/)
+  assert.doesNotMatch(failures, /docs\/adr\/0046-history\.md/)
+  assert.deepEqual(
+    validateCurrentArchitectureAssertions([
+      {
+        file: 'docs/domains/bob.md',
+        source:
+          'BOB 不调用 writer；客户结算方式不保存 AUX Approval Entry，也不回查 AUX current。',
+      },
+      {
+        file: 'docs/operations/release.md',
+        source: 'BOB 只读 current，不提供双写。',
+      },
+    ]),
+    [],
+  )
 })
 
 test('rejects newly missing use cases and stale baseline debt', () => {

@@ -29,10 +29,18 @@ const LEGACY_EXCEPTION_REASONS = new Set([
   'version-history',
 ])
 const LEGACY_LANGUAGE =
-  /\blegacy\b|\bdeprecated\b|\bfallback\b|(?<!不)兼容(?:层|字段|视图|路径|客户端|数据|迁移)?|旧(?:\s*`?[^`\s]+`?)?(?:字段|实体|路径|聚合|生命周期|OIT)|已删除的?\s*(?:实体|路径|聚合|接口)/iu
+  /\blegacy\b|\bdeprecated\b|\bfallback\b|(?<!不)兼容(?:层|字段|视图|路径|客户端|数据|迁移)?|旧(?:\s*`?[A-Za-z0-9_.-]+`?)?(?:字段|实体|路径|聚合|生命周期|OIT)|已删除的?\s*(?:实体|路径|聚合|接口)|\bhistorical\s+cutover\b|历史\s*cutover|\bold(?:\s+BOB)?\s+(?:write\s+)?(?:route|path)\b|旧(?:\s*BOB)?\s*(?:写(?:入)?\s*)?(?:路由|路径)|\bhandler\b.{0,40}(?:\btombstone\b|墓碑)|(?:\btombstone\b|墓碑).{0,40}\bhandler\b|\b(?:old|legacy)\s+BOB\s+lifecycle\b|\bBOB\s+(?:old|legacy)\s+lifecycle\b|旧\s*BOB\s*(?:lifecycle|生命周期)|BOB\s*旧\s*(?:lifecycle|生命周期)|\b(?:customer\s+BOB|BOB\s+customer)\s+candidate\b|(?:客户\s*BOB|BOB\s*客户)\s*候选|\bOIT\s*\/\s*KY\b/iu
+const EXPLICIT_CURRENT_BOUNDARY =
+  /(?:不(?:得|进入|引入|保留|提供)|禁止).{0,80}(?:\blegacy\b|\bdeprecated\b|\bfallback\b|兼容)|(?:\blegacy\b|\bdeprecated\b|\bfallback\b|兼容).{0,80}不(?:得|进入|引入|保留|提供)|旧路径清理/iu
 
 function relative(file) {
   return path.relative(root, file)
+}
+
+function isCurrentStateDocument(file) {
+  return /^(?:CONTEXT\.md|README\.md|AGENTS\.md|(?:frontend|backend)\/(?:README|AGENTS)\.md|docs\/(?:domains|use-cases|operations|agents)\/)/u.test(
+    file.replaceAll('\\', '/'),
+  )
 }
 
 export function parseAdrFrontmatter(source, label = 'ADR') {
@@ -326,7 +334,11 @@ export function validateSkillReferences(documents) {
   return skillFailures
 }
 
-export function validateLegacyLanguage(documents, knownReferences = new Set()) {
+export function validateLegacyLanguage(
+  documents,
+  knownReferences = new Set(),
+  allowExplicitCurrentBoundaries = false,
+) {
   const legacyFailures = []
   for (const { file, source } of documents) {
     const normalizedFile = file.replaceAll('\\', '/')
@@ -357,7 +369,12 @@ export function validateLegacyLanguage(documents, knownReferences = new Set()) {
             marker[2],
         )
       }
-      if (LEGACY_LANGUAGE.test(line) && !marker) {
+      if (
+        LEGACY_LANGUAGE.test(line) &&
+        !marker &&
+        (!allowExplicitCurrentBoundaries ||
+          !EXPLICIT_CURRENT_BOUNDARY.test(line))
+      ) {
         legacyFailures.push(
           `${normalizedFile}:${index + 1} 使用 legacy/旧/兼容语义时必须标注严格例外`,
         )
@@ -372,13 +389,51 @@ export function validateCurrentStateLegacyLanguage(
   knownReferences = new Set(),
 ) {
   return validateLegacyLanguage(
-    documents.filter(({ file }) =>
-      /^(?:CONTEXT\.md|README\.md|(?:frontend|backend)\/README\.md|docs\/(?:domains|use-cases)\/)/u.test(
-        file.replaceAll('\\', '/'),
-      ),
-    ),
+    documents.filter(({ file }) => isCurrentStateDocument(file)),
     knownReferences,
+    true,
   )
+}
+
+export function validateCurrentArchitectureAssertions(documents) {
+  const architectureFailures = []
+  const bobCurrentDocument = /^docs\/(?:domains\/bob\.md|use-cases\/bob\/)/u
+  const bobWriterOrCandidate =
+    /\bBOB\b\s+(?:is|are|acts?\s+as|serves\s+as|becomes?)\s+(?:an?\s+|the\s+)?(?:\w+\s+){0,4}(?:writer|candidates?)\b|\bBOB\b\s+(?:creates?|saves?|submits?|manages?|maintains?)\s+(?:\w+\s+){0,4}candidates?\b|BOB\s*(?:是|作为|成为)\s*(?:[\p{L}\p{N}_-]+\s*){0,4}(?:写入方|写服务|候选)|BOB\s*(?:创建|保存|提交|管理|维护)\s*(?:[\p{L}\p{N}_-]+\s*){0,4}候选/iu
+  const auxSettlementOrPaymentReference =
+    /(?:结算方式|收款方式|付款方式).{0,160}(?:(?<!不)(?<!不得)(?<!无需)(?:保存|携带|使用|记录)[^不\n]{0,24}(?:approvalEntryId|AUX\s+Approval\s+Entry)|(?:(?:必须|需要|要求|应当)|(?:提交|审核|批准)[^不\n]{0,24})[^不\n]{0,16}(?:回查|确认|校验|验证|查询|重新查询)[^不\n]{0,32}(?:latest\s+approved|AUX\s+current|current\s+AUX)|(?:approvalEntryId|AUX\s+Approval\s+Entry|latest\s+approved|AUX\s+current|current\s+AUX)[^不\n]{0,24}(?:必须|需要|要求|应当)[^不\n]{0,16}(?:保存|携带|使用|记录|回查|确认|校验|验证|查询|重新查询))/iu
+  const operationBobWriter =
+    /\bBOB\b.{0,48}\b(?:is|are|acts?\s+as|serves\s+as|becomes?|owns?|provides?)\b.{0,48}\bwriter\b|\|[^\n|]*\bBOB\b[^\n|]*\|[^\n|]*\bwriter\b[^\n|]*\||BOB.{0,48}(?:是|作为|成为|拥有|提供).{0,48}(?:写入方|写服务)|\|[^\n|]*BOB[^\n|]*\|[^\n|]*(?:写入方|写服务)[^\n|]*\|/iu
+
+  for (const { file, source } of documents) {
+    const normalizedFile = file.replaceAll('\\', '/')
+    if (!isCurrentStateDocument(normalizedFile)) continue
+
+    for (const [index, line] of source.split('\n').entries()) {
+      if (
+        bobCurrentDocument.test(normalizedFile) &&
+        bobWriterOrCandidate.test(line)
+      ) {
+        architectureFailures.push(
+          `${normalizedFile}:${index + 1} BOB current 文档不得将 BOB 描述为 writer 或 candidate`,
+        )
+      }
+      if (auxSettlementOrPaymentReference.test(line)) {
+        architectureFailures.push(
+          `${normalizedFile}:${index + 1} AUX 结算或付款引用不得要求 AUX Approval Entry 或 current 回查`,
+        )
+      }
+      if (
+        normalizedFile.startsWith('docs/operations/') &&
+        operationBobWriter.test(line)
+      ) {
+        architectureFailures.push(
+          `${normalizedFile}:${index + 1} operations 不得将 BOB 列为 writer`,
+        )
+      }
+    }
+  }
+  return architectureFailures
 }
 
 export function validateBobFormalTerminology(documents) {
@@ -755,6 +810,7 @@ failures.push(...validateSkillReferences(documentationSources))
 failures.push(
   ...validateCurrentStateLegacyLanguage(documentationSources, legacyReferences),
 )
+failures.push(...validateCurrentArchitectureAssertions(documentationSources))
 
 for (const file of documentationFiles) {
   if (writeUseCaseCoverage && relative(file) === 'docs/use-cases/COVERAGE.md') {

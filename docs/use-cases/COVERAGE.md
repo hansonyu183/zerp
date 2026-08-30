@@ -5,9 +5,9 @@
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
 - 页面入口：91
-- 已覆盖入口：40
-- 已登记用例：39
-- 缺少用例：51
+- 已覆盖入口：45
+- 已登记用例：44
+- 缺少用例：46
 - 孤儿用例：0
 
 ## APP
@@ -91,11 +91,11 @@
 
 | 页面         | 路由                            | 来源                                                | 状态                                  |
 | ------------ | ------------------------------- | --------------------------------------------------- | ------------------------------------- |
-| 票据收入     | `/vou/bill-receipt`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
-| 票据付出     | `/vou/bill-payment`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
-| 票据开出     | `/vou/bill-issue`               | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
-| 票据贴现     | `/vou/bill-discount`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
-| 票据到期处理 | `/vou/bill-maturity`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 票据收入     | `/vou/bill-receipt`             | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](vou/bill-receipt.md)       |
+| 票据付出     | `/vou/bill-payment`             | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](vou/bill-payment.md)       |
+| 票据开出     | `/vou/bill-issue`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](vou/bill-issue.md)         |
+| 票据贴现     | `/vou/bill-discount`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](vou/bill-discount.md)      |
+| 票据到期处理 | `/vou/bill-maturity`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](vou/bill-maturity.md)      |
 | 销售定价     | `/vou/sale-pricing`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
 | 销售订单     | `/vou/sale-order`               | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
 | 销售出库     | `/vou/sale-outbound`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |

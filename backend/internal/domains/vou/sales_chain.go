@@ -392,14 +392,6 @@ func (s *Service) writeSaleOutbound(
 		(source.WarehouseObjectID != warehouse.ObjectID || source.WarehouseApprovalEntryID != warehouse.ApprovalEntryID) {
 		return MutationResult{}, domainError(ErrorConflict, "outbound warehouse must match sale order warehouse", nil, nil)
 	}
-	if source.WarehouseObjectID == "" {
-		if _, err = tx.Exec(ctx, `UPDATE vou_sale_order_details SET
-			warehouse_object_id=$1,warehouse_approval_entry_id=$2,warehouse_code=$3,warehouse_name=$4
-			WHERE document_id=$5 AND warehouse_object_id IS NULL`, warehouse.ObjectID, warehouse.ApprovalEntryID,
-			warehouse.Code, warehouse.Data.Name, source.ID); err != nil {
-			return MutationResult{}, s.writeError("bind legacy sale order warehouse", err)
-		}
-	}
 	type outboundLine struct {
 		fixedSourceQuantityLine
 		lineNo                                                                         int32

@@ -2914,12 +2914,14 @@
   'VouSettlementMethodSnapshotView':
     {
       'type': 'object',
-      'required': [objectId, code, name, ruleType, monthOffset, dayOffset],
+      'required':
+        [objectId, code, name, termCode, ruleType, monthOffset, dayOffset],
       'properties':
         {
           'objectId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
+          'termCode': { '$ref': './aux.yaml#/SettlementTermCode' },
           'ruleType':
             {
               'type': 'string',

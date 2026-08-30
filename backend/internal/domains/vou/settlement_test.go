@@ -43,7 +43,8 @@ func TestApplySettlementSurchargeExcludesPackaging(t *testing.T) {
 	}
 	refs := resolvedDraft{
 		CustomerSettlement: &bobdomain.EffectiveReference{Data: bobdomain.DetailView{
-			RuleType: "DUE_DAYS", DueDays: 10, DefaultSalesSurcharge: "1.50",
+			TermCode: bobdomain.SettlementTermArrival7, RuleType: bobdomain.SettlementRuleRelativeDays,
+			DayOffset: 7, DueDays: 7, DefaultSalesSurcharge: "1.50",
 		}},
 		Products: []bobdomain.EffectiveReference{
 			{Data: settlementTestProduct(bobdomain.ProductBehaviorRawMaterial)},
@@ -64,6 +65,27 @@ func TestApplySettlementSurchargeExcludesPackaging(t *testing.T) {
 	}
 }
 
+func TestApplySettlementTermsAcceptsCustomerArrivalDueDaysSnapshot(t *testing.T) {
+	draft := validatedDraft{
+		BusinessDate: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
+		ProductLines: []fixedProductLine{{Quantity: 1_000_000, BaseUnitPrice: 1_000}},
+	}
+	refs := resolvedDraft{
+		CustomerSettlement: &bobdomain.EffectiveReference{Data: bobdomain.DetailView{
+			TermCode: bobdomain.SettlementTermArrival7, RuleType: bobdomain.SettlementRuleRelativeDays,
+			DueDays: 7, DefaultSalesSurcharge: "0.00",
+		}},
+		Products: []bobdomain.EffectiveReference{{Data: settlementTestProduct(bobdomain.ProductBehaviorRawMaterial)}},
+	}
+	if err := applySettlementTerms(EntitySaleOrder, &draft, refs); err != nil {
+		t.Fatalf("apply Customer Account ARRIVAL_7 terms: %v", err)
+	}
+	fields := settlementSnapshot(refs.CustomerSettlement, 31)
+	if fields.DayOffset == nil || *fields.DayOffset != 7 || fields.DueDays == nil || *fields.DueDays != 7 {
+		t.Fatalf("settlement snapshot offsets = dayOffset:%v dueDays:%v, want 7/7", fields.DayOffset, fields.DueDays)
+	}
+}
+
 func settlementTestProduct(behaviorProfile string) bobdomain.DetailView {
 	return bobdomain.DetailView{
 		BehaviorProfile: behaviorProfile,
@@ -75,25 +97,36 @@ func settlementTestProduct(behaviorProfile string) bobdomain.DetailView {
 	}
 }
 
-func TestSettlementTermFromLegacySnapshotPrefersPrepaidName(t *testing.T) {
+func TestValidateSettlementTermSnapshotRejectsLegacyAndAmbiguousFacts(t *testing.T) {
 	tests := []struct {
-		name, termCode, settlementName, ruleType, want string
-		monthOffset, dayOffset                         int32
+		name, termCode, ruleType string
+		monthOffset, dayOffset   int32
+		wantErr                  bool
 	}{
-		{"fixed term", bobSettlementCOD, "预付旧名称", "DUE_DAYS", bobSettlementCOD, 0, 0},
-		{"legacy prepaid", "", "旧预付方式", "DUE_DAYS", bobSettlementPrepaid, 0, 0},
-		{"legacy COD", "", "现结", "DUE_DAYS", bobSettlementCOD, 0, 0},
-		{"legacy monthly 60", "", "月结", "MONTH_END", bobdomain.SettlementTermMonthly60, 2, 0},
+		{"arrival 7", bobdomain.SettlementTermArrival7, bobdomain.SettlementRuleRelativeDays, 0, 7, false},
+		{"monthly 60", bobdomain.SettlementTermMonthly60, bobdomain.SettlementRuleMonthEnd, 2, 0, false},
+		{"missing term", "", bobdomain.SettlementRuleRelativeDays, 0, 7, true},
+		{"legacy due-days", bobdomain.SettlementTermArrival7, "DUE_DAYS", 0, 7, true},
+		{"nearest-day candidate", bobdomain.SettlementTermArrival7, bobdomain.SettlementRuleRelativeDays, 0, 6, true},
+		{"ambiguous zero-day", "", bobdomain.SettlementRuleRelativeDays, 0, 0, true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := settlementTermFromSnapshot(
-				test.termCode, test.settlementName, test.ruleType,
-				test.monthOffset, test.dayOffset,
-			)
-			if got != test.want {
-				t.Fatalf("term = %s, want %s", got, test.want)
+			err := validateSettlementTermSnapshot(test.termCode, test.ruleType, test.monthOffset, test.dayOffset)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("validateSettlementTermSnapshot() error = %v, wantErr=%t", err, test.wantErr)
 			}
 		})
+	}
+}
+
+func TestSettlementTermRequiredErrorIsStable(t *testing.T) {
+	err := settlementTermRequiredError()
+	business, ok := err.(*DomainError)
+	if !ok {
+		t.Fatalf("error type = %T, want *DomainError", err)
+	}
+	if business.ErrorKey != "vou_settlement_term_required" || business.Message != "订单必须具有明确账期，不得由 writer 默认补齐。" {
+		t.Fatalf("settlement-term error = %+v", business)
 	}
 }

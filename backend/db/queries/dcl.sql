@@ -640,6 +640,28 @@ WHERE domain='dcl' AND entity='employee' AND subject_id=sqlc.arg(object_id)
 ORDER BY version_no DESC
 LIMIT 1;
 
+-- name: HasOtherApprovedDCLPartyVersion :one
+SELECT EXISTS (
+  SELECT 1
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='party' AND subject_id=sqlc.arg(party_id)
+    AND status='APPROVED' AND id<>sqlc.arg(excluded_approval_entry_id)
+);
+
+-- name: ListApprovedDCLPartyRelationshipReferenceCounts :many
+SELECT endpoint.entity,'partyId'::text AS field,count(*) AS reference_count
+FROM dcl_party_relationship_endpoints endpoint
+WHERE endpoint.party_id=sqlc.arg(party_id)
+  AND endpoint.merged_into_object_id IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM approval_entries entry
+    WHERE entry.domain='dcl' AND entry.entity=endpoint.entity
+      AND entry.subject_id=endpoint.object_id AND entry.status='APPROVED'
+  )
+GROUP BY endpoint.entity
+ORDER BY endpoint.entity;
+
 -- name: CountDCLEmployees :one
 SELECT count(*)
 FROM dcl_subjects subject
@@ -1330,6 +1352,9 @@ ORDER BY id LIMIT 20;
 INSERT INTO dcl_parties(id) SELECT sqlc.arg(id) WHERE sqlc.arg(actor_id)::text IS NOT NULL;
 -- name: GetDCLPartyRoot :one
 SELECT id,merged_into_party_id,merged_at FROM dcl_parties WHERE id=sqlc.arg(id) FOR UPDATE;
+-- name: GetDCLRelationshipPartyID :one
+SELECT party_id FROM dcl_party_relationship_endpoints
+WHERE entity=sqlc.arg(entity) AND object_id=sqlc.arg(object_id);
 -- name: DeleteDCLPartyRoot :execrows
 DELETE FROM dcl_parties WHERE id=sqlc.arg(id) AND merged_into_party_id IS NULL;
 

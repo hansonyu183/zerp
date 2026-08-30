@@ -2072,6 +2072,23 @@ func (q *Queries) GetDCLRelationshipIdentity(ctx context.Context, arg GetDCLRela
 	return i, err
 }
 
+const getDCLRelationshipPartyID = `-- name: GetDCLRelationshipPartyID :one
+SELECT party_id FROM dcl_party_relationship_endpoints
+WHERE entity=$1 AND object_id=$2
+`
+
+type GetDCLRelationshipPartyIDParams struct {
+	Entity   string `db:"entity" json:"entity"`
+	ObjectID string `db:"object_id" json:"object_id"`
+}
+
+func (q *Queries) GetDCLRelationshipPartyID(ctx context.Context, arg GetDCLRelationshipPartyIDParams) (string, error) {
+	row := q.db.QueryRow(ctx, getDCLRelationshipPartyID, arg.Entity, arg.ObjectID)
+	var party_id string
+	err := row.Scan(&party_id)
+	return party_id, err
+}
+
 const getDCLSalesPartnerRelationship = `-- name: GetDCLSalesPartnerRelationship :one
 SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_sales_relationships WHERE object_id=$1 FOR UPDATE
 `
@@ -2442,6 +2459,27 @@ func (q *Queries) GetLatestApprovedDCLWarehouseVersionExcluding(ctx context.Cont
 		&i.ApprovedAt,
 	)
 	return i, err
+}
+
+const hasOtherApprovedDCLPartyVersion = `-- name: HasOtherApprovedDCLPartyVersion :one
+SELECT EXISTS (
+  SELECT 1
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='party' AND subject_id=$1
+    AND status='APPROVED' AND id<>$2
+)
+`
+
+type HasOtherApprovedDCLPartyVersionParams struct {
+	PartyID                 string `db:"party_id" json:"party_id"`
+	ExcludedApprovalEntryID string `db:"excluded_approval_entry_id" json:"excluded_approval_entry_id"`
+}
+
+func (q *Queries) HasOtherApprovedDCLPartyVersion(ctx context.Context, arg HasOtherApprovedDCLPartyVersionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasOtherApprovedDCLPartyVersion, arg.PartyID, arg.ExcludedApprovalEntryID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const insertDCLAccMappingSubject = `-- name: InsertDCLAccMappingSubject :exec
@@ -3047,6 +3085,47 @@ type InsertDclWflProcessDefinitionParams struct {
 func (q *Queries) InsertDclWflProcessDefinition(ctx context.Context, arg InsertDclWflProcessDefinitionParams) error {
 	_, err := q.db.Exec(ctx, insertDclWflProcessDefinition, arg.DefinitionID, arg.Code, arg.ActorID)
 	return err
+}
+
+const listApprovedDCLPartyRelationshipReferenceCounts = `-- name: ListApprovedDCLPartyRelationshipReferenceCounts :many
+SELECT endpoint.entity,'partyId'::text AS field,count(*) AS reference_count
+FROM dcl_party_relationship_endpoints endpoint
+WHERE endpoint.party_id=$1
+  AND endpoint.merged_into_object_id IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM approval_entries entry
+    WHERE entry.domain='dcl' AND entry.entity=endpoint.entity
+      AND entry.subject_id=endpoint.object_id AND entry.status='APPROVED'
+  )
+GROUP BY endpoint.entity
+ORDER BY endpoint.entity
+`
+
+type ListApprovedDCLPartyRelationshipReferenceCountsRow struct {
+	Entity         string `db:"entity" json:"entity"`
+	Field          string `db:"field" json:"field"`
+	ReferenceCount int64  `db:"reference_count" json:"reference_count"`
+}
+
+func (q *Queries) ListApprovedDCLPartyRelationshipReferenceCounts(ctx context.Context, partyID string) ([]ListApprovedDCLPartyRelationshipReferenceCountsRow, error) {
+	rows, err := q.db.Query(ctx, listApprovedDCLPartyRelationshipReferenceCounts, partyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListApprovedDCLPartyRelationshipReferenceCountsRow{}
+	for rows.Next() {
+		var i ListApprovedDCLPartyRelationshipReferenceCountsRow
+		if err := rows.Scan(&i.Entity, &i.Field, &i.ReferenceCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDCLAccMappingApprovalEvents = `-- name: ListDCLAccMappingApprovalEvents :many

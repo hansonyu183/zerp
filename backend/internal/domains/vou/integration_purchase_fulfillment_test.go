@@ -104,6 +104,37 @@ func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testi
 	}
 }
 
+func TestNonDraftPurchaseOrderDetailRejectsBusinessMutationButAllowsFulfillmentIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	draft, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-28", Currency: "CNY",
+		Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
+	}}, integrationApprovalActor(t, integrationActorOne, "purchase-immutable-create"))
+	if err != nil {
+		t.Fatalf("create purchase order: %v", err)
+	}
+	checked, err := service.Submit(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
+		DocumentID: draft.DocumentID, Revision: draft.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "purchase-immutable-submit"))
+	if err != nil {
+		t.Fatalf("submit purchase order: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE vou_purchase_order_details SET supplier_name='tampered' WHERE document_id=$1`, checked.DocumentID); err == nil {
+		t.Fatal("direct business mutation of pending purchase order was accepted")
+	}
+	if _, err = pool.Exec(t.Context(), `UPDATE vou_purchase_order_details SET fulfillment_status='FULFILLED' WHERE document_id=$1`, checked.DocumentID); err != nil {
+		t.Fatalf("direct fulfillment status update rejected: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `DELETE FROM vou_purchase_order_details WHERE document_id=$1`, checked.DocumentID); err == nil {
+		t.Fatal("direct delete of pending purchase order detail was accepted")
+	}
+}
+
 func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)

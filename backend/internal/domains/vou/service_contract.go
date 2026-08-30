@@ -154,7 +154,7 @@ func contractDetailView(detail dbsqlc.VouServiceContractDetail) *ServiceContract
 		Handler:         reference(detail.HandlerObjectID, detail.HandlerApprovalEntryID, bobdomain.EntityEmployee, detail.HandlerCode, detail.HandlerName, "", "", ""),
 		SettlementMethod: settlementView(
 			detail.SettlementMethodObjectID,
-			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
+			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementTermCode, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth, detail.SettlementDayOffset,
 			nil, nil, 0, nil, false,
 		),

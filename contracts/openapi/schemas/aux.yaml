@@ -28,6 +28,23 @@ ProductBehaviorProfile:
   type: string
   enum: [RAW_MATERIAL, STANDARD_FINISHED, CUSTOM_FINISHED, PACKAGING]
 
+SettlementTermCode:
+  type: string
+  enum:
+    [
+      PREPAID,
+      CASH_ON_DELIVERY,
+      ARRIVAL_3,
+      ARRIVAL_5,
+      ARRIVAL_7,
+      ARRIVAL_15,
+      ARRIVAL_30,
+      MONTHLY_CURRENT,
+      MONTHLY_30,
+      MONTHLY_60,
+      MONTHLY_90,
+    ]
+
 AuxProductTypeData:
   type: object
   additionalProperties: false
@@ -75,21 +92,7 @@ AuxSettlementMethodData:
       maxLength: 200
       description: 系统固定名称，不可修改。
     termCode:
-      type: string
-      enum:
-        [
-          PREPAID,
-          CASH_ON_DELIVERY,
-          ARRIVAL_3,
-          ARRIVAL_5,
-          ARRIVAL_7,
-          ARRIVAL_15,
-          ARRIVAL_30,
-          MONTHLY_CURRENT,
-          MONTHLY_30,
-          MONTHLY_60,
-          MONTHLY_90,
-        ]
+      $ref: '#/SettlementTermCode'
       description: 系统固定术语代码，不可修改。
     ruleType:
       type: string

@@ -1243,7 +1243,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.DclPartyReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclPartyMutationResponse } } };
+      responses: { 200: { content: { 'application/json': Models.DclPartyUnapproveResponse } } };
     };
   };
   "/dcl/party/delete": {
@@ -2697,6 +2697,9 @@ export interface components {
       "DclPartyMutationResponse": Models.DclPartyMutationResponse;
       "DclPartyVersionRequest": Models.DclPartyVersionRequest;
       "DclPartyReviewRequest": Models.DclPartyReviewRequest;
+      "DclPartyReferenceCount": Models.DclPartyReferenceCount;
+      "DclPartyUnapproveBlockers": Models.DclPartyUnapproveBlockers;
+      "DclPartyUnapproveResponse": Models.DclPartyUnapproveResponse;
       "DclPartyGetRequest": Models.DclPartyGetRequest;
       "PartyRelationshipCard": Models.PartyRelationshipCard;
       "DclPartyView": Models.DclPartyView;
@@ -2922,6 +2925,7 @@ export interface components {
       "VouIntermediarySummary": Models.VouIntermediarySummary;
       "VouIntermediaryCalculationResult": Models.VouIntermediaryCalculationResult;
       "VouIntermediaryCalculationInput": Models.VouIntermediaryCalculationInput;
+      "SettlementTermCode": Models.SettlementTermCode;
       "VouSettlementMethodSnapshotView": Models.VouSettlementMethodSnapshotView;
       "VouServiceContractView": Models.VouServiceContractView;
       "VouServiceAcceptanceView": Models.VouServiceAcceptanceView;

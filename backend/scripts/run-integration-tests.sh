@@ -184,6 +184,62 @@ run_issue_311_cutover() {
 		<db/cutovers/issue-311-final-cutover.sql
 }
 
+run_issue_315_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-315-vou-source-facts.sql
+}
+
+verify_issue_315_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='"'"'vou_sale_order_details'"'"'::regclass AND tgname='"'"'vou_sale_order_non_draft_immutable'"'"' AND NOT tgisinternal)
+		  AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='"'"'vou_purchase_order_details'"'"'::regclass AND tgname='"'"'vou_purchase_order_non_draft_immutable'"'"' AND NOT tgisinternal)
+		  AND position('"'"'CASH_ON_DELIVERY'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'vou_sale_order_details'"'"'::regclass AND conname='"'"'vou_sale_order_settlement_ck'"'"'))) > 0
+		  AND position('"'"'FIXED_DAY'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'vou_sale_order_details'"'"'::regclass AND conname='"'"'vou_sale_order_settlement_ck'"'"'))) = 0
+		  AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='"'"'dcl_customer_account_versions'"'"'::regclass AND conname='"'"'dcl_customer_account_settlement_ck'"'"')
+		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
+seed_issue_315_other_unit_fixture() {
+	local database="$1" entry_id="$2" day_offset="$3"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" -e ENTRY_ID="$entry_id" -e DAY_OFFSET="$day_offset" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -v ENTRY_ID="$ENTRY_ID" -v DAY_OFFSET="$DAY_OFFSET" -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' <<'SQL'
+ALTER TABLE dcl_other_unit_versions DROP CONSTRAINT dcl_other_unit_settlement_ck;
+ALTER TABLE dcl_other_unit_versions ADD CONSTRAINT dcl_other_unit_settlement_ck CHECK (
+  (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
+  AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
+  AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
+  AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
+  AND (settlement_method_id IS NOT NULL OR (settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0))
+);
+INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
+VALUES (:'ENTRY_ID','dcl','other-unit',:'ENTRY_ID',1,'APPROVED',1,'00000000000000000000000000',now(),'00000000000000000000000000',now(),'00000000000000000000000000',now(),'00000000000000000000000001',now());
+INSERT INTO dcl_other_unit_versions(approval_entry_id,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,enabled)
+VALUES (:'ENTRY_ID','01JSMT00000000000000000005','STM-0003','货到3天','','RELATIVE_DAYS',0,0,:'DAY_OFFSET',true);
+SQL
+}
+
+verify_issue_315_exact_arrival_mapping() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN EXISTS (SELECT 1 FROM dcl_other_unit_versions WHERE settlement_method_code='"'"'STM-0003'"'"' AND settlement_term_code='"'"'ARRIVAL_3'"'"' AND settlement_rule_type='"'"'RELATIVE_DAYS'"'"' AND settlement_day_offset=3)
+		  AND position('"'"'ARRIVAL_3'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'dcl_other_unit_versions'"'"'::regclass AND conname='"'"'dcl_other_unit_settlement_ck'"'"'))) > 0
+		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
+verify_issue_315_ambiguous_failure_is_atomic() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN EXISTS (SELECT 1 FROM dcl_other_unit_versions WHERE settlement_method_code='"'"'STM-0003'"'"' AND settlement_term_code='"'"''"'"' AND settlement_rule_type='"'"'RELATIVE_DAYS'"'"' AND settlement_day_offset=0)
+		  AND position('"'"'ARRIVAL_3'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'dcl_other_unit_versions'"'"'::regclass AND conname='"'"'dcl_other_unit_settlement_ck'"'"'))) = 0
+		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 verify_issue_311_cutover() {
 	local database="$1"
 	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
@@ -623,7 +679,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 run_cutover_compatibility_tests() {
-	local cutover_database pre_issue_305_database
+	local cutover_database pre_issue_305_database issue_315_database
 
 	cutover_database="$(database_name "_issues_289_293_cutover_${run_id}_test")"
 	clone_databases+=("$cutover_database")
@@ -735,6 +791,24 @@ SQL
 		 "DELETE FROM approval_events WHERE id='"'"'01Z31100000000000000000092'"'"'; DELETE FROM approval_entries WHERE id='"'"'01Z31100000000000000000091'"'"'"' </dev/null
 	run_issue_311_cutover "$pre_issue_305_database"
 	verify_issue_311_cutover "$pre_issue_305_database"
+	run_issue_315_cutover "$pre_issue_305_database"
+	verify_issue_315_cutover "$pre_issue_305_database"
+
+	issue_315_database="$(database_name "_issue_315_${run_id}_test")"
+	clone_databases+=("$issue_315_database")
+	recreate_database "$issue_315_database"
+	initialize_schema "$issue_315_database"
+	seed_issue_315_other_unit_fixture "$issue_315_database" "01Z31500000000000000000001" 3
+	run_issue_315_cutover "$issue_315_database"
+	verify_issue_315_exact_arrival_mapping "$issue_315_database"
+
+	recreate_database "$issue_315_database"
+	initialize_schema "$issue_315_database"
+	seed_issue_315_other_unit_fixture "$issue_315_database" "01Z31500000000000000000002" 0
+	if run_issue_315_cutover "$issue_315_database" >/dev/null 2>&1; then
+		fail "issue-315 cutover accepted ambiguous zero-day settlement"
+	fi
+	verify_issue_315_ambiguous_failure_is_atomic "$issue_315_database"
 }
 
 initialize_current_schema_databases() {

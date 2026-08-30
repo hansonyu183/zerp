@@ -456,6 +456,9 @@ func (s *PartyService) transition(ctx context.Context, in PartyVersionInput, rea
 		return PartyMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
+	if err = lockPartyRoot(ctx, tx, in.PartyID); err != nil {
+		return PartyMutation{}, translateError(err)
+	}
 	p, err := s.coordinator.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
 	if err != nil || p.Entry().SubjectID != in.PartyID {
 		if err == nil {
@@ -471,6 +474,25 @@ func (s *PartyService) transition(ctx context.Context, in PartyVersionInput, rea
 	identifiers, err := loadPartyIdentifiers(ctx, q, in.ApprovalEntryID)
 	if err != nil {
 		return PartyMutation{}, translateError(err)
+	}
+	if action == approval.ActionUnapproved {
+		hasFallback, hasFallbackErr := q.HasOtherApprovedDCLPartyVersion(ctx, dbsqlc.HasOtherApprovedDCLPartyVersionParams{PartyID: in.PartyID, ExcludedApprovalEntryID: in.ApprovalEntryID})
+		if hasFallbackErr != nil {
+			return PartyMutation{}, translateError(hasFallbackErr)
+		}
+		if !hasFallback {
+			rows, referenceErr := q.ListApprovedDCLPartyRelationshipReferenceCounts(ctx, in.PartyID)
+			if referenceErr != nil {
+				return PartyMutation{}, translateError(referenceErr)
+			}
+			if len(rows) > 0 {
+				references := make([]bobdomain.ActiveReferenceCount, 0, len(rows))
+				for _, reference := range rows {
+					references = append(references, bobdomain.ActiveReferenceCount{Entity: reference.Entity, Field: reference.Field, Count: int(reference.ReferenceCount)})
+				}
+				return PartyMutation{}, newError(ErrorConflict, "bob_unapprove_blocked", "approved Party is referenced by current BOB relationships", bobdomain.ActiveReferenceBlockers{References: references}, nil)
+			}
+		}
 	}
 	e, err := s.coordinator.Commit(ctx, tx, p, partyPayload(in.PartyID, partyData(row, identifiers)))
 	if err != nil {

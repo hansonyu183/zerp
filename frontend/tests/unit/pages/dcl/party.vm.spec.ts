@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
+import { ApiError } from '@/api/types'
 import { useDclPartyViewModel } from '@/pages/dcl/party/vm'
 import { useSessionStore } from '@/stores/session'
 
@@ -184,5 +185,34 @@ describe('DCL Party view model', () => {
       },
     }
     expect(vm.permissions(laterCandidate).delete).toBe(true)
+  })
+
+  it('renders structured relationship counts when the last approved Party cannot be unapproved', async () => {
+    useSessionStore().permissions = ['/dcl/party/unapprove']
+    const approvedRow = {
+      ...row,
+      openVersion: null,
+      latestApproved: {
+        approval: { ...approval, status: 'APPROVED' as const },
+        data,
+      },
+    }
+    mockedPost.mockRejectedValueOnce(
+      new ApiError('business', 'diagnostic only', {
+        code: 3001,
+        errorKey: 'bob_unapprove_blocked',
+        details: {
+          references: [
+            { entity: 'customer', field: 'partyId', count: 2 },
+            { entity: 'supplier', field: 'partyId', count: 1 },
+          ],
+        },
+      }),
+    )
+    const vm = useDclPartyViewModel()
+    await expect(vm.runAction(approvedRow, 'unapprove', '业务调整')).resolves.toBe(false)
+    expect(vm.errorMessage.value).toBe(
+      '该主体仍被已批准的业务关系引用，不能撤销最后一个批准版本。引用：客户 2 条、供应商 1 条。',
+    )
   })
 })

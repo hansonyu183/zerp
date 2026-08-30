@@ -152,8 +152,8 @@ func (s *SupplierService) resolve(ctx context.Context, tx pgx.Tx, data SupplierD
 		data.DefaultPurchaser.Code, data.DefaultPurchaser.Name = ref.Code, ref.Data.Name
 		data.DefaultPurchaserCode, data.DefaultPurchaserName = ref.Code, ref.Data.Name
 	}
-	if exact && (data.SettlementMethodID == "" || data.DefaultPurchaserEmployeeID == "") {
-		return SupplierData{}, newError(ErrorValidation, "validation_failed", "settlement method and default purchaser are required before submit", nil, nil)
+	if exact && data.DefaultPurchaserEmployeeID == "" {
+		return SupplierData{}, newError(ErrorValidation, "validation_failed", "default purchaser is required before submit", nil, nil)
 	}
 	return data, nil
 }
@@ -178,7 +178,7 @@ func (s *SupplierService) Create(ctx context.Context, in SupplierCreateInput, ac
 	if in.NewParty != nil {
 		party, err = s.parties.CreateForRelationship(ctx, tx, *in.NewParty, actor, false)
 	} else {
-		party, err = s.partyReader.ResolveForRelationship(ctx, tx, in.PartyID)
+		party, err = resolveExistingPartyForRelationship(ctx, tx, s.partyReader, in.PartyID)
 	}
 	if err != nil {
 		return SupplierMutation{}, translateError(err)
@@ -294,12 +294,12 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 		return SupplierMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	p, err := s.coordinator.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
-	if err != nil || p.Entry().SubjectID != in.ObjectID {
+	id, err := lockPartyRelationshipIdentity(ctx, tx, EntitySupplier, in.ObjectID)
+	if err != nil {
 		return SupplierMutation{}, translateError(err)
 	}
-	id, err := lockRelationshipIdentity(ctx, tx, EntitySupplier, in.ObjectID)
-	if err != nil {
+	p, err := s.coordinator.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
+	if err != nil || p.Entry().SubjectID != in.ObjectID {
 		return SupplierMutation{}, translateError(err)
 	}
 	stored, err := s.queries.WithTx(tx).GetDCLSupplierVersion(ctx, in.ApprovalEntryID)

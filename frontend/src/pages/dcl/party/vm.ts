@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
-import { getErrorMessage } from '@/api/types'
+import { ApiError, getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { dclPartyApi } from './api'
 
@@ -13,6 +13,37 @@ type DclPartyVersionView = components['schemas']['DclPartyVersionView']
 type ApprovalEventView = components['schemas']['ApprovalEventView']
 type PartyAction =
   'delete' | 'submit' | 'unsubmit' | 'approve' | 'reject' | 'unapprove'
+
+const partyReferenceEntityLabels: Readonly<Record<string, string>> = {
+  customer: '客户',
+  supplier: '供应商',
+  employee: '员工',
+  'other-unit': '其他往来单位',
+  'sales-partner': '销售合作方',
+}
+
+function partyActionErrorMessage(error: unknown): string {
+  const base = getErrorMessage(error)
+  if (!(error instanceof ApiError) || error.errorKey !== 'bob_unapprove_blocked') {
+    return base
+  }
+  const details = error.details as
+    | components['schemas']['DclPartyUnapproveBlockers']
+    | undefined
+  if (!details || !Array.isArray(details.references)) return base
+  const references = details.references
+    .filter(
+      (reference) =>
+        reference.field === 'partyId' &&
+        Number.isInteger(reference.count) &&
+        reference.count > 0,
+    )
+    .map(
+      (reference) =>
+        `${partyReferenceEntityLabels[reference.entity] ?? reference.entity} ${reference.count} 条`,
+    )
+  return references.length ? `${base}引用：${references.join('、')}。` : base
+}
 
 export type PartyForm = {
   kind: PartyKind
@@ -364,7 +395,7 @@ export function useDclPartyViewModel() {
       }[action]
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = partyActionErrorMessage(error)
       return false
     } finally {
       actionLoading.value = null

@@ -381,6 +381,7 @@ type Querier interface {
 	GetDCLProductFormula(ctx context.Context, productApprovalEntryID string) (DclProductFormula, error)
 	GetDCLProductSnapshot(ctx context.Context, approvalEntryID string) (DclProductVersion, error)
 	GetDCLRelationshipIdentity(ctx context.Context, arg GetDCLRelationshipIdentityParams) (GetDCLRelationshipIdentityRow, error)
+	GetDCLRelationshipPartyID(ctx context.Context, arg GetDCLRelationshipPartyIDParams) (string, error)
 	GetDCLSalesPartnerRelationship(ctx context.Context, objectID string) (DclSalesRelationship, error)
 	GetDCLSalesPartnerVersion(ctx context.Context, approvalEntryID string) (DclSalesPartnerVersion, error)
 	GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (DclSubject, error)
@@ -452,6 +453,7 @@ type Querier interface {
 	HasApprovalEntryApprovedEvent(ctx context.Context, approvalEntryID string) (bool, error)
 	HasApprovedIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
 	HasIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
+	HasOtherApprovedDCLPartyVersion(ctx context.Context, arg HasOtherApprovedDCLPartyVersionParams) (bool, error)
 	HasVouPurchaseInboundLines(ctx context.Context, documentID string) (bool, error)
 	HasVouPurchaseReturnLines(ctx context.Context, documentID string) (bool, error)
 	InsertAccountingDepreciationEntry(ctx context.Context, arg InsertAccountingDepreciationEntryParams) error
@@ -605,6 +607,7 @@ type Querier interface {
 	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error)
+	ListApprovedDCLPartyRelationshipReferenceCounts(ctx context.Context, partyID string) ([]ListApprovedDCLPartyRelationshipReferenceCountsRow, error)
 	ListAuxObjectDeleteBlockers(ctx context.Context, objectID string) ([]ListAuxObjectDeleteBlockersRow, error)
 	// Exact BOB Approval-entry blocker data. Every approved declaration
 	// remains a persisted formal fact, including versions that are no longer the

@@ -3,6 +3,7 @@
 package vou
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -330,6 +331,118 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}
 	if signoffOne.Approval.Status != StatusApproved {
 		t.Fatalf("first signoff status = %s", signoffOne.Approval.Status)
+	}
+}
+
+func TestApprovedSaleOrderSourceFactsStayImmutableWhenCreatingOutboundIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+
+	draft, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Warehouse:    &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
+	}}, integrationApprovalActor(t, integrationActorOne, "legacy-order-create"))
+	if err != nil {
+		t.Fatalf("create sale order: %v", err)
+	}
+	checked, err := service.Submit(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: draft.DocumentID, Revision: draft.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "legacy-order-submit"))
+	if err != nil {
+		t.Fatalf("submit sale order: %v", err)
+	}
+	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: checked.DocumentID, Revision: checked.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "legacy-order-approve"))
+	if err != nil {
+		t.Fatalf("approve sale order: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `ALTER TABLE vou_sale_order_details DISABLE TRIGGER vou_sale_order_non_draft_immutable`); err != nil {
+		t.Fatalf("disable immutable trigger for controlled legacy fixture: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, cleanupErr := pool.Exec(context.Background(), `ALTER TABLE vou_sale_order_details ENABLE TRIGGER vou_sale_order_non_draft_immutable`); cleanupErr != nil {
+			t.Errorf("restore immutable trigger: %v", cleanupErr)
+		}
+	})
+	if _, err = pool.Exec(t.Context(), `UPDATE vou_sale_order_details SET
+		warehouse_object_id=NULL,warehouse_approval_entry_id=NULL,warehouse_code=NULL,warehouse_name=NULL
+		WHERE document_id=$1`, approved.DocumentID); err != nil {
+		t.Fatalf("make approved sale order legacy-shaped: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `ALTER TABLE vou_sale_order_details ENABLE TRIGGER vou_sale_order_non_draft_immutable`); err != nil {
+		t.Fatalf("restore immutable trigger before outbound: %v", err)
+	}
+	var before string
+	if err = pool.QueryRow(t.Context(), `SELECT row_to_json(detail)::text FROM vou_sale_order_details detail WHERE document_id=$1`, approved.DocumentID).Scan(&before); err != nil {
+		t.Fatalf("read approved sale-order source facts: %v", err)
+	}
+	view, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: approved.DocumentID})
+	if err != nil {
+		t.Fatalf("get approved sale order: %v", err)
+	}
+	if _, err = service.Create(t.Context(), EntitySaleOutbound, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: approved.DocumentID, Warehouse: &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{SourceLineID: view.Data.ProductLines[0].LineID, BaseQuantity: "1"}},
+	}}, integrationApprovalActor(t, integrationActorOne, "legacy-order-outbound-create")); err != nil {
+		t.Fatalf("create sale outbound: %v", err)
+	}
+	var after string
+	if err = pool.QueryRow(t.Context(), `SELECT row_to_json(detail)::text FROM vou_sale_order_details detail WHERE document_id=$1`, approved.DocumentID).Scan(&after); err != nil {
+		t.Fatalf("read sale-order source facts after outbound: %v", err)
+	}
+	if after != before {
+		t.Fatalf("approved sale-order source facts changed after outbound\nbefore=%s\nafter=%s", before, after)
+	}
+}
+
+func TestNonDraftSaleOrderDetailRejectsBusinessMutationButAllowsFulfillmentIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	order, _ := approvedSalesOrder(t, service, refs, "2")
+
+	if _, err := pool.Exec(t.Context(), `UPDATE vou_sale_order_details SET customer_name='tampered' WHERE document_id=$1`, order.DocumentID); err == nil {
+		t.Fatal("direct business mutation of approved sale order was accepted")
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE vou_sale_order_details SET fulfillment_status='FULFILLED' WHERE document_id=$1`, order.DocumentID); err != nil {
+		t.Fatalf("direct fulfillment status update rejected: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `DELETE FROM vou_sale_order_details WHERE document_id=$1`, order.DocumentID); err == nil {
+		t.Fatal("direct delete of approved sale order detail was accepted")
+	}
+}
+
+func TestSaleOrderRequiresConfiguredCustomerSettlementTermIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	if _, err := pool.Exec(t.Context(), `UPDATE dcl_customer_account_versions SET
+		settlement_method_id=NULL,settlement_method_code=NULL,settlement_method_name=NULL,
+		settlement_term_code=NULL,settlement_rule_type=NULL,settlement_due_days=0,
+		settlement_month_offset=0,settlement_cutoff_day=0,settlement_sales_surcharge_cents=0
+		WHERE approval_entry_id=$1`, refs.customer.ApprovalEntryID); err != nil {
+		t.Fatalf("remove customer settlement snapshot: %v", err)
+	}
+	service := newIntegrationService(t, pool)
+	_, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Warehouse:    &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
+	}}, integrationApprovalActor(t, integrationActorOne, "sale-missing-settlement-create"))
+	var business *DomainError
+	if !errors.As(err, &business) {
+		t.Fatalf("create sale order error=%v, want DomainError", err)
+	}
+	if business.ErrorKey != "vou_settlement_term_required" || business.Message != "订单必须具有明确账期，不得由 writer 默认补齐。" {
+		t.Fatalf("create sale order error=%+v", business)
 	}
 }
 

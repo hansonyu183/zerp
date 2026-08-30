@@ -124,7 +124,7 @@ func (s *EmployeeService) Create(ctx context.Context, input EmployeeCreateInput,
 	if input.NewParty != nil {
 		party, err = s.parties.CreateForRelationship(ctx, tx, *input.NewParty, actor, false)
 	} else {
-		party, err = s.partyReader.ResolveForRelationship(ctx, tx, input.PartyID)
+		party, err = resolveExistingPartyForRelationship(ctx, tx, s.partyReader, input.PartyID)
 	}
 	if err != nil {
 		return EmployeeMutation{}, translateError(err)
@@ -255,15 +255,15 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 		return EmployeeMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
+	id, err := lockPartyEmployeeIdentity(ctx, tx, input.ObjectID)
+	if err != nil {
+		return EmployeeMutation{}, translateError(err)
+	}
 	p, err := s.coordinator.Prepare(ctx, tx, action, input.ApprovalEntryID, input.ApprovalRevision, actor, reason)
 	if err != nil || p.Entry().SubjectID != input.ObjectID {
 		if err == nil {
 			err = newError(ErrorValidation, "validation_failed", "approval entry does not belong to employee", nil, nil)
 		}
-		return EmployeeMutation{}, translateError(err)
-	}
-	id, err := lockEmployeeIdentity(ctx, tx, input.ObjectID)
-	if err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
 	stored, err := s.queries.WithTx(tx).GetDCLEmployeeVersion(ctx, input.ApprovalEntryID)

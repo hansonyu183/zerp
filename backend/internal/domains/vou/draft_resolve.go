@@ -264,13 +264,13 @@ func (s *Service) resolveDraftSettlements(
 		if sameReference(result.Customer, preserved.Customer) && preserved.CustomerSettlement != nil {
 			result.CustomerSettlement = preserved.CustomerSettlement
 		} else {
-			result.CustomerSettlement, err = s.resolveSettlement(ctx, tx, result.Customer, "customer")
+			result.CustomerSettlement, err = s.resolveSettlement(ctx, tx, result.Customer)
 		}
 	case EntityPurchaseOrder:
 		if sameReference(result.Supplier, preserved.Supplier) && preserved.SupplierSettlement != nil {
 			result.SupplierSettlement = preserved.SupplierSettlement
 		} else {
-			result.SupplierSettlement, err = s.resolveSettlement(ctx, tx, result.Supplier, "supplier")
+			result.SupplierSettlement, err = s.resolveSettlement(ctx, tx, result.Supplier)
 		}
 	}
 	return err
@@ -284,10 +284,9 @@ func (s *Service) resolveSettlement(
 	ctx context.Context,
 	tx pgx.Tx,
 	party *bobdomain.EffectiveReference,
-	label string,
 ) (*bobdomain.EffectiveReference, error) {
 	if party == nil || party.Data.SettlementMethodID == "" {
-		return nil, domainError(ErrorConflict, label+" settlement method is not configured", nil, nil)
+		return nil, settlementTermRequiredError()
 	}
 	if party.Data.TermCode != "" && party.Data.RuleType != "" && party.Data.SettlementMethodCode != "" {
 		return &bobdomain.EffectiveReference{
@@ -301,7 +300,7 @@ func (s *Service) resolveSettlement(
 			},
 		}, nil
 	}
-	return nil, domainError(ErrorConflict, label+" settlement snapshot is incomplete", nil, nil)
+	return nil, settlementTermRequiredError()
 }
 
 func (s *Service) resolveDraftProducts(

@@ -2,7 +2,6 @@ package vou
 
 import (
 	"context"
-	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
@@ -80,7 +79,7 @@ func (s *Service) validateSettlementAmount(
 	gate orderSettlementGate,
 	amount int64,
 ) error {
-	if gate.TermCode != bobSettlementPrepaid && gate.TermCode != bobSettlementCOD {
+	if gate.TermCode != bobdomain.SettlementTermPrepaid && gate.TermCode != bobdomain.SettlementTermCashOnDelivery {
 		return nil
 	}
 	if err := s.queries.WithTx(tx).LockVouSettlementBalance(ctx,
@@ -96,7 +95,7 @@ func (s *Service) validateSettlementAmount(
 		dimension, prepaidPurpose, tradePurpose = "SUPPLIER_RELATIONSHIP", "PREPAID", "PAYABLE"
 	}
 	purpose := tradePurpose
-	if gate.TermCode == bobSettlementPrepaid {
+	if gate.TermCode == bobdomain.SettlementTermPrepaid {
 		purpose = prepaidPurpose
 	}
 	balance, err := s.accounting.PartyBalance(ctx, tx, PartyBalanceQuery{
@@ -106,7 +105,7 @@ func (s *Service) validateSettlementAmount(
 	if err != nil {
 		return domainError(ErrorConflict, "accounting settlement balance is unavailable", nil, err)
 	}
-	if gate.TermCode == bobSettlementPrepaid {
+	if gate.TermCode == bobdomain.SettlementTermPrepaid {
 		available := maxInt64(balance, 0)
 		if available < amount {
 			return domainErrorWithKey(ErrorConflict, "funds_insufficient", "insufficient prepaid funds", map[string]any{
@@ -131,7 +130,7 @@ func loadOrderSettlementGate(
 	entity, orderID string,
 ) (orderSettlementGate, error) {
 	gate := orderSettlementGate{OrderID: orderID, OrderEntity: entity}
-	var settlementName, ruleType string
+	var ruleType string
 	var monthOffset, dayOffset int32
 	var err error
 	q := dbsqlc.New(tx)
@@ -140,14 +139,14 @@ func loadOrderSettlementGate(
 		gate.CounterpartyEntity = bobdomain.EntityCustomerAccount
 		var row dbsqlc.GetSaleOrderSettlementGateRow
 		row, err = q.GetSaleOrderSettlementGate(ctx, orderID)
-		gate.TermCode, settlementName, ruleType = row.SettlementTermCode, row.SettlementMethodName, row.SettlementRuleType
+		gate.TermCode, ruleType = row.SettlementTermCode, row.SettlementRuleType
 		monthOffset, dayOffset = row.SettlementMonthOffset, row.SettlementDayOffset
 		gate.CounterpartyObjectID, gate.Currency, gate.AmountCents = row.CustomerObjectID, row.Currency, row.TotalAmountCents
 	case EntityPurchaseOrder:
 		gate.CounterpartyEntity = "supplier"
 		var row dbsqlc.GetPurchaseOrderSettlementGateRow
 		row, err = q.GetPurchaseOrderSettlementGate(ctx, orderID)
-		gate.TermCode, settlementName, ruleType = row.SettlementTermCode, row.SettlementMethodName, row.SettlementRuleType
+		gate.TermCode, ruleType = row.SettlementTermCode, row.SettlementRuleType
 		monthOffset, dayOffset = row.SettlementMonthOffset, row.SettlementDayOffset
 		gate.CounterpartyObjectID, gate.Currency, gate.AmountCents = row.SupplierObjectID, row.Currency, row.TotalAmountCents
 	default:
@@ -156,31 +155,13 @@ func loadOrderSettlementGate(
 	if err != nil {
 		return gate, domainError(ErrorConflict, "order settlement snapshot is unavailable", nil, err)
 	}
-	gate.TermCode = settlementTermFromSnapshot(
-		gate.TermCode, settlementName, ruleType, monthOffset, dayOffset,
-	)
+	if err := validateSettlementTermSnapshot(gate.TermCode, ruleType, monthOffset, dayOffset); err != nil {
+		return gate, err
+	}
 	if gate.Currency == "" {
 		return gate, domainError(ErrorConflict, "order currency is required for settlement approval", nil, nil)
 	}
 	return gate, nil
-}
-
-const (
-	bobSettlementPrepaid = "PREPAID"
-	bobSettlementCOD     = "CASH_ON_DELIVERY"
-)
-
-func settlementTermFromSnapshot(
-	termCode, name, ruleType string,
-	monthOffset, dayOffset int32,
-) string {
-	if termCode != "" {
-		return termCode
-	}
-	if strings.Contains(name, "预付") {
-		return bobSettlementPrepaid
-	}
-	return legacySettlementTerm(ruleType, monthOffset, dayOffset)
 }
 
 func maxInt64(left, right int64) int64 {

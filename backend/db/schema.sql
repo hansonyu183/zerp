@@ -246,6 +246,30 @@ BEGIN
 END; $$;
 
 
+-- Sale and purchase order details are declaration facts once their approval
+-- entry leaves DRAFT. Fulfillment records the sole runtime fact on that row.
+CREATE FUNCTION public.vou_reject_non_draft_order_detail_mutation() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE document_status varchar(32); document_id varchar(26);
+BEGIN
+    document_id := CASE WHEN TG_OP='DELETE' THEN OLD.document_id ELSE NEW.document_id END;
+    SELECT entry.status INTO document_status
+      FROM vou_documents document JOIN approval_entries entry ON entry.id=document.approval_entry_id
+     WHERE document.id=document_id;
+    IF document_status IS NULL OR document_status='DRAFT' THEN
+        RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
+    END IF;
+    IF TG_OP='DELETE' THEN
+        RAISE EXCEPTION 'non-draft order detail cannot be deleted' USING ERRCODE='23514';
+    END IF;
+    IF (to_jsonb(NEW)-'fulfillment_status') IS DISTINCT FROM (to_jsonb(OLD)-'fulfillment_status') THEN
+        RAISE EXCEPTION 'non-draft order detail is immutable except fulfillment_status' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+END; $$;
+
+
 --
 -- Name: vou_validate_parent(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -1327,7 +1351,24 @@ CREATE TABLE public.dcl_other_unit_versions (
     remark character varying(1000),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_other_unit_versions_pkey PRIMARY KEY (approval_entry_id),
-    CONSTRAINT dcl_other_unit_settlement_ck CHECK (((settlement_method_id IS NULL) = (settlement_method_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_method_name IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_term_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_rule_type IS NULL)) AND ((settlement_method_id IS NOT NULL) OR ((settlement_month_offset = 0) AND (settlement_day_of_month = 0) AND (settlement_day_offset = 0)))),
+    CONSTRAINT dcl_other_unit_settlement_ck CHECK (
+      (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
+      AND (settlement_method_id IS NOT NULL OR (settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0))
+      AND (settlement_method_id IS NULL OR (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=3)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=5)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=7)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=15)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=30)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=1 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=2 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+      ))),
     CONSTRAINT dcl_other_unit_day_of_month_ck CHECK ((settlement_day_of_month >= 0) AND (settlement_day_of_month <= 31)),
     CONSTRAINT dcl_other_unit_day_offset_ck CHECK (settlement_day_offset >= 0),
     CONSTRAINT dcl_other_unit_month_offset_ck CHECK (settlement_month_offset >= 0)
@@ -1366,6 +1407,18 @@ CREATE TABLE public.dcl_supplier_versions (
       AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
       AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
       AND (settlement_method_id IS NOT NULL OR (settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0))
+      AND (settlement_method_id IS NULL OR (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=3)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=5)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=7)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=15)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=30)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=1 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=2 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+      ))
     ),
     CONSTRAINT dcl_supplier_default_purchaser_snapshot_ck CHECK (
       (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_approval_entry_id IS NULL)
@@ -1505,7 +1558,26 @@ CREATE TABLE public.dcl_customer_account_versions (
     CONSTRAINT dcl_customer_account_versions_pkey PRIMARY KEY (approval_entry_id),
     CONSTRAINT dcl_customer_account_versions_entity_check CHECK (((entity)::text = 'customer-account'::text)),
     CONSTRAINT dcl_customer_account_versions_name_check CHECK ((length(btrim((name)::text)) >= 1)),
-    CONSTRAINT dcl_customer_account_versions_pricing_policy_ck CHECK ((jsonb_typeof(pricing_policy) = 'object'::text))
+    CONSTRAINT dcl_customer_account_versions_pricing_policy_ck CHECK ((jsonb_typeof(pricing_policy) = 'object'::text)),
+    CONSTRAINT dcl_customer_account_settlement_ck CHECK (
+      (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
+      AND (settlement_method_id IS NOT NULL OR (settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0 AND settlement_sales_surcharge_cents=0))
+      AND (settlement_method_id IS NULL OR (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=3 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=5 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=7 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=15 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=30 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=1 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=2 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=3 AND settlement_cutoff_day=0)
+      ))
+    )
 );
 
 -- Credit limits and attachments are version-owned DCL snapshots.  The file
@@ -2715,11 +2787,25 @@ CREATE TABLE public.vou_purchase_order_details (
     settlement_due_days integer,
     settlement_cutoff_day integer,
     settlement_default_sales_surcharge_cents bigint DEFAULT 0 CONSTRAINT vou_purchase_order_details_settlement_default_sales_su_not_null NOT NULL,
-    settlement_term_code character varying(32) DEFAULT ''::character varying NOT NULL,
+    settlement_term_code character varying(32) NOT NULL,
     CONSTRAINT vou_purchase_order_details_entity_check CHECK (((entity)::text = 'purchase-order'::text)),
     CONSTRAINT vou_purchase_order_fulfillment_status_ck CHECK (((fulfillment_status)::text = ANY ((ARRAY['OPEN'::character varying, 'FULFILLED'::character varying])::text[]))),
     CONSTRAINT vou_purchase_order_purchaser_ck CHECK ((((purchaser_object_id IS NULL) AND (purchaser_approval_entry_id IS NULL) AND (purchaser_code IS NULL) AND (purchaser_name IS NULL)) OR ((purchaser_object_id IS NOT NULL) AND (purchaser_approval_entry_id IS NOT NULL) AND (purchaser_code IS NOT NULL) AND (purchaser_name IS NOT NULL)))),
-    CONSTRAINT vou_purchase_order_settlement_ck CHECK ((settlement_method_object_id IS NULL) = (settlement_method_code IS NULL) AND (settlement_method_object_id IS NULL) = (settlement_method_name IS NULL)),
+    CONSTRAINT vou_purchase_order_settlement_ck CHECK (
+      settlement_method_object_id IS NOT NULL AND settlement_method_code IS NOT NULL AND settlement_method_name IS NOT NULL
+      AND (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days=0 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=3 AND settlement_due_days=3 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=5 AND settlement_due_days=5 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=7 AND settlement_due_days=7 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=15 AND settlement_due_days=15 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=30 AND settlement_due_days=30 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=1 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=2 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+      )
+    ),
     CONSTRAINT vou_purchase_order_warehouse_ck CHECK (((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL)))
 );
 
@@ -2870,7 +2956,7 @@ CREATE TABLE public.vou_sale_order_details (
     warehouse_approval_entry_id character varying(26),
     warehouse_code character varying(64),
     warehouse_name character varying(200),
-    settlement_term_code character varying(32) DEFAULT ''::character varying NOT NULL,
+    settlement_term_code character varying(32) NOT NULL,
     special_approval boolean DEFAULT false NOT NULL,
     sales_attribution_type character varying(32) NOT NULL,
     sales_attribution_subject_object_id character varying(26) CONSTRAINT vou_sale_order_details_sales_attribution_subject_objec_not_null NOT NULL,
@@ -2881,7 +2967,21 @@ CREATE TABLE public.vou_sale_order_details (
     CONSTRAINT vou_sale_order_fulfillment_status_ck CHECK (((fulfillment_status)::text = ANY ((ARRAY['OPEN'::character varying, 'FULFILLED'::character varying])::text[]))),
     CONSTRAINT vou_sale_order_sales_attribution_ck CHECK ((((sales_attribution_type)::text = 'INTERNAL_EMPLOYEE'::text) OR ((sales_attribution_type)::text = ANY ((ARRAY['EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying])::text[])))),
     CONSTRAINT vou_sale_order_salesperson_ck CHECK ((((salesperson_object_id IS NULL) AND (salesperson_approval_entry_id IS NULL) AND (salesperson_code IS NULL) AND (salesperson_name IS NULL)) OR ((salesperson_object_id IS NOT NULL) AND (salesperson_approval_entry_id IS NOT NULL) AND (salesperson_code IS NOT NULL) AND (salesperson_name IS NOT NULL)))),
-    CONSTRAINT vou_sale_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
+    CONSTRAINT vou_sale_order_settlement_ck CHECK (
+      settlement_method_object_id IS NOT NULL AND settlement_method_code IS NOT NULL AND settlement_method_name IS NOT NULL
+      AND (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days=0 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=3 AND settlement_due_days=3 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=5 AND settlement_due_days=5 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=7 AND settlement_due_days=7 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=15 AND settlement_due_days=15 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=30 AND settlement_due_days=30 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=1 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=2 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+      )
+    ),
     CONSTRAINT vou_sale_order_warehouse_ck CHECK ((((warehouse_object_id IS NULL) AND (warehouse_approval_entry_id IS NULL) AND (warehouse_code IS NULL) AND (warehouse_name IS NULL)) OR ((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL))))
 );
 
@@ -7464,6 +7564,9 @@ CREATE CONSTRAINT TRIGGER vou_purchase_inquiry_detail_ck AFTER INSERT OR DELETE 
 CREATE CONSTRAINT TRIGGER vou_purchase_order_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.vou_purchase_order_details DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.vou_validate_document_detail();
 
 
+CREATE TRIGGER vou_purchase_order_non_draft_immutable BEFORE DELETE OR UPDATE ON public.vou_purchase_order_details FOR EACH ROW EXECUTE FUNCTION public.vou_reject_non_draft_order_detail_mutation();
+
+
 --
 -- Name: vou_purchase_return_details vou_purchase_return_detail_ck; Type: TRIGGER; Schema: public; Owner: -
 --
@@ -7490,6 +7593,9 @@ CREATE CONSTRAINT TRIGGER vou_sale_delivery_detail_ck AFTER INSERT OR DELETE OR 
 --
 
 CREATE CONSTRAINT TRIGGER vou_sale_order_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.vou_sale_order_details DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.vou_validate_document_detail();
+
+
+CREATE TRIGGER vou_sale_order_non_draft_immutable BEFORE DELETE OR UPDATE ON public.vou_sale_order_details FOR EACH ROW EXECUTE FUNCTION public.vou_reject_non_draft_order_detail_mutation();
 
 
 --

@@ -3,18 +3,33 @@
 package dcl
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
+
+type signalingRelationshipPartyReader struct {
+	called chan<- struct{}
+	result bobdomain.PartyRelationshipResolved
+}
+
+func (r signalingRelationshipPartyReader) ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error) {
+	r.called <- struct{}{}
+	return r.result, nil
+}
 
 // This is the public DCL lifecycle seam: the test only observes durable
 // Approval, typed snapshots, latest-approved visibility and identifier claims.
@@ -93,6 +108,281 @@ func TestPartyDeclarationLifecycleControlsCurrentAndClaimsIntegration(t *testing
 	}
 	assertPartyCurrent(t, pool, v1.PartyID, "", "")
 	assertPartyClaims(t, pool, []partyClaim{{bobdomain.PartyIdentifierUnifiedSocialCreditCode, "91310000PARTYV1001", "", "", v1.PartyID, v1.Approval.ApprovalEntryID}})
+}
+
+func TestPartyLastApprovedVersionIsBlockedByApprovedRelationshipIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	authorizer, bus := authorization.Func(nil), txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	operating := NewOperatingEntityService(pool, business, authorizer, bus)
+	relationships := NewRelationshipService(
+		pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus,
+	)
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
+	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
+
+	owner, err := operating.Create(t.Context(), OperatingEntityCreateInput{
+		Data: bobdomain.OperatingEntityData{Name: "Party blocker 经营主体"},
+	}, creator("owner-create"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner = submitAndApproveOperatingEntity(
+		t, operating, owner, creator("owner-submit"), reviewer("owner-approve"),
+	)
+	relation, err := relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{
+		OperatingEntityID: owner.ObjectID,
+		NewParty: &bobdomain.PartyCreateData{
+			Kind:      bobdomain.PartyKindOrganization,
+			LegalName: "有正式关系的主体",
+			StrongIdentifiers: []bobdomain.PartyIdentifierInput{{
+				Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91310000BLOCK31501",
+			}},
+		},
+		Data: OtherUnitData{},
+	}, creator("relationship-create"))
+	if err != nil {
+		t.Fatalf("create relationship: %v", err)
+	}
+	approveRelationshipParty(
+		t, parties, relation.PartyID, creator("party-submit"), reviewer("party-approve"),
+	)
+	partyView, err := parties.Get(
+		t.Context(), PartyGetInput{PartyID: relation.PartyID},
+		bobdomain.PartyRelationshipVisibility{}, creator("party-get"),
+	)
+	if err != nil {
+		t.Fatalf("get approved Party: %v", err)
+	}
+	relation, err = relationships.SubmitOtherUnit(t.Context(), RelationshipVersionInput{
+		ObjectID: relation.ObjectID, ApprovalEntryID: relation.Approval.ApprovalEntryID,
+		ApprovalRevision: relation.Approval.Revision,
+	}, creator("relationship-submit"))
+	if err != nil {
+		t.Fatalf("submit relationship: %v", err)
+	}
+	relation, err = relationships.ApproveOtherUnit(t.Context(), RelationshipVersionInput{
+		ObjectID: relation.ObjectID, ApprovalEntryID: relation.Approval.ApprovalEntryID,
+		ApprovalRevision: relation.Approval.Revision,
+	}, reviewer("relationship-approve"))
+	if err != nil {
+		t.Fatalf("approve relationship: %v", err)
+	}
+	partyV2, err := parties.Save(t.Context(), PartySaveInput{
+		PartyID: partyView.PartyID, ApprovalEntryID: partyView.Approval.ApprovalEntryID,
+		ApprovalRevision: partyView.Approval.Revision,
+		Data:             partyDeclarationData("有正式关系的主体 V2", "91310000BLOCK31502"),
+	}, creator("party-v2-save"))
+	if err != nil {
+		t.Fatalf("save Party V2: %v", err)
+	}
+	partyV2, err = parties.Submit(t.Context(), partyVersionInput(partyV2), creator("party-v2-submit"))
+	if err != nil {
+		t.Fatalf("submit Party V2: %v", err)
+	}
+	partyV2, err = parties.Approve(t.Context(), partyVersionInput(partyV2), reviewer("party-v2-approve"))
+	if err != nil {
+		t.Fatalf("approve Party V2: %v", err)
+	}
+	partyV2, err = parties.Unapprove(t.Context(), PartyReviewInput{
+		PartyID: partyV2.PartyID, ApprovalEntryID: partyV2.Approval.ApprovalEntryID,
+		ApprovalRevision: partyV2.Approval.Revision, Reason: "回退到仍获批准的 V1",
+	}, reviewer("party-v2-unapprove"))
+	if err != nil {
+		t.Fatalf("unapprove Party V2 with approved V1 fallback: %v", err)
+	}
+	assertPartyCurrent(t, pool, partyView.PartyID, partyView.Approval.ApprovalEntryID, "有正式关系的主体")
+	partyV2, err = parties.Unsubmit(t.Context(), PartyReviewInput{
+		PartyID: partyV2.PartyID, ApprovalEntryID: partyV2.Approval.ApprovalEntryID,
+		ApprovalRevision: partyV2.Approval.Revision,
+	}, creator("party-v2-unsubmit"))
+	if err != nil {
+		t.Fatalf("unsubmit Party V2: %v", err)
+	}
+	if err = parties.Delete(t.Context(), partyVersionInput(partyV2), creator("party-v2-delete")); err != nil {
+		t.Fatalf("delete Party V2: %v", err)
+	}
+
+	_, err = parties.Unapprove(t.Context(), PartyReviewInput{
+		PartyID: relation.PartyID, ApprovalEntryID: partyView.Approval.ApprovalEntryID,
+		ApprovalRevision: partyView.Approval.Revision, Reason: "正式关系仍存在",
+	}, reviewer("party-unapprove"))
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.ErrorKey != "bob_unapprove_blocked" {
+		t.Fatalf("Party unapprove blocker error = %v", err)
+	}
+	blockers, ok := domainErr.Data.(bobdomain.ActiveReferenceBlockers)
+	if !ok || len(blockers.References) != 1 || blockers.References[0] != (bobdomain.ActiveReferenceCount{
+		Entity: EntityOtherUnit, Field: "partyId", Count: 1,
+	}) {
+		t.Fatalf("Party unapprove blockers = %#v", domainErr.Data)
+	}
+	assertApprovalState(
+		t, pool, partyView.Approval.ApprovalEntryID, approval.StatusApproved, partyView.Approval.Revision,
+	)
+}
+
+func TestPartyUnapproveAndRelationshipApproveSerializeOnPartyRootIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	authorizer, bus := authorization.Func(nil), txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
+	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	operating := NewOperatingEntityService(pool, business, authorizer, bus)
+	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
+	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
+
+	owner, err := operating.Create(t.Context(), OperatingEntityCreateInput{
+		Data: bobdomain.OperatingEntityData{Name: "Party race 经营主体"},
+	}, creator("race-owner-create"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("race-owner-submit"), reviewer("race-owner-approve"))
+	relation, err := relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{
+		OperatingEntityID: owner.ObjectID,
+		NewParty: &bobdomain.PartyCreateData{
+			Kind: bobdomain.PartyKindOrganization, LegalName: "并发主体",
+			StrongIdentifiers: []bobdomain.PartyIdentifierInput{{
+				Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91310000RACE315001",
+			}},
+		},
+		Data: OtherUnitData{},
+	}, creator("race-relationship-create"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	approveRelationshipParty(t, parties, relation.PartyID, creator("race-party-submit"), reviewer("race-party-approve"))
+	partyView, err := parties.Get(t.Context(), PartyGetInput{PartyID: relation.PartyID}, bobdomain.PartyRelationshipVisibility{}, creator("race-party-get"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	relation, err = relationships.SubmitOtherUnit(t.Context(), RelationshipVersionInput{
+		ObjectID: relation.ObjectID, ApprovalEntryID: relation.Approval.ApprovalEntryID,
+		ApprovalRevision: relation.Approval.Revision,
+	}, creator("race-relationship-submit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	relationshipResult := make(chan error, 1)
+	partyResult := make(chan error, 1)
+	relationshipActor := reviewer("race-relationship-approve")
+	partyActor := reviewer("race-party-unapprove")
+	go func() {
+		<-start
+		_, approveErr := relationships.ApproveOtherUnit(t.Context(), RelationshipVersionInput{
+			ObjectID: relation.ObjectID, ApprovalEntryID: relation.Approval.ApprovalEntryID,
+			ApprovalRevision: relation.Approval.Revision,
+		}, relationshipActor)
+		relationshipResult <- approveErr
+	}()
+	go func() {
+		<-start
+		_, unapproveErr := parties.Unapprove(t.Context(), PartyReviewInput{
+			PartyID: partyView.PartyID, ApprovalEntryID: partyView.Approval.ApprovalEntryID,
+			ApprovalRevision: partyView.Approval.Revision, Reason: "并发撤销",
+		}, partyActor)
+		partyResult <- unapproveErr
+	}()
+	close(start)
+	relationshipErr, partyErr := <-relationshipResult, <-partyResult
+
+	q := dbsqlc.New(pool)
+	partyEntry, err := q.GetApprovalEntry(t.Context(), dbsqlc.GetApprovalEntryParams{
+		ID: partyView.Approval.ApprovalEntryID, Domain: "dcl", Entity: EntityParty,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	relationshipEntry, err := q.GetApprovalEntry(t.Context(), dbsqlc.GetApprovalEntryParams{
+		ID: relation.Approval.ApprovalEntryID, Domain: "dcl", Entity: EntityOtherUnit,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if partyEntry.Status != string(approval.StatusApproved) && relationshipEntry.Status == string(approval.StatusApproved) {
+		t.Fatalf("orphaned approved relationship: Party=%s relationship=%s errors=(%v, %v)", partyEntry.Status, relationshipEntry.Status, partyErr, relationshipErr)
+	}
+	if relationshipErr == nil {
+		var domainErr *DomainError
+		if !errors.As(partyErr, &domainErr) || domainErr.ErrorKey != "bob_unapprove_blocked" {
+			t.Fatalf("relationship won race but Party error=%v", partyErr)
+		}
+	} else if partyErr == nil {
+		if partyEntry.Status != string(approval.StatusPending) || relationshipEntry.Status != string(approval.StatusPending) {
+			t.Fatalf("Party won race states=(%s,%s), relationship error=%v", partyEntry.Status, relationshipEntry.Status, relationshipErr)
+		}
+	} else {
+		t.Fatalf("both concurrent operations failed: Party=%v relationship=%v", partyErr, relationshipErr)
+	}
+}
+
+func TestRelationshipCreateLocksPartyRootBeforeReadingApprovedPartyIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	parties := newPartyIntegrationService(pool, nil)
+	actor := dclActor(t, ulid.Make().String(), "relationship-create-root-lock")
+	party := createPartyDraft(
+		t, parties, partyDeclarationData("创建串行主体", "91310000CREATE31501"), actor,
+	)
+
+	rootTx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rootTx.Rollback(t.Context())
+	if err = lockPartyRoot(t.Context(), rootTx, party.PartyID); err != nil {
+		t.Fatalf("lock Party root: %v", err)
+	}
+	createTx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer createTx.Rollback(t.Context())
+	called := make(chan struct{}, 1)
+	result := make(chan error, 1)
+	go func() {
+		_, resolveErr := resolveExistingPartyForRelationship(
+			context.Background(), createTx,
+			signalingRelationshipPartyReader{
+				called: called,
+				result: bobdomain.PartyRelationshipResolved{ID: party.PartyID},
+			},
+			party.PartyID,
+		)
+		result <- resolveErr
+	}()
+
+	select {
+	case <-called:
+		t.Fatal("relationship create read Party before acquiring its stable root lock")
+	case <-time.After(150 * time.Millisecond):
+	}
+	if err = rootTx.Commit(t.Context()); err != nil {
+		t.Fatalf("release Party root: %v", err)
+	}
+	select {
+	case err = <-result:
+		if err != nil {
+			t.Fatalf("resolve Party after root release: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("relationship create did not continue after Party root release")
+	}
+	select {
+	case <-called:
+	default:
+		t.Fatal("relationship create never read the Party after acquiring its root lock")
+	}
 }
 
 func TestPartyIdentifierClaimsRejectCrossPartyAndReleaseCandidateChangesIntegration(t *testing.T) {

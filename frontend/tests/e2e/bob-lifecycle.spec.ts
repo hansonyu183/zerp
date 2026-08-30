@@ -201,7 +201,7 @@ test(
     const code = (
       await createdRow.locator('td[data-label="编码"]').textContent()
     )?.trim()
-    expect(code).toMatch(/^OUT-\d{4}$/)
+    expect(code).toMatch(/^OTU-\d{4}$/)
 
     let partyRow = await openPartyDeclarations(page, partyName)
     await partyRow

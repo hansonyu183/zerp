@@ -47,7 +47,13 @@ WHERE entry.domain='dcl'
   );
 
 -- name: ListWorkbenchBobItems :many
-SELECT entry.subject_id AS object_id, entry.entity, COALESCE(subject.code, mapping.vou_entity, '') AS code,
+SELECT entry.subject_id AS object_id, entry.entity,
+       CASE
+         WHEN entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','supplier','other-unit','sales-partner','customer','customer-account','rpt-definition')
+           THEN dcl_require_subject_code(subject.code)
+         WHEN entry.entity='acc-mapping' THEN mapping.vou_entity
+         ELSE ''
+       END AS code,
        named.name,
        COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
        entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision,

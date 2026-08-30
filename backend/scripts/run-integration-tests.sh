@@ -191,6 +191,108 @@ run_issue_315_cutover() {
 		<db/cutovers/issue-315-vou-source-facts.sql
 }
 
+run_issue_316_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-316-wfl-identity-and-dcl-code.sql
+}
+
+seed_issue_316_wfl_fixture() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' <<'SQL'
+INSERT INTO wfl_process_definitions(id,code,enabled,created_at,created_by,updated_at,updated_by)
+VALUES(
+  '01Z31600000000000000000001','issue-316-workflow',true,
+  '2026-08-29 04:01:02+00','01JAPPSYST3MACTR0000000000',
+  '2026-08-29 05:02:03+00','01JAPPSYST3MACTR0000000000'
+);
+INSERT INTO dcl_subjects(id,entity,created_at,created_by)
+VALUES('01Z31600000000000000000001','wfl-process-definition','2026-08-29 03:00:00+00','00000000000000000000000000');
+INSERT INTO approval_entries(
+  id,domain,entity,subject_id,version_no,status,revision,
+  created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+) VALUES(
+  '01Z31600000000000000000002','dcl','wfl-process-definition','01Z31600000000000000000001',4,'APPROVED',9,
+  '01JAPPSYST3MACTR0000000000','2026-08-29 04:01:02+00','01JAPPSYST3MACTR0000000000','2026-08-29 05:02:03+00',
+  '01JAPPSYST3MACTR0000000000','2026-08-29 04:30:00+00','01JAPPSYST3MACTR0000000001','2026-08-29 05:00:00+00'
+);
+INSERT INTO dcl_wfl_process_definition_versions(
+  approval_entry_id,definition_id,script,compiled,last_trial_approval_revision,
+  created_at,created_by,updated_at,updated_by
+) VALUES(
+  '01Z31600000000000000000002','01Z31600000000000000000001',
+  'root = node(key="root", name="Issue 316", entity="sale-order")',
+  '{"name":"Issue 316 workflow","rootKey":"root","nodes":[{"key":"root","name":"Issue 316","entity":"sale-order"}],"edges":[]}'::jsonb,8,
+  '2026-08-29 04:01:02+00','01JAPPSYST3MACTR0000000000','2026-08-29 05:02:03+00','01JAPPSYST3MACTR0000000000'
+);
+INSERT INTO wfl_definition_instances(
+  id,definition_id,definition_approval_entry_id,definition_code,definition_name,
+  root_document_no,root_entity,revision,created_at,created_by,updated_at,updated_by
+) VALUES(
+  '01Z31600000000000000000003','01Z31600000000000000000001','01Z31600000000000000000002',
+  'issue-316-workflow','Issue 316 workflow','SO-316','sale-order',5,
+  '2026-08-29 05:03:00+00','01JAPPSYST3MACTR0000000000','2026-08-29 05:04:00+00','01JAPPSYST3MACTR0000000000'
+);
+INSERT INTO wfl_node_instances(
+  id,process_id,node_key,node_name,document_no,document_entity,trigger_event,created_at
+) VALUES(
+  '01Z31600000000000000000004','01Z31600000000000000000003','root','Issue 316','SO-316','sale-order','EXECUTED','2026-08-29 05:03:00+00'
+);
+INSERT INTO wfl_create_child_requests(
+  definition_id,request_key,process_id,parent_node_instance_id,target_node_key,created_at
+) VALUES(
+  '01Z31600000000000000000001','issue-316-child-request','01Z31600000000000000000003',
+  '01Z31600000000000000000004','child','2026-08-29 05:04:00+00'
+);
+INSERT INTO wfl_runtime_audit_events(
+  id,process_id,definition_id,definition_approval_entry_id,event_type,
+  actor_id,request_id,summary,occurred_at
+) VALUES(
+  '01Z31600000000000000000005','01Z31600000000000000000003','01Z31600000000000000000001',
+  '01Z31600000000000000000002','PROCESS_STARTED','01JAPPSYST3MACTR0000000000',
+  'issue-316-audit','{"preserved":true}'::jsonb,'2026-08-29 05:05:00+00'
+);
+SQL
+}
+
+verify_issue_316_failure_is_atomic() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.wfl_process_definitions'"'"') IS NOT NULL
+		  AND to_regclass('"'"'public.wfl_definition_runtime_states'"'"') IS NULL
+		  AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='"'"'dcl_subjects'"'"'::regclass AND conname='"'"'dcl_subjects_code_check'"'"')
+		  AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z31600000000000000000099'"'"' AND entity='"'"'product'"'"' AND code='"'"'WHS-9999'"'"')
+		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
+verify_issue_316_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.wfl_process_definitions'"'"') IS NULL
+		  AND to_regclass('"'"'public.wfl_definition_runtime_states'"'"') IS NOT NULL
+		  AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z31600000000000000000001'"'"' AND entity='"'"'wfl-process-definition'"'"' AND code='"'"'issue-316-workflow'"'"' AND created_at='"'"'2026-08-29 04:01:02+00'"'"' AND created_by='"'"'01JAPPSYST3MACTR0000000000'"'"')
+		  AND EXISTS (SELECT 1 FROM wfl_definition_runtime_states WHERE subject_id='"'"'01Z31600000000000000000001'"'"' AND enabled AND updated_at='"'"'2026-08-29 05:02:03+00'"'"' AND updated_by='"'"'01JAPPSYST3MACTR0000000000'"'"')
+		  AND EXISTS (SELECT 1 FROM approval_entries WHERE id='"'"'01Z31600000000000000000002'"'"' AND subject_id='"'"'01Z31600000000000000000001'"'"' AND status='"'"'APPROVED'"'"' AND revision=9)
+		  AND EXISTS (SELECT 1 FROM dcl_wfl_process_definition_versions WHERE approval_entry_id='"'"'01Z31600000000000000000002'"'"' AND definition_id='"'"'01Z31600000000000000000001'"'"')
+		  AND EXISTS (SELECT 1 FROM wfl_definition_instances WHERE id='"'"'01Z31600000000000000000003'"'"' AND definition_id='"'"'01Z31600000000000000000001'"'"' AND definition_approval_entry_id='"'"'01Z31600000000000000000002'"'"')
+		  AND EXISTS (SELECT 1 FROM wfl_create_child_requests WHERE definition_id='"'"'01Z31600000000000000000001'"'"' AND request_key='"'"'issue-316-child-request'"'"' AND process_id='"'"'01Z31600000000000000000003'"'"')
+		  AND EXISTS (SELECT 1 FROM wfl_runtime_audit_events WHERE id='"'"'01Z31600000000000000000005'"'"' AND definition_id='"'"'01Z31600000000000000000001'"'"' AND definition_approval_entry_id='"'"'01Z31600000000000000000002'"'"')
+		  AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z30500000000000000000001'"'"' AND code='"'"'OPE-0305'"'"')
+		  AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z31100000000000000000015'"'"' AND code='"'"'OTU-0311'"'"')
+		  AND EXISTS (SELECT 1 FROM dcl_subjects WHERE id='"'"'01Z31100000000000000000016'"'"' AND code='"'"'SLP-0311'"'"')
+		  AND NOT EXISTS (SELECT 1 FROM dcl_subjects WHERE code IS NULL AND entity NOT IN ('"'"'party'"'"','"'"'acc-mapping'"'"'))
+		  AND NOT EXISTS (SELECT 1 FROM dcl_subjects WHERE code IS NOT NULL AND entity IN ('"'"'party'"'"','"'"'acc-mapping'"'"'))
+		  AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='"'"'dcl_subjects'"'"'::regclass AND conname='"'"'dcl_subjects_code_ck'"'"')
+		  AND position('"'"'wfl_definition_runtime_states'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'dcl_wfl_process_definition_versions'"'"'::regclass AND conname='"'"'dcl_wfl_process_definition_versions_definition_id_fkey'"'"')))>0
+		  AND position('"'"'wfl_definition_runtime_states'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'wfl_definition_instances'"'"'::regclass AND conname='"'"'wfl_definition_instances_definition_id_fkey'"'"')))>0
+		  AND position('"'"'wfl_definition_runtime_states'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'wfl_create_child_requests'"'"'::regclass AND conname='"'"'wfl_create_child_requests_definition_id_fkey'"'"')))>0
+		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 verify_issue_315_cutover() {
 	local database="$1"
 	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
@@ -793,6 +895,25 @@ SQL
 	verify_issue_311_cutover "$pre_issue_305_database"
 	run_issue_315_cutover "$pre_issue_305_database"
 	verify_issue_315_cutover "$pre_issue_305_database"
+	seed_issue_316_wfl_fixture "$pre_issue_305_database"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+		 "UPDATE dcl_subjects SET code=CASE id
+		    WHEN '"'"'01Z30500000000000000000001'"'"' THEN '"'"'OPE-0305'"'"'
+		    WHEN '"'"'01Z31100000000000000000015'"'"' THEN '"'"'OTU-0311'"'"'
+		    WHEN '"'"'01Z31100000000000000000016'"'"' THEN '"'"'SLP-0311'"'"'
+		  END
+		  WHERE id IN ('"'"'01Z30500000000000000000001'"'"','"'"'01Z31100000000000000000015'"'"','"'"'01Z31100000000000000000016'"'"');
+		  INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES ('"'"'01Z31600000000000000000099'"'"','"'"'product'"'"','"'"'WHS-9999'"'"','"'"'01JAPPSYST3MACTR0000000000'"'"')"' </dev/null
+	if run_issue_316_cutover "$pre_issue_305_database" >/dev/null 2>&1; then
+		fail "issue-316 cutover accepted a coded DCL subject with the wrong prefix"
+	fi
+	verify_issue_316_failure_is_atomic "$pre_issue_305_database"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+		 "DELETE FROM dcl_subjects WHERE id='"'"'01Z31600000000000000000099'"'"'"' </dev/null
+	run_issue_316_cutover "$pre_issue_305_database"
+	verify_issue_316_cutover "$pre_issue_305_database"
 
 	issue_315_database="$(database_name "_issue_315_${run_id}_test")"
 	clone_databases+=("$issue_315_database")

@@ -167,7 +167,7 @@ func reserveCustomerAccountIdentity(ctx context.Context, tx pgx.Tx, relationship
 	if _, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, relationshipID); err != nil {
 		return bobdomain.RelationshipIdentity{}, err
 	}
-	subject, err := reserveSubject(ctx, tx, EntityCustomerAccount, "CAC", actorID)
+	subject, err := reserveSubject(ctx, tx, EntityCustomerAccount, "ACC", actorID)
 	if err != nil {
 		return bobdomain.RelationshipIdentity{}, err
 	}

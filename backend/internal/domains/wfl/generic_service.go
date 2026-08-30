@@ -59,6 +59,9 @@ func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInpu
 
 	items := make([]DefinitionListItem, 0, len(rows))
 	for _, row := range rows {
+		if row.Code == nil {
+			return Page[DefinitionListItem]{}, internal("workflow definition subject has no code", errors.New("missing DCL subject code"))
+		}
 		var compiled compiledScriptDefinition
 		if err = json.Unmarshal(row.Compiled, &compiled); err != nil {
 			return Page[DefinitionListItem]{}, internal("decode workflow definition", err)
@@ -76,7 +79,7 @@ func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInpu
 
 		items = append(items, DefinitionListItem{
 			DefinitionID: row.DefinitionID,
-			Code:         row.Code,
+			Code:         *row.Code,
 			Name:         compiled.Name,
 			Enabled:      row.Enabled,
 			Approval:     workflowApprovalMetaFromEntry(entryRow),
@@ -95,13 +98,15 @@ func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput, _
 		return DefinitionView{}, validation("invalid definitionId", nil)
 	}
 
-	var code string
-	var enabled bool
-	if err := s.pool.QueryRow(ctx, `SELECT code, enabled FROM wfl_process_definitions WHERE id=$1`, input.DefinitionID).Scan(&code, &enabled); err != nil {
+	identity, err := s.queries.GetCurrentWorkflowDefinitionIdentity(ctx, input.DefinitionID)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return DefinitionView{}, validation("process definition not found", nil)
 		}
 		return DefinitionView{}, internal("get workflow definition", err)
+	}
+	if identity.Code == nil {
+		return DefinitionView{}, internal("get workflow definition", errors.New("workflow definition code is null"))
 	}
 
 	latest, err := s.queries.DclWflGetLatestApprovedPayload(ctx, input.DefinitionID)
@@ -129,9 +134,9 @@ func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput, _
 	result := DefinitionView{
 		DefinitionListItem: DefinitionListItem{
 			DefinitionID: input.DefinitionID,
-			Code:         code,
+			Code:         *identity.Code,
 			Name:         compiled.Name,
-			Enabled:      enabled,
+			Enabled:      identity.Enabled,
 			Approval:     workflowApprovalMetaFromEntry(entryRow),
 			RootEntity:   compiledNodeByKey(compiled, compiled.RootKey).Entity,
 			NodeCount:    len(compiled.Nodes),
@@ -491,8 +496,7 @@ func (s *Service) definitionIDByCode(ctx context.Context, code string) (string, 
 	if !definitionCodePattern.MatchString(code) || reservedDefinitionCodes[code] {
 		return "", validation("process definition not found", nil)
 	}
-	var definitionID string
-	err := s.pool.QueryRow(ctx, `SELECT id FROM wfl_process_definitions WHERE code=$1`, code).Scan(&definitionID)
+	definitionID, err := s.queries.GetWorkflowDefinitionIDByCode(ctx, &code)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", validation("process definition not found", nil)
 	}

@@ -10,7 +10,7 @@ WFL 是以 VOU 单据为节点的用户可管理流程引擎。VOU 独立负责�
 
 Starlark 脚本是流程定义的唯一可编辑来源。`node` 声明稳定节点 key、名称和 VOU entity；`edge` 声明具名关系、分支条件和一个静态动作；`workflow` 声明稳定 code、名称、唯一根节点和可选启动条件。编译图只读展示；编译必须得到单根、单父、连通且无环的树，并拒绝重复 key、不兼容来源/目标动作和动态动作调用。
 
-流程定义的 stable subject `wfl-process-definition` 由 DCL 唯一拥有生命周期。`/dcl/wfl-process-definition` 是定义唯一维护入口，覆盖创建、保存、创建候选、删除草稿、提交、撤回、驳回、批准、反批、启用、停用、版本历史和审计。WFL 只读取当前定义和 latest APPROVED entry，不提供版本写入、生命周期或候选查询。
+流程定义的 stable subject `wfl-process-definition` 由 `dcl_subjects` 唯一持有 stable ID、code 与创建审计。WFL 只拥有 `wfl_definition_runtime_states(subjectId, enabled, updatedAt, updatedBy)` 这一 typed dependent；版本、实例与子单请求均通过其 subjectId FK 归属同一身份，`wfl_process_definitions`、第二 stable root 和过渡视图均不存在。`/dcl/wfl-process-definition` 是定义唯一维护入口，覆盖创建、保存、创建候选、删除草稿、提交、撤回、驳回、批准、反批、启用、停用、版本历史和审计。WFL 只读取当前定义和 latest APPROVED entry，不提供版本写入、生命周期或候选查询。
 
 `workflow(code, name, root)` 中的 name 与成功编译图是唯一的版本化名称事实；每个脚本、名称、诊断和编译图属于一个中央 Approval Version entry。`enabled` 是 stable definition 上独立的布尔开关，不是审批状态；不存在 publish、published revision、current revision、stable name 或任何 version pointer。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`。
 

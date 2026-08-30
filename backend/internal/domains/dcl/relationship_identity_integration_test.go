@@ -31,7 +31,7 @@ func TestTypedRelationshipDraftIdentityDeletionDoesNotReuseCodeIntegration(t *te
 	}{
 		{EntityCustomer, "CUS"},
 		{EntitySupplier, "SUP"},
-		{EntityOtherUnit, "OUT"},
+		{EntityOtherUnit, "OTU"},
 		{EntitySalesPartner, "SLP"},
 	} {
 		t.Run(tc.entity, func(t *testing.T) {

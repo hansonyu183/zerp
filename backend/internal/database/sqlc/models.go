@@ -1926,6 +1926,14 @@ type WflDefinitionInstance struct {
 	UpdatedBy                 string             `db:"updated_by" json:"updated_by"`
 }
 
+type WflDefinitionRuntimeState struct {
+	SubjectID     string             `db:"subject_id" json:"subject_id"`
+	SubjectEntity string             `db:"subject_entity" json:"subject_entity"`
+	Enabled       bool               `db:"enabled" json:"enabled"`
+	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy     string             `db:"updated_by" json:"updated_by"`
+}
+
 type WflNodeInstance struct {
 	ID                       string             `db:"id" json:"id"`
 	ProcessID                string             `db:"process_id" json:"process_id"`
@@ -1942,16 +1950,6 @@ type WflNodeInstance struct {
 	ActionName               *string            `db:"action_name" json:"action_name"`
 	EvaluatedAt              pgtype.Timestamptz `db:"evaluated_at" json:"evaluated_at"`
 	CreatedAt                pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type WflProcessDefinition struct {
-	ID        string             `db:"id" json:"id"`
-	Code      string             `db:"code" json:"code"`
-	Enabled   bool               `db:"enabled" json:"enabled"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy string             `db:"created_by" json:"created_by"`
-	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy string             `db:"updated_by" json:"updated_by"`
 }
 
 type WflRuntimeAuditEvent struct {

@@ -4,7 +4,7 @@
 
 DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject、business code 与强类型申报快照。当前实体是 `operating-entity`、`warehouse`、`vehicle`、`fund-account`、`product`、`party`、`employee`、`customer`、`customer-account`、`supplier`、`other-unit`、`sales-partner`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition`：DCL 拥有申报创建、候选编辑、提交、撤回、驳回、批准、反批、草稿删除、版本历史和审计读取；中央 Approval 唯一拥有版本号、状态、revision、审批元数据和审批事件；BOB 只通过 highest APPROVED typed snapshot 提供当前有效业务资料的只读查询与交易引用解析。会计映射的稳定主体 `(bookId, vouEntity)` 由 DCL 拥有生命周期，ACC 只读取最新批准映射作为当前记账解释。报表定义的稳定主体 `(definitionId, code)` 由 DCL 拥有生命周期，RPT 只保留当前有效定义的查询、执行和独立 VALID/INVALID 技术有效性。流程定义的稳定主体 `wfl-process-definition` 由 DCL 拥有生命周期，WFL 只保留当前定义的查询、脚本与编译图领域能力、试算、实例和运行。
 
-`dcl_subjects` 是版本化业务对象唯一通用稳定身份，最小保存不可变 ID、entity、nullable code、createdAt 与 createdBy；非空 `(entity, code)` 唯一。五类核心主数据编码空间耗尽时，创建必须以稳定业务冲突 `dcl_subject_code_capacity_exhausted` 失败，不得返回内部错误或创建无编码 subject。DCL 不复制 Approval 版本头，不保存 `enabled`、`currentVersionId`、`effectiveVersionId`、`baseVersionId`、`nextVersionNo` 或任何 subject/object revision。DCL 也不提供 BOB 写入别名、双写、current store、过渡视图或失败回退。
+`dcl_subjects` 是版本化业务对象唯一通用稳定身份，最小保存不可变 ID、entity、code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 Party 与 ACC Mapping 是无编码 subject，允许 code 为空。Operating Entity、Warehouse、Vehicle、Fund Account、Product、Employee、Customer、Customer Account、Supplier、Other Unit 与 Sales Partner 必须分别匹配 `OPE/WHS/VEH/FAC/PRD/EMP/CUS/ACC/SUP/OTU/SLP-[0-9]{4}`；RPT Definition 保留合法 slug 且系统新分配 `rpt-[0-9]{6}`；WFL Process Definition 必须匹配 `^[a-z][a-z0-9-]{1,62}[a-z0-9]$`。这些非空、前缀、格式与大小写不敏感唯一规则均是数据库不变量，所有 writer、seed、fixture 与 import 都必须满足，读取不得用 `COALESCE` 隐藏腐败。编码空间耗尽时，创建必须以稳定业务冲突 `dcl_subject_code_capacity_exhausted` 失败，不得返回内部错误或创建无编码 subject。DCL 不复制 Approval 版本头，不保存 `enabled`、`currentVersionId`、`effectiveVersionId`、`baseVersionId`、`nextVersionNo` 或任何 subject/object revision。DCL 也不提供 BOB 写入别名、双写、current store、过渡视图或失败回退。
 
 ## 2. 经营主体申报
 
@@ -123,7 +123,9 @@ Party 最后一版反批与上述关系的创建、提交和批准必须在同�
 
 ## 3.10 流程定义申报
 
-流程定义的 stable subject 是 `wfl-process-definition`，保留既有 stable ID、Approval Entry ID、版本号、候选、类型化不可变 payload 和审计身份，不重新生成。`dcl_wfl_process_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 Starlark 脚本、诊断、编译图和试算证据；这些版本化字段随候选版本冻结，不直接修改 WFL 当前执行面。`enabled` 保留为 WFL stable definition 上的独立开关，不属于 Approval Version snapshot；启停必须携带 latest APPROVED 的 `approvalEntryId` 与 `approvalRevision`，DCL 不保存第二套 subject revision。
+流程定义的 stable subject 是 `dcl_subjects(entity=wfl-process-definition)`，它唯一持有既有 stable ID、code、createdAt 与 createdBy，并原位保留 Approval Entry ID、版本号、候选、类型化不可变 payload 和审计身份，不重新生成。`wfl_definition_runtime_states` 只保存 `subjectId PK/FK`、`enabled`、`updatedAt` 与 `updatedBy`，不保存独立 ID、code、创建审计、revision 或 Approval pointer。`dcl_wfl_process_definition_versions.definitionId`、`wfl_definition_instances.definitionId` 与 `wfl_create_child_requests.definitionId` 全部引用 runtime state 的 subjectId；`wfl_process_definitions` 根表、过渡视图和双写路径均不存在。`dcl_wfl_process_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 Starlark 脚本、诊断、编译图和试算证据；这些版本化字段随候选版本冻结，不直接修改 WFL 当前执行面。`enabled` 是 runtime state 上的独立开关，不属于 Approval Version snapshot；启停必须携带 latest APPROVED 的 `approvalEntryId` 与 `approvalRevision`，DCL 不保存第二套 subject revision。
+
+新建固定在同一事务依次创建带 code 的 DCL subject、runtime state、中央 Approval V1 `DRAFT` 与 typed version。历史 cutover 把原根表的 code/创建审计迁入同 ID subject，把 enabled/更新审计迁入 runtime state，重接 version、instance 与 child-request FK 后删除原根表；WFL code 空值、subject/runtime 不一一对应、任一 dependent orphan 或重复 identity/code 都必须阻断整个 cutover，失败不得留下部分 FK 或重复 metadata。
 
 `/dcl/wfl-process-definition` 是流程定义唯一维护入口，候选查询、详情、全部写动作和版本历史固定使用 `/dcl/wfl-process-definition/*`。WFL 业务页面只提供当前定义的 `query|get` 和流程实例/执行，不在 WFL 内创建、保存或审批候选。APP 工作台和审批深链固定进入 DCL 页面；工作项和定义深链同样进入 DCL。
 

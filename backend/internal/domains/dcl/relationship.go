@@ -85,7 +85,7 @@ func (s *RelationshipService) CreateOtherUnit(ctx context.Context, in OtherUnitC
 	if err != nil {
 		return RelationshipMutation{}, translateError(err)
 	}
-	id, err := reserveRelationshipIdentity(ctx, tx, EntityOtherUnit, "OUT", party.ID, in.OperatingEntityID, actor.ID())
+	id, err := reserveRelationshipIdentity(ctx, tx, EntityOtherUnit, "OTU", party.ID, in.OperatingEntityID, actor.ID())
 	if err != nil {
 		return RelationshipMutation{}, translateError(err)
 	}

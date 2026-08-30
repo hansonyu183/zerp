@@ -177,12 +177,12 @@ func (s *WflProcessDefinitionService) Create(ctx context.Context, input WflProce
 	q := s.queries.WithTx(tx)
 
 	defID := ulid.Make().String()
-	if err := q.InsertDclWflProcessDefinition(ctx, dbsqlc.InsertDclWflProcessDefinitionParams{
-		DefinitionID: defID, Code: code, ActorID: actor.ID(),
-	}); err != nil {
+	if err := q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: defID, Entity: EntityWflProcessDefinition, Code: &code, ActorID: actor.ID()}); err != nil {
 		return WflProcessDefinitionMutation{}, translateError(err)
 	}
-	if err := q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: defID, Entity: EntityWflProcessDefinition, ActorID: actor.ID()}); err != nil {
+	if err := q.InsertDclWflProcessDefinition(ctx, dbsqlc.InsertDclWflProcessDefinitionParams{
+		DefinitionID: defID, ActorID: actor.ID(),
+	}); err != nil {
 		return WflProcessDefinitionMutation{}, translateError(err)
 	}
 
@@ -806,8 +806,11 @@ func (s *WflProcessDefinitionService) Query(ctx context.Context, input WflProces
 
 	items := make([]WflProcessDefinitionListItem, 0, len(rows))
 	for _, row := range rows {
+		if row.Code == nil {
+			return Page[WflProcessDefinitionListItem]{}, translateError(errors.New("workflow definition subject has no code"))
+		}
 		item := WflProcessDefinitionListItem{
-			Code: row.Code, DefinitionID: row.DefinitionID,
+			Code: *row.Code, DefinitionID: row.DefinitionID,
 			Enabled: row.Enabled,
 		}
 

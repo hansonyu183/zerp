@@ -19,7 +19,7 @@ JOIN dcl_customer_relationships relationship ON relationship.object_id=account.c
 JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_customer_account_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.entity='customer-account'
-  AND ($1='' OR COALESCE(subject.code,'') ILIKE '%'||$1||'%' OR snapshot.name ILIKE '%'||$1||'%')
+  AND ($1='' OR dcl_require_subject_code(subject.code) ILIKE '%'||$1||'%' OR snapshot.name ILIKE '%'||$1||'%')
   AND ($2::int=-1 OR snapshot.enabled=($2::int=1))
   AND ($3='' OR account.customer_relationship_id=$3)
   AND ($4='' OR snapshot.operating_entity_id=$4)
@@ -61,7 +61,7 @@ JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revisio
 JOIN dcl_customer_versions snapshot ON snapshot.approval_entry_id=entry.id
 JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
 WHERE subject.entity='customer'
-  AND ($1='' OR COALESCE(subject.code,'') ILIKE '%'||$1||'%' OR party.display_name ILIKE '%'||$1||'%')
+  AND ($1='' OR dcl_require_subject_code(subject.code) ILIKE '%'||$1||'%' OR party.display_name ILIKE '%'||$1||'%')
   AND ($2::int=-1 OR snapshot.enabled=($2::int=1))
   AND ($3='' OR relationship.operating_entity_id=$3)
   AND ($4='' OR relationship.party_id=$4)
@@ -92,7 +92,7 @@ JOIN dcl_employment_relationships relationship ON relationship.object_id=subject
 JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id
 JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
-WHERE subject.entity='employee' AND ($1::text='' OR COALESCE(subject.code,'') ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
+WHERE subject.entity='employee' AND ($1::text='' OR dcl_require_subject_code(subject.code) ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
 `
 
 type CountBobEmployeesParams struct {
@@ -109,13 +109,13 @@ func (q *Queries) CountBobEmployees(ctx context.Context, arg CountBobEmployeesPa
 
 const countBobRelationshipCurrents = `-- name: CountBobRelationshipCurrents :one
 WITH selected AS (
-  SELECT subject.id,subject.entity,COALESCE(subject.code,'') AS code,snapshot.enabled,entry.updated_at,party.display_name
+  SELECT subject.id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,party.display_name
   FROM dcl_subjects subject JOIN dcl_service_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
   JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='other-unit' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id
   JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
   WHERE subject.entity='other-unit' AND $3::text='other-unit'
   UNION ALL
-  SELECT subject.id,subject.entity,COALESCE(subject.code,'') AS code,snapshot.enabled,entry.updated_at,party.display_name
+  SELECT subject.id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,party.display_name
   FROM dcl_subjects subject JOIN dcl_sales_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
   JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id
   JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
@@ -143,7 +143,7 @@ JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revisio
 JOIN dcl_supplier_versions snapshot ON snapshot.approval_entry_id=entry.id
 JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
 WHERE subject.entity='supplier'
-  AND ($1::text='' OR COALESCE(subject.code,'') ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($1::text='' OR dcl_require_subject_code(subject.code) ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
   AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
   AND ($3::text='' OR snapshot.default_purchaser_employee_id=$3::text)
 `
@@ -187,7 +187,7 @@ func (q *Queries) CountDCLApprovedPartiesForBOB(ctx context.Context, arg CountDC
 }
 
 const getBobCustomerAccountCurrent = `-- name: GetBobCustomerAccountCurrent :one
-SELECT subject.id AS object_id,COALESCE(subject.code,''),account.customer_relationship_id,COALESCE(relationship_subject.code,'') AS customer_relationship_code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,account.customer_relationship_id,dcl_require_subject_code(relationship_subject.code) AS customer_relationship_code,
        snapshot.enabled,entry.id AS source_approval_entry_id,COALESCE(entry.version_no,0)::integer AS source_version_no,entry.updated_at
 FROM dcl_subjects subject
 JOIN dcl_customer_accounts account ON account.object_id=subject.id
@@ -225,7 +225,7 @@ func (q *Queries) GetBobCustomerAccountCurrent(ctx context.Context, objectID str
 }
 
 const getBobCustomerAccountCurrentReference = `-- name: GetBobCustomerAccountCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),entry.id AS approval_entry_id,entry.version_no,
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,
        snapshot.name,snapshot.settlement_method_id,snapshot.payment_method_id,snapshot.operating_entity_id,snapshot.operating_entity_approval_entry_id,
        snapshot.primary_sales_attribution_type,snapshot.primary_sales_subject_id,snapshot.primary_sales_subject_approval_entry_id
 FROM dcl_subjects subject
@@ -273,7 +273,7 @@ func (q *Queries) GetBobCustomerAccountCurrentReference(ctx context.Context, obj
 }
 
 const getBobCustomerCurrent = `-- name: GetBobCustomerCurrent :one
-SELECT subject.id AS object_id,COALESCE(subject.code,''),relationship.party_id,party.kind AS party_kind,party.display_name,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name,
        snapshot.enabled,entry.id AS source_approval_entry_id,COALESCE(entry.version_no,0)::integer AS source_version_no,entry.updated_at
 FROM dcl_subjects subject
@@ -322,7 +322,7 @@ func (q *Queries) GetBobCustomerCurrent(ctx context.Context, objectID string) (G
 }
 
 const getBobCustomerCurrentReference = `-- name: GetBobCustomerCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),entry.id AS approval_entry_id,entry.version_no
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no
 FROM dcl_subjects subject
 JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
@@ -352,7 +352,7 @@ func (q *Queries) GetBobCustomerCurrentReference(ctx context.Context, objectID s
 }
 
 const getBobEmployeeCurrent = `-- name: GetBobEmployeeCurrent :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),snapshot.enabled,entry.updated_at,relationship.party_id,
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,relationship.party_id,
        party.kind AS party_kind,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_snapshot.legal_name AS operating_entity_name,party.display_name,
        snapshot.employee_category_id,snapshot.employee_category_code,snapshot.employee_category_name,snapshot.department_id,snapshot.department_code,snapshot.department_name,snapshot.position_id,snapshot.position_code,snapshot.position_name,snapshot.phone,snapshot.email,snapshot.hire_date,snapshot.remark,
        entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
@@ -453,7 +453,7 @@ func (q *Queries) GetBobEmployeeCurrent(ctx context.Context, objectID string) (G
 }
 
 const getBobEmployeeCurrentReference = `-- name: GetBobEmployeeCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),entry.id AS approval_entry_id,entry.version_no,party.display_name
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,party.display_name
 FROM dcl_subjects subject JOIN dcl_employment_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id
 JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
@@ -484,7 +484,7 @@ func (q *Queries) GetBobEmployeeCurrentReference(ctx context.Context, objectID s
 }
 
 const getBobOtherUnitCurrent = `-- name: GetBobOtherUnitCurrent :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),snapshot.enabled,entry.updated_at,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_snapshot.legal_name AS operating_entity_name,snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.settlement_method_id,snapshot.settlement_method_code,snapshot.settlement_method_name,snapshot.settlement_term_code,snapshot.settlement_rule_type,snapshot.settlement_month_offset,snapshot.settlement_day_of_month,snapshot.settlement_day_offset,snapshot.remark,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_snapshot.legal_name AS operating_entity_name,snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.settlement_method_id,snapshot.settlement_method_code,snapshot.settlement_method_name,snapshot.settlement_term_code,snapshot.settlement_rule_type,snapshot.settlement_month_offset,snapshot.settlement_day_of_month,snapshot.settlement_day_offset,snapshot.remark,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
 FROM dcl_subjects subject JOIN dcl_service_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='other-unit' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id
 JOIN LATERAL (SELECT payload.kind,payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
@@ -578,7 +578,7 @@ func (q *Queries) GetBobOtherUnitCurrent(ctx context.Context, objectID string) (
 }
 
 const getBobOtherUnitCurrentReference = `-- name: GetBobOtherUnitCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),entry.id AS approval_entry_id,entry.version_no,party.display_name
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,party.display_name
 FROM dcl_subjects subject JOIN dcl_service_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='other-unit' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
 WHERE subject.id=$1 AND subject.entity='other-unit' AND snapshot.enabled
 `
@@ -655,7 +655,7 @@ func (q *Queries) GetBobParty(ctx context.Context, partyID string) (GetBobPartyR
 }
 
 const getBobSalesPartnerCurrent = `-- name: GetBobSalesPartnerCurrent :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),snapshot.enabled,entry.updated_at,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_snapshot.legal_name AS operating_entity_name,snapshot.capabilities,snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.remark,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_snapshot.legal_name AS operating_entity_name,snapshot.capabilities,snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.remark,entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at
 FROM dcl_subjects subject JOIN dcl_sales_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id JOIN LATERAL (SELECT payload.kind,payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true JOIN dcl_subjects operating ON operating.id=relationship.operating_entity_id AND operating.entity='operating-entity' JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true JOIN dcl_operating_entity_versions operating_snapshot ON operating_snapshot.approval_entry_id=operating_entry.id
 WHERE subject.id=$1 AND subject.entity='sales-partner'
 `
@@ -732,7 +732,7 @@ func (q *Queries) GetBobSalesPartnerCurrent(ctx context.Context, objectID string
 }
 
 const getBobSalesPartnerCurrentReference = `-- name: GetBobSalesPartnerCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),entry.id AS approval_entry_id,entry.version_no,party.display_name
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,party.display_name
 FROM dcl_subjects subject JOIN dcl_sales_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
 WHERE subject.id=$1 AND subject.entity='sales-partner' AND snapshot.enabled
 `
@@ -761,7 +761,7 @@ func (q *Queries) GetBobSalesPartnerCurrentReference(ctx context.Context, object
 }
 
 const getBobSupplierCurrent = `-- name: GetBobSupplierCurrent :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),snapshot.enabled,entry.updated_at,
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,
        entry.id AS approval_entry_id,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at,
        relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,
        snapshot.short_name,snapshot.tax_number,snapshot.contact_name,snapshot.contact_phone,snapshot.email,snapshot.address,snapshot.remark,
@@ -869,7 +869,7 @@ func (q *Queries) GetBobSupplierCurrent(ctx context.Context, objectID string) (G
 }
 
 const getBobSupplierCurrentReference = `-- name: GetBobSupplierCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),entry.id AS approval_entry_id,entry.version_no
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no
 FROM dcl_subjects subject
 JOIN dcl_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
@@ -966,7 +966,7 @@ func (q *Queries) GetDCLSupplierRelationshipPartyIDForBOB(ctx context.Context, o
 }
 
 const listBobCustomerAccountCurrents = `-- name: ListBobCustomerAccountCurrents :many
-SELECT subject.id AS object_id,COALESCE(subject.code,''),account.customer_relationship_id,COALESCE(relationship_subject.code,'') AS customer_relationship_code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,account.customer_relationship_id,dcl_require_subject_code(relationship_subject.code) AS customer_relationship_code,
        snapshot.name,snapshot.customer_type,snapshot.operating_entity_code,snapshot.enabled,entry.id AS source_approval_entry_id,COALESCE(entry.version_no,0)::integer AS source_version_no,entry.updated_at
 FROM dcl_subjects subject
 JOIN dcl_customer_accounts account ON account.object_id=subject.id
@@ -974,14 +974,14 @@ JOIN dcl_subjects relationship_subject ON relationship_subject.id=account.custom
 JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_customer_account_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.entity='customer-account'
-  AND ($1='' OR COALESCE(subject.code,'') ILIKE '%'||$1||'%' OR snapshot.name ILIKE '%'||$1||'%')
+  AND ($1='' OR dcl_require_subject_code(subject.code) ILIKE '%'||$1||'%' OR snapshot.name ILIKE '%'||$1||'%')
   AND ($2::int=-1 OR snapshot.enabled=($2::int=1))
   AND ($3='' OR account.customer_relationship_id=$3)
   AND ($4='' OR snapshot.operating_entity_id=$4)
   AND ($5='' OR snapshot.customer_type=$5)
   AND ($6='' OR snapshot.primary_sales_attribution_type=$6)
   AND ($7='' OR snapshot.primary_sales_subject_id=$7)
-ORDER BY COALESCE(subject.code,'') ASC LIMIT $9 OFFSET $8
+ORDER BY dcl_require_subject_code(subject.code) ASC LIMIT $9 OFFSET $8
 `
 
 type ListBobCustomerAccountCurrentsParams struct {
@@ -1053,7 +1053,7 @@ func (q *Queries) ListBobCustomerAccountCurrents(ctx context.Context, arg ListBo
 }
 
 const listBobCustomerCurrents = `-- name: ListBobCustomerCurrents :many
-SELECT subject.id AS object_id,COALESCE(subject.code,''),relationship.party_id,party.kind AS party_kind,party.display_name,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name,
        snapshot.enabled,entry.id AS source_approval_entry_id,COALESCE(entry.version_no,0)::integer AS source_version_no,entry.updated_at
 FROM dcl_subjects subject
@@ -1062,11 +1062,11 @@ JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revisio
 JOIN dcl_customer_versions snapshot ON snapshot.approval_entry_id=entry.id
 JOIN LATERAL (SELECT payload.kind,payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
 WHERE subject.entity='customer'
-  AND ($1='' OR COALESCE(subject.code,'') ILIKE '%'||$1||'%' OR party.display_name ILIKE '%'||$1||'%')
+  AND ($1='' OR dcl_require_subject_code(subject.code) ILIKE '%'||$1||'%' OR party.display_name ILIKE '%'||$1||'%')
   AND ($2::int=-1 OR snapshot.enabled=($2::int=1))
   AND ($3='' OR relationship.operating_entity_id=$3)
   AND ($4='' OR relationship.party_id=$4)
-ORDER BY COALESCE(subject.code,'') ASC LIMIT $6 OFFSET $5
+ORDER BY dcl_require_subject_code(subject.code) ASC LIMIT $6 OFFSET $5
 `
 
 type ListBobCustomerCurrentsParams struct {
@@ -1136,14 +1136,14 @@ func (q *Queries) ListBobCustomerCurrents(ctx context.Context, arg ListBobCustom
 }
 
 const listBobEmployees = `-- name: ListBobEmployees :many
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id,party.display_name
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id,party.display_name
 FROM dcl_subjects subject
 JOIN dcl_employment_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id
 JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
-WHERE subject.entity='employee' AND ($1::text='' OR COALESCE(subject.code,'') ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
-ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN entry.updated_at END ASC,CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN entry.updated_at END DESC,CASE WHEN $3::text='code' AND $4::text='asc' THEN COALESCE(subject.code,'') END ASC,CASE WHEN $3::text='code' AND $4::text='desc' THEN COALESCE(subject.code,'') END DESC,CASE WHEN $3::text='name' AND $4::text='asc' THEN party.display_name END ASC,CASE WHEN $3::text='name' AND $4::text='desc' THEN party.display_name END DESC,subject.id DESC LIMIT $6 OFFSET $5
+WHERE subject.entity='employee' AND ($1::text='' OR dcl_require_subject_code(subject.code) ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
+ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN entry.updated_at END ASC,CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN entry.updated_at END DESC,CASE WHEN $3::text='code' AND $4::text='asc' THEN dcl_require_subject_code(subject.code) END ASC,CASE WHEN $3::text='code' AND $4::text='desc' THEN dcl_require_subject_code(subject.code) END DESC,CASE WHEN $3::text='name' AND $4::text='asc' THEN party.display_name END ASC,CASE WHEN $3::text='name' AND $4::text='desc' THEN party.display_name END DESC,subject.id DESC LIMIT $6 OFFSET $5
 `
 
 type ListBobEmployeesParams struct {
@@ -1202,10 +1202,10 @@ func (q *Queries) ListBobEmployees(ctx context.Context, arg ListBobEmployeesPara
 
 const listBobRelationshipCurrents = `-- name: ListBobRelationshipCurrents :many
 WITH selected AS (
-  SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,'') AS code,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id,party.display_name
+  SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id,party.display_name
   FROM dcl_subjects subject JOIN dcl_service_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='other-unit' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true WHERE subject.entity='other-unit' AND $7::text='other-unit'
   UNION ALL
-  SELECT subject.id,subject.entity,COALESCE(subject.code,''),snapshot.enabled,entry.updated_at,entry.id,party.display_name
+  SELECT subject.id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,entry.id,party.display_name
   FROM dcl_subjects subject JOIN dcl_sales_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true WHERE subject.entity='sales-partner' AND $7::text='sales-partner'
 ) SELECT object_id,entity,code,enabled,updated_at,approval_entry_id FROM selected
 WHERE ($1::text='' OR code ILIKE '%'||$1::text||'%' OR display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR enabled=($2::integer=1))
@@ -1267,7 +1267,7 @@ func (q *Queries) ListBobRelationshipCurrents(ctx context.Context, arg ListBobRe
 }
 
 const listBobSuppliersCurrent = `-- name: ListBobSuppliersCurrent :many
-SELECT subject.id AS object_id,subject.entity,COALESCE(subject.code,''),snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id,
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,snapshot.enabled,entry.updated_at,entry.id AS approval_entry_id,
        relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,snapshot.default_purchaser_employee_code,snapshot.default_purchaser_employee_name
 FROM dcl_subjects subject
 JOIN dcl_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
@@ -1275,10 +1275,10 @@ JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revisio
 JOIN dcl_supplier_versions snapshot ON snapshot.approval_entry_id=entry.id
 JOIN LATERAL (SELECT payload.kind,payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party ON true
 WHERE subject.entity='supplier'
-  AND ($1::text='' OR COALESCE(subject.code,'') ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($1::text='' OR dcl_require_subject_code(subject.code) ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
   AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1))
   AND ($3::text='' OR snapshot.default_purchaser_employee_id=$3::text)
-ORDER BY COALESCE(subject.code,'') ASC LIMIT $5 OFFSET $4
+ORDER BY dcl_require_subject_code(subject.code) ASC LIMIT $5 OFFSET $4
 `
 
 type ListBobSuppliersCurrentParams struct {
@@ -1469,9 +1469,9 @@ WITH relationships AS (
   JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=relation.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) source ON true
   JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=source.id WHERE relation.party_id=$1 AND relation.merged_into_object_id IS NULL
 )
-SELECT relationship.object_id,relationship.entity,COALESCE(subject.code,'')::text AS code,
+SELECT relationship.object_id,relationship.entity,dcl_require_subject_code(subject.code) AS code,
        relationship.source_approval_entry_id,COALESCE(source.version_no,0)::integer AS source_version_no,
-       relationship.operating_entity_id,COALESCE(operating.code,'')::text AS operating_entity_code,
+       relationship.operating_entity_id,dcl_require_subject_code(operating.code) AS operating_entity_code,
        COALESCE(operating_snapshot.legal_name,'')::text AS operating_entity_name,
        relationship.enabled
 FROM relationships relationship
@@ -1526,7 +1526,7 @@ func (q *Queries) ListDCLApprovedPartyRelationshipCardsForBOB(ctx context.Contex
 }
 
 const queryBobReferenceCandidates = `-- name: QueryBobReferenceCandidates :many
-SELECT subject.id AS object_id,entry.id AS approval_entry_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,entry.id AS approval_entry_id,dcl_require_subject_code(subject.code) AS code,
        COALESCE(account_snapshot.name,party_snapshot.display_name,product.name,'')::text AS name,
        COALESCE(product.behavior_profile,'')::text AS behavior_profile,
        COALESCE(product.default_input_unit_id,'')::text AS default_input_unit_id,

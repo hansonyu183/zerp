@@ -71,8 +71,6 @@ type Querier interface {
 	CountBobSuppliersCurrent(ctx context.Context, arg CountBobSuppliersCurrentParams) (int64, error)
 	CountBobVehicles(ctx context.Context, arg CountBobVehiclesParams) (int64, error)
 	CountBobWarehouses(ctx context.Context, arg CountBobWarehousesParams) (int64, error)
-	// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
-	// approval_entries; this table owns only identity and the runtime enabled switch.
 	CountCurrentWorkflowDefinitions(ctx context.Context, arg CountCurrentWorkflowDefinitionsParams) (int64, error)
 	CountDCLAccMappingApprovalEvents(ctx context.Context, subjectID string) (int64, error)
 	CountDCLAccMappings(ctx context.Context, arg CountDCLAccMappingsParams) (int64, error)
@@ -358,6 +356,9 @@ type Querier interface {
 	GetBobWarehouseCurrent(ctx context.Context, objectID string) (GetBobWarehouseCurrentRow, error)
 	GetBobWarehouseCurrentReference(ctx context.Context, objectID string) (GetBobWarehouseCurrentReferenceRow, error)
 	GetCurrentApprovedAccountingMapping(ctx context.Context, arg GetCurrentApprovedAccountingMappingParams) (GetCurrentApprovedAccountingMappingRow, error)
+	// Definition identity/code belongs to DCL subjects. WFL owns only the typed
+	// runtime enabled state and consumes latest approved version payloads.
+	GetCurrentWorkflowDefinitionIdentity(ctx context.Context, definitionID string) (GetCurrentWorkflowDefinitionIdentityRow, error)
 	GetDCLAccMappingSubject(ctx context.Context, arg GetDCLAccMappingSubjectParams) (GetDCLAccMappingSubjectRow, error)
 	GetDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (DclAccMappingVersion, error)
 	GetDCLApprovedPartyForBOB(ctx context.Context, partyID string) (GetDCLApprovedPartyForBOBRow, error)
@@ -444,6 +445,7 @@ type Querier interface {
 	GetVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error)
 	GetWorkflowActionExecutionResult(ctx context.Context, arg GetWorkflowActionExecutionResultParams) (GetWorkflowActionExecutionResultRow, error)
 	GetWorkflowCreateChildExecutionResult(ctx context.Context, id string) (GetWorkflowCreateChildExecutionResultRow, error)
+	GetWorkflowDefinitionIDByCode(ctx context.Context, code *string) (string, error)
 	GetWorkflowDefinitionPayloadByEntry(ctx context.Context, arg GetWorkflowDefinitionPayloadByEntryParams) (GetWorkflowDefinitionPayloadByEntryRow, error)
 	GetWorkflowInstanceDefinition(ctx context.Context, id string) (GetWorkflowInstanceDefinitionRow, error)
 	GetWorkflowLatestApprovedDefinitionPayload(ctx context.Context, definitionID string) (GetWorkflowLatestApprovedDefinitionPayloadRow, error)

@@ -834,17 +834,18 @@ func (q *Queries) CountDclWflProcessDefinitionApprovalEvents(ctx context.Context
 
 const countDclWflProcessDefinitions = `-- name: CountDclWflProcessDefinitions :one
 WITH selected AS (
-  SELECT d.id
-  FROM wfl_process_definitions d
+  SELECT subject.id
+  FROM dcl_subjects subject
+  JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
   LEFT JOIN LATERAL (
     SELECT id,status FROM approval_entries
-    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=subject.id
       AND status IN ('DRAFT','PENDING')
     ORDER BY version_no DESC LIMIT 1
   ) open_entry ON true
   LEFT JOIN LATERAL (
     SELECT id,status FROM approval_entries
-    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=subject.id
       AND status='APPROVED'
     ORDER BY version_no DESC LIMIT 1
   ) approved_entry ON true
@@ -852,8 +853,9 @@ WITH selected AS (
     SELECT compiled->>'name' AS name FROM dcl_wfl_process_definition_versions
     WHERE approval_entry_id=approved_entry.id
   ) approved_version ON true
-  WHERE ($1::integer=-1 OR d.enabled=($1::integer=1))
-    AND ($2::text='' OR d.code ILIKE '%'||$2||'%' OR approved_version.name ILIKE '%'||$2||'%')
+  WHERE subject.entity='wfl-process-definition'
+    AND ($1::integer=-1 OR runtime.enabled=($1::integer=1))
+    AND ($2::text='' OR subject.code ILIKE '%'||$2||'%' OR approved_version.name ILIKE '%'||$2||'%')
     AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
 )
 SELECT count(*) FROM selected
@@ -1294,7 +1296,15 @@ func (q *Queries) DclWflRecordTrial(ctx context.Context, arg DclWflRecordTrialPa
 }
 
 const dclWflSetDefinitionEnabled = `-- name: DclWflSetDefinitionEnabled :one
-UPDATE wfl_process_definitions SET enabled=$1, updated_at=now(), updated_by=$2 WHERE id=$3 RETURNING id, code, enabled
+WITH updated AS (
+  UPDATE wfl_definition_runtime_states
+  SET enabled=$1, updated_at=now(), updated_by=$2
+  WHERE subject_id=$3
+  RETURNING subject_id,enabled
+)
+SELECT subject.id,subject.code,updated.enabled
+FROM updated
+JOIN dcl_subjects subject ON subject.id=updated.subject_id AND subject.entity='wfl-process-definition'
 `
 
 type DclWflSetDefinitionEnabledParams struct {
@@ -1304,9 +1314,9 @@ type DclWflSetDefinitionEnabledParams struct {
 }
 
 type DclWflSetDefinitionEnabledRow struct {
-	ID      string `db:"id" json:"id"`
-	Code    string `db:"code" json:"code"`
-	Enabled bool   `db:"enabled" json:"enabled"`
+	ID      string  `db:"id" json:"id"`
+	Code    *string `db:"code" json:"code"`
+	Enabled bool    `db:"enabled" json:"enabled"`
 }
 
 func (q *Queries) DclWflSetDefinitionEnabled(ctx context.Context, arg DclWflSetDefinitionEnabledParams) (DclWflSetDefinitionEnabledRow, error) {
@@ -1606,8 +1616,8 @@ func (q *Queries) DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID
 }
 
 const deleteDclWflProcessDefinition = `-- name: DeleteDclWflProcessDefinition :execrows
-DELETE FROM wfl_process_definitions
-WHERE id=$1
+DELETE FROM wfl_definition_runtime_states
+WHERE subject_id=$1
 `
 
 func (q *Queries) DeleteDclWflProcessDefinition(ctx context.Context, definitionID string) (int64, error) {
@@ -1728,7 +1738,7 @@ func (q *Queries) GetDCLCustomerAccountRoot(ctx context.Context, objectID string
 }
 
 const getDCLCustomerIdentity = `-- name: GetDCLCustomerIdentity :one
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id
 FROM dcl_subjects subject
 JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
@@ -2018,7 +2028,7 @@ func (q *Queries) GetDCLPartyVersion(ctx context.Context, approvalEntryID string
 }
 
 const getDCLRelationshipIdentity = `-- name: GetDCLRelationshipIdentity :one
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
  COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,
  party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
@@ -2317,7 +2327,7 @@ func (q *Queries) GetDCLWarehouseVersion(ctx context.Context, approvalEntryID st
 }
 
 const getDclRptDefinitionByCode = `-- name: GetDclRptDefinitionByCode :one
-SELECT id, coalesce(code,'') AS code
+SELECT id, dcl_require_subject_code(code) AS code
 FROM dcl_subjects
 WHERE entity='rpt-definition' AND code=$1::text
 `
@@ -2335,15 +2345,16 @@ func (q *Queries) GetDclRptDefinitionByCode(ctx context.Context, code string) (G
 }
 
 const getDclWflProcessDefinitionByCode = `-- name: GetDclWflProcessDefinitionByCode :one
-SELECT id, code, enabled
-FROM wfl_process_definitions
-WHERE code=$1
+SELECT subject.id, subject.code, runtime.enabled
+FROM dcl_subjects subject
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
+WHERE subject.entity='wfl-process-definition' AND subject.code=$1::text
 `
 
 type GetDclWflProcessDefinitionByCodeRow struct {
-	ID      string `db:"id" json:"id"`
-	Code    string `db:"code" json:"code"`
-	Enabled bool   `db:"enabled" json:"enabled"`
+	ID      string  `db:"id" json:"id"`
+	Code    *string `db:"code" json:"code"`
+	Enabled bool    `db:"enabled" json:"enabled"`
 }
 
 func (q *Queries) GetDclWflProcessDefinitionByCode(ctx context.Context, code string) (GetDclWflProcessDefinitionByCodeRow, error) {
@@ -3071,19 +3082,18 @@ func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWa
 
 const insertDclWflProcessDefinition = `-- name: InsertDclWflProcessDefinition :exec
 
-INSERT INTO wfl_process_definitions(id, code, enabled, created_by, updated_by)
-VALUES($1, $2, false, $3, $3)
+INSERT INTO wfl_definition_runtime_states(subject_id, enabled, updated_by)
+VALUES($1, false, $2)
 `
 
 type InsertDclWflProcessDefinitionParams struct {
 	DefinitionID string `db:"definition_id" json:"definition_id"`
-	Code         string `db:"code" json:"code"`
 	ActorID      string `db:"actor_id" json:"actor_id"`
 }
 
 // ── WFL Process Definition (DCL-owned) ──────────────────────────────────
 func (q *Queries) InsertDclWflProcessDefinition(ctx context.Context, arg InsertDclWflProcessDefinitionParams) error {
-	_, err := q.db.Exec(ctx, insertDclWflProcessDefinition, arg.DefinitionID, arg.Code, arg.ActorID)
+	_, err := q.db.Exec(ctx, insertDclWflProcessDefinition, arg.DefinitionID, arg.ActorID)
 	return err
 }
 
@@ -3311,7 +3321,7 @@ func (q *Queries) ListDCLCustomerApprovalEvents(ctx context.Context, arg ListDCL
 }
 
 const listDCLCustomers = `-- name: ListDCLCustomers :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,display.operating_entity_code,display.operating_entity_name,
        display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
@@ -3464,7 +3474,7 @@ func (q *Queries) ListDCLEmployeeApprovalEvents(ctx context.Context, arg ListDCL
 }
 
 const listDCLEmployees = `-- name: ListDCLEmployees :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,operating.code AS operating_entity_code,
        operating_current.legal_name AS operating_entity_name,display.enabled,
@@ -4299,7 +4309,7 @@ func (q *Queries) ListDCLRelationshipApprovalEvents(ctx context.Context, arg Lis
 }
 
 const listDCLRelationships = `-- name: ListDCLRelationships :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
  operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
  COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
@@ -4442,7 +4452,7 @@ func (q *Queries) ListDCLSupplierApprovalEvents(ctx context.Context, arg ListDCL
 }
 
 const listDCLSuppliers = `-- name: ListDCLSuppliers :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
 JOIN dcl_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (
@@ -4826,7 +4836,7 @@ func (q *Queries) ListDclRptDefinitionApprovalEvents(ctx context.Context, arg Li
 }
 
 const listDclRptDefinitions = `-- name: ListDclRptDefinitions :many
-SELECT d.id AS definition_id, coalesce(d.code,'') AS code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
+SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
@@ -4951,20 +4961,21 @@ func (q *Queries) ListDclWflProcessDefinitionApprovalEvents(ctx context.Context,
 }
 
 const listDclWflProcessDefinitions = `-- name: ListDclWflProcessDefinitions :many
-SELECT d.id AS definition_id, d.code, d.enabled,
+SELECT subject.id AS definition_id, subject.code, runtime.enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
-FROM wfl_process_definitions d
+FROM dcl_subjects subject
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
 LEFT JOIN LATERAL (
   SELECT id,status,version_no,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=subject.id
     AND status IN ('DRAFT','PENDING')
   ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
 LEFT JOIN LATERAL (
   SELECT id,status,version_no,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=subject.id
     AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) approved_entry ON true
@@ -4972,10 +4983,11 @@ LEFT JOIN LATERAL (
   SELECT compiled->>'name' AS name FROM dcl_wfl_process_definition_versions
   WHERE approval_entry_id=approved_entry.id
 ) approved_version ON true
-WHERE ($1::integer=-1 OR d.enabled=($1::integer=1))
-  AND ($2::text='' OR d.code ILIKE '%'||$2||'%' OR approved_version.name ILIKE '%'||$2||'%')
+WHERE subject.entity='wfl-process-definition'
+  AND ($1::integer=-1 OR runtime.enabled=($1::integer=1))
+  AND ($2::text='' OR subject.code ILIKE '%'||$2||'%' OR approved_version.name ILIKE '%'||$2||'%')
   AND (cardinality($3::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($3::text[]))
-ORDER BY d.code ASC
+ORDER BY subject.code ASC
 OFFSET $4 LIMIT $5
 `
 
@@ -4989,7 +5001,7 @@ type ListDclWflProcessDefinitionsParams struct {
 
 type ListDclWflProcessDefinitionsRow struct {
 	DefinitionID    string             `db:"definition_id" json:"definition_id"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
 	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`

@@ -1196,11 +1196,39 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_code_check CHECK (((entity)::text = 'rpt-definition'::character varying AND (code IS NOT NULL) AND ((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text) AND ((code)::text <> ALL ((ARRAY['definition'::character varying, 'directory'::character varying])::text[])))
-        OR ((entity)::text <> 'rpt-definition'::character varying AND ((code IS NULL) OR ((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)))),
-    CONSTRAINT dcl_subjects_core_code_required_ck CHECK (((entity)::text <> 'rpt-definition'::character varying) OR (code IS NOT NULL)),
+    CONSTRAINT dcl_subjects_code_ck CHECK (
+      (code IS NOT NULL AND (
+        ((entity)::text = 'operating-entity'::text AND (code)::text ~ '^OPE-[0-9]{4}$'::text)
+        OR ((entity)::text = 'warehouse'::text AND (code)::text ~ '^WHS-[0-9]{4}$'::text)
+        OR ((entity)::text = 'vehicle'::text AND (code)::text ~ '^VEH-[0-9]{4}$'::text)
+        OR ((entity)::text = 'fund-account'::text AND (code)::text ~ '^FAC-[0-9]{4}$'::text)
+        OR ((entity)::text = 'product'::text AND (code)::text ~ '^PRD-[0-9]{4}$'::text)
+        OR ((entity)::text = 'employee'::text AND (code)::text ~ '^EMP-[0-9]{4}$'::text)
+        OR ((entity)::text = 'customer'::text AND (code)::text ~ '^CUS-[0-9]{4}$'::text)
+        OR ((entity)::text = 'customer-account'::text AND (code)::text ~ '^ACC-[0-9]{4}$'::text)
+        OR ((entity)::text = 'supplier'::text AND (code)::text ~ '^SUP-[0-9]{4}$'::text)
+        OR ((entity)::text = 'other-unit'::text AND (code)::text ~ '^OTU-[0-9]{4}$'::text)
+        OR ((entity)::text = 'sales-partner'::text AND (code)::text ~ '^SLP-[0-9]{4}$'::text)
+        OR ((entity)::text = 'rpt-definition'::text AND (code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text AND (code)::text NOT IN ('definition'::text, 'directory'::text))
+        OR ((entity)::text = 'wfl-process-definition'::text AND (code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text)
+      ))
+      OR (code IS NULL AND (entity)::text = ANY (ARRAY['party'::text, 'acc-mapping'::text]))
+    ),
     CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))
 );
+
+CREATE FUNCTION public.dcl_require_subject_code(subject_code character varying) RETURNS character varying
+    LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+    AS $$
+BEGIN
+  IF subject_code IS NULL THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'coded DCL subject has a null code';
+  END IF;
+  RETURN subject_code;
+END;
+$$;
 
 CREATE TABLE public.dcl_operating_entity_versions (
     approval_entry_id character varying(26) NOT NULL,
@@ -3358,18 +3386,16 @@ CREATE TABLE public.wfl_node_instances (
 
 
 --
--- Name: wfl_process_definitions; Type: TABLE; Schema: public; Owner: -
+-- Name: wfl_definition_runtime_states; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.wfl_process_definitions (
-    id character varying(26) NOT NULL,
-    code character varying(64) NOT NULL,
+CREATE TABLE public.wfl_definition_runtime_states (
+    subject_id character varying(26) NOT NULL,
+    subject_entity character varying(64) DEFAULT 'wfl-process-definition'::character varying NOT NULL,
     enabled boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    CONSTRAINT wfl_process_definitions_code_check CHECK (((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text))
+    CONSTRAINT wfl_definition_runtime_states_entity_ck CHECK ((subject_entity)::text = 'wfl-process-definition'::text)
 );
 
 
@@ -5417,13 +5443,17 @@ globalThis.calculate = function calculate(input) {
 
 
 --
--- Data for Name: wfl_process_definitions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: WFL definition subjects and runtime states; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.wfl_process_definitions (id, code, enabled, created_by, updated_by) VALUES
-    ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.dcl_subjects (id, entity, code, created_by) VALUES
+    ('WFD0f7b734eecb146455d2f051', 'wfl-process-definition', 'expense-payment', '01JAPPSYST3MACTR0000000000'),
+    ('WFD811182d17c4453955c72f85', 'wfl-process-definition', 'purchase-fulfillment', '01JAPPSYST3MACTR0000000000'),
+    ('WFDcd6f1eaebf0d5b6055c58fe', 'wfl-process-definition', 'sales-fulfillment', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.wfl_definition_runtime_states (subject_id, enabled, updated_by) VALUES
+    ('WFD0f7b734eecb146455d2f051', false, '01JAPPSYST3MACTR0000000000'),
+    ('WFD811182d17c4453955c72f85', false, '01JAPPSYST3MACTR0000000000'),
+    ('WFDcd6f1eaebf0d5b6055c58fe', false, '01JAPPSYST3MACTR0000000000');
 INSERT INTO public.dcl_wfl_process_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE0f7b734eecb146455d2f051', 'WFD0f7b734eecb146455d2f051', 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
 workflow(code="expense-payment", name="费用报销付款", root=reimbursement, edges=[edge(source=reimbursement, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": ""}))])', NULL, '{"edges": [{"relation": "payment", "sourceKey": "reimbursement", "targetKey": "payment", "actionName": "expense_payment"}], "nodes": [{"key": "reimbursement", "name": "费用报销", "entity": "expense-reimbursement"}, {"key": "payment", "name": "费用付款", "entity": "expense-payment"}], "rootKey": "reimbursement"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
@@ -6968,19 +6998,11 @@ ALTER TABLE ONLY public.wfl_node_instances
 
 
 --
--- Name: wfl_process_definitions wfl_process_definitions_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: wfl_definition_runtime_states wfl_definition_runtime_states_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.wfl_process_definitions
-    ADD CONSTRAINT wfl_process_definitions_code_key UNIQUE (code);
-
-
---
--- Name: wfl_process_definitions wfl_process_definitions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.wfl_process_definitions
-    ADD CONSTRAINT wfl_process_definitions_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.wfl_definition_runtime_states
+    ADD CONSTRAINT wfl_definition_runtime_states_pkey PRIMARY KEY (subject_id);
 
 
 --
@@ -9280,7 +9302,7 @@ ALTER TABLE ONLY public.wfl_create_child_requests
 --
 
 ALTER TABLE ONLY public.wfl_create_child_requests
-    ADD CONSTRAINT wfl_create_child_requests_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT wfl_create_child_requests_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_definition_runtime_states(subject_id) ON DELETE RESTRICT;
 
 
 --
@@ -9304,7 +9326,7 @@ ALTER TABLE ONLY public.wfl_create_child_requests
 --
 
 ALTER TABLE ONLY public.wfl_definition_instances
-    ADD CONSTRAINT wfl_definition_instances_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT wfl_definition_instances_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_definition_runtime_states(subject_id) ON DELETE RESTRICT;
 
 
 --
@@ -9328,7 +9350,15 @@ ALTER TABLE ONLY public.wfl_definition_instances
 --
 
 ALTER TABLE ONLY public.dcl_wfl_process_definition_versions
-    ADD CONSTRAINT dcl_wfl_process_definition_versions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_wfl_process_definition_versions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_definition_runtime_states(subject_id) ON DELETE CASCADE;
+
+
+--
+-- Name: wfl_definition_runtime_states wfl_definition_runtime_states_subject_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wfl_definition_runtime_states
+    ADD CONSTRAINT wfl_definition_runtime_states_subject_id_fkey FOREIGN KEY (subject_id, subject_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE CASCADE;
 
 
 --
@@ -9420,9 +9450,6 @@ JOIN public.dcl_subjects AS subject
 -- WFL process definitions are DCL-owned. Baseline seeds use domain='dcl',
 -- entity='wfl-process-definition'. They are not enabled and are not treated
 -- differently from definitions created through the public service.
-INSERT INTO public.dcl_subjects (id, entity, created_at, created_by)
-SELECT id, 'wfl-process-definition', created_at, created_by
-FROM public.wfl_process_definitions;
 
 INSERT INTO public.approval_entries (
     id, domain, entity, subject_id, version_no, status, revision,

@@ -1,9 +1,22 @@
--- Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
--- approval_entries; this table owns only identity and the runtime enabled switch.
+-- Definition identity/code belongs to DCL subjects. WFL owns only the typed
+-- runtime enabled state and consumes latest approved version payloads.
+
+-- name: GetCurrentWorkflowDefinitionIdentity :one
+SELECT subject.code,runtime.enabled
+FROM dcl_subjects subject
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
+WHERE subject.id=sqlc.arg(definition_id)
+  AND subject.entity='wfl-process-definition';
+
+-- name: GetWorkflowDefinitionIDByCode :one
+SELECT id
+FROM dcl_subjects
+WHERE entity='wfl-process-definition' AND code=sqlc.arg(code);
 
 -- name: CountCurrentWorkflowDefinitions :one
 SELECT count(*)
-FROM wfl_process_definitions definition
+FROM dcl_subjects definition
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=definition.id
 JOIN LATERAL (
   SELECT id
   FROM approval_entries
@@ -13,15 +26,17 @@ JOIN LATERAL (
   LIMIT 1
 ) approval ON true
 JOIN dcl_wfl_process_definition_versions version ON version.approval_entry_id=approval.id
-WHERE (sqlc.arg(enabled_filter)::integer=-1 OR definition.enabled=(sqlc.arg(enabled_filter)::integer=1))
+WHERE definition.entity='wfl-process-definition'
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR runtime.enabled=(sqlc.arg(enabled_filter)::integer=1))
   AND (sqlc.arg(keyword)::text='' OR definition.code ILIKE '%'||sqlc.arg(keyword)||'%'
        OR version.compiled->>'name' ILIKE '%'||sqlc.arg(keyword)||'%');
 
 -- name: ListCurrentWorkflowDefinitions :many
-SELECT definition.id AS definition_id,definition.code,definition.enabled,
+SELECT definition.id AS definition_id,definition.code,runtime.enabled,
        approval.id AS approval_entry_id,
        version.compiled,approval.updated_at
-FROM wfl_process_definitions definition
+FROM dcl_subjects definition
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=definition.id
 JOIN LATERAL (
   SELECT id,updated_at
   FROM approval_entries
@@ -31,7 +46,8 @@ JOIN LATERAL (
   LIMIT 1
 ) approval ON true
 JOIN dcl_wfl_process_definition_versions version ON version.approval_entry_id=approval.id
-WHERE (sqlc.arg(enabled_filter)::integer=-1 OR definition.enabled=(sqlc.arg(enabled_filter)::integer=1))
+WHERE definition.entity='wfl-process-definition'
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR runtime.enabled=(sqlc.arg(enabled_filter)::integer=1))
   AND (sqlc.arg(keyword)::text='' OR definition.code ILIKE '%'||sqlc.arg(keyword)||'%'
        OR version.compiled->>'name' ILIKE '%'||sqlc.arg(keyword)||'%')
 ORDER BY definition.code
@@ -366,21 +382,24 @@ FROM dcl_wfl_process_definition_versions v
 WHERE v.approval_entry_id=sqlc.arg(approval_entry_id) AND v.definition_id=sqlc.arg(definition_id);
 
 -- name: ListEnabledWorkflowDefinitionIDsForShare :many
-SELECT id
-FROM wfl_process_definitions
+SELECT subject_id
+FROM wfl_definition_runtime_states
 WHERE enabled
-ORDER BY id;
+ORDER BY subject_id;
 
 -- name: GetEnabledWorkflowDefinitionForShare :one
-SELECT d.id, d.code, e.id AS approval_entry_id, v.compiled->>'name' name, v.script
-FROM wfl_process_definitions d
+SELECT subject.id, subject.code, e.id AS approval_entry_id, v.compiled->>'name' name, v.script
+FROM dcl_subjects subject
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
 JOIN LATERAL (
   SELECT id
   FROM approval_entries
   WHERE domain='dcl' AND entity='wfl-process-definition'
-    AND subject_id=d.id AND status='APPROVED'
+    AND subject_id=subject.id AND status='APPROVED'
   ORDER BY version_no DESC
   LIMIT 1
 ) e ON true
 JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
-WHERE d.id=sqlc.arg(definition_id) AND d.enabled;
+WHERE subject.id=sqlc.arg(definition_id)
+  AND subject.entity='wfl-process-definition'
+  AND runtime.enabled;

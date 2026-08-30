@@ -32,7 +32,7 @@
 - `internal/platform/` 只接收确定为领域无关的基础能力。公共工具应具备稳定语义、清晰边界并至少被多个领域复用；金额精度、状态含义、默认值等领域决策不得为了消除少量重复而下沉成通用函数。
 - 中央 Approval 固定位于 `internal/platform/approval/`，直接接收调用方 `pgx.Tx` 并使用 APP Authorizer；审批版本号、开放候选约束与 latest approved 查询也归中央 Approval，Domain 不得提供 Approval Store Adapter、任意 permission path、callback/hook、版本指针或第二套审批与版本持久化。
 - 固定形状、可命名的查询必须写入 `db/queries/` 并通过 sqlc 调用；只有确实需要动态组合条件、排序或结构的查询才可在实现中构造 SQL，并必须集中封装、参数化和测试。
-- 测试 seed 必须沿用当前 AUX → BOB → VOU/WFL → ACC 领域边界且保持幂等；生产数据初始化以后单独设计，不得由测试样本反向决定运行时依赖或公共适配器设计。
+- 测试 seed 必须沿用当前 AUX → DCL → BOB 读验证 → VOU/WFL → ACC 依赖链且保持幂等。`seed-bob` 是历史命令名，实际经 DCL 写入并由 BOB 读验证；生产数据初始化以后单独设计，不得由测试样本反向决定运行时依赖或公共适配器设计。
 
 ## 业务域文档
 

@@ -61,7 +61,7 @@ pnpm --filter @zerp/frontend dev --host 127.0.0.1 --port 5173 --strictPort
 
 ## 3. 隔离 E2E
 
-BOB、VOU、WFL 和 ACC 流程会写入并流转真实数据，只能使用根目录自包含环境：
+DCL、AUX、VOU、WFL 和 ACC 流程会写入并流转真实数据；BOB 只查询当前正式资料。它们只能使用根目录自包含环境：
 
 ```bash
 cp backend/.env.e2e.example backend/.env.e2e.local

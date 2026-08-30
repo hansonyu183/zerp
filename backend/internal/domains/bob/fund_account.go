@@ -89,7 +89,7 @@ func (s *Service) getFundAccountCurrent(ctx context.Context, in GetInput) (Objec
 	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: fundAccountDetail(r), UpdatedAt: r.UpdatedAt.Time}, nil
 }
 
-func (s *Service) queryFundAccounts(ctx context.Context, in QueryInput) (Page[QueryItem], error) {
+func (s *Service) queryFundAccounts(ctx context.Context, q *dbsqlc.Queries, in QueryInput) (Page[QueryItem], error) {
 	off, ok := pageOffset(in.Page, in.PageSize)
 	if !ok || len(in.Sort) > 1 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query", nil, nil)
@@ -113,23 +113,17 @@ func (s *Service) queryFundAccounts(ctx context.Context, in QueryInput) (Page[Qu
 			enabled = 0
 		}
 	}
-	rows, e := s.queries.ListBobFundAccounts(ctx, dbsqlc.ListBobFundAccountsParams{Keyword: strings.TrimSpace(f.Keyword), EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: off, RowLimit: int32(in.PageSize)})
+	rows, e := q.ListBobFundAccounts(ctx, dbsqlc.ListBobFundAccountsParams{Keyword: strings.TrimSpace(f.Keyword), EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: off, RowLimit: int32(in.PageSize)})
 	if e != nil {
 		return Page[QueryItem]{}, s.internal("list fund accounts", e)
 	}
-	total, e := s.queries.CountBobFundAccounts(ctx, dbsqlc.CountBobFundAccountsParams{Keyword: strings.TrimSpace(f.Keyword), EnabledFilter: enabled})
+	total, e := q.CountBobFundAccounts(ctx, dbsqlc.CountBobFundAccountsParams{Keyword: strings.TrimSpace(f.Keyword), EnabledFilter: enabled})
 	if e != nil {
 		return Page[QueryItem]{}, s.internal("count fund accounts", e)
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, r := range rows {
-		v, e := s.getFundAccountCurrent(ctx, GetInput{ObjectID: r.ObjectID})
-		if e != nil {
-			return Page[QueryItem]{}, e
-		}
-		summary := v.Data
-		summary.AccountNumber = ""
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.CurrentEnabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: summary, UpdatedAt: r.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: r.SourceApprovalEntryID, SourceVersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Currency: r.Currency, AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), Remark: deref(r.Remark), OperatingEntityID: r.OperatingEntityID, OperatingEntityApprovalEntryID: r.OperatingEntityApprovalEntryID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, UpdatedAt: r.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }

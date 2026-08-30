@@ -277,6 +277,8 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 BOB `query` 永远只返回 current 行；DCL 候选状态不进入筛选或响应，候选待审也不改变当前可读结果。
 
+经营主体、仓库、资金账户、供应商、员工、其他单位和销售合作方的 `query` 必须各自在一个只读 `REPEATABLE READ` 事务中完成。每次查询固定执行两条业务 SQL：第一条直接连接 DCL subject、highest `APPROVED` Approval Entry、对应 typed snapshot，以及关系类对象的 Party current snapshot，并返回该页完整列表投影；第二条在同一事务快照中返回总数。不得逐行调用 current `get`，不得增加第三条 batch snapshot 查询，也不得让 SQL 次数随页大小增长。
+
 新建客户、供应、其他单位服务或销售合作关系时，系统先按规范化强标识精确查找主体。命中时必须复用主体并只创建新的强类型关系，不复制主体身份资料；调用者无权读取命中主体时，只返回不泄露具体资料的“主体已存在，请联系有权人员”业务错误。强标识未命中或未填写时，可以按名称、电话、邮箱和地址返回当前用户有权读取的疑似主体供选择，但疑似匹配不阻断创建。未复用现有主体时，可以在同一事务创建主体和首条关系；其他单位与销售合作方这一创建能力由 DCL 调用。客户结算子账户和各关系明细不保存强标识，也不参与主体去重。
 
 资金账号只在 BOB current `get` 与 DCL 授权历史详情中返回完整值；BOB `query` 摘要和 reference resolver 必须清空 `accountNumber`，也不得把账号纳入关键字搜索。

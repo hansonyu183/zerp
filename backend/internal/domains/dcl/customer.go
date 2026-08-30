@@ -24,8 +24,9 @@ type customerPartyReader interface {
 	ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error)
 }
 
-// CustomerService owns DCL Customer declarations and the immutable typed root.
-// BOB contributes only business validation and reference resolution.
+// CustomerService owns DCL Customer declarations and their immutable typed
+// relationship identity. BOB contributes business validation and exposes only
+// current effective read-only business data.
 type CustomerService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries

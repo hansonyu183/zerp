@@ -24,8 +24,9 @@ type supplierPartyReader interface {
 	ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error)
 }
 
-// SupplierService owns the declaration and immutable typed relationship root;
-// BOB contributes only business validation and reference resolution.
+// SupplierService owns the declaration and immutable typed relationship
+// identity. BOB contributes business validation and exposes only current
+// effective read-only business data.
 type SupplierService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries

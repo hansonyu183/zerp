@@ -973,17 +973,6 @@ CREATE TABLE public.app_role_code_counters (
 );
 
 --
--- Name: dcl_rpt_definition_code_counters; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.dcl_rpt_definition_code_counters (
-    counter_key text NOT NULL,
-    next_value integer NOT NULL,
-    CONSTRAINT dcl_rpt_definition_code_counters_next_value_check CHECK (((next_value >= 0) AND (next_value <= 999999)))
-);
-
-
---
 -- Name: app_role_permissions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1456,8 +1445,8 @@ CREATE TABLE public.dcl_supplier_versions (
     CONSTRAINT dcl_supplier_default_purchaser_employee_entity_ck CHECK (default_purchaser_employee_entity='employee')
 );
 
--- Party keeps a stable typed DCL root because every relationship refers to it;
--- identity data is visible to BOB only from the highest approved DCL snapshot.
+-- DCL owns the stable Party identity referenced by every relationship. BOB
+-- provides current effective read-only data from the highest approved snapshot.
 CREATE TABLE public.dcl_party_versions (
     approval_entry_id character varying(26) NOT NULL,
     party_id character varying(26) NOT NULL,
@@ -1500,8 +1489,6 @@ CREATE TABLE public.dcl_party_identifier_claims (
 
 CREATE TABLE public.dcl_warehouse_versions (
     approval_entry_id character varying(26) NOT NULL,
-    -- Retained only for the #279 in-place cutover. Warehouse no longer
-    -- exposes category as a writable declaration field.
 	category_id character varying(26),
 	category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     name character varying(200) NOT NULL,
@@ -1565,9 +1552,9 @@ CREATE TABLE public.dcl_customer_versions (
     CONSTRAINT dcl_customer_versions_entity_check CHECK (((entity)::text = 'customer'::text))
 );
 
--- DCL owns the complete customer-account approval payload. The typed stable
--- identity is dcl_customer_accounts; BOB reads the highest approved snapshot
--- directly and does not maintain a second current-data store.
+-- DCL owns the complete customer-account approval payload and its typed
+-- identity. BOB provides the highest approved snapshot as current effective
+-- read-only business data.
 CREATE TABLE public.dcl_customer_account_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'customer-account'::character varying NOT NULL,
@@ -1886,7 +1873,7 @@ CREATE TABLE public.object_number_counters (
     entity character varying(32) NOT NULL,
     last_value integer NOT NULL,
     CONSTRAINT object_number_counters_domain_check CHECK (((domain)::text = ANY ((ARRAY['aux'::character varying, 'acc'::character varying, 'dcl'::character varying])::text[]))),
-    CONSTRAINT object_number_counters_last_value_check CHECK (((last_value >= 1) AND (last_value <= 9999)))
+    CONSTRAINT object_number_counters_last_value_check CHECK (((last_value >= 1) AND (last_value <= 999999)))
 );
 
 
@@ -4415,13 +4402,6 @@ INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/dcl/s
 INSERT INTO public.app_role_code_counters VALUES ('default', 0);
 
 --
--- Data for Name: dcl_rpt_definition_code_counters; Type: TABLE DATA; Schema: public; Owner: -
---
-
-INSERT INTO public.dcl_rpt_definition_code_counters VALUES ('default', 0);
-
-
---
 -- Data for Name: app_role_permissions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -5879,14 +5859,6 @@ ALTER TABLE ONLY public.app_permissions
 
 ALTER TABLE ONLY public.app_role_code_counters
     ADD CONSTRAINT app_role_code_counters_pkey PRIMARY KEY (counter_key);
-
---
--- Name: dcl_rpt_definition_code_counters dcl_rpt_definition_code_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.dcl_rpt_definition_code_counters
-    ADD CONSTRAINT dcl_rpt_definition_code_counters_pkey PRIMARY KEY (counter_key);
-
 
 --
 -- Name: app_role_permissions app_role_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -

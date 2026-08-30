@@ -233,7 +233,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 	}
 }
 
-func TestOpenAPISeparatesBOBReadModelsFromDCLProductWriteInputs(t *testing.T) {
+func TestOpenAPISeparatesBOBReadContractsFromDCLProductWriteInputs(t *testing.T) {
 	swagger, err := generated.GetSpec()
 	if err != nil {
 		t.Fatalf("load OpenAPI contract: %v", err)

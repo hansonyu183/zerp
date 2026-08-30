@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
@@ -208,10 +209,11 @@ func (s *RptDefinitionService) Create(ctx context.Context, input RptDefinitionCr
 	defer tx.Rollback(ctx)
 	q := s.queries.WithTx(tx)
 
-	code, err := q.NextDclRptDefinitionCode(ctx)
+	number, err := q.NextDCLSubjectCode(ctx, EntityRptDefinition)
 	if err != nil {
 		return RptDefinitionMutation{}, newError(ErrorConflict, "report_definition_code_capacity_exhausted", "report definition code capacity exhausted", nil, err)
 	}
+	code := fmt.Sprintf("rpt-%06d", number)
 
 	defID := ulid.Make().String()
 	if err := q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: defID, Entity: EntityRptDefinition, Code: &code, ActorID: actor.ID()}); err != nil {

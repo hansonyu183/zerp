@@ -390,9 +390,9 @@ type FindDCLSeedSubjectIDParams struct {
 	RequestID string `db:"request_id" json:"request_id"`
 }
 
-// BOB exposes current read models for DCL-owned stable identities and typed
-// snapshots. Every resolver selects the latest APPROVED entry and never falls
-// back to an open candidate or a stored current copy.
+// BOB provides current effective read-only business data from DCL-owned stable
+// subjects and typed snapshots. Every resolver selects the latest APPROVED
+// entry and never selects an open candidate.
 func (q *Queries) FindDCLSeedSubjectID(ctx context.Context, arg FindDCLSeedSubjectIDParams) (string, error) {
 	row := q.db.QueryRow(ctx, findDCLSeedSubjectID, arg.Entity, arg.RequestID)
 	var subject_id string
@@ -415,8 +415,8 @@ const getBobCustomerRelationship = `-- name: GetBobCustomerRelationship :one
 SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_customer_relationships WHERE object_id=$1
 `
 
-// BOB reads typed DCL relationship roots for business-rule validation. DCL is
-// the only writer for these stable identities.
+// BOB validates business rules through DCL-owned typed relationship identities.
+// DCL is their only writer.
 func (q *Queries) GetBobCustomerRelationship(ctx context.Context, objectID string) (DclCustomerRelationship, error) {
 	row := q.db.QueryRow(ctx, getBobCustomerRelationship, objectID)
 	var i DclCustomerRelationship

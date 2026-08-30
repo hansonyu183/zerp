@@ -9,8 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// WarehouseData is the fixed declaration shape. Category is deliberately not
-// exposed: legacy category snapshots are only retained by the cutover tables.
+// WarehouseData is the complete warehouse declaration shape.
 type WarehouseData struct {
 	Name, Address, ContactName, ContactPhone, ManagerEmployeeID, Remark string
 	ManagerEmployeeApprovalEntryID                                      string

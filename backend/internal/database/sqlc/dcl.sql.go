@@ -3062,9 +3062,8 @@ type InsertDCLWarehouseVersionParams struct {
 	Enabled                        bool    `db:"enabled" json:"enabled"`
 }
 
-// Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category
-// columns are retained only to preserve pre-cutover snapshots and are never
-// supplied by the Warehouse declaration API.
+// Warehouse is a DCL-owned declaration exposed by BOB as current effective
+// read-only business data.
 func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWarehouseVersionParams) error {
 	_, err := q.db.Exec(ctx, insertDCLWarehouseVersion,
 		arg.ApprovalEntryID,
@@ -5098,7 +5097,10 @@ INSERT INTO object_number_counters (domain, entity, last_value)
 VALUES ('dcl', $1, 1)
 ON CONFLICT (domain, entity)
 DO UPDATE SET last_value = object_number_counters.last_value + 1
-WHERE object_number_counters.last_value < 9999
+WHERE object_number_counters.last_value < CASE
+  WHEN object_number_counters.domain='dcl' AND object_number_counters.entity='rpt-definition' THEN 999999
+  ELSE 9999
+END
 RETURNING last_value
 `
 
@@ -5107,20 +5109,6 @@ func (q *Queries) NextDCLSubjectCode(ctx context.Context, entity string) (int32,
 	var last_value int32
 	err := row.Scan(&last_value)
 	return last_value, err
-}
-
-const nextDclRptDefinitionCode = `-- name: NextDclRptDefinitionCode :one
-UPDATE dcl_rpt_definition_code_counters
-SET next_value=next_value+1
-WHERE counter_key='default' AND next_value<999999
-RETURNING ('rpt-'||lpad(next_value::text,6,'0'))::text
-`
-
-func (q *Queries) NextDclRptDefinitionCode(ctx context.Context) (string, error) {
-	row := q.db.QueryRow(ctx, nextDclRptDefinitionCode)
-	var column_1 string
-	err := row.Scan(&column_1)
-	return column_1, err
 }
 
 const rebuildDCLFundAccountIdentifierClaims = `-- name: RebuildDCLFundAccountIdentifierClaims :exec

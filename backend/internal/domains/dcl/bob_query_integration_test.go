@@ -198,39 +198,39 @@ func TestBOBQueriesUseTwoBusinessSQLStatementsIntegration(t *testing.T) {
 				if got := tracer.recorded(); !reflect.DeepEqual(got, test.want) {
 					t.Fatalf("%s page-size-%d business SQL = %v, want %v", test.entity, pageSize, got, test.want)
 				}
-				assertBOBQueryProjection(t, test.entity, page.Items[0])
+				assertBOBQueryResult(t, test.entity, page.Items[0])
 			}
 		})
 	}
 }
 
-func assertBOBQueryProjection(t *testing.T, entity string, item bobdomain.QueryItem) {
+func assertBOBQueryResult(t *testing.T, entity string, item bobdomain.QueryItem) {
 	t.Helper()
 	if item.SourceApprovalEntryID == "" || item.SourceVersionNo != 1 || !item.Enabled {
-		t.Fatalf("%s source projection = %+v", entity, item)
+		t.Fatalf("%s source result = %+v", entity, item)
 	}
 	switch entity {
 	case bobdomain.EntityOperatingEntity:
 		if item.Data.Name != "查询经营主体" || item.Data.TaxNumber != "TAX-QUERY" {
-			t.Fatalf("operating entity projection = %+v", item.Data)
+			t.Fatalf("operating entity query result = %+v", item.Data)
 		}
 	case bobdomain.EntityWarehouse:
 		if item.Data.Name != "查询仓库" || item.Data.ContactName != "仓库联系人" {
-			t.Fatalf("warehouse projection = %+v", item.Data)
+			t.Fatalf("warehouse query result = %+v", item.Data)
 		}
 	case bobdomain.EntityFundAccount:
 		if item.Data.Name != "查询资金账户" || item.Data.BankName != "银行" || item.Data.AccountNumber != "" {
-			t.Fatalf("fund account projection = %+v", item.Data)
+			t.Fatalf("fund account query result = %+v", item.Data)
 		}
 	case bobdomain.EntitySupplier, bobdomain.EntityEmployee, bobdomain.EntityOtherUnit, bobdomain.EntitySalesPartner:
 		if item.Relationship == nil || item.Relationship.PartyDisplayName != "查询主体显示名" {
-			t.Fatalf("%s relationship projection = %+v", entity, item.Relationship)
+			t.Fatalf("%s relationship query result = %+v", entity, item.Relationship)
 		}
 		if entity == bobdomain.EntitySupplier && (item.Relationship.OperatingEntityCode != "" || item.Relationship.OperatingEntityName != "") {
 			t.Fatalf("Supplier query added operating-entity fields: %+v", item.Relationship)
 		}
 		if entity != bobdomain.EntitySupplier && item.Relationship.OperatingEntityName != "查询经营主体" {
-			t.Fatalf("%s operating-entity projection = %+v", entity, item.Relationship)
+			t.Fatalf("%s operating-entity query result = %+v", entity, item.Relationship)
 		}
 	}
 }

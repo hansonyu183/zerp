@@ -198,6 +198,55 @@ run_issue_316_cutover() {
 		<db/cutovers/issue-316-wfl-identity-and-dcl-code.sql
 }
 
+run_issue_318_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/cutovers/issue-318-rpt-counter-and-terminology.sql
+}
+
+seed_issue_318_rpt_counter_fixture() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' <<'SQL'
+UPDATE dcl_rpt_definition_code_counters
+SET next_value=317
+WHERE counter_key='default';
+INSERT INTO dcl_subjects(id,entity,code,created_by)
+VALUES(
+  '01Z31800000000000000000001','rpt-definition','rpt-000318',
+  '01JAPPSYST3MACTR0000000000'
+);
+SQL
+}
+
+verify_issue_318_failure_is_atomic() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "SELECT CASE WHEN to_regclass('"'"'public.dcl_rpt_definition_code_counters'"'"') IS NOT NULL
+		  AND NOT EXISTS (SELECT 1 FROM object_number_counters WHERE domain='"'"'dcl'"'"' AND entity='"'"'rpt-definition'"'"')
+		  AND position('"'"'9999'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'object_number_counters'"'"'::regclass AND conname='"'"'object_number_counters_last_value_check'"'"')))>0
+		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
+verify_issue_318_cutover() {
+	local database="$1"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -Atc \
+		 "WITH next_number AS (
+		    INSERT INTO object_number_counters(domain,entity,last_value)
+		    VALUES ('"'"'dcl'"'"','"'"'rpt-definition'"'"',1)
+		    ON CONFLICT(domain,entity) DO UPDATE
+		    SET last_value=object_number_counters.last_value+1
+		    RETURNING last_value
+		  )
+		  SELECT CASE WHEN to_regclass('"'"'public.dcl_rpt_definition_code_counters'"'"') IS NULL
+		   AND (SELECT last_value FROM next_number)=319
+		   AND position('"'"'999999'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'object_number_counters'"'"'::regclass AND conname='"'"'object_number_counters_last_value_check'"'"')))>0
+		   THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
+}
+
 seed_issue_316_wfl_fixture() {
 	local database="$1"
 	"${compose[@]}" exec -T -e TARGET_DATABASE="$database" db sh -eu -c \
@@ -914,6 +963,19 @@ SQL
 		 "DELETE FROM dcl_subjects WHERE id='"'"'01Z31600000000000000000099'"'"'"' </dev/null
 	run_issue_316_cutover "$pre_issue_305_database"
 	verify_issue_316_cutover "$pre_issue_305_database"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+		 "DELETE FROM dcl_rpt_definition_code_counters WHERE counter_key='"'"'default'"'"'"' </dev/null
+	if run_issue_318_cutover "$pre_issue_305_database" >/dev/null 2>&1; then
+		fail "issue-318 cutover accepted a missing dedicated RPT counter row"
+	fi
+	verify_issue_318_failure_is_atomic "$pre_issue_305_database"
+	"${compose[@]}" exec -T -e TARGET_DATABASE="$pre_issue_305_database" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE" -c \
+		 "INSERT INTO dcl_rpt_definition_code_counters(counter_key,next_value) VALUES ('"'"'default'"'"',0)"' </dev/null
+	seed_issue_318_rpt_counter_fixture "$pre_issue_305_database"
+	run_issue_318_cutover "$pre_issue_305_database"
+	verify_issue_318_cutover "$pre_issue_305_database"
 
 	issue_315_database="$(database_name "_issue_315_${run_id}_test")"
 	clone_databases+=("$issue_315_database")

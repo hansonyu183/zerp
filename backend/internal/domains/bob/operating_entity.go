@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// OperatingEntityData is the BOB-owned business shape used by the DCL typed
-// service. DCL owns declaration lifecycle; BOB continues to own these rules
-// and the current approved read model.
+// OperatingEntityData is the BOB business-data shape used by the DCL declaration
+// service. DCL owns the stable subject and declaration lifecycle; BOB owns the
+// validation rules and exposes current effective read-only business data.
 type OperatingEntityData struct {
 	Name      string `json:"name"`
 	ShortName string `json:"shortName,omitempty"`

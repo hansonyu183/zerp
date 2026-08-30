@@ -869,11 +869,6 @@ type DclProductVersion struct {
 	Enabled                    bool    `db:"enabled" json:"enabled"`
 }
 
-type DclRptDefinitionCodeCounter struct {
-	CounterKey string `db:"counter_key" json:"counter_key"`
-	NextValue  int32  `db:"next_value" json:"next_value"`
-}
-
 type DclRptDefinitionVersion struct {
 	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
 	Enabled         bool               `db:"enabled" json:"enabled"`

@@ -20,8 +20,8 @@ import (
 )
 
 // TestRelationshipStableIdentityAndSnapshotsAreDclOwnedIntegration fixes the
-// #308 schema seam: stable typed roots exist before V1 approval in DCL, while
-// BOB has no identity or latest-approved copy table for these entities.
+// schema seam: typed relationship identities exist before V1 approval in DCL,
+// while BOB has no identity or latest-approved copy table for these entities.
 func TestRelationshipStableIdentityAndSnapshotsAreDclOwnedIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	for _, table := range []string{

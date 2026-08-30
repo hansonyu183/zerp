@@ -21,7 +21,10 @@ INSERT INTO object_number_counters (domain, entity, last_value)
 VALUES ('dcl', sqlc.arg(entity), 1)
 ON CONFLICT (domain, entity)
 DO UPDATE SET last_value = object_number_counters.last_value + 1
-WHERE object_number_counters.last_value < 9999
+WHERE object_number_counters.last_value < CASE
+  WHEN object_number_counters.domain='dcl' AND object_number_counters.entity='rpt-definition' THEN 999999
+  ELSE 9999
+END
 RETURNING last_value;
 
 -- name: DeleteDCLSubject :execrows
@@ -766,9 +769,8 @@ WHERE domain='dcl' AND entity='employee' AND subject_id=sqlc.arg(object_id)
 ORDER BY created_at DESC,id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
--- Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category
--- columns are retained only to preserve pre-cutover snapshots and are never
--- supplied by the Warehouse declaration API.
+-- Warehouse is a DCL-owned declaration exposed by BOB as current effective
+-- read-only business data.
 -- name: InsertDCLWarehouseVersion :exec
 INSERT INTO dcl_warehouse_versions(
   approval_entry_id,name,address,contact_name,contact_phone,manager_employee_id,
@@ -1119,11 +1121,6 @@ JOIN approval_entries e ON e.id=v.approval_entry_id
 JOIN rpt_definition_validities validity ON validity.approval_entry_id=v.approval_entry_id
 WHERE v.approval_entry_id=sqlc.arg(approval_entry_id) AND e.subject_id=sqlc.arg(definition_id);
 
--- name: NextDclRptDefinitionCode :one
-UPDATE dcl_rpt_definition_code_counters
-SET next_value=next_value+1
-WHERE counter_key='default' AND next_value<999999
-RETURNING ('rpt-'||lpad(next_value::text,6,'0'))::text;
 -- name: DclRptInsertVersionPayload :exec
 INSERT INTO dcl_rpt_definition_versions(approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by)
 VALUES(sqlc.arg(approval_entry_id), sqlc.arg(enabled), sqlc.arg(name), sqlc.arg(description), sqlc.arg(sql_text), sqlc.arg(parameters), sqlc.arg(columns), sqlc.arg(actor_id), sqlc.arg(actor_id));

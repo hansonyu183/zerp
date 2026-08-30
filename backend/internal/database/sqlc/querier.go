@@ -269,9 +269,9 @@ type Querier interface {
 	FindAuxObjectByName(ctx context.Context, arg FindAuxObjectByNameParams) (string, error)
 	FindDCLFundAccountIdentifierConflict(ctx context.Context, objectID string) (interface{}, error)
 	FindDCLProductBarcodeConflict(ctx context.Context, objectID string) (interface{}, error)
-	// BOB exposes current read models for DCL-owned stable identities and typed
-	// snapshots. Every resolver selects the latest APPROVED entry and never falls
-	// back to an open candidate or a stored current copy.
+	// BOB provides current effective read-only business data from DCL-owned stable
+	// subjects and typed snapshots. Every resolver selects the latest APPROVED
+	// entry and never selects an open candidate.
 	FindDCLSeedSubjectID(ctx context.Context, arg FindDCLSeedSubjectIDParams) (string, error)
 	FindDCLVehicleIdentifierConflict(ctx context.Context, objectID string) (FindDCLVehicleIdentifierConflictRow, error)
 	FindEnabledAppUserIDExcludingID(ctx context.Context, excludedUserID string) (string, error)
@@ -327,8 +327,8 @@ type Querier interface {
 	GetBobCustomerAccountRelationship(ctx context.Context, objectID string) (DclCustomerAccount, error)
 	GetBobCustomerCurrent(ctx context.Context, objectID string) (GetBobCustomerCurrentRow, error)
 	GetBobCustomerCurrentReference(ctx context.Context, objectID string) (GetBobCustomerCurrentReferenceRow, error)
-	// BOB reads typed DCL relationship roots for business-rule validation. DCL is
-	// the only writer for these stable identities.
+	// BOB validates business rules through DCL-owned typed relationship identities.
+	// DCL is their only writer.
 	GetBobCustomerRelationship(ctx context.Context, objectID string) (DclCustomerRelationship, error)
 	GetBobEmployeeCurrent(ctx context.Context, objectID string) (GetBobEmployeeCurrentRow, error)
 	GetBobEmployeeCurrentReference(ctx context.Context, objectID string) (GetBobEmployeeCurrentReferenceRow, error)
@@ -523,9 +523,8 @@ type Querier interface {
 	// The typed version stores mutable commercial facts and exact purchasing snapshots.
 	InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSupplierVersionParams) error
 	InsertDCLVehicleVersion(ctx context.Context, arg InsertDCLVehicleVersionParams) error
-	// Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category
-	// columns are retained only to preserve pre-cutover snapshots and are never
-	// supplied by the Warehouse declaration API.
+	// Warehouse is a DCL-owned declaration exposed by BOB as current effective
+	// read-only business data.
 	InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWarehouseVersionParams) error
 	// ── WFL Process Definition (DCL-owned) ──────────────────────────────────
 	InsertDclWflProcessDefinition(ctx context.Context, arg InsertDclWflProcessDefinitionParams) error
@@ -792,7 +791,6 @@ type Querier interface {
 	NextAccountingBookNumber(ctx context.Context) (int32, error)
 	NextAppRoleCode(ctx context.Context) (string, error)
 	NextDCLSubjectCode(ctx context.Context, entity string) (int32, error)
-	NextDclRptDefinitionCode(ctx context.Context) (string, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	Ping(ctx context.Context) (int32, error)
 	// AUX is stable-ID current data. These queries intentionally expose no

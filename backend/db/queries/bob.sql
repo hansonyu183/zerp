@@ -1,6 +1,6 @@
--- BOB exposes current read models for DCL-owned stable identities and typed
--- snapshots. Every resolver selects the latest APPROVED entry and never falls
--- back to an open candidate or a stored current copy.
+-- BOB provides current effective read-only business data from DCL-owned stable
+-- subjects and typed snapshots. Every resolver selects the latest APPROVED
+-- entry and never selects an open candidate.
 
 -- name: FindDCLSeedSubjectID :one
 SELECT subject_id
@@ -352,8 +352,8 @@ SELECT payload.* FROM dcl_vehicle_versions payload WHERE payload.approval_entry_
 -- name: CopyDCLProductSnapshot :exec
 INSERT INTO dcl_product_versions(approval_entry_id,entity,name,category_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,returnable,default_packaging_spec_micros,product_type_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,enabled)
 SELECT sqlc.arg(new_approval_entry_id),entity,name,category_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,returnable,default_packaging_spec_micros,product_type_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,enabled FROM dcl_product_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
--- BOB reads typed DCL relationship roots for business-rule validation. DCL is
--- the only writer for these stable identities.
+-- BOB validates business rules through DCL-owned typed relationship identities.
+-- DCL is their only writer.
 -- name: GetBobCustomerRelationship :one
 SELECT * FROM dcl_customer_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobSupplierRelationship :one

@@ -30,9 +30,9 @@ func (q *Queries) ClearWorkflowNodeDocument(ctx context.Context, documentID *str
 }
 
 const countCurrentWorkflowDefinitions = `-- name: CountCurrentWorkflowDefinitions :one
-
 SELECT count(*)
-FROM wfl_process_definitions definition
+FROM dcl_subjects definition
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=definition.id
 JOIN LATERAL (
   SELECT id
   FROM approval_entries
@@ -42,7 +42,8 @@ JOIN LATERAL (
   LIMIT 1
 ) approval ON true
 JOIN dcl_wfl_process_definition_versions version ON version.approval_entry_id=approval.id
-WHERE ($1::integer=-1 OR definition.enabled=($1::integer=1))
+WHERE definition.entity='wfl-process-definition'
+  AND ($1::integer=-1 OR runtime.enabled=($1::integer=1))
   AND ($2::text='' OR definition.code ILIKE '%'||$2||'%'
        OR version.compiled->>'name' ILIKE '%'||$2||'%')
 `
@@ -52,8 +53,6 @@ type CountCurrentWorkflowDefinitionsParams struct {
 	Keyword       string `db:"keyword" json:"keyword"`
 }
 
-// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
-// approval_entries; this table owns only identity and the runtime enabled switch.
 func (q *Queries) CountCurrentWorkflowDefinitions(ctx context.Context, arg CountCurrentWorkflowDefinitionsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countCurrentWorkflowDefinitions, arg.EnabledFilter, arg.Keyword)
 	var count int64
@@ -289,6 +288,29 @@ func (q *Queries) CreateWorkflowRuntimeAudit(ctx context.Context, arg CreateWork
 	return err
 }
 
+const getCurrentWorkflowDefinitionIdentity = `-- name: GetCurrentWorkflowDefinitionIdentity :one
+
+SELECT subject.code,runtime.enabled
+FROM dcl_subjects subject
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
+WHERE subject.id=$1
+  AND subject.entity='wfl-process-definition'
+`
+
+type GetCurrentWorkflowDefinitionIdentityRow struct {
+	Code    *string `db:"code" json:"code"`
+	Enabled bool    `db:"enabled" json:"enabled"`
+}
+
+// Definition identity/code belongs to DCL subjects. WFL owns only the typed
+// runtime enabled state and consumes latest approved version payloads.
+func (q *Queries) GetCurrentWorkflowDefinitionIdentity(ctx context.Context, definitionID string) (GetCurrentWorkflowDefinitionIdentityRow, error) {
+	row := q.db.QueryRow(ctx, getCurrentWorkflowDefinitionIdentity, definitionID)
+	var i GetCurrentWorkflowDefinitionIdentityRow
+	err := row.Scan(&i.Code, &i.Enabled)
+	return i, err
+}
+
 const getDefinitionInstance = `-- name: GetDefinitionInstance :one
 SELECT id process_id,definition_id,definition_code,definition_name,revision,
        COALESCE(root_document_id,'') root_document_id,root_document_no,root_entity,
@@ -333,23 +355,26 @@ func (q *Queries) GetDefinitionInstance(ctx context.Context, id string) (GetDefi
 }
 
 const getEnabledWorkflowDefinitionForShare = `-- name: GetEnabledWorkflowDefinitionForShare :one
-SELECT d.id, d.code, e.id AS approval_entry_id, v.compiled->>'name' name, v.script
-FROM wfl_process_definitions d
+SELECT subject.id, subject.code, e.id AS approval_entry_id, v.compiled->>'name' name, v.script
+FROM dcl_subjects subject
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
 JOIN LATERAL (
   SELECT id
   FROM approval_entries
   WHERE domain='dcl' AND entity='wfl-process-definition'
-    AND subject_id=d.id AND status='APPROVED'
+    AND subject_id=subject.id AND status='APPROVED'
   ORDER BY version_no DESC
   LIMIT 1
 ) e ON true
 JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
-WHERE d.id=$1 AND d.enabled
+WHERE subject.id=$1
+  AND subject.entity='wfl-process-definition'
+  AND runtime.enabled
 `
 
 type GetEnabledWorkflowDefinitionForShareRow struct {
 	ID              string      `db:"id" json:"id"`
-	Code            string      `db:"code" json:"code"`
+	Code            *string     `db:"code" json:"code"`
 	ApprovalEntryID string      `db:"approval_entry_id" json:"approval_entry_id"`
 	Name            interface{} `db:"name" json:"name"`
 	Script          string      `db:"script" json:"script"`
@@ -416,6 +441,19 @@ func (q *Queries) GetWorkflowCreateChildExecutionResult(ctx context.Context, id 
 	var i GetWorkflowCreateChildExecutionResultRow
 	err := row.Scan(&i.DocumentEntity, &i.DocumentID, &i.DocumentNo)
 	return i, err
+}
+
+const getWorkflowDefinitionIDByCode = `-- name: GetWorkflowDefinitionIDByCode :one
+SELECT id
+FROM dcl_subjects
+WHERE entity='wfl-process-definition' AND code=$1
+`
+
+func (q *Queries) GetWorkflowDefinitionIDByCode(ctx context.Context, code *string) (string, error) {
+	row := q.db.QueryRow(ctx, getWorkflowDefinitionIDByCode, code)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getWorkflowDefinitionPayloadByEntry = `-- name: GetWorkflowDefinitionPayloadByEntry :one
@@ -523,10 +561,11 @@ func (q *Queries) ListCompletedWorkflowActionTargets(ctx context.Context, proces
 }
 
 const listCurrentWorkflowDefinitions = `-- name: ListCurrentWorkflowDefinitions :many
-SELECT definition.id AS definition_id,definition.code,definition.enabled,
+SELECT definition.id AS definition_id,definition.code,runtime.enabled,
        approval.id AS approval_entry_id,
        version.compiled,approval.updated_at
-FROM wfl_process_definitions definition
+FROM dcl_subjects definition
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=definition.id
 JOIN LATERAL (
   SELECT id,updated_at
   FROM approval_entries
@@ -536,7 +575,8 @@ JOIN LATERAL (
   LIMIT 1
 ) approval ON true
 JOIN dcl_wfl_process_definition_versions version ON version.approval_entry_id=approval.id
-WHERE ($1::integer=-1 OR definition.enabled=($1::integer=1))
+WHERE definition.entity='wfl-process-definition'
+  AND ($1::integer=-1 OR runtime.enabled=($1::integer=1))
   AND ($2::text='' OR definition.code ILIKE '%'||$2||'%'
        OR version.compiled->>'name' ILIKE '%'||$2||'%')
 ORDER BY definition.code
@@ -552,7 +592,7 @@ type ListCurrentWorkflowDefinitionsParams struct {
 
 type ListCurrentWorkflowDefinitionsRow struct {
 	DefinitionID    string             `db:"definition_id" json:"definition_id"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
 	Compiled        []byte             `db:"compiled" json:"compiled"`
@@ -668,10 +708,10 @@ func (q *Queries) ListDefinitionInstances(ctx context.Context, arg ListDefinitio
 }
 
 const listEnabledWorkflowDefinitionIDsForShare = `-- name: ListEnabledWorkflowDefinitionIDsForShare :many
-SELECT id
-FROM wfl_process_definitions
+SELECT subject_id
+FROM wfl_definition_runtime_states
 WHERE enabled
-ORDER BY id
+ORDER BY subject_id
 `
 
 func (q *Queries) ListEnabledWorkflowDefinitionIDsForShare(ctx context.Context) ([]string, error) {
@@ -682,11 +722,11 @@ func (q *Queries) ListEnabledWorkflowDefinitionIDsForShare(ctx context.Context) 
 	defer rows.Close()
 	items := []string{}
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var subject_id string
+		if err := rows.Scan(&subject_id); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, subject_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

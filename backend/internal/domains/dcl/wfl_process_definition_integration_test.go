@@ -31,17 +31,17 @@ func resetWflProcessDefinitionIntegrationData(t *testing.T, pool *pgxpool.Pool) 
 			sql  string
 			args []any
 		}{
-			{sql: `DELETE FROM app_role_permissions WHERE permission_id IN (SELECT permission.id FROM app_permissions permission JOIN wfl_process_definitions definition ON definition.code=permission.entity WHERE permission.domain='wfl' AND definition.created_by<>'SYSTEM')`},
-			{sql: `DELETE FROM app_permissions permission USING wfl_process_definitions definition WHERE permission.domain='wfl' AND permission.entity=definition.code AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM wfl_action_executions USING wfl_definition_instances instance JOIN wfl_process_definitions definition ON instance.definition_id=definition.id WHERE wfl_action_executions.process_id=instance.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM wfl_create_child_requests USING wfl_definition_instances instance JOIN wfl_process_definitions definition ON instance.definition_id=definition.id WHERE wfl_create_child_requests.process_id=instance.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM wfl_node_instances USING wfl_definition_instances instance JOIN wfl_process_definitions definition ON instance.definition_id=definition.id WHERE wfl_node_instances.process_id=instance.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM wfl_definition_instances instance USING wfl_process_definitions definition WHERE instance.definition_id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM dcl_wfl_process_definition_versions payload USING wfl_process_definitions definition WHERE payload.definition_id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM approval_events event USING wfl_process_definitions definition WHERE event.domain='dcl' AND event.entity='wfl-process-definition' AND event.subject_id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM approval_entries entry USING wfl_process_definitions definition WHERE entry.domain='dcl' AND entry.entity='wfl-process-definition' AND entry.subject_id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM dcl_subjects subject USING wfl_process_definitions definition WHERE subject.entity='wfl-process-definition' AND subject.id=definition.id AND definition.created_by<>'SYSTEM'`},
-			{sql: `DELETE FROM wfl_process_definitions WHERE created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM app_role_permissions WHERE permission_id IN (SELECT permission.id FROM app_permissions permission JOIN dcl_subjects subject ON subject.code=permission.entity AND subject.entity='wfl-process-definition' WHERE permission.domain='wfl' AND subject.created_by<>'SYSTEM')`},
+			{sql: `DELETE FROM app_permissions permission USING dcl_subjects subject WHERE permission.domain='wfl' AND permission.entity=subject.code AND subject.entity='wfl-process-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM wfl_action_executions USING wfl_definition_instances instance JOIN dcl_subjects subject ON instance.definition_id=subject.id AND subject.entity='wfl-process-definition' WHERE wfl_action_executions.process_id=instance.id AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM wfl_create_child_requests USING wfl_definition_instances instance JOIN dcl_subjects subject ON instance.definition_id=subject.id AND subject.entity='wfl-process-definition' WHERE wfl_create_child_requests.process_id=instance.id AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM wfl_node_instances USING wfl_definition_instances instance JOIN dcl_subjects subject ON instance.definition_id=subject.id AND subject.entity='wfl-process-definition' WHERE wfl_node_instances.process_id=instance.id AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM wfl_definition_instances instance USING dcl_subjects subject WHERE instance.definition_id=subject.id AND subject.entity='wfl-process-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM dcl_wfl_process_definition_versions payload USING dcl_subjects subject WHERE payload.definition_id=subject.id AND subject.entity='wfl-process-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM approval_events event USING dcl_subjects subject WHERE event.domain='dcl' AND event.entity='wfl-process-definition' AND event.subject_id=subject.id AND subject.entity='wfl-process-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM approval_entries entry USING dcl_subjects subject WHERE entry.domain='dcl' AND entry.entity='wfl-process-definition' AND entry.subject_id=subject.id AND subject.entity='wfl-process-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM wfl_definition_runtime_states runtime USING dcl_subjects subject WHERE runtime.subject_id=subject.id AND subject.entity='wfl-process-definition' AND subject.created_by<>'SYSTEM'`},
+			{sql: `DELETE FROM dcl_subjects WHERE entity='wfl-process-definition' AND created_by<>'SYSTEM'`},
 			{sql: `DELETE FROM app_users WHERE id IN ($1,$2)`, args: []any{wflDefinitionCreatorID, wflDefinitionReviewerID}},
 		}
 		for _, statement := range statements {
@@ -146,12 +146,32 @@ func TestDclWflProcessDefinitionCreateDefaultsDisabledIntegration(t *testing.T) 
 	if created.Enabled {
 		t.Fatal("create should default to disabled")
 	}
-	var enabled bool
-	if err := pool.QueryRow(t.Context(), `SELECT enabled FROM wfl_process_definitions WHERE id=$1`, created.DefinitionID).Scan(&enabled); err != nil {
+	var (
+		subjectCode      string
+		subjectCreatedBy string
+		enabled          bool
+		runtimeUpdatedBy string
+	)
+	if err := pool.QueryRow(t.Context(), `
+		SELECT subject.code,subject.created_by,runtime.enabled,runtime.updated_by
+		FROM dcl_subjects subject
+		JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
+		WHERE subject.id=$1 AND subject.entity='wfl-process-definition'
+	`, created.DefinitionID).Scan(&subjectCode, &subjectCreatedBy, &enabled, &runtimeUpdatedBy); err != nil {
 		t.Fatal(err)
+	}
+	if subjectCode != created.Code || subjectCreatedBy != wflDefinitionCreatorID || runtimeUpdatedBy != wflDefinitionCreatorID {
+		t.Fatalf("identity/runtime metadata = (%q,%q,%q), want (%q,%q,%q)", subjectCode, subjectCreatedBy, runtimeUpdatedBy, created.Code, wflDefinitionCreatorID, wflDefinitionCreatorID)
 	}
 	if enabled {
 		t.Fatal("database enabled should be false")
+	}
+	var oldRootExists bool
+	if err := pool.QueryRow(t.Context(), `SELECT to_regclass('public.wfl_process_definitions') IS NOT NULL`).Scan(&oldRootExists); err != nil {
+		t.Fatal(err)
+	}
+	if oldRootExists {
+		t.Fatal("wfl_process_definitions must not remain as a second identity root")
 	}
 }
 
@@ -197,7 +217,7 @@ func TestDclWflProcessDefinitionEnabledUsesLatestApprovalTokenAndLastCommandWins
 		t.Fatalf("reenable = %+v, err=%v", reenabled, err)
 	}
 	var finalEnabled bool
-	if err := pool.QueryRow(t.Context(), `SELECT enabled FROM wfl_process_definitions WHERE id=$1`, approved.DefinitionID).Scan(&finalEnabled); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT enabled FROM wfl_definition_runtime_states WHERE subject_id=$1`, approved.DefinitionID).Scan(&finalEnabled); err != nil {
 		t.Fatal(err)
 	}
 	if !finalEnabled {
@@ -598,17 +618,17 @@ func TestDclWflProcessDefinitionSubscriberFailureRollsBackIntegration(t *testing
 	if err == nil {
 		t.Fatal("expected subscriber failure")
 	}
-	var definitions, subjects, versions int
+	var runtimeStates, subjects, versions int
 	if scanErr := pool.QueryRow(t.Context(), `
 		SELECT
-			(SELECT count(*) FROM wfl_process_definitions WHERE created_by=$1),
+			(SELECT count(*) FROM wfl_definition_runtime_states runtime JOIN dcl_subjects subject ON subject.id=runtime.subject_id WHERE subject.created_by=$1),
 			(SELECT count(*) FROM dcl_subjects WHERE entity='wfl-process-definition' AND created_by=$1),
 			(SELECT count(*) FROM dcl_wfl_process_definition_versions WHERE created_by=$1)
-	`, wflDefinitionCreatorID).Scan(&definitions, &subjects, &versions); scanErr != nil {
+	`, wflDefinitionCreatorID).Scan(&runtimeStates, &subjects, &versions); scanErr != nil {
 		t.Fatal(scanErr)
 	}
-	if definitions != 0 || subjects != 0 || versions != 0 {
-		t.Fatalf("subscriber failure committed definition=%d subject=%d version=%d", definitions, subjects, versions)
+	if runtimeStates != 0 || subjects != 0 || versions != 0 {
+		t.Fatalf("subscriber failure committed runtime=%d subject=%d version=%d", runtimeStates, subjects, versions)
 	}
 }
 

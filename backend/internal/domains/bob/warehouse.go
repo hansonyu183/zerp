@@ -9,8 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// WarehouseData is the fixed declaration shape. Category is deliberately not
-// exposed: legacy category snapshots are only retained by the cutover tables.
+// WarehouseData is the complete warehouse declaration shape.
 type WarehouseData struct {
 	Name, Address, ContactName, ContactPhone, ManagerEmployeeID, Remark string
 	ManagerEmployeeApprovalEntryID                                      string
@@ -89,7 +88,7 @@ func (s *Service) getWarehouseCurrent(ctx context.Context, input GetInput) (Obje
 	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}, UpdatedAt: r.UpdatedAt.Time}, nil
 }
 
-func (s *Service) queryWarehouses(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
+func (s *Service) queryWarehouses(ctx context.Context, q *dbsqlc.Queries, input QueryInput) (Page[QueryItem], error) {
 	offset, ok := pageOffset(input.Page, input.PageSize)
 	if !ok || len(input.Sort) > 1 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query", nil, nil)
@@ -101,7 +100,8 @@ func (s *Service) queryWarehouses(ctx context.Context, input QueryInput) (Page[Q
 	sortField, sortOrder := "updatedAt", "desc"
 	if len(input.Sort) == 1 {
 		sortField, sortOrder = input.Sort[0].Field, strings.ToLower(input.Sort[0].Order)
-		if !strings.Contains("updatedAt code name", sortField) || (sortOrder != "asc" && sortOrder != "desc") {
+		validField := sortField == "updatedAt" || sortField == "code" || sortField == "name"
+		if !validField || (sortOrder != "asc" && sortOrder != "desc") {
 			return Page[QueryItem]{}, domainError(ErrorValidation, "invalid sort", nil, nil)
 		}
 	}
@@ -113,21 +113,17 @@ func (s *Service) queryWarehouses(ctx context.Context, input QueryInput) (Page[Q
 			enabled = 0
 		}
 	}
-	rows, err := s.queries.ListBobWarehouses(ctx, dbsqlc.ListBobWarehousesParams{Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)})
+	rows, err := q.ListBobWarehouses(ctx, dbsqlc.ListBobWarehousesParams{Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list warehouse current", err)
 	}
-	total, err := s.queries.CountBobWarehouses(ctx, dbsqlc.CountBobWarehousesParams{Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabled})
+	total, err := q.CountBobWarehouses(ctx, dbsqlc.CountBobWarehousesParams{Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabled})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("count warehouse current", err)
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, r := range rows {
-		v, e := s.getWarehouseCurrent(ctx, GetInput{ObjectID: r.ObjectID})
-		if e != nil {
-			return Page[QueryItem]{}, e
-		}
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: v.Data, UpdatedAt: r.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: r.ApprovalEntryID, SourceVersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}, UpdatedAt: r.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }

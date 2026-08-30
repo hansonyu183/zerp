@@ -29,8 +29,8 @@ type Result struct {
 	Skipped int
 }
 
-// Seed lifecycle views are deliberately local: BOB exposes approved-current
-// read models only, while this builder still drives DCL declaration workflows.
+// Seed lifecycle views are deliberately local: BOB exposes only current
+// effective read-only business data, while this builder drives DCL workflows.
 type seedMutation struct {
 	ObjectID         string
 	ApprovalRevision int64

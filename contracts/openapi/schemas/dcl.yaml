@@ -4089,6 +4089,66 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'DclPartyReferenceCount':
+    {
+      'type': 'object',
+      'required': ['entity', 'field', 'count'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'entity':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'customer',
+                  'supplier',
+                  'employee',
+                  'other-unit',
+                  'sales-partner',
+                ],
+            },
+          'field': { 'type': 'string', 'enum': ['partyId'] },
+          'count': { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+        },
+    },
+  'DclPartyUnapproveBlockers':
+    {
+      'type': 'object',
+      'required': ['references'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'references':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclPartyReferenceCount' },
+            },
+        },
+    },
+  'DclPartyUnapproveResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'anyOf':
+                [
+                  { '$ref': '#/DclPartyMutation' },
+                  { '$ref': '#/DclPartyUnapproveBlockers' },
+                ],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'DclPartyViewResponse':
     {
       'type': 'object',

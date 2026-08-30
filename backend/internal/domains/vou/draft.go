@@ -42,7 +42,7 @@ func (s *Service) loadPreservedReferences(
 		}
 		return &bobdomain.EffectiveReference{ObjectID: view.ObjectID,
 			Entity: auxdomain.EntitySettlementMethod, Code: view.Code, Data: bobdomain.DetailView{
-				Name: view.Name, RuleType: view.RuleType, MonthOffset: view.MonthOffset, DayOfMonth: view.DayOfMonth,
+				Name: view.Name, TermCode: view.TermCode, RuleType: view.RuleType, MonthOffset: view.MonthOffset, DayOfMonth: view.DayOfMonth,
 				DayOffset: view.DayOffset, DueDays: view.DueDays, CutoffDay: view.CutoffDay,
 				DefaultSalesSurcharge: view.DefaultSalesSurcharge, Description: view.Description,
 			}}
@@ -100,10 +100,24 @@ func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDra
 		return nil
 	}
 	if settlement == nil {
-		return domainError(ErrorConflict, "settlement method is required", nil, nil)
+		return settlementTermRequiredError()
 	}
+	dayOffset, err := exactSettlementDayOffset(settlement.Data)
+	if err != nil {
+		return err
+	}
+	if err := validateSettlementTermSnapshot(
+		settlement.Data.TermCode, settlement.Data.RuleType,
+		settlement.Data.MonthOffset, dayOffset,
+	); err != nil {
+		return err
+	}
+	// Customer Account declarations persist relative terms as dueDays, while
+	// Supplier and auxiliary settlement snapshots persist the same exact fact
+	// as dayOffset. Normalize the two typed fields before writing the order.
+	settlement.Data.DayOffset = dayOffset
+	settlement.Data.DueDays = dayOffset
 	draft.DueDate = nil
-	var err error
 	defaultSurcharge := int64(0)
 	if entity == EntitySaleOrder {
 		defaultSurchargeValue := settlement.Data.DefaultSalesSurcharge
@@ -140,6 +154,16 @@ func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDra
 	}
 	draft.TotalAmount = total
 	return nil
+}
+
+func exactSettlementDayOffset(data bobdomain.DetailView) (int32, error) {
+	if data.DayOffset != 0 && data.DueDays != 0 && data.DayOffset != data.DueDays {
+		return 0, settlementTermRequiredError()
+	}
+	if data.DayOffset != 0 {
+		return data.DayOffset, nil
+	}
+	return data.DueDays, nil
 }
 
 func pricingQuantityMicros(baseQuantity int64, product bobdomain.DetailView) (int64, error) {
@@ -276,55 +300,49 @@ func (s *Service) orderSettlementDueDate(
 	if err != nil {
 		return time.Time{}, domainError(ErrorConflict, "order settlement snapshot is unavailable", nil, err)
 	}
-	if termCode == "" {
-		termCode = legacySettlementTerm(ruleType, monthOffset, dayOffset)
+	if err := validateSettlementTermSnapshot(termCode, ruleType, monthOffset, dayOffset); err != nil {
+		return time.Time{}, err
 	}
 	return calculateDueDate(actualDate, bobdomain.DetailView{
 		TermCode: termCode, RuleType: ruleType, MonthOffset: monthOffset, DayOffset: dayOffset,
 	}, cutoffDay)
 }
 
-func legacySettlementTerm(ruleType string, monthOffset, dayOffset int32) string {
-	if ruleType == "DUE_DAYS" || ruleType == bobdomain.SettlementRuleRelativeDays {
-		if dayOffset <= 0 {
-			return bobdomain.SettlementTermCashOnDelivery
-		}
-		candidates := []struct {
-			term string
-			days int32
-		}{
-			{bobdomain.SettlementTermArrival3, 3}, {bobdomain.SettlementTermArrival5, 5},
-			{bobdomain.SettlementTermArrival7, 7}, {bobdomain.SettlementTermArrival15, 15},
-			{bobdomain.SettlementTermArrival30, 30},
-		}
-		best := candidates[0]
-		for _, candidate := range candidates[1:] {
-			bestDistance := absInt32(best.days - dayOffset)
-			candidateDistance := absInt32(candidate.days - dayOffset)
-			if candidateDistance < bestDistance ||
-				(candidateDistance == bestDistance && candidate.days > best.days) {
-				best = candidate
-			}
-		}
-		return best.term
-	}
-	switch monthOffset {
-	case 0:
-		return bobdomain.SettlementTermMonthlyCurrent
-	case 1:
-		return bobdomain.SettlementTermMonthly30
-	case 2:
-		return bobdomain.SettlementTermMonthly60
-	default:
-		return bobdomain.SettlementTermMonthly90
-	}
+func settlementTermRequiredError() error {
+	return domainErrorWithKey(
+		ErrorConflict,
+		"vou_settlement_term_required",
+		"订单必须具有明确账期，不得由 writer 默认补齐。",
+		nil,
+		nil,
+	)
 }
 
-func absInt32(value int32) int32 {
-	if value < 0 {
-		return -value
+// validateSettlementTermSnapshot accepts only the closed, persisted settlement
+// terms. Runtime flows must never infer a missing term from names, offsets, or
+// a nearest-day approximation; cutover owns any explicit historical repair.
+func validateSettlementTermSnapshot(termCode, ruleType string, monthOffset, dayOffset int32) error {
+	expected := map[string]struct {
+		ruleType               string
+		monthOffset, dayOffset int32
+	}{
+		bobdomain.SettlementTermPrepaid:        {bobdomain.SettlementRuleRelativeDays, 0, 0},
+		bobdomain.SettlementTermCashOnDelivery: {bobdomain.SettlementRuleRelativeDays, 0, 0},
+		bobdomain.SettlementTermArrival3:       {bobdomain.SettlementRuleRelativeDays, 0, 3},
+		bobdomain.SettlementTermArrival5:       {bobdomain.SettlementRuleRelativeDays, 0, 5},
+		bobdomain.SettlementTermArrival7:       {bobdomain.SettlementRuleRelativeDays, 0, 7},
+		bobdomain.SettlementTermArrival15:      {bobdomain.SettlementRuleRelativeDays, 0, 15},
+		bobdomain.SettlementTermArrival30:      {bobdomain.SettlementRuleRelativeDays, 0, 30},
+		bobdomain.SettlementTermMonthlyCurrent: {bobdomain.SettlementRuleMonthEnd, 0, 0},
+		bobdomain.SettlementTermMonthly30:      {bobdomain.SettlementRuleMonthEnd, 1, 0},
+		bobdomain.SettlementTermMonthly60:      {bobdomain.SettlementRuleMonthEnd, 2, 0},
+		bobdomain.SettlementTermMonthly90:      {bobdomain.SettlementRuleMonthEnd, 3, 0},
 	}
-	return value
+	want, ok := expected[termCode]
+	if !ok || want.ruleType != ruleType || want.monthOffset != monthOffset || want.dayOffset != dayOffset {
+		return settlementTermRequiredError()
+	}
+	return nil
 }
 
 func (s *Service) insertDetail(

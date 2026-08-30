@@ -105,7 +105,7 @@ func (s *Service) loadData(
 		data.DeliveryAddress = deref(detail.DeliveryAddress)
 		data.SettlementMethod = settlementView(
 			detail.SettlementMethodObjectID,
-			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
+			detail.SettlementMethodCode, detail.SettlementMethodName, stringPtr(detail.SettlementTermCode), detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDueDays,
 			detail.SettlementCutoffDay, detail.SettlementDefaultSalesSurchargeCents,
@@ -145,7 +145,7 @@ func (s *Service) loadData(
 		data.ContactPhone = deref(detail.ContactPhone)
 		data.SettlementMethod = settlementView(
 			detail.SettlementMethodObjectID,
-			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
+			detail.SettlementMethodCode, detail.SettlementMethodName, stringPtr(detail.SettlementTermCode), detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDueDays,
 			detail.SettlementCutoffDay, detail.SettlementDefaultSalesSurchargeCents,
@@ -467,7 +467,7 @@ func optionalReference(
 }
 
 func settlementView(
-	objectID, code, name, ruleType *string,
+	objectID, code, name, termCode, ruleType *string,
 	monthOffset, dayOfMonth, dayOffset, dueDays, cutoffDay *int32,
 	defaultSalesSurchargeCents int64,
 	description *string,
@@ -477,7 +477,7 @@ func settlementView(
 		return nil
 	}
 	result := &SettlementMethodSnapshotView{
-		ObjectID: deref(objectID), Code: deref(code), Name: deref(name),
+		ObjectID: deref(objectID), Code: deref(code), Name: deref(name), TermCode: deref(termCode),
 		RuleType: deref(ruleType), MonthOffset: derefInt32(monthOffset),
 		DayOfMonth: dayOfMonth, DayOffset: derefInt32(dayOffset), Description: deref(description),
 		DueDays: derefInt32(dueDays), CutoffDay: derefInt32(cutoffDay),

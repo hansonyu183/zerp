@@ -95,8 +95,11 @@ func (s *Service) handleApproval(ctx context.Context, tx pgx.Tx, source approval
 		if currentErr != nil {
 			return currentErr
 		}
+		if row.Code == nil {
+			return errors.New("workflow definition subject has no code")
+		}
 		var item candidate
-		item.id, item.code, item.approvalEntryID = row.ID, row.Code, row.ApprovalEntryID
+		item.id, item.code, item.approvalEntryID = row.ID, *row.Code, row.ApprovalEntryID
 		if nameStr, ok := row.Name.(string); ok {
 			item.name = nameStr
 		}

@@ -10,7 +10,7 @@
 
 ## 2. 新建、保存与试运行
 
-1. 新建提交完整 Starlark 脚本并得到 V1 DRAFT；保存携带 `code`、`approvalEntryId`、当前 Approval revision 和完整脚本。
+1. 新建提交完整 Starlark 脚本，创建顺序、原子性和身份归属遵循 [DCL 流程定义申报](../../domains/dcl.md#310-流程定义申报)；保存携带 `code`、`approvalEntryId`、当前 Approval revision 和完整脚本。
 2. 页面展示该 entry 的脚本、诊断和冻结编译图。编译失败保留草稿及诊断，不覆盖上一份有效编译结果。
 3. 管理员选择存在的 VOU entity 与 documentId 试运行当前 DRAFT；页面只展示匹配结果、计划动作和未覆盖分支，不读取或展示 VOU 正文。
 4. 每次保存都会使此前试运行证明失效；提交和批准使用服务端返回的新 revision。

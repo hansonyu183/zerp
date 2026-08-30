@@ -15,13 +15,14 @@
     "docs:coverage": "node scripts/check-docs.mjs --write-use-case-coverage",
     "docs:adr-index": "node scripts/check-docs.mjs --write-adr-index",
     "docs:check": "node scripts/check-docs.mjs && node --test scripts/check-docs.test.mjs",
+    "check:ci-workflow": "node --test scripts/check-ci-workflow.test.mjs",
     "contracts:lint": "redocly lint contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml",
     "contracts:bundle": "redocly bundle contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml --output contracts/openapi/dist/openapi.json --ext json",
     "generate:go": "go -C backend/tools tool oapi-codegen --config ../oapi-codegen.yaml ../../contracts/openapi/dist/openapi.json",
     "generate:ts": "node scripts/prepare-openapi-models.mjs contracts/openapi/dist/openapi.json contracts/openapi/dist/openapi-models.json && openapi --input contracts/openapi/dist/openapi-models.json --output frontend/src/api/generated --useUnionTypes --exportCore false --exportServices false --exportModels true --indent 2 && node scripts/generate-openapi-path-types.mjs contracts/openapi/dist/openapi.json frontend/src/api/generated/schema.ts frontend/src/api/generated/contract-meta.ts && node scripts/normalize-openapi-generated.mjs frontend/src/api/generated",
     "generate:api": "pnpm contracts:lint && pnpm contracts:bundle && pnpm generate:go && pnpm generate:ts",
-    "format": "prettier --write \"*.json\" \"*.yaml\" \"*.md\" \"contracts/**/*.yaml\" \"docs/**/*.md\" \"frontend/*.md\" \"backend/*.md\" \"scripts/**/*.mjs\"",
-    "format:check": "prettier --check \"*.json\" \"*.yaml\" \"*.md\" \"contracts/**/*.yaml\" \"docs/**/*.md\" \"frontend/*.md\" \"backend/*.md\" \"scripts/**/*.mjs\""
+    "format": "prettier --write \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"contracts/**/*.yaml\" \"docs/**/*.md\" \"frontend/*.md\" \"backend/*.md\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"contracts/**/*.yaml\" \"docs/**/*.md\" \"frontend/*.md\" \"backend/*.md\" \"scripts/**/*.mjs\""
   },
   "devDependencies": {
     "@redocly/cli": "^2.12.3",

@@ -227,7 +227,7 @@ describe('DCL vehicle view model', () => {
                   {
                     objectId: 'OUT-1',
                     entity: 'other-unit',
-                    code: 'OUT-0001',
+                    code: 'OTU-0001',
                     enabled: true,
                     sourceApprovalEntryId: 'VER-1',
                     sourceVersionNo: 1,
@@ -269,7 +269,7 @@ describe('DCL vehicle view model', () => {
         vm.editorFields.value.find(
           (field) => field.key === 'carrierServiceRelationshipObjectId',
         )?.options,
-      ).toEqual([{ title: 'OUT-0001 · 承运服务商', value: 'OUT-1' }])
+      ).toEqual([{ title: 'OTU-0001 · 承运服务商', value: 'OUT-1' }])
     } finally {
       vi.useRealTimers()
     }

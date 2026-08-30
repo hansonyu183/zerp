@@ -193,7 +193,7 @@ func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (Objec
 	}, nil
 }
 
-func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
+func (s *Service) queryEmploymentRelationships(ctx context.Context, q *dbsqlc.Queries, input QueryInput) (Page[QueryItem], error) {
 	offset, ok := pageOffset(input.Page, input.PageSize)
 	if !ok || len(input.Sort) > 1 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid Employee query", nil, nil)
@@ -205,7 +205,8 @@ func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryI
 	sortField, sortOrder := "updatedAt", "desc"
 	if len(input.Sort) == 1 {
 		sortField, sortOrder = input.Sort[0].Field, strings.ToLower(input.Sort[0].Order)
-		if !strings.Contains("updatedAt code name", sortField) || (sortOrder != "asc" && sortOrder != "desc") {
+		validField := sortField == "updatedAt" || sortField == "code" || sortField == "name"
+		if !validField || (sortOrder != "asc" && sortOrder != "desc") {
 			return Page[QueryItem]{}, domainError(ErrorValidation, "invalid Employee sort", nil, nil)
 		}
 	}
@@ -218,21 +219,28 @@ func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryI
 		}
 	}
 	params := dbsqlc.ListBobEmployeesParams{Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)}
-	rows, err := s.queries.ListBobEmployees(ctx, params)
+	rows, err := q.ListBobEmployees(ctx, params)
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list Employee current", err)
 	}
-	total, err := s.queries.CountBobEmployees(ctx, dbsqlc.CountBobEmployeesParams{Keyword: params.Keyword, EnabledFilter: enabled})
+	total, err := q.CountBobEmployees(ctx, dbsqlc.CountBobEmployeesParams{Keyword: params.Keyword, EnabledFilter: enabled})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("count Employee current", err)
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
-		view, getErr := s.getEmployeeCurrent(ctx, GetInput{ObjectID: row.ObjectID})
-		if getErr != nil {
-			return Page[QueryItem]{}, getErr
-		}
-		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID, SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time})
+		items = append(items, QueryItem{
+			ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled,
+			SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo),
+			Data: DetailView{
+				Name: row.DisplayName, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName),
+				DepartmentID: deref(row.DepartmentID), DepartmentCode: deref(row.DepartmentCode), DepartmentName: deref(row.DepartmentName),
+				PositionID: deref(row.PositionID), PositionCode: deref(row.PositionCode), PositionName: deref(row.PositionName),
+				Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark),
+			},
+			UpdatedAt:    row.UpdatedAt.Time,
+			Relationship: &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: deref(row.OperatingEntityCode), OperatingEntityName: row.OperatingEntityName},
+		})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }

@@ -24,8 +24,9 @@ type customerPartyReader interface {
 	ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error)
 }
 
-// CustomerService owns DCL Customer declarations and the immutable typed root.
-// BOB contributes only business validation and reference resolution.
+// CustomerService owns DCL Customer declarations and their immutable typed
+// relationship identity. BOB contributes business validation and exposes only
+// current effective read-only business data.
 type CustomerService struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
@@ -74,7 +75,7 @@ func (s *CustomerService) Create(ctx context.Context, in CustomerCreateInput, ac
 	if in.NewParty != nil {
 		party, err = s.parties.CreateForRelationship(ctx, tx, *in.NewParty, actor, false)
 	} else {
-		party, err = s.partyReader.ResolveForRelationship(ctx, tx, in.PartyID)
+		party, err = resolveExistingPartyForRelationship(ctx, tx, s.partyReader, in.PartyID)
 	}
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
@@ -184,12 +185,12 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 		return CustomerMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	p, err := s.coordinator.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
-	if err != nil || p.Entry().SubjectID != in.ObjectID {
+	id, err := lockPartyRelationshipIdentity(ctx, tx, EntityCustomer, in.ObjectID)
+	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	id, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, in.ObjectID)
-	if err != nil {
+	p, err := s.coordinator.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
+	if err != nil || p.Entry().SubjectID != in.ObjectID {
 		return CustomerMutation{}, translateError(err)
 	}
 	stored, err := s.queries.WithTx(tx).GetDCLCustomerVersion(ctx, in.ApprovalEntryID)

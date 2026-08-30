@@ -169,7 +169,7 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	var workflowDefinitions, workflowInstances int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT
-			(SELECT count(*) FROM wfl_process_definitions definition WHERE EXISTS(
+			(SELECT count(*) FROM dcl_subjects definition JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=definition.id WHERE definition.entity='wfl-process-definition' AND EXISTS(
 				SELECT 1 FROM approval_entries approval
 				WHERE approval.domain='dcl' AND approval.entity='wfl-process-definition'
 					AND approval.subject_id=definition.id AND approval.status='DRAFT'

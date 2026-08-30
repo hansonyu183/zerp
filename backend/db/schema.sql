@@ -246,6 +246,30 @@ BEGIN
 END; $$;
 
 
+-- Sale and purchase order details are declaration facts once their approval
+-- entry leaves DRAFT. Fulfillment records the sole runtime fact on that row.
+CREATE FUNCTION public.vou_reject_non_draft_order_detail_mutation() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE document_status varchar(32); document_id varchar(26);
+BEGIN
+    document_id := CASE WHEN TG_OP='DELETE' THEN OLD.document_id ELSE NEW.document_id END;
+    SELECT entry.status INTO document_status
+      FROM vou_documents document JOIN approval_entries entry ON entry.id=document.approval_entry_id
+     WHERE document.id=document_id;
+    IF document_status IS NULL OR document_status='DRAFT' THEN
+        RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
+    END IF;
+    IF TG_OP='DELETE' THEN
+        RAISE EXCEPTION 'non-draft order detail cannot be deleted' USING ERRCODE='23514';
+    END IF;
+    IF (to_jsonb(NEW)-'fulfillment_status') IS DISTINCT FROM (to_jsonb(OLD)-'fulfillment_status') THEN
+        RAISE EXCEPTION 'non-draft order detail is immutable except fulfillment_status' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+END; $$;
+
+
 --
 -- Name: vou_validate_parent(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -949,17 +973,6 @@ CREATE TABLE public.app_role_code_counters (
 );
 
 --
--- Name: dcl_rpt_definition_code_counters; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.dcl_rpt_definition_code_counters (
-    counter_key text NOT NULL,
-    next_value integer NOT NULL,
-    CONSTRAINT dcl_rpt_definition_code_counters_next_value_check CHECK (((next_value >= 0) AND (next_value <= 999999)))
-);
-
-
---
 -- Name: app_role_permissions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1172,11 +1185,39 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_code_check CHECK (((entity)::text = 'rpt-definition'::character varying AND (code IS NOT NULL) AND ((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text) AND ((code)::text <> ALL ((ARRAY['definition'::character varying, 'directory'::character varying])::text[])))
-        OR ((entity)::text <> 'rpt-definition'::character varying AND ((code IS NULL) OR ((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)))),
-    CONSTRAINT dcl_subjects_core_code_required_ck CHECK (((entity)::text <> 'rpt-definition'::character varying) OR (code IS NOT NULL)),
+    CONSTRAINT dcl_subjects_code_ck CHECK (
+      (code IS NOT NULL AND (
+        ((entity)::text = 'operating-entity'::text AND (code)::text ~ '^OPE-[0-9]{4}$'::text)
+        OR ((entity)::text = 'warehouse'::text AND (code)::text ~ '^WHS-[0-9]{4}$'::text)
+        OR ((entity)::text = 'vehicle'::text AND (code)::text ~ '^VEH-[0-9]{4}$'::text)
+        OR ((entity)::text = 'fund-account'::text AND (code)::text ~ '^FAC-[0-9]{4}$'::text)
+        OR ((entity)::text = 'product'::text AND (code)::text ~ '^PRD-[0-9]{4}$'::text)
+        OR ((entity)::text = 'employee'::text AND (code)::text ~ '^EMP-[0-9]{4}$'::text)
+        OR ((entity)::text = 'customer'::text AND (code)::text ~ '^CUS-[0-9]{4}$'::text)
+        OR ((entity)::text = 'customer-account'::text AND (code)::text ~ '^ACC-[0-9]{4}$'::text)
+        OR ((entity)::text = 'supplier'::text AND (code)::text ~ '^SUP-[0-9]{4}$'::text)
+        OR ((entity)::text = 'other-unit'::text AND (code)::text ~ '^OTU-[0-9]{4}$'::text)
+        OR ((entity)::text = 'sales-partner'::text AND (code)::text ~ '^SLP-[0-9]{4}$'::text)
+        OR ((entity)::text = 'rpt-definition'::text AND (code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text AND (code)::text NOT IN ('definition'::text, 'directory'::text))
+        OR ((entity)::text = 'wfl-process-definition'::text AND (code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text)
+      ))
+      OR (code IS NULL AND (entity)::text = ANY (ARRAY['party'::text, 'acc-mapping'::text]))
+    ),
     CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'customer-account'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))
 );
+
+CREATE FUNCTION public.dcl_require_subject_code(subject_code character varying) RETURNS character varying
+    LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+    AS $$
+BEGIN
+  IF subject_code IS NULL THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'coded DCL subject has a null code';
+  END IF;
+  RETURN subject_code;
+END;
+$$;
 
 CREATE TABLE public.dcl_operating_entity_versions (
     approval_entry_id character varying(26) NOT NULL,
@@ -1327,7 +1368,24 @@ CREATE TABLE public.dcl_other_unit_versions (
     remark character varying(1000),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_other_unit_versions_pkey PRIMARY KEY (approval_entry_id),
-    CONSTRAINT dcl_other_unit_settlement_ck CHECK (((settlement_method_id IS NULL) = (settlement_method_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_method_name IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_term_code IS NULL)) AND ((settlement_method_id IS NULL) = (settlement_rule_type IS NULL)) AND ((settlement_method_id IS NOT NULL) OR ((settlement_month_offset = 0) AND (settlement_day_of_month = 0) AND (settlement_day_offset = 0)))),
+    CONSTRAINT dcl_other_unit_settlement_ck CHECK (
+      (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
+      AND (settlement_method_id IS NOT NULL OR (settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0))
+      AND (settlement_method_id IS NULL OR (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=3)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=5)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=7)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=15)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=30)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=1 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=2 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+      ))),
     CONSTRAINT dcl_other_unit_day_of_month_ck CHECK ((settlement_day_of_month >= 0) AND (settlement_day_of_month <= 31)),
     CONSTRAINT dcl_other_unit_day_offset_ck CHECK (settlement_day_offset >= 0),
     CONSTRAINT dcl_other_unit_month_offset_ck CHECK (settlement_month_offset >= 0)
@@ -1366,6 +1424,18 @@ CREATE TABLE public.dcl_supplier_versions (
       AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
       AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
       AND (settlement_method_id IS NOT NULL OR (settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0))
+      AND (settlement_method_id IS NULL OR (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=3)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=5)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=7)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=15)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=30)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=1 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=2 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month=0 AND settlement_day_offset=0)
+      ))
     ),
     CONSTRAINT dcl_supplier_default_purchaser_snapshot_ck CHECK (
       (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_approval_entry_id IS NULL)
@@ -1375,8 +1445,8 @@ CREATE TABLE public.dcl_supplier_versions (
     CONSTRAINT dcl_supplier_default_purchaser_employee_entity_ck CHECK (default_purchaser_employee_entity='employee')
 );
 
--- Party keeps a stable typed DCL root because every relationship refers to it;
--- identity data is visible to BOB only from the highest approved DCL snapshot.
+-- DCL owns the stable Party identity referenced by every relationship. BOB
+-- provides current effective read-only data from the highest approved snapshot.
 CREATE TABLE public.dcl_party_versions (
     approval_entry_id character varying(26) NOT NULL,
     party_id character varying(26) NOT NULL,
@@ -1419,8 +1489,6 @@ CREATE TABLE public.dcl_party_identifier_claims (
 
 CREATE TABLE public.dcl_warehouse_versions (
     approval_entry_id character varying(26) NOT NULL,
-    -- Retained only for the #279 in-place cutover. Warehouse no longer
-    -- exposes category as a writable declaration field.
 	category_id character varying(26),
 	category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     name character varying(200) NOT NULL,
@@ -1484,9 +1552,9 @@ CREATE TABLE public.dcl_customer_versions (
     CONSTRAINT dcl_customer_versions_entity_check CHECK (((entity)::text = 'customer'::text))
 );
 
--- DCL owns the complete customer-account approval payload. The typed stable
--- identity is dcl_customer_accounts; BOB reads the highest approved snapshot
--- directly and does not maintain a second current-data store.
+-- DCL owns the complete customer-account approval payload and its typed
+-- identity. BOB provides the highest approved snapshot as current effective
+-- read-only business data.
 CREATE TABLE public.dcl_customer_account_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'customer-account'::character varying NOT NULL,
@@ -1505,7 +1573,26 @@ CREATE TABLE public.dcl_customer_account_versions (
     CONSTRAINT dcl_customer_account_versions_pkey PRIMARY KEY (approval_entry_id),
     CONSTRAINT dcl_customer_account_versions_entity_check CHECK (((entity)::text = 'customer-account'::text)),
     CONSTRAINT dcl_customer_account_versions_name_check CHECK ((length(btrim((name)::text)) >= 1)),
-    CONSTRAINT dcl_customer_account_versions_pricing_policy_ck CHECK ((jsonb_typeof(pricing_policy) = 'object'::text))
+    CONSTRAINT dcl_customer_account_versions_pricing_policy_ck CHECK ((jsonb_typeof(pricing_policy) = 'object'::text)),
+    CONSTRAINT dcl_customer_account_settlement_ck CHECK (
+      (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL)
+      AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
+      AND (settlement_method_id IS NOT NULL OR (settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0 AND settlement_sales_surcharge_cents=0))
+      AND (settlement_method_id IS NULL OR (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=3 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=5 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=7 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=15 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=30 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=1 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=2 AND settlement_cutoff_day=0)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=3 AND settlement_cutoff_day=0)
+      ))
+    )
 );
 
 -- Credit limits and attachments are version-owned DCL snapshots.  The file
@@ -1786,7 +1873,7 @@ CREATE TABLE public.object_number_counters (
     entity character varying(32) NOT NULL,
     last_value integer NOT NULL,
     CONSTRAINT object_number_counters_domain_check CHECK (((domain)::text = ANY ((ARRAY['aux'::character varying, 'acc'::character varying, 'dcl'::character varying])::text[]))),
-    CONSTRAINT object_number_counters_last_value_check CHECK (((last_value >= 1) AND (last_value <= 9999)))
+    CONSTRAINT object_number_counters_last_value_check CHECK (((last_value >= 1) AND (last_value <= 999999)))
 );
 
 
@@ -2715,11 +2802,25 @@ CREATE TABLE public.vou_purchase_order_details (
     settlement_due_days integer,
     settlement_cutoff_day integer,
     settlement_default_sales_surcharge_cents bigint DEFAULT 0 CONSTRAINT vou_purchase_order_details_settlement_default_sales_su_not_null NOT NULL,
-    settlement_term_code character varying(32) DEFAULT ''::character varying NOT NULL,
+    settlement_term_code character varying(32) NOT NULL,
     CONSTRAINT vou_purchase_order_details_entity_check CHECK (((entity)::text = 'purchase-order'::text)),
     CONSTRAINT vou_purchase_order_fulfillment_status_ck CHECK (((fulfillment_status)::text = ANY ((ARRAY['OPEN'::character varying, 'FULFILLED'::character varying])::text[]))),
     CONSTRAINT vou_purchase_order_purchaser_ck CHECK ((((purchaser_object_id IS NULL) AND (purchaser_approval_entry_id IS NULL) AND (purchaser_code IS NULL) AND (purchaser_name IS NULL)) OR ((purchaser_object_id IS NOT NULL) AND (purchaser_approval_entry_id IS NOT NULL) AND (purchaser_code IS NOT NULL) AND (purchaser_name IS NOT NULL)))),
-    CONSTRAINT vou_purchase_order_settlement_ck CHECK ((settlement_method_object_id IS NULL) = (settlement_method_code IS NULL) AND (settlement_method_object_id IS NULL) = (settlement_method_name IS NULL)),
+    CONSTRAINT vou_purchase_order_settlement_ck CHECK (
+      settlement_method_object_id IS NOT NULL AND settlement_method_code IS NOT NULL AND settlement_method_name IS NOT NULL
+      AND (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days=0 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=3 AND settlement_due_days=3 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=5 AND settlement_due_days=5 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=7 AND settlement_due_days=7 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=15 AND settlement_due_days=15 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=30 AND settlement_due_days=30 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=1 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=2 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+      )
+    ),
     CONSTRAINT vou_purchase_order_warehouse_ck CHECK (((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL)))
 );
 
@@ -2870,7 +2971,7 @@ CREATE TABLE public.vou_sale_order_details (
     warehouse_approval_entry_id character varying(26),
     warehouse_code character varying(64),
     warehouse_name character varying(200),
-    settlement_term_code character varying(32) DEFAULT ''::character varying NOT NULL,
+    settlement_term_code character varying(32) NOT NULL,
     special_approval boolean DEFAULT false NOT NULL,
     sales_attribution_type character varying(32) NOT NULL,
     sales_attribution_subject_object_id character varying(26) CONSTRAINT vou_sale_order_details_sales_attribution_subject_objec_not_null NOT NULL,
@@ -2881,7 +2982,21 @@ CREATE TABLE public.vou_sale_order_details (
     CONSTRAINT vou_sale_order_fulfillment_status_ck CHECK (((fulfillment_status)::text = ANY ((ARRAY['OPEN'::character varying, 'FULFILLED'::character varying])::text[]))),
     CONSTRAINT vou_sale_order_sales_attribution_ck CHECK ((((sales_attribution_type)::text = 'INTERNAL_EMPLOYEE'::text) OR ((sales_attribution_type)::text = ANY ((ARRAY['EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying])::text[])))),
     CONSTRAINT vou_sale_order_salesperson_ck CHECK ((((salesperson_object_id IS NULL) AND (salesperson_approval_entry_id IS NULL) AND (salesperson_code IS NULL) AND (salesperson_name IS NULL)) OR ((salesperson_object_id IS NOT NULL) AND (salesperson_approval_entry_id IS NOT NULL) AND (salesperson_code IS NOT NULL) AND (salesperson_name IS NOT NULL)))),
-    CONSTRAINT vou_sale_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
+    CONSTRAINT vou_sale_order_settlement_ck CHECK (
+      settlement_method_object_id IS NOT NULL AND settlement_method_code IS NOT NULL AND settlement_method_name IS NOT NULL
+      AND (
+        (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days=0 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_3' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=3 AND settlement_due_days=3 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_5' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=5 AND settlement_due_days=5 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_7' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=7 AND settlement_due_days=7 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_15' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=15 AND settlement_due_days=15 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='ARRIVAL_30' AND settlement_rule_type='RELATIVE_DAYS' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=30 AND settlement_due_days=30 AND settlement_cutoff_day IS NULL)
+        OR (settlement_term_code='MONTHLY_CURRENT' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=0 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_30' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=1 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_60' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=2 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+        OR (settlement_term_code='MONTHLY_90' AND settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month IS NULL AND settlement_day_offset=0 AND settlement_due_days IS NULL AND settlement_cutoff_day BETWEEN 1 AND 31)
+      )
+    ),
     CONSTRAINT vou_sale_order_warehouse_ck CHECK ((((warehouse_object_id IS NULL) AND (warehouse_approval_entry_id IS NULL) AND (warehouse_code IS NULL) AND (warehouse_name IS NULL)) OR ((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL))))
 );
 
@@ -3258,18 +3373,16 @@ CREATE TABLE public.wfl_node_instances (
 
 
 --
--- Name: wfl_process_definitions; Type: TABLE; Schema: public; Owner: -
+-- Name: wfl_definition_runtime_states; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.wfl_process_definitions (
-    id character varying(26) NOT NULL,
-    code character varying(64) NOT NULL,
+CREATE TABLE public.wfl_definition_runtime_states (
+    subject_id character varying(26) NOT NULL,
+    subject_entity character varying(64) DEFAULT 'wfl-process-definition'::character varying NOT NULL,
     enabled boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    CONSTRAINT wfl_process_definitions_code_check CHECK (((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text))
+    CONSTRAINT wfl_definition_runtime_states_entity_ck CHECK ((subject_entity)::text = 'wfl-process-definition'::text)
 );
 
 
@@ -4287,13 +4400,6 @@ INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/dcl/s
 --
 
 INSERT INTO public.app_role_code_counters VALUES ('default', 0);
-
---
--- Data for Name: dcl_rpt_definition_code_counters; Type: TABLE DATA; Schema: public; Owner: -
---
-
-INSERT INTO public.dcl_rpt_definition_code_counters VALUES ('default', 0);
-
 
 --
 -- Data for Name: app_role_permissions; Type: TABLE DATA; Schema: public; Owner: -
@@ -5317,13 +5423,17 @@ globalThis.calculate = function calculate(input) {
 
 
 --
--- Data for Name: wfl_process_definitions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: WFL definition subjects and runtime states; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.wfl_process_definitions (id, code, enabled, created_by, updated_by) VALUES
-    ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', false, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.dcl_subjects (id, entity, code, created_by) VALUES
+    ('WFD0f7b734eecb146455d2f051', 'wfl-process-definition', 'expense-payment', '01JAPPSYST3MACTR0000000000'),
+    ('WFD811182d17c4453955c72f85', 'wfl-process-definition', 'purchase-fulfillment', '01JAPPSYST3MACTR0000000000'),
+    ('WFDcd6f1eaebf0d5b6055c58fe', 'wfl-process-definition', 'sales-fulfillment', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.wfl_definition_runtime_states (subject_id, enabled, updated_by) VALUES
+    ('WFD0f7b734eecb146455d2f051', false, '01JAPPSYST3MACTR0000000000'),
+    ('WFD811182d17c4453955c72f85', false, '01JAPPSYST3MACTR0000000000'),
+    ('WFDcd6f1eaebf0d5b6055c58fe', false, '01JAPPSYST3MACTR0000000000');
 INSERT INTO public.dcl_wfl_process_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE0f7b734eecb146455d2f051', 'WFD0f7b734eecb146455d2f051', 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
 workflow(code="expense-payment", name="费用报销付款", root=reimbursement, edges=[edge(source=reimbursement, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": ""}))])', NULL, '{"edges": [{"relation": "payment", "sourceKey": "reimbursement", "targetKey": "payment", "actionName": "expense_payment"}], "nodes": [{"key": "reimbursement", "name": "费用报销", "entity": "expense-reimbursement"}, {"key": "payment", "name": "费用付款", "entity": "expense-payment"}], "rootKey": "reimbursement"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
@@ -5749,14 +5859,6 @@ ALTER TABLE ONLY public.app_permissions
 
 ALTER TABLE ONLY public.app_role_code_counters
     ADD CONSTRAINT app_role_code_counters_pkey PRIMARY KEY (counter_key);
-
---
--- Name: dcl_rpt_definition_code_counters dcl_rpt_definition_code_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.dcl_rpt_definition_code_counters
-    ADD CONSTRAINT dcl_rpt_definition_code_counters_pkey PRIMARY KEY (counter_key);
-
 
 --
 -- Name: app_role_permissions app_role_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -6868,19 +6970,11 @@ ALTER TABLE ONLY public.wfl_node_instances
 
 
 --
--- Name: wfl_process_definitions wfl_process_definitions_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: wfl_definition_runtime_states wfl_definition_runtime_states_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.wfl_process_definitions
-    ADD CONSTRAINT wfl_process_definitions_code_key UNIQUE (code);
-
-
---
--- Name: wfl_process_definitions wfl_process_definitions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.wfl_process_definitions
-    ADD CONSTRAINT wfl_process_definitions_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.wfl_definition_runtime_states
+    ADD CONSTRAINT wfl_definition_runtime_states_pkey PRIMARY KEY (subject_id);
 
 
 --
@@ -7464,6 +7558,9 @@ CREATE CONSTRAINT TRIGGER vou_purchase_inquiry_detail_ck AFTER INSERT OR DELETE 
 CREATE CONSTRAINT TRIGGER vou_purchase_order_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.vou_purchase_order_details DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.vou_validate_document_detail();
 
 
+CREATE TRIGGER vou_purchase_order_non_draft_immutable BEFORE DELETE OR UPDATE ON public.vou_purchase_order_details FOR EACH ROW EXECUTE FUNCTION public.vou_reject_non_draft_order_detail_mutation();
+
+
 --
 -- Name: vou_purchase_return_details vou_purchase_return_detail_ck; Type: TRIGGER; Schema: public; Owner: -
 --
@@ -7490,6 +7587,9 @@ CREATE CONSTRAINT TRIGGER vou_sale_delivery_detail_ck AFTER INSERT OR DELETE OR 
 --
 
 CREATE CONSTRAINT TRIGGER vou_sale_order_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.vou_sale_order_details DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.vou_validate_document_detail();
+
+
+CREATE TRIGGER vou_sale_order_non_draft_immutable BEFORE DELETE OR UPDATE ON public.vou_sale_order_details FOR EACH ROW EXECUTE FUNCTION public.vou_reject_non_draft_order_detail_mutation();
 
 
 --
@@ -9174,7 +9274,7 @@ ALTER TABLE ONLY public.wfl_create_child_requests
 --
 
 ALTER TABLE ONLY public.wfl_create_child_requests
-    ADD CONSTRAINT wfl_create_child_requests_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT wfl_create_child_requests_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_definition_runtime_states(subject_id) ON DELETE RESTRICT;
 
 
 --
@@ -9198,7 +9298,7 @@ ALTER TABLE ONLY public.wfl_create_child_requests
 --
 
 ALTER TABLE ONLY public.wfl_definition_instances
-    ADD CONSTRAINT wfl_definition_instances_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT wfl_definition_instances_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_definition_runtime_states(subject_id) ON DELETE RESTRICT;
 
 
 --
@@ -9222,7 +9322,15 @@ ALTER TABLE ONLY public.wfl_definition_instances
 --
 
 ALTER TABLE ONLY public.dcl_wfl_process_definition_versions
-    ADD CONSTRAINT dcl_wfl_process_definition_versions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_wfl_process_definition_versions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_definition_runtime_states(subject_id) ON DELETE CASCADE;
+
+
+--
+-- Name: wfl_definition_runtime_states wfl_definition_runtime_states_subject_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wfl_definition_runtime_states
+    ADD CONSTRAINT wfl_definition_runtime_states_subject_id_fkey FOREIGN KEY (subject_id, subject_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE CASCADE;
 
 
 --
@@ -9314,9 +9422,6 @@ JOIN public.dcl_subjects AS subject
 -- WFL process definitions are DCL-owned. Baseline seeds use domain='dcl',
 -- entity='wfl-process-definition'. They are not enabled and are not treated
 -- differently from definitions created through the public service.
-INSERT INTO public.dcl_subjects (id, entity, created_at, created_by)
-SELECT id, 'wfl-process-definition', created_at, created_by
-FROM public.wfl_process_definitions;
 
 INSERT INTO public.approval_entries (
     id, domain, entity, subject_id, version_no, status, revision,

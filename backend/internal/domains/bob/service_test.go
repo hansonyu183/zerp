@@ -330,6 +330,29 @@ func TestQueryValidationBoundaries(t *testing.T) {
 	}
 }
 
+func TestWarehouseAndEmployeeRejectInexactSortValues(t *testing.T) {
+	service := &Service{}
+	for _, entity := range []string{EntityWarehouse, EntityEmployee} {
+		for _, sort := range []SortItem{
+			{Field: "date", Order: "asc"},
+			{Field: "At", Order: "desc"},
+			{Field: "", Order: "asc"},
+			{Field: "updatedAt", Order: "ascending"},
+			{Field: "updatedAt", Order: "ASC"},
+		} {
+			name := entity + "/" + sort.Field + "/" + sort.Order
+			t.Run(name, func(t *testing.T) {
+				_, err := service.Query(t.Context(), entity, QueryInput{
+					Page: 1, PageSize: 20, Sort: []SortItem{sort},
+				})
+				if !errorIsKind(err, ErrorValidation) {
+					t.Fatalf("sort %+v error = %v", sort, err)
+				}
+			})
+		}
+	}
+}
+
 func TestValidateDetailCountsUnicodeCharacters(t *testing.T) {
 	if _, err := validateDetail(EntityCustomer, DetailInput{
 		Name:                  strings.Repeat("客", 200),
@@ -516,7 +539,7 @@ func TestQueryFilterValidation(t *testing.T) {
 	}
 
 	service := &Service{}
-	if _, err := service.querySuppliersCurrent(t.Context(), QueryInput{
+	if _, err := service.Query(t.Context(), EntitySupplier, QueryInput{
 		Page: 1, PageSize: 20,
 		Filters: QueryFilters{CategoryID: "01J00000000000000000000020"},
 	}); !errorIsKind(err, ErrorValidation) {

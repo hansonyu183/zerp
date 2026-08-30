@@ -6,11 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sort"
+	"sync"
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	rptdomain "github.com/hansonyu183/zerp/backend/internal/domains/rpt"
 	"github.com/hansonyu183/zerp/backend/internal/events/dclapproval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -267,6 +271,133 @@ func TestRptDefinitionOwnershipIsSplitAcrossDclApprovalAndRptIntegration(t *test
 		if columns[rptOwnedColumn] {
 			t.Fatalf("RPT-owned technical state remains in DCL snapshot: %s", rptOwnedColumn)
 		}
+	}
+}
+
+func TestDclRptDefinitionCodesUseGenericCounterConcurrentlyIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetRptDefinitionIntegrationData(t, pool)
+
+	var dedicatedCounterExists bool
+	if err := pool.QueryRow(t.Context(), `
+		SELECT to_regclass('public.dcl_rpt_definition_code_counters') IS NOT NULL
+	`).Scan(&dedicatedCounterExists); err != nil {
+		t.Fatal(err)
+	}
+	if dedicatedCounterExists {
+		t.Fatal("RPT definition codes must not retain a dedicated counter table")
+	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO object_number_counters(domain,entity,last_value)
+		VALUES('dcl','rpt-definition',9998)
+		ON CONFLICT(domain,entity) DO UPDATE SET last_value=EXCLUDED.last_value
+	`); err != nil {
+		t.Fatalf("seed generic RPT counter: %v", err)
+	}
+
+	rptService, err := rptdomain.NewService(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewRptDefinitionService(pool, rptService, authorization.Func(nil), txevent.NewBus())
+	const createCount = 4
+	inputs := make([]RptDefinitionCreateInput, createCount)
+	actors := make([]approval.Actor, createCount)
+	for index := range createCount {
+		inputs[index] = RptDefinitionCreateInput{
+			Name: fmt.Sprintf("并发编号 %d", index),
+			Data: rptDefinitionTestData(t, fmt.Sprintf("counter-%d", index)),
+		}
+		actors[index] = dclActor(t, rptDefinitionCreatorID, fmt.Sprintf("dcl-rpt-counter-%d", index))
+	}
+	ctx := t.Context()
+	codes := make(chan string, createCount)
+	errs := make(chan error, createCount)
+	var wait sync.WaitGroup
+	for index := range createCount {
+		wait.Add(1)
+		go func(index int) {
+			defer wait.Done()
+			mutation, createErr := service.Create(ctx, inputs[index], actors[index])
+			if createErr != nil {
+				errs <- createErr
+				return
+			}
+			codes <- mutation.Code
+		}(index)
+	}
+	wait.Wait()
+	close(codes)
+	close(errs)
+	for createErr := range errs {
+		t.Errorf("concurrent report definition create: %v", createErr)
+	}
+	if t.Failed() {
+		return
+	}
+
+	actualCodes := make([]string, 0, createCount)
+	for code := range codes {
+		actualCodes = append(actualCodes, code)
+	}
+	sort.Strings(actualCodes)
+	wantCodes := []string{"rpt-009999", "rpt-010000", "rpt-010001", "rpt-010002"}
+	if fmt.Sprint(actualCodes) != fmt.Sprint(wantCodes) {
+		t.Fatalf("concurrent report definition codes = %v, want %v", actualCodes, wantCodes)
+	}
+
+	var lastValue int64
+	if err = pool.QueryRow(t.Context(), `
+		SELECT last_value FROM object_number_counters
+		WHERE domain='dcl' AND entity='rpt-definition'
+	`).Scan(&lastValue); err != nil {
+		t.Fatal(err)
+	}
+	if lastValue != 10002 {
+		t.Fatalf("generic RPT counter last value = %d, want 10002", lastValue)
+	}
+}
+
+func TestDclRptDefinitionCodesStartFreshAndNeverReuseAfterDeleteIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetRptDefinitionIntegrationData(t, pool)
+	if _, err := pool.Exec(t.Context(), `
+		DELETE FROM object_number_counters
+		WHERE domain='dcl' AND entity='rpt-definition'
+	`); err != nil {
+		t.Fatalf("reset generic RPT counter: %v", err)
+	}
+
+	rptService, err := rptdomain.NewService(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewRptDefinitionService(pool, rptService, authorization.Func(nil), txevent.NewBus())
+	actor := dclActor(t, rptDefinitionCreatorID, "dcl-rpt-counter-no-reuse")
+	first, err := service.Create(t.Context(), RptDefinitionCreateInput{
+		Name: "首次编号", Data: rptDefinitionTestData(t, "first-counter"),
+	}, actor)
+	if err != nil {
+		t.Fatalf("create first report definition: %v", err)
+	}
+	if first.Code != "rpt-000001" {
+		t.Fatalf("fresh report definition code = %q, want rpt-000001", first.Code)
+	}
+
+	if err = service.Delete(t.Context(), RptDefinitionDeleteInput{
+		Code: first.Code, ApprovalEntryID: first.Approval.ApprovalEntryID,
+		ApprovalRevision: first.Approval.Revision,
+	}, actor); err != nil {
+		t.Fatalf("delete first report definition: %v", err)
+	}
+	second, err := service.Create(t.Context(), RptDefinitionCreateInput{
+		Name: "删除后编号", Data: rptDefinitionTestData(t, "second-counter"),
+	}, actor)
+	if err != nil {
+		t.Fatalf("create report definition after delete: %v", err)
+	}
+	if second.Code != "rpt-000002" {
+		t.Fatalf("report definition code after delete = %q, want rpt-000002", second.Code)
 	}
 }
 

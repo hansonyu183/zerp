@@ -3,6 +3,6 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * 仍可从 BOB current read model 查询或读取的实体；经营主体的候选与审批生命周期位于 DCL。
+ * BOB 提供当前有效的只读业务资料；稳定 subject、强类型关系 identity、候选与审批生命周期均由 DCL 持有。
  */
 export type BobReadableEntity = 'employee' | 'other-unit' | 'sales-partner' | 'product' | 'warehouse' | 'vehicle' | 'fund-account' | 'operating-entity';

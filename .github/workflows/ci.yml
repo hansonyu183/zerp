@@ -1,0 +1,189 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  CI_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  docs-format:
+    name: docs-format
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: make check-common
+        env:
+          DOCS_USE_CASE_MISSING_BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+
+  workflow-contract:
+    name: workflow-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - run: make check-ci-workflow
+
+  openapi-generated:
+    name: openapi-generated
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
+      - run: pnpm install --frozen-lockfile
+      - run: make check-openapi-generated
+
+  sqlc-generated:
+    name: sqlc-generated
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/tools/go.sum
+      - run: make check-sqlc-generated
+
+  backend-unit:
+    name: backend-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BACKEND_ENV: .env.example
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
+      - run: make check-runtime
+      - run: make -C backend quality-format test-unit quality-vet-build quality-race quality-staticcheck quality-vuln quality-image
+
+  backend-integration:
+    name: backend-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: backend/scripts/run-integration-tests-test.sh
+      - run: make -C backend ENV_FILE=.env.e2e.example TEST_POSTGRES_DB=zerp_ci_test test-integration
+      - name: Clean disposable integration resources
+        if: always()
+        working-directory: backend
+        run: POSTGRES_PORT=55434 docker compose -p zerp-api-test --env-file .env.e2e.example -f ../compose.yaml -f ../compose.dev.yaml down --volumes --remove-orphans
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm contracts:bundle
+      - run: make check-frontend
+
+  shell:
+    name: shell
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - run: make check-shell
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zerp/frontend exec playwright install --with-deps chromium
+      - run: make e2e
+      - name: Clean disposable E2E resources
+        if: always()
+        run: |
+          if [ -f backend/.env.e2e.local ]; then
+            docker compose --env-file backend/.env.e2e.local -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml down --volumes --remove-orphans
+          fi

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
@@ -39,31 +40,97 @@ func NewService(pool *pgxpool.Pool, auxiliaryResolver AuxiliaryResolver) *Servic
 }
 
 func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
+	if entity == EntityOperatingEntity || entity == EntityWarehouse || entity == EntityFundAccount || entity == EntityEmployee || entity == EntitySupplier || entity == EntityOtherUnit || entity == EntitySalesPartner {
+		if err := validateCurrentQueryBeforeSnapshot(entity, input); err != nil {
+			return Page[QueryItem]{}, err
+		}
+	}
 	if entity == EntityOperatingEntity {
-		return s.queryOperatingEntities(ctx, input)
+		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
+			return s.queryOperatingEntities(ctx, q, input)
+		})
 	}
 	if entity == EntityWarehouse {
-		return s.queryWarehouses(ctx, input)
+		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
+			return s.queryWarehouses(ctx, q, input)
+		})
 	}
 	if entity == EntityVehicle {
 		return s.queryVehicles(ctx, input)
 	}
 	if entity == EntityFundAccount {
-		return s.queryFundAccounts(ctx, input)
+		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
+			return s.queryFundAccounts(ctx, q, input)
+		})
 	}
 	if entity == EntityEmployee {
-		return s.queryEmploymentRelationships(ctx, input)
+		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
+			return s.queryEmploymentRelationships(ctx, q, input)
+		})
 	}
 	if entity == EntitySupplier {
-		return s.querySuppliersCurrent(ctx, input)
+		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
+			return s.querySuppliersCurrent(ctx, q, input)
+		})
 	}
 	if entity == EntityProduct {
 		return s.queryProducts(ctx, input)
 	}
 	if entity == EntityOtherUnit || entity == EntitySalesPartner {
-		return s.queryRelationshipCurrent(ctx, entity, input)
+		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
+			return s.queryRelationshipCurrent(ctx, q, entity, input)
+		})
 	}
 	return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query entity", nil, nil)
+}
+
+func validateCurrentQueryBeforeSnapshot(entity string, input QueryInput) error {
+	if _, err := validateQueryFilters(entity, input.Filters); err != nil {
+		return err
+	}
+	if entity == EntitySupplier {
+		if input.Page < 1 || input.PageSize != 20 || len(input.Sort) > 1 || (len(input.Sort) == 1 && (input.Sort[0].Field != "code" || strings.ToLower(input.Sort[0].Order) != "asc")) {
+			return domainError(ErrorValidation, "invalid Supplier query", nil, nil)
+		}
+		return nil
+	}
+	if _, ok := pageOffset(input.Page, input.PageSize); !ok || len(input.Sort) > 1 {
+		return domainError(ErrorValidation, "invalid query", nil, nil)
+	}
+	if len(input.Sort) == 0 {
+		return nil
+	}
+	field, order := input.Sort[0].Field, input.Sort[0].Order
+	if entity != EntityWarehouse && entity != EntityEmployee {
+		order = strings.ToLower(order)
+	}
+	if (field != "updatedAt" && field != "code" && field != "name") || (order != "asc" && order != "desc") {
+		return domainError(ErrorValidation, "invalid query sort", nil, nil)
+	}
+	return nil
+}
+
+// queryCurrentSnapshot keeps a current-page row set and its total in one
+// PostgreSQL snapshot. Every callback must perform exactly its list and count
+// query through q; per-row current lookups would both violate that snapshot and
+// reintroduce the list N+1 path.
+func (s *Service) queryCurrentSnapshot(
+	ctx context.Context,
+	query func(*dbsqlc.Queries) (Page[QueryItem], error),
+) (Page[QueryItem], error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return Page[QueryItem]{}, s.internal("begin BOB current query snapshot", err)
+	}
+	defer tx.Rollback(context.WithoutCancel(ctx))
+	page, err := query(s.queries.WithTx(tx))
+	if err != nil {
+		return Page[QueryItem]{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Page[QueryItem]{}, s.internal("commit BOB current query snapshot", err)
+	}
+	return page, nil
 }
 
 func (s *Service) Get(ctx context.Context, entity string, input GetInput) (ObjectView, error) {

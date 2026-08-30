@@ -926,6 +926,7 @@ type SettlementMethodSnapshotView struct {
 	ObjectID              string `json:"objectId"`
 	Code                  string `json:"code"`
 	Name                  string `json:"name"`
+	TermCode              string `json:"termCode"`
 	RuleType              string `json:"ruleType"`
 	MonthOffset           int32  `json:"monthOffset"`
 	DayOfMonth            *int32 `json:"dayOfMonth,omitempty"`

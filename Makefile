@@ -6,7 +6,7 @@ COREPACK_VERSION ?= 0.35.0
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-frontend-fast check-e2e-constraints check-backend check-backend-fast check-containers check-runtime check-shell test e2e build compose-up compose-down
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-ci-workflow check-contracts check-openapi-generated check-sqlc-generated check-frontend check-frontend-fast check-e2e-constraints check-backend check-backend-fast check-containers check-runtime check-shell test e2e build compose-up compose-down
 
 bootstrap:
 	@if ! command -v pnpm >/dev/null 2>&1; then \
@@ -33,6 +33,7 @@ generate-check:
 
 check:
 	$(MAKE) check-common
+	$(MAKE) check-ci-workflow
 	$(MAKE) check-contracts
 	$(MAKE) check-frontend
 	$(MAKE) check-runtime
@@ -43,8 +44,19 @@ check-common:
 	pnpm docs:check
 	git diff --check
 
+check-ci-workflow:
+	pnpm check:ci-workflow
+
 check-contracts:
-	$(MAKE) generate-check
+	$(MAKE) check-openapi-generated
+	$(MAKE) check-sqlc-generated
+
+check-openapi-generated:
+	pnpm generate:api
+	git diff --exit-code -- contracts/openapi/dist backend/internal/api/generated frontend/src/api/generated
+
+check-sqlc-generated:
+	$(MAKE) -C backend quality-generated
 
 check-frontend: check-e2e-constraints
 	pnpm --filter @zerp/frontend check:core

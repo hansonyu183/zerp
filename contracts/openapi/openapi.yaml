@@ -6195,7 +6195,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/dcl.yaml#/DclPartyMutationResponse',
+                                  '$ref': './schemas/dcl.yaml#/DclPartyUnapproveResponse',
                                 },
                             },
                         },

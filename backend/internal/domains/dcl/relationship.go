@@ -80,12 +80,12 @@ func (s *RelationshipService) CreateOtherUnit(ctx context.Context, in OtherUnitC
 	if in.NewParty != nil {
 		party, err = s.parties.CreateForRelationship(ctx, tx, *in.NewParty, actor, false)
 	} else {
-		party, err = s.partyReader.ResolveForRelationship(ctx, tx, in.PartyID)
+		party, err = resolveExistingPartyForRelationship(ctx, tx, s.partyReader, in.PartyID)
 	}
 	if err != nil {
 		return RelationshipMutation{}, translateError(err)
 	}
-	id, err := reserveRelationshipIdentity(ctx, tx, EntityOtherUnit, "OUT", party.ID, in.OperatingEntityID, actor.ID())
+	id, err := reserveRelationshipIdentity(ctx, tx, EntityOtherUnit, "OTU", party.ID, in.OperatingEntityID, actor.ID())
 	if err != nil {
 		return RelationshipMutation{}, translateError(err)
 	}
@@ -236,12 +236,12 @@ func (s *RelationshipService) transitionOther(ctx context.Context, in Relationsh
 		return RelationshipMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	p, err := s.other.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
-	if err != nil || p.Entry().SubjectID != in.ObjectID {
+	id, err := lockPartyRelationshipIdentity(ctx, tx, EntityOtherUnit, in.ObjectID)
+	if err != nil {
 		return RelationshipMutation{}, translateError(err)
 	}
-	id, err := lockRelationshipIdentity(ctx, tx, EntityOtherUnit, in.ObjectID)
-	if err != nil {
+	p, err := s.other.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
+	if err != nil || p.Entry().SubjectID != in.ObjectID {
 		return RelationshipMutation{}, translateError(err)
 	}
 	stored, err := s.queries.WithTx(tx).GetDCLOtherUnitVersion(ctx, in.ApprovalEntryID)
@@ -369,7 +369,7 @@ func (s *RelationshipService) CreateSalesPartner(ctx context.Context, in SalesPa
 	if in.NewParty != nil {
 		party, err = s.parties.CreateForRelationship(ctx, tx, *in.NewParty, actor, false)
 	} else {
-		party, err = s.partyReader.ResolveForRelationship(ctx, tx, in.PartyID)
+		party, err = resolveExistingPartyForRelationship(ctx, tx, s.partyReader, in.PartyID)
 	}
 	if err != nil {
 		return RelationshipMutation{}, translateError(err)
@@ -516,12 +516,12 @@ func (s *RelationshipService) transitionSales(ctx context.Context, in Relationsh
 		return RelationshipMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	p, err := s.sales.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
-	if err != nil || p.Entry().SubjectID != in.ObjectID {
+	id, err := lockPartyRelationshipIdentity(ctx, tx, EntitySalesPartner, in.ObjectID)
+	if err != nil {
 		return RelationshipMutation{}, translateError(err)
 	}
-	id, err := lockRelationshipIdentity(ctx, tx, EntitySalesPartner, in.ObjectID)
-	if err != nil {
+	p, err := s.sales.Prepare(ctx, tx, action, in.ApprovalEntryID, in.ApprovalRevision, actor, reason)
+	if err != nil || p.Entry().SubjectID != in.ObjectID {
 		return RelationshipMutation{}, translateError(err)
 	}
 	stored, err := s.queries.WithTx(tx).GetDCLSalesPartnerVersion(ctx, in.ApprovalEntryID)

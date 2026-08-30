@@ -9,9 +9,19 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+func resolveExistingPartyForRelationship(ctx context.Context, tx pgx.Tx, reader relationshipPartyReader, partyID string) (bobdomain.PartyRelationshipResolved, error) {
+	if err := lockPartyRoot(ctx, tx, partyID); err != nil {
+		return bobdomain.PartyRelationshipResolved{}, err
+	}
+	return reader.ResolveForRelationship(ctx, tx, partyID)
+}
+
 func reserveRelationshipIdentity(ctx context.Context, tx pgx.Tx, entity, prefix, partyID, operatingEntityID, actorID string) (bobdomain.RelationshipIdentity, error) {
 	if tx == nil || !validID(partyID) || !validID(operatingEntityID) || !validID(actorID) {
 		return bobdomain.RelationshipIdentity{}, newError(ErrorValidation, "validation_failed", "invalid relationship identity request", nil, nil)
+	}
+	if err := lockPartyRoot(ctx, tx, partyID); err != nil {
+		return bobdomain.RelationshipIdentity{}, err
 	}
 	subject, err := reserveSubject(ctx, tx, entity, prefix, actorID)
 	if err != nil {
@@ -34,6 +44,39 @@ func reserveRelationshipIdentity(ctx context.Context, tx pgx.Tx, entity, prefix,
 		return bobdomain.RelationshipIdentity{}, err
 	}
 	return bobdomain.RelationshipIdentity{ObjectID: subject.ObjectID, Code: subject.Code, PartyID: partyID, OperatingEntityID: operatingEntityID}, nil
+}
+
+func lockPartyRoot(ctx context.Context, tx pgx.Tx, partyID string) error {
+	if tx == nil || !validID(partyID) {
+		return newError(ErrorValidation, "validation_failed", "invalid Party identity request", nil, nil)
+	}
+	root, err := dbsqlc.New(tx).GetDCLPartyRoot(ctx, partyID)
+	if err != nil {
+		return err
+	}
+	if root.MergedIntoPartyID != nil {
+		return newError(ErrorConflict, "party_merged", "Party has been merged", nil, nil)
+	}
+	return nil
+}
+
+func lockPartyRelationshipIdentity(ctx context.Context, tx pgx.Tx, entity, objectID string) (bobdomain.RelationshipIdentity, error) {
+	q := dbsqlc.New(tx)
+	partyID, err := q.GetDCLRelationshipPartyID(ctx, dbsqlc.GetDCLRelationshipPartyIDParams{Entity: entity, ObjectID: objectID})
+	if err != nil {
+		return bobdomain.RelationshipIdentity{}, err
+	}
+	if err = lockPartyRoot(ctx, tx, partyID); err != nil {
+		return bobdomain.RelationshipIdentity{}, err
+	}
+	identity, err := lockRelationshipIdentity(ctx, tx, entity, objectID)
+	if err != nil {
+		return bobdomain.RelationshipIdentity{}, err
+	}
+	if identity.PartyID != partyID {
+		return bobdomain.RelationshipIdentity{}, fmt.Errorf("DCL relationship Party changed while locked")
+	}
+	return identity, nil
 }
 
 func lockRelationshipIdentity(ctx context.Context, tx pgx.Tx, entity, objectID string) (bobdomain.RelationshipIdentity, error) {
@@ -73,6 +116,9 @@ func reserveEmployeeIdentity(ctx context.Context, tx pgx.Tx, partyID, operatingE
 	if tx == nil || !validID(partyID) || !validID(operatingEntityID) || !validID(actorID) {
 		return bobdomain.EmployeeIdentity{}, newError(ErrorValidation, "validation_failed", "invalid Employee identity request", nil, nil)
 	}
+	if err := lockPartyRoot(ctx, tx, partyID); err != nil {
+		return bobdomain.EmployeeIdentity{}, err
+	}
 	subject, err := reserveSubject(ctx, tx, EntityEmployee, "EMP", actorID)
 	if err != nil {
 		return bobdomain.EmployeeIdentity{}, err
@@ -81,6 +127,25 @@ func reserveEmployeeIdentity(ctx context.Context, tx pgx.Tx, partyID, operatingE
 		return bobdomain.EmployeeIdentity{}, err
 	}
 	return bobdomain.EmployeeIdentity{ObjectID: subject.ObjectID, Code: subject.Code, PartyID: partyID, OperatingEntityID: operatingEntityID}, nil
+}
+
+func lockPartyEmployeeIdentity(ctx context.Context, tx pgx.Tx, objectID string) (bobdomain.EmployeeIdentity, error) {
+	q := dbsqlc.New(tx)
+	partyID, err := q.GetDCLRelationshipPartyID(ctx, dbsqlc.GetDCLRelationshipPartyIDParams{Entity: EntityEmployee, ObjectID: objectID})
+	if err != nil {
+		return bobdomain.EmployeeIdentity{}, err
+	}
+	if err = lockPartyRoot(ctx, tx, partyID); err != nil {
+		return bobdomain.EmployeeIdentity{}, err
+	}
+	identity, err := lockEmployeeIdentity(ctx, tx, objectID)
+	if err != nil {
+		return bobdomain.EmployeeIdentity{}, err
+	}
+	if identity.PartyID != partyID {
+		return bobdomain.EmployeeIdentity{}, fmt.Errorf("DCL Employee Party changed while locked")
+	}
+	return identity, nil
 }
 
 func lockEmployeeIdentity(ctx context.Context, tx pgx.Tx, objectID string) (bobdomain.EmployeeIdentity, error) {
@@ -102,7 +167,7 @@ func reserveCustomerAccountIdentity(ctx context.Context, tx pgx.Tx, relationship
 	if _, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, relationshipID); err != nil {
 		return bobdomain.RelationshipIdentity{}, err
 	}
-	subject, err := reserveSubject(ctx, tx, EntityCustomerAccount, "CAC", actorID)
+	subject, err := reserveSubject(ctx, tx, EntityCustomerAccount, "ACC", actorID)
 	if err != nil {
 		return bobdomain.RelationshipIdentity{}, err
 	}

@@ -66,13 +66,12 @@ type Querier interface {
 	CountBobEmployees(ctx context.Context, arg CountBobEmployeesParams) (int64, error)
 	CountBobFundAccounts(ctx context.Context, arg CountBobFundAccountsParams) (int64, error)
 	CountBobOperatingEntities(ctx context.Context, arg CountBobOperatingEntitiesParams) (int64, error)
+	CountBobOtherUnitCurrents(ctx context.Context, arg CountBobOtherUnitCurrentsParams) (int64, error)
 	CountBobProductsCurrent(ctx context.Context, arg CountBobProductsCurrentParams) (int64, error)
-	CountBobRelationshipCurrents(ctx context.Context, arg CountBobRelationshipCurrentsParams) (int64, error)
+	CountBobSalesPartnerCurrents(ctx context.Context, arg CountBobSalesPartnerCurrentsParams) (int64, error)
 	CountBobSuppliersCurrent(ctx context.Context, arg CountBobSuppliersCurrentParams) (int64, error)
 	CountBobVehicles(ctx context.Context, arg CountBobVehiclesParams) (int64, error)
 	CountBobWarehouses(ctx context.Context, arg CountBobWarehousesParams) (int64, error)
-	// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
-	// approval_entries; this table owns only identity and the runtime enabled switch.
 	CountCurrentWorkflowDefinitions(ctx context.Context, arg CountCurrentWorkflowDefinitionsParams) (int64, error)
 	CountDCLAccMappingApprovalEvents(ctx context.Context, subjectID string) (int64, error)
 	CountDCLAccMappings(ctx context.Context, arg CountDCLAccMappingsParams) (int64, error)
@@ -270,9 +269,9 @@ type Querier interface {
 	FindAuxObjectByName(ctx context.Context, arg FindAuxObjectByNameParams) (string, error)
 	FindDCLFundAccountIdentifierConflict(ctx context.Context, objectID string) (interface{}, error)
 	FindDCLProductBarcodeConflict(ctx context.Context, objectID string) (interface{}, error)
-	// BOB exposes current read models for DCL-owned stable identities and typed
-	// snapshots. Every resolver selects the latest APPROVED entry and never falls
-	// back to an open candidate or a stored current copy.
+	// BOB provides current effective read-only business data from DCL-owned stable
+	// subjects and typed snapshots. Every resolver selects the latest APPROVED
+	// entry and never selects an open candidate.
 	FindDCLSeedSubjectID(ctx context.Context, arg FindDCLSeedSubjectIDParams) (string, error)
 	FindDCLVehicleIdentifierConflict(ctx context.Context, objectID string) (FindDCLVehicleIdentifierConflictRow, error)
 	FindEnabledAppUserIDExcludingID(ctx context.Context, excludedUserID string) (string, error)
@@ -328,8 +327,8 @@ type Querier interface {
 	GetBobCustomerAccountRelationship(ctx context.Context, objectID string) (DclCustomerAccount, error)
 	GetBobCustomerCurrent(ctx context.Context, objectID string) (GetBobCustomerCurrentRow, error)
 	GetBobCustomerCurrentReference(ctx context.Context, objectID string) (GetBobCustomerCurrentReferenceRow, error)
-	// BOB reads typed DCL relationship roots for business-rule validation. DCL is
-	// the only writer for these stable identities.
+	// BOB validates business rules through DCL-owned typed relationship identities.
+	// DCL is their only writer.
 	GetBobCustomerRelationship(ctx context.Context, objectID string) (DclCustomerRelationship, error)
 	GetBobEmployeeCurrent(ctx context.Context, objectID string) (GetBobEmployeeCurrentRow, error)
 	GetBobEmployeeCurrentReference(ctx context.Context, objectID string) (GetBobEmployeeCurrentReferenceRow, error)
@@ -358,6 +357,9 @@ type Querier interface {
 	GetBobWarehouseCurrent(ctx context.Context, objectID string) (GetBobWarehouseCurrentRow, error)
 	GetBobWarehouseCurrentReference(ctx context.Context, objectID string) (GetBobWarehouseCurrentReferenceRow, error)
 	GetCurrentApprovedAccountingMapping(ctx context.Context, arg GetCurrentApprovedAccountingMappingParams) (GetCurrentApprovedAccountingMappingRow, error)
+	// Definition identity/code belongs to DCL subjects. WFL owns only the typed
+	// runtime enabled state and consumes latest approved version payloads.
+	GetCurrentWorkflowDefinitionIdentity(ctx context.Context, definitionID string) (GetCurrentWorkflowDefinitionIdentityRow, error)
 	GetDCLAccMappingSubject(ctx context.Context, arg GetDCLAccMappingSubjectParams) (GetDCLAccMappingSubjectRow, error)
 	GetDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (DclAccMappingVersion, error)
 	GetDCLApprovedPartyForBOB(ctx context.Context, partyID string) (GetDCLApprovedPartyForBOBRow, error)
@@ -381,6 +383,7 @@ type Querier interface {
 	GetDCLProductFormula(ctx context.Context, productApprovalEntryID string) (DclProductFormula, error)
 	GetDCLProductSnapshot(ctx context.Context, approvalEntryID string) (DclProductVersion, error)
 	GetDCLRelationshipIdentity(ctx context.Context, arg GetDCLRelationshipIdentityParams) (GetDCLRelationshipIdentityRow, error)
+	GetDCLRelationshipPartyID(ctx context.Context, arg GetDCLRelationshipPartyIDParams) (string, error)
 	GetDCLSalesPartnerRelationship(ctx context.Context, objectID string) (DclSalesRelationship, error)
 	GetDCLSalesPartnerVersion(ctx context.Context, approvalEntryID string) (DclSalesPartnerVersion, error)
 	GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (DclSubject, error)
@@ -443,6 +446,7 @@ type Querier interface {
 	GetVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error)
 	GetWorkflowActionExecutionResult(ctx context.Context, arg GetWorkflowActionExecutionResultParams) (GetWorkflowActionExecutionResultRow, error)
 	GetWorkflowCreateChildExecutionResult(ctx context.Context, id string) (GetWorkflowCreateChildExecutionResultRow, error)
+	GetWorkflowDefinitionIDByCode(ctx context.Context, code *string) (string, error)
 	GetWorkflowDefinitionPayloadByEntry(ctx context.Context, arg GetWorkflowDefinitionPayloadByEntryParams) (GetWorkflowDefinitionPayloadByEntryRow, error)
 	GetWorkflowInstanceDefinition(ctx context.Context, id string) (GetWorkflowInstanceDefinitionRow, error)
 	GetWorkflowLatestApprovedDefinitionPayload(ctx context.Context, definitionID string) (GetWorkflowLatestApprovedDefinitionPayloadRow, error)
@@ -452,6 +456,7 @@ type Querier interface {
 	HasApprovalEntryApprovedEvent(ctx context.Context, approvalEntryID string) (bool, error)
 	HasApprovedIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
 	HasIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
+	HasOtherApprovedDCLPartyVersion(ctx context.Context, arg HasOtherApprovedDCLPartyVersionParams) (bool, error)
 	HasVouPurchaseInboundLines(ctx context.Context, documentID string) (bool, error)
 	HasVouPurchaseReturnLines(ctx context.Context, documentID string) (bool, error)
 	InsertAccountingDepreciationEntry(ctx context.Context, arg InsertAccountingDepreciationEntryParams) error
@@ -518,9 +523,8 @@ type Querier interface {
 	// The typed version stores mutable commercial facts and exact purchasing snapshots.
 	InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSupplierVersionParams) error
 	InsertDCLVehicleVersion(ctx context.Context, arg InsertDCLVehicleVersionParams) error
-	// Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category
-	// columns are retained only to preserve pre-cutover snapshots and are never
-	// supplied by the Warehouse declaration API.
+	// Warehouse is a DCL-owned declaration exposed by BOB as current effective
+	// read-only business data.
 	InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWarehouseVersionParams) error
 	// ── WFL Process Definition (DCL-owned) ──────────────────────────────────
 	InsertDclWflProcessDefinition(ctx context.Context, arg InsertDclWflProcessDefinitionParams) error
@@ -605,6 +609,7 @@ type Querier interface {
 	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error)
+	ListApprovedDCLPartyRelationshipReferenceCounts(ctx context.Context, partyID string) ([]ListApprovedDCLPartyRelationshipReferenceCountsRow, error)
 	ListAuxObjectDeleteBlockers(ctx context.Context, objectID string) ([]ListAuxObjectDeleteBlockersRow, error)
 	// Exact BOB Approval-entry blocker data. Every approved declaration
 	// remains a persisted formal fact, including versions that are no longer the
@@ -618,8 +623,9 @@ type Querier interface {
 	ListBobFundAccounts(ctx context.Context, arg ListBobFundAccountsParams) ([]ListBobFundAccountsRow, error)
 	ListBobOperatingEntities(ctx context.Context, arg ListBobOperatingEntitiesParams) ([]ListBobOperatingEntitiesRow, error)
 	ListBobOperatingEntityReferenceCandidates(ctx context.Context, arg ListBobOperatingEntityReferenceCandidatesParams) ([]ListBobOperatingEntityReferenceCandidatesRow, error)
+	ListBobOtherUnitCurrents(ctx context.Context, arg ListBobOtherUnitCurrentsParams) ([]ListBobOtherUnitCurrentsRow, error)
 	ListBobProductsCurrent(ctx context.Context, arg ListBobProductsCurrentParams) ([]ListBobProductsCurrentRow, error)
-	ListBobRelationshipCurrents(ctx context.Context, arg ListBobRelationshipCurrentsParams) ([]ListBobRelationshipCurrentsRow, error)
+	ListBobSalesPartnerCurrents(ctx context.Context, arg ListBobSalesPartnerCurrentsParams) ([]ListBobSalesPartnerCurrentsRow, error)
 	ListBobSuppliersCurrent(ctx context.Context, arg ListBobSuppliersCurrentParams) ([]ListBobSuppliersCurrentRow, error)
 	ListBobVehicles(ctx context.Context, arg ListBobVehiclesParams) ([]ListBobVehiclesRow, error)
 	ListBobWarehouses(ctx context.Context, arg ListBobWarehousesParams) ([]ListBobWarehousesRow, error)
@@ -785,7 +791,6 @@ type Querier interface {
 	NextAccountingBookNumber(ctx context.Context) (int32, error)
 	NextAppRoleCode(ctx context.Context) (string, error)
 	NextDCLSubjectCode(ctx context.Context, entity string) (int32, error)
-	NextDclRptDefinitionCode(ctx context.Context) (string, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	Ping(ctx context.Context) (int32, error)
 	// AUX is stable-ID current data. These queries intentionally expose no

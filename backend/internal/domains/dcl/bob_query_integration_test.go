@@ -1,0 +1,382 @@
+//go:build integration
+
+package dcl
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
+
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/oklog/ulid/v2"
+)
+
+type bobQueryNameKey struct{}
+
+type bobQueryTracer struct {
+	mu    sync.Mutex
+	names []string
+	after func(string)
+}
+
+func (t *bobQueryTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	firstLine := strings.SplitN(strings.TrimSpace(data.SQL), "\n", 2)[0]
+	fields := strings.Fields(firstLine)
+	if len(fields) < 3 || fields[0] != "--" || fields[1] != "name:" {
+		return ctx
+	}
+	return context.WithValue(ctx, bobQueryNameKey{}, fields[2])
+}
+
+func (t *bobQueryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryEndData) {
+	name, _ := ctx.Value(bobQueryNameKey{}).(string)
+	if name == "" {
+		return
+	}
+	t.mu.Lock()
+	t.names = append(t.names, name)
+	after := t.after
+	t.mu.Unlock()
+	if after != nil {
+		after(name)
+	}
+}
+
+func (t *bobQueryTracer) reset(after func(string)) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.names = nil
+	t.after = after
+}
+
+func (t *bobQueryTracer) recorded() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]string(nil), t.names...)
+}
+
+func tracedBOBIntegrationPool(t *testing.T, tracer pgx.QueryTracer) *pgxpool.Pool {
+	t.Helper()
+	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+	databaseName := strings.TrimSpace(os.Getenv("TEST_POSTGRES_DB"))
+	if databaseURL == "" || databaseName == "" || !strings.HasSuffix(databaseName, "_test") {
+		t.Fatal("safe TEST_DATABASE_URL and TEST_POSTGRES_DB ending in _test are required")
+	}
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		t.Fatalf("parse BOB integration database config: %v", err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatalf("connect traced BOB integration database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+type bobQueryFixture struct {
+	objectID string
+	entryID  string
+	partyID  string
+}
+
+func seedBOBQueryFixtures(t *testing.T, pool *pgxpool.Pool) map[string]bobQueryFixture {
+	t.Helper()
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+	fixtures := map[string]bobQueryFixture{}
+	insertSubject := func(entity, code string) bobQueryFixture {
+		fixture := bobQueryFixture{objectID: ulid.Make().String(), entryID: ulid.Make().String()}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,$2,$3,$4)`, fixture.objectID, entity, code, creatorID); err != nil {
+			t.Fatalf("insert %s subject: %v", entity, err)
+		}
+		insertApprovedBOBEntry(t, pool, fixture.entryID, entity, fixture.objectID, creatorID, reviewerID)
+		fixtures[entity] = fixture
+		return fixture
+	}
+
+	operating := insertSubject(bobdomain.EntityOperatingEntity, "OPE-0001")
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_operating_entity_versions(approval_entry_id,legal_name,short_name,tax_number,address,phone,remark,enabled) VALUES($1,'查询经营主体','主体简称','TAX-QUERY','经营地址','0755-1000','经营备注',true)`, operating.entryID); err != nil {
+		t.Fatalf("insert operating entity snapshot: %v", err)
+	}
+	warehouse := insertSubject(bobdomain.EntityWarehouse, "WHS-0001")
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_warehouse_versions(approval_entry_id,name,address,contact_name,contact_phone,remark,enabled) VALUES($1,'查询仓库','仓库地址','仓库联系人','13800000001','仓库备注',true)`, warehouse.entryID); err != nil {
+		t.Fatalf("insert warehouse snapshot: %v", err)
+	}
+	fund := insertSubject(bobdomain.EntityFundAccount, "FAC-0001")
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_fund_account_versions(approval_entry_id,name,currency,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled) VALUES($1,'查询资金账户','CNY','账户名','银行','支行','6222000000000000','资金备注',$2,$3,'OPE-0001','查询经营主体',true)`, fund.entryID, operating.objectID, operating.entryID); err != nil {
+		t.Fatalf("insert fund account snapshot: %v", err)
+	}
+
+	partyID, partyEntryID := ulid.Make().String(), ulid.Make().String()
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'party',NULL,$2)`, partyID, creatorID); err != nil {
+		t.Fatalf("insert Party subject: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_parties(id) VALUES($1)`, partyID); err != nil {
+		t.Fatalf("insert Party root: %v", err)
+	}
+	insertApprovedBOBEntry(t, pool, partyEntryID, "party", partyID, creatorID, reviewerID)
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address) VALUES($1,$2,'ORGANIZATION','查询主体法定名','查询主体显示名','PARTY-TAX','13800000002','party@example.test','主体地址')`, partyEntryID, partyID); err != nil {
+		t.Fatalf("insert Party snapshot: %v", err)
+	}
+
+	for _, entity := range []string{bobdomain.EntitySupplier, bobdomain.EntityEmployee, bobdomain.EntityOtherUnit, bobdomain.EntitySalesPartner} {
+		codes := map[string]string{bobdomain.EntitySupplier: "SUP-0001", bobdomain.EntityEmployee: "EMP-0001", bobdomain.EntityOtherUnit: "OTU-0001", bobdomain.EntitySalesPartner: "SLP-0001"}
+		fixture := insertSubject(entity, codes[entity])
+		fixture.partyID = partyID
+		fixtures[entity] = fixture
+		table := map[string]string{bobdomain.EntitySupplier: "dcl_supplier_relationships", bobdomain.EntityEmployee: "dcl_employment_relationships", bobdomain.EntityOtherUnit: "dcl_service_relationships", bobdomain.EntitySalesPartner: "dcl_sales_relationships"}[entity]
+		if _, err := pool.Exec(t.Context(), fmt.Sprintf(`INSERT INTO %s(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)`, table), fixture.objectID, partyID, operating.objectID); err != nil {
+			t.Fatalf("insert %s relationship: %v", entity, err)
+		}
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,'供应简称','SUP-TAX','供应联系人','13800000003','supplier@example.test','供应地址','供应备注',true)`, fixtures[bobdomain.EntitySupplier].entryID); err != nil {
+		t.Fatalf("insert supplier snapshot: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_employee_versions(approval_entry_id,phone,email,hire_date,remark,enabled) VALUES($1,'13800000004','employee@example.test','2026-08-30','员工备注',true)`, fixtures[bobdomain.EntityEmployee].entryID); err != nil {
+		t.Fatalf("insert employee snapshot: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_other_unit_versions(approval_entry_id,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,'其他联系人','13800000005','other@example.test','其他地址','其他备注',true)`, fixtures[bobdomain.EntityOtherUnit].entryID); err != nil {
+		t.Fatalf("insert other unit snapshot: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,capabilities,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,ARRAY['CHANNEL_PARTNER']::varchar[],'销售联系人','13800000006','sales@example.test','销售地址','销售备注',true)`, fixtures[bobdomain.EntitySalesPartner].entryID); err != nil {
+		t.Fatalf("insert sales partner snapshot: %v", err)
+	}
+	return fixtures
+}
+
+func insertApprovedBOBEntry(t *testing.T, pool *pgxpool.Pool, entryID, entity, subjectID, creatorID, reviewerID string) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl',$2,$3,1,'APPROVED',3,$4,now(),$5,now(),$4,now(),$5,now())`, entryID, entity, subjectID, creatorID, reviewerID); err != nil {
+		t.Fatalf("insert approved %s entry: %v", entity, err)
+	}
+}
+
+func TestBOBQueriesUseTwoBusinessSQLStatementsIntegration(t *testing.T) {
+	basePool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, basePool)
+	fixtures := seedBOBQueryFixtures(t, basePool)
+	tracer := &bobQueryTracer{}
+	pool := tracedBOBIntegrationPool(t, tracer)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+
+	tests := []struct {
+		entity string
+		want   []string
+	}{
+		{bobdomain.EntityOperatingEntity, []string{"ListBobOperatingEntities", "CountBobOperatingEntities"}},
+		{bobdomain.EntityWarehouse, []string{"ListBobWarehouses", "CountBobWarehouses"}},
+		{bobdomain.EntityFundAccount, []string{"ListBobFundAccounts", "CountBobFundAccounts"}},
+		{bobdomain.EntitySupplier, []string{"ListBobSuppliersCurrent", "CountBobSuppliersCurrent"}},
+		{bobdomain.EntityEmployee, []string{"ListBobEmployees", "CountBobEmployees"}},
+		{bobdomain.EntityOtherUnit, []string{"ListBobOtherUnitCurrents", "CountBobOtherUnitCurrents"}},
+		{bobdomain.EntitySalesPartner, []string{"ListBobSalesPartnerCurrents", "CountBobSalesPartnerCurrents"}},
+	}
+	for _, test := range tests {
+		t.Run(test.entity, func(t *testing.T) {
+			pageSizes := []int{1, 20}
+			if test.entity == bobdomain.EntitySupplier {
+				pageSizes = []int{20}
+			}
+			for _, pageSize := range pageSizes {
+				tracer.reset(nil)
+				page, err := business.Query(t.Context(), test.entity, bobdomain.QueryInput{Page: 1, PageSize: pageSize})
+				if err != nil {
+					t.Fatalf("query %s with page size %d: %v", test.entity, pageSize, err)
+				}
+				if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ObjectID != fixtures[test.entity].objectID {
+					t.Fatalf("%s page = %+v", test.entity, page)
+				}
+				if got := tracer.recorded(); !reflect.DeepEqual(got, test.want) {
+					t.Fatalf("%s page-size-%d business SQL = %v, want %v", test.entity, pageSize, got, test.want)
+				}
+				assertBOBQueryResult(t, test.entity, page.Items[0])
+			}
+		})
+	}
+}
+
+func assertBOBQueryResult(t *testing.T, entity string, item bobdomain.QueryItem) {
+	t.Helper()
+	if item.SourceApprovalEntryID == "" || item.SourceVersionNo != 1 || !item.Enabled {
+		t.Fatalf("%s source result = %+v", entity, item)
+	}
+	switch entity {
+	case bobdomain.EntityOperatingEntity:
+		if item.Data.Name != "查询经营主体" || item.Data.TaxNumber != "TAX-QUERY" {
+			t.Fatalf("operating entity query result = %+v", item.Data)
+		}
+	case bobdomain.EntityWarehouse:
+		if item.Data.Name != "查询仓库" || item.Data.ContactName != "仓库联系人" {
+			t.Fatalf("warehouse query result = %+v", item.Data)
+		}
+	case bobdomain.EntityFundAccount:
+		if item.Data.Name != "查询资金账户" || item.Data.BankName != "银行" || item.Data.AccountNumber != "" {
+			t.Fatalf("fund account query result = %+v", item.Data)
+		}
+	case bobdomain.EntitySupplier, bobdomain.EntityEmployee, bobdomain.EntityOtherUnit, bobdomain.EntitySalesPartner:
+		if item.Relationship == nil || item.Relationship.PartyDisplayName != "查询主体显示名" {
+			t.Fatalf("%s relationship query result = %+v", entity, item.Relationship)
+		}
+		if entity == bobdomain.EntitySupplier && (item.Relationship.OperatingEntityCode != "" || item.Relationship.OperatingEntityName != "") {
+			t.Fatalf("Supplier query added operating-entity fields: %+v", item.Relationship)
+		}
+		if entity != bobdomain.EntitySupplier && item.Relationship.OperatingEntityName != "查询经营主体" {
+			t.Fatalf("%s operating-entity query result = %+v", entity, item.Relationship)
+		}
+	}
+}
+
+func TestBOBQueryListAndCountShareRepeatableReadSnapshotIntegration(t *testing.T) {
+	basePool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, basePool)
+	seedBOBQueryFixtures(t, basePool)
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+	pendingSubjectID, pendingEntryID := ulid.Make().String(), ulid.Make().String()
+	if _, err := basePool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'operating-entity','OPE-0002',$2)`, pendingSubjectID, creatorID); err != nil {
+		t.Fatalf("insert pending concurrent subject: %v", err)
+	}
+	if _, err := basePool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at) VALUES($1,'dcl','operating-entity',$2,1,'PENDING',2,$3,now(),$3,now(),$3,now())`, pendingEntryID, pendingSubjectID, creatorID); err != nil {
+		t.Fatalf("insert pending concurrent entry: %v", err)
+	}
+	if _, err := basePool.Exec(t.Context(), `INSERT INTO dcl_operating_entity_versions(approval_entry_id,legal_name,enabled) VALUES($1,'并发批准经营主体',true)`, pendingEntryID); err != nil {
+		t.Fatalf("insert pending concurrent snapshot: %v", err)
+	}
+
+	tracer := &bobQueryTracer{}
+	pool := tracedBOBIntegrationPool(t, tracer)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+	approved := false
+	tracer.reset(func(name string) {
+		if name != "ListBobOperatingEntities" || approved {
+			return
+		}
+		approved = true
+		if _, err := basePool.Exec(t.Context(), `UPDATE approval_entries SET status='APPROVED',revision=3,updated_by=$2,updated_at=now(),approved_by=$2,approved_at=now() WHERE id=$1`, pendingEntryID, reviewerID); err != nil {
+			t.Fatalf("approve concurrent fixture: %v", err)
+		}
+	})
+	page, err := business.Query(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.QueryInput{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("query across concurrent approve: %v", err)
+	}
+	if !approved || page.Total != 1 || len(page.Items) != 1 {
+		t.Fatalf("approve snapshot page = %+v, approved=%v", page, approved)
+	}
+
+	unapproved := false
+	tracer.reset(func(name string) {
+		if name != "ListBobOperatingEntities" || unapproved {
+			return
+		}
+		unapproved = true
+		if _, err := basePool.Exec(t.Context(), `UPDATE approval_entries SET status='DRAFT',revision=4,updated_by=$2,updated_at=now(),submitted_by=NULL,submitted_at=NULL,approved_by=NULL,approved_at=NULL WHERE id=$1`, pendingEntryID, creatorID); err != nil {
+			t.Fatalf("unapprove concurrent fixture: %v", err)
+		}
+	})
+	page, err = business.Query(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.QueryInput{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("query across concurrent unapprove: %v", err)
+	}
+	if !unapproved || page.Total != 2 || len(page.Items) != 2 {
+		t.Fatalf("unapprove snapshot page = %+v, unapproved=%v", page, unapproved)
+	}
+}
+
+func TestWarehouseAndEmployeeAcceptEveryExactSortCombinationIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	fixtures := seedBOBQueryFixtures(t, pool)
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+
+	warehouse2 := bobQueryFixture{objectID: ulid.Make().String(), entryID: ulid.Make().String()}
+	if _, err := pool.Exec(t.Context(), `UPDATE dcl_warehouse_versions SET name='Bravo' WHERE approval_entry_id=$1`, fixtures[bobdomain.EntityWarehouse].entryID); err != nil {
+		t.Fatalf("prepare first warehouse sort row: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE approval_entries SET updated_at='2026-01-01T00:00:00Z' WHERE id=$1`, fixtures[bobdomain.EntityWarehouse].entryID); err != nil {
+		t.Fatalf("set first warehouse sort time: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'warehouse','WHS-0002',$2)`, warehouse2.objectID, creatorID); err != nil {
+		t.Fatalf("insert second warehouse subject: %v", err)
+	}
+	insertApprovedBOBEntry(t, pool, warehouse2.entryID, bobdomain.EntityWarehouse, warehouse2.objectID, creatorID, reviewerID)
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_warehouse_versions(approval_entry_id,name,enabled) VALUES($1,'Alpha',true)`, warehouse2.entryID); err != nil {
+		t.Fatalf("insert second warehouse sort row: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE approval_entries SET updated_at='2026-01-02T00:00:00Z' WHERE id=$1`, warehouse2.entryID); err != nil {
+		t.Fatalf("set second warehouse sort time: %v", err)
+	}
+
+	party2ID, party2EntryID := ulid.Make().String(), ulid.Make().String()
+	employee2 := bobQueryFixture{objectID: ulid.Make().String(), entryID: ulid.Make().String(), partyID: party2ID}
+	if _, err := pool.Exec(t.Context(), `UPDATE dcl_party_versions SET display_name='Bravo' WHERE party_id=$1`, fixtures[bobdomain.EntityEmployee].partyID); err != nil {
+		t.Fatalf("prepare first employee sort row: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE approval_entries SET updated_at='2026-01-01T00:00:00Z' WHERE id=$1`, fixtures[bobdomain.EntityEmployee].entryID); err != nil {
+		t.Fatalf("set first employee sort time: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'party',NULL,$2)`, party2ID, creatorID); err != nil {
+		t.Fatalf("insert second employee Party subject: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_parties(id) VALUES($1)`, party2ID); err != nil {
+		t.Fatalf("insert second employee Party root: %v", err)
+	}
+	insertApprovedBOBEntry(t, pool, party2EntryID, "party", party2ID, creatorID, reviewerID)
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name) VALUES($1,$2,'PERSON','Alpha','Alpha')`, party2EntryID, party2ID); err != nil {
+		t.Fatalf("insert second employee Party snapshot: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'employee','EMP-0002',$2)`, employee2.objectID, creatorID); err != nil {
+		t.Fatalf("insert second employee subject: %v", err)
+	}
+	insertApprovedBOBEntry(t, pool, employee2.entryID, bobdomain.EntityEmployee, employee2.objectID, creatorID, reviewerID)
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_employment_relationships(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)`, employee2.objectID, party2ID, fixtures[bobdomain.EntityOperatingEntity].objectID); err != nil {
+		t.Fatalf("insert second employee relationship: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_employee_versions(approval_entry_id,enabled) VALUES($1,true)`, employee2.entryID); err != nil {
+		t.Fatalf("insert second employee sort row: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE approval_entries SET updated_at='2026-01-02T00:00:00Z' WHERE id=$1`, employee2.entryID); err != nil {
+		t.Fatalf("set second employee sort time: %v", err)
+	}
+
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+	for _, test := range []struct {
+		entity, field, order string
+		want                 []string
+	}{
+		{bobdomain.EntityWarehouse, "updatedAt", "asc", []string{fixtures[bobdomain.EntityWarehouse].objectID, warehouse2.objectID}},
+		{bobdomain.EntityWarehouse, "updatedAt", "desc", []string{warehouse2.objectID, fixtures[bobdomain.EntityWarehouse].objectID}},
+		{bobdomain.EntityWarehouse, "code", "asc", []string{fixtures[bobdomain.EntityWarehouse].objectID, warehouse2.objectID}},
+		{bobdomain.EntityWarehouse, "code", "desc", []string{warehouse2.objectID, fixtures[bobdomain.EntityWarehouse].objectID}},
+		{bobdomain.EntityWarehouse, "name", "asc", []string{warehouse2.objectID, fixtures[bobdomain.EntityWarehouse].objectID}},
+		{bobdomain.EntityWarehouse, "name", "desc", []string{fixtures[bobdomain.EntityWarehouse].objectID, warehouse2.objectID}},
+		{bobdomain.EntityEmployee, "updatedAt", "asc", []string{fixtures[bobdomain.EntityEmployee].objectID, employee2.objectID}},
+		{bobdomain.EntityEmployee, "updatedAt", "desc", []string{employee2.objectID, fixtures[bobdomain.EntityEmployee].objectID}},
+		{bobdomain.EntityEmployee, "code", "asc", []string{fixtures[bobdomain.EntityEmployee].objectID, employee2.objectID}},
+		{bobdomain.EntityEmployee, "code", "desc", []string{employee2.objectID, fixtures[bobdomain.EntityEmployee].objectID}},
+		{bobdomain.EntityEmployee, "name", "asc", []string{employee2.objectID, fixtures[bobdomain.EntityEmployee].objectID}},
+		{bobdomain.EntityEmployee, "name", "desc", []string{fixtures[bobdomain.EntityEmployee].objectID, employee2.objectID}},
+	} {
+		t.Run(test.entity+"/"+test.field+"/"+test.order, func(t *testing.T) {
+			page, err := business.Query(t.Context(), test.entity, bobdomain.QueryInput{Page: 1, PageSize: 20, Sort: []bobdomain.SortItem{{Field: test.field, Order: test.order}}})
+			if err != nil {
+				t.Fatalf("query sorted %s: %v", test.entity, err)
+			}
+			got := make([]string, 0, len(page.Items))
+			for _, item := range page.Items {
+				got = append(got, item.ObjectID)
+			}
+			if !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("sorted IDs = %v, want %v", got, test.want)
+			}
+		})
+	}
+}

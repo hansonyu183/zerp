@@ -38,6 +38,21 @@ describe('API user messages', () => {
   })
 
   it.each([
+    ['bob_unapprove_blocked', '该主体仍被已批准的业务关系引用，不能撤销最后一个批准版本。'],
+    ['party_merged', '该主体已被合并，不能继续操作。'],
+    ['vou_settlement_term_required', '订单必须具有明确账期，请先维护结算方式。'],
+  ])('映射 Issue #315 稳定错误 %s', (errorKey, message) => {
+    expect(
+      getErrorMessage(
+        new ApiError('business', 'unstable backend diagnostic', {
+          code: 3001,
+          errorKey,
+        }),
+      ),
+    ).toBe(message)
+  })
+
+  it.each([
     ['vehicle_identifier_conflict', '车牌号或 VIN 已被其他车辆占用，请修改后重试。'],
     ['vehicle_type_reference_unavailable', '车型资料不存在、已失效或不属于车辆类型字典。'],
     ['vehicle_type_reference_stale', '车型资料已更新，请重新选择并保存。'],

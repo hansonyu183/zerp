@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// OperatingEntityData is the BOB-owned business shape used by the DCL typed
-// service. DCL owns declaration lifecycle; BOB continues to own these rules
-// and the current approved read model.
+// OperatingEntityData is the BOB business-data shape used by the DCL declaration
+// service. DCL owns the stable subject and declaration lifecycle; BOB owns the
+// validation rules and exposes current effective read-only business data.
 type OperatingEntityData struct {
 	Name      string `json:"name"`
 	ShortName string `json:"shortName,omitempty"`
@@ -69,7 +69,7 @@ func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput)
 	}, nil
 }
 
-func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
+func (s *Service) queryOperatingEntities(ctx context.Context, q *dbsqlc.Queries, input QueryInput) (Page[QueryItem], error) {
 	offset, valid := pageOffset(input.Page, input.PageSize)
 	if !valid {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query", nil, nil)
@@ -97,7 +97,7 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 			enabledFilter = 0
 		}
 	}
-	rows, err := s.queries.ListBobOperatingEntities(ctx, dbsqlc.ListBobOperatingEntitiesParams{
+	rows, err := q.ListBobOperatingEntities(ctx, dbsqlc.ListBobOperatingEntitiesParams{
 		Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabledFilter,
 		SortField: sortField, SortOrder: sortOrder,
 		RowOffset: offset, RowLimit: int32(input.PageSize),
@@ -105,7 +105,7 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list operating entities", err)
 	}
-	total, err := s.queries.CountBobOperatingEntities(ctx, dbsqlc.CountBobOperatingEntitiesParams{
+	total, err := q.CountBobOperatingEntities(ctx, dbsqlc.CountBobOperatingEntitiesParams{
 		Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabledFilter,
 	})
 	if err != nil {
@@ -113,14 +113,13 @@ func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) 
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
-		view, getErr := s.getOperatingEntityCurrent(ctx, GetInput{ObjectID: row.ObjectID})
-		if getErr != nil {
-			return Page[QueryItem]{}, getErr
-		}
 		items = append(items, QueryItem{
 			ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code),
-			Enabled: row.Enabled, SourceApprovalEntryID: view.SourceApprovalEntryID,
-			SourceVersionNo: view.SourceVersionNo, Data: view.Data, UpdatedAt: row.UpdatedAt.Time,
+			Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID,
+			SourceVersionNo: versionNumber(row.VersionNo),
+			Data: DetailView{Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
+				Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark)},
+			UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil

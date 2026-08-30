@@ -381,6 +381,51 @@ export function validateCurrentStateLegacyLanguage(
   )
 }
 
+export function validateBobFormalTerminology(documents) {
+  const terminologyFailures = []
+  const forbiddenArtifactEnglish =
+    /\b(?:projections?|read models?|current models?|current reads?)\b/iu
+  const forbiddenOwnershipEnglish = /\b(?:stable roots?|typed.{0,48}roots?)\b/iu
+  const forbiddenArtifactChinese = /(?:投影|读模型|当前模型|当前读取)/u
+  const forbiddenOwnershipChinese = /(?:稳定根|关系根)/u
+  const forbiddenSymbol = /BOB(?:ReadModels?|QueryProjection)/u
+
+  for (const { file, source } of documents) {
+    const normalizedFile = file.replaceAll('\\', '/')
+    const isBobScopedFile = /(?:^|[/_.-])bob(?:$|[/_.-])/iu.test(normalizedFile)
+    const lines = source.split('\n')
+    for (const [index, line] of lines.entries()) {
+      const hasBobContext = /\bBOB\b/u.test(line) || forbiddenSymbol.test(line)
+      const window = lines
+        .slice(Math.max(0, index - 1), Math.min(lines.length, index + 2))
+        .join(' ')
+      const hasForbiddenArtifact =
+        forbiddenArtifactEnglish.test(line) ||
+        forbiddenArtifactChinese.test(line)
+      const explicitlyDescribesAnotherDomain =
+        /\b(?:ACC|APP|AUX|DCL|RPT|VOU|WFL)\b.{0,48}\bprojections?\b/iu.test(
+          line,
+        )
+      if (
+        (hasBobContext &&
+          (forbiddenArtifactEnglish.test(window) ||
+            forbiddenOwnershipEnglish.test(window) ||
+            forbiddenArtifactChinese.test(window) ||
+            forbiddenOwnershipChinese.test(window))) ||
+        (isBobScopedFile &&
+          hasForbiddenArtifact &&
+          !explicitlyDescribesAnotherDomain) ||
+        forbiddenSymbol.test(line)
+      ) {
+        terminologyFailures.push(
+          `${normalizedFile}:${index + 1} 必须将 BOB 表述为当前有效的只读业务资料，并将 stable subject 与 typed relationship identity 归 DCL`,
+        )
+      }
+    }
+  }
+  return terminologyFailures
+}
+
 export function parseUseCaseMissingBaseline(source, label) {
   const baselineFailures = []
   let parsed
@@ -483,6 +528,39 @@ function trackedMarkdownFiles() {
   return output
     .split('\0')
     .filter(Boolean)
+    .map((file) => path.join(root, file))
+    .filter((file) => fs.existsSync(file))
+}
+
+function trackedFormalTerminologyFiles() {
+  const output = execFileSync(
+    'git',
+    [
+      '-C',
+      root,
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '-z',
+    ],
+    { encoding: 'utf8' },
+  )
+  return output
+    .split('\0')
+    .filter(Boolean)
+    .filter((file) => /\.(?:go|sql|ya?ml|md|ts|vue|mjs|sh)$/u.test(file))
+    .filter(
+      (file) =>
+        !/^(?:backend\/internal\/(?:api\/generated|database\/sqlc)|frontend\/src\/api\/generated|contracts\/openapi\/dist|backend\/db\/(?:cutovers|fixtures\/cutovers))\//u.test(
+          file,
+        ),
+    )
+    .filter(
+      (file) =>
+        file !== 'scripts/check-docs.mjs' &&
+        file !== 'scripts/check-docs.test.mjs',
+    )
     .map((file) => path.join(root, file))
     .filter((file) => fs.existsSync(file))
 }
@@ -660,6 +738,13 @@ const documentationSources = documentationFiles.map((file) => ({
   file: relative(file),
   source: fs.readFileSync(file, 'utf8'),
 }))
+const formalTerminologySources = trackedFormalTerminologyFiles().map(
+  (file) => ({
+    file: relative(file),
+    source: fs.readFileSync(file, 'utf8'),
+  }),
+)
+failures.push(...validateBobFormalTerminology(formalTerminologySources))
 const legacyReferences = new Set(
   documentationSources
     .filter(({ file }) => /^docs\/adr\/\d{4}-.+\.md$/u.test(file))

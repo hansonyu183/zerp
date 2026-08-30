@@ -126,10 +126,16 @@ workflow(code="` + secondCode + `", name="另一流程", root=root, edges=[
 	oldDefinitionApprovalID, newDefinitionApprovalID, draftDefinitionApprovalID := newID(), newID(), newID()
 	secondDefinitionID, secondDefinitionApprovalID := newID(), newID()
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO wfl_process_definitions(id,code,enabled,created_by,updated_by)
-		VALUES($1,$2,true,$3,$3),($4,$5,true,$3,$3)
+		INSERT INTO dcl_subjects(id,entity,code,created_at,created_by)
+		VALUES($1,'wfl-process-definition',$2,now(),$3),($4,'wfl-process-definition',$5,now(),$3)
 	`, definitionID, code, actorID, secondDefinitionID, secondCode); err != nil {
-		t.Fatalf("insert workflow definitions: %v", err)
+		t.Fatalf("insert workflow subjects: %v", err)
+	}
+	if _, err = pool.Exec(ctx, `
+		INSERT INTO wfl_definition_runtime_states(subject_id,enabled,updated_by)
+		VALUES($1,true,$2),($3,true,$2)
+	`, definitionID, actorID, secondDefinitionID); err != nil {
+		t.Fatalf("insert workflow runtime states: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
@@ -140,12 +146,6 @@ workflow(code="` + secondCode + `", name="另一流程", root=root, edges=[
 			($8,'dcl','wfl-process-definition',$2,3,'DRAFT',1,$5,now(),$5,now(),NULL,NULL,NULL,NULL)
 	`, oldDefinitionApprovalID, definitionID, newDefinitionApprovalID, secondDefinitionApprovalID, actorID, reviewerID, secondDefinitionID, draftDefinitionApprovalID); err != nil {
 		t.Fatalf("insert workflow approval versions: %v", err)
-	}
-	if _, err = pool.Exec(ctx, `
-		INSERT INTO dcl_subjects(id,entity,created_at,created_by)
-		VALUES($1,'wfl-process-definition',now(),$3),($2,'wfl-process-definition',now(),$3)
-	`, definitionID, secondDefinitionID, actorID); err != nil {
-		t.Fatalf("insert workflow dcl subjects: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO dcl_wfl_process_definition_versions(approval_entry_id,definition_id,script,compiled,created_by,updated_by)
@@ -253,8 +253,8 @@ workflow(code="` + secondCode + `", name="另一流程", root=root, edges=[
 	_, _ = pool.Exec(ctx, `DELETE FROM dcl_wfl_process_definition_versions WHERE approval_entry_id IN ($1,$2,$3,$4)`, oldDefinitionApprovalID, newDefinitionApprovalID, secondDefinitionApprovalID, draftDefinitionApprovalID)
 	_, _ = pool.Exec(ctx, `DELETE FROM approval_events WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id IN ($1,$2)`, definitionID, secondDefinitionID)
 	_, _ = pool.Exec(ctx, `DELETE FROM approval_entries WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id IN ($1,$2)`, definitionID, secondDefinitionID)
+	_, _ = pool.Exec(ctx, `DELETE FROM wfl_definition_runtime_states WHERE subject_id IN ($1,$2)`, definitionID, secondDefinitionID)
 	_, _ = pool.Exec(ctx, `DELETE FROM dcl_subjects WHERE entity='wfl-process-definition' AND id IN ($1,$2)`, definitionID, secondDefinitionID)
-	_, _ = pool.Exec(ctx, `DELETE FROM wfl_process_definitions WHERE id IN ($1,$2)`, definitionID, secondDefinitionID)
 }
 
 func workflowExpensePaymentScript(code, name, rootKey, targetKey, fundAccountID string) string {

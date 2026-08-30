@@ -198,7 +198,7 @@ func (s *Service) getSalesPartnerCurrent(ctx context.Context, input GetInput) (O
 	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName}, Data: DetailView{SalesCapabilities: r.Capabilities, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark)}}, nil
 }
 
-func (s *Service) queryRelationshipCurrent(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
+func (s *Service) queryRelationshipCurrent(ctx context.Context, q *dbsqlc.Queries, entity string, input QueryInput) (Page[QueryItem], error) {
 	offset, ok := pageOffset(input.Page, input.PageSize)
 	if !ok || len(input.Sort) > 1 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid relationship query", nil, nil)
@@ -222,26 +222,38 @@ func (s *Service) queryRelationshipCurrent(ctx context.Context, entity string, i
 			enabled = 0
 		}
 	}
-	rows, err := s.queries.ListBobRelationshipCurrents(ctx, dbsqlc.ListBobRelationshipCurrentsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)})
-	if err != nil {
-		return Page[QueryItem]{}, s.internal("list relationship current", err)
+	params := dbsqlc.ListBobOtherUnitCurrentsParams{Keyword: filters.Keyword, EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)}
+	if entity == EntityOtherUnit {
+		rows, err := q.ListBobOtherUnitCurrents(ctx, params)
+		if err != nil {
+			return Page[QueryItem]{}, s.internal("list Other Unit current", err)
+		}
+		total, err := q.CountBobOtherUnitCurrents(ctx, dbsqlc.CountBobOtherUnitCurrentsParams{Keyword: filters.Keyword, EnabledFilter: enabled})
+		if err != nil {
+			return Page[QueryItem]{}, s.internal("count Other Unit current", err)
+		}
+		items := make([]QueryItem, 0, len(rows))
+		for _, r := range rows {
+			d := DetailView{ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset}
+			if r.SettlementDayOfMonth != 0 {
+				day := r.SettlementDayOfMonth
+				d.DayOfMonth = &day
+			}
+			items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: r.ApprovalEntryID, SourceVersionNo: versionNumber(r.VersionNo), Data: d, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName}})
+		}
+		return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 	}
-	total, err := s.queries.CountBobRelationshipCurrents(ctx, dbsqlc.CountBobRelationshipCurrentsParams{Entity: entity, Keyword: filters.Keyword, EnabledFilter: enabled})
+	rows, err := q.ListBobSalesPartnerCurrents(ctx, dbsqlc.ListBobSalesPartnerCurrentsParams{Keyword: filters.Keyword, EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)})
 	if err != nil {
-		return Page[QueryItem]{}, s.internal("count relationship current", err)
+		return Page[QueryItem]{}, s.internal("list Sales Partner current", err)
+	}
+	total, err := q.CountBobSalesPartnerCurrents(ctx, dbsqlc.CountBobSalesPartnerCurrentsParams{Keyword: filters.Keyword, EnabledFilter: enabled})
+	if err != nil {
+		return Page[QueryItem]{}, s.internal("count Sales Partner current", err)
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, r := range rows {
-		var v ObjectView
-		if entity == EntityOtherUnit {
-			v, err = s.getOtherUnitCurrent(ctx, GetInput{ObjectID: r.ObjectID})
-		} else {
-			v, err = s.getSalesPartnerCurrent(ctx, GetInput{ObjectID: r.ObjectID})
-		}
-		if err != nil {
-			return Page[QueryItem]{}, err
-		}
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: v.SourceApprovalEntryID, SourceVersionNo: v.SourceVersionNo, Data: v.Data, UpdatedAt: r.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: r.ApprovalEntryID, SourceVersionNo: versionNumber(r.VersionNo), Data: DetailView{SalesCapabilities: r.Capabilities, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark)}, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName}})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }

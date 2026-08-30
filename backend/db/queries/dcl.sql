@@ -21,7 +21,10 @@ INSERT INTO object_number_counters (domain, entity, last_value)
 VALUES ('dcl', sqlc.arg(entity), 1)
 ON CONFLICT (domain, entity)
 DO UPDATE SET last_value = object_number_counters.last_value + 1
-WHERE object_number_counters.last_value < 9999
+WHERE object_number_counters.last_value < CASE
+  WHEN object_number_counters.domain='dcl' AND object_number_counters.entity='rpt-definition' THEN 999999
+  ELSE 9999
+END
 RETURNING last_value;
 
 -- name: DeleteDCLSubject :execrows
@@ -338,7 +341,7 @@ JOIN LATERAL (
 WHERE subject.entity='supplier' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 
 -- name: ListDCLSuppliers :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id,operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
 JOIN dcl_supplier_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 JOIN LATERAL (
@@ -396,7 +399,7 @@ WHERE subject.entity='customer'
   AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 
 -- name: ListDCLCustomers :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,display.operating_entity_code,display.operating_entity_name,
        display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
@@ -431,7 +434,7 @@ ORDER BY subject.code ASC,subject.id ASC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: GetDCLCustomerIdentity :one
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id
 FROM dcl_subjects subject
 JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
@@ -573,7 +576,7 @@ WITH selected AS (
 ) SELECT count(*) FROM selected;
 
 -- name: ListDCLRelationships :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
  operating.code AS operating_entity_code,operating_current.legal_name AS operating_entity_name,
  COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
@@ -603,7 +606,7 @@ WHERE subject.entity=sqlc.arg(entity) AND (sqlc.arg(keyword)::text='' OR subject
 ORDER BY COALESCE(candidate.updated_at,approved.updated_at) DESC,subject.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: GetDCLRelationshipIdentity :one
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
  COALESCE(other_relation.party_id,sales_relation.party_id) AS party_id,
  party.kind AS party_kind,party.display_name,
  COALESCE(other_relation.operating_entity_id,sales_relation.operating_entity_id) AS operating_entity_id,
@@ -639,6 +642,28 @@ WHERE domain='dcl' AND entity='employee' AND subject_id=sqlc.arg(object_id)
   AND status='APPROVED' AND id<>sqlc.arg(excluded_approval_entry_id)
 ORDER BY version_no DESC
 LIMIT 1;
+
+-- name: HasOtherApprovedDCLPartyVersion :one
+SELECT EXISTS (
+  SELECT 1
+  FROM approval_entries
+  WHERE domain='dcl' AND entity='party' AND subject_id=sqlc.arg(party_id)
+    AND status='APPROVED' AND id<>sqlc.arg(excluded_approval_entry_id)
+);
+
+-- name: ListApprovedDCLPartyRelationshipReferenceCounts :many
+SELECT endpoint.entity,'partyId'::text AS field,count(*) AS reference_count
+FROM dcl_party_relationship_endpoints endpoint
+WHERE endpoint.party_id=sqlc.arg(party_id)
+  AND endpoint.merged_into_object_id IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM approval_entries entry
+    WHERE entry.domain='dcl' AND entry.entity=endpoint.entity
+      AND entry.subject_id=endpoint.object_id AND entry.status='APPROVED'
+  )
+GROUP BY endpoint.entity
+ORDER BY endpoint.entity;
 
 -- name: CountDCLEmployees :one
 SELECT count(*)
@@ -679,7 +704,7 @@ WHERE subject.entity='employee' AND relationship.merged_into_object_id IS NULL
   AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 
 -- name: ListDCLEmployees :many
-SELECT subject.id AS object_id,COALESCE(subject.code,'') AS code,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
        relationship.party_id,party.kind AS party_kind,party.display_name,
        relationship.operating_entity_id,operating.code AS operating_entity_code,
        operating_current.legal_name AS operating_entity_name,display.enabled,
@@ -744,9 +769,8 @@ WHERE domain='dcl' AND entity='employee' AND subject_id=sqlc.arg(object_id)
 ORDER BY created_at DESC,id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
--- Warehouse is a DCL-owned declaration exposed by BOB as current effective read data. Category
--- columns are retained only to preserve pre-cutover snapshots and are never
--- supplied by the Warehouse declaration API.
+-- Warehouse is a DCL-owned declaration exposed by BOB as current effective
+-- read-only business data.
 -- name: InsertDCLWarehouseVersion :exec
 INSERT INTO dcl_warehouse_versions(
   approval_entry_id,name,address,contact_name,contact_phone,manager_employee_id,
@@ -1097,11 +1121,6 @@ JOIN approval_entries e ON e.id=v.approval_entry_id
 JOIN rpt_definition_validities validity ON validity.approval_entry_id=v.approval_entry_id
 WHERE v.approval_entry_id=sqlc.arg(approval_entry_id) AND e.subject_id=sqlc.arg(definition_id);
 
--- name: NextDclRptDefinitionCode :one
-UPDATE dcl_rpt_definition_code_counters
-SET next_value=next_value+1
-WHERE counter_key='default' AND next_value<999999
-RETURNING ('rpt-'||lpad(next_value::text,6,'0'))::text;
 -- name: DclRptInsertVersionPayload :exec
 INSERT INTO dcl_rpt_definition_versions(approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by)
 VALUES(sqlc.arg(approval_entry_id), sqlc.arg(enabled), sqlc.arg(name), sqlc.arg(description), sqlc.arg(sql_text), sqlc.arg(parameters), sqlc.arg(columns), sqlc.arg(actor_id), sqlc.arg(actor_id));
@@ -1147,7 +1166,7 @@ WHERE approval_entry_id=sqlc.arg(approval_entry_id)
   );
 
 -- name: GetDclRptDefinitionByCode :one
-SELECT id, coalesce(code,'') AS code
+SELECT id, dcl_require_subject_code(code) AS code
 FROM dcl_subjects
 WHERE entity='rpt-definition' AND code=sqlc.arg(code)::text;
 
@@ -1177,7 +1196,7 @@ WITH selected AS (
 SELECT count(*) FROM selected;
 
 -- name: ListDclRptDefinitions :many
-SELECT d.id AS definition_id, coalesce(d.code,'') AS code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
+SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
@@ -1214,12 +1233,12 @@ SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_sta
 -- ── WFL Process Definition (DCL-owned) ──────────────────────────────────
 
 -- name: InsertDclWflProcessDefinition :exec
-INSERT INTO wfl_process_definitions(id, code, enabled, created_by, updated_by)
-VALUES(sqlc.arg(definition_id), sqlc.arg(code), false, sqlc.arg(actor_id), sqlc.arg(actor_id));
+INSERT INTO wfl_definition_runtime_states(subject_id, enabled, updated_by)
+VALUES(sqlc.arg(definition_id), false, sqlc.arg(actor_id));
 
 -- name: DeleteDclWflProcessDefinition :execrows
-DELETE FROM wfl_process_definitions
-WHERE id=sqlc.arg(definition_id);
+DELETE FROM wfl_definition_runtime_states
+WHERE subject_id=sqlc.arg(definition_id);
 
 -- name: DclWflGetLatestApprovedPayload :one
 SELECT v.approval_entry_id, v.definition_id, v.script, v.diagnostic, v.compiled FROM approval_entries e JOIN dcl_wfl_process_definition_versions v ON v.approval_entry_id=e.id
@@ -1247,30 +1266,40 @@ UPDATE dcl_wfl_process_definition_versions SET script=sqlc.arg(script), diagnost
 DELETE FROM dcl_wfl_process_definition_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND definition_id=sqlc.arg(definition_id);
 
 -- name: DclWflSetDefinitionEnabled :one
-UPDATE wfl_process_definitions SET enabled=sqlc.arg(enabled), updated_at=now(), updated_by=sqlc.arg(actor_id) WHERE id=sqlc.arg(definition_id) RETURNING id, code, enabled;
+WITH updated AS (
+  UPDATE wfl_definition_runtime_states
+  SET enabled=sqlc.arg(enabled), updated_at=now(), updated_by=sqlc.arg(actor_id)
+  WHERE subject_id=sqlc.arg(definition_id)
+  RETURNING subject_id,enabled
+)
+SELECT subject.id,subject.code,updated.enabled
+FROM updated
+JOIN dcl_subjects subject ON subject.id=updated.subject_id AND subject.entity='wfl-process-definition';
 
 -- name: DclWflRecordTrial :execrows
 UPDATE dcl_wfl_process_definition_versions SET last_trial_approval_revision=sqlc.arg(approval_revision), updated_at=now()
 WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
 -- name: GetDclWflProcessDefinitionByCode :one
-SELECT id, code, enabled
-FROM wfl_process_definitions
-WHERE code=sqlc.arg(code);
+SELECT subject.id, subject.code, runtime.enabled
+FROM dcl_subjects subject
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
+WHERE subject.entity='wfl-process-definition' AND subject.code=sqlc.arg(code)::text;
 
 -- name: CountDclWflProcessDefinitions :one
 WITH selected AS (
-  SELECT d.id
-  FROM wfl_process_definitions d
+  SELECT subject.id
+  FROM dcl_subjects subject
+  JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
   LEFT JOIN LATERAL (
     SELECT id,status FROM approval_entries
-    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=subject.id
       AND status IN ('DRAFT','PENDING')
     ORDER BY version_no DESC LIMIT 1
   ) open_entry ON true
   LEFT JOIN LATERAL (
     SELECT id,status FROM approval_entries
-    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+    WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=subject.id
       AND status='APPROVED'
     ORDER BY version_no DESC LIMIT 1
   ) approved_entry ON true
@@ -1278,27 +1307,29 @@ WITH selected AS (
     SELECT compiled->>'name' AS name FROM dcl_wfl_process_definition_versions
     WHERE approval_entry_id=approved_entry.id
   ) approved_version ON true
-  WHERE (sqlc.arg(enabled_filter)::integer=-1 OR d.enabled=(sqlc.arg(enabled_filter)::integer=1))
-    AND (sqlc.arg(keyword)::text='' OR d.code ILIKE '%'||sqlc.arg(keyword)||'%' OR approved_version.name ILIKE '%'||sqlc.arg(keyword)||'%')
+  WHERE subject.entity='wfl-process-definition'
+    AND (sqlc.arg(enabled_filter)::integer=-1 OR runtime.enabled=(sqlc.arg(enabled_filter)::integer=1))
+    AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)||'%' OR approved_version.name ILIKE '%'||sqlc.arg(keyword)||'%')
     AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY(sqlc.arg(status_filter)::text[]))
 )
 SELECT count(*) FROM selected;
 
 -- name: ListDclWflProcessDefinitions :many
-SELECT d.id AS definition_id, d.code, d.enabled,
+SELECT subject.id AS definition_id, subject.code, runtime.enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
-FROM wfl_process_definitions d
+FROM dcl_subjects subject
+JOIN wfl_definition_runtime_states runtime ON runtime.subject_id=subject.id
 LEFT JOIN LATERAL (
   SELECT id,status,version_no,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=subject.id
     AND status IN ('DRAFT','PENDING')
   ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
 LEFT JOIN LATERAL (
   SELECT id,status,version_no,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=d.id
+  WHERE domain='dcl' AND entity='wfl-process-definition' AND subject_id=subject.id
     AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) approved_entry ON true
@@ -1306,10 +1337,11 @@ LEFT JOIN LATERAL (
   SELECT compiled->>'name' AS name FROM dcl_wfl_process_definition_versions
   WHERE approval_entry_id=approved_entry.id
 ) approved_version ON true
-WHERE (sqlc.arg(enabled_filter)::integer=-1 OR d.enabled=(sqlc.arg(enabled_filter)::integer=1))
-  AND (sqlc.arg(keyword)::text='' OR d.code ILIKE '%'||sqlc.arg(keyword)||'%' OR approved_version.name ILIKE '%'||sqlc.arg(keyword)||'%')
+WHERE subject.entity='wfl-process-definition'
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR runtime.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)||'%' OR approved_version.name ILIKE '%'||sqlc.arg(keyword)||'%')
   AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY(sqlc.arg(status_filter)::text[]))
-ORDER BY d.code ASC
+ORDER BY subject.code ASC
 OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 
 -- name: CountDclWflProcessDefinitionApprovalEvents :one
@@ -1330,6 +1362,9 @@ ORDER BY id LIMIT 20;
 INSERT INTO dcl_parties(id) SELECT sqlc.arg(id) WHERE sqlc.arg(actor_id)::text IS NOT NULL;
 -- name: GetDCLPartyRoot :one
 SELECT id,merged_into_party_id,merged_at FROM dcl_parties WHERE id=sqlc.arg(id) FOR UPDATE;
+-- name: GetDCLRelationshipPartyID :one
+SELECT party_id FROM dcl_party_relationship_endpoints
+WHERE entity=sqlc.arg(entity) AND object_id=sqlc.arg(object_id);
 -- name: DeleteDCLPartyRoot :execrows
 DELETE FROM dcl_parties WHERE id=sqlc.arg(id) AND merged_into_party_id IS NULL;
 

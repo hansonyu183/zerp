@@ -7,6 +7,7 @@ import {
   validateAdrIndex,
   validateAdrDocuments,
   validateCurrentStateLegacyLanguage,
+  validateBobFormalTerminology,
   validateLegacyLanguage,
   parseUseCaseMissingBaseline,
   validateSkillReferences,
@@ -14,6 +15,61 @@ import {
   validateUseCaseMissingBaselineReduction,
   validateUseCaseOwnership,
 } from './check-docs.mjs'
+
+test('rejects outdated BOB architecture terms', () => {
+  const readModel = 'read ' + 'model'
+  const projection = 'pro' + 'jection'
+  const stableRoot = 'stable ' + 'root'
+  const failures = validateBobFormalTerminology([
+    {
+      file: 'contracts/openapi/schemas/bob.yaml',
+      source: `description: BOB current ${readModel}`,
+    },
+    {
+      file: 'backend/db/queries/bob.sql',
+      source: `-- BOB query ${projection}`,
+    },
+    {
+      file: 'docs/domains/bob.md',
+      source: `BOB owns the ${stableRoot}`,
+    },
+  ])
+
+  assert.equal(failures.length, 3)
+  assert.match(failures.join('\n'), /bob\.yaml:1/)
+  assert.match(failures.join('\n'), /bob\.sql:1/)
+  assert.match(failures.join('\n'), /bob\.md:1/)
+})
+
+test('rejects outdated terms throughout a BOB-scoped source file', () => {
+  const projection = 'pro' + 'jection'
+  const failures = validateBobFormalTerminology([
+    {
+      file: 'backend/internal/domains/dcl/bob_query_integration_test.go',
+      source: `func assertBOBQueryResult() {}\nquery ${projection}`,
+    },
+  ])
+
+  assert.equal(failures.length, 1)
+  assert.match(failures[0], /bob_query_integration_test\.go:2/)
+})
+
+test('accepts the formal BOB read-only terminology and DCL ownership', () => {
+  assert.deepEqual(
+    validateBobFormalTerminology([
+      {
+        file: 'docs/domains/bob.md',
+        source:
+          'DCL owns stable subjects and typed relationship identities. BOB provides current effective read-only business data.',
+      },
+      {
+        file: 'backend/db/queries/bob_blockers.sql',
+        source: 'Exact VOU Approval-entry blocker projection.',
+      },
+    ]),
+    [],
+  )
+})
 
 test('accepts reciprocal ADR supersession metadata', () => {
   assert.deepEqual(

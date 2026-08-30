@@ -26,7 +26,7 @@ func (q *Queries) RptDisableUsePermissions(ctx context.Context, arg RptDisableUs
 }
 
 const rptGetActiveDefinition = `-- name: RptGetActiveDefinition :one
-SELECT d.id AS definition_id, coalesce(d.code,'') AS code, v.name, v.description, v.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, rv.validity, v.sql_text, v.parameters, v.columns
+SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, v.name, v.description, v.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, rv.validity, v.sql_text, v.parameters, v.columns
 FROM dcl_subjects d
 JOIN LATERAL (SELECT id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
@@ -139,7 +139,7 @@ func (q *Queries) RptInvalidateVersion(ctx context.Context, arg RptInvalidateVer
 }
 
 const rptLatestApprovedUseState = `-- name: RptLatestApprovedUseState :one
-SELECT d.id AS definition_id, coalesce(d.code,'') AS code, coalesce(v.name,'') AS name, coalesce(v.enabled,false) AS enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, rv.validity
+SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, coalesce(v.name,'') AS name, coalesce(v.enabled,false) AS enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, rv.validity
 FROM dcl_subjects d
 LEFT JOIN LATERAL (SELECT id, status FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 LEFT JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
@@ -226,7 +226,7 @@ func (q *Queries) RptListAssetReferences(ctx context.Context, arg RptListAssetRe
 
 const rptListBOBReferences = `-- name: RptListBOBReferences :many
 WITH current_references AS (
-  SELECT subject.id, subject.code, subject.code AS name
+  SELECT subject.id, subject.code AS code, subject.code AS name
   FROM dcl_subjects subject
   JOIN LATERAL (SELECT 1 FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
   WHERE subject.entity=$5 AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','customer','customer-account','supplier','other-unit','employee','sales-partner')
@@ -441,7 +441,7 @@ func (q *Queries) RptListSubjectReferences(ctx context.Context, arg RptListSubje
 }
 
 const rptQueryDirectory = `-- name: RptQueryDirectory :many
-SELECT coalesce(d.code,'') AS code, v.name, v.description, v.parameters, v.columns, count(*) OVER() AS total
+SELECT dcl_require_subject_code(d.code) AS code, v.name, v.description, v.parameters, v.columns, count(*) OVER() AS total
 FROM dcl_subjects d
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id

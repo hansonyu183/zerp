@@ -59,7 +59,7 @@ test('CI exposes independently diagnosable jobs through repository commands', as
         'make -C backend ENV_FILE=.env.e2e.example TEST_POSTGRES_DB=zerp_ci_test test-integration',
       ],
     ],
-    ['frontend', ['make check-frontend']],
+    ['frontend', ['pnpm contracts:bundle', 'make check-frontend']],
     ['shell', ['make check-shell']],
     ['e2e', ['make e2e']],
   ])

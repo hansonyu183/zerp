@@ -146,6 +146,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm contracts:bundle
       - run: make check-frontend
 
   shell:

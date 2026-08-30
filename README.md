@@ -11,7 +11,7 @@ contracts/openapi/    唯一 HTTP 线协议与生成后的 bundle
 docs/domains/         唯一业务规则与领域职责说明
 docs/use-cases/       按页面组织的前后端处理流程与验收场景
 scripts/              联调与测试工具
-tools/                独立版本的构建工具
+backend/tools/        独立版本的构建工具
 ```
 
 ## 环境
@@ -42,18 +42,18 @@ make dev-down
 
 ## 常用命令
 
-| 命令                  | 作用                                   |
-| --------------------- | -------------------------------------- |
-| `make bootstrap`      | 安装 pnpm 与 Go 依赖                   |
-| `make dev`            | 启动数据库、API 与前端热更新           |
-| `make generate`       | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
-| `make generate-check` | 验证生成物已提交且无漂移               |
-| `make check`          | 运行前端与后端质量检查                 |
-| `make test`           | 运行前后端测试                         |
-| `make e2e`            | 启动隔离全栈并运行真实 API Playwright  |
-| `make build`          | 构建前端、后端及 API 容器镜像          |
-| `make compose-up`     | 启动生产形态 Compose                   |
-| `make compose-down`   | 停止生产形态 Compose                   |
+| 命令                  | 作用                                             |
+| --------------------- | ------------------------------------------------ |
+| `make bootstrap`      | 安装 pnpm 与 Go 依赖                             |
+| `make dev`            | 启动数据库、API 与前端热更新                     |
+| `make generate`       | 生成 OpenAPI bundle、Go/TS API 与 sqlc           |
+| `make generate-check` | 验证生成物已提交且无漂移                         |
+| `make check`          | 运行全仓文档、契约、生成物、前后端及运行配置门禁 |
+| `make test`           | 运行前后端测试                                   |
+| `make e2e`            | 启动隔离全栈并运行真实 API Playwright            |
+| `make build`          | 构建前端、后端及 API 容器镜像                    |
+| `make compose-up`     | 启动生产形态 Compose                             |
+| `make compose-down`   | 停止生产形态 Compose                             |
 
 `pnpm --filter @zerp/frontend typecheck` 是唯一生产前端类型门禁，只运行一次 `vue-tsc -b --force`。`pnpm --filter @zerp/frontend test:vue-template-typecheck` 是独立工具链回归测试：它要求同一 checker 拒绝故意错误的隔离 Vue template fixture，并由 `make check` 自动运行；该 canary 不属于生产 `typecheck` 命令。
 

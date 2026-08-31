@@ -19,6 +19,19 @@ async function signOut(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/signin/)
 }
 
+async function selectAccountingBook(page: Page, name: RegExp): Promise<void> {
+  const select = page.getByRole('combobox', {
+    name: '会计账簿',
+    exact: true,
+  })
+  await expect(select).toBeEnabled({ timeout: 15_000 })
+  await expect(select).toHaveValue(/E2E 控制账簿/, { timeout: 15_000 })
+  await select.click({ force: true })
+  const option = page.getByRole('option', { name })
+  await expect(option).toBeVisible({ timeout: 15_000 })
+  await option.click()
+}
+
 test('两个用户通过产品界面按独立范围维护账簿且首本控制身份稳定', async ({
   page,
   workerState,
@@ -86,8 +99,7 @@ test('两个用户通过产品界面按独立范围维护账簿且首本控制�
 
   await page.goto('/acc/subject')
   await expect(page).toHaveURL(/\/acc\/subject$/)
-  await page.getByLabel('会计账簿').click({ force: true })
-  await page.getByRole('option', { name: /E2E 管理账簿/ }).click()
+  await selectAccountingBook(page, /E2E 管理账簿/)
   await expect(
     page.locator('tbody tr').filter({ hasText: '1405' }),
   ).toContainText('库存商品')
@@ -103,8 +115,7 @@ test('两个用户通过产品界面按独立范围维护账簿且首本控制�
   await page.goto('/acc/opening')
   await expect(page).toHaveURL(/\/acc\/opening$/)
   await expect(page.getByText('已批准', { exact: true })).toBeVisible()
-  await page.getByLabel('会计账簿').click({ force: true })
-  await page.getByRole('option', { name: /E2E 管理账簿/ }).click()
+  await selectAccountingBook(page, /E2E 管理账簿/)
   await expect(page.getByText('零期初也需要明确批准')).toBeVisible()
   await expect(page.getByText('草稿', { exact: true })).toBeVisible()
 

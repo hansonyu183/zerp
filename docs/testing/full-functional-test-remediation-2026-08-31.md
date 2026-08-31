@@ -57,5 +57,6 @@ GitHub 跟踪：父 Issue [#326](https://github.com/hansonyu183/zerp/issues/326)
 | 完整 E2E                | 37 项通过，1 项按项目配置条件跳过；覆盖 36 类 VOU 后端生命周期、8 个报表及代表性移动端 |
 | 运行时菜单口径          | 原报告环境为 95 项；恢复缺失的员工类别后权威运行时菜单为 96 项，并由 APP 集成测试锁定  |
 | 仓库完整门禁            | `make check` 通过：文档、契约、前后端、隔离集成、race/static/vuln 与生产镜像检查均通过 |
-| GitHub 父子 Issue / PR  | Issue #326–#332 已登记；PR 待创建                                                      |
-| 线上内测 SHA / 健康状态 | 待发布记录                                                                             |
+| GitHub 父子 Issue / PR  | Issue #326–#332；整改 PR #333 已合并，E2E 稳定性补充 PR #334                           |
+| 线上内测 SHA / 健康状态 | `70ea007bde373af9f1aadd693e9d4ba12939a92a`；API 本地、公网及外部探针均为 200/healthy   |
+| 线上匿名 branding       | `/app/branding/get` 返回“ZERP 演示企业”；Pages `/_zerp-release` 回读同一整改 SHA       |

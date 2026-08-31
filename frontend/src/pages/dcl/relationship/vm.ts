@@ -113,10 +113,10 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   const entityLabel = entity === 'other-unit' ? '其他单位' : '销售合作方'
   const editorTitle = computed(() =>
     editorMode.value === 'create'
-      ? `新增${entityLabel}申报`
+      ? `新增${entityLabel}变更`
       : editorMode.value === 'edit'
-        ? `编辑${entityLabel}申报`
-        : `${entityLabel}申报详情`,
+        ? `编辑${entityLabel}变更`
+        : `${entityLabel}变更详情`,
   )
   const editorFields = computed<
     readonly BusinessObjectField<DclRelationshipForm>[]
@@ -421,7 +421,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
         await createDclRelationship(entity, form)
       else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的关系申报版本。')
+        if (!context) throw new Error('未加载可编辑的关系变更版本。')
         await saveDclRelationship(entity, {
           ...context,
           enabled: currentView.value?.enabled ?? true,
@@ -429,7 +429,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
         })
       }
       closeEditor()
-      successMessage.value = `${entityLabel}申报已保存。`
+      successMessage.value = `${entityLabel}变更已保存。`
       await query()
       return true
     } catch (error) {

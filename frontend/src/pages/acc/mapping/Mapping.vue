@@ -50,7 +50,7 @@ void vm.initialize()
     </EntityListControls>
 
     <v-alert class="mb-4" type="info" variant="tonal">
-      此处只显示 ACC 当前有效的记账映射与字段规则。创建、候选、审批、版本和审计统一在“会计映射申报”中维护。
+      此处只显示 ACC 当前有效的记账映射与字段规则。创建、候选、审批、版本和审计统一在“会计映射变更”中维护。
     </v-alert>
 
     <v-card title="当前 VOU 会计映射">

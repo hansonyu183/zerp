@@ -1,4 +1,4 @@
-# DCL 报表定义申报页面用例
+# DCL 报表定义变更页面用例
 
 权威业务规则见 [DCL 报表定义申报](../../domains/dcl.md#39-报表定义申报)、[RPT 报表定义与 DCL](../../domains/rpt.md#3-报表定义与-dcl) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL 报表定义 Schema](../../../contracts/openapi/schemas/dcl-rpt-definition.yaml) 与 [OpenAPI RPT Schema](../../../contracts/openapi/schemas/rpt.yaml)。
 

@@ -1,4 +1,4 @@
-# DCL 资金账户申报页面用例
+# DCL 资金账户变更页面用例
 
 权威业务规则见 [DCL 资金账户申报](../../domains/dcl.md#33-资金账户申报)、[BOB 对象与引用规则](../../domains/bob.md#2-领域职责与边界) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
 

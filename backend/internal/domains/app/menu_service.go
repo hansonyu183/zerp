@@ -256,14 +256,15 @@ func (s *Service) menuCatalog(ctx context.Context, q *dbsqlc.Queries) ([]registe
 		{RouteKey: "app/menu", RoutePath: "/app/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business", PermissionRoot: "/app/menu/", Order: 50},
 	}
 	for _, row := range rows {
-		// RPT directory is a session-only metadata endpoint, not a navigable entity.
-		if row.Domain == "rpt" && row.Entity == "directory" {
+		// These are session-only metadata endpoints, not navigable entities.
+		if row.Domain == "rpt" && row.Entity == "directory" ||
+			(row.Entity == "reference" && (row.Domain == "aux" || row.Domain == "bob")) {
 			continue
 		}
 		key := row.Domain + "/" + row.Entity
 		route := registeredMenuRoute{
 			RouteKey: key, RoutePath: "/" + key,
-			DisplayName:    menuRouteTitle(row.Entity, row.Description),
+			DisplayName:    menuRouteDisplayName(row.Domain, row.Entity, row.Description),
 			PermissionCode: row.PermissionCode, PermissionRoot: "/" + row.Domain + "/" + row.Entity + "/", Order: row.MenuOrder,
 		}
 		// Each RPT report and definition management are normal independent
@@ -401,7 +402,7 @@ func replaceBusinessMenu(ctx context.Context, q *dbsqlc.Queries, items []SaveMen
 
 func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 	groups := []initialMenuGroup{
-		{ID: "default-dcl", Name: "申报控制", Icon: "mdi-file-sign", Order: 10},
+		{ID: "default-dcl", Name: "档案变更", Icon: "mdi-file-sign", Order: 10},
 		{ID: "default-bob", Name: "业务对象", Icon: "mdi-account-group-outline", Order: 20},
 		{ID: "default-aux", Name: "辅助对象", Icon: "mdi-shape-outline", Order: 30},
 		{ID: "default-vou", Name: "业务单据", Icon: "mdi-file-document-multiple-outline", Order: 40},
@@ -616,6 +617,18 @@ func filterMenuForPrincipal(tree MenuTree, catalog []registeredMenuRoute, princi
 			}
 		}
 	}
+	for index, item := range result {
+		if item.RouteKey != nil && *item.RouteKey == "home/dashboard" {
+			if index > 0 {
+				reordered := make([]MenuItemView, 0, len(result))
+				reordered = append(reordered, item)
+				reordered = append(reordered, result[:index]...)
+				reordered = append(reordered, result[index+1:]...)
+				result = reordered
+			}
+			break
+		}
+	}
 	return MenuTree{Items: result}
 }
 
@@ -672,6 +685,22 @@ func menuRouteTitle(entity, description string) string {
 		return value
 	}
 	return strings.ReplaceAll(entity, "-", " ")
+}
+
+func menuRouteDisplayName(domain, entity, description string) string {
+	title := menuRouteTitle(entity, description)
+	if domain != "dcl" {
+		return title
+	}
+	title = strings.TrimSuffix(title, "申报")
+	title = strings.TrimSuffix(title, "声明")
+	if entity == "employee" {
+		return "人员"
+	}
+	if entity == "customer-account" {
+		return "客户结算子账户"
+	}
+	return title
 }
 
 func menuViewToInput(items []MenuItemView) []SaveMenuItemInput {

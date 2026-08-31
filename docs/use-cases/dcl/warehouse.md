@@ -1,4 +1,4 @@
-# DCL 仓库申报页面用例
+# DCL 仓库变更页面用例
 
 权威业务规则见 [DCL 仓库申报](../../domains/dcl.md)、[BOB 当前有效资料职责](../../domains/bob.md) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
 

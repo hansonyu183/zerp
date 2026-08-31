@@ -191,8 +191,8 @@ void vm.query()
       flat
       :title="
         vm.editorMode === 'create'
-          ? '新建客户结算子账户申报'
-          : `${vm.currentView?.code ?? ''} 客户结算子账户申报`
+          ? '新建客户结算子账户变更'
+          : `${vm.currentView?.code ?? ''} 客户结算子账户变更`
       "
     >
       <v-card-text>

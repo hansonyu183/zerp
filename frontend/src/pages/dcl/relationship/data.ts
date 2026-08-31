@@ -94,7 +94,7 @@ export async function getDclRelationship(
     entity === 'other-unit'
       ? await apiClient.postContract('dcl/other-unit/get', request)
       : await apiClient.postContract('dcl/sales-partner/get', request)
-  if (!response.data) throw new Error('关系申报不存在。')
+  if (!response.data) throw new Error('关系变更不存在。')
   return response.data
 }
 

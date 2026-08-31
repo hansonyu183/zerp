@@ -102,7 +102,7 @@ export async function getDclCustomerAccount(
     objectId,
     ...(approvalEntryId ? { approvalEntryId } : {}),
   })
-  if (!data) throw new Error('客户结算子账户申报不存在。')
+  if (!data) throw new Error('客户结算子账户变更不存在。')
   return data
 }
 

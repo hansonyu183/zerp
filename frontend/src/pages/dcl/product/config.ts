@@ -17,7 +17,7 @@ import type { DclProductConfig, DclProductListItem } from './types'
 
 const sharedProductConfig = defineBobEntityConfig({
   entity: 'product',
-  title: '产品申报',
+  title: '产品变更',
   codeLabel: '产品编码',
   nameLabel: '产品名称',
   defaults: {

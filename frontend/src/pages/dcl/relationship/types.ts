@@ -65,6 +65,6 @@ export function dclRelationshipActiveVersion(
   item: Readonly<DclRelationshipListItem>,
 ): DclRelationshipVersionView {
   const version = item.openVersion ?? item.latestApproved
-  if (!version) throw new Error('关系申报缺少已批准版本和开放候选版本。')
+  if (!version) throw new Error('关系变更缺少已批准版本和开放候选版本。')
   return version
 }

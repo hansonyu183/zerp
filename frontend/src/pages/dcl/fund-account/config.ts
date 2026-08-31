@@ -72,7 +72,7 @@ const fields: readonly BusinessObjectField<DclFundAccountForm>[] = [
 ]
 
 export const dclFundAccountConfig: DclFundAccountConfig = {
-  title: '资金账户申报',
+  title: '资金账户变更',
   fields,
   emptyForm: () => ({
     code: '',

@@ -319,7 +319,7 @@ export function createDclRptDefinitionViewModel() {
           reason.value.trim(),
         )
       if (!active) return
-      successMessage.value = '报表定义申报操作已完成。'
+      successMessage.value = '报表定义变更操作已完成。'
       editorOpen.value = false
       await query()
     } catch (error) {

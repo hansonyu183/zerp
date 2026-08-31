@@ -66,9 +66,9 @@ export function useDclOperatingEntityViewModel() {
     )
   const canCreate = computed(() => session.can(permission('create')))
   const editorTitle = computed(() => {
-    if (editorMode.value === 'create') return '新增经营主体申报'
-    if (editorMode.value === 'edit') return '编辑经营主体申报'
-    return '经营主体申报详情'
+    if (editorMode.value === 'create') return '新增经营主体变更'
+    if (editorMode.value === 'edit') return '编辑经营主体变更'
+    return '经营主体变更详情'
   })
   const editorFields = computed(() => config.fields)
   const effectiveEditorModel = computed(() =>
@@ -311,7 +311,7 @@ export function useDclOperatingEntityViewModel() {
         mutation = result.data
       } else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的经营主体申报版本。')
+        if (!context) throw new Error('未加载可编辑的经营主体变更版本。')
         const result = await apiClient.postContract(
           'dcl/operating-entity/save',
           {
@@ -327,7 +327,7 @@ export function useDclOperatingEntityViewModel() {
       drawerOpen.value = false
       editContext.value = null
       currentView.value = null
-      successMessage.value = '经营主体申报已保存。'
+      successMessage.value = '经营主体变更已保存。'
       await query()
       return Boolean(mutation.objectId)
     } catch (error) {

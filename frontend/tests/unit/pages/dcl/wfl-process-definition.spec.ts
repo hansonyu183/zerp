@@ -182,8 +182,8 @@ describe('DCL WFL process-definition route registration', () => {
       (r) => r.domain === 'dcl' && r.entity === 'wfl-process-definition',
     )
     expect(registration).toBeDefined()
-    expect(registration!.entityTitle).toBe('流程定义申报')
-    expect(registration!.domainTitle).toBe('申报控制')
+    expect(registration!.entityTitle).toBe('流程定义变更')
+    expect(registration!.domainTitle).toBe('档案变更')
     expect(typeof registration!.component).toBe('function')
   })
 

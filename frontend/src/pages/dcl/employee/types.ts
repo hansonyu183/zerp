@@ -57,6 +57,6 @@ export function dclEmployeeActiveVersion(
   item: Readonly<DclEmployeeListItem>,
 ): DclEmployeeVersionView {
   const version = item.openVersion ?? item.latestApproved
-  if (!version) throw new Error('人员申报缺少已批准版本和开放候选版本。')
+  if (!version) throw new Error('人员变更缺少已批准版本和开放候选版本。')
   return version
 }

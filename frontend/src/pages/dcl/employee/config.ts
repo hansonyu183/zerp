@@ -119,7 +119,7 @@ const fields: readonly BusinessObjectField<DclEmployeeForm>[] = [
 ]
 
 export const dclEmployeeConfig: DclEmployeeConfig = {
-  title: '人员申报',
+  title: '人员变更',
   fields,
   emptyForm: () => ({
     code: '',

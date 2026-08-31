@@ -24,7 +24,7 @@ function navigateToMaintenance(item: { code: string }): void {
         <h1 class="text-h5">当前流程定义</h1>
         <div class="text-body-2 text-medium-emphasis">
           只读查看当前已批准的正式版本。流程定义的创建、编辑、审批等维护操作请前往
-          <router-link to="/dcl/wfl-process-definition">流程定义申报</router-link>。
+          <router-link to="/dcl/wfl-process-definition">流程定义变更</router-link>。
         </div>
       </div>
     </div>

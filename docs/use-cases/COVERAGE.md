@@ -29,21 +29,21 @@
 
 | 页面               | 路由                          | 来源                                                | 状态                                      |
 | ------------------ | ----------------------------- | --------------------------------------------------- | ----------------------------------------- |
-| 主体申报           | `/dcl/party`                  | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/party.md)                  |
-| 经营主体申报       | `/dcl/operating-entity`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md)       |
-| 仓库申报           | `/dcl/warehouse`              | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)              |
-| 车辆申报           | `/dcl/vehicle`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)                |
-| 资金账户申报       | `/dcl/fund-account`           | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)           |
-| 人员申报           | `/dcl/employee`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/employee.md)               |
-| 其他单位申报       | `/dcl/other-unit`             | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/other-unit.md)             |
-| 销售合作方申报     | `/dcl/sales-partner`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/sales-partner.md)          |
-| 客户申报           | `/dcl/customer`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer.md)               |
-| 客户结算子账户申报 | `/dcl/customer-account`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer-account.md)       |
-| 供应商申报         | `/dcl/supplier`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/supplier.md)               |
-| 产品申报           | `/dcl/product`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)                |
-| 会计映射申报       | `/dcl/acc-mapping`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/acc-mapping.md)            |
-| 报表定义申报       | `/dcl/rpt-definition`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/rpt-definition.md)         |
-| 流程定义申报       | `/dcl/wfl-process-definition` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/wfl-process-definition.md) |
+| 主体变更           | `/dcl/party`                  | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/party.md)                  |
+| 经营主体变更       | `/dcl/operating-entity`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md)       |
+| 仓库变更           | `/dcl/warehouse`              | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)              |
+| 车辆变更           | `/dcl/vehicle`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)                |
+| 资金账户变更       | `/dcl/fund-account`           | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)           |
+| 人员变更           | `/dcl/employee`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/employee.md)               |
+| 其他单位变更       | `/dcl/other-unit`             | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/other-unit.md)             |
+| 销售合作方变更     | `/dcl/sales-partner`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/sales-partner.md)          |
+| 客户变更           | `/dcl/customer`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer.md)               |
+| 客户结算子账户变更 | `/dcl/customer-account`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer-account.md)       |
+| 供应商变更         | `/dcl/supplier`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/supplier.md)               |
+| 产品变更           | `/dcl/product`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)                |
+| 会计映射变更       | `/dcl/acc-mapping`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/acc-mapping.md)            |
+| 报表定义变更       | `/dcl/rpt-definition`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/rpt-definition.md)         |
+| 流程定义变更       | `/dcl/wfl-process-definition` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/wfl-process-definition.md) |
 
 ## ACC
 

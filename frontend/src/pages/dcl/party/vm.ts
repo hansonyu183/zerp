@@ -345,7 +345,7 @@ export function useDclPartyViewModel() {
         data: dataFromForm(value),
       })
       closeEditor()
-      successMessage.value = '主体申报已保存。'
+      successMessage.value = '主体变更已保存。'
       await query()
       return true
     } catch (error) {
@@ -386,12 +386,12 @@ export function useDclPartyViewModel() {
       else await dclPartyApi.unapprove({ ...request, reason: normalizedReason })
       await query()
       successMessage.value = {
-        delete: '主体申报草稿已删除。',
-        submit: '主体申报已提交审核。',
-        unsubmit: '主体申报已撤回提交。',
-        approve: '主体申报已审核通过。',
-        reject: '主体申报已审核驳回。',
-        unapprove: '主体申报已撤销批准。',
+        delete: '主体变更草稿已删除。',
+        submit: '主体变更已提交审核。',
+        unsubmit: '主体变更已撤回提交。',
+        approve: '主体变更已审核通过。',
+        reject: '主体变更已审核驳回。',
+        unapprove: '主体变更已撤销批准。',
       }[action]
       return true
     } catch (error) {

@@ -47,6 +47,6 @@ export function dclWarehouseActiveVersion(
   item: Readonly<DclWarehouseListItem>,
 ): DclWarehouseVersionView {
   const version = item.openVersion ?? item.latestApproved
-  if (!version) throw new Error('仓库申报缺少已批准版本和开放候选版本。')
+  if (!version) throw new Error('仓库变更缺少已批准版本和开放候选版本。')
   return version
 }

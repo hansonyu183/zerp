@@ -1,4 +1,4 @@
-# DCL 车辆申报页面用例
+# DCL 车辆变更页面用例
 
 权威业务规则见 [DCL 车辆申报](../../domains/dcl.md#32-车辆申报)、[BOB 车辆承运归属](../../domains/bob.md#24-车辆承运归属) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
 

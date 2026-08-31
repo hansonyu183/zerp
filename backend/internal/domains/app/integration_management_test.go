@@ -262,6 +262,10 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	} {
 		expected["/dcl/party/"+action] = struct{}{}
 	}
+	referencePaths := []string{"/aux/reference/query", "/bob/reference/query"}
+	for _, path := range referencePaths {
+		expected[path] = struct{}{}
+	}
 	for _, action := range []string{"attachment-initiate", "attachment-download", "attachment-remove"} {
 		expected["/dcl/customer/"+action] = struct{}{}
 	}
@@ -288,6 +292,14 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 		}
 		slices.Sort(missing)
 		t.Fatalf("BOB/AUX/DCL permission catalog is missing %v", missing)
+	}
+	var enabledReferencePermissionCount int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions
+		WHERE path = ANY($1::text[]) AND status = 'ENABLED'`, referencePaths).Scan(&enabledReferencePermissionCount); err != nil {
+		t.Fatalf("query enabled reference permissions: %v", err)
+	}
+	if enabledReferencePermissionCount != len(referencePaths) {
+		t.Fatalf("enabled reference permissions = %d, want %d", enabledReferencePermissionCount, len(referencePaths))
 	}
 	var obsoleteBOBWrites int
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions

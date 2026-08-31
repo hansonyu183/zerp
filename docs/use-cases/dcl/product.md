@@ -1,4 +1,4 @@
-# DCL 产品申报页面用例
+# DCL 产品变更页面用例
 
 权威业务规则见 [DCL 产品申报](../../domains/dcl.md#34-产品申报)、[BOB 产品业务字段](../../domains/bob.md#21-业务字段)、[AUX 产品与计量对象](../../domains/aux.md) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
 

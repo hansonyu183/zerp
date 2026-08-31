@@ -58,6 +58,6 @@ export function dclSupplierActiveVersion(
   item: Readonly<DclSupplierListItem>,
 ): DclSupplierVersionView {
   const version = item.openVersion ?? item.latestApproved
-  if (!version) throw new Error('供应商申报缺少已批准版本和开放候选版本。')
+  if (!version) throw new Error('供应商变更缺少已批准版本和开放候选版本。')
   return version
 }

@@ -65,7 +65,7 @@ export async function getDclSupplier(
     objectId,
     ...(approvalEntryId ? { approvalEntryId } : {}),
   })
-  if (!data) throw new Error('供应商申报不存在。')
+  if (!data) throw new Error('供应商变更不存在。')
   return data
 }
 

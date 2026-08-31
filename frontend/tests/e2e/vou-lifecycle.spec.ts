@@ -369,6 +369,20 @@ test(
     await page.getByRole('button', { name: '撤回提交', exact: true }).click()
     await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
 
+    // Re-enter from the list's authoritative read before exercising the
+    // attachment action. Lifecycle completion also refreshes workbench/audit
+    // data in the background, so keeping the pre-transition component instance
+    // here can make the remove affordance race those independent reads in CI.
+    await page.reload()
+    await page
+      .getByRole('textbox', { name: '单号或往来方关键字' })
+      .fill(documentNo!)
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    const draftRow = page.locator('tbody tr').filter({ hasText: documentNo! })
+    await expect(draftRow).toContainText('草稿')
+    await draftRow.getByLabel(`编辑 ${documentNo}`).click()
+    await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
+
     await page.getByRole('tab', { name: '审计' }).click()
     await expect(
       workspace.getByText('反批准', { exact: true }).first(),
@@ -377,6 +391,9 @@ test(
       workspace.getByText('撤回提交', { exact: true }).first(),
     ).toBeVisible()
     await page.getByRole('tab', { name: '附件' }).click()
+    await expect(
+      workspace.getByText('vou-e2e.pdf', { exact: true }),
+    ).toBeVisible()
     await page.getByLabel('移除 vou-e2e.pdf').click()
     await expect(workspace.getByText('暂无附件')).toBeVisible()
   },

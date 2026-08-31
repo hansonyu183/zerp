@@ -187,10 +187,14 @@ void vm.query()
             />
           </v-col>
           <v-col v-if="vm.createForm.partyMode === 'EXISTING'" cols="12" md="8">
-            <v-text-field
+            <v-autocomplete
               v-model="vm.createForm.partyId"
-              label="已有主体 ID"
+              :error-messages="vm.referenceError.partyId ?? undefined"
+              :items="vm.referenceOptions.partyId"
+              label="已有主体"
+              :loading="vm.referenceLoading.partyId"
               required
+              @update:search="vm.searchReference('partyId', $event)"
             />
           </v-col>
           <template v-else>
@@ -236,17 +240,45 @@ void vm.query()
             /></v-col>
           </template>
           <v-col cols="12"
-            ><v-text-field
+            ><v-autocomplete
               v-model="vm.createForm.operatingEntityId"
-              label="经营主体 ID"
+              :error-messages="vm.referenceError.operatingEntityId ?? undefined"
+              :items="vm.referenceOptions.operatingEntityId"
+              label="经营主体"
+              :loading="vm.referenceLoading.operatingEntityId"
               required
+              @update:search="vm.searchReference('operatingEntityId', $event)"
           /></v-col>
           <v-col cols="12"
             ><v-divider class="my-3" />
             <div class="text-h6 mb-3">默认结算子账户</div></v-col
           >
         </v-row>
-        <CustomerAccountFields v-model="vm.createForm.defaultAccount" />
+        <CustomerAccountFields
+          v-model="vm.createForm.defaultAccount"
+          :reference-error="{
+            customerTypeId: vm.referenceError.customerTypeId,
+            settlementMethodId: vm.referenceError.settlementMethodId,
+            paymentMethodId: vm.referenceError.paymentMethodId,
+            primarySalesAttributionSubjectObjectId:
+              vm.referenceError.primarySalesAttributionSubjectObjectId,
+          }"
+          :reference-loading="{
+            customerTypeId: vm.referenceLoading.customerTypeId,
+            settlementMethodId: vm.referenceLoading.settlementMethodId,
+            paymentMethodId: vm.referenceLoading.paymentMethodId,
+            primarySalesAttributionSubjectObjectId:
+              vm.referenceLoading.primarySalesAttributionSubjectObjectId,
+          }"
+          :reference-options="{
+            customerTypeId: vm.referenceOptions.customerTypeId,
+            settlementMethodId: vm.referenceOptions.settlementMethodId,
+            paymentMethodId: vm.referenceOptions.paymentMethodId,
+            primarySalesAttributionSubjectObjectId:
+              vm.referenceOptions.primarySalesAttributionSubjectObjectId,
+          }"
+          @search-reference="vm.searchReference"
+        />
       </v-card-text>
       <v-card-actions
         ><v-spacer /><v-btn @click="vm.createOpen = false">取消</v-btn

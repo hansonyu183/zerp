@@ -13,9 +13,11 @@
 3. 详情显示 Party、经营主体、联系人、电话、邮箱、地址、可选结算方式、备注和 enabled 的完整 typed candidate snapshot；保存不提供 Party 或经营主体变更入口。
 4. 根据状态与权限提供 create、save、submit、unsubmit、reject、approve、unapprove、delete、versions 与 audit。启停只通过保存 `enabled` 候选完成。
 5. 提交或批准被 Party、经营主体、结算方式来源漂移或正式引用阻断时，保留输入并显示稳定业务错误与 requestId。
+6. 同一 Party、经营主体和关系类型已经存在有效关系时，创建返回 `relationship_exists`；页面保留选择并提示改为维护已有关系，不得显示内部错误或自动新建第二条关系。
 
 ## 验收场景
 
 1. 既有 Party 与新 Party 创建均带准确 payload；缺经营主体或同时传两种 Party 入口不能提交。
 2. BOB 直接读取 highest APPROVED snapshot，在 DCL 批准或反批后自然切换或回落；无 BOB 直接写入口。
 3. 深链可打开目标 candidate，状态和权限不允许的动作既不展示也不发起请求。
+4. 重复创建同一 Party 与经营主体的其他单位关系返回 `relationship_exists`，不会留下 stable subject、candidate 或 typed relationship 残片。

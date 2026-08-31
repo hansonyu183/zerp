@@ -8,10 +8,15 @@ import (
 const (
 	StatusEnabled      = "ENABLED"
 	StatusDisabled     = "DISABLED"
+	enterpriseNameKey  = "app.enterprise-name"
 	superadminRoleCode = "superadmin"
 	signoutPath        = "/app/user/signout"
 	changePasswordPath = "/app/user/change-password"
 )
+
+type BrandingView struct {
+	EnterpriseName string `json:"enterpriseName"`
+}
 
 type ErrorKind int
 

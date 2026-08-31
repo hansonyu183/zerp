@@ -417,6 +417,36 @@ func (q *Queries) DeleteAppUserRoles(ctx context.Context, userID string) error {
 	return err
 }
 
+const ensureEnterpriseNameSystemParameter = `-- name: EnsureEnterpriseNameSystemParameter :exec
+INSERT INTO app_system_parameters (
+    parameter_key,
+    name,
+    description,
+    value_type,
+    configured_value,
+    default_value,
+    editable,
+    revision,
+    constraints
+) VALUES (
+    'app.enterprise-name',
+    '企业名称',
+    '登录页和登录后顶栏显示的当前使用单位名称',
+    'STRING',
+    'ZERP 演示企业',
+    'ZERP 演示企业',
+    true,
+    1,
+    '{"required":true,"minLength":1,"maxLength":128,"minimum":null,"maximum":null,"allowedValues":[]}'::jsonb
+)
+ON CONFLICT (parameter_key) DO NOTHING
+`
+
+func (q *Queries) EnsureEnterpriseNameSystemParameter(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, ensureEnterpriseNameSystemParameter)
+	return err
+}
+
 const findAppRoleIDByNormalizedNameExcludingID = `-- name: FindAppRoleIDByNormalizedNameExcludingID :one
 SELECT id
 FROM app_roles

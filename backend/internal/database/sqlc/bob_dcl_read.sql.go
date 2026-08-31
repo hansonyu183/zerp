@@ -1758,14 +1758,26 @@ SELECT subject.id AS object_id,entry.id AS approval_entry_id,dcl_require_subject
        COALESCE(product.pricing_unit_id,'')::text AS pricing_unit_id
 FROM dcl_subjects subject
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
-LEFT JOIN dcl_customer_account_versions account_snapshot ON account_snapshot.approval_entry_id=entry.id AND subject.entity='customer-account'
-LEFT JOIN dcl_product_versions product ON product.approval_entry_id=entry.id AND subject.entity='product'
+LEFT JOIN dcl_customer_account_versions account_snapshot ON account_snapshot.approval_entry_id=entry.id AND subject.entity='customer-account' AND account_snapshot.enabled
+LEFT JOIN dcl_product_versions product ON product.approval_entry_id=entry.id AND subject.entity='product' AND product.enabled
+LEFT JOIN dcl_supplier_versions supplier_snapshot ON supplier_snapshot.approval_entry_id=entry.id AND subject.entity='supplier' AND supplier_snapshot.enabled
+LEFT JOIN dcl_employee_versions employee_snapshot ON employee_snapshot.approval_entry_id=entry.id AND subject.entity='employee' AND employee_snapshot.enabled
+LEFT JOIN dcl_other_unit_versions other_unit_snapshot ON other_unit_snapshot.approval_entry_id=entry.id AND subject.entity='other-unit' AND other_unit_snapshot.enabled
+LEFT JOIN dcl_sales_partner_versions sales_partner_snapshot ON sales_partner_snapshot.approval_entry_id=entry.id AND subject.entity='sales-partner' AND sales_partner_snapshot.enabled
 LEFT JOIN dcl_party_relationship_endpoints relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
 LEFT JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party_snapshot ON true
 WHERE subject.entity=$1
   AND ($2::text='' OR subject.id<>$2::text)
   AND ($3::text='' OR subject.code ILIKE '%'||$3::text||'%' OR COALESCE(account_snapshot.name,party_snapshot.display_name,product.name,'') ILIKE '%'||$3::text||'%')
   AND ($4::text='' OR product.behavior_profile=$4::text)
+  AND (
+    (subject.entity='customer-account' AND account_snapshot.approval_entry_id IS NOT NULL) OR
+    (subject.entity='product' AND product.approval_entry_id IS NOT NULL) OR
+    (subject.entity='supplier' AND supplier_snapshot.approval_entry_id IS NOT NULL) OR
+    (subject.entity='employee' AND employee_snapshot.approval_entry_id IS NOT NULL) OR
+    (subject.entity='other-unit' AND other_unit_snapshot.approval_entry_id IS NOT NULL) OR
+    (subject.entity='sales-partner' AND sales_partner_snapshot.approval_entry_id IS NOT NULL)
+  )
 ORDER BY subject.code LIMIT 200
 `
 

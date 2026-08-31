@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { onMounted, reactive } from 'vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
+import { useBrandingStore } from '@/stores/branding'
 import { useSignInViewModel } from './vm'
 
 const vm = reactive(useSignInViewModel())
+const branding = useBrandingStore()
+
+onMounted(() => branding.load())
 </script>
 
 <template>
@@ -12,10 +16,20 @@ const vm = reactive(useSignInViewModel())
       <v-card-text class="pa-8 pa-sm-10">
         <div class="logo">Z</div>
         <h1>ZERP</h1>
-        <p class="subtitle">登录企业资源管理系统</p>
+        <p v-if="branding.enterpriseName" class="subtitle">
+          {{ branding.enterpriseName }}
+        </p>
+        <p v-else-if="branding.loading" class="subtitle">正在加载企业名称…</p>
+        <p v-else class="subtitle">&nbsp;</p>
 
         <AppSnackbar :message="vm.successMessage" type="success" />
         <AppSnackbar :message="vm.errorMessage" />
+        <AppSnackbar
+          action-label="重新加载"
+          :message="branding.errorMessage"
+          :timeout="-1"
+          @action="branding.load(true)"
+        />
 
         <v-form @submit.prevent="vm.submit">
           <v-text-field

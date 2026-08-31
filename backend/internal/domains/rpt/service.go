@@ -265,6 +265,18 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in Reference
 		if len(rows) > 0 {
 			appendRows(values, rows[0].Total)
 		}
+	case ReferenceTypeOtherParty:
+		rows, e := s.queries.RptListBillOriginPartyReferences(ctx, db.RptListBillOriginPartyReferencesParams{SelectedID: selected, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+		if e != nil {
+			return Page{}, internal("query report reference", e)
+		}
+		values := make([]ReferenceItem, len(rows))
+		for i, r := range rows {
+			values[i] = ReferenceItem{ID: value(r.ID), Code: r.Code, Name: r.Name}
+		}
+		if len(rows) > 0 {
+			appendRows(values, rows[0].Total)
+		}
 	default:
 		entity := map[ReferenceType]string{
 			ReferenceTypeCustomerAccount:        "customer-account",

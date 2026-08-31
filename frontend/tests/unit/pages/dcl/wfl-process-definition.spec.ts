@@ -252,6 +252,27 @@ describe('DCL WFL process-definition VM permissions', () => {
     expect(vm.permissions.value.create).toBe(true)
   })
 
+  it('在空脚本创建前显示固定编辑区校验且不发送请求', async () => {
+    useSessionStore().permissions = [
+      '/dcl/wfl-process-definition/query',
+      '/dcl/wfl-process-definition/get',
+      '/dcl/wfl-process-definition/create',
+    ]
+    const vm = createDclWflProcessDefinitionViewModel()
+    await vm.openCreate()
+    vm.scriptText.value = '   '
+    await vm.save()
+
+    expect(mockedPost).not.toHaveBeenCalled()
+    expect(vm.errorMessage.value).toBe('流程定义脚本不能为空。')
+    expect(vm.scriptDiagnostic.value).toEqual({
+      message: '请输入流程定义脚本。',
+      line: 1,
+      column: 1,
+    })
+    expect(vm.saving.value).toBe(false)
+  })
+
   it('uses shared filters and labeled mobile definition cards', () => {
     expect(definitionPageSource).toContain('<EntityListControls')
     expect(definitionPageSource).toContain('definition-list__mobile')

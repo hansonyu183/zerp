@@ -1766,6 +1766,14 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.PermissionDetailResponse } } };
     };
   };
+  "/app/branding/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.EmptyObject } };
+      responses: { 200: { content: { 'application/json': Models.BrandingResponse } } };
+    };
+  };
   "/app/system-parameter/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1849,7 +1857,7 @@ export interface paths {
   "/aux/{entity}/create": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.AuxCreatableEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.AuxCreateRequest } };
       responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
     };
@@ -1881,7 +1889,7 @@ export interface paths {
   "/aux/{entity}/delete": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.AuxCreatableEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.AuxObjectRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
@@ -2820,6 +2828,8 @@ export interface components {
       "PermissionPageResponse": Models.PermissionPageResponse;
       "PermissionDetail": Models.PermissionDetail;
       "PermissionDetailResponse": Models.PermissionDetailResponse;
+      "BrandingView": Models.BrandingView;
+      "BrandingResponse": Models.BrandingResponse;
       "SystemParameterValueType": Models.SystemParameterValueType;
       "SystemParameterQueryRequest": Models.SystemParameterQueryRequest;
       "SystemParameterConstraints": Models.SystemParameterConstraints;
@@ -2850,6 +2860,7 @@ export interface components {
       "AuxQueryResponse": Models.AuxQueryResponse;
       "AuxGetRequest": Models.AuxGetRequest;
       "AuxObjectResponse": Models.AuxObjectResponse;
+      "AuxCreatableEntity": Models.AuxCreatableEntity;
       "AuxCreateData": Models.AuxCreateData;
       "AuxCreateRequest": Models.AuxCreateRequest;
       "AuxMutationResult": Models.AuxMutationResult;

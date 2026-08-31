@@ -312,6 +312,30 @@ WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type)
     OR name ILIKE '%' || sqlc.narg(search) || '%'
   );
 
+-- name: EnsureEnterpriseNameSystemParameter :exec
+INSERT INTO app_system_parameters (
+    parameter_key,
+    name,
+    description,
+    value_type,
+    configured_value,
+    default_value,
+    editable,
+    revision,
+    constraints
+) VALUES (
+    'app.enterprise-name',
+    '企业名称',
+    '登录页和登录后顶栏显示的当前使用单位名称',
+    'STRING',
+    'ZERP 演示企业',
+    'ZERP 演示企业',
+    true,
+    1,
+    '{"required":true,"minLength":1,"maxLength":128,"minimum":null,"maximum":null,"allowedValues":[]}'::jsonb
+)
+ON CONFLICT (parameter_key) DO NOTHING;
+
 -- name: ListAppSystemParameters :many
 SELECT *
 FROM app_system_parameters

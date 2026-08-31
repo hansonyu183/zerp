@@ -1,5 +1,9 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
-import { apiClient, type AuxApiEntity } from '@/api/client'
+import {
+  apiClient,
+  type AuxApiEntity,
+  type AuxCreatableApiEntity,
+} from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import type { BusinessObjectField } from '@/components/business-object'
@@ -41,6 +45,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   const referenceLoading = reactive<Record<string, boolean>>({})
   const referenceSequences = new Map<string, number>()
   const referenceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  let querySequence = 0
 
   const canCreate = computed(() => session.can(`/aux/${config.entity}/create`))
   const canSave = computed(() => session.can(`/aux/${config.entity}/save`))
@@ -83,21 +88,25 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     })),
   ])
 
-  const path = <
-    Action extends
-      | 'query'
-      | 'create'
-      | 'save'
-      | 'enable'
-      | 'disable'
-      | 'delete',
-  >(
+  const path = <Action extends 'query' | 'save' | 'enable' | 'disable'>(
     action: Action,
   ): `aux/${AuxApiEntity}/${Action}` => `aux/${config.entity}/${action}`
 
+  function creatablePath<Action extends 'create' | 'delete'>(
+    action: Action,
+  ): `aux/${AuxCreatableApiEntity}/${Action}` {
+    if (config.entity === 'settlement-method') {
+      throw new Error('结算方式不支持创建或删除。')
+    }
+    return `aux/${config.entity}/${action}`
+  }
+
   async function query(): Promise<void> {
+    const sequence = ++querySequence
     loading.value = true
     errorMessage.value = null
+    rows.value = []
+    total.value = 0
     try {
       const requestFilters: Record<string, unknown> = {}
       if (keyword.value.trim()) requestFilters.keyword = keyword.value.trim()
@@ -112,12 +121,14 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
         filters: requestFilters,
         sort: [{ ...sort.value }],
       })
+      if (sequence !== querySequence) return
       rows.value = result.data.items
       total.value = result.data.total
     } catch (error) {
+      if (sequence !== querySequence) return
       errorMessage.value = getErrorMessage(error)
     } finally {
-      loading.value = false
+      if (sequence === querySequence) loading.value = false
     }
   }
 
@@ -316,7 +327,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
           data,
         })
       } else {
-        await apiClient.postContract(path('create'), {
+        await apiClient.postContract(creatablePath('create'), {
           data: { ...data, name: String(value.name ?? '') },
         })
       }
@@ -347,7 +358,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     if (!canDelete.value) return
     errorMessage.value = null
     try {
-      await apiClient.postContract(path('delete'), {
+      await apiClient.postContract(creatablePath('delete'), {
         objectId: row.objectId,
         objectRevision: row.objectRevision,
       })

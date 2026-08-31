@@ -179,6 +179,9 @@ func (s *SupplierService) Create(ctx context.Context, in SupplierCreateInput, ac
 	if in.NewParty != nil {
 		party, err = s.parties.CreateForRelationship(ctx, tx, *in.NewParty, actor, false)
 	} else {
+		if err = rejectActiveRelationshipDuplicate(ctx, tx, EntitySupplier, in.PartyID, in.OperatingEntityID); err != nil {
+			return SupplierMutation{}, translateError(err)
+		}
 		party, err = resolveExistingPartyForRelationship(ctx, tx, s.partyReader, in.PartyID)
 	}
 	if err != nil {

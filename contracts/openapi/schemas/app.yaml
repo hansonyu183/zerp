@@ -915,6 +915,36 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'BrandingView':
+    {
+      'type': 'object',
+      'required': ['enterpriseName'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'enterpriseName':
+            { 'type': 'string', 'minLength': 1, 'maxLength': 128 },
+        },
+    },
+  'BrandingResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/BrandingView' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'MenuMode': { 'type': 'string', 'enum': ['DEFAULT', 'BUSINESS'] },
   'MenuItemType': { 'type': 'string', 'enum': ['GROUP', 'ROUTE'] },
   'MenuItemView':

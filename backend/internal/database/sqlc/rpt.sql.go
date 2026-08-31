@@ -290,6 +290,68 @@ func (q *Queries) RptListBOBReferences(ctx context.Context, arg RptListBOBRefere
 	return items, nil
 }
 
+const rptListBillOriginPartyReferences = `-- name: RptListBillOriginPartyReferences :many
+WITH parties AS (
+  SELECT DISTINCT ON (origin_party_object_id)
+    origin_party_object_id AS id,
+    COALESCE(origin_party_code, '')::text AS code,
+    COALESCE(origin_party_name, '')::text AS name
+  FROM acc_bills
+  WHERE origin_party_object_id IS NOT NULL
+  ORDER BY origin_party_object_id, id
+)
+SELECT id, code, name, count(*) OVER() AS total
+FROM parties
+WHERE $1::text = '' OR id = $1
+  OR code ILIKE '%' || $2 || '%' OR name ILIKE '%' || $2 || '%'
+ORDER BY (id = $1 AND $1::text <> '') DESC, code, id
+OFFSET $3 LIMIT $4
+`
+
+type RptListBillOriginPartyReferencesParams struct {
+	SelectedID string  `db:"selected_id" json:"selected_id"`
+	Keyword    *string `db:"keyword" json:"keyword"`
+	RowOffset  int32   `db:"row_offset" json:"row_offset"`
+	RowLimit   int32   `db:"row_limit" json:"row_limit"`
+}
+
+type RptListBillOriginPartyReferencesRow struct {
+	ID    *string `db:"id" json:"id"`
+	Code  string  `db:"code" json:"code"`
+	Name  string  `db:"name" json:"name"`
+	Total int64   `db:"total" json:"total"`
+}
+
+func (q *Queries) RptListBillOriginPartyReferences(ctx context.Context, arg RptListBillOriginPartyReferencesParams) ([]RptListBillOriginPartyReferencesRow, error) {
+	rows, err := q.db.Query(ctx, rptListBillOriginPartyReferences,
+		arg.SelectedID,
+		arg.Keyword,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RptListBillOriginPartyReferencesRow{}
+	for rows.Next() {
+		var i RptListBillOriginPartyReferencesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const rptListBillReferences = `-- name: RptListBillReferences :many
 SELECT id, bill_no AS code, bill_no AS name, count(*) OVER() AS total FROM acc_bills
 WHERE ($1::text = '' OR id = $1 OR bill_no ILIKE '%' || $2 || '%')

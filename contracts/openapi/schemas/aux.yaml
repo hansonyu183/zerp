@@ -14,6 +14,22 @@ AuxEntity:
     - income-expense-type
     - asset-category
 
+AuxCreatableEntity:
+  type: string
+  description: 可创建和删除的 AUX 实体；固定结算方式不在此集合。
+  enum:
+    - product-category
+    - product-type
+    - employee-category
+    - department
+    - position
+    - payment-method
+    - dictionary-type
+    - dictionary-item
+    - measurement-unit
+    - income-expense-type
+    - asset-category
+
 # Other AUX entities retain their existing entity-specific JSON object shapes.
 # Settlement and payment methods below are closed and validated by the AUX
 # service according to the path entity.

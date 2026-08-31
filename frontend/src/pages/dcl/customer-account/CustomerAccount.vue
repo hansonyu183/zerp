@@ -159,11 +159,15 @@ void vm.query()
       @update:page="vm.changePage"
     >
       <template #filters>
-        <v-text-field
-          v-model="vm.customerRelationshipId"
+        <v-autocomplete
+          v-model="vm.customerRelationshipFilterId"
           clearable
-          label="客户关系 ID（新建时必填）"
+          :error-messages="vm.customerRelationshipError ?? undefined"
+          :items="vm.customerRelationshipOptions"
+          label="客户关系"
+          :loading="vm.customerRelationshipLoading"
           variant="outlined"
+          @update:search="vm.searchCustomerRelationships"
         />
       </template>
       <template #actions="{ row }">
@@ -192,9 +196,24 @@ void vm.query()
       "
     >
       <v-card-text>
+        <v-autocomplete
+          v-if="vm.editorMode === 'create'"
+          v-model="vm.customerRelationshipId"
+          clearable
+          :error-messages="vm.customerRelationshipError ?? undefined"
+          :items="vm.customerRelationshipOptions"
+          label="客户关系"
+          :loading="vm.customerRelationshipLoading"
+          required
+          @update:search="vm.searchCustomerRelationships"
+        />
         <CustomerAccountFields
           v-if="vm.editorMode !== 'view'"
           v-model="vm.editorForm"
+          :reference-error="vm.referenceError"
+          :reference-loading="vm.referenceLoading"
+          :reference-options="vm.referenceOptions"
+          @search-reference="vm.searchReference"
         />
         <v-list v-else-if="vm.currentView" density="compact">
           <v-list-item title="账户名称" :subtitle="vm.currentView.data.name" />

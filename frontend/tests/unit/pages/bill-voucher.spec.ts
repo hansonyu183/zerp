@@ -816,6 +816,127 @@ describe('bill voucher view model behavior', () => {
     scope.stop()
   })
 
+  it('preloads customer and handler references when opening bill-receipt create', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-receipt/create',
+        '/bob/customer-account/query',
+        '/bob/employee/query',
+      ],
+    })
+    mockedPost.mockImplementation(async (path: string, body: unknown) => {
+      if (path === 'bob/reference/query') {
+        const request = body as { entity: 'customer-account' | 'employee' }
+        if (request.entity === 'customer-account') {
+          return {
+            data: [
+              {
+                objectId: 'customer-a',
+                approvalEntryId: 'customer-ver',
+                code: 'CUS-001',
+                name: '客户 A',
+              },
+            ],
+          } as never
+        }
+        return {
+          data: [
+            {
+              objectId: 'employee-a',
+              approvalEntryId: 'employee-ver',
+              code: 'EMP-001',
+              name: '经办人 A',
+            },
+          ],
+        } as never
+      }
+      return {
+        data: {
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: 20,
+        },
+      } as never
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-receipt']),
+    )!
+
+    vm.openCreate()
+    await vi.waitFor(() => expect(vm.customerOptions.value).toHaveLength(1))
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/reference/query',
+      { entity: 'customer-account' },
+      expect.anything(),
+    )
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/reference/query',
+      { entity: 'employee' },
+      expect.anything(),
+    )
+    expect(vm.customerOptions.value).toEqual([
+      {
+        objectId: 'customer-a',
+        approvalEntryId: 'customer-ver',
+        code: 'CUS-001',
+        name: '客户 A',
+        entity: 'customer-account',
+      },
+    ])
+    expect(vm.handlerOptions.value).toEqual([
+      {
+        objectId: 'employee-a',
+        approvalEntryId: 'employee-ver',
+        code: 'EMP-001',
+        name: '经办人 A',
+        entity: 'employee',
+      },
+    ])
+    expect(vm.errorMessage.value).toBeNull()
+    scope.stop()
+  })
+
+  it('keeps empty bill create preload results as empty without introducing errors', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-receipt/create',
+        '/bob/customer-account/query',
+        '/bob/employee/query',
+      ],
+    })
+    mockedPost.mockImplementation(async (path: string) => {
+      if (path === 'bob/reference/query') return { data: [] } as never
+      return {
+        data: {
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: 20,
+        },
+      } as never
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-receipt']),
+    )!
+
+    vm.openCreate()
+    await vi.waitFor(() => {
+      expect(vm.customerOptions.value).toHaveLength(0)
+      expect(vm.handlerOptions.value).toHaveLength(0)
+    })
+
+    expect(vm.customerOptions.value).toEqual([])
+    expect(vm.handlerOptions.value).toEqual([])
+    expect(vm.errorMessage.value).toBeNull()
+    scope.stop()
+  })
+
   it('restores bill payment queries and sends contract-valid unsubmit requests', async () => {
     const session = useSessionStore()
     session.$patch({

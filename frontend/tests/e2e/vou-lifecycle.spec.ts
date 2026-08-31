@@ -196,6 +196,27 @@ test('票据收入批准后进入真实票据台账', async ({ page, workerState
   await approveCurrentDraft(page, workspace, workerState, 'bill-receipt')
 })
 
+test('资产购置打开新增即加载已批准供应商候选', async ({
+  page,
+  workerState,
+}) => {
+  test.skip(
+    test.info().project.name === 'mobile-chromium',
+    '引用主动加载由桌面真实数据链路覆盖。',
+  )
+  const fixture = vouFixture(workerState)
+  await signIn(page)
+  await page.goto('/vou/asset-acquisition')
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const supplier = page
+    .locator('.voucher-workspace')
+    .getByRole('combobox', { name: '普通供应商' })
+  await supplier.click()
+  await expect(
+    page.getByRole('option').filter({ hasText: fixture.supplier }).first(),
+  ).toBeVisible({ timeout: 15_000 })
+})
+
 async function verifyEmployeeLoanLifecycle(
   page: Page,
   workerState: WflWorkerState,
@@ -348,6 +369,20 @@ test(
     await page.getByRole('button', { name: '撤回提交', exact: true }).click()
     await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
 
+    // Re-enter from the list's authoritative read before exercising the
+    // attachment action. Lifecycle completion also refreshes workbench/audit
+    // data in the background, so keeping the pre-transition component instance
+    // here can make the remove affordance race those independent reads in CI.
+    await page.reload()
+    await page
+      .getByRole('textbox', { name: '单号或往来方关键字' })
+      .fill(documentNo!)
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    const draftRow = page.locator('tbody tr').filter({ hasText: documentNo! })
+    await expect(draftRow).toContainText('草稿')
+    await draftRow.getByLabel(`编辑 ${documentNo}`).click()
+    await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
+
     await page.getByRole('tab', { name: '审计' }).click()
     await expect(
       workspace.getByText('反批准', { exact: true }).first(),
@@ -356,6 +391,9 @@ test(
       workspace.getByText('撤回提交', { exact: true }).first(),
     ).toBeVisible()
     await page.getByRole('tab', { name: '附件' }).click()
+    await expect(
+      workspace.getByText('vou-e2e.pdf', { exact: true }),
+    ).toBeVisible()
     await page.getByLabel('移除 vou-e2e.pdf').click()
     await expect(workspace.getByText('暂无附件')).toBeVisible()
   },

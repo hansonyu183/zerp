@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
@@ -20,6 +20,16 @@ import {
   type DclCustomerListItem,
   type DclCustomerView,
 } from './data'
+import {
+  queryCustomerAccountReference,
+  queryOperatingEntityReferences,
+  queryPartyReferences,
+  type CustomerAccountReferenceKey,
+  type CustomerReferenceOption,
+} from '../customer-account/references'
+
+type CustomerReferenceKey =
+  'partyId' | 'operatingEntityId' | CustomerAccountReferenceKey
 
 export function customerActiveVersion(row: DclCustomerListItem) {
   const version = row.openVersion ?? row.latestApproved
@@ -62,7 +72,47 @@ export function useDclCustomerViewModel() {
   const versionsOpen = ref(false)
   const auditOpen = ref(false)
   const createForm = ref(createCustomerForm())
-  const canCreate = computed(() => session.can('/dcl/customer/create'))
+  const referenceOptions = ref<
+    Record<CustomerReferenceKey, CustomerReferenceOption[]>
+  >({
+    partyId: [],
+    operatingEntityId: [],
+    customerTypeId: [],
+    settlementMethodId: [],
+    paymentMethodId: [],
+    primarySalesAttributionSubjectObjectId: [],
+  })
+  const referenceLoading = ref<Record<CustomerReferenceKey, boolean>>({
+    partyId: false,
+    operatingEntityId: false,
+    customerTypeId: false,
+    settlementMethodId: false,
+    paymentMethodId: false,
+    primarySalesAttributionSubjectObjectId: false,
+  })
+  const referenceError = ref<Record<CustomerReferenceKey, string | null>>({
+    partyId: null,
+    operatingEntityId: null,
+    customerTypeId: null,
+    settlementMethodId: null,
+    paymentMethodId: null,
+    primarySalesAttributionSubjectObjectId: null,
+  })
+  const referenceSequences = new Map<CustomerReferenceKey, number>()
+  const referenceTimers = new Map<
+    CustomerReferenceKey,
+    ReturnType<typeof setTimeout>
+  >()
+  const canQueryReferences = computed(
+    () =>
+      session.can('/bob/party/query') &&
+      session.can('/bob/operating-entity/query') &&
+      session.can('/aux/reference/query') &&
+      session.can('/bob/reference/query'),
+  )
+  const canCreate = computed(
+    () => session.can('/dcl/customer/create') && canQueryReferences.value,
+  )
   const { actionAvailability } = useDclDeclarationActionAvailability(
     'customer',
     (row: Readonly<DclCustomerListItem>) => {
@@ -98,6 +148,87 @@ export function useDclCustomerViewModel() {
       loading.value = false
     }
   }
+  function selectedReferenceValue(key: CustomerReferenceKey): string {
+    if (key === 'partyId' || key === 'operatingEntityId')
+      return createForm.value[key]
+    return key === 'primarySalesAttributionSubjectObjectId'
+      ? createForm.value.defaultAccount.primarySalesAttribution.subjectObjectId
+      : createForm.value.defaultAccount[key]
+  }
+  function mergeSelectedReference(
+    key: CustomerReferenceKey,
+    options: CustomerReferenceOption[],
+  ): void {
+    const selected = selectedReferenceValue(key)
+    const existing = referenceOptions.value[key].filter(
+      (option) => option.value === selected,
+    )
+    referenceOptions.value[key] = [...options, ...existing].filter(
+      (option, index, all) =>
+        all.findIndex((candidate) => candidate.value === option.value) ===
+        index,
+    )
+    if (
+      selected &&
+      !referenceOptions.value[key].some((option) => option.value === selected)
+    )
+      referenceOptions.value[key].push({ value: selected, title: selected })
+  }
+  async function loadReference(
+    key: CustomerReferenceKey,
+    keyword = '',
+  ): Promise<void> {
+    if (!canQueryReferences.value) return
+    const sequence = (referenceSequences.get(key) ?? 0) + 1
+    referenceSequences.set(key, sequence)
+    referenceLoading.value[key] = true
+    referenceError.value[key] = null
+    try {
+      const options =
+        key === 'partyId'
+          ? await queryPartyReferences(keyword.trim())
+          : key === 'operatingEntityId'
+            ? await queryOperatingEntityReferences(keyword.trim())
+            : await queryCustomerAccountReference(
+                key,
+                keyword.trim(),
+                createForm.value.defaultAccount.primarySalesAttribution.type,
+              )
+      if (referenceSequences.get(key) === sequence)
+        mergeSelectedReference(key, options)
+    } catch (error) {
+      if (referenceSequences.get(key) === sequence)
+        referenceError.value[key] = getErrorMessage(error)
+    } finally {
+      if (referenceSequences.get(key) === sequence)
+        referenceLoading.value[key] = false
+    }
+  }
+  function preloadReferences(): void {
+    for (const key of Object.keys(
+      referenceOptions.value,
+    ) as CustomerReferenceKey[])
+      void loadReference(key)
+  }
+  function searchReference(key: CustomerReferenceKey, keyword: string): void {
+    const previous = referenceTimers.get(key)
+    if (previous) clearTimeout(previous)
+    referenceTimers.set(
+      key,
+      setTimeout(() => {
+        referenceTimers.delete(key)
+        void loadReference(key, keyword)
+      }, 250),
+    )
+  }
+  if (getCurrentScope())
+    onScopeDispose(() => {
+      for (const key of Object.keys(
+        referenceOptions.value,
+      ) as CustomerReferenceKey[])
+        referenceSequences.set(key, (referenceSequences.get(key) ?? 0) + 1)
+      for (const timer of referenceTimers.values()) clearTimeout(timer)
+    })
   async function search() {
     page.value = 1
     await query()
@@ -115,10 +246,16 @@ export function useDclCustomerViewModel() {
     }
   }
   function openCreate() {
+    if (!canCreate.value) return
     createForm.value = createCustomerForm()
     createOpen.value = true
+    preloadReferences()
   }
   async function create() {
+    if (!canCreate.value) {
+      errorMessage.value = '缺少创建客户关系所需的引用查询权限。'
+      return false
+    }
     const accountErrors = customerAccountFormErrors(
       createForm.value.defaultAccount,
     )
@@ -231,6 +368,9 @@ export function useDclCustomerViewModel() {
     versionsOpen,
     auditOpen,
     createForm,
+    referenceOptions,
+    referenceLoading,
+    referenceError,
     canCreate,
     actionAvailability,
     query,
@@ -244,5 +384,6 @@ export function useDclCustomerViewModel() {
     remove,
     openVersions,
     openAudit,
+    searchReference,
   }
 }

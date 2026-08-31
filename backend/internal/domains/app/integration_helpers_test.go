@@ -60,6 +60,14 @@ func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 			app_user_roles, app_role_permissions, app_roles, app_users,
 			app_role_code_counters CASCADE;
 		INSERT INTO app_role_code_counters(counter_key, next_value) VALUES ('default', 0);
+		INSERT INTO app_system_parameters (
+			parameter_key, name, description, value_type, configured_value,
+			default_value, editable, revision, constraints
+		) VALUES (
+			'app.enterprise-name', '企业名称', '登录页和登录后顶栏显示的当前使用单位名称',
+			'STRING', 'ZERP 演示企业', 'ZERP 演示企业', true, 1,
+			'{"required":true,"minLength":1,"maxLength":128,"minimum":null,"maximum":null,"allowedValues":[]}'
+		);
 		UPDATE app_permissions SET status = 'ENABLED', revision = 1, updated_at = now(), updated_by = NULL;
 	`)
 	if err != nil {

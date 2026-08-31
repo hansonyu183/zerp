@@ -16,6 +16,7 @@ import {
   productFormulaFromPayload,
   type ProductFormulaDraft,
 } from '../product/product-formula-data'
+import { useDetailDrawerFocus } from './detail-focus'
 
 type ProductUnitConversionDraft = {
   unit: {
@@ -37,6 +38,9 @@ const formulaModel = ref<ProductFormulaDraft | null>(null)
 const formulaProductName = ref('')
 const formulaUnitConversions = ref<ProductUnitConversionDraft[]>([])
 const formulaDefaultInputUnitId = ref('')
+const { rememberTrigger, setDrawerContent } = useDetailDrawerFocus(
+  props.model.drawerOpen,
+)
 
 void vm.query()
 
@@ -66,6 +70,11 @@ function rowActions(row: BobListItem): ListRowAction[] {
       icon: 'mdi-eye-outline',
     },
   ]
+}
+
+function openView(row: BobListItem): void {
+  rememberTrigger()
+  void vm.openView(row)
 }
 
 function openFormula(
@@ -165,7 +174,7 @@ function openFormula(
           :actions="rowActions(row)"
           :label="`操作 ${row.code}`"
           :more-label="`更多操作 ${row.code}`"
-          @select="vm.openView(row)"
+          @select="openView(row)"
         />
       </template>
     </BusinessObjectList>
@@ -178,7 +187,7 @@ function openFormula(
     temporary
     width="720"
   >
-    <div class="bob-entity-drawer__content">
+    <div :ref="setDrawerContent" class="bob-entity-drawer__content">
       <BusinessObjectEditor
         :editable="false"
         :editing="false"
@@ -192,7 +201,9 @@ function openFormula(
         @reference-search="vm.searchEditorReference"
       >
         <template #actions>
-          <v-btn variant="text" @click="vm.closeEditor">关闭</v-btn>
+          <v-btn data-detail-drawer-close variant="text" @click="vm.closeEditor"
+            >关闭</v-btn
+          >
         </template>
         <template #display-unitConversions="{ record, value }">
           <ProductUnitConversionsEditor

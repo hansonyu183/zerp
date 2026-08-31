@@ -164,6 +164,24 @@ func TestRPTExecutionPaginationIntegration(t *testing.T) {
 	_ = approved
 }
 
+func TestRPTBuiltInBillsOriginPartyReferenceIntegration(t *testing.T) {
+	pool := rptIntegrationPool(t)
+	service, err := NewService(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := service.QueryReferences(t.Context(), "bills", ReferenceQueryInput{
+		ParameterKey: "partyId",
+		Keyword:      "",
+	})
+	if err != nil {
+		t.Fatalf("query built-in bills party reference: %v", err)
+	}
+	if page.Page != 1 || page.PageSize != 20 {
+		t.Fatalf("reference page = %d size = %d", page.Page, page.PageSize)
+	}
+}
+
 func TestRPTStructuralErrorInvalidatesVersionAndDisablesPermissionsIntegration(t *testing.T) {
 	pool := rptIntegrationPool(t)
 	service, err := newRPTExecutionService(t, pool)

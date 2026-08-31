@@ -8,6 +8,7 @@ const {
   exporting,
   exportReport,
   formatResultValue,
+  loadDefinitions,
   loadReference,
   loading,
   notice,
@@ -32,13 +33,13 @@ const {
 <template>
   <v-container class="pa-4" fluid>
     <h1 class="text-h5 mb-4">{{ selected?.name || '报表' }}</h1>
-    <v-alert
-      v-if="errorMessage"
-      type="error"
-      class="mb-3"
-      closable
-      @click:close="errorMessage = ''"
-      >{{ errorMessage }}</v-alert
+    <v-alert v-if="errorMessage" type="error" class="mb-3"
+      >{{ errorMessage }}
+      <template v-if="!selected" #append>
+        <v-btn size="small" variant="text" @click="loadDefinitions()">
+          重新加载
+        </v-btn>
+      </template></v-alert
     >
     <v-alert
       v-if="notice"
@@ -48,6 +49,10 @@ const {
       @click:close="notice = ''"
       >{{ notice }}</v-alert
     >
+    <v-card v-if="loading && !selected" max-width="1100" class="pa-6">
+      <v-progress-linear indeterminate color="primary" />
+      <div class="text-body-2 text-medium-emphasis mt-3">正在加载报表定义…</div>
+    </v-card>
     <v-card v-if="selected" max-width="1100">
       <v-card-subtitle
         >{{ selected.code }} · {{ selected.description }}</v-card-subtitle
@@ -96,6 +101,16 @@ const {
               @focus="loadReference(parameter)"
               @update:search="loadReference(parameter, $event ?? '')"
             />
+            <v-btn
+              v-if="
+                parameter.type === 'REFERENCE' && referenceErrors[parameter.key]
+              "
+              class="mt-1"
+              size="small"
+              variant="text"
+              @click="loadReference(parameter)"
+              >重新加载引用</v-btn
+            >
             <div
               v-else-if="parameter.type === 'DATE_RANGE'"
               class="d-flex ga-2"

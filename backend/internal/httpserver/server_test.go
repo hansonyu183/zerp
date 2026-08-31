@@ -71,7 +71,7 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-func TestNewFailsWhenMenuRouteSynchronizationFails(t *testing.T) {
+func TestNewFailsWhenSystemParameterSynchronizationFails(t *testing.T) {
 	pool, err := pgxpool.New(t.Context(), "postgres://test:test@127.0.0.1:1/zerp_test?connect_timeout=1")
 	if err != nil {
 		t.Fatalf("create closed database pool: %v", err)
@@ -80,8 +80,8 @@ func TestNewFailsWhenMenuRouteSynchronizationFails(t *testing.T) {
 	cfg := testConfig()
 	cfg.AttachmentStorageRoot = t.TempDir()
 
-	if _, err = New(t.Context(), cfg, pool, testLogger()); err == nil || !strings.Contains(err.Error(), "synchronize menu routes") {
-		t.Fatalf("startup error = %v, want menu route synchronization failure", err)
+	if _, err = New(t.Context(), cfg, pool, testLogger()); err == nil || !strings.Contains(err.Error(), "synchronize system parameters") {
+		t.Fatalf("startup error = %v, want system parameter synchronization failure", err)
 	}
 }
 
@@ -277,7 +277,8 @@ func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
 		t.Fatalf("load OpenAPI contract: %v", err)
 	}
 	public := map[string]bool{
-		"POST /app/user/signin": true,
+		"POST /app/user/signin":  true,
+		"POST /app/branding/get": true,
 	}
 	cookieOnly := map[string]bool{"POST /app/user/session": true}
 	for contractPath, pathItem := range swagger.Paths.Map() {

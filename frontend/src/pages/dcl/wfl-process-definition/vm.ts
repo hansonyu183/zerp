@@ -288,6 +288,15 @@ export function createDclWflProcessDefinitionViewModel() {
   }
 
   async function save(): Promise<void> {
+    if (!scriptText.value.trim()) {
+      scriptDiagnostic.value = {
+        message: '请输入流程定义脚本。',
+        line: 1,
+        column: 1,
+      }
+      errorMessage.value = '流程定义脚本不能为空。'
+      return
+    }
     saving.value = true
     errorMessage.value = null
     scriptDiagnostic.value = null

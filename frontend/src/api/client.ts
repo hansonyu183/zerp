@@ -14,12 +14,15 @@ type ContractPostPath = {
   string
 export type BobApiEntity = components['schemas']['BobEntity']
 export type AuxApiEntity = components['schemas']['AuxEntity']
+export type AuxCreatableApiEntity = components['schemas']['AuxCreatableEntity']
 export type VouApiEntity = components['schemas']['VouEntity']
 type ConcretePostPath<Path extends string> =
   Path extends `/bob/{entity}/${infer Action}`
     ? `bob/${BobApiEntity}/${Action}`
     : Path extends `/aux/{entity}/${infer Action}`
-      ? `aux/${AuxApiEntity}/${Action}`
+      ? Action extends 'create' | 'delete'
+        ? `aux/${AuxCreatableApiEntity}/${Action}`
+        : `aux/${AuxApiEntity}/${Action}`
       : Path extends `/vou/{entity}/${infer Action}`
         ? `vou/${VouApiEntity}/${Action}`
         : Path extends `/rpt/{report}/${infer Action}`

@@ -18,6 +18,23 @@ SELECT id, bill_no AS code, bill_no AS name, count(*) OVER() AS total FROM acc_b
 WHERE (sqlc.arg(selected_id)::text = '' OR id = sqlc.arg(selected_id) OR bill_no ILIKE '%' || sqlc.arg(keyword) || '%')
 ORDER BY (id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, bill_no OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 
+-- name: RptListBillOriginPartyReferences :many
+WITH parties AS (
+  SELECT DISTINCT ON (origin_party_object_id)
+    origin_party_object_id AS id,
+    COALESCE(origin_party_code, '')::text AS code,
+    COALESCE(origin_party_name, '')::text AS name
+  FROM acc_bills
+  WHERE origin_party_object_id IS NOT NULL
+  ORDER BY origin_party_object_id, id
+)
+SELECT id, code, name, count(*) OVER() AS total
+FROM parties
+WHERE sqlc.arg(selected_id)::text = '' OR id = sqlc.arg(selected_id)
+  OR code ILIKE '%' || sqlc.arg(keyword) || '%' OR name ILIKE '%' || sqlc.arg(keyword) || '%'
+ORDER BY (id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, code, id
+OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
+
 -- name: RptListBOBReferences :many
 WITH current_references AS (
   SELECT subject.id, subject.code AS code, subject.code AS name

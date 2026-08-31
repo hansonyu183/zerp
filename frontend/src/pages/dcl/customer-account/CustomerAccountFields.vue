@@ -1,22 +1,23 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { apiClient } from '@/api/client'
 import type { CustomerAccountForm } from './types'
 import { salesAttributionLabels } from './types'
+import type {
+  CustomerAccountReferenceKey,
+  CustomerReferenceOption,
+} from './references'
 
 const model = defineModel<CustomerAccountForm>({ required: true })
-const customerTypeOptions = ref<readonly { title: string; value: string }[]>([])
-
-onMounted(async () => {
-  const { data } = await apiClient.postContract('aux/reference/query', {
-    entity: 'dictionary-item',
-    dictionaryTypeCode: 'DCT-0001',
-  })
-  customerTypeOptions.value = data.map((item) => ({
-    title: `${item.code} · ${item.name}`,
-    value: item.objectId,
-  }))
-})
+const props = defineProps<{
+  referenceOptions: Record<
+    CustomerAccountReferenceKey,
+    CustomerReferenceOption[]
+  >
+  referenceLoading: Record<CustomerAccountReferenceKey, boolean>
+  referenceError: Record<CustomerAccountReferenceKey, string | null>
+}>()
+const emit = defineEmits<{
+  searchReference: [key: CustomerAccountReferenceKey, keyword: string]
+}>()
 
 function addCost(): void {
   model.value.pricingPolicy.costItems.push({
@@ -24,6 +25,11 @@ function addCost(): void {
     basis: 'UNIT_PRICE',
     unitPrice: '0.01',
   })
+}
+
+function changeSalesAttributionType(): void {
+  model.value.primarySalesAttribution.subjectObjectId = ''
+  emit('searchReference', 'primarySalesAttributionSubjectObjectId', '')
 }
 </script>
 
@@ -36,11 +42,14 @@ function addCost(): void {
       ><v-text-field v-model="model.shortName" label="账户简称"
     /></v-col>
     <v-col cols="12" md="6"
-      ><v-select
+      ><v-autocomplete
         v-model="model.customerTypeId"
-        :items="customerTypeOptions"
+        :error-messages="props.referenceError.customerTypeId ?? undefined"
+        :items="props.referenceOptions.customerTypeId"
         label="客户类型"
+        :loading="props.referenceLoading.customerTypeId"
         required
+        @update:search="emit('searchReference', 'customerTypeId', $event)"
     /></v-col>
     <v-col cols="12" md="6"
       ><v-text-field v-model="model.contactName" label="联系人"
@@ -55,10 +64,24 @@ function addCost(): void {
       ><v-text-field v-model="model.address" label="地址"
     /></v-col>
     <v-col cols="12" md="6"
-      ><v-text-field v-model="model.settlementMethodId" label="结算方式 ID"
+      ><v-autocomplete
+        v-model="model.settlementMethodId"
+        clearable
+        :error-messages="props.referenceError.settlementMethodId ?? undefined"
+        :items="props.referenceOptions.settlementMethodId"
+        label="结算方式"
+        :loading="props.referenceLoading.settlementMethodId"
+        @update:search="emit('searchReference', 'settlementMethodId', $event)"
     /></v-col>
     <v-col cols="12" md="6"
-      ><v-text-field v-model="model.paymentMethodId" label="收款方式 ID"
+      ><v-autocomplete
+        v-model="model.paymentMethodId"
+        clearable
+        :error-messages="props.referenceError.paymentMethodId ?? undefined"
+        :items="props.referenceOptions.paymentMethodId"
+        label="收款方式"
+        :loading="props.referenceLoading.paymentMethodId"
+        @update:search="emit('searchReference', 'paymentMethodId', $event)"
     /></v-col>
     <v-col cols="12" md="6"
       ><v-text-field
@@ -157,12 +180,26 @@ function addCost(): void {
           }))
         "
         label="主要业务归属类型"
+        @update:model-value="changeSalesAttributionType"
     /></v-col>
     <v-col cols="12" md="4"
-      ><v-text-field
+      ><v-autocomplete
         v-model="model.primarySalesAttribution.subjectObjectId"
-        label="业务归属对象 ID"
+        :error-messages="
+          props.referenceError.primarySalesAttributionSubjectObjectId ??
+          undefined
+        "
+        :items="props.referenceOptions.primarySalesAttributionSubjectObjectId"
+        label="主要业务归属"
+        :loading="props.referenceLoading.primarySalesAttributionSubjectObjectId"
         required
+        @update:search="
+          emit(
+            'searchReference',
+            'primarySalesAttributionSubjectObjectId',
+            $event,
+          )
+        "
     /></v-col>
     <v-col cols="12"
       ><v-textarea v-model="model.internalReminder" label="内部提醒"

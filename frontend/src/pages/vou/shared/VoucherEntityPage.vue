@@ -261,6 +261,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       type="success"
       @dismiss="vm.successMessage = null"
     />
+    <v-alert v-if="vm.errorMessage" class="mb-4" type="error" variant="tonal">
+      <div>{{ vm.errorMessage }}</div>
+      <template #append>
+        <v-btn :loading="vm.loading" variant="text" @click="vm.query">
+          重试
+        </v-btn>
+      </template>
+    </v-alert>
     <VoucherList
       :action-loading="vm.actionLoading"
       :can-edit="vm.canEdit"

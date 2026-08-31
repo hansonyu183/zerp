@@ -252,6 +252,11 @@ _Authority_: [APP 菜单模板](docs/domains/app.md#39-菜单模板)
 
 ## Configuration
 
+**Enterprise Display Name（企业名称）**:
+当前 ZERP 使用单位在登录页和登录后顶栏显示的名称；它是 APP 系统参数，不代表 Party、经营主体或产品名。
+_Avoid_: 租户名称、Party 名称、经营主体名称、用企业名称替换产品名 ZERP
+_Authority_: [APP 系统参数](docs/domains/app.md#38-系统参数)
+
 **Configured Value（配置值）**:
 已登记系统参数当前持久化的目标值。
 _Avoid_: 当前值、已生效值

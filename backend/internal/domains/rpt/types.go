@@ -31,6 +31,7 @@ const (
 	ReferenceTypeFundAccount            ReferenceType = "FUND_ACCOUNT"
 	ReferenceTypeAsset                  ReferenceType = "ASSET"
 	ReferenceTypeBill                   ReferenceType = "BILL"
+	ReferenceTypeOtherParty             ReferenceType = "OTHER_PARTY"
 )
 
 type ResultType string

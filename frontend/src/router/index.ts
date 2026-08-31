@@ -116,9 +116,21 @@ export const router = createRouter({
 
 const session = useSessionStore(pinia)
 watchSessionMenuRoutes(router, session)
+function applyDocumentTitle(title: unknown): void {
+  const pageTitle = typeof title === 'string' ? title : ''
+  document.title = pageTitle ? `${pageTitle} · ZERP` : 'ZERP'
+}
+
+router.beforeEach((to) => {
+  applyDocumentTitle(to.meta.title)
+  return true
+})
 router.beforeEach(createSessionNavigationGuard(router, session))
 
 router.afterEach((to) => {
-  const title = typeof to.meta.title === 'string' ? to.meta.title : ''
-  document.title = title ? `${title} · ZERP` : 'ZERP'
+  applyDocumentTitle(to.meta.title)
+})
+
+window.addEventListener('pageshow', () => {
+  applyDocumentTitle(router.currentRoute.value.meta.title)
 })

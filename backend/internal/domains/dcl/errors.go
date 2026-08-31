@@ -2,9 +2,11 @@ package dcl
 
 import (
 	"errors"
+	"strings"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type ErrorKind int
@@ -62,6 +64,12 @@ func translateError(err error) error {
 			kind = ErrorConflict
 		}
 		return newError(kind, bobErr.ErrorKey, bobErr.Message, bobErr.Data, err)
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == "23505" && strings.Contains(pgErr.ConstraintName, "_active_party_operating_key") {
+			return newError(ErrorConflict, "relationship_exists", "DCL relationship already exists", nil, err)
+		}
 	}
 	return newError(ErrorInternal, "internal_error", "internal server error", nil, err)
 }

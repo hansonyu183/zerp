@@ -1,22 +1,19 @@
 import type { VoucherStatus } from './types'
+import {
+  approvalStatusOptions,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 
-export const voucherStatusLabels: Readonly<Record<VoucherStatus, string>> = {
-  DRAFT: '草稿',
-  PENDING: '待审核',
-  APPROVED: '已批准',
-}
+export const voucherStatusLabels: Readonly<Record<VoucherStatus, string>> =
+  Object.fromEntries(
+    Object.entries(approvalStatusPresentation).map(([status, value]) => [
+      status,
+      value.label,
+    ]),
+  ) as Record<VoucherStatus, string>
 
-export const voucherStatusOptions: readonly {
-  title: string
-  value: VoucherStatus
-}[] = Object.entries(voucherStatusLabels).map(([value, title]) => ({
-  title,
-  value: value as VoucherStatus,
-}))
+export const voucherStatusOptions = approvalStatusOptions
 
-export function formatVoucherStatus(
-  status: VoucherStatus,
-  overrides: Partial<Record<VoucherStatus, string>> = {},
-): string {
-  return overrides[status] ?? voucherStatusLabels[status]
+export function formatVoucherStatus(status: VoucherStatus): string {
+  return approvalStatusPresentation[status].label
 }

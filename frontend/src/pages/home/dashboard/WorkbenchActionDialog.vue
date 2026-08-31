@@ -17,13 +17,17 @@ const emit = defineEmits<{
 
 const needsComment = computed(() => props.action === 'reject')
 const title = computed(() => {
-  if (props.action === 'reject') return '驳回资料'
+  if (props.action === 'reject')
+    return props.target?.category === 'VOU' ? '驳回单据' : '驳回资料'
   return ''
 })
 const prompt = computed(() => {
   if (!props.target) return ''
   if (props.action === 'reject' && props.target.category === 'BOB') {
     return `请输入驳回 ${props.target.code} 的审核意见。`
+  }
+  if (props.action === 'reject' && props.target.category === 'VOU') {
+    return `请输入驳回 ${props.target.documentNo} 的原因。`
   }
   return ''
 })

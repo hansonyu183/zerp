@@ -65,6 +65,7 @@ function documentView(
     documentId: 'DOCUMENT-1',
     entity: config.entity,
     documentNo: 'DOC-1',
+    availableApprovalActions: ['submit'],
     approval: {
       status: 'DRAFT',
       revision: 1,
@@ -992,7 +993,9 @@ describe('shared VOU entity view model', () => {
     const vm = useVoucherEntityViewModel(config)
     expect(vm.canCreate.value).toBe(true)
     vm.openCreate()
-    await vi.waitFor(() => expect(vm.referenceOptions('customer')).toHaveLength(1))
+    await vi.waitFor(() =>
+      expect(vm.referenceOptions('customer')).toHaveLength(1),
+    )
 
     expect(mockedPost).toHaveBeenCalledWith(
       'bob/reference/query',
@@ -1099,7 +1102,9 @@ describe('shared VOU entity view model', () => {
 
     const vm = useVoucherEntityViewModel(config)
     vm.openCreate()
-    await vi.waitFor(() => expect(vm.referenceOptions('customer')).toHaveLength(0))
+    await vi.waitFor(() =>
+      expect(vm.referenceOptions('customer')).toHaveLength(0),
+    )
 
     expect(mockedPost).toHaveBeenCalledWith(
       'bob/reference/query',
@@ -1317,6 +1322,7 @@ describe('shared VOU entity view model', () => {
       amount: '10.00',
     })
     view.approval.status = 'PENDING'
+    view.availableApprovalActions = ['unsubmit', 'approve']
     useSessionStore().permissions = [
       '/vou/purchase-payment/get',
       '/vou/purchase-payment/approve',
@@ -1356,6 +1362,18 @@ describe('shared VOU entity view model', () => {
     })
   })
 
+  it('hydrates customer accounts as the customer form counterparty type', () => {
+    const config = voucherEntityConfigs['sales-receipt']
+    const currentForm = useVoucherEntityViewModel(config).form.value
+    populate(config, currentForm)
+    currentForm.counterparty = reference('customer-account')
+
+    expect(formFromDocument(documentView(config, currentForm))).toMatchObject({
+      counterpartyType: 'customer',
+      counterparty: { entity: 'customer-account' },
+    })
+  })
+
   it('rejects service acceptance payloads without a settlement direction', () => {
     const config = voucherEntityConfigs['service-acceptance']
     const form = useVoucherEntityViewModel(config).form.value
@@ -1381,6 +1399,7 @@ describe('shared VOU entity view model', () => {
       documentNo: 'SO-1',
       status: 'DRAFT' as const,
       revision: 3,
+      availableApprovalActions: ['submit'],
       businessDate: '2026-07-31',
       currency: 'CNY',
       amount: '10.00',
@@ -1419,7 +1438,7 @@ describe('shared VOU entity view model', () => {
       }),
       expect.any(Object),
     )
-    expect(vm.successMessage.value).toBe('SO-1 已提交审核。')
+    expect(vm.successMessage.value).toBe('SO-1 已提交。')
     expect(vm.actionLoading.value).toBeNull()
   })
 

@@ -203,7 +203,7 @@ test('标准采购脚本经编辑、试算和批准后支持手工重建下级 @
     response.url().endsWith('/vou/purchase-order/submit'),
   )
   await orderWorkspace
-    .getByRole('button', { name: '提交审核', exact: true })
+    .getByRole('button', { name: '提交', exact: true })
     .click()
   const submitOrderEnvelope = (await (
     await submitOrderResponsePromise

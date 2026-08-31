@@ -82,7 +82,7 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/SRC/SRF/PPY/PRF/ORC/OPY/ELN/
 
 ```text
 DRAFT --submit--> PENDING --approve--> APPROVED
-PENDING --unsubmit--> DRAFT
+PENDING --unsubmit/reject--> DRAFT
 APPROVED --unapprove--> PENDING
 ```
 
@@ -90,9 +90,10 @@ APPROVED --unapprove--> PENDING
 - `submit`、`approve` 由用户逐级前进；`APPROVED` 即为已审批并已入账。
 - 单据在批准时一次性完成业务生效和入账；预览、演示和测试数据均按当前模型建立。
 - `APPROVED` 是唯一终态，不另设完成状态，也不提供完成、重开或短结动作。
+- `reject` 只允许非当前提交人在 `PENDING` 状态执行，要求原因并回到 `DRAFT`；驳回后允许修改并重新提交。
 - `unapprove`、`unsubmit` 由用户逆向处理；`unapprove` 要求原因，`unsubmit` 不要求原因。有后续单据时必须先逆向处理后续单据。
 - 不提供提交、作废或更正单。草稿可携带原因删除，但有附件或下级单据时拒绝删除。
-- `APPROVED` 的批准人与当前提交人必须不同；每个动作同时校验中央 Approval 生成的精确 APP 路径权限。
+- `PENDING` 的批准人或驳回人与当前提交人必须不同；列表和详情只展示中央 Approval 按当前会话返回的 `availableApprovalActions`，每个执行动作仍在事务内重新校验精确 APP 路径权限、状态、revision 和 VOU 业务规则。
 - 所有写动作携带 Approval `revision`，使用乐观并发控制；状态、revision、提交/批准元数据和生命周期审计只保存于 `approval_entries` / `approval_events`。
 
 各实体开放的 wire 动作及可创建范围以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。销售出库、销售送货、销售签收和费用付款由 WFL 事件订阅自动创建；采购入库允许人工创建。动作实际可用性继续受单据状态、上下级关系和精确权限约束。

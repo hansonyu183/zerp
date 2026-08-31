@@ -5,11 +5,14 @@ package vou
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 func TestVOUCreateRejectsExhaustedDocumentNumberIntegration(t *testing.T) {
@@ -34,6 +37,128 @@ func TestVOUCreateRejectsExhaustedDocumentNumberIntegration(t *testing.T) {
 	var domainErr *DomainError
 	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorConflict {
 		t.Fatalf("exhausted document counter error = %v", err)
+	}
+}
+
+func TestVOURejectAndActionAvailabilityIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	permissions := func(entity string, actions ...string) []string {
+		paths := make([]string, len(actions))
+		for index, action := range actions {
+			paths[index] = "/vou/" + entity + "/" + action
+		}
+		return paths
+	}
+	actor := func(id, requestID string, paths []string) approval.Actor {
+		result, err := approval.UserActor(authorization.Principal{ActorID: id, Permissions: paths}, requestID)
+		if err != nil {
+			t.Fatalf("create actor: %v", err)
+		}
+		return result
+	}
+	allLifecycle := permissions(EntitySalePricing, "submit", "unsubmit", "reject", "approve", "unapprove")
+	submitter := func(requestID string) approval.Actor {
+		return actor(integrationActorOne, requestID, allLifecycle)
+	}
+	reviewer := func(requestID string) approval.Actor {
+		return actor(integrationActorTwo, requestID, allLifecycle)
+	}
+	assertKey := func(err error, key string) {
+		t.Helper()
+		var domainErr *DomainError
+		if !errors.As(err, &domainErr) || domainErr.ErrorKey != key {
+			t.Fatalf("error = %v, want key %s", err, key)
+		}
+	}
+
+	created, err := service.Create(t.Context(), EntitySalePricing, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY",
+		PriceLines: []PriceLineInput{{
+			Product: ProductReferenceInput{ObjectID: refs.product.ObjectID}, UnitPrice: "11.20",
+		}},
+	}}, submitter("reject-create"))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	submitted, err := service.Submit(t.Context(), EntitySalePricing, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+	}, submitter("reject-submit"))
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+
+	submitterView, err := service.Get(t.Context(), EntitySalePricing, GetInput{
+		DocumentID: created.DocumentID, actor: submitter("reject-get-self"),
+	})
+	if err != nil || !slices.Equal(submitterView.AvailableApprovalActions, []approval.LifecycleAction{approval.LifecycleUnsubmit}) {
+		t.Fatalf("submitter view actions = %v, err=%v", submitterView.AvailableApprovalActions, err)
+	}
+	reviewerPage, err := service.Query(t.Context(), EntitySalePricing, QueryInput{
+		Page: 1, PageSize: 20, Filters: QueryFilters{Keyword: created.DocumentNo},
+		actor: reviewer("reject-query-reviewer"),
+	})
+	wantReviewerActions := []approval.LifecycleAction{
+		approval.LifecycleUnsubmit, approval.LifecycleReject, approval.LifecycleApprove,
+	}
+	if err != nil || len(reviewerPage.Items) != 1 || !slices.Equal(reviewerPage.Items[0].AvailableApprovalActions, wantReviewerActions) {
+		t.Fatalf("reviewer query = %+v, err=%v", reviewerPage, err)
+	}
+
+	_, err = service.Reject(t.Context(), EntitySalePricing, ReverseInput{
+		DocumentID: created.DocumentID, Revision: submitted.Approval.Revision, Reason: "   ",
+	}, reviewer("reject-missing-reason"))
+	assertKey(err, "validation_failed")
+	_, err = service.Reject(t.Context(), EntitySalePricing, ReverseInput{
+		DocumentID: created.DocumentID, Revision: submitted.Approval.Revision, Reason: strings.Repeat("驳", 1001),
+	}, reviewer("reject-long-reason"))
+	assertKey(err, "validation_failed")
+	_, err = service.Reject(t.Context(), EntitySalePricing, ReverseInput{
+		DocumentID: created.DocumentID, Revision: submitted.Approval.Revision, Reason: "资料不完整",
+	}, submitter("reject-self"))
+	assertKey(err, "approval_self_review_forbidden")
+	_, err = service.Reject(t.Context(), EntitySalePricing, ReverseInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision, Reason: "资料不完整",
+	}, reviewer("reject-stale"))
+	assertKey(err, "approval_stale_revision")
+
+	rejected, err := service.Reject(t.Context(), EntitySalePricing, ReverseInput{
+		DocumentID: created.DocumentID, Revision: submitted.Approval.Revision, Reason: "  资料不完整  ",
+	}, reviewer("reject-valid"))
+	if err != nil || rejected.Approval.Status != approval.StatusDraft || rejected.Approval.Revision != submitted.Approval.Revision+1 {
+		t.Fatalf("reject = %+v, err=%v", rejected, err)
+	}
+	history, err := service.AuditHistory(t.Context(), EntitySalePricing, HistoryInput{
+		DocumentID: created.DocumentID, Page: 1, PageSize: 20,
+	})
+	if err != nil || len(history.Items) < 1 || history.Items[0].Action != approval.ActionRejected || history.Items[0].Reason == nil || *history.Items[0].Reason != "资料不完整" {
+		t.Fatalf("reject audit = %+v, err=%v", history, err)
+	}
+
+	saved, err := service.Save(t.Context(), EntitySalePricing, SaveInput{
+		DocumentID: created.DocumentID, Revision: rejected.Approval.Revision,
+		Data: DraftInput{
+			BusinessDate: "2026-07-24", Currency: "CNY", Remark: "驳回后修改",
+			PriceLines: []PriceLineInput{{Product: ProductReferenceInput{ObjectID: refs.product.ObjectID}, UnitPrice: "11.30"}},
+		},
+	}, submitter("reject-save"))
+	if err != nil {
+		t.Fatalf("save after reject: %v", err)
+	}
+	resubmitted, err := service.Submit(t.Context(), EntitySalePricing, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: saved.Approval.Revision,
+	}, submitter("reject-resubmit"))
+	if err != nil {
+		t.Fatalf("resubmit: %v", err)
+	}
+	approved, err := service.Approve(t.Context(), EntitySalePricing, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: resubmitted.Approval.Revision,
+	}, reviewer("reject-approve"))
+	if err != nil || approved.Approval.Status != approval.StatusApproved {
+		t.Fatalf("approve after resubmit = %+v, err=%v", approved, err)
 	}
 }
 
@@ -292,7 +417,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := 465
+	wantPermissions := 501
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}
@@ -319,7 +444,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	); err != nil {
 		t.Fatalf("check migrated permissions: %v", err)
 	}
-	if legacyPermissions != 0 || purchaseWritePermissions != 10 ||
+	if legacyPermissions != 0 || purchaseWritePermissions != 11 ||
 		purchaseInboundCreatePermissions != 0 || purchaseWorkflowPermissions != 0 {
 		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, inbound create %d, workflow %d",
 			legacyPermissions, purchaseWritePermissions, purchaseInboundCreatePermissions,

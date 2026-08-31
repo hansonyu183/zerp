@@ -6,10 +6,11 @@ import {
   workflowActionText,
   workflowTriggerText,
 } from '@/components/wfl/config'
+import { voucherEntityConfigs } from '@/pages/vou/shared/config'
 import {
-  lifecycleLabels,
-  voucherEntityConfigs,
-} from '@/pages/vou/shared/config'
+  approvalActionPresentation,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 
 describe('WFL Chinese labels', () => {
   it('translates document status', () => {
@@ -38,17 +39,12 @@ describe('WFL Chinese labels', () => {
 })
 
 describe('VOU approval labels', () => {
-  it('uses approval wording with inventory count business labels', () => {
-    for (const config of Object.values(voucherEntityConfigs)) {
-      expect(lifecycleLabels(config)).toMatchObject(
-        config.entity === 'inventory-count'
-          ? {
-              approved: '已盘点',
-            }
-          : {
-              approved: '已批准',
-            },
-      )
-    }
+  it('uses the canonical approval wording for every VOU entity', () => {
+    expect(Object.values(voucherEntityConfigs).length).toBeGreaterThan(0)
+    expect(approvalStatusPresentation.PENDING.label).toBe('待批准')
+    expect(approvalStatusPresentation.APPROVED.label).toBe('已批准')
+    expect(approvalActionPresentation.submit.label).toBe('提交')
+    expect(approvalActionPresentation.unsubmit.label).toBe('撤回')
+    expect(approvalActionPresentation.reject.label).toBe('驳回')
   })
 })

@@ -2,6 +2,10 @@
 import { formatMediumDateTime } from '@/utils/date'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import type { VoucherAuditEvent } from './types'
+import {
+  approvalEventActionLabels,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 
 defineOptions({ name: 'VoucherAuditHistory' })
 
@@ -26,16 +30,14 @@ const emit = defineEmits<{
 }>()
 
 const eventText: Record<string, string> = {
-  CREATED: '创建',
-  SAVED: '保存',
-  DELETED: '删除草稿',
-  SUBMITTED: '提交审核',
-  UNSUBMITTED: '撤回提交',
-  APPROVED: '批准',
-  UNAPPROVED: '反批准',
+  ...approvalEventActionLabels,
   ATTACHMENT_INITIATED: '发起附件',
   ATTACHMENT_UPLOADED: '上传附件',
   ATTACHMENT_REMOVED: '移除附件',
+}
+
+function statusText(status?: VoucherAuditEvent['fromStatus']): string {
+  return status ? approvalStatusPresentation[status].label : '—'
 }
 </script>
 
@@ -69,7 +71,7 @@ const eventText: Record<string, string> = {
             {{ formatMediumDateTime(event.createdAt) }} · {{ event.actorId }}
           </v-card-subtitle>
           <v-card-text>
-            <div>{{ event.fromStatus || '—' }} → {{ event.toStatus }}</div>
+            <div>{{ statusText(event.fromStatus) }} → {{ statusText(event.toStatus) }}</div>
             <div v-if="event.reason" class="mt-2">原因：{{ event.reason }}</div>
           </v-card-text>
         </v-card>

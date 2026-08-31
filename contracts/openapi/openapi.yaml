@@ -10666,6 +10666,46 @@
                 },
             },
         },
+      '/vou/{entity}/reject':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '驳回业务单据',
+              'operationId': 'voureject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '单据驳回结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/vou/{entity}/approve':
         {
           'post':

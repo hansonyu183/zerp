@@ -540,8 +540,8 @@ type ReverseInput struct {
 type DeleteInput = ReverseInput
 
 type GetInput struct {
-	DocumentID  string `json:"documentId"`
-	permissions []string
+	DocumentID string `json:"documentId"`
+	actor      approval.Actor
 }
 
 type PriceReferenceInput struct {
@@ -577,11 +577,11 @@ type SortInput struct {
 }
 
 type QueryInput struct {
-	Page        int          `json:"page"`
-	PageSize    int          `json:"pageSize"`
-	Filters     QueryFilters `json:"filters"`
-	Sort        []SortInput  `json:"sort"`
-	permissions []string
+	Page     int          `json:"page"`
+	PageSize int          `json:"pageSize"`
+	Filters  QueryFilters `json:"filters"`
+	Sort     []SortInput  `json:"sort"`
+	actor    approval.Actor
 }
 
 type HistoryInput struct {
@@ -1040,16 +1040,17 @@ type ServiceAcceptanceView struct {
 }
 
 type DocumentView struct {
-	DocumentID       string           `json:"documentId"`
-	Entity           string           `json:"entity"`
-	DocumentNo       string           `json:"documentNo"`
-	Approval         approval.Meta    `json:"approval"`
-	Amount           string           `json:"amount"`
-	Data             DocumentDataView `json:"data"`
-	Attachments      []AttachmentView `json:"attachments"`
-	ParentEntity     string           `json:"parentEntity,omitempty"`
-	ParentDocumentID string           `json:"parentDocumentId,omitempty"`
-	ParentDocumentNo string           `json:"parentDocumentNo,omitempty"`
+	DocumentID               string                     `json:"documentId"`
+	Entity                   string                     `json:"entity"`
+	DocumentNo               string                     `json:"documentNo"`
+	Approval                 approval.Meta              `json:"approval"`
+	Amount                   string                     `json:"amount"`
+	Data                     DocumentDataView           `json:"data"`
+	Attachments              []AttachmentView           `json:"attachments"`
+	ParentEntity             string                     `json:"parentEntity,omitempty"`
+	ParentDocumentID         string                     `json:"parentDocumentId,omitempty"`
+	ParentDocumentNo         string                     `json:"parentDocumentNo,omitempty"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 // ApprovalPayload is the immutable VOU business snapshot delivered with a
@@ -1092,18 +1093,19 @@ type MutationResult struct {
 }
 
 type ListItem struct {
-	DocumentID      string                       `json:"documentId"`
-	Entity          string                       `json:"entity"`
-	DocumentNo      string                       `json:"documentNo"`
-	Status          string                       `json:"status"`
-	Revision        int64                        `json:"revision"`
-	BusinessDate    string                       `json:"businessDate"`
-	PartyName       string                       `json:"partyName,omitempty"`
-	Currency        string                       `json:"currency"`
-	Amount          string                       `json:"amount"`
-	UpdatedAt       time.Time                    `json:"updatedAt"`
-	SalesSummary    *SalesBaseQuantitySummary    `json:"salesSummary,omitempty"`
-	PurchaseSummary *PurchaseBaseQuantitySummary `json:"purchaseSummary,omitempty"`
+	DocumentID               string                       `json:"documentId"`
+	Entity                   string                       `json:"entity"`
+	DocumentNo               string                       `json:"documentNo"`
+	Status                   string                       `json:"status"`
+	Revision                 int64                        `json:"revision"`
+	BusinessDate             string                       `json:"businessDate"`
+	PartyName                string                       `json:"partyName,omitempty"`
+	Currency                 string                       `json:"currency"`
+	Amount                   string                       `json:"amount"`
+	UpdatedAt                time.Time                    `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction   `json:"availableApprovalActions"`
+	SalesSummary             *SalesBaseQuantitySummary    `json:"salesSummary,omitempty"`
+	PurchaseSummary          *PurchaseBaseQuantitySummary `json:"purchaseSummary,omitempty"`
 }
 
 type SalesBaseQuantitySummary struct {

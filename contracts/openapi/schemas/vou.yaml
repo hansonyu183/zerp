@@ -1289,6 +1289,7 @@
           'currency',
           'amount',
           'updatedAt',
+          'availableApprovalActions',
         ],
       'additionalProperties': false,
       'properties':
@@ -1303,6 +1304,11 @@
           'currency': { 'type': 'string' },
           'amount': { 'type': 'string' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'salesSummary': { '$ref': '#/VouSalesBaseQuantitySummary' },
           'purchaseSummary': { '$ref': '#/VouPurchaseBaseQuantitySummary' },
         },
@@ -3119,7 +3125,16 @@
     {
       'type': 'object',
       'required':
-        [documentId, entity, documentNo, approval, amount, data, attachments],
+        [
+          documentId,
+          entity,
+          documentNo,
+          approval,
+          amount,
+          data,
+          attachments,
+          availableApprovalActions,
+        ],
       'properties':
         {
           'documentId': { 'type': 'string' },
@@ -3130,6 +3145,11 @@
           'data': { '$ref': '#/VouDocumentDataView' },
           'attachments':
             { 'type': 'array', 'items': { '$ref': '#/VouAttachmentView' } },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'parentEntity': { '$ref': '#/VouEntity' },
           'parentDocumentId': { 'type': 'string' },
           'parentDocumentNo': { 'type': 'string' },

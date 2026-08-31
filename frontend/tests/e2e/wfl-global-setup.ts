@@ -1326,7 +1326,8 @@ export async function createWflWorkerState(options: {
       (item) =>
         item.status === 'ENABLED' &&
         (bobReviewerActions.has(item.path) ||
-          /^\/vou\/[^/]+\/approve$/.test(item.path)),
+          item.path === '/app/workbench/query' ||
+          /^\/vou\/[^/]+\/(?:query|get|reject|approve)$/.test(item.path)),
     )
 
     const suffix =

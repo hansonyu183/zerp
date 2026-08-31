@@ -19,6 +19,7 @@
     "contracts:lint": "redocly lint contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml",
     "contracts:bundle": "redocly bundle contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml --output contracts/openapi/dist/openapi.json --ext json",
     "contracts:test-dcl-approval": "node --test scripts/check-dcl-approval-contract.test.mjs",
+    "contracts:test-vou-approval": "node --test scripts/check-vou-approval-contract.test.mjs",
     "generate:go": "go -C backend/tools tool oapi-codegen --config ../oapi-codegen.yaml ../../contracts/openapi/dist/openapi.json",
     "generate:ts": "node scripts/prepare-openapi-models.mjs contracts/openapi/dist/openapi.json contracts/openapi/dist/openapi-models.json && openapi --input contracts/openapi/dist/openapi-models.json --output frontend/src/api/generated --useUnionTypes --exportCore false --exportServices false --exportModels true --indent 2 && node scripts/generate-openapi-path-types.mjs contracts/openapi/dist/openapi.json frontend/src/api/generated/schema.ts frontend/src/api/generated/contract-meta.ts && node scripts/normalize-openapi-generated.mjs frontend/src/api/generated",
     "generate:api": "pnpm contracts:lint && pnpm contracts:bundle && pnpm generate:go && pnpm generate:ts",

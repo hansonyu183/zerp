@@ -17,7 +17,12 @@ import { runAccountingMappingLifecycleAction } from '@/pages/dcl/acc-mapping/api
 import { runRptDefinitionLifecycleAction } from '@/pages/dcl/rpt-definition/api'
 import { runWflProcessDefinitionLifecycleAction } from '@/pages/dcl/wfl-process-definition/api'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
-import { approveVoucher, submitVoucher, unsubmitVoucher } from '@/api/vou'
+import {
+  approveVoucher,
+  rejectVoucher,
+  submitVoucher,
+  unsubmitVoucher,
+} from '@/api/vou'
 import { approvalActionPresentation } from '@/shared/approval'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
@@ -375,6 +380,11 @@ export function useDashboardViewModel() {
           await unsubmitVoucher(item.entity, request)
         } else if (action === 'approve') {
           await approveVoucher(item.entity, request)
+        } else if (action === 'reject') {
+          await rejectVoucher(item.entity, {
+            ...request,
+            reason: comment.trim(),
+          })
         }
       }
       const refreshed = await query(category)
@@ -396,7 +406,7 @@ export function useDashboardViewModel() {
     item: WorkbenchItem,
     action: WorkbenchConfirmationAction,
   ): boolean {
-    const supported = item.category === 'BOB' && action === 'reject'
+    const supported = action === 'reject'
     if (!supported || !item.availableActions.includes(action)) return false
     confirmationTarget.value = item
     confirmationAction.value = action

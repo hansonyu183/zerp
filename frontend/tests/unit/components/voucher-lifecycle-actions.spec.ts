@@ -56,28 +56,18 @@ const VTextareaStub = defineComponent({
 function mountActions() {
   return mount(VoucherLifecycleActions, {
     props: {
-      status: 'PENDING',
       availability: {
         get: true,
         save: false,
         submit: false,
         unsubmit: true,
+        reject: false,
         approve: true,
         unapprove: false,
         finalize: false,
         unfinalize: false,
         delete: false,
         audit: false,
-      },
-      labels: {
-        submit: '提交审核',
-        unsubmit: '撤回提交',
-        approve: '批准',
-        unapprove: '反批准',
-        finalize: '完成',
-        unfinalize: '撤销完成',
-        pending: '待审核',
-        finalized: '已完成',
       },
     },
     global: {
@@ -107,7 +97,6 @@ describe('VoucherLifecycleActions', () => {
   it('still requires a reason before emitting unapprove', async () => {
     const wrapper = mountActions()
     await wrapper.setProps({
-      status: 'APPROVED',
       availability: {
         ...wrapper.props('availability'),
         unsubmit: false,
@@ -127,6 +116,28 @@ describe('VoucherLifecycleActions', () => {
     await confirm!.trigger('click')
 
     expect(wrapper.emitted('action')).toEqual([['unapprove', '需要撤销批准']])
+  })
+
+  it('requires a reason before emitting reject', async () => {
+    const wrapper = mountActions()
+    await wrapper.setProps({
+      availability: {
+        ...wrapper.props('availability'),
+        unsubmit: false,
+        approve: false,
+        reject: true,
+      },
+    })
+
+    await wrapper.get('button').trigger('click')
+    expect(wrapper.emitted('action')).toBeUndefined()
+    await wrapper.get('textarea').setValue('资料需补正')
+    const confirm = wrapper
+      .findAll('button')
+      .find((button) => button.text() === '确认驳回')
+    await confirm!.trigger('click')
+
+    expect(wrapper.emitted('action')).toEqual([['reject', '资料需补正']])
   })
 })
 

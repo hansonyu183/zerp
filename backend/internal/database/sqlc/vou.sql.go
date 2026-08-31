@@ -3583,7 +3583,7 @@ func (q *Queries) ListVouBillLines(ctx context.Context, documentID string) ([]Vo
 }
 
 const listVouDocuments = `-- name: ListVouDocuments :many
-SELECT d.id, d.entity, d.document_no, d.approval_entry_id, d.business_date, d.currency, d.total_amount_cents, d.remark, d.parent_document_id, d.parent_entity, d.due_date, approval.status, approval.revision, approval.updated_at,
+SELECT d.id, d.entity, d.document_no, d.approval_entry_id, d.business_date, d.currency, d.total_amount_cents, d.remark, d.parent_document_id, d.parent_entity, d.due_date, approval.status, approval.revision, approval.updated_at, approval.submitted_by,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, elw.employee_name, oi.counterparty_name,
@@ -3695,6 +3695,7 @@ type ListVouDocumentsRow struct {
 	Status           string             `db:"status" json:"status"`
 	Revision         int64              `db:"revision" json:"revision"`
 	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	SubmittedBy      *string            `db:"submitted_by" json:"submitted_by"`
 	PartyName        string             `db:"party_name" json:"party_name"`
 }
 
@@ -3733,6 +3734,7 @@ func (q *Queries) ListVouDocuments(ctx context.Context, arg ListVouDocumentsPara
 			&i.Status,
 			&i.Revision,
 			&i.UpdatedAt,
+			&i.SubmittedBy,
 			&i.PartyName,
 		); err != nil {
 			return nil, err

@@ -314,6 +314,55 @@ func (s *Service) Unsubmit(
 	return s.unsubmit(ctx, entity, input, actor)
 }
 
+func (s *Service) Reject(
+	ctx context.Context, entity string, input ReverseInput, actor approval.Actor,
+) (MutationResult, error) {
+	reason, err := validateReverse(input)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MutationResult{}, s.internal("begin reject", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.queries.WithTx(tx)
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MutationResult{}, domainError(ErrorValidation, "document not found", nil, err)
+	}
+	if err != nil {
+		return MutationResult{}, s.internal("lock rejected document", err)
+	}
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	preparedApproval, err := coordinator.Prepare(
+		ctx, tx, approval.ActionRejected, document.ApprovalEntryID, input.Revision, actor, *reason,
+	)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	if managedSalesDocument(document) {
+		if err = s.validateManagedSalesChildrenAtMost(ctx, tx, document, StatusDraft); err != nil {
+			return MutationResult{}, err
+		}
+	}
+	payload, err := s.eventSnapshot(ctx, q, document)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := coordinator.Commit(ctx, tx, preparedApproval, payload)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MutationResult{}, s.writeError("commit reject", err)
+	}
+	return mutation(document, entry), nil
+}
+
 func (s *Service) Unapprove(
 	ctx context.Context, entity string, input ReverseInput, actor approval.Actor,
 ) (MutationResult, error) {

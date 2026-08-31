@@ -25,6 +25,7 @@ type applicationService interface {
 	Save(context.Context, string, SaveInput, approval.Actor) (MutationResult, error)
 	Submit(context.Context, string, DocumentRevisionInput, approval.Actor) (MutationResult, error)
 	Unsubmit(context.Context, string, DocumentRevisionInput, approval.Actor) (MutationResult, error)
+	Reject(context.Context, string, ReverseInput, approval.Actor) (MutationResult, error)
 	Approve(context.Context, string, DocumentRevisionInput, approval.Actor) (MutationResult, error)
 	Unapprove(context.Context, string, ReverseInput, approval.Actor) (MutationResult, error)
 	Delete(context.Context, string, DeleteInput, approval.Actor) (MutationResult, error)
@@ -65,6 +66,7 @@ var actionRoutes = [...]actionRoute{
 	{action: "save", handle: (*Handler).save},
 	{action: "submit", handle: (*Handler).submit},
 	{action: "unsubmit", handle: (*Handler).unsubmit},
+	{action: "reject", handle: (*Handler).reject},
 	{action: "approve", handle: (*Handler).approve},
 	{action: "unapprove", handle: (*Handler).unapprove},
 	{action: "delete", handle: (*Handler).delete},
@@ -226,7 +228,11 @@ func (h *Handler) authorize(path string) gin.HandlerFunc {
 func (h *Handler) query(c *gin.Context, entity string) {
 	var input QueryInput
 	if h.bind(c, &input) {
-		input.permissions = h.principal(c).Permissions
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		input.actor = actor
 		result, err := h.service.Query(c.Request.Context(), entity, input)
 		h.result(c, result, err)
 	}
@@ -235,7 +241,11 @@ func (h *Handler) query(c *gin.Context, entity string) {
 func (h *Handler) get(c *gin.Context, entity string) {
 	var input GetInput
 	if h.bind(c, &input) {
-		input.permissions = h.principal(c).Permissions
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		input.actor = actor
 		result, err := h.service.Get(c.Request.Context(), entity, input)
 		h.result(c, result, err)
 	}
@@ -285,6 +295,18 @@ func (h *Handler) unsubmit(c *gin.Context, entity string) {
 			return
 		}
 		result, err := h.service.Unsubmit(c.Request.Context(), entity, input, actor)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) reject(c *gin.Context, entity string) {
+	var input ReverseInput
+	if h.bind(c, &input) {
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Reject(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }

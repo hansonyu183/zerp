@@ -11,7 +11,6 @@ import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import {
   VoucherList,
-  type VoucherLifecycleLabels,
   type VoucherSort,
 } from '@/components/voucher'
 import { pageRegistrations, pageRegistry } from '@/router/registry'
@@ -48,7 +47,7 @@ function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
   const actions =
     domain === 'bob'
       ? ['submit', 'approve', 'reject', 'unsubmit']
-      : ['submit', 'approve', 'unsubmit']
+      : ['submit', 'approve', 'reject', 'unsubmit']
   return (
     session.can(`/${permissionDomain}/${entity}/query`) &&
     actions.some((action) =>
@@ -140,17 +139,15 @@ const objectRows = computed(() =>
 const documentRows = computed(() =>
   vm.states.VOU.rows.filter(
     (row): row is WorkbenchDocumentItem => row.category === 'VOU',
-  ),
+  ).map((row) => ({
+    ...row,
+    availableApprovalActions: row.availableActions.filter(
+      (action): action is ApprovalAction =>
+        action in approvalActionPresentation,
+    ),
+  })),
 )
 const documentSort: VoucherSort = { field: 'updatedAt', order: 'desc' }
-const documentLifecycleLabels: VoucherLifecycleLabels = {
-  submit: approvalActionPresentation.submit.label,
-  unsubmit: approvalActionPresentation.unsubmit.label,
-  approve: approvalActionPresentation.approve.label,
-  unapprove: approvalActionPresentation.unapprove.label,
-  pending: approvalStatusPresentation.PENDING.label,
-  approved: approvalStatusPresentation.APPROVED.label,
-}
 
 const resourceActionDefinitions = {
   view: { label: '查看', icon: 'mdi-eye-outline' },
@@ -245,7 +242,7 @@ async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
     await openItem(row, action)
     return
   }
-  if (action === 'reject' && row.category === 'BOB') {
+  if (action === 'reject') {
     vm.requestConfirmation(row, action)
     return
   }
@@ -378,7 +375,6 @@ void vm.query('VOU')
           empty-text="暂无待办单据"
           :filterable="true"
           :keyword="vm.activeState.keyword"
-          :lifecycle-labels="documentLifecycleLabels"
           :loading="vm.activeState.loading"
           :page="vm.activeState.page"
           :page-size="vm.activeState.pageSize"

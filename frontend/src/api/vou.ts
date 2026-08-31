@@ -3,6 +3,7 @@ import { apiClient, type VouApiEntity } from '@/api/client'
 
 type DocumentRevisionRequest =
   components['schemas']['VouDocumentRevisionRequest']
+type DocumentReverseRequest = components['schemas']['VouReverseRequest']
 
 export function submitVoucher(
   entity: VouApiEntity,
@@ -32,4 +33,11 @@ export function approveVoucher(
     `vou/${entity}/approve`,
     request,
   )
+}
+
+export function rejectVoucher(
+  entity: VouApiEntity,
+  request: DocumentReverseRequest,
+) {
+  return apiClient.postContract(`vou/${entity}/reject`, request)
 }

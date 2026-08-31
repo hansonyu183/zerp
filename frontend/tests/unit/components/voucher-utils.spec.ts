@@ -14,8 +14,7 @@ import {
 
 describe('VOU decimal and settlement helpers', () => {
   it('keeps voucher status labels in one ordered source', () => {
-    expect(formatVoucherStatus('PENDING')).toBe('待审核')
-    expect(formatVoucherStatus('PENDING', { PENDING: '审核中' })).toBe('审核中')
+    expect(formatVoucherStatus('PENDING')).toBe('待批准')
     expect(voucherStatusOptions.map((option) => option.value)).toEqual([
       'DRAFT',
       'PENDING',

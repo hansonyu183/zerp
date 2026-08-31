@@ -184,7 +184,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     row: VoucherListItem,
     action: VoucherLifecycleAction,
   ): boolean {
-    return canRunListLifecycleAction(config, row, action, session.can)
+    return canRunListLifecycleAction(row, action)
   }
 
   async function query(): Promise<void> {
@@ -343,6 +343,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
           documentNo: data.parentDocumentNo,
           status: 'APPROVED',
           revision: 0,
+          availableApprovalActions: [],
           businessDate: data.data.businessDate,
           currency: data.data.currency,
           amount: data.amount,
@@ -489,7 +490,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     } finally {
       actionLoading.value = null
       if (documentView.value?.documentId === current.documentId) {
-        void Promise.allSettled([query(), loadAudit(1)])
+        await Promise.allSettled([query(), loadAudit(1)])
       }
     }
   }

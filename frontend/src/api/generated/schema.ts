@@ -2142,6 +2142,14 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.VouMutationResponse } } };
     };
   };
+  "/vou/{entity}/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path: { "entity": Models.VouEntity; }; cookie?: never };
+      requestBody: { content: { 'application/json': Models.VouReverseRequest } };
+      responses: { 200: { content: { 'application/json': Models.VouMutationResponse } } };
+    };
+  };
   "/vou/{entity}/approve": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {

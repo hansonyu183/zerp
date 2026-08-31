@@ -411,7 +411,7 @@ WHERE d.entity = sqlc.arg(entity)
   );
 
 -- name: ListVouDocuments :many
-SELECT d.*, approval.status, approval.revision, approval.updated_at,
+SELECT d.*, approval.status, approval.revision, approval.updated_at, approval.submitted_by,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, elw.employee_name, oi.counterparty_name,

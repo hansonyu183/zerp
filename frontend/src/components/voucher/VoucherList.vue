@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import type {
   VoucherLifecycleAction,
-  VoucherLifecycleLabels,
   VoucherListRow,
   VoucherReference,
   VoucherSort,
@@ -16,6 +15,7 @@ import ListRowActions from '@/components/common/ListRowActions.vue'
 import MobileSortControl from '@/components/common/MobileSortControl.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import FulfillmentSummary from '@/components/common/FulfillmentSummary.vue'
+import { approvalActionPresentation } from '@/shared/approval'
 
 defineOptions({ name: 'VoucherList' })
 
@@ -35,8 +35,6 @@ const props = withDefaults(
     creatable?: boolean
     canView?: (row: T) => boolean
     canEdit?: (row: T) => boolean
-    canLifecycleAction?: (row: T, action: VoucherLifecycleAction) => boolean
-    lifecycleLabels: VoucherLifecycleLabels
     actionLoading?: string | null
     emptyText?: string
     partyEnabled?: boolean
@@ -57,7 +55,6 @@ const props = withDefaults(
     creatable: false,
     canView: () => true,
     canEdit: () => false,
-    canLifecycleAction: () => false,
     actionLoading: null,
     emptyText: '暂无单据',
     partyEnabled: false,
@@ -121,37 +118,13 @@ function applyMobileSort(value: {
 
 const lifecycleActionDefinitions: ReadonlyArray<{
   action: VoucherLifecycleAction
-  statuses: readonly VoucherStatus[]
-  icon: string
-  color?: string
 }> = [
-  {
-    action: 'submit',
-    statuses: ['DRAFT'],
-    icon: 'mdi-send-outline',
-    color: 'primary',
-  },
-  {
-    action: 'unsubmit',
-    statuses: ['PENDING'],
-    icon: 'mdi-undo-variant',
-  },
-  {
-    action: 'approve',
-    statuses: ['PENDING'],
-    icon: 'mdi-check-decagram-outline',
-    color: 'success',
-  },
-  {
-    action: 'unapprove',
-    statuses: ['APPROVED'],
-    icon: 'mdi-undo-variant',
-  },
+  { action: 'submit' },
+  { action: 'unsubmit' },
+  { action: 'reject' },
+  { action: 'approve' },
+  { action: 'unapprove' },
 ]
-
-function lifecycleActionLabel(action: VoucherLifecycleAction): string {
-  return props.lifecycleLabels[action]
-}
 
 function rowActions(row: T): ListRowAction[] {
   const detailAction: ListRowAction[] = props.canEdit(row)
@@ -173,15 +146,12 @@ function rowActions(row: T): ListRowAction[] {
         ]
       : []
   const lifecycleActions = lifecycleActionDefinitions
-    .filter(
-      ({ action, statuses }) =>
-        statuses.includes(row.status) && props.canLifecycleAction(row, action),
-    )
-    .map(({ action, icon, color }) => ({
+    .filter(({ action }) => row.availableApprovalActions.includes(action))
+    .map(({ action }) => ({
       key: action,
-      label: `${lifecycleActionLabel(action)} ${row.documentNo}`,
-      icon,
-      color,
+      label: `${approvalActionPresentation[action].label} ${row.documentNo}`,
+      icon: approvalActionPresentation[action].icon,
+      color: approvalActionPresentation[action].color,
     }))
   return [...detailAction, ...lifecycleActions]
 }

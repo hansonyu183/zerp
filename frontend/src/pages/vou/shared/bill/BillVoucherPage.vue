@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import ListRowActions from '@/components/common/ListRowActions.vue'
+import type { ListRowAction } from '@/components/common/list-row-actions'
 import {
   VoucherAttachmentPanel,
   VoucherAuditHistory,
@@ -8,6 +10,7 @@ import {
   VoucherLifecycleActions,
   VoucherReferenceAutocomplete,
   VoucherWorkspace,
+  type VoucherLifecycleAction,
 } from '@/components/voucher'
 import { formatVoucherStatus } from '@/components/voucher/status'
 import { formatBillType } from '@/utils/bill-type'
@@ -16,6 +19,8 @@ import VoucherReasonDialog from '../VoucherReasonDialog.vue'
 import { billVoucherConfigs, type BillVoucherConfig } from './config'
 import { useBillVoucherViewModel } from './vm'
 import { previewInterestAmount, summarizeBillVoucher } from './validation'
+import { approvalActionPresentation } from '@/shared/approval'
+import type { BillListItem } from './vm'
 
 const props = defineProps<{ config?: BillVoucherConfig }>()
 const vm = useBillVoucherViewModel(
@@ -23,6 +28,17 @@ const vm = useBillVoucherViewModel(
 )
 const deleteDialog = ref(false)
 const deleteReason = ref('')
+const listLifecycleTarget = ref<BillListItem | null>(null)
+const listLifecycleAction =
+  ref<Extract<VoucherLifecycleAction, 'reject' | 'unapprove'>>('reject')
+const listLifecycleReason = ref('')
+const lifecycleActionPriority: readonly VoucherLifecycleAction[] = [
+  'submit',
+  'unsubmit',
+  'reject',
+  'approve',
+  'unapprove',
+]
 const summary = computed(() => summarizeBillVoucher(vm.form, vm.config.mode))
 function discountDays(maturityDate: string): number {
   const start = Date.parse(`${vm.form.businessDate}T00:00:00Z`)
@@ -51,6 +67,66 @@ async function confirmDelete(): Promise<void> {
   if (await vm.deleteDraft(reason)) {
     deleteDialog.value = false
     deleteReason.value = ''
+  }
+}
+
+function requestListLifecycleAction(
+  row: BillListItem,
+  action: VoucherLifecycleAction,
+): void {
+  if (approvalActionPresentation[action].reasonRequired) {
+    listLifecycleTarget.value = row
+    listLifecycleAction.value = action as Extract<
+      VoucherLifecycleAction,
+      'reject' | 'unapprove'
+    >
+    listLifecycleReason.value = ''
+    return
+  }
+  void vm.lifecycleFromList(row, action)
+}
+
+function rowActions(row: BillListItem): ListRowAction[] {
+  const actions: ListRowAction[] = [
+    {
+      key: 'view',
+      label: `查看 ${row.documentNo}`,
+      icon: 'mdi-eye-outline',
+    },
+  ]
+  for (const action of lifecycleActionPriority) {
+    if (!row.availableApprovalActions.includes(action)) continue
+    const presentation = approvalActionPresentation[action]
+    actions.push({
+      key: action,
+      label: `${presentation.label} ${row.documentNo}`,
+      icon: presentation.icon,
+      color: presentation.color,
+    })
+  }
+  return actions
+}
+
+function selectRowAction(row: BillListItem, action: string): void {
+  if (action === 'view') {
+    void vm.openDocument(row)
+    return
+  }
+  if (
+    lifecycleActionPriority.includes(action as VoucherLifecycleAction) &&
+    row.availableApprovalActions.includes(action as VoucherLifecycleAction)
+  ) {
+    requestListLifecycleAction(row, action as VoucherLifecycleAction)
+  }
+}
+
+async function confirmListLifecycleAction(): Promise<void> {
+  const row = listLifecycleTarget.value
+  const reason = listLifecycleReason.value.trim()
+  if (!row || !reason || Array.from(reason).length > 1000) return
+  if (await vm.lifecycleFromList(row, listLifecycleAction.value, reason)) {
+    listLifecycleTarget.value = null
+    listLifecycleReason.value = ''
   }
 }
 
@@ -121,9 +197,13 @@ onMounted(() => void vm.query())
             <td data-label="状态">{{ formatVoucherStatus(row.status) }}</td>
             <td data-label="票面合计">{{ row.currency }} {{ row.amount }}</td>
             <td data-label="操作">
-              <v-btn size="small" variant="text" @click="vm.openDocument(row)"
-                >查看</v-btn
-              >
+              <ListRowActions
+                :actions="rowActions(row)"
+                :label="`操作 ${row.documentNo}`"
+                :loading="Boolean(vm.actionLoading.value)"
+                :more-label="`更多操作 ${row.documentNo}`"
+                @select="selectRowAction(row, $event)"
+              />
             </td>
           </tr>
           <tr v-if="!vm.loading.value && vm.rows.value.length === 0">
@@ -141,6 +221,20 @@ onMounted(() => void vm.query())
         @update:model-value="vm.changePage"
       />
     </v-card>
+
+    <VoucherReasonDialog
+      :model-value="Boolean(listLifecycleTarget)"
+      :confirm-label="`确认${approvalActionPresentation[listLifecycleAction].label}`"
+      :reason="listLifecycleReason"
+      :title="approvalActionPresentation[listLifecycleAction].label"
+      @confirm="confirmListLifecycleAction"
+      @update:model-value="
+        (value) => {
+          if (!value) listLifecycleTarget = null
+        }
+      "
+      @update:reason="listLifecycleReason = $event"
+    />
 
     <VoucherWorkspace
       v-model="vm.workspaceOpen.value"
@@ -186,17 +280,8 @@ onMounted(() => void vm.query())
         >
         <VoucherLifecycleActions
           v-if="vm.documentId.value"
-          :status="vm.documentStatus.value"
           :availability="vm.actionAvailability.value"
           :loading-action="vm.actionLoading.value"
-          :labels="{
-            submit: '提交审核',
-            unsubmit: '撤回提交',
-            approve: '批准',
-            unapprove: '反批准',
-            pending: '待审核',
-            approved: '已批准',
-          }"
           @action="vm.lifecycle"
         />
       </template>

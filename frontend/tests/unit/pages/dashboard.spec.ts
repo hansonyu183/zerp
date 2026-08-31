@@ -587,6 +587,32 @@ describe('Dashboard workbench', () => {
     expect(vm.confirmationComment.value).toBe('')
   })
 
+  it('使用工作台单据携带的 documentId 和 revision 驳回并刷新当前页', async () => {
+    const pendingDocument = {
+      ...documentItem,
+      status: 'PENDING' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['reject'] as const,
+    }
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+
+    expect(vm.requestConfirmation(pendingDocument, 'reject')).toBe(true)
+    vm.confirmationComment.value = '  金额需核对  '
+    await expect(vm.confirmAction()).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'vou/sale-order/reject', {
+      documentId: 'document-1',
+      revision: 2,
+      reason: '金额需核对',
+    })
+    expect(mockedPost).toHaveBeenNthCalledWith(2, 'app/workbench/query', {
+      category: 'VOU',
+      page: 1,
+      pageSize: 20,
+    })
+  })
+
   it('撤回不打开原因确认并直接执行', async () => {
     const pendingDocument = {
       ...documentItem,

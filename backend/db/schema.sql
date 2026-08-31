@@ -4400,6 +4400,43 @@ INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000002', '/dcl/o
 INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/dcl/sales-partner/unapprove', 'dcl', 'sales-partner', 'unapprove', '反审核销售合作关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUXREF00000000000000001', '/aux/reference/query', 'aux', 'reference', 'query', '查询 AUX 最小引用候选', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOBREF00000000000000001', '/bob/reference/query', 'bob', 'reference', 'query', '查询 BOB 最小引用候选', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions (id,path,domain,entity,action,description,status,created_at,updated_at,revision) VALUES
+('01JVOURJ000000000000000001','/vou/sale-pricing/reject','vou','sale-pricing','reject','驳回销售定价','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000002','/vou/sale-order/reject','vou','sale-order','reject','驳回销售订单','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000003','/vou/sale-outbound/reject','vou','sale-outbound','reject','驳回销售出库','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000004','/vou/sale-delivery/reject','vou','sale-delivery','reject','驳回销售送货','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000005','/vou/sale-signoff/reject','vou','sale-signoff','reject','驳回销售签收','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000006','/vou/sale-return/reject','vou','sale-return','reject','驳回销售退货','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000007','/vou/purchase-order/reject','vou','purchase-order','reject','驳回采购订单','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000008','/vou/purchase-inbound/reject','vou','purchase-inbound','reject','驳回采购入库','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000009','/vou/purchase-return/reject','vou','purchase-return','reject','驳回采购退货','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000010','/vou/purchase-inquiry/reject','vou','purchase-inquiry','reject','驳回采购询价','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000011','/vou/order-production/reject','vou','order-production','reject','驳回生产配货','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000012','/vou/self-production/reject','vou','self-production','reject','驳回生产自制品','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000013','/vou/inventory-count/reject','vou','inventory-count','reject','驳回库存盘点','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000014','/vou/sales-receipt/reject','vou','sales-receipt','reject','驳回销售收款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000015','/vou/purchase-refund/reject','vou','purchase-refund','reject','驳回采购退款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000016','/vou/other-receipt/reject','vou','other-receipt','reject','驳回其他往来收款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000017','/vou/sales-refund/reject','vou','sales-refund','reject','驳回销售退款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000018','/vou/purchase-payment/reject','vou','purchase-payment','reject','驳回采购付款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000019','/vou/other-payment/reject','vou','other-payment','reject','驳回其他往来付款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000020','/vou/employee-loan/reject','vou','employee-loan','reject','驳回员工借款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000021','/vou/employee-repayment/reject','vou','employee-repayment','reject','驳回员工还款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000022','/vou/employee-loan-writeoff/reject','vou','employee-loan-writeoff','reject','驳回员工借款核销','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000023','/vou/expense-reimbursement/reject','vou','expense-reimbursement','reject','驳回费用报销','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000024','/vou/expense-payment/reject','vou','expense-payment','reject','驳回费用付款','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000025','/vou/other-income/reject','vou','other-income','reject','驳回其他收入','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000026','/vou/asset-acquisition/reject','vou','asset-acquisition','reject','驳回资产购置','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000027','/vou/asset-sale/reject','vou','asset-sale','reject','驳回资产出让','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000028','/vou/asset-liquidation/reject','vou','asset-liquidation','reject','驳回资产清算','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000029','/vou/bill-receipt/reject','vou','bill-receipt','reject','驳回票据收入','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000030','/vou/bill-payment/reject','vou','bill-payment','reject','驳回票据支出','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000031','/vou/bill-issue/reject','vou','bill-issue','reject','驳回票据开具','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000032','/vou/bill-discount/reject','vou','bill-discount','reject','驳回票据贴现','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000033','/vou/bill-maturity/reject','vou','bill-maturity','reject','驳回票据到期处理','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000034','/vou/intermediary-calculation/reject','vou','intermediary-calculation','reject','驳回居间计算单','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000035','/vou/service-contract/reject','vou','service-contract','reject','驳回服务合同','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1),
+('01JVOURJ000000000000000036','/vou/service-acceptance/reject','vou','service-acceptance','reject','驳回履约验收','ENABLED','2026-08-31 00:00:00+00','2026-08-31 00:00:00+00',1);
 
 
 --

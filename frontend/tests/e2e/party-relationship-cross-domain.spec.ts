@@ -448,7 +448,7 @@ async function createAndApproveContract(
   const submitResponse = page.waitForResponse((response) =>
     response.url().endsWith('/vou/service-contract/submit'),
   )
-  await workspace.getByRole('button', { name: '提交审核', exact: true }).click()
+  await workspace.getByRole('button', { name: '提交', exact: true }).click()
   const submittedEnvelope = (await (
     await submitResponse
   ).json()) as Envelope<VoucherMutation>
@@ -494,7 +494,7 @@ async function createAndApproveAcceptance(
   const submitResponse = page.waitForResponse((response) =>
     response.url().endsWith('/vou/service-acceptance/submit'),
   )
-  await workspace.getByRole('button', { name: '提交审核', exact: true }).click()
+  await workspace.getByRole('button', { name: '提交', exact: true }).click()
   const submittedEnvelope = (await (
     await submitResponse
   ).json()) as Envelope<VoucherMutation>

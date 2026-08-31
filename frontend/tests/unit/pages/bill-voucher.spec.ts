@@ -72,6 +72,31 @@ const availableBillPage = {
 beforeEach(() => {
   setActivePinia(createPinia())
   mockedPost.mockReset()
+  let approvalStatus = 'DRAFT'
+  let approvalRevision = 1
+  const approvalSnapshot = () => ({
+    status: approvalStatus,
+    revision: approvalRevision,
+    createdAt: '2026-08-05T00:00:00Z',
+    createdBy: 'USER-1',
+    updatedAt: '2026-08-05T00:00:00Z',
+    updatedBy: 'USER-1',
+    submittedAt:
+      approvalStatus === 'PENDING' || approvalStatus === 'APPROVED'
+        ? '2026-08-05T00:00:00Z'
+        : null,
+    submittedBy:
+      approvalStatus === 'PENDING' || approvalStatus === 'APPROVED'
+        ? 'USER-1'
+        : null,
+    approvedAt: approvalStatus === 'APPROVED' ? '2026-08-05T00:00:00Z' : null,
+    approvedBy: approvalStatus === 'APPROVED' ? 'USER-2' : null,
+  })
+  const availableApprovalActions = () => {
+    if (approvalStatus === 'DRAFT') return ['submit']
+    if (approvalStatus === 'PENDING') return ['unsubmit', 'reject', 'approve']
+    return ['unapprove']
+  }
   mockedPost.mockImplementation(async (path: string) => {
     if (path === 'bob/reference/query') {
       return {
@@ -107,61 +132,35 @@ beforeEach(() => {
       } as never
     if (path.includes('/query'))
       return { data: { items: [], total: 0 } } as never
-    if (path.includes('/create'))
+    if (path.includes('/create')) {
+      approvalStatus = 'DRAFT'
+      approvalRevision = 1
       return {
         data: {
           documentId: 'DOC-1',
           documentNo: 'V-1',
-          approval: {
-            status: 'DRAFT',
-            revision: 1,
-            createdAt: '2026-08-05T00:00:00Z',
-            createdBy: 'USER-1',
-            updatedAt: '2026-08-05T00:00:00Z',
-            updatedBy: 'USER-1',
-            submittedAt: null,
-            submittedBy: null,
-            approvedAt: null,
-            approvedBy: null,
-          },
+          approval: approvalSnapshot(),
         },
       } as never
-    if (path.includes('/save'))
+    }
+    if (path.includes('/save')) {
+      approvalStatus = 'DRAFT'
+      approvalRevision += 1
       return {
         data: {
           documentId: 'DOC-1',
           documentNo: 'V-1',
-          approval: {
-            status: 'DRAFT',
-            revision: 2,
-            createdAt: '2026-08-05T00:00:00Z',
-            createdBy: 'USER-1',
-            updatedAt: '2026-08-05T00:00:00Z',
-            updatedBy: 'USER-1',
-            submittedAt: null,
-            submittedBy: null,
-            approvedAt: null,
-            approvedBy: null,
-          },
+          approval: approvalSnapshot(),
         },
       } as never
+    }
     if (path.includes('/get'))
       return {
         data: {
           documentId: 'DOC-1',
           documentNo: 'V-1',
-          approval: {
-            status: 'DRAFT',
-            revision: 1,
-            createdAt: '2026-08-05T00:00:00Z',
-            createdBy: 'USER-1',
-            updatedAt: '2026-08-05T00:00:00Z',
-            updatedBy: 'USER-1',
-            submittedAt: null,
-            submittedBy: null,
-            approvedAt: null,
-            approvedBy: null,
-          },
+          approval: approvalSnapshot(),
+          availableApprovalActions: availableApprovalActions(),
           entity: 'bill-maturity',
           amount: '10.00',
           data: {
@@ -204,22 +203,25 @@ beforeEach(() => {
           },
         },
       } as never
+    const action = path.split('/').at(-1)
+    const isLifecycleAction = [
+      'submit',
+      'unsubmit',
+      'reject',
+      'approve',
+      'unapprove',
+    ].includes(action ?? '')
+    if (action === 'submit') approvalStatus = 'PENDING'
+    else if (action === 'unsubmit' || action === 'reject')
+      approvalStatus = 'DRAFT'
+    else if (action === 'approve') approvalStatus = 'APPROVED'
+    else if (action === 'unapprove') approvalStatus = 'DRAFT'
+    if (isLifecycleAction) approvalRevision += 1
     return {
       data: {
         documentId: 'DOC-1',
         documentNo: 'V-1',
-        approval: {
-          status: 'PENDING',
-          revision: 2,
-          createdAt: '2026-08-05T00:00:00Z',
-          createdBy: 'USER-1',
-          updatedAt: '2026-08-05T00:00:00Z',
-          updatedBy: 'USER-1',
-          submittedAt: '2026-08-05T00:00:00Z',
-          submittedBy: 'USER-1',
-          approvedAt: null,
-          approvedBy: null,
-        },
+        approval: approvalSnapshot(),
       },
     } as never
   })
@@ -1284,6 +1286,8 @@ describe('bill voucher view model behavior', () => {
     expect(await vm.save()).toBe(true)
     await vm.lifecycle('submit')
     expect(vm.documentStatus.value).toBe('PENDING')
+    expect(vm.actionAvailability.value.submit).toBe(false)
+    expect(vm.actionAvailability.value.unsubmit).toBe(true)
     await vm.lifecycle('unsubmit')
     await vm.lifecycle('approve')
     await vm.lifecycle('unapprove', '测试')

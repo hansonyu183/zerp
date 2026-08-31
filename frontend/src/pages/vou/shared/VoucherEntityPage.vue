@@ -26,7 +26,7 @@ import {
   type VoucherSelectableReference,
   type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
-import { lifecycleLabels } from './config'
+import { approvalActionPresentation } from '@/shared/approval'
 import type { VoucherEntityViewModel } from './view-model'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
@@ -47,7 +47,6 @@ const props = withDefaults(
 const vm = reactive(props.model)
 const route = useRoute()
 const router = useRouter()
-const labels = computed(() => lifecycleLabels(vm.config))
 const assetLineKind = computed(
   () => vm.config.lineKind as Extract<VoucherLineKind, `asset-${string}`>,
 )
@@ -60,12 +59,7 @@ const atomicDocument = computed(() =>
 )
 const atomicStatusLabel = computed(() => {
   const status = atomicDocument.value?.status
-  return status
-    ? formatVoucherStatus(status, {
-        PENDING: labels.value.pending,
-        APPROVED: labels.value.approved,
-      })
-    : ''
+  return status ? formatVoucherStatus(status) : ''
 })
 const partyEnabled = computed(() => vm.config.partyMode !== 'none')
 const partyLabel = computed(() => {
@@ -98,10 +92,10 @@ const secondaryTitle = ref('')
 const secondaryReason = ref('')
 const listLifecycleTarget = ref<VoucherListItem | null>(null)
 const listLifecycleAction =
-  ref<Extract<VoucherLifecycleAction, 'unapprove'>>('unapprove')
+  ref<Extract<VoucherLifecycleAction, 'reject' | 'unapprove'>>('reject')
 const listLifecycleReason = ref('')
 const listLifecycleTitle = computed(
-  () => labels.value[listLifecycleAction.value],
+  () => approvalActionPresentation[listLifecycleAction.value].label,
 )
 
 if (props.autoQuery) {
@@ -206,9 +200,12 @@ function requestListLifecycleAction(
   row: VoucherListItem,
   action: VoucherLifecycleAction,
 ): void {
-  if (action === 'unapprove') {
+  if (approvalActionPresentation[action].reasonRequired) {
     listLifecycleTarget.value = row
-    listLifecycleAction.value = action
+    listLifecycleAction.value = action as Extract<
+      VoucherLifecycleAction,
+      'reject' | 'unapprove'
+    >
     listLifecycleReason.value = ''
     return
   }
@@ -272,7 +269,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
     <VoucherList
       :action-loading="vm.actionLoading"
       :can-edit="vm.canEdit"
-      :can-lifecycle-action="vm.canLifecycleAction"
       :can-view="vm.canView"
       :creatable="
         vm.canCreate &&
@@ -290,7 +286,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       "
       :keyword="vm.filters.keyword"
       :loading="vm.loading"
-      :lifecycle-labels="labels"
       :page="vm.page"
       :page-size="vm.pageSize"
       :party="vm.selectedParty"
@@ -355,7 +350,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
   >
     <template #actions>
       <VoucherWorkspaceActions
-        :labels="labels"
         :model="model"
         @save="saveDocument"
         @secondary="openSecondary"

@@ -4398,6 +4398,8 @@ INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000001', '/bob/c
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000002', '/bob/customer-account/get', 'bob', 'customer-account', 'get', '查看客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000002', '/dcl/other-unit/unapprove', 'dcl', 'other-unit', 'unapprove', '反审核其他单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/dcl/sales-partner/unapprove', 'dcl', 'sales-partner', 'unapprove', '反审核销售合作关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JAUXREF00000000000000001', '/aux/reference/query', 'aux', 'reference', 'query', '查询 AUX 最小引用候选', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOBREF00000000000000001', '/bob/reference/query', 'bob', 'reference', 'query', '查询 BOB 最小引用候选', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
 
 
 --

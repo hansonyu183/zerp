@@ -1,4 +1,4 @@
-# DCL 会计映射申报页面用例
+# DCL 会计映射变更页面用例
 
 权威业务规则见 [DCL 会计映射申报](../../domains/dcl.md#38-会计映射申报)、[ACC 当前记账映射](../../domains/acc.md#7-当前记账映射) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml) 与 [OpenAPI ACC Schema](../../../contracts/openapi/schemas/acc.yaml)。
 

@@ -95,10 +95,10 @@ export function useDclVehicleViewModel() {
   }
   const editorTitle = computed(() =>
     editorMode.value === 'create'
-      ? '新增车辆申报'
+      ? '新增车辆变更'
       : editorMode.value === 'edit'
-        ? '编辑车辆申报'
-        : '车辆申报详情',
+        ? '编辑车辆变更'
+        : '车辆变更详情',
   )
   const history = useDclDeclarationHistory(
     errorMessage,
@@ -283,7 +283,7 @@ export function useDclVehicleViewModel() {
         ? !canCreate.value
         : !canEditVehicle.value
     ) {
-      editorErrorMessage.value = '当前权限不足，无法保存车辆申报。'
+      editorErrorMessage.value = '当前权限不足，无法保存车辆变更。'
       return false
     }
     if (
@@ -305,7 +305,7 @@ export function useDclVehicleViewModel() {
         await apiClient.postContract('dcl/vehicle/create', { data })
       } else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的车辆申报版本。')
+        if (!context) throw new Error('未加载可编辑的车辆变更版本。')
         await apiClient.postContract('dcl/vehicle/save', {
           ...context,
           enabled: currentView.value?.enabled ?? true,
@@ -316,7 +316,7 @@ export function useDclVehicleViewModel() {
       currentView.value = null
       effectiveView.value = null
       editContext.value = null
-      successMessage.value = '车辆申报已保存。'
+      successMessage.value = '车辆变更已保存。'
       await query()
       return true
     } catch (error) {

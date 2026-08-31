@@ -284,7 +284,7 @@ async function confirmReverse() {
         if (!value) deleteTarget = null
       }
     "
-    ><v-card rounded="xl" title="确认删除供应商申报草稿"
+    ><v-card rounded="xl" title="确认删除供应商变更草稿"
       ><v-card-text
         >仅从未提交、从未生效且未被引用的首版草稿可以删除。</v-card-text
       ><v-card-actions

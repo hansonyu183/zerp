@@ -237,7 +237,7 @@ void vm.initialize().then(() => {
         </v-btn>
       </template>
     </EntityListControls>
-    <v-card title="会计映射申报">
+    <v-card title="会计映射变更">
       <v-card-text class="pb-0">
         <v-text-field
           v-model="vm.approvalReason"

@@ -266,7 +266,7 @@ test(
 )
 
 test(
-  '供应商申报经 DCL 批准后可创建候选版本',
+  '供应商变更经 DCL 批准后可创建候选版本',
   { tag: '@mobile' },
   async ({ page, workerState }, testInfo) => {
     test.setTimeout(120_000)

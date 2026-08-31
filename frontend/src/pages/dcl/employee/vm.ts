@@ -137,10 +137,10 @@ export function useDclEmployeeViewModel() {
   )
   const editorTitle = computed(() =>
     editorMode.value === 'create'
-      ? '新增人员申报'
+      ? '新增人员变更'
       : editorMode.value === 'edit'
-        ? '编辑人员申报'
-        : '人员申报详情',
+        ? '编辑人员变更'
+        : '人员变更详情',
   )
   const editorFields = computed<
     readonly BusinessObjectField<DclEmployeeForm>[]
@@ -443,7 +443,7 @@ export function useDclEmployeeViewModel() {
       if (editorMode.value === 'create') await createDclEmployee(form)
       else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的人员申报版本。')
+        if (!context) throw new Error('未加载可编辑的人员变更版本。')
         await saveDclEmployee({
           ...context,
           enabled: currentView.value?.enabled ?? true,
@@ -451,7 +451,7 @@ export function useDclEmployeeViewModel() {
         })
       }
       closeEditor()
-      successMessage.value = '人员申报已保存。'
+      successMessage.value = '人员变更已保存。'
       await query()
       return true
     } catch (error) {

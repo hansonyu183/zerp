@@ -76,7 +76,7 @@ export async function getDclCustomer(
     objectId,
     ...(approvalEntryId ? { approvalEntryId } : {}),
   })
-  if (!data) throw new Error('客户申报不存在。')
+  if (!data) throw new Error('客户变更不存在。')
   return data
 }
 

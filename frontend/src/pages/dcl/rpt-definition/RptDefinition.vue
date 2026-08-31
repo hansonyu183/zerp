@@ -76,7 +76,7 @@ void vm.query().then(() => {
   <v-container fluid class="pa-5 pa-md-8">
     <div class="d-flex align-center flex-wrap ga-3 mb-5">
       <div>
-        <h1 class="text-h5">报表定义申报</h1>
+        <h1 class="text-h5">报表定义变更</h1>
         <div class="text-body-2 text-medium-emphasis">
           DCL 统一维护候选版本与审批；RPT 仅执行当前有效正式版本。
         </div>

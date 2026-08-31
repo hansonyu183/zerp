@@ -50,6 +50,6 @@ export function dclOperatingEntityActiveVersion(
   item: Readonly<DclOperatingEntityListItem>,
 ): DclOperatingEntityVersionView {
   const version = item.openVersion ?? item.latestApproved
-  if (!version) throw new Error('经营主体申报缺少已批准版本和开放候选版本。')
+  if (!version) throw new Error('经营主体变更缺少已批准版本和开放候选版本。')
   return version
 }

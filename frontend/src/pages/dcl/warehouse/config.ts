@@ -69,7 +69,7 @@ const fields: readonly BusinessObjectField<DclWarehouseForm>[] = [
 ]
 
 export const dclWarehouseConfig: DclWarehouseConfig = {
-  title: '仓库申报',
+  title: '仓库变更',
   fields,
   emptyForm: () => ({
     code: '',

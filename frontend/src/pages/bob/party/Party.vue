@@ -102,7 +102,7 @@ onMounted(() => void vm.query())
         ><v-card-title>主体当前有效资料</v-card-title
         ><v-card-text>
           <v-alert type="info" variant="tonal" class="mb-4"
-            >当前有效资料只读；维护共享身份、候选和审批请进入主体申报。</v-alert
+            >当前有效资料只读；维护共享身份、候选和审批请进入主体变更。</v-alert
           >
           <v-row dense
             ><v-col cols="12" sm="4"
@@ -165,7 +165,7 @@ onMounted(() => void vm.query())
               query: { partyId: vm.detail?.partyId, mode: 'view' },
             }"
             variant="tonal"
-            >查看主体申报</v-btn
+            >查看主体变更</v-btn
           ><v-spacer /><v-btn @click="vm.close">关闭</v-btn></v-card-actions
         ></v-card
       ></v-dialog

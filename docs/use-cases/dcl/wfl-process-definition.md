@@ -1,4 +1,4 @@
-# DCL 流程定义申报页面用例
+# DCL 流程定义变更页面用例
 
 权威业务规则见 [DCL 流程定义申报](../../domains/dcl.md#310-流程定义申报)、[WFL 定义与 Approval Version](../../domains/wfl.md#2-定义与-approval-version) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI](../../../contracts/openapi/openapi.yaml)，边界决定见 [ADR-0045](../../adr/0045-wfl-process-definition-declarations-are-dcl-owned.md) 与 [ADR-0046](../../adr/0046-dcl-is-the-only-approval-version-writer.md)。
 

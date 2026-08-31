@@ -62,7 +62,7 @@ function productRow(page: Page, name: string): Locator {
 
 async function searchProduct(page: Page, name: string): Promise<Locator> {
   await page.goto('/dcl/product')
-  await page.getByRole('textbox', { name: '产品申报关键字' }).fill(name)
+  await page.getByRole('textbox', { name: '产品变更关键字' }).fill(name)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const row = productRow(page, name)
   await expect(row).toHaveCount(1)

@@ -10,9 +10,9 @@ func testMenuCatalog() []registeredMenuRoute {
 	return []registeredMenuRoute{
 		{RouteKey: "home/dashboard", RoutePath: "/home/dashboard", DisplayName: "工作台", PermissionCode: "/app/workbench/query", Always: true},
 		{RouteKey: "app/menu", RoutePath: "/app/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business"},
-		{RouteKey: "dcl/operating-entity", RoutePath: "/dcl/operating-entity", DisplayName: "经营主体申报", PermissionCode: "/dcl/operating-entity/query", PermissionRoot: "/dcl/operating-entity/"},
-		{RouteKey: "dcl/warehouse", RoutePath: "/dcl/warehouse", DisplayName: "仓库申报", PermissionCode: "/dcl/warehouse/query", PermissionRoot: "/dcl/warehouse/"},
-		{RouteKey: "dcl/party", RoutePath: "/dcl/party", DisplayName: "主体申报", PermissionCode: "/dcl/party/query", PermissionRoot: "/dcl/party/"},
+		{RouteKey: "dcl/operating-entity", RoutePath: "/dcl/operating-entity", DisplayName: "经营主体", PermissionCode: "/dcl/operating-entity/query", PermissionRoot: "/dcl/operating-entity/"},
+		{RouteKey: "dcl/warehouse", RoutePath: "/dcl/warehouse", DisplayName: "仓库", PermissionCode: "/dcl/warehouse/query", PermissionRoot: "/dcl/warehouse/"},
+		{RouteKey: "dcl/party", RoutePath: "/dcl/party", DisplayName: "主体", PermissionCode: "/dcl/party/query", PermissionRoot: "/dcl/party/"},
 		{RouteKey: "bob/customer", RoutePath: "/bob/customer", DisplayName: "客户", PermissionCode: "/bob/customer/query", PermissionRoot: "/bob/customer/"},
 		{RouteKey: "bob/warehouse", RoutePath: "/bob/warehouse", DisplayName: "仓库", PermissionCode: "/bob/warehouse/query", PermissionRoot: "/bob/warehouse/"},
 	}
@@ -20,13 +20,13 @@ func testMenuCatalog() []registeredMenuRoute {
 
 func TestDefaultMenuKeepsDCLDeclarationSeparateFromBOBCurrentData(t *testing.T) {
 	menu := buildDefaultMenu(testMenuCatalog())
-	if !menuRouteUnderGroup(menu, "dcl/operating-entity", "申报控制") {
+	if !menuRouteUnderGroup(menu, "dcl/operating-entity", "档案变更") {
 		t.Fatalf("DCL operating entity is not under its own declaration group: %+v", menu.Items)
 	}
-	if !menuRouteUnderGroup(menu, "dcl/warehouse", "申报控制") {
+	if !menuRouteUnderGroup(menu, "dcl/warehouse", "档案变更") {
 		t.Fatalf("DCL warehouse is not under its own declaration group: %+v", menu.Items)
 	}
-	if !menuRouteUnderGroup(menu, "dcl/party", "申报控制") {
+	if !menuRouteUnderGroup(menu, "dcl/party", "档案变更") {
 		t.Fatalf("DCL Party is not under its own declaration group: %+v", menu.Items)
 	}
 	if !menuRouteUnderGroup(menu, "bob/customer", "业务对象") {
@@ -34,6 +34,23 @@ func TestDefaultMenuKeepsDCLDeclarationSeparateFromBOBCurrentData(t *testing.T) 
 	}
 	if !menuRouteUnderGroup(menu, "bob/warehouse", "业务对象") {
 		t.Fatalf("BOB warehouse current data left the business-object group: %+v", menu.Items)
+	}
+}
+
+func TestDCLMenuDisplayNameKeepsOnlyObjectName(t *testing.T) {
+	cases := []struct {
+		entity, description, want string
+	}{
+		{"party", "查询主体声明", "主体"},
+		{"operating-entity", "查询经营主体申报", "经营主体"},
+		{"employee", "查询员工声明", "人员"},
+		{"customer-account", "查询客户账户声明", "客户结算子账户"},
+		{"wfl-process-definition", "查询流程定义声明", "流程定义"},
+	}
+	for _, tc := range cases {
+		if got := menuRouteDisplayName("dcl", tc.entity, tc.description); got != tc.want {
+			t.Errorf("menuRouteDisplayName(%q) = %q, want %q", tc.entity, got, tc.want)
+		}
 	}
 }
 
@@ -112,6 +129,25 @@ func TestWorkbenchIsTheUniqueDirectMenuEntry(t *testing.T) {
 		if workbenches != 1 {
 			t.Fatalf("%s workbench entries = %d", name, workbenches)
 		}
+	}
+}
+
+func TestFilterMenuForPrincipalPlacesWorkbenchFirstRegardlessOfOrder(t *testing.T) {
+	groupID := "group"
+	workbenchKey, workbenchPath := "home/dashboard", "/home/dashboard"
+	customerKey, customerPath, customerPermission := "bob/customer", "/bob/customer", "/bob/customer/query"
+	tree := MenuTree{Items: []MenuItemView{
+		{ID: groupID, Type: MenuItemGroup, Level: 1, DisplayName: "销售", Enabled: true, Order: 1},
+		{ID: "customer", ParentID: &groupID, Type: MenuItemRoute, Level: 2, DisplayName: "客户", Enabled: true, Order: 1, RouteKey: &customerKey, RoutePath: &customerPath, PermissionCode: &customerPermission},
+		{ID: "workbench", Type: MenuItemRoute, Level: 1, DisplayName: "工作台", Enabled: true, Order: 999, RouteKey: &workbenchKey, RoutePath: &workbenchPath},
+	}}
+	catalog := []registeredMenuRoute{
+		{RouteKey: workbenchKey, RoutePath: workbenchPath, PermissionCode: "/app/workbench/query", Always: true},
+		{RouteKey: customerKey, RoutePath: customerPath, PermissionCode: customerPermission},
+	}
+	result := filterMenuForPrincipal(tree, catalog, Principal{Permissions: []string{customerPermission}})
+	if len(result.Items) == 0 || result.Items[0].RouteKey == nil || *result.Items[0].RouteKey != workbenchKey {
+		t.Fatalf("workbench was not placed first: %+v", result.Items)
 	}
 }
 

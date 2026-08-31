@@ -1,4 +1,4 @@
-# DCL 员工申报页面用例
+# DCL 人员变更页面用例
 
 权威业务规则见 [DCL 员工申报](../../domains/dcl.md#36-员工申报)、[AUX 人员类别、部门与岗位](../../domains/aux.md#32-人员类别部门与岗位) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
 

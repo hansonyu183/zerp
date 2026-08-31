@@ -173,7 +173,7 @@ void vm.query()
   </v-container>
 
   <v-dialog v-model="vm.createOpen" max-width="980" persistent>
-    <v-card title="新建客户关系申报">
+    <v-card title="新建客户关系变更">
       <v-card-text>
         <v-row dense>
           <v-col cols="12" md="4">
@@ -295,7 +295,7 @@ void vm.query()
     temporary
     width="640"
   >
-    <v-card v-if="vm.currentView" flat title="客户关系申报">
+    <v-card v-if="vm.currentView" flat title="客户关系变更">
       <v-list density="compact">
         <v-list-item title="编码" :subtitle="vm.currentView.code" />
         <v-list-item title="主体" :subtitle="vm.currentView.partyDisplayName" />

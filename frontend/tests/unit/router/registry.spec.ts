@@ -33,26 +33,58 @@ function createTestRouter() {
 
 describe('permission menu registry', () => {
   it('registers Party maintenance under DCL while retaining the read-only BOB page', () => {
-    expect(pageRegistry['dcl/party']?.entityTitle).toBe('主体申报')
+    expect(pageRegistry['dcl/party']?.entityTitle).toBe('主体变更')
     expect(pageRegistry['bob/party']?.entityTitle).toBe('主体')
     expect(hasRegisteredPage('dcl', 'party')).toBe(true)
   })
 
   it('registers Supplier maintenance under DCL while retaining the current-only BOB page', () => {
-    expect(pageRegistry['dcl/supplier']?.entityTitle).toBe('供应商申报')
+    expect(pageRegistry['dcl/supplier']?.entityTitle).toBe('供应商变更')
     expect(pageRegistry['bob/supplier']?.entityTitle).toBe('供应商')
     expect(hasRegisteredPage('dcl', 'supplier')).toBe(true)
   })
 
   it('registers Customer and Customer Account declarations separately from BOB current pages', () => {
-    expect(pageRegistry['dcl/customer']?.entityTitle).toBe('客户申报')
+    expect(pageRegistry['dcl/customer']?.entityTitle).toBe('客户变更')
     expect(pageRegistry['dcl/customer-account']?.entityTitle).toBe(
-      '客户结算子账户申报',
+      '客户结算子账户变更',
     )
     expect(pageRegistry['bob/customer']?.entityTitle).toBe('客户')
     expect(pageRegistry['bob/customer-account']?.entityTitle).toBe(
       '客户结算子账户',
     )
+  })
+
+  it('DCL 菜单只显示对象名，同时保留页面标题元数据', () => {
+    const expected = [
+      ['party', '主体', '主体变更'],
+      ['operating-entity', '经营主体', '经营主体变更'],
+      ['warehouse', '仓库', '仓库变更'],
+      ['vehicle', '车辆', '车辆变更'],
+      ['fund-account', '资金账户', '资金账户变更'],
+      ['employee', '人员', '人员变更'],
+      ['other-unit', '其他单位', '其他单位变更'],
+      ['sales-partner', '销售合作方', '销售合作方变更'],
+      ['customer', '客户', '客户变更'],
+      ['customer-account', '客户结算子账户', '客户结算子账户变更'],
+      ['supplier', '供应商', '供应商变更'],
+      ['product', '产品', '产品变更'],
+      ['acc-mapping', '会计映射', '会计映射变更'],
+      ['rpt-definition', '报表定义', '报表定义变更'],
+      ['wfl-process-definition', '流程定义', '流程定义变更'],
+    ] as const
+    const menus = buildMenus(expected.map(([entity]) => `/dcl/${entity}/query`))
+
+    expect(menus[0]?.title).toBe('档案变更')
+    expect(
+      menus[0]?.children.map(({ entity, title }) => [entity, title]),
+    ).toEqual(expected.map(([entity, menuTitle]) => [entity, menuTitle]))
+    for (const [entity, , pageTitle] of expected) {
+      const router = createTestRouter()
+      registerMenuRoutes(router, buildMenus([`/dcl/${entity}/query`]))
+      expect(router.resolve(`/dcl/${entity}`).meta.title).toBe(pageTitle)
+      registerMenuRoutes(router, [])
+    }
   })
 
   it('不将 APP 管理页面作为动态菜单路由注册', () => {
@@ -113,6 +145,36 @@ describe('permission menu registry', () => {
       children: [{ routeKey: 'home/dashboard', routePath: '/home/dashboard' }],
     })
     expect(menus[0]?.children).toHaveLength(1)
+  })
+
+  it('无论服务端排序值如何都将工作台置于所有一级菜单之前', () => {
+    const menus = buildServerMenus(
+      [
+        {
+          id: 'group-sales',
+          parentId: null,
+          type: 'GROUP',
+          order: 1,
+          displayName: '销售',
+          icon: null,
+          routeKey: null,
+          routePath: null,
+        },
+        {
+          id: 'route-workbench',
+          parentId: null,
+          type: 'ROUTE',
+          order: 999,
+          displayName: '工作台',
+          icon: null,
+          routeKey: 'home/dashboard',
+          routePath: '/home/dashboard',
+        },
+      ],
+      [],
+    )
+
+    expect(menus[0]?.children[0]?.routeKey).toBe('home/dashboard')
   })
 
   it('系统默认菜单保留本地注册名称，业务模板保留管理员名称', () => {
@@ -195,13 +257,14 @@ describe('permission menu registry', () => {
     expect(menus).toEqual([
       {
         domain: 'dcl',
-        title: '申报控制',
+        title: '档案变更',
         icon: 'mdi-file-sign',
         order: 5,
         children: [
           {
             entity: 'customer',
-            title: '客户申报',
+            title: '客户',
+            pageTitle: '客户变更',
             icon: 'mdi-account-group',
             order: 48,
             actions: ['create', 'query'],
@@ -420,7 +483,7 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
-  it('为 DCL 申报和 BOB 当前有效资料注册独立产品、经营主体、仓库与车辆入口', () => {
+  it('为 DCL 变更和 BOB 当前有效资料注册独立产品、经营主体、仓库与车辆入口', () => {
     const router = createTestRouter()
     const menus = buildMenus([
       '/dcl/operating-entity/query',
@@ -443,26 +506,26 @@ describe('permission menu registry', () => {
 
     expect(menus.map((domain) => domain.domain)).toEqual(['dcl', 'bob'])
     expect(menus[0]).toMatchObject({
-      title: '申报控制',
+      title: '档案变更',
       children: [
         {
           entity: 'operating-entity',
-          title: '经营主体申报',
+          title: '经营主体',
           actions: ['query', 'create'],
         },
         {
           entity: 'warehouse',
-          title: '仓库申报',
+          title: '仓库',
           actions: ['query', 'create'],
         },
         {
           entity: 'vehicle',
-          title: '车辆申报',
+          title: '车辆',
           actions: ['query', 'create'],
         },
         {
           entity: 'product',
-          title: '产品申报',
+          title: '产品',
           actions: ['query', 'create'],
         },
       ],
@@ -504,7 +567,7 @@ describe('permission menu registry', () => {
     expect(hasRegisteredPage('bob', 'vehicle')).toBe(true)
     expect(router.resolve('/dcl/operating-entity').meta).toMatchObject({
       developing: false,
-      title: '经营主体申报',
+      title: '经营主体变更',
       actions: ['query', 'create'],
     })
     expect(router.resolve('/bob/operating-entity').meta).toMatchObject({
@@ -514,7 +577,7 @@ describe('permission menu registry', () => {
     })
     expect(router.resolve('/dcl/warehouse').meta).toMatchObject({
       developing: false,
-      title: '仓库申报',
+      title: '仓库变更',
       actions: ['query', 'create'],
     })
     expect(router.resolve('/bob/warehouse').meta).toMatchObject({
@@ -524,7 +587,7 @@ describe('permission menu registry', () => {
     })
     expect(router.resolve('/dcl/vehicle').meta).toMatchObject({
       developing: false,
-      title: '车辆申报',
+      title: '车辆变更',
       actions: ['query', 'create'],
     })
     expect(router.resolve('/bob/vehicle').meta).toMatchObject({
@@ -534,7 +597,7 @@ describe('permission menu registry', () => {
     })
     expect(router.resolve('/dcl/product').meta).toMatchObject({
       developing: false,
-      title: '产品申报',
+      title: '产品变更',
       actions: ['query', 'create'],
     })
     expect(router.resolve('/bob/product').meta).toMatchObject({
@@ -769,11 +832,20 @@ describe('RPT dynamic routes', () => {
     ])
 
     expect(menus).toMatchObject([
-      { domain: 'dcl', children: [{ entity: 'rpt-definition', title: '报表定义申报', actions: ['create'] }] },
-      { domain: 'rpt', title: '报表', children: [
-        { entity: 'account-balance', actions: ['export'] },
-        { entity: 'account-journal', actions: ['query'] },
-      ] },
+      {
+        domain: 'dcl',
+        children: [
+          { entity: 'rpt-definition', title: '报表定义', actions: ['create'] },
+        ],
+      },
+      {
+        domain: 'rpt',
+        title: '报表',
+        children: [
+          { entity: 'account-balance', actions: ['export'] },
+          { entity: 'account-journal', actions: ['query'] },
+        ],
+      },
     ])
     expect(registerMenuRoutes(router, menus)).toBe(3)
     expect(router.resolve('/rpt/account-journal').meta).toMatchObject({
@@ -788,7 +860,7 @@ describe('RPT dynamic routes', () => {
     })
     expect(router.resolve('/dcl/rpt-definition').meta).toMatchObject({
       developing: false,
-      title: '报表定义申报',
+      title: '报表定义变更',
       actions: ['create'],
     })
     expect(router.resolve('/rpt/definition').name).toBe('not-found')

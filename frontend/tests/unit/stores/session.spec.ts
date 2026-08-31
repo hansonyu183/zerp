@@ -95,7 +95,7 @@ describe('useSessionStore permissions', () => {
             id: 'customer',
             routeKey: 'dcl/customer',
             routePath: '/dcl/customer',
-            title: '客户申报',
+            title: '客户',
           },
         ]),
       )

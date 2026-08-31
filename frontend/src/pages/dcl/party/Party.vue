@@ -238,7 +238,7 @@ watch(
 <template>
   <v-container fluid class="dcl-party-page pa-3 pa-md-6">
     <v-card
-      ><v-card-title>主体申报</v-card-title
+      ><v-card-title>主体变更</v-card-title
       ><v-card-text>
         <v-alert type="info" variant="tonal" class="mb-4"
           >主体只能由首条强类型关系原子创建；此处不提供单独新建。保存、候选、审批与合并均在本页完成。</v-alert
@@ -246,7 +246,7 @@ watch(
         <BusinessObjectList
           :columns="columns"
           :editable="(row) => rowActions(row).length > 0"
-          empty-text="暂无主体申报"
+          empty-text="暂无主体变更"
           :keyword="vm.keywordDraft"
           :loading="vm.loading"
           :page="vm.page"
@@ -343,7 +343,7 @@ watch(
           <v-card
             ><v-card-title
               >{{
-                vm.editorMode === 'edit' ? '编辑主体申报' : '主体申报详情'
+                vm.editorMode === 'edit' ? '编辑主体变更' : '主体变更详情'
               }}
               · V{{ vm.currentView.approval.versionNo }}</v-card-title
             ><v-card-text>

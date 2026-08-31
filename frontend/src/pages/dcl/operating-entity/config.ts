@@ -56,7 +56,7 @@ const fields: readonly BusinessObjectField<DclOperatingEntityForm>[] = [
 ]
 
 export const dclOperatingEntityConfig: DclOperatingEntityConfig = {
-  title: '经营主体申报',
+  title: '经营主体变更',
   fields,
   emptyForm: () => ({
     code: '',

@@ -104,10 +104,10 @@ export function useDclFundAccountViewModel() {
   }
   const editorTitle = computed(() =>
     editorMode.value === 'create'
-      ? '新增资金账户申报'
+      ? '新增资金账户变更'
       : editorMode.value === 'edit'
-        ? '编辑资金账户申报'
-        : '资金账户申报详情',
+        ? '编辑资金账户变更'
+        : '资金账户变更详情',
   )
   const editorFields = computed(() =>
     config.fields.map((field): BusinessObjectField<DclFundAccountForm> => {
@@ -402,7 +402,7 @@ export function useDclFundAccountViewModel() {
         ? !canCreate.value
         : !canEditFundAccount.value
     ) {
-      editorErrorMessage.value = '当前权限不足，无法保存资金账户申报。'
+      editorErrorMessage.value = '当前权限不足，无法保存资金账户变更。'
       return false
     }
     const data = dclFundAccountData(form)
@@ -417,7 +417,7 @@ export function useDclFundAccountViewModel() {
         await createDclFundAccount(data)
       } else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的资金账户申报版本。')
+        if (!context) throw new Error('未加载可编辑的资金账户变更版本。')
         await saveDclFundAccount({
           objectId: context.objectId,
           approvalEntryId: context.approvalEntryId,
@@ -429,7 +429,7 @@ export function useDclFundAccountViewModel() {
       drawerOpen.value = false
       editContext.value = null
       currentView.value = null
-      successMessage.value = '资金账户申报已保存。'
+      successMessage.value = '资金账户变更已保存。'
       await query()
       return true
     } catch (error) {

@@ -52,6 +52,6 @@ export function dclVehicleActiveVersion(
   item: Readonly<DclVehicleListItem>,
 ): DclVehicleVersionView {
   const version = item.openVersion ?? item.latestApproved
-  if (!version) throw new Error('车辆申报缺少已批准版本和开放候选版本。')
+  if (!version) throw new Error('车辆变更缺少已批准版本和开放候选版本。')
   return version
 }

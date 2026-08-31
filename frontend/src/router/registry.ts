@@ -9,6 +9,7 @@ export interface MenuEntity {
   routeKey?: string
   routePath?: string
   title: string
+  pageTitle?: string
   icon?: string
   order: number
   actions: string[]
@@ -70,7 +71,7 @@ type EntityRegistration = Omit<
 
 const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
   dcl: {
-    domainTitle: '申报控制',
+    domainTitle: '档案变更',
     domainIcon: 'mdi-file-sign',
     domainOrder: 5,
   },
@@ -120,106 +121,105 @@ function registerPage(
 export const pageRegistrations: readonly PageRegistration[] = [
   registerPage('dcl', {
     entity: 'party',
-    entityTitle: '主体申报',
+    entityTitle: '主体变更',
     icon: 'mdi-account-box-multiple-outline',
     order: 5,
     component: () => import('@/pages/dcl/party/Party.vue'),
   }),
   registerPage('dcl', {
     entity: 'operating-entity',
-    entityTitle: '经营主体申报',
+    entityTitle: '经营主体变更',
     icon: 'mdi-office-building-edit-outline',
     order: 10,
     component: () => import('@/pages/dcl/operating-entity/OperatingEntity.vue'),
   }),
   registerPage('dcl', {
     entity: 'warehouse',
-    entityTitle: '仓库申报',
+    entityTitle: '仓库变更',
     icon: 'mdi-warehouse-edit-outline',
     order: 20,
     component: () => import('@/pages/dcl/warehouse/Warehouse.vue'),
   }),
   registerPage('dcl', {
     entity: 'vehicle',
-    entityTitle: '车辆申报',
+    entityTitle: '车辆变更',
     icon: 'mdi-truck-outline',
     order: 30,
     component: () => import('@/pages/dcl/vehicle/Vehicle.vue'),
   }),
   registerPage('dcl', {
     entity: 'fund-account',
-    entityTitle: '资金账户申报',
+    entityTitle: '资金账户变更',
     icon: 'mdi-bank-outline',
     order: 40,
     component: () => import('@/pages/dcl/fund-account/FundAccount.vue'),
   }),
   registerPage('dcl', {
     entity: 'employee',
-    entityTitle: '人员申报',
+    entityTitle: '人员变更',
     icon: 'mdi-badge-account-horizontal-outline',
     order: 45,
     component: () => import('@/pages/dcl/employee/Employee.vue'),
   }),
   registerPage('dcl', {
     entity: 'other-unit',
-    entityTitle: '其他单位申报',
+    entityTitle: '其他单位变更',
     icon: 'mdi-handshake-outline',
     order: 46,
     component: () => import('@/pages/dcl/other-unit/OtherUnit.vue'),
   }),
   registerPage('dcl', {
     entity: 'sales-partner',
-    entityTitle: '销售合作方申报',
+    entityTitle: '销售合作方变更',
     icon: 'mdi-account-tie-outline',
     order: 47,
     component: () => import('@/pages/dcl/sales-partner/SalesPartner.vue'),
   }),
   registerPage('dcl', {
     entity: 'customer',
-    entityTitle: '客户申报',
+    entityTitle: '客户变更',
     icon: 'mdi-account-group',
     order: 48,
     component: () => import('@/pages/dcl/customer/Customer.vue'),
   }),
   registerPage('dcl', {
     entity: 'customer-account',
-    entityTitle: '客户结算子账户申报',
+    entityTitle: '客户结算子账户变更',
     icon: 'mdi-account-cash-outline',
     order: 49,
     component: () => import('@/pages/dcl/customer-account/CustomerAccount.vue'),
   }),
   registerPage('dcl', {
     entity: 'supplier',
-    entityTitle: '供应商申报',
+    entityTitle: '供应商变更',
     icon: 'mdi-truck-delivery-outline',
     order: 50,
     component: () => import('@/pages/dcl/supplier/Supplier.vue'),
   }),
   registerPage('dcl', {
     entity: 'product',
-    entityTitle: '产品申报',
+    entityTitle: '产品变更',
     icon: 'mdi-package-variant-closed',
     order: 60,
     component: () => import('@/pages/dcl/product/Product.vue'),
   }),
   registerPage('dcl', {
     entity: 'acc-mapping',
-    entityTitle: '会计映射申报',
+    entityTitle: '会计映射变更',
     icon: 'mdi-source-branch-plus',
     order: 70,
     component: () => import('@/pages/dcl/acc-mapping/AccMapping.vue'),
   }),
   registerPage('dcl', {
     entity: 'rpt-definition',
-    entityTitle: '报表定义申报',
+    entityTitle: '报表定义变更',
     icon: 'mdi-file-cog-outline',
     order: 80,
-    component: () =>
-      import('@/pages/dcl/rpt-definition/RptDefinition.vue'),
+    component: () => import('@/pages/dcl/rpt-definition/RptDefinition.vue'),
   }),
   registerPage('dcl', {
     entity: 'wfl-process-definition',
-    entityTitle: '流程定义申报',
+    entityTitle: '流程定义变更',
     icon: 'mdi-source-branch',
     order: 90,
     component: () =>
@@ -808,12 +808,16 @@ export function buildMenus(
       children: [],
     }
 
+    const title =
+      menuTitleForRegistration(registration) ??
+      (domainId === 'wfl' ? WORKFLOW_ENTITY_TITLES[entityId] : undefined) ??
+      formatIdentifierTitle(entityId)
     domain.children.push({
       entity: entityId,
-      title:
-        registration?.entityTitle ??
-        (domainId === 'wfl' ? WORKFLOW_ENTITY_TITLES[entityId] : undefined) ??
-        formatIdentifierTitle(entityId),
+      title,
+      ...(registration?.entityTitle && registration.entityTitle !== title
+        ? { pageTitle: registration.entityTitle }
+        : {}),
       ...(registration?.icon ? { icon: registration.icon } : {}),
       order: registration?.order ?? FALLBACK_ORDER,
       actions,
@@ -859,16 +863,23 @@ export function buildServerMenus(
   const toEntity = (item: ServerMenuItem, isDefaultMenu: boolean) => {
     const routeKey = item.routeKey as string
     const registration = pageRegistry[routeKey]
+    const title = isDefaultMenu
+      ? (menuTitleForRegistration(registration) ??
+        WORKFLOW_ENTITY_TITLES[routeKey.split('/')[1] ?? ''] ??
+        item.displayName)
+      : item.displayName
+    const pageTitle = isDefaultMenu
+      ? registration?.entityTitle
+      : registration
+        ? item.displayName
+        : undefined
     return {
       id: item.id,
       entity: item.id,
       routeKey,
       routePath: item.routePath as string,
-      title: isDefaultMenu
-        ? (registration?.entityTitle ??
-          WORKFLOW_ENTITY_TITLES[routeKey.split('/')[1] ?? ''] ??
-          item.displayName)
-        : item.displayName,
+      title,
+      ...(pageTitle && pageTitle !== title ? { pageTitle } : {}),
       ...(isDefaultMenu && registration?.icon
         ? { icon: registration.icon }
         : item.icon
@@ -916,7 +927,10 @@ export function buildServerMenus(
 
   return [...directRoutes, ...groupedMenus].sort(
     (left, right) =>
-      left.order - right.order || left.domain.localeCompare(right.domain),
+      Number(right.children[0]?.routeKey === 'home/dashboard') -
+        Number(left.children[0]?.routeKey === 'home/dashboard') ||
+      left.order - right.order ||
+      left.domain.localeCompare(right.domain),
   )
 }
 
@@ -926,6 +940,15 @@ function formatIdentifierTitle(identifier: string): string {
     .filter(Boolean)
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join(' ')
+}
+
+function menuTitleForRegistration(
+  registration: PageRegistration | undefined,
+): string | undefined {
+  if (!registration) return undefined
+  return registration.domain === 'dcl'
+    ? registration.entityTitle.replace(/变更$/, '')
+    : registration.entityTitle
 }
 
 export function hasRegisteredPage(domain: string, entity: string): boolean {
@@ -960,7 +983,7 @@ export function registerMenuRoutes(
         .find((route) => route.name === routeName)
       const developing = !registration && !dynamicWorkflow && !dynamicReport
       const routeIsCurrent =
-        currentRoute?.meta.title === entity.title &&
+        currentRoute?.meta.title === (entity.pageTitle ?? entity.title) &&
         currentRoute.meta.developing === developing &&
         currentRoute.meta.processName ===
           (dynamicWorkflow ? routeEntity : undefined) &&
@@ -984,7 +1007,7 @@ export function registerMenuRoutes(
               : developingPage),
         meta: {
           requiresAuth: true,
-          title: entity.title,
+          title: entity.pageTitle ?? entity.title,
           actions: entity.actions,
           developing,
           ...(dynamicWorkflow ? { processName: routeEntity } : {}),

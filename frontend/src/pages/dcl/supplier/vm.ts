@@ -129,10 +129,10 @@ export function useDclSupplierViewModel() {
   )
   const editorTitle = computed(() =>
     editorMode.value === 'create'
-      ? '新增供应商申报'
+      ? '新增供应商变更'
       : editorMode.value === 'edit'
-        ? '编辑供应商申报'
-        : '供应商申报详情',
+        ? '编辑供应商变更'
+        : '供应商变更详情',
   )
   const editorFields = computed<
     readonly BusinessObjectField<DclSupplierForm>[]
@@ -405,7 +405,7 @@ export function useDclSupplierViewModel() {
       if (editorMode.value === 'create') await createDclSupplier(form)
       else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的供应商申报版本。')
+        if (!context) throw new Error('未加载可编辑的供应商变更版本。')
         await saveDclSupplier({
           ...context,
           enabled: currentView.value?.enabled ?? true,
@@ -413,7 +413,7 @@ export function useDclSupplierViewModel() {
         })
       }
       closeEditor()
-      successMessage.value = '供应商申报已保存。'
+      successMessage.value = '供应商变更已保存。'
       await query()
       return true
     } catch (error) {

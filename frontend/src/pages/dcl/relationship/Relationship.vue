@@ -308,7 +308,7 @@ async function confirmReverse() {
       }
     "
   >
-    <v-card rounded="xl" :title="`确认删除${vm.entityLabel}申报草稿`">
+    <v-card rounded="xl" :title="`确认删除${vm.entityLabel}变更草稿`">
       <v-card-text>
         仅从未提交、从未生效且未被引用的首版草稿可以删除。
       </v-card-text>

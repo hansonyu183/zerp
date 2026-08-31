@@ -244,7 +244,7 @@ test(
   },
 )
 
-test('DCL 经营主体申报与 BOB 当前有效资料使用独立入口和请求边界', async ({
+test('DCL 经营主体变更与 BOB 当前有效资料使用独立入口和请求边界', async ({
   page,
   workerState,
 }) => {
@@ -252,9 +252,9 @@ test('DCL 经营主体申报与 BOB 当前有效资料使用独立入口和请�
   await signIn(page, workerState)
   await page.goto('/home/dashboard')
 
-  await page.getByText('申报控制', { exact: true }).click()
-  const declarationLink = page.getByRole('link', {
-    name: '经营主体申报',
+  await page.getByText('档案变更', { exact: true }).click()
+  const declarationLink = page.getByLabel('档案变更').getByRole('link', {
+    name: '经营主体',
     exact: true,
   })
   await expect(declarationLink).toBeVisible()
@@ -289,7 +289,7 @@ test('DCL 经营主体申报与 BOB 当前有效资料使用独立入口和请�
   await submitCredentials(page, workerState.reviewer)
   await expect(page).toHaveURL(/\/home\/dashboard$/)
   await page.goto('/dcl/operating-entity')
-  await page.getByRole('textbox', { name: '经营主体申报关键字' }).fill(code!)
+  await page.getByRole('textbox', { name: '经营主体变更关键字' }).fill(code!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(operatingEntityRow(page, code!)).toBeVisible()
   await operatingEntityAction(page, code!, '审核通过')
@@ -302,7 +302,7 @@ test('DCL 经营主体申报与 BOB 当前有效资料使用独立入口和请�
   })
 
   await page.getByText('业务对象', { exact: true }).click()
-  const currentProfileLink = page.getByRole('link', {
+  const currentProfileLink = page.getByLabel('业务对象').getByRole('link', {
     name: '经营主体',
     exact: true,
   })

@@ -63,9 +63,9 @@ export function useDclWarehouseViewModel() {
     )
   const canCreate = computed(() => session.can(permission('create')))
   const editorTitle = computed(() => {
-    if (editorMode.value === 'create') return '新增仓库申报'
-    if (editorMode.value === 'edit') return '编辑仓库申报'
-    return '仓库申报详情'
+    if (editorMode.value === 'create') return '新增仓库变更'
+    if (editorMode.value === 'edit') return '编辑仓库变更'
+    return '仓库变更详情'
   })
   const editorFields = computed(() => config.fields)
   const effectiveEditorModel = computed(() =>
@@ -307,7 +307,7 @@ export function useDclWarehouseViewModel() {
         mutation = result.data
       } else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的仓库申报版本。')
+        if (!context) throw new Error('未加载可编辑的仓库变更版本。')
         const result = await apiClient.postContract('dcl/warehouse/save', {
           objectId: context.objectId,
           approvalEntryId: context.approvalEntryId,
@@ -316,14 +316,14 @@ export function useDclWarehouseViewModel() {
           data: dclWarehouseData(normalized),
         })
         if (!result.data || !('objectId' in result.data)) {
-          throw new Error('仓库申报保存未返回候选版本。')
+          throw new Error('仓库变更保存未返回候选版本。')
         }
         mutation = result.data
       }
       drawerOpen.value = false
       editContext.value = null
       currentView.value = null
-      successMessage.value = '仓库申报已保存。'
+      successMessage.value = '仓库变更已保存。'
       await query()
       return Boolean(mutation.objectId)
     } catch (error) {

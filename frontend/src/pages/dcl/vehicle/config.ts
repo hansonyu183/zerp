@@ -73,7 +73,7 @@ const fields: readonly BusinessObjectField<DclVehicleForm>[] = [
 ]
 
 export const dclVehicleConfig: DclVehicleConfig = {
-  title: '车辆申报',
+  title: '车辆变更',
   fields,
   emptyForm: () => ({
     code: '',

@@ -75,10 +75,10 @@ export function useDclProductViewModel() {
   )
   const editorTitle = computed(() =>
     editorMode.value === 'create'
-      ? '新增产品申报'
+      ? '新增产品变更'
       : editorMode.value === 'edit'
-        ? '编辑产品申报'
-        : '产品申报详情',
+        ? '编辑产品变更'
+        : '产品变更详情',
   )
   const {
     editorFields,
@@ -318,7 +318,7 @@ export function useDclProductViewModel() {
   async function save(form: DclProductForm): Promise<boolean> {
     if (saving.value || editorMode.value === 'view') return false
     if (editorMode.value === 'create' ? !canCreate.value : !canEdit.value) {
-      editorErrorMessage.value = '当前权限不足，无法保存产品申报。'
+      editorErrorMessage.value = '当前权限不足，无法保存产品变更。'
       return false
     }
     const data =
@@ -336,7 +336,7 @@ export function useDclProductViewModel() {
         await createDclProduct(data)
       } else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的产品申报版本。')
+        if (!context) throw new Error('未加载可编辑的产品变更版本。')
         await saveDclProduct({
           objectId: context.objectId,
           approvalEntryId: context.approvalEntryId,
@@ -348,7 +348,7 @@ export function useDclProductViewModel() {
       drawerOpen.value = false
       editContext.value = null
       currentView.value = null
-      successMessage.value = '产品申报已保存。'
+      successMessage.value = '产品变更已保存。'
       await query()
       return true
     } catch (error) {

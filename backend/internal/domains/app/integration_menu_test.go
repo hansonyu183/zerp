@@ -72,6 +72,32 @@ func TestGetMenuDoesNotSynchronizeOrWriteRouteCatalog(t *testing.T) {
 	}
 }
 
+func TestReferencePermissionRoutesAreNotNavigable(t *testing.T) {
+	service, _, admin := appIntegrationService(t)
+	if err := service.SynchronizeMenuRoutes(t.Context()); err != nil {
+		t.Fatalf("initial menu route synchronization: %v", err)
+	}
+	principal := Principal{
+		User:        UserSummary{ID: admin.ID},
+		Permissions: []string{"/aux/reference/query", "/bob/reference/query"},
+	}
+	menu, err := service.GetMenu(t.Context(), principal)
+	if err != nil {
+		t.Fatalf("get menu with reference permissions: %v", err)
+	}
+	for _, routeKey := range []string{"aux/reference", "bob/reference"} {
+		if menuContainsRoute(menu.DefaultMenu, routeKey) || menuContainsRoute(menu.BusinessMenu, routeKey) || menuContainsRoute(menu.Navigation, routeKey) {
+			t.Fatalf("reference route %q exposed in menu: default=%t business=%t navigation=%t", routeKey,
+				menuContainsRoute(menu.DefaultMenu, routeKey), menuContainsRoute(menu.BusinessMenu, routeKey), menuContainsRoute(menu.Navigation, routeKey))
+		}
+		for _, route := range menu.AvailableRoutes {
+			if route.RouteKey == routeKey {
+				t.Fatalf("reference route %q exposed in available routes", routeKey)
+			}
+		}
+	}
+}
+
 func TestMenuManagementIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
 	if err := service.SynchronizeMenuRoutes(t.Context()); err != nil {

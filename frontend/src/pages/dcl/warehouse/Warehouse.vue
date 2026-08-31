@@ -255,7 +255,7 @@ async function confirmReverse(): Promise<void> {
       :page-size="vm.pageSize"
       :row-key="(row) => row.objectId"
       :rows="vm.rows"
-      search-label="仓库申报关键字"
+      search-label="仓库变更关键字"
       :sort="vm.sort"
       :total="vm.total"
       @apply-filters="vm.search"
@@ -394,7 +394,7 @@ async function confirmReverse(): Promise<void> {
       }
     "
   >
-    <v-card rounded="xl" title="确认删除仓库申报草稿">
+    <v-card rounded="xl" title="确认删除仓库变更草稿">
       <v-card-text>
         仅从未提交、从未生效且未被引用的首版草稿可以删除。此操作无法撤销。
       </v-card-text>

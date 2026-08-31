@@ -1,4 +1,4 @@
-# DCL 经营主体申报页面用例
+# DCL 经营主体变更页面用例
 
 权威业务规则见 [DCL 经营主体申报](../../domains/dcl.md)、[BOB 领域职责](../../domains/bob.md#2-领域职责与边界)与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml)。
 

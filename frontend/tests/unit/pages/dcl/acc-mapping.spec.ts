@@ -17,6 +17,7 @@ const mockedPost = vi.mocked(apiClient.postContract)
 const mapping = {
   bookId: '01JACC00000000000000000001',
   vouEntity: 'sale-order',
+  availableApprovalActions: [],
   approval: {
     approvalEntryId: '01JMAP00000000000000000001',
     revision: 3,
@@ -123,6 +124,7 @@ describe('DCL accounting mapping API boundary', () => {
     const vm = createDclAccMappingViewModel()
     const pending = {
       ...mapping,
+      availableApprovalActions: ['unsubmit'],
       approval: {
         ...mapping.approval,
         status: 'PENDING',
@@ -149,6 +151,7 @@ describe('DCL accounting mapping API boundary', () => {
     ]
     const fullMapping = {
       ...mapping,
+      availableApprovalActions: ['submit'],
       approval: {
         ...mapping.approval,
         versionNo: 1,
@@ -214,6 +217,7 @@ describe('DCL accounting mapping API boundary', () => {
     await vm.changeState(
       {
         ...fullMapping,
+        availableApprovalActions: ['unapprove'],
         approval: { ...fullMapping.approval, status: 'APPROVED' },
       },
       'unapprove',

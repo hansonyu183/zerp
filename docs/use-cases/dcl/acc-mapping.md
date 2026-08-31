@@ -38,3 +38,7 @@
 2. 真实 PostgreSQL 覆盖完整 snapshot、V1/V2 ACC 当前解释切换与回落、blocker、并发 candidate 和事务回滚。
 3. 真实全栈流程覆盖多 VOU 类型、候选换版和独立 ACC 当前只读，待办深链进入 DCL。
 4. 映射换版后，既有 VOU 凭证保留原 `approvalEntryId` 和快照，ACC 当前解释只影响新凭证。
+
+## 7. 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与映射业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

@@ -90,6 +90,7 @@ describe('DCL employee view model', () => {
       operatingEntityCode: 'OPE-0001',
       operatingEntityName: '华东主体',
       enabled: true,
+      availableApprovalActions: ['submit'],
       latestApproved: null,
       openVersion: { approval, enabled: true, data: {} },
       updatedAt: '2026-08-28T00:00:00Z',

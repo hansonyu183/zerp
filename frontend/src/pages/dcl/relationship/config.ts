@@ -1,19 +1,16 @@
-import type { components } from '@/api/generated/schema'
+import type { ApprovalStatus } from '@/api/generated'
 import type { BusinessObjectField } from '@/components/business-object'
 import { maxLength } from '@/pages/bob/shared/config-helpers'
+import {
+  approvalStatusOptions,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import {
   dclRelationshipActiveVersion,
   type DclRelationshipConfig,
   type DclRelationshipEntity,
   type DclRelationshipForm,
 } from './types'
-
-type ApprovalStatus = components['schemas']['ApprovalVersionMeta']['status']
-export const dclRelationshipStatusText: Record<ApprovalStatus, string> = {
-  DRAFT: '草稿',
-  PENDING: '待批准',
-  APPROVED: '已批准',
-}
 
 const commonFields: readonly BusinessObjectField<DclRelationshipForm>[] = [
   { key: 'code', label: '编码', type: 'readonly' },
@@ -203,7 +200,8 @@ export function dclRelationshipConfig(
         key: 'status',
         label: '状态',
         value: (row) => dclRelationshipActiveVersion(row).approval.status,
-        format: (value) => dclRelationshipStatusText[value as ApprovalStatus],
+        format: (value) =>
+          approvalStatusPresentation[value as ApprovalStatus].label,
         sizing: 'compact',
       },
     ],
@@ -213,11 +211,7 @@ export function dclRelationshipConfig(
         label: '状态',
         type: 'select',
         multiple: true,
-        options: [
-          { title: '草稿', value: 'DRAFT' },
-          { title: '待批准', value: 'PENDING' },
-          { title: '已批准', value: 'APPROVED' },
-        ],
+        options: approvalStatusOptions,
       },
       {
         key: 'enabled',

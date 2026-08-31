@@ -148,7 +148,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交审核',
+            label: '提交',
             icon: 'mdi-send-outline',
             color: 'primary',
           },
@@ -158,7 +158,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回提交',
+            label: '撤回',
             icon: 'mdi-undo-variant',
             color: 'warning',
           },
@@ -168,21 +168,9 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '审核通过',
+            label: '批准',
             icon: 'mdi-check-decagram-outline',
             color: 'success',
-          },
-        ]
-      : []),
-    ...(!availability.approve && vm.actionBlockedReason(row, 'approve')
-      ? [
-          {
-            key: 'approve-blocked',
-            label: '审核通过',
-            icon: 'mdi-check-decagram-outline',
-            color: 'success',
-            disabled: true,
-            disabledReason: vm.actionBlockedReason(row, 'approve') ?? undefined,
           },
         ]
       : []),
@@ -190,7 +178,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'unapprove',
-            label: '撤销批准',
+            label: '反批准',
             icon: 'mdi-backup-restore',
             color: 'warning',
           },
@@ -200,7 +188,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '审核驳回',
+            label: '驳回',
             icon: 'mdi-close-octagon-outline',
             color: 'error',
           },
@@ -235,18 +223,6 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
             key: 'audit',
             label: '审核历史',
             icon: 'mdi-clipboard-text-clock-outline',
-          },
-        ]
-      : []),
-    ...(!availability.reject && vm.actionBlockedReason(row, 'reject')
-      ? [
-          {
-            key: 'reject-blocked',
-            label: '审核驳回',
-            icon: 'mdi-close-octagon-outline',
-            color: 'error',
-            disabled: true,
-            disabledReason: vm.actionBlockedReason(row, 'reject') ?? undefined,
           },
         ]
       : []),
@@ -817,7 +793,7 @@ function saveFormula(value: ProductFormulaDraft): void {
   >
     <v-card
       rounded="xl"
-      :title="reverseAction === 'unapprove' ? '撤销批准' : '撤回提交'"
+      :title="reverseAction === 'unapprove' ? '反批准' : '撤回'"
     >
       <v-card-text>
         <v-alert
@@ -859,7 +835,7 @@ function saveFormula(value: ProductFormulaDraft): void {
     max-width="620"
     @update:model-value="closeReview"
   >
-    <v-card rounded="xl" title="审核驳回">
+    <v-card rounded="xl" title="驳回">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"

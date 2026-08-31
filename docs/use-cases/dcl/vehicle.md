@@ -28,3 +28,7 @@
 2. V1/V2 批准和反批后，BOB typed query 不经额外写入即可显示、切换、回落或隐藏；失败时 DCL snapshot 与 Approval 全部回滚。
 3. 自有与外部承运归属、候选并发、来源漂移和 VOU blocker 由真实 PostgreSQL 测试覆盖。
 4. 历史 VOU 在车辆后续改版或归属迁移后仍展示原有车辆与承运事实。
+
+## 5. 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与车辆业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

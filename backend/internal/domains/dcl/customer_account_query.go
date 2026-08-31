@@ -92,7 +92,7 @@ func (s *CustomerAccountService) Get(ctx context.Context, in CustomerAccountGetI
 	if err != nil {
 		return CustomerAccountView{}, err
 	}
-	return CustomerAccountView{ObjectID: id.ObjectID, Entity: EntityCustomerAccount, Code: id.Code, CustomerRelationshipID: relation, Enabled: v.Enabled, Approval: v.Approval, Data: v.Data, Attachments: v.Attachments, UpdatedAt: e.UpdatedAt}, nil
+	return CustomerAccountView{ObjectID: id.ObjectID, Entity: EntityCustomerAccount, Code: id.Code, CustomerRelationshipID: relation, Enabled: v.Enabled, Approval: v.Approval, Data: v.Data, Attachments: v.Attachments, UpdatedAt: e.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(e, actor)}, nil
 }
 func (s *CustomerAccountService) Versions(ctx context.Context, in CustomerAccountHistoryInput, actor approval.Actor) (Page[CustomerAccountVersionView], error) {
 	if _, ok := dclPageOffset(in.Page, in.PageSize); !ok || !validID(in.ObjectID) || !validActor(actor) {
@@ -174,6 +174,13 @@ func (s *CustomerAccountService) Query(ctx context.Context, in CustomerAccountQu
 				return Page[CustomerAccountQueryItem]{}, x
 			}
 			item.OpenVersion = &v
+		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityCustomerAccount, row.OpenEntryID, row.LatestApprovedEntryID)
+		if entryErr != nil {
+			return Page[CustomerAccountQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
 		}
 		items = append(items, item)
 	}

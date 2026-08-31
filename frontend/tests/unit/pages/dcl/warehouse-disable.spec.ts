@@ -15,6 +15,7 @@ function enabledWarehouse(openVersionEnabled?: boolean): DclWarehouseListItem {
     entity: 'warehouse',
     code: 'WHS-0001',
     enabled: true,
+    availableApprovalActions: [],
     latestApproved: {
       approval: {
         approvalEntryId: '01J00000000000000000000002',
@@ -76,14 +77,14 @@ describe('DCL warehouse disable request', () => {
     ).toEqual([
       '销售订单',
       '采购订单',
-      '销售出库',
-      '采购入库',
-      '销售签收',
-      '销售退货',
-      '采购退货',
-      '生产自制品',
-      '生产配货',
-      '库存盘点',
+      '销售出库单',
+      '采购入库单',
+      '销售签收单',
+      '销售退货单',
+      '采购退货单',
+      '自制生产单',
+      '订单生产单',
+      '库存盘点单',
     ])
   })
 

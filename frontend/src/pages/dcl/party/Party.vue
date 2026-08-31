@@ -9,6 +9,7 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import type { components } from '@/api/generated/schema'
+import { approvalStatusPresentation } from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
 import { useDclPartyViewModel } from './vm'
 
@@ -23,11 +24,6 @@ const reason = ref('')
 type DclPartyListItem = components['schemas']['DclPartyListItem']
 type DclPartyMergeRelationshipConflict =
   components['schemas']['DclPartyMergeRelationshipConflict']
-const statusText: Record<components['schemas']['ApprovalStatus'], string> = {
-  DRAFT: '草稿',
-  PENDING: '待批准',
-  APPROVED: '已批准',
-}
 const relationshipLabels: Record<
   DclPartyMergeRelationshipConflict['relationshipType'],
   string
@@ -61,7 +57,12 @@ const columns: readonly BusinessObjectColumn<DclPartyListItem>[] = [
   {
     key: 'status',
     label: '状态',
-    value: (row) => active(row)?.approval.status ?? '—',
+    value: (row) => {
+      const version = active(row)
+      return version
+        ? approvalStatusPresentation[version.approval.status].label
+        : '—'
+    },
     sizing: 'compact',
   },
 ]
@@ -103,7 +104,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交审核',
+            label: '提交',
             icon: 'mdi-send-outline',
             color: 'primary' as const,
           },
@@ -113,7 +114,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回提交',
+            label: '撤回',
             icon: 'mdi-undo-variant',
             color: 'warning' as const,
           },
@@ -123,7 +124,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '审核通过',
+            label: '批准',
             icon: 'mdi-check-decagram-outline',
             color: 'success' as const,
           },
@@ -133,7 +134,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '审核驳回',
+            label: '驳回',
             icon: 'mdi-close-octagon-outline',
             color: 'error' as const,
           },
@@ -143,7 +144,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'unapprove',
-            label: '撤销批准',
+            label: '反批准',
             icon: 'mdi-backup-restore',
             color: 'warning' as const,
           },
@@ -279,7 +280,9 @@ watch(
           /></template>
           <template #cell-status="{ row }"
             ><v-chip v-if="active(row)" size="small" variant="tonal">{{
-              statusText[active(row)?.approval.status ?? 'DRAFT']
+              approvalStatusPresentation[
+                active(row)?.approval.status ?? 'DRAFT'
+              ].label
             }}</v-chip
             ><v-chip
               v-if="row.latestApproved"
@@ -565,12 +568,7 @@ watch(
       ></v-dialog
     >
     <v-dialog :model-value="Boolean(reasonTarget)" max-width="620"
-      ><v-card
-        :title="
-          reasonTarget?.action === 'reject'
-            ? '审核驳回'
-            : '撤销批准'
-        "
+      ><v-card :title="reasonTarget?.action === 'reject' ? '驳回' : '反批准'"
         ><v-card-text
           ><v-textarea
             v-model="reason"
@@ -611,7 +609,7 @@ watch(
               >
                 <td data-label="版本">V{{ item.approval.versionNo }}</td>
                 <td data-label="状态">
-                  {{ statusText[item.approval.status] }}
+                  {{ approvalStatusPresentation[item.approval.status].label }}
                 </td>
                 <td data-label="法定名称">{{ item.data.legalName }}</td>
                 <td data-label="更新">
@@ -666,8 +664,17 @@ watch(
               <tr v-for="event in vm.auditEvents" :key="event.id">
                 <td data-label="事件">{{ event.action }}</td>
                 <td data-label="变化">
-                  {{ event.fromStatus ? statusText[event.fromStatus] : '—' }} →
-                  {{ event.toStatus ? statusText[event.toStatus] : '—' }}
+                  {{
+                    event.fromStatus
+                      ? approvalStatusPresentation[event.fromStatus].label
+                      : '—'
+                  }}
+                  →
+                  {{
+                    event.toStatus
+                      ? approvalStatusPresentation[event.toStatus].label
+                      : '—'
+                  }}
                 </td>
                 <td data-label="操作人">{{ event.actorId }}</td>
                 <td data-label="时间">

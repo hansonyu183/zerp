@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -71,6 +72,91 @@ func dclActor(t *testing.T, actorID, requestID string) approval.Actor {
 		t.Fatalf("create DCL actor: %v", err)
 	}
 	return actor
+}
+
+func dclActorWithPermissions(t *testing.T, actorID, requestID string, permissions ...string) approval.Actor {
+	t.Helper()
+	actor, err := approval.UserActor(authorization.Principal{ActorID: actorID, Permissions: permissions}, requestID)
+	if err != nil {
+		t.Fatalf("create DCL actor with permissions: %v", err)
+	}
+	return actor
+}
+
+func TestOperatingEntityQueryAndGetReturnServerApprovalActionsIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	authorizer := authorization.Func(nil)
+	bus := txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool)
+	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
+	service := NewOperatingEntityService(pool, business, authorizer, bus)
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+	permissions := []string{
+		"/dcl/operating-entity/submit", "/dcl/operating-entity/unsubmit",
+		"/dcl/operating-entity/reject", "/dcl/operating-entity/approve",
+		"/dcl/operating-entity/unapprove",
+	}
+	creator := func(requestID string) approval.Actor {
+		return dclActorWithPermissions(t, creatorID, requestID, permissions...)
+	}
+	reviewer := func(requestID string) approval.Actor {
+		return dclActorWithPermissions(t, reviewerID, requestID, permissions...)
+	}
+
+	draft, err := service.Create(t.Context(), OperatingEntityCreateInput{Data: OperatingEntityData{Name: "动作资格经营主体"}}, creator("actions-create"))
+	if err != nil {
+		t.Fatalf("create declaration: %v", err)
+	}
+	assertOperatingEntityProjectionActions(t, service, draft.ObjectID, creator("actions-draft-query"), []approval.LifecycleAction{approval.LifecycleSubmit})
+
+	pending, err := service.Submit(t.Context(), OperatingEntityVersionInput{
+		ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID,
+		ApprovalRevision: draft.Approval.Revision,
+	}, creator("actions-submit"))
+	if err != nil {
+		t.Fatalf("submit declaration: %v", err)
+	}
+	assertOperatingEntityProjectionActions(t, service, draft.ObjectID, creator("actions-self-query"), []approval.LifecycleAction{approval.LifecycleUnsubmit})
+	assertOperatingEntityProjectionActions(t, service, draft.ObjectID, reviewer("actions-reviewer-query"), []approval.LifecycleAction{
+		approval.LifecycleUnsubmit, approval.LifecycleReject, approval.LifecycleApprove,
+	})
+
+	approved, err := service.Approve(t.Context(), OperatingEntityVersionInput{
+		ObjectID: draft.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
+		ApprovalRevision: pending.Approval.Revision,
+	}, reviewer("actions-approve"))
+	if err != nil {
+		t.Fatalf("approve declaration: %v", err)
+	}
+	if approved.Approval.Status != approval.StatusApproved {
+		t.Fatalf("approved status = %s", approved.Approval.Status)
+	}
+	assertOperatingEntityProjectionActions(t, service, draft.ObjectID, reviewer("actions-approved-query"), []approval.LifecycleAction{approval.LifecycleUnapprove})
+}
+
+func assertOperatingEntityProjectionActions(
+	t *testing.T,
+	service *OperatingEntityService,
+	objectID string,
+	actor approval.Actor,
+	want []approval.LifecycleAction,
+) {
+	t.Helper()
+	view, err := service.Get(t.Context(), OperatingEntityGetInput{ObjectID: objectID}, actor)
+	if err != nil {
+		t.Fatalf("get declaration: %v", err)
+	}
+	if !slices.Equal(view.AvailableApprovalActions, want) {
+		t.Fatalf("get actions = %v, want %v", view.AvailableApprovalActions, want)
+	}
+	page, err := service.Query(t.Context(), OperatingEntityQueryInput{Page: 1, PageSize: 20}, actor)
+	if err != nil {
+		t.Fatalf("query declarations: %v", err)
+	}
+	if len(page.Items) != 1 || !slices.Equal(page.Items[0].AvailableApprovalActions, want) {
+		t.Fatalf("query actions = %+v, want %v", page.Items, want)
+	}
 }
 
 func TestOperatingEntityDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {

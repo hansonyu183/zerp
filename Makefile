@@ -49,6 +49,7 @@ check-ci-workflow:
 
 check-contracts:
 	$(MAKE) check-openapi-generated
+	pnpm contracts:test-dcl-approval
 	$(MAKE) check-sqlc-generated
 
 check-openapi-generated:

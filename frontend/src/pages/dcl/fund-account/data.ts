@@ -130,7 +130,10 @@ export async function queryDclFundAccountOperatingEntities(
     sort: [{ field: 'name', order: 'asc' }],
   })
   return data.items.map((item) => ({
-    title: formatReferenceLabel({ code: item.code, name: String(item.data.name ?? '') }),
+    title: formatReferenceLabel({
+      code: item.code,
+      name: String(item.data.name ?? ''),
+    }),
     value: item.objectId,
   }))
 }
@@ -164,7 +167,6 @@ export async function deleteDclFundAccount(
 
 export const dclFundAccountLifecyclePort: DclDeclarationLifecyclePort<DclFundAccountListItem> =
   {
-    unsubmitReasonRequired: true,
     run: runDclFundAccountLifecycle,
     async changeEnabled(item) {
       const view = await getDclFundAccount(

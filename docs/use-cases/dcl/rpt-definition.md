@@ -34,3 +34,7 @@
 1. 全部维护与生命周期请求只发送到 `/dcl/rpt-definition/*`。
 2. 真实 PostgreSQL 覆盖 V1/V2 正式版本切换与反批回落、VALID/INVALID 独立、最新 INVALID 不回退、runtime audit 身份、草稿删除复号及 subscriber 失败整笔回滚。
 3. 前端覆盖独立 DCL 菜单和 VM、普通 RPT 只读执行面，以及工作台深链进入 DCL。
+
+## 6. 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与报表定义业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

@@ -387,6 +387,7 @@ const bobReviewerActions = new Set([
   '/dcl/operating-entity/query',
   '/dcl/operating-entity/get',
   '/dcl/operating-entity/approve',
+  '/dcl/operating-entity/reject',
   '/dcl/warehouse/query',
   '/dcl/warehouse/get',
   '/dcl/warehouse/approve',

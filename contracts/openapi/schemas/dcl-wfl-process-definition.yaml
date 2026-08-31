@@ -112,12 +112,25 @@ DclWflProcessDefinitionMutation:
 DclWflProcessDefinitionView:
   type: object
   additionalProperties: false
-  required: [code, definitionId, enabled, approval, script, nodes, edges]
+  required:
+    [
+      code,
+      definitionId,
+      enabled,
+      approval,
+      availableApprovalActions,
+      script,
+      nodes,
+      edges,
+    ]
   properties:
     code: { type: string }
     definitionId: { type: string }
     enabled: { type: boolean }
     approval: { $ref: './common.yaml#/ApprovalVersionMeta' }
+    availableApprovalActions:
+      type: array
+      items: { $ref: './common.yaml#/ApprovalLifecycleAction' }
     script: { type: string }
     diagnostic: { $ref: './wfl.yaml#/WflDefinitionDiagnostic' }
     nodes:
@@ -152,11 +165,22 @@ DclWflProcessDefinitionVersionSummary:
 DclWflProcessDefinitionListItem:
   type: object
   additionalProperties: false
-  required: [code, definitionId, enabled, latestApproved, openVersion]
+  required:
+    [
+      code,
+      definitionId,
+      enabled,
+      availableApprovalActions,
+      latestApproved,
+      openVersion,
+    ]
   properties:
     code: { type: string }
     definitionId: { type: string }
     enabled: { type: boolean }
+    availableApprovalActions:
+      type: array
+      items: { $ref: './common.yaml#/ApprovalLifecycleAction' }
     latestApproved:
       type: object
       allOf: [{ $ref: '#/DclWflProcessDefinitionVersionSummary' }]

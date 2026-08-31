@@ -41,3 +41,7 @@
 2. 真实 PostgreSQL 覆盖完整 snapshot、V1/V2 highest-approved 读取与回落、AUX/原料精确来源、条码占用、正式引用 blocker、并发 candidate 和事务回滚。
 3. 真实全栈流程覆盖三类产品、固定配方、候选换版和独立 BOB 只读资料；待办深链进入 DCL。
 4. 产品换版后，既有 VOU、库存、生产与 ACC 仍保留原 stable ID、Approval Entry、数量与名称等不可变快照。
+
+## 7. 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与产品业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

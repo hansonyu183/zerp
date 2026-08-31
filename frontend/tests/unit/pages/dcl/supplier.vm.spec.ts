@@ -116,6 +116,7 @@ describe('DCL supplier view model', () => {
       operatingEntityCode: 'OPE-0001',
       operatingEntityName: '主体',
       enabled: true,
+      availableApprovalActions: ['submit'],
       latestApproved: null,
       openVersion: {
         approval,

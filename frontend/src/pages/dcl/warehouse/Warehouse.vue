@@ -8,8 +8,8 @@ import {
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
+import { approvalStatusPresentation } from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
-import { dclStatusText } from './config'
 import type { DclWarehouseListItem } from './types'
 import { dclWarehouseActiveVersion } from './types'
 import { useDclWarehouseViewModel } from './vm'
@@ -51,27 +51,6 @@ watch(
   },
 )
 
-function blockedAction(
-  row: DclWarehouseListItem,
-  action: 'approve' | 'reject',
-): ListRowAction[] {
-  const reason = vm.actionBlockedReason(row, action)
-  return reason
-    ? [
-        {
-          key: `${action}-blocked`,
-          label: action === 'approve' ? '审核通过' : '审核驳回',
-          icon:
-            action === 'approve'
-              ? 'mdi-check-decagram-outline'
-              : 'mdi-close-octagon-outline',
-          disabled: true,
-          disabledReason: reason,
-        },
-      ]
-    : []
-}
-
 function rowActions(row: DclWarehouseListItem): ListRowAction[] {
   const availability = vm.actionAvailability(row)
   return [
@@ -97,7 +76,7 @@ function rowActions(row: DclWarehouseListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交审核',
+            label: '提交',
             icon: 'mdi-send-outline',
             color: 'primary',
           },
@@ -107,7 +86,7 @@ function rowActions(row: DclWarehouseListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回提交',
+            label: '撤回',
             icon: 'mdi-undo-variant',
             color: 'warning',
           },
@@ -117,17 +96,17 @@ function rowActions(row: DclWarehouseListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '审核通过',
+            label: '批准',
             icon: 'mdi-check-decagram-outline',
             color: 'success',
           },
         ]
-      : blockedAction(row, 'approve')),
+      : []),
     ...(availability.unapprove
       ? [
           {
             key: 'unapprove',
-            label: '撤销批准',
+            label: '反批准',
             icon: 'mdi-backup-restore',
             color: 'warning',
           },
@@ -137,12 +116,12 @@ function rowActions(row: DclWarehouseListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '审核驳回',
+            label: '驳回',
             icon: 'mdi-close-octagon-outline',
             color: 'error',
           },
         ]
-      : blockedAction(row, 'reject')),
+      : []),
     ...(availability.enable
       ? [
           {
@@ -284,7 +263,11 @@ async function confirmReverse(): Promise<void> {
       <template #cell-status="{ row }">
         <div class="dcl-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
-            {{ dclStatusText[dclWarehouseActiveVersion(row).approval.status] }}
+            {{
+              approvalStatusPresentation[
+                dclWarehouseActiveVersion(row).approval.status
+              ].label
+            }}
           </v-chip>
           <v-chip
             v-if="row.latestApproved"
@@ -417,7 +400,7 @@ async function confirmReverse(): Promise<void> {
   >
     <v-card
       rounded="xl"
-      :title="reverseAction === 'unapprove' ? '撤销批准' : '撤回提交'"
+      :title="reverseAction === 'unapprove' ? '反批准' : '撤回'"
     >
       <v-card-text>
         <v-textarea
@@ -452,7 +435,7 @@ async function confirmReverse(): Promise<void> {
       }
     "
   >
-    <v-card rounded="xl" title="审核驳回">
+    <v-card rounded="xl" title="驳回">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
@@ -502,7 +485,7 @@ async function confirmReverse(): Promise<void> {
             >
               <td data-label="版本">V{{ item.approval.versionNo }}</td>
               <td data-label="状态">
-                {{ dclStatusText[item.approval.status] }}
+                {{ approvalStatusPresentation[item.approval.status].label }}
               </td>
               <td data-label="名称">{{ item.data.name }}</td>
               <td data-label="更新">
@@ -562,8 +545,17 @@ async function confirmReverse(): Promise<void> {
             <tr v-for="event in vm.auditEvents" :key="event.id">
               <td data-label="事件">{{ event.action }}</td>
               <td data-label="变化">
-                {{ event.fromStatus ? dclStatusText[event.fromStatus] : '—' }}
-                → {{ event.toStatus ? dclStatusText[event.toStatus] : '—' }}
+                {{
+                  event.fromStatus
+                    ? approvalStatusPresentation[event.fromStatus].label
+                    : '—'
+                }}
+                →
+                {{
+                  event.toStatus
+                    ? approvalStatusPresentation[event.toStatus].label
+                    : '—'
+                }}
               </td>
               <td data-label="操作人">{{ event.actorId }}</td>
               <td data-label="时间">

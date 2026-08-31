@@ -65,26 +65,22 @@ export function useDclFundAccountViewModel() {
   let operatingEntityRequestSequence = 0
   let operatingEntitySearchTimer: ReturnType<typeof setTimeout> | undefined
 
-  const {
-    permission,
-    actionAvailability: baseActionAvailability,
-    actionBlockedReason,
-  } = useDclDeclarationActionAvailability(
-    'fund-account',
-    (row: DclFundAccountListItem) => {
-      const approval = dclFundAccountActiveVersion(row).approval
-      return {
-        status: approval.status,
-        versionNo: approval.versionNo,
-        submittedBy: approval.submittedBy,
-        enabled: row.enabled,
-        hasOpenVersion: row.openVersion !== null,
-        hasLatestApproved: row.latestApproved !== null,
-      }
-    },
-    () => session.user?.id,
-    (path) => session.can(path),
-  )
+  const { permission, actionAvailability: baseActionAvailability } =
+    useDclDeclarationActionAvailability(
+      'fund-account',
+      (row: DclFundAccountListItem) => {
+        const approval = dclFundAccountActiveVersion(row).approval
+        return {
+          status: approval.status,
+          versionNo: approval.versionNo,
+          availableApprovalActions: row.availableApprovalActions,
+          enabled: row.enabled,
+          hasOpenVersion: row.openVersion !== null,
+          hasLatestApproved: row.latestApproved !== null,
+        }
+      },
+      (path) => session.can(path),
+    )
   const canQueryOperatingEntities = computed(() =>
     session.can('/bob/operating-entity/query'),
   )
@@ -386,6 +382,13 @@ export function useDclFundAccountViewModel() {
     }
   }
 
+  async function refreshAfterSaveFailure(): Promise<void> {
+    const view = currentView.value
+    const mode = editorMode.value
+    await query()
+    if (view && mode !== 'create') await openById(view.objectId, mode)
+  }
+
   function closeEditor(): void {
     if (saving.value) return
     drawerOpen.value = false
@@ -433,7 +436,9 @@ export function useDclFundAccountViewModel() {
       await query()
       return true
     } catch (error) {
-      editorErrorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAfterSaveFailure()
+      editorErrorMessage.value = message
       return false
     } finally {
       saving.value = false
@@ -459,12 +464,12 @@ export function useDclFundAccountViewModel() {
       await query()
       if (currentView.value?.objectId === row.objectId) closeEditor()
       successMessage.value =
-        action === 'delete'
-          ? `${row.code} 已删除。`
-          : `${row.code} 已提交审核。`
+        action === 'delete' ? `${row.code} 已删除。` : `${row.code} 已提交。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null
@@ -513,7 +518,6 @@ export function useDclFundAccountViewModel() {
     effectiveEditorModel,
     canQueryOperatingEntities,
     actionAvailability,
-    actionBlockedReason,
     hasAnyAction,
     query,
     search,

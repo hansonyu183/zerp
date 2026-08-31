@@ -8,9 +8,9 @@ import type { ListRowAction } from '@/components/common/list-row-actions'
 import CustomerAccountFields from '../customer-account/CustomerAccountFields.vue'
 import CustomerAttachments from '../customer-account/CustomerAttachments.vue'
 import {
-  dclApprovalEventActionText,
-  dclApprovalStatusText,
-} from '../shared/declaration'
+  approvalEventActionLabels,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import type { DclCustomerListItem } from './data'
 import { customerActiveVersion, useDclCustomerViewModel } from './vm'
 
@@ -32,7 +32,8 @@ const columns: readonly BusinessObjectColumn<DclCustomerListItem>[] = [
     key: 'status',
     label: '审核状态',
     value: (row) =>
-      dclApprovalStatusText[customerActiveVersion(row).approval.status],
+      approvalStatusPresentation[customerActiveVersion(row).approval.status]
+        .label,
   },
   {
     key: 'candidate',
@@ -47,7 +48,7 @@ function actions(row: DclCustomerListItem): ListRowAction[] {
     ? [{ key: 'view', label: '查看', icon: 'mdi-eye-outline' }]
     : []
   if (available.submit)
-    result.push({ key: 'submit', label: '提交审核', icon: 'mdi-send-outline' })
+    result.push({ key: 'submit', label: '提交', icon: 'mdi-send-outline' })
   if (available.delete)
     result.push({
       key: 'delete',
@@ -58,23 +59,23 @@ function actions(row: DclCustomerListItem): ListRowAction[] {
   if (available.approve)
     result.push({
       key: 'approve',
-      label: '审核通过',
+      label: '批准',
       icon: 'mdi-check-outline',
       color: 'success',
     })
   if (available.reject)
     result.push({
       key: 'reject',
-      label: '审核驳回',
+      label: '驳回',
       icon: 'mdi-close-outline',
       color: 'error',
     })
   if (available.unsubmit)
-    result.push({ key: 'unsubmit', label: '撤回提交', icon: 'mdi-undo' })
+    result.push({ key: 'unsubmit', label: '撤回', icon: 'mdi-undo' })
   if (available.unapprove)
     result.push({
       key: 'unapprove',
-      label: '撤销批准',
+      label: '反批准',
       icon: 'mdi-backup-restore',
     })
   if (available.enable || available.disable)
@@ -305,7 +306,9 @@ void vm.query()
         />
         <v-list-item
           title="审核状态"
-          :subtitle="dclApprovalStatusText[vm.currentView.approval.status]"
+          :subtitle="
+            approvalStatusPresentation[vm.currentView.approval.status].label
+          "
         />
         <v-list-item
           title="附件数"
@@ -340,7 +343,7 @@ void vm.query()
         <v-list-item
           v-for="version in vm.versions"
           :key="version.approval.approvalEntryId"
-          :title="`V${version.approval.versionNo} · ${dclApprovalStatusText[version.approval.status]}`"
+          :title="`V${version.approval.versionNo} · ${approvalStatusPresentation[version.approval.status].label}`"
           :subtitle="version.approval.updatedAt"
         />
       </v-list>
@@ -357,7 +360,7 @@ void vm.query()
         <v-list-item
           v-for="event in vm.auditEvents"
           :key="event.id"
-          :title="dclApprovalEventActionText[event.action]"
+          :title="approvalEventActionLabels[event.action]"
           :subtitle="`${event.createdAt}${event.reason ? ` · ${event.reason}` : ''}`"
         />
       </v-list>
@@ -377,9 +380,7 @@ void vm.query()
       }
     "
   >
-    <v-card
-      :title="reasonTarget?.action === 'reject' ? '审核驳回' : '撤销批准'"
-    >
+    <v-card :title="reasonTarget?.action === 'reject' ? '驳回' : '反批准'">
       <v-card-text
         ><v-textarea
           v-model="reason"

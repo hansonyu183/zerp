@@ -306,6 +306,7 @@ func (s *OperatingEntityService) Get(ctx context.Context, input OperatingEntityG
 		ObjectID: identity.ID, Entity: EntityOperatingEntity, Code: stringValue(identity.Code),
 		Enabled:  stored.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry), Data: operatingEntityData(stored), UpdatedAt: entry.UpdatedAt,
+		AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor),
 	}, nil
 }
 

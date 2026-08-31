@@ -8,8 +8,8 @@ import {
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
+import { approvalStatusPresentation } from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
-import { dclRelationshipStatusText } from './config'
 import {
   dclRelationshipActiveVersion,
   type DclRelationshipEntity,
@@ -71,35 +71,35 @@ function actions(row: DclRelationshipListItem): ListRowAction[] {
   if (available.submit)
     result.push({
       key: 'submit',
-      label: '提交审核',
+      label: '提交',
       icon: 'mdi-send-outline',
       color: 'primary',
     })
   if (available.unsubmit)
     result.push({
       key: 'unsubmit',
-      label: '撤回提交',
+      label: '撤回',
       icon: 'mdi-undo-variant',
       color: 'warning',
     })
   if (available.approve)
     result.push({
       key: 'approve',
-      label: '审核通过',
+      label: '批准',
       icon: 'mdi-check-decagram-outline',
       color: 'success',
     })
   if (available.unapprove)
     result.push({
       key: 'unapprove',
-      label: '撤销批准',
+      label: '反批准',
       icon: 'mdi-backup-restore',
       color: 'warning',
     })
   if (available.reject)
     result.push({
       key: 'reject',
-      label: '审核驳回',
+      label: '驳回',
       icon: 'mdi-close-octagon-outline',
       color: 'error',
     })
@@ -219,9 +219,9 @@ async function confirmReverse() {
         <div class="dcl-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
             {{
-              dclRelationshipStatusText[
+              approvalStatusPresentation[
                 dclRelationshipActiveVersion(row).approval.status
-              ]
+              ].label
             }}
           </v-chip>
           <v-chip
@@ -331,7 +331,7 @@ async function confirmReverse() {
   >
     <v-card
       rounded="xl"
-      :title="reverseAction === 'unapprove' ? '撤销批准' : '撤回提交'"
+      :title="reverseAction === 'unapprove' ? '反批准' : '撤回'"
     >
       <v-card-text>
         <v-textarea
@@ -366,7 +366,7 @@ async function confirmReverse() {
       }
     "
   >
-    <v-card rounded="xl" title="审核驳回">
+    <v-card rounded="xl" title="驳回">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
@@ -414,7 +414,9 @@ async function confirmReverse() {
               :key="item.approval.approvalEntryId"
             >
               <td>V{{ item.approval.versionNo }}</td>
-              <td>{{ dclRelationshipStatusText[item.approval.status] }}</td>
+              <td>
+                {{ approvalStatusPresentation[item.approval.status].label }}
+              </td>
               <td>{{ vm.versionSummary(item) }}</td>
               <td>{{ formatLocalDateTime(item.approval.updatedAt) }}</td>
             </tr>
@@ -458,13 +460,13 @@ async function confirmReverse() {
               <td>
                 {{
                   event.fromStatus
-                    ? dclRelationshipStatusText[event.fromStatus]
+                    ? approvalStatusPresentation[event.fromStatus].label
                     : '—'
                 }}
                 →
                 {{
                   event.toStatus
-                    ? dclRelationshipStatusText[event.toStatus]
+                    ? approvalStatusPresentation[event.toStatus].label
                     : '—'
                 }}
               </td>

@@ -54,11 +54,10 @@ export function useDclWarehouseViewModel() {
   const currentView = ref<DclWarehouseView | null>(null)
   const effectiveView = ref<DclWarehouseView | null>(null)
 
-  const { permission, actionAvailability, actionBlockedReason, hasAnyAction } =
+  const { permission, actionAvailability, hasAnyAction } =
     useDclDeclarationActionAvailability(
       'warehouse',
       warehouseActionState,
-      () => session.user?.id,
       (path) => session.can(path),
     )
   const canCreate = computed(() => session.can(permission('create')))
@@ -280,6 +279,13 @@ export function useDclWarehouseViewModel() {
     }
   }
 
+  async function refreshAfterSaveFailure(): Promise<void> {
+    const view = currentView.value
+    const mode = editorMode.value
+    await query()
+    if (view && mode !== 'create') await openById(view.objectId, mode)
+  }
+
   function closeEditor(): void {
     if (saving.value) return
     drawerOpen.value = false
@@ -327,7 +333,9 @@ export function useDclWarehouseViewModel() {
       await query()
       return Boolean(mutation.objectId)
     } catch (error) {
-      editorErrorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAfterSaveFailure()
+      editorErrorMessage.value = message
       return false
     } finally {
       saving.value = false
@@ -359,12 +367,12 @@ export function useDclWarehouseViewModel() {
       await query()
       if (currentView.value?.objectId === row.objectId) closeEditor()
       successMessage.value =
-        action === 'delete'
-          ? `${row.code} 已删除。`
-          : `${row.code} 已提交审核。`
+        action === 'delete' ? `${row.code} 已删除。` : `${row.code} 已提交。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null
@@ -419,7 +427,6 @@ export function useDclWarehouseViewModel() {
     effectiveEditorModel,
     ...history,
     actionAvailability,
-    actionBlockedReason,
     hasAnyAction,
     query,
     search,
@@ -453,7 +460,7 @@ function warehouseActionState(row: Readonly<DclWarehouseListItem>) {
   return {
     status: version.status,
     versionNo: version.versionNo,
-    submittedBy: version.submittedBy,
+    availableApprovalActions: row.availableApprovalActions,
     enabled: row.enabled,
     hasOpenVersion: row.openVersion !== null,
     hasLatestApproved: row.latestApproved !== null,

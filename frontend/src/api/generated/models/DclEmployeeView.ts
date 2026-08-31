@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { DclEmployeeData } from './DclEmployeeData';
 import type { PartyKind } from './PartyKind';
@@ -18,6 +19,7 @@ export type DclEmployeeView = {
   operatingEntityName: string;
   enabled: boolean;
   approval: ApprovalVersionMeta;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   data: DclEmployeeData;
   updatedAt: string;
 };

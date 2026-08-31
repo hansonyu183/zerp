@@ -66,6 +66,13 @@ func (s *RelationshipService) QueryOtherUnits(ctx context.Context, input Relatio
 			}
 			item.OpenVersion = &v
 		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityOtherUnit, r.OpenEntryID, r.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[OtherUnitQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.other.LifecycleActions(entry, actor)
+		}
 		items = append(items, item)
 	}
 	return Page[OtherUnitQueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
@@ -103,6 +110,13 @@ func (s *RelationshipService) QuerySalesPartners(ctx context.Context, input Rela
 				return Page[SalesPartnerQueryItem]{}, e
 			}
 			item.OpenVersion = &v
+		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntitySalesPartner, r.OpenEntryID, r.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[SalesPartnerQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.sales.LifecycleActions(entry, actor)
 		}
 		items = append(items, item)
 	}
@@ -174,7 +188,7 @@ func (s *RelationshipService) getOther(ctx context.Context, input RelationshipGe
 	if err != nil {
 		return OtherUnitView{}, translateError(err)
 	}
-	return OtherUnitView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntityOtherUnit, Code: id.Code, PartyID: id.PartyID, PartyKind: display.PartyKind, PartyDisplayName: display.DisplayName, OperatingEntityID: id.OperatingEntityID, OperatingEntityCode: stringValue(display.OperatingEntityCode), OperatingEntityName: display.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e), UpdatedAt: e.UpdatedAt}, Data: otherDataFromStored(stored)}, nil
+	return OtherUnitView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntityOtherUnit, Code: id.Code, PartyID: id.PartyID, PartyKind: display.PartyKind, PartyDisplayName: display.DisplayName, OperatingEntityID: id.OperatingEntityID, OperatingEntityCode: stringValue(display.OperatingEntityCode), OperatingEntityName: display.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e), UpdatedAt: e.UpdatedAt}, Data: otherDataFromStored(stored), AvailableApprovalActions: s.other.LifecycleActions(e, actor)}, nil
 }
 func (s *RelationshipService) GetSalesPartner(ctx context.Context, input RelationshipGetInput, actor approval.Actor) (SalesPartnerView, error) {
 	if !validID(input.ObjectID) {
@@ -217,7 +231,7 @@ func (s *RelationshipService) GetSalesPartner(ctx context.Context, input Relatio
 	if err != nil {
 		return SalesPartnerView{}, translateError(err)
 	}
-	return SalesPartnerView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySalesPartner, Code: id.Code, PartyID: id.PartyID, PartyKind: display.PartyKind, PartyDisplayName: display.DisplayName, OperatingEntityID: id.OperatingEntityID, OperatingEntityCode: stringValue(display.OperatingEntityCode), OperatingEntityName: display.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e), UpdatedAt: e.UpdatedAt}, Data: salesStored(stored)}, nil
+	return SalesPartnerView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySalesPartner, Code: id.Code, PartyID: id.PartyID, PartyKind: display.PartyKind, PartyDisplayName: display.DisplayName, OperatingEntityID: id.OperatingEntityID, OperatingEntityCode: stringValue(display.OperatingEntityCode), OperatingEntityName: display.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e), UpdatedAt: e.UpdatedAt}, Data: salesStored(stored), AvailableApprovalActions: s.sales.LifecycleActions(e, actor)}, nil
 }
 
 func (s *RelationshipService) OtherUnitVersions(ctx context.Context, in RelationshipHistoryInput, a approval.Actor) (Page[OtherUnitVersionView], error) {

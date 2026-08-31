@@ -34,6 +34,7 @@ const otherUnitRow: DclRelationshipListItem = {
   operatingEntityCode: 'OPE-0001',
   operatingEntityName: '经营主体',
   enabled: true,
+  availableApprovalActions: [],
   latestApproved: {
     approval,
     enabled: true,
@@ -118,16 +119,18 @@ describe('DCL relationship view model', () => {
   it('requires and submits a trimmed unapprove reason', async () => {
     useSessionStore().permissions = ['/dcl/other-unit/unapprove']
     const vm = useDclRelationshipViewModel('other-unit')
-    await expect(vm.reverse(otherUnitRow, 'unapprove', '  ')).resolves.toBe(
-      false,
-    )
+    const approved = {
+      ...otherUnitRow,
+      availableApprovalActions: ['unapprove'],
+    }
+    await expect(vm.reverse(approved, 'unapprove', '  ')).resolves.toBe(false)
     expect(mockedPost).not.toHaveBeenCalled()
 
     mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce({
       data: { items: [], total: 0, page: 1, pageSize: 20 },
     })
     await expect(
-      vm.reverse(otherUnitRow, 'unapprove', '  业务调整  '),
+      vm.reverse(approved, 'unapprove', '  业务调整  '),
     ).resolves.toBe(true)
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/other-unit/unapprove', {
       objectId: 'OUT-1',
@@ -144,6 +147,7 @@ describe('DCL relationship view model', () => {
     })
     const pending = {
       ...otherUnitRow,
+      availableApprovalActions: ['unsubmit'],
       openVersion: {
         ...otherUnitRow.latestApproved!,
         approval: {

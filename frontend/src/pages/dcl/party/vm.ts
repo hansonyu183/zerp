@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
 import { ApiError, getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { approvalActionPresentation } from '@/shared/approval'
 import { dclPartyApi } from './api'
 
 type PartyKind = components['schemas']['PartyKind']
@@ -24,12 +25,14 @@ const partyReferenceEntityLabels: Readonly<Record<string, string>> = {
 
 function partyActionErrorMessage(error: unknown): string {
   const base = getErrorMessage(error)
-  if (!(error instanceof ApiError) || error.errorKey !== 'bob_unapprove_blocked') {
+  if (
+    !(error instanceof ApiError) ||
+    error.errorKey !== 'bob_unapprove_blocked'
+  ) {
     return base
   }
   const details = error.details as
-    | components['schemas']['DclPartyUnapproveBlockers']
-    | undefined
+    components['schemas']['DclPartyUnapproveBlockers'] | undefined
   if (!details || !Array.isArray(details.references)) return base
   const references = details.references
     .filter(
@@ -168,8 +171,6 @@ export function useDclPartyViewModel() {
         versions: false,
         audit: false,
       }
-    const selfReview =
-      approval.status === 'PENDING' && approval.submittedBy === session.user?.id
     return {
       view: canGet.value,
       edit:
@@ -181,19 +182,11 @@ export function useDclPartyViewModel() {
         approval.status === 'DRAFT' &&
         approval.versionNo > 1 &&
         row.latestApproved !== null,
-      submit: session.can('/dcl/party/submit') && approval.status === 'DRAFT',
-      unsubmit:
-        session.can('/dcl/party/unsubmit') && approval.status === 'PENDING',
-      approve:
-        session.can('/dcl/party/approve') &&
-        approval.status === 'PENDING' &&
-        !selfReview,
-      reject:
-        session.can('/dcl/party/reject') &&
-        approval.status === 'PENDING' &&
-        !selfReview,
-      unapprove:
-        session.can('/dcl/party/unapprove') && approval.status === 'APPROVED',
+      submit: row.availableApprovalActions.includes('submit'),
+      unsubmit: row.availableApprovalActions.includes('unsubmit'),
+      approve: row.availableApprovalActions.includes('approve'),
+      reject: row.availableApprovalActions.includes('reject'),
+      unapprove: row.availableApprovalActions.includes('unapprove'),
       versions: session.can('/dcl/party/versions'),
       audit: session.can('/dcl/party/audit-history'),
     }
@@ -307,6 +300,13 @@ export function useDclPartyViewModel() {
     }
   }
 
+  async function refreshAfterSaveFailure(): Promise<void> {
+    const view = currentView.value
+    const mode = editorMode.value
+    await query()
+    if (view) await openById(view.partyId, mode)
+  }
+
   function closeEditor(): void {
     if (saving.value) return
     drawerOpen.value = false
@@ -349,7 +349,9 @@ export function useDclPartyViewModel() {
       await query()
       return true
     } catch (error) {
-      editorErrorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAfterSaveFailure()
+      editorErrorMessage.value = message
       return false
     } finally {
       saving.value = false
@@ -364,7 +366,7 @@ export function useDclPartyViewModel() {
     if (!permissions(row)[action] || actionLoading.value) return false
     const approval = activeVersion(row)?.approval
     if (!approval) return false
-    const normalizedReason = reason.trim()
+    const normalizedReason = action === 'unsubmit' ? '' : reason.trim()
     if (['reject', 'unapprove'].includes(action) && !normalizedReason) {
       errorMessage.value = '原因不能为空。'
       return false
@@ -387,15 +389,17 @@ export function useDclPartyViewModel() {
       await query()
       successMessage.value = {
         delete: '主体变更草稿已删除。',
-        submit: '主体变更已提交审核。',
-        unsubmit: '主体变更已撤回提交。',
-        approve: '主体变更已审核通过。',
-        reject: '主体变更已审核驳回。',
-        unapprove: '主体变更已撤销批准。',
+        submit: `主体变更${approvalActionPresentation.submit.successLabel}。`,
+        unsubmit: `主体变更${approvalActionPresentation.unsubmit.successLabel}。`,
+        approve: `主体变更${approvalActionPresentation.approve.successLabel}。`,
+        reject: `主体变更${approvalActionPresentation.reject.successLabel}。`,
+        unapprove: `主体变更${approvalActionPresentation.unapprove.successLabel}。`,
       }[action]
       return true
     } catch (error) {
-      errorMessage.value = partyActionErrorMessage(error)
+      const message = partyActionErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null

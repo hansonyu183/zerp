@@ -246,7 +246,7 @@ func (s *PartyService) Get(ctx context.Context, in PartyGetInput, visibility bob
 	if err != nil {
 		return PartyView{}, translateError(err)
 	}
-	return PartyView{PartyID: in.PartyID, Entity: EntityParty, Approval: approval.VersionMetaFromEntry(e), Data: partyData(row, ids), ImpactRelationships: cards, UpdatedAt: e.UpdatedAt}, nil
+	return PartyView{PartyID: in.PartyID, Entity: EntityParty, Approval: approval.VersionMetaFromEntry(e), Data: partyData(row, ids), ImpactRelationships: cards, UpdatedAt: e.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(e, actor)}, nil
 }
 
 func (s *PartyService) Versions(ctx context.Context, in PartyHistoryInput, actor approval.Actor) (Page[PartyVersionView], error) {
@@ -368,6 +368,13 @@ func (s *PartyService) Query(ctx context.Context, in bobdomain.QueryInput, actor
 				return Page[PartyListItem]{}, newError(ErrorInternal, "internal_error", "Party approval snapshot missing", nil, nil)
 			}
 			item.OpenVersion = &version
+		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityParty, row.OpenEntryID, row.LatestApprovedEntryID)
+		if entryErr != nil {
+			return Page[PartyListItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
 		}
 		items = append(items, item)
 	}

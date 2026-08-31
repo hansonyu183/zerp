@@ -41,6 +41,47 @@ func TestAvailableLifecycleActions(t *testing.T) {
 	}
 }
 
+func TestCoordinatorLifecycleActionsUseFixedEntityPermissions(t *testing.T) {
+	coordinator, err := NewCoordinator(
+		"dcl",
+		"warehouse",
+		allowAuthorizer{},
+		txevent.NewBus(),
+		MustTopic[string]("approval.test.dcl-warehouse-actions"),
+	)
+	if err != nil {
+		t.Fatalf("new coordinator: %v", err)
+	}
+	submitterID := "01J00000000000000000000001"
+	reviewerID := "01J00000000000000000000002"
+	actor, err := UserActor(authorization.Principal{
+		ActorID: reviewerID,
+		Permissions: []string{
+			"/dcl/warehouse/unsubmit",
+			"/dcl/warehouse/reject",
+			"/dcl/warehouse/approve",
+			"/dcl/vehicle/unapprove",
+		},
+	}, "request-dcl-warehouse-actions")
+	if err != nil {
+		t.Fatalf("new actor: %v", err)
+	}
+
+	got := coordinator.LifecycleActions(Entry{
+		Status: StatusPending, SubmittedBy: &submitterID,
+	}, actor)
+	want := []LifecycleAction{LifecycleUnsubmit, LifecycleReject, LifecycleApprove}
+	if !slices.Equal(got, want) {
+		t.Fatalf("LifecycleActions() = %v, want %v", got, want)
+	}
+	if got = coordinator.LifecycleActions(Entry{Status: StatusApproved}, actor); len(got) != 0 {
+		t.Fatalf("LifecycleActions() accepted another entity permission: %v", got)
+	}
+	if got == nil {
+		t.Fatal("LifecycleActions() returned nil instead of an empty JSON array")
+	}
+}
+
 type allowAuthorizer struct{}
 
 func (allowAuthorizer) RequirePermission(context.Context, authorization.Principal, string, string) error {

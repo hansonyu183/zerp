@@ -120,7 +120,17 @@ DclRptDefinitionView:
   type: object
   additionalProperties: false
   required:
-    [code, definitionId, name, description, enabled, approval, validity, data]
+    [
+      code,
+      definitionId,
+      name,
+      description,
+      enabled,
+      approval,
+      availableApprovalActions,
+      validity,
+      data,
+    ]
   properties:
     code: { type: string }
     definitionId: { type: string }
@@ -128,6 +138,9 @@ DclRptDefinitionView:
     description: { type: string }
     enabled: { type: boolean }
     approval: { $ref: './common.yaml#/ApprovalVersionMeta' }
+    availableApprovalActions:
+      type: array
+      items: { $ref: './common.yaml#/ApprovalLifecycleAction' }
     validity: { type: string, enum: [VALID, INVALID] }
     data: { $ref: './rpt.yaml#/RptVersionData' }
 
@@ -164,6 +177,7 @@ DclRptDefinitionListItem:
       name,
       description,
       enabled,
+      availableApprovalActions,
       latestApproved,
       openVersion,
     ]
@@ -173,6 +187,9 @@ DclRptDefinitionListItem:
     name: { type: string }
     description: { type: string }
     enabled: { type: boolean }
+    availableApprovalActions:
+      type: array
+      items: { $ref: './common.yaml#/ApprovalLifecycleAction' }
     latestApproved:
       type: object
       allOf: [{ $ref: '#/DclRptDefinitionVersionSummary' }]

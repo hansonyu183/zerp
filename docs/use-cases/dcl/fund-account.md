@@ -28,3 +28,7 @@
 2. V1/V2 批准和反批后，BOB typed query 不经额外写入即可显示、切换、回落或隐藏；失败时 DCL snapshot、Approval 与账号占用全部回滚。
 3. 经营主体来源漂移、账号并发唯一、回落冲突及 VOU blocker 由真实 PostgreSQL 测试覆盖。
 4. 历史 VOU 在资金账户后续改版、改币种或改所属主体后，仍保留原 stable ID、Approval Entry ID 与快照；ACC 仍通过不可变 VOU `source_id` 追溯该版本。
+
+## 5. 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与资金账户业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

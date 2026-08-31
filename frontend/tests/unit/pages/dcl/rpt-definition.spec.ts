@@ -50,6 +50,7 @@ const definition: RptDefinition = {
   description: '',
   enabled: true,
   approval,
+  availableApprovalActions: ['submit'],
   validity: 'VALID',
   data,
 }
@@ -134,6 +135,7 @@ describe('DCL report definition boundary', () => {
                 name: definition.name,
                 description: '',
                 enabled: true,
+                availableApprovalActions: ['submit'],
                 latestApproved: null,
                 openVersion: {
                   name: definition.name,

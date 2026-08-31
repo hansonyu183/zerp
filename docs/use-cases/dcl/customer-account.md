@@ -17,3 +17,7 @@
 1. 页面编排该独立 subject 的全套 DCL 动作；账户 V2 draft/pending 不影响 BOB V1 正式资料。
 2. 账户 candidate 附件独立复制和只读，不能与关系附件混用。
 3. 当前有效资料读取失败不得引入额外写入；正式交易 exact 引用阻止反批，V1 历史 snapshot 在 V2 批准后仍可校验。
+
+## 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与客户账户业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

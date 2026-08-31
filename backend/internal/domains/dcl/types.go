@@ -180,11 +180,12 @@ type SupplierMutation struct {
 }
 type SupplierView struct {
 	RelationshipIdentityView
-	OperatingEntityApprovalEntryID string       `json:"operatingEntityApprovalEntryId"`
-	OperatingEntityCode            string       `json:"operatingEntityCode"`
-	OperatingEntityName            string       `json:"operatingEntityName"`
-	Data                           SupplierData `json:"data"`
-	UpdatedAt                      time.Time    `json:"updatedAt"`
+	OperatingEntityApprovalEntryID string                     `json:"operatingEntityApprovalEntryId"`
+	OperatingEntityCode            string                     `json:"operatingEntityCode"`
+	OperatingEntityName            string                     `json:"operatingEntityName"`
+	Data                           SupplierData               `json:"data"`
+	UpdatedAt                      time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions       []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type SupplierVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
@@ -193,11 +194,12 @@ type SupplierVersionView struct {
 }
 type SupplierQueryItem struct {
 	RelationshipIdentityView
-	OperatingEntityCode string               `json:"operatingEntityCode"`
-	OperatingEntityName string               `json:"operatingEntityName"`
-	LatestApproved      *SupplierVersionView `json:"latestApproved,omitempty"`
-	OpenVersion         *SupplierVersionView `json:"openVersion,omitempty"`
-	UpdatedAt           time.Time            `json:"updatedAt"`
+	OperatingEntityCode      string                     `json:"operatingEntityCode"`
+	OperatingEntityName      string                     `json:"operatingEntityName"`
+	LatestApproved           *SupplierVersionView       `json:"latestApproved,omitempty"`
+	OpenVersion              *SupplierVersionView       `json:"openVersion,omitempty"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type OtherUnitCreateInput struct {
 	PartyID           string                     `json:"partyId,omitempty"`
@@ -278,11 +280,13 @@ type RelationshipIdentityView struct {
 }
 type OtherUnitView struct {
 	RelationshipIdentityView
-	Data OtherUnitData `json:"data"`
+	Data                     OtherUnitData              `json:"data"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type SalesPartnerView struct {
 	RelationshipIdentityView
-	Data SalesPartnerData `json:"data"`
+	Data                     SalesPartnerData           `json:"data"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type OtherUnitVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
@@ -295,32 +299,34 @@ type SalesPartnerVersionView struct {
 	Data     SalesPartnerData     `json:"data"`
 }
 type OtherUnitQueryItem struct {
-	ObjectID            string                `json:"objectId"`
-	Entity              string                `json:"entity"`
-	Code                string                `json:"code"`
-	PartyID             string                `json:"partyId"`
-	PartyKind           string                `json:"partyKind"`
-	PartyDisplayName    string                `json:"partyDisplayName"`
-	OperatingEntityID   string                `json:"operatingEntityId"`
-	OperatingEntityCode string                `json:"operatingEntityCode"`
-	OperatingEntityName string                `json:"operatingEntityName"`
-	Enabled             bool                  `json:"enabled"`
-	LatestApproved      *OtherUnitVersionView `json:"latestApproved,omitempty"`
-	OpenVersion         *OtherUnitVersionView `json:"openVersion,omitempty"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	PartyID                  string                     `json:"partyId"`
+	PartyKind                string                     `json:"partyKind"`
+	PartyDisplayName         string                     `json:"partyDisplayName"`
+	OperatingEntityID        string                     `json:"operatingEntityId"`
+	OperatingEntityCode      string                     `json:"operatingEntityCode"`
+	OperatingEntityName      string                     `json:"operatingEntityName"`
+	Enabled                  bool                       `json:"enabled"`
+	LatestApproved           *OtherUnitVersionView      `json:"latestApproved,omitempty"`
+	OpenVersion              *OtherUnitVersionView      `json:"openVersion,omitempty"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type SalesPartnerQueryItem struct {
-	ObjectID            string                   `json:"objectId"`
-	Entity              string                   `json:"entity"`
-	Code                string                   `json:"code"`
-	PartyID             string                   `json:"partyId"`
-	PartyKind           string                   `json:"partyKind"`
-	PartyDisplayName    string                   `json:"partyDisplayName"`
-	OperatingEntityID   string                   `json:"operatingEntityId"`
-	OperatingEntityCode string                   `json:"operatingEntityCode"`
-	OperatingEntityName string                   `json:"operatingEntityName"`
-	Enabled             bool                     `json:"enabled"`
-	LatestApproved      *SalesPartnerVersionView `json:"latestApproved,omitempty"`
-	OpenVersion         *SalesPartnerVersionView `json:"openVersion,omitempty"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	PartyID                  string                     `json:"partyId"`
+	PartyKind                string                     `json:"partyKind"`
+	PartyDisplayName         string                     `json:"partyDisplayName"`
+	OperatingEntityID        string                     `json:"operatingEntityId"`
+	OperatingEntityCode      string                     `json:"operatingEntityCode"`
+	OperatingEntityName      string                     `json:"operatingEntityName"`
+	Enabled                  bool                       `json:"enabled"`
+	LatestApproved           *SalesPartnerVersionView   `json:"latestApproved,omitempty"`
+	OpenVersion              *SalesPartnerVersionView   `json:"openVersion,omitempty"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 // EmployeeInput contains only Employee-owned mutable attributes. Party identity
@@ -402,20 +408,21 @@ type EmployeeMutation struct {
 	Approval approval.VersionMeta `json:"approval"`
 }
 type EmployeeView struct {
-	ObjectID                       string               `json:"objectId"`
-	Entity                         string               `json:"entity"`
-	Code                           string               `json:"code"`
-	PartyID                        string               `json:"partyId"`
-	PartyKind                      string               `json:"partyKind"`
-	PartyDisplayName               string               `json:"partyDisplayName"`
-	OperatingEntityID              string               `json:"operatingEntityId"`
-	OperatingEntityApprovalEntryID string               `json:"operatingEntityApprovalEntryId"`
-	OperatingEntityCode            string               `json:"operatingEntityCode"`
-	OperatingEntityName            string               `json:"operatingEntityName"`
-	Enabled                        bool                 `json:"enabled"`
-	Approval                       approval.VersionMeta `json:"approval"`
-	Data                           EmployeeData         `json:"data"`
-	UpdatedAt                      time.Time            `json:"updatedAt"`
+	ObjectID                       string                     `json:"objectId"`
+	Entity                         string                     `json:"entity"`
+	Code                           string                     `json:"code"`
+	PartyID                        string                     `json:"partyId"`
+	PartyKind                      string                     `json:"partyKind"`
+	PartyDisplayName               string                     `json:"partyDisplayName"`
+	OperatingEntityID              string                     `json:"operatingEntityId"`
+	OperatingEntityApprovalEntryID string                     `json:"operatingEntityApprovalEntryId"`
+	OperatingEntityCode            string                     `json:"operatingEntityCode"`
+	OperatingEntityName            string                     `json:"operatingEntityName"`
+	Enabled                        bool                       `json:"enabled"`
+	Approval                       approval.VersionMeta       `json:"approval"`
+	Data                           EmployeeData               `json:"data"`
+	UpdatedAt                      time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions       []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type EmployeeVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
@@ -423,19 +430,20 @@ type EmployeeVersionView struct {
 	Enabled  bool                 `json:"enabled"`
 }
 type EmployeeQueryItem struct {
-	ObjectID            string               `json:"objectId"`
-	Entity              string               `json:"entity"`
-	Code                string               `json:"code"`
-	PartyID             string               `json:"partyId"`
-	PartyKind           string               `json:"partyKind"`
-	PartyDisplayName    string               `json:"partyDisplayName"`
-	OperatingEntityID   string               `json:"operatingEntityId"`
-	OperatingEntityCode string               `json:"operatingEntityCode"`
-	OperatingEntityName string               `json:"operatingEntityName"`
-	Enabled             bool                 `json:"enabled"`
-	LatestApproved      *EmployeeVersionView `json:"latestApproved"`
-	OpenVersion         *EmployeeVersionView `json:"openVersion"`
-	UpdatedAt           time.Time            `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	PartyID                  string                     `json:"partyId"`
+	PartyKind                string                     `json:"partyKind"`
+	PartyDisplayName         string                     `json:"partyDisplayName"`
+	OperatingEntityID        string                     `json:"operatingEntityId"`
+	OperatingEntityCode      string                     `json:"operatingEntityCode"`
+	OperatingEntityName      string                     `json:"operatingEntityName"`
+	Enabled                  bool                       `json:"enabled"`
+	LatestApproved           *EmployeeVersionView       `json:"latestApproved"`
+	OpenVersion              *EmployeeVersionView       `json:"openVersion"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type PartyData = bobdomain.PartyCreateData
@@ -463,19 +471,21 @@ type PartyVersionView struct {
 	Data     PartyData            `json:"data"`
 }
 type PartyView struct {
-	PartyID             string                            `json:"partyId"`
-	Entity              string                            `json:"entity"`
-	Approval            approval.VersionMeta              `json:"approval"`
-	Data                PartyData                         `json:"data"`
-	ImpactRelationships []bobdomain.PartyRelationshipCard `json:"impactRelationships"`
-	UpdatedAt           time.Time                         `json:"updatedAt"`
+	PartyID                  string                            `json:"partyId"`
+	Entity                   string                            `json:"entity"`
+	Approval                 approval.VersionMeta              `json:"approval"`
+	Data                     PartyData                         `json:"data"`
+	ImpactRelationships      []bobdomain.PartyRelationshipCard `json:"impactRelationships"`
+	UpdatedAt                time.Time                         `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction        `json:"availableApprovalActions"`
 }
 type PartyListItem struct {
-	PartyID        string            `json:"partyId"`
-	Entity         string            `json:"entity"`
-	LatestApproved *PartyVersionView `json:"latestApproved"`
-	OpenVersion    *PartyVersionView `json:"openVersion"`
-	UpdatedAt      time.Time         `json:"updatedAt"`
+	PartyID                  string                     `json:"partyId"`
+	Entity                   string                     `json:"entity"`
+	LatestApproved           *PartyVersionView          `json:"latestApproved"`
+	OpenVersion              *PartyVersionView          `json:"openVersion"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type PartyVersionInput struct {
 	PartyID          string `json:"partyId"`
@@ -605,13 +615,14 @@ type ProductQueryInput struct {
 type ProductHistoryInput = OperatingEntityHistoryInput
 type ProductMutation = OperatingEntityMutation
 type ProductView struct {
-	ObjectID  string               `json:"objectId"`
-	Entity    string               `json:"entity"`
-	Code      string               `json:"code"`
-	Enabled   bool                 `json:"enabled"`
-	Approval  approval.VersionMeta `json:"approval"`
-	Data      ProductData          `json:"data"`
-	UpdatedAt time.Time            `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     ProductData                `json:"data"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type ProductVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
@@ -619,13 +630,14 @@ type ProductVersionView struct {
 	Enabled  bool                 `json:"enabled"`
 }
 type ProductQueryItem struct {
-	ObjectID       string              `json:"objectId"`
-	Entity         string              `json:"entity"`
-	Code           string              `json:"code"`
-	Enabled        bool                `json:"enabled"`
-	LatestApproved *ProductVersionView `json:"latestApproved"`
-	OpenVersion    *ProductVersionView `json:"openVersion"`
-	UpdatedAt      time.Time           `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	LatestApproved           *ProductVersionView        `json:"latestApproved"`
+	OpenVersion              *ProductVersionView        `json:"openVersion"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type FundAccountData struct {
@@ -673,13 +685,14 @@ type FundAccountQueryInput struct {
 type FundAccountHistoryInput = OperatingEntityHistoryInput
 type FundAccountMutation = OperatingEntityMutation
 type FundAccountView struct {
-	ObjectID  string               `json:"objectId"`
-	Entity    string               `json:"entity"`
-	Code      string               `json:"code"`
-	Enabled   bool                 `json:"enabled"`
-	Approval  approval.VersionMeta `json:"approval"`
-	Data      FundAccountData      `json:"data"`
-	UpdatedAt time.Time            `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     FundAccountData            `json:"data"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type FundAccountVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
@@ -687,13 +700,14 @@ type FundAccountVersionView struct {
 	Enabled  bool                 `json:"enabled"`
 }
 type FundAccountQueryItem struct {
-	ObjectID       string                  `json:"objectId"`
-	Entity         string                  `json:"entity"`
-	Code           string                  `json:"code"`
-	Enabled        bool                    `json:"enabled"`
-	LatestApproved *FundAccountVersionView `json:"latestApproved"`
-	OpenVersion    *FundAccountVersionView `json:"openVersion"`
-	UpdatedAt      time.Time               `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	LatestApproved           *FundAccountVersionView    `json:"latestApproved"`
+	OpenVersion              *FundAccountVersionView    `json:"openVersion"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type VehicleData struct {
@@ -744,13 +758,14 @@ type VehicleQueryInput struct {
 type VehicleHistoryInput = OperatingEntityHistoryInput
 type VehicleMutation = WarehouseMutation
 type VehicleView struct {
-	ObjectID  string               `json:"objectId"`
-	Entity    string               `json:"entity"`
-	Code      string               `json:"code"`
-	Enabled   bool                 `json:"enabled"`
-	Approval  approval.VersionMeta `json:"approval"`
-	Data      VehicleData          `json:"data"`
-	UpdatedAt time.Time            `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     VehicleData                `json:"data"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type VehicleVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
@@ -758,13 +773,14 @@ type VehicleVersionView struct {
 	Enabled  bool                 `json:"enabled"`
 }
 type VehicleQueryItem struct {
-	ObjectID       string              `json:"objectId"`
-	Entity         string              `json:"entity"`
-	Code           string              `json:"code"`
-	Enabled        bool                `json:"enabled"`
-	LatestApproved *VehicleVersionView `json:"latestApproved"`
-	OpenVersion    *VehicleVersionView `json:"openVersion"`
-	UpdatedAt      time.Time           `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	LatestApproved           *VehicleVersionView        `json:"latestApproved"`
+	OpenVersion              *VehicleVersionView        `json:"openVersion"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type WarehouseData struct {
@@ -817,13 +833,14 @@ type WarehouseMutation struct {
 	Approval approval.VersionMeta `json:"approval"`
 }
 type WarehouseView struct {
-	ObjectID  string               `json:"objectId"`
-	Entity    string               `json:"entity"`
-	Code      string               `json:"code"`
-	Enabled   bool                 `json:"enabled"`
-	Approval  approval.VersionMeta `json:"approval"`
-	Data      WarehouseData        `json:"data"`
-	UpdatedAt time.Time            `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     WarehouseData              `json:"data"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type WarehouseVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
@@ -831,13 +848,14 @@ type WarehouseVersionView struct {
 	Enabled  bool                 `json:"enabled"`
 }
 type WarehouseQueryItem struct {
-	ObjectID       string                `json:"objectId"`
-	Entity         string                `json:"entity"`
-	Code           string                `json:"code"`
-	Enabled        bool                  `json:"enabled"`
-	LatestApproved *WarehouseVersionView `json:"latestApproved"`
-	OpenVersion    *WarehouseVersionView `json:"openVersion"`
-	UpdatedAt      time.Time             `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	LatestApproved           *WarehouseVersionView      `json:"latestApproved"`
+	OpenVersion              *WarehouseVersionView      `json:"openVersion"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type OperatingEntityData = bobdomain.OperatingEntityData
@@ -905,13 +923,14 @@ type OperatingEntityMutation struct {
 }
 
 type OperatingEntityView struct {
-	ObjectID  string               `json:"objectId"`
-	Entity    string               `json:"entity"`
-	Code      string               `json:"code"`
-	Enabled   bool                 `json:"enabled"`
-	Approval  approval.VersionMeta `json:"approval"`
-	Data      OperatingEntityData  `json:"data"`
-	UpdatedAt time.Time            `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Enabled                  bool                       `json:"enabled"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     OperatingEntityData        `json:"data"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type OperatingEntityVersionView struct {
@@ -921,13 +940,14 @@ type OperatingEntityVersionView struct {
 }
 
 type OperatingEntityQueryItem struct {
-	ObjectID       string                      `json:"objectId"`
-	Entity         string                      `json:"entity"`
-	Code           string                      `json:"code"`
-	Enabled        bool                        `json:"enabled"`
-	LatestApproved *OperatingEntityVersionView `json:"latestApproved"`
-	OpenVersion    *OperatingEntityVersionView `json:"openVersion"`
-	UpdatedAt      time.Time                   `json:"updatedAt"`
+	ObjectID                 string                      `json:"objectId"`
+	Entity                   string                      `json:"entity"`
+	Code                     string                      `json:"code"`
+	Enabled                  bool                        `json:"enabled"`
+	LatestApproved           *OperatingEntityVersionView `json:"latestApproved"`
+	OpenVersion              *OperatingEntityVersionView `json:"openVersion"`
+	UpdatedAt                time.Time                   `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction  `json:"availableApprovalActions"`
 }
 
 type Page[T any] struct {
@@ -1013,17 +1033,19 @@ type AccMappingMutation struct {
 }
 
 type AccMappingView struct {
-	BookID    string               `json:"bookId"`
-	VouEntity string               `json:"vouEntity"`
-	Approval  approval.VersionMeta `json:"approval"`
-	Data      AccMappingData       `json:"data"`
+	BookID                   string                     `json:"bookId"`
+	VouEntity                string                     `json:"vouEntity"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     AccMappingData             `json:"data"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type AccMappingListItem struct {
-	BookID    string               `json:"bookId"`
-	VouEntity string               `json:"vouEntity"`
-	Approval  approval.VersionMeta `json:"approval"`
-	Data      AccMappingData       `json:"data"`
+	BookID                   string                     `json:"bookId"`
+	VouEntity                string                     `json:"vouEntity"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     AccMappingData             `json:"data"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type AccMappingVersionView struct {

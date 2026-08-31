@@ -78,7 +78,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   })
   const sequences = new Map<ReferenceKey, number>()
   const timers = new Map<ReferenceKey, ReturnType<typeof setTimeout>>()
-  const { permission, actionAvailability, actionBlockedReason } =
+  const { permission, actionAvailability } =
     useDclDeclarationActionAvailability(
       entity,
       (row: DclRelationshipListItem) => {
@@ -86,13 +86,12 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
         return {
           status: approval.status,
           versionNo: approval.versionNo,
-          submittedBy: approval.submittedBy,
+          availableApprovalActions: row.availableApprovalActions,
           enabled: row.enabled,
           hasOpenVersion: row.openVersion !== null,
           hasLatestApproved: row.latestApproved !== null,
         }
       },
-      () => session.user?.id,
       (path) => session.can(path),
     )
   const canReferences = computed(
@@ -393,6 +392,12 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
       editorLoading.value = false
     }
   }
+  async function refreshAfterSaveFailure(): Promise<void> {
+    const view = currentView.value
+    const mode = editorMode.value
+    await query()
+    if (view && mode !== 'create') await openById(view.objectId, mode)
+  }
   function closeEditor(): void {
     if (!saving.value) {
       drawerOpen.value = false
@@ -433,7 +438,9 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
       await query()
       return true
     } catch (error) {
-      editorErrorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAfterSaveFailure()
+      editorErrorMessage.value = message
       return false
     } finally {
       saving.value = false
@@ -450,12 +457,12 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
       else await dclRelationshipLifecyclePort(entity).run(row, 'submit', '')
       await query()
       successMessage.value =
-        action === 'delete'
-          ? `${row.code} 已删除。`
-          : `${row.code} 已提交审核。`
+        action === 'delete' ? `${row.code} 已删除。` : `${row.code} 已提交。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null
@@ -511,7 +518,6 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     editorTitle,
     editorFields,
     actionAvailability,
-    actionBlockedReason,
     hasAnyAction: (row: DclRelationshipListItem) =>
       Object.values(actionAvailability(row)).some(Boolean),
     versionSummary,

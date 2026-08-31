@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { DclWarehouseData } from './DclWarehouseData';
 export type DclWarehouseView = {
@@ -10,6 +11,7 @@ export type DclWarehouseView = {
   code: string;
   enabled: boolean;
   approval: ApprovalVersionMeta;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   data: DclWarehouseData;
   updatedAt: string;
 };

@@ -105,7 +105,6 @@ async function changeDclWarehouseEnabled(
 
 export const dclWarehouseLifecyclePort: DclDeclarationLifecyclePort<DclWarehouseListItem> =
   {
-    unsubmitReasonRequired: true,
     run: runDclWarehouseLifecycle,
     changeEnabled: changeDclWarehouseEnabled,
   }

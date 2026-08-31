@@ -437,5 +437,7 @@ func (s *AccMappingService) Get(ctx context.Context, input AccMappingGetInput, a
 	if err != nil {
 		return AccMappingView{}, translateError(err)
 	}
-	return accMappingView(input.BookID, input.VouEntity, stored.DefaultResult, stored.Definition, entry), nil
+	view := accMappingView(input.BookID, input.VouEntity, stored.DefaultResult, stored.Definition, entry)
+	view.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+	return view, nil
 }

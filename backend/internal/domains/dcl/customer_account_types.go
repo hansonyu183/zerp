@@ -177,25 +177,27 @@ type CustomerAccountVersionView struct {
 	Attachments []CustomerAttachmentView `json:"attachments"`
 }
 type CustomerAccountView struct {
-	ObjectID               string                   `json:"objectId"`
-	Entity                 string                   `json:"entity"`
-	Code                   string                   `json:"code"`
-	CustomerRelationshipID string                   `json:"customerRelationshipId"`
-	Enabled                bool                     `json:"enabled"`
-	Approval               approval.VersionMeta     `json:"approval"`
-	Data                   CustomerAccountData      `json:"data"`
-	Attachments            []CustomerAttachmentView `json:"attachments"`
-	UpdatedAt              time.Time                `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	CustomerRelationshipID   string                     `json:"customerRelationshipId"`
+	Enabled                  bool                       `json:"enabled"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     CustomerAccountData        `json:"data"`
+	Attachments              []CustomerAttachmentView   `json:"attachments"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type CustomerAccountQueryItem struct {
-	ObjectID               string                      `json:"objectId"`
-	Entity                 string                      `json:"entity"`
-	Code                   string                      `json:"code"`
-	CustomerRelationshipID string                      `json:"customerRelationshipId"`
-	Enabled                bool                        `json:"enabled"`
-	LatestApproved         *CustomerAccountVersionView `json:"latestApproved"`
-	OpenVersion            *CustomerAccountVersionView `json:"openVersion"`
-	UpdatedAt              time.Time                   `json:"updatedAt"`
+	ObjectID                 string                      `json:"objectId"`
+	Entity                   string                      `json:"entity"`
+	Code                     string                      `json:"code"`
+	CustomerRelationshipID   string                      `json:"customerRelationshipId"`
+	Enabled                  bool                        `json:"enabled"`
+	LatestApproved           *CustomerAccountVersionView `json:"latestApproved"`
+	OpenVersion              *CustomerAccountVersionView `json:"openVersion"`
+	UpdatedAt                time.Time                   `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction  `json:"availableApprovalActions"`
 }
 
 func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDataInput, error) {

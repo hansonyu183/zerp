@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -58,6 +59,29 @@ func (c *Coordinator[T]) Authorize(ctx context.Context, actor Actor, action stri
 	default:
 		return newError(ErrorValidation, "approval_invalid_action", "invalid approval action", nil)
 	}
+}
+
+// LifecycleActions returns the current actor's query-time lifecycle action
+// snapshot for this Coordinator's fixed domain and entity. Execution remains
+// authoritative and rechecks permission, state, revision and domain rules.
+func (c *Coordinator[T]) LifecycleActions(entry Entry, actor Actor) []LifecycleAction {
+	var permissions LifecyclePermissions
+	if actor.Trusted() {
+		permissions = LifecyclePermissions{Submit: true, Unsubmit: true, Reject: true, Approve: true, Unapprove: true}
+	} else {
+		has := func(action string) bool {
+			return slices.Contains(actor.principal.Permissions, fmt.Sprintf("/%s/%s/%s", c.domain, c.entity, action))
+		}
+		permissions = LifecyclePermissions{
+			Submit: has("submit"), Unsubmit: has("unsubmit"), Reject: has("reject"),
+			Approve: has("approve"), Unapprove: has("unapprove"),
+		}
+	}
+	actions := AvailableLifecycleActions(entry, actor.ID(), permissions)
+	if actions == nil {
+		return []LifecycleAction{}
+	}
+	return actions
 }
 
 func (c *Coordinator[T]) Get(ctx context.Context, tx pgx.Tx, entryID string, actor Actor) (Entry, error) {

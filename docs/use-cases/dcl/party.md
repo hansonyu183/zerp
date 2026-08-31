@@ -16,3 +16,7 @@
 2. 合并必须在本页先预检：请求提交双方 latest approved `sourceApprovalEntryId` 与 Approval revision，双方存在正式版本且不存在 Party candidate 才能继续。用户显式处理全部关系冲突后，以 `preflightId` 和选择结果确认；资料、Approval token 或关系变化都会使预检失效。来源 DCL Party root 标记 merged-into 后从 BOB 查询消失，DCL history/claims、merge audit 和历史单据不改写。
 3. BOB `/bob/party` 只读取当前身份和按权限裁剪的关系卡片，不展示编辑、审批、版本、审计或合并写动作。
 4. 真实 PostgreSQL 覆盖原子首条关系创建、V1/V2 可见性与自然回落、强标识并发占用、权限隔离、影响预览不泄露及合并事务回滚。
+
+## 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与 Party 业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

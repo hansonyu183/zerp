@@ -42,6 +42,7 @@ describe('DCL fund account view model', () => {
               entity: 'fund-account',
               code: 'FA-0001',
               enabled: true,
+              availableApprovalActions: ['submit'],
               latestApproved: null,
               openVersion: {
                 approval,

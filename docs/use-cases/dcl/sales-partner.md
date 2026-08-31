@@ -21,3 +21,7 @@
 2. BOB 直接读取 highest APPROVED snapshot，在 DCL 批准或反批后自然切换或回落；无 BOB 直接写入口。
 3. 深链可打开目标 candidate，状态和权限不允许的动作既不展示也不发起请求。
 4. 空能力草稿可以创建和保存，但 submit 与 approve 都返回稳定校验错误；补充至少一种合法能力后才允许进入或保持正式状态。
+
+## 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与销售合作方业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

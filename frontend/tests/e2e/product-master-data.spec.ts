@@ -207,7 +207,7 @@ async function submitProduct(page: Page, name: string): Promise<void> {
   const submitted = page.waitForResponse((response) =>
     response.url().endsWith('/dcl/product/submit'),
   )
-  await selectRowAction(page, row, '提交审核')
+  await selectRowAction(page, row, '提交')
   const envelope = (await (await submitted).json()) as {
     code: string | number
     message?: string
@@ -221,7 +221,7 @@ async function approveProduct(page: Page, name: string): Promise<void> {
   const approved = page.waitForResponse((response) =>
     response.url().endsWith('/dcl/product/approve'),
   )
-  await selectRowAction(page, row, '审核通过')
+  await selectRowAction(page, row, '批准')
   const envelope = (await (await approved).json()) as {
     code: string | number
     message?: string
@@ -436,8 +436,8 @@ async function verifyBobProductCurrentReadOnly(
   await expect(
     page.getByRole('button', { name: '新增', exact: true }),
   ).toHaveCount(0)
-  await expect(row.getByText('提交审核', { exact: true })).toHaveCount(0)
-  await expect(row.getByText('审核通过', { exact: true })).toHaveCount(0)
+  await expect(row.getByText('提交', { exact: true })).toHaveCount(0)
+  await expect(row.getByText('批准', { exact: true })).toHaveCount(0)
 }
 
 test('当前产品类型驱动三类产品、固定配方及候选换版', async ({

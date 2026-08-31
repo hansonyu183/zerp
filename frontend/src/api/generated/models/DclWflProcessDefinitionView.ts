@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { WflDefinitionDiagnostic } from './WflDefinitionDiagnostic';
 import type { WflDefinitionEdge } from './WflDefinitionEdge';
@@ -11,6 +12,7 @@ export type DclWflProcessDefinitionView = {
   definitionId: string;
   enabled: boolean;
   approval: ApprovalVersionMeta;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   script: string;
   diagnostic?: WflDefinitionDiagnostic;
   nodes: Array<WflDefinitionNode>;

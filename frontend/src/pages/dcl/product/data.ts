@@ -43,7 +43,10 @@ function listItem(
 function productView(
   value: components['schemas']['DclProductView'],
 ): DclProductView {
-  return { ...value, data: { ...value.data } as DclProductView['data'] } as unknown as DclProductView
+  return {
+    ...value,
+    data: { ...value.data } as DclProductView['data'],
+  } as unknown as DclProductView
 }
 
 export async function queryDclProducts(request: {
@@ -161,7 +164,6 @@ export async function deleteDclProduct(
 
 export const dclProductLifecyclePort: DclDeclarationLifecyclePort<DclProductListItem> =
   {
-    unsubmitReasonRequired: true,
     run: runDclProductLifecycle,
     async changeEnabled(item) {
       const view = await getDclProduct(

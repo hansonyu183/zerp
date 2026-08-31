@@ -3,6 +3,10 @@ import type { ApprovalStatus } from '@/api/generated'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import {
+  approvalActionPresentation,
+  type ApprovalAction,
+} from '@/shared/approval'
+import {
   createRptDefinition,
   deleteRptDefinitionVersion,
   getRptDefinition,
@@ -83,6 +87,9 @@ export function createDclRptDefinitionViewModel() {
   )
   const canChangeEnabled = (enabled: boolean): boolean =>
     permissions.value.save && permissions.value[enabled ? 'enable' : 'disable']
+  const lifecycleActions = computed<ApprovalAction[] | null>(() =>
+    selected.value ? selected.value.availableApprovalActions : null,
+  )
   const form = reactive({
     name: '',
     description: '',
@@ -152,6 +159,21 @@ export function createDclRptDefinitionViewModel() {
     form.description = definition.description
     form.enabled = definition.enabled
     form.dataText = JSON.stringify(definition.data, null, 2)
+  }
+
+  async function refreshAuthoritativeDefinition(): Promise<void> {
+    const current = selected.value
+    await query()
+    if (!current || !permissions.value.get) return
+    try {
+      const result = await getRptDefinition(
+        current.code,
+        current.approval.approvalEntryId,
+      )
+      if (active) applyDefinition(result.data)
+    } catch {
+      // Keep the mutation error as the user-facing failure.
+    }
   }
 
   async function query(): Promise<void> {
@@ -265,7 +287,11 @@ export function createDclRptDefinitionViewModel() {
       editorOpen.value = false
       await query()
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      if (active) {
+        const message = getErrorMessage(error)
+        await refreshAuthoritativeDefinition()
+        errorMessage.value = message
+      }
     } finally {
       if (active) saving.value = false
     }
@@ -282,7 +308,13 @@ export function createDclRptDefinitionViewModel() {
       | 'delete-version',
   ): Promise<void> {
     const definition = selected.value
-    if (!definition || !permissions.value[action]) return
+    if (
+      !definition ||
+      (action === 'create-next' || action === 'delete-version'
+        ? !permissions.value[action]
+        : !definition.availableApprovalActions.includes(action))
+    )
+      return
     if (
       (action === 'reject' || action === 'unapprove') &&
       !reason.value.trim()
@@ -319,11 +351,20 @@ export function createDclRptDefinitionViewModel() {
           reason.value.trim(),
         )
       if (!active) return
-      successMessage.value = '报表定义变更操作已完成。'
+      successMessage.value =
+        action === 'create-next'
+          ? '报表定义新版本已创建。'
+          : action === 'delete-version'
+            ? '报表定义版本已删除。'
+            : `报表定义${approvalActionPresentation[action].successLabel}。`
       editorOpen.value = false
       await query()
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      if (active) {
+        const message = getErrorMessage(error)
+        await refreshAuthoritativeDefinition()
+        errorMessage.value = message
+      }
     } finally {
       if (active) saving.value = false
     }
@@ -335,9 +376,11 @@ export function createDclRptDefinitionViewModel() {
       await setRptDefinitionEnabled(selected.value, enabled)
       successMessage.value = enabled ? '报表已启用。' : '报表已停用。'
       editorOpen.value = false
-      await query()
+      await refreshAuthoritativeDefinition()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAuthoritativeDefinition()
+      errorMessage.value = message
     }
   }
 
@@ -375,6 +418,7 @@ export function createDclRptDefinitionViewModel() {
     form,
     includeDisabled,
     keyword,
+    lifecycleActions,
     loadAudit,
     loadVersions,
     loading,

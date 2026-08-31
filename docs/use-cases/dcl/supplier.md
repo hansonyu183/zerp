@@ -23,3 +23,7 @@
 3. BOB 直接读取 highest APPROVED snapshot，在 DCL 批准或反批后自然切换或回落；无 BOB 直接写入口。
 4. 默认采购员缺失、失效、非 latest approved 或权限不足，已配置结算方式的自身快照不完整，以及 revision 冲突时，页面显示后端结果，不伪造成功并保留可恢复输入；提交和批准不回查 AUX current。
 5. 深链可打开目标 candidate，状态和权限不允许的动作既不展示也不发起请求；含废弃 supplier category 的请求被拒绝。
+
+## 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与供应商业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

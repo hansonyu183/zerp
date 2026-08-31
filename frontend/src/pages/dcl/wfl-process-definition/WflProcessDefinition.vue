@@ -60,7 +60,12 @@ void vm.query().then(() => {
     <v-alert v-if="vm.errorMessage.value" type="error" closable class="mb-4">
       {{ vm.errorMessage.value }}
     </v-alert>
-    <v-alert v-if="vm.successMessage.value" type="success" closable class="mb-4">
+    <v-alert
+      v-if="vm.successMessage.value"
+      type="success"
+      closable
+      class="mb-4"
+    >
       {{ vm.successMessage.value }}
     </v-alert>
 
@@ -88,7 +93,11 @@ void vm.query().then(() => {
           variant="outlined"
           hide-details
         />
-        <v-checkbox v-model="vm.includeDisabled.value" label="包含停用" hide-details />
+        <v-checkbox
+          v-model="vm.includeDisabled.value"
+          label="包含停用"
+          hide-details
+        />
       </template>
     </EntityListControls>
 
@@ -113,16 +122,33 @@ void vm.query().then(() => {
             <td>
               <v-chip
                 v-if="activeDclWflProcessDefinitionVersion(item)"
-                :color="approvalStatusPresentation[activeDclWflProcessDefinitionVersion(item)!.approval.status].color"
+                :color="
+                  approvalStatusPresentation[
+                    activeDclWflProcessDefinitionVersion(item)!.approval.status
+                  ].color
+                "
                 size="small"
                 label
               >
-                {{ approvalStatusPresentation[activeDclWflProcessDefinitionVersion(item)!.approval.status].label }}
+                {{
+                  approvalStatusPresentation[
+                    activeDclWflProcessDefinitionVersion(item)!.approval.status
+                  ].label
+                }}
               </v-chip>
               <span v-else class="text-medium-emphasis">—</span>
             </td>
             <td>{{ item.enabled ? '启用' : '停用' }}</td>
-            <td>{{ activeDclWflProcessDefinitionVersion(item)?.approval.updatedAt ? new Date(activeDclWflProcessDefinitionVersion(item)!.approval.updatedAt).toLocaleString() : '—' }}</td>
+            <td>
+              {{
+                activeDclWflProcessDefinitionVersion(item)?.approval.updatedAt
+                  ? new Date(
+                      activeDclWflProcessDefinitionVersion(item)!.approval
+                        .updatedAt,
+                    ).toLocaleString()
+                  : '—'
+              }}
+            </td>
           </tr>
           <tr v-if="!vm.loading.value && vm.rows.value.length === 0">
             <td colspan="4" class="text-center py-8 text-medium-emphasis">
@@ -142,14 +168,31 @@ void vm.query().then(() => {
           <span class="definition-card__title">{{ item.code }}</span>
           <v-chip
             v-if="activeDclWflProcessDefinitionVersion(item)"
-            :color="approvalStatusPresentation[activeDclWflProcessDefinitionVersion(item)!.approval.status].color"
+            :color="
+              approvalStatusPresentation[
+                activeDclWflProcessDefinitionVersion(item)!.approval.status
+              ].color
+            "
             size="small"
             label
           >
-            {{ approvalStatusPresentation[activeDclWflProcessDefinitionVersion(item)!.approval.status].label }}
+            {{
+              approvalStatusPresentation[
+                activeDclWflProcessDefinitionVersion(item)!.approval.status
+              ].label
+            }}
           </v-chip>
           <span>启停：{{ item.enabled ? '启用' : '停用' }}</span>
-          <span>更新时间：{{ activeDclWflProcessDefinitionVersion(item)?.approval.updatedAt ? new Date(activeDclWflProcessDefinitionVersion(item)!.approval.updatedAt).toLocaleString() : '—' }}</span>
+          <span
+            >更新时间：{{
+              activeDclWflProcessDefinitionVersion(item)?.approval.updatedAt
+                ? new Date(
+                    activeDclWflProcessDefinitionVersion(item)!.approval
+                      .updatedAt,
+                  ).toLocaleString()
+                : '—'
+            }}</span
+          >
         </button>
         <div
           v-if="!vm.loading.value && vm.rows.value.length === 0"
@@ -158,7 +201,10 @@ void vm.query().then(() => {
           暂无流程定义
         </div>
       </div>
-      <div v-if="vm.total.value > vm.pageSize.value" class="d-flex justify-center pa-3">
+      <div
+        v-if="vm.total.value > vm.pageSize.value"
+        class="d-flex justify-center pa-3"
+      >
         <v-pagination
           :length="Math.ceil(vm.total.value / vm.pageSize.value)"
           :model-value="vm.page.value"
@@ -176,17 +222,22 @@ void vm.query().then(() => {
         <v-toolbar color="surface">
           <v-btn icon="mdi-close" @click="vm.editorOpen.value = false" />
           <v-toolbar-title>{{
-            vm.selected.value.approval.status === 'DRAFT' && !vm.selected.value.definitionId
+            vm.selected.value.approval.status === 'DRAFT' &&
+            !vm.selected.value.definitionId
               ? '新建流程'
               : '流程定义版本'
           }}</v-toolbar-title>
           <v-spacer />
           <v-btn
-            v-if="vm.selected.value.approval.status === 'DRAFT' && vm.permissions.value.save"
+            v-if="
+              vm.selected.value.approval.status === 'DRAFT' &&
+              vm.permissions.value.save
+            "
             :loading="vm.saving.value"
             color="primary"
             @click="vm.save"
-          >保存草稿</v-btn>
+            >保存草稿</v-btn
+          >
         </v-toolbar>
         <v-card-text class="definition-editor__body">
           <aside class="definition-editor__sidebar">
@@ -197,9 +248,14 @@ void vm.query().then(() => {
                 readonly
               />
               <div class="text-caption text-medium-emphasis">
-                Approval Entry ID：{{ vm.selected.value.approval.approvalEntryId }}
-                · 版本 {{ vm.selected.value.approval.versionNo }}
-                · {{ approvalStatusPresentation[vm.selected.value.approval.status].label }}
+                Approval Entry ID：{{
+                  vm.selected.value.approval.approvalEntryId
+                }}
+                · 版本 {{ vm.selected.value.approval.versionNo }} ·
+                {{
+                  approvalStatusPresentation[vm.selected.value.approval.status]
+                    .label
+                }}
               </div>
 
               <v-textarea
@@ -220,121 +276,156 @@ void vm.query().then(() => {
                   size="x-small"
                   variant="text"
                   @click="locateScriptDiagnostic"
-                >定位</v-btn>
+                  >定位</v-btn
+                >
               </div>
 
               <v-text-field
                 v-model="vm.reason.value"
-                label="驳回/反批原因"
-                :disabled="vm.selected.value.approval.status === 'DRAFT'"
+                label="驳回/反批准原因"
+                :disabled="
+                  !vm.lifecycleActions.value?.includes('reject') &&
+                  !vm.lifecycleActions.value?.includes('unapprove')
+                "
               />
 
               <div class="d-flex flex-wrap ga-2">
                 <v-btn
-                  v-if="vm.selected.value.approval.status === 'DRAFT' && vm.permissions.value.submit"
+                  v-if="vm.lifecycleActions.value?.includes('submit')"
                   color="primary"
                   @click="vm.run('submit')"
-                >提交</v-btn>
+                  >提交</v-btn
+                >
                 <v-btn
-                  v-if="vm.selected.value.approval.status === 'DRAFT' && vm.permissions.value['delete-version']"
+                  v-if="
+                    vm.selected.value.approval.status === 'DRAFT' &&
+                    vm.permissions.value['delete-version']
+                  "
                   color="error"
                   variant="tonal"
                   @click="vm.run('delete-version')"
-                >删除草稿</v-btn>
+                  >删除草稿</v-btn
+                >
                 <v-btn
-                  v-if="vm.selected.value.approval.status === 'PENDING' && vm.permissions.value.unsubmit"
+                  v-if="vm.lifecycleActions.value?.includes('unsubmit')"
                   @click="vm.run('unsubmit')"
-                >撤回</v-btn>
+                  >撤回</v-btn
+                >
                 <v-btn
-                  v-if="vm.selected.value.approval.status === 'PENDING' && vm.permissions.value.reject"
+                  v-if="vm.lifecycleActions.value?.includes('reject')"
                   color="error"
                   variant="tonal"
                   @click="vm.run('reject')"
-                >驳回</v-btn>
+                  >驳回</v-btn
+                >
                 <v-btn
-                  v-if="vm.selected.value.approval.status === 'PENDING' && vm.permissions.value.approve"
+                  v-if="vm.lifecycleActions.value?.includes('approve')"
                   color="success"
                   variant="tonal"
                   @click="vm.run('approve')"
-                >批准</v-btn>
+                  >批准</v-btn
+                >
                 <v-btn
-                  v-if="vm.selected.value.approval.status === 'APPROVED' && vm.permissions.value['create-next']"
+                  v-if="
+                    vm.selected.value.approval.status === 'APPROVED' &&
+                    vm.permissions.value['create-next']
+                  "
                   @click="vm.run('create-next')"
-                >创建下一版本</v-btn>
+                  >创建下一版本</v-btn
+                >
                 <v-btn
-                  v-if="vm.selected.value.approval.status === 'APPROVED' && vm.permissions.value.unapprove"
+                  v-if="vm.lifecycleActions.value?.includes('unapprove')"
                   color="warning"
                   variant="tonal"
                   @click="vm.run('unapprove')"
-                >反批</v-btn>
+                  >反批准</v-btn
+                >
                 <v-btn
-                  v-if="!vm.selected.value.enabled && vm.permissions.value.enable"
+                  v-if="
+                    !vm.selected.value.enabled && vm.permissions.value.enable
+                  "
                   color="success"
                   variant="outlined"
                   @click="vm.changeEnabled(true)"
-                >启用</v-btn>
+                  >启用</v-btn
+                >
                 <v-btn
-                  v-if="vm.selected.value.enabled && vm.permissions.value.disable"
+                  v-if="
+                    vm.selected.value.enabled && vm.permissions.value.disable
+                  "
                   color="warning"
                   variant="outlined"
                   @click="vm.changeEnabled(false)"
-                >停用</v-btn>
+                  >停用</v-btn
+                >
                 <v-btn
                   v-if="vm.permissions.value.versions"
                   variant="tonal"
                   @click="vm.loadVersions"
-                >版本历史</v-btn>
+                  >版本历史</v-btn
+                >
                 <v-btn
                   v-if="vm.permissions.value['audit-history']"
                   variant="tonal"
                   @click="vm.loadAudit"
-                >审核记录</v-btn>
+                  >审核记录</v-btn
+                >
               </div>
 
               <v-divider />
 
-              <template v-if="vm.selected.value.approval.status === 'DRAFT' && vm.permissions.value.trial">
-              <h3 class="text-subtitle-1">试运行</h3>
-              <v-select
-                :model-value="vm.trialEntity.value"
-                :items="vm.trialEntityItems.value"
-                label="源单据类型"
-                hide-details
-                variant="outlined"
-                @update:model-value="vm.trialEntity.value = $event"
-              />
-              <v-text-field
-                v-model="vm.trialDocumentId.value"
-                label="源单据 ID"
-                hide-details
-                variant="outlined"
-              />
-              <v-btn
-                :loading="vm.trialing.value"
-                :disabled="vm.selected.value.approval.status !== 'DRAFT' || !vm.permissions.value.trial"
-                variant="tonal"
-                @click="vm.trial"
-              >试运行</v-btn>
-              <v-card
-                v-if="vm.trialResult.value"
-                variant="tonal"
-                class="pa-3"
+              <template
+                v-if="
+                  vm.selected.value.approval.status === 'DRAFT' &&
+                  vm.permissions.value.trial
+                "
               >
-                <v-card-text>
-                  <div class="text-body-2">
-                    匹配：{{ vm.trialResult.value.matched ? '是' : '否' }}
-                  </div>
-                  <div
-                    v-if="
-                      (vm.trialResult.value.uncoveredBranches?.length ?? 0) > 0
-                    "
-                    class="text-body-2"
-                  >
-                    未覆盖分支 ·
-                    {{ vm.trialResult.value.uncoveredBranches?.join('、') }}
-                  </div>
-                </v-card-text>
-              </v-card>
+                <h3 class="text-subtitle-1">试运行</h3>
+                <v-select
+                  :model-value="vm.trialEntity.value"
+                  :items="vm.trialEntityItems.value"
+                  label="源单据类型"
+                  hide-details
+                  variant="outlined"
+                  @update:model-value="vm.trialEntity.value = $event"
+                />
+                <v-text-field
+                  v-model="vm.trialDocumentId.value"
+                  label="源单据 ID"
+                  hide-details
+                  variant="outlined"
+                />
+                <v-btn
+                  :loading="vm.trialing.value"
+                  :disabled="
+                    vm.selected.value.approval.status !== 'DRAFT' ||
+                    !vm.permissions.value.trial
+                  "
+                  variant="tonal"
+                  @click="vm.trial"
+                  >试运行</v-btn
+                >
+                <v-card
+                  v-if="vm.trialResult.value"
+                  variant="tonal"
+                  class="pa-3"
+                >
+                  <v-card-text>
+                    <div class="text-body-2">
+                      匹配：{{ vm.trialResult.value.matched ? '是' : '否' }}
+                    </div>
+                    <div
+                      v-if="
+                        (vm.trialResult.value.uncoveredBranches?.length ?? 0) >
+                        0
+                      "
+                      class="text-body-2"
+                    >
+                      未覆盖分支 ·
+                      {{ vm.trialResult.value.uncoveredBranches?.join('、') }}
+                    </div>
+                  </v-card-text>
+                </v-card>
               </template>
             </div>
           </aside>
@@ -355,10 +446,19 @@ void vm.query().then(() => {
               <line
                 v-for="edge in vm.selected.value.edges"
                 :key="`${edge.sourceNodeKey}-${edge.targetNodeKey}`"
-                :x1="(vm.nodeMap.value.get(edge.sourceNodeKey)?.positionX ?? 0) + 190"
-                :y1="(vm.nodeMap.value.get(edge.sourceNodeKey)?.positionY ?? 0) + 42"
+                :x1="
+                  (vm.nodeMap.value.get(edge.sourceNodeKey)?.positionX ?? 0) +
+                  190
+                "
+                :y1="
+                  (vm.nodeMap.value.get(edge.sourceNodeKey)?.positionY ?? 0) +
+                  42
+                "
                 :x2="vm.nodeMap.value.get(edge.targetNodeKey)?.positionX ?? 0"
-                :y2="(vm.nodeMap.value.get(edge.targetNodeKey)?.positionY ?? 0) + 42"
+                :y2="
+                  (vm.nodeMap.value.get(edge.targetNodeKey)?.positionY ?? 0) +
+                  42
+                "
                 marker-end="url(#arrow)"
               />
             </svg>
@@ -373,7 +473,10 @@ void vm.query().then(() => {
             >
               <v-icon size="20">mdi-file-document-outline</v-icon>
               <span>{{ node.name }}</span>
-              <small>{{ node.key }} · {{ documentEntityText(node.documentEntity) }}</small>
+              <small
+                >{{ node.key }} ·
+                {{ documentEntityText(node.documentEntity) }}</small
+              >
             </article>
           </section>
         </v-card-text>
@@ -388,7 +491,8 @@ void vm.query().then(() => {
             :loading="vm.saving.value"
             color="primary"
             @click="vm.save"
-          >创建</v-btn>
+            >创建</v-btn
+          >
         </v-toolbar>
         <v-card-text>
           <v-textarea
@@ -399,16 +503,11 @@ void vm.query().then(() => {
             rows="18"
             class="definition-script"
           />
-          <div
-            v-if="vm.scriptDiagnostic.value"
-            class="text-body-2 text-error"
-          >
+          <div v-if="vm.scriptDiagnostic.value" class="text-body-2 text-error">
             {{ vm.scriptDiagnostic.value.message }}
-            <v-btn
-              size="x-small"
-              variant="text"
-              @click="locateScriptDiagnostic"
-            >定位</v-btn>
+            <v-btn size="x-small" variant="text" @click="locateScriptDiagnostic"
+              >定位</v-btn
+            >
           </div>
         </v-card-text>
       </v-card>
@@ -431,7 +530,11 @@ void vm.query().then(() => {
                 :key="version.approval.approvalEntryId"
               >
                 <td>{{ version.approval.versionNo }}</td>
-                <td>{{ approvalStatusPresentation[version.approval.status].label }}</td>
+                <td>
+                  {{
+                    approvalStatusPresentation[version.approval.status].label
+                  }}
+                </td>
               </tr>
             </tbody>
           </v-table>
@@ -484,8 +587,7 @@ void vm.query().then(() => {
   gap: 8px 12px;
   padding: 16px;
   border: 0;
-  border-bottom: 1px solid
-    rgba(var(--v-border-color), var(--v-border-opacity));
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   color: inherit;
   background: transparent;
   text-align: left;

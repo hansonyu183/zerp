@@ -1,37 +1,14 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
-import type {
-  ApprovalMeta,
-  ApprovalStatus,
-  ApprovalVersionMeta,
-} from '@/api/generated'
+import type { ApprovalVersionMeta } from '@/api/generated'
 import {
   ApprovalStatusBadge,
   approvalActionPresentation,
   approvalActionLabels,
   approvalStatusPresentation,
   approvalVersionHistoryMetadata,
-  visibleApprovalActions,
 } from '@/shared/approval'
-
-function meta(
-  status: ApprovalStatus,
-  submittedBy: string | null,
-): ApprovalMeta {
-  return {
-    status,
-    revision: 1,
-    createdBy: 'actor-1',
-    createdAt: '2026-08-25T00:00:00Z',
-    updatedBy: 'actor-1',
-    updatedAt: '2026-08-25T00:00:00Z',
-    submittedBy,
-    submittedAt: submittedBy ? '2026-08-25T00:01:00Z' : null,
-    approvedBy: status === 'APPROVED' ? 'actor-2' : null,
-    approvedAt: status === 'APPROVED' ? '2026-08-25T00:02:00Z' : null,
-  }
-}
 
 describe('shared Approval primitives', () => {
   it('defines complete Chinese status and action labels', () => {
@@ -94,29 +71,6 @@ describe('shared Approval primitives', () => {
     })
   })
 
-  it('derives actions from generated metadata, permission, and separation of duties', () => {
-    const all = () => true
-    expect(visibleApprovalActions(meta('DRAFT', null), 'actor-1', all)).toEqual(
-      ['submit'],
-    )
-    expect(
-      visibleApprovalActions(meta('PENDING', 'actor-1'), 'actor-1', all),
-    ).toEqual(['unsubmit'])
-    expect(
-      visibleApprovalActions(meta('PENDING', 'actor-1'), 'actor-2', all),
-    ).toEqual(['unsubmit', 'reject', 'approve'])
-    expect(
-      visibleApprovalActions(
-        meta('PENDING', 'actor-1'),
-        'actor-2',
-        (action) => action === 'approve',
-      ),
-    ).toEqual(['approve'])
-    expect(
-      visibleApprovalActions(meta('APPROVED', 'actor-1'), 'actor-2', all),
-    ).toEqual(['unapprove'])
-  })
-
   it('renders the shared badge presentation', () => {
     const wrapper = mount(ApprovalStatusBadge, {
       props: { status: 'PENDING' },
@@ -135,7 +89,16 @@ describe('shared Approval primitives', () => {
 
   it('derives stable version-history metadata from the generated contract', () => {
     const version: ApprovalVersionMeta = {
-      ...meta('APPROVED', 'actor-1'),
+      status: 'APPROVED',
+      revision: 1,
+      createdBy: 'actor-1',
+      createdAt: '2026-08-25T00:00:00Z',
+      updatedBy: 'actor-1',
+      updatedAt: '2026-08-25T00:00:00Z',
+      submittedBy: 'actor-1',
+      submittedAt: '2026-08-25T00:01:00Z',
+      approvedBy: 'actor-2',
+      approvedAt: '2026-08-25T00:02:00Z',
       approvalEntryId: '01K4APPROVALVERSION0000001',
       versionNo: 2,
     }

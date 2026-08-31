@@ -27,3 +27,7 @@
 1. 员工所有维护请求只发送到 `/dcl/employee/*`；BOB current 页面没有写动作。
 2. 真实 PostgreSQL 覆盖已有/new Party 创建、Party approval blocker、AUX stable-ID 快照不受 current 后续变化影响、经营主体来源漂移、V1/V2 current 切换与回落、精确引用 blocker 及事务回滚。
 3. 历史 VOU/ACC 在员工后续改版、启停、反批或 Party 更新后仍保留原 stable ID、Approval Entry 与业务快照。
+
+## 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与员工业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

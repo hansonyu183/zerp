@@ -150,6 +150,7 @@
           'code',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'data',
           'updatedAt',
         ],
@@ -161,6 +162,11 @@
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclOperatingEntityData' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
@@ -186,6 +192,7 @@
           'entity',
           'code',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -197,6 +204,11 @@
           'entity': { 'type': 'string', 'enum': ['operating-entity'] },
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -481,6 +493,7 @@
           'code',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'data',
           'updatedAt',
         ],
@@ -492,6 +505,11 @@
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclWarehouseData' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
@@ -517,6 +535,7 @@
           'entity',
           'code',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -528,6 +547,11 @@
           'entity': { 'type': 'string', 'enum': ['warehouse'] },
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -758,6 +782,7 @@
           'code',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'data',
           'updatedAt',
         ],
@@ -769,6 +794,11 @@
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclVehicleData' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
@@ -794,6 +824,7 @@
           'entity',
           'code',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -805,6 +836,11 @@
           'entity': { 'type': 'string', 'enum': ['vehicle'] },
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -985,6 +1021,7 @@
           'code',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'data',
           'updatedAt',
         ],
@@ -996,6 +1033,11 @@
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclFundAccountData' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
@@ -1021,6 +1063,7 @@
           'entity',
           'code',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -1032,6 +1075,11 @@
           'entity': { 'type': 'string', 'enum': ['fund-account'] },
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -1485,6 +1533,7 @@
           'code',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'data',
           'updatedAt',
         ],
@@ -1496,6 +1545,11 @@
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclProductData' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
@@ -1521,6 +1575,7 @@
           'entity',
           'code',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -1532,6 +1587,11 @@
           'entity': { 'type': 'string', 'enum': ['product'] },
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -1801,6 +1861,7 @@
           'operatingEntityName',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'data',
           'updatedAt',
         ],
@@ -1819,6 +1880,11 @@
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclEmployeeData' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
@@ -1850,6 +1916,7 @@
           'operatingEntityCode',
           'operatingEntityName',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -1867,6 +1934,11 @@
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -2480,6 +2552,7 @@
           'operatingEntityName',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'attachments',
           'updatedAt',
         ],
@@ -2498,6 +2571,11 @@
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'attachments':
             {
               'type': 'array',
@@ -2517,6 +2595,7 @@
           'customerRelationshipId',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'data',
           'attachments',
           'updatedAt',
@@ -2530,6 +2609,11 @@
           'customerRelationshipId': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclCustomerAccountData' },
           'attachments':
             {
@@ -2587,6 +2671,7 @@
           'operatingEntityCode',
           'operatingEntityName',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -2604,6 +2689,11 @@
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -2629,6 +2719,7 @@
           'code',
           'customerRelationshipId',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -2641,6 +2732,11 @@
           'code': { 'type': 'string' },
           'customerRelationshipId': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -3133,6 +3229,7 @@
           'operatingEntityName',
           'enabled',
           'approval',
+          'availableApprovalActions',
           'data',
           'updatedAt',
         ],
@@ -3151,6 +3248,11 @@
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclSupplierData' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
@@ -3182,6 +3284,7 @@
           'operatingEntityCode',
           'operatingEntityName',
           'enabled',
+          'availableApprovalActions',
           'latestApproved',
           'openVersion',
           'updatedAt',
@@ -3199,6 +3302,11 @@
           'operatingEntityCode': { 'type': 'string' },
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -3455,10 +3563,17 @@
           { '$ref': '#/DclRelationshipListIdentity' },
           {
             'type': 'object',
-            'required': ['approval', 'data', 'updatedAt'],
+            'required':
+              ['approval', 'availableApprovalActions', 'data', 'updatedAt'],
             'properties':
               {
                 'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+                'availableApprovalActions':
+                  {
+                    'type': 'array',
+                    'items':
+                      { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+                  },
                 'data': { '$ref': '#/DclOtherUnitData' },
                 'updatedAt': { 'type': 'string', 'format': 'date-time' },
               },
@@ -3472,8 +3587,15 @@
           { '$ref': '#/DclRelationshipListIdentity' },
           {
             'type': 'object',
+            'required': ['availableApprovalActions'],
             'properties':
               {
+                'availableApprovalActions':
+                  {
+                    'type': 'array',
+                    'items':
+                      { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+                  },
                 'latestApproved':
                   {
                     'type': 'object',
@@ -3673,10 +3795,17 @@
           { '$ref': '#/DclRelationshipListIdentity' },
           {
             'type': 'object',
-            'required': ['approval', 'data', 'updatedAt'],
+            'required':
+              ['approval', 'availableApprovalActions', 'data', 'updatedAt'],
             'properties':
               {
                 'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+                'availableApprovalActions':
+                  {
+                    'type': 'array',
+                    'items':
+                      { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+                  },
                 'data': { '$ref': '#/DclSalesPartnerInput' },
                 'updatedAt': { 'type': 'string', 'format': 'date-time' },
               },
@@ -3690,8 +3819,15 @@
           { '$ref': '#/DclRelationshipListIdentity' },
           {
             'type': 'object',
+            'required': ['availableApprovalActions'],
             'properties':
               {
+                'availableApprovalActions':
+                  {
+                    'type': 'array',
+                    'items':
+                      { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+                  },
                 'latestApproved':
                   {
                     'type': 'object',
@@ -3984,6 +4120,7 @@
         [
           'partyId',
           'entity',
+          'availableApprovalActions',
           'approval',
           'data',
           'impactRelationships',
@@ -3995,6 +4132,11 @@
           'partyId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['party'] },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclPartyData' },
           'impactRelationships':
             {
@@ -4020,12 +4162,24 @@
     {
       'type': 'object',
       'required':
-        ['partyId', 'entity', 'latestApproved', 'openVersion', 'updatedAt'],
+        [
+          'partyId',
+          'entity',
+          'availableApprovalActions',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
+        ],
       'additionalProperties': false,
       'properties':
         {
           'partyId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['party'] },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'latestApproved':
             {
               'type': 'object',
@@ -4549,13 +4703,19 @@
   'DclAccMappingView':
     {
       'type': 'object',
-      'required': ['bookId', 'vouEntity', 'approval', 'data'],
+      'required':
+        ['bookId', 'vouEntity', 'approval', 'availableApprovalActions', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'bookId': { 'type': 'string' },
           'vouEntity': { 'type': 'string' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclAccMappingData' },
         },
     },
@@ -4574,13 +4734,19 @@
   'DclAccMappingListItem':
     {
       'type': 'object',
-      'required': ['bookId', 'vouEntity', 'approval', 'data'],
+      'required':
+        ['bookId', 'vouEntity', 'approval', 'availableApprovalActions', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'bookId': { 'type': 'string' },
           'vouEntity': { 'type': 'string' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclAccMappingData' },
         },
     },

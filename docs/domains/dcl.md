@@ -133,6 +133,12 @@ Party 最后一版反批与上述关系的创建、提交和批准必须在同�
 
 Starlark 脚本、编译图、试算零写入 adapter、类型化 `WorkflowActions`、实例树、动作幂等和运行审计仍由 WFL 领域拥有，不迁入通用 DCL 引擎。
 
+## 3.11 Domain ViewModel 动作与刷新
+
+15 个 DCL 可变 subject 的根级 `Dcl*ListItem` 与根级 `Dcl*View` 必须返回必填 `availableApprovalActions`，其元素只取公共 `ApprovalLifecycleAction` 闭集。服务端按该 subject、版本、权限和当前事实计算可用生命周期动作；Domain ViewModel 将这一服务端生命周期动作投影与本领域业务动作组合，页面不得从本地状态、权限或版本元数据推导、补齐或猜测生命周期动作。版本 View、版本 Summary 和 Approval metadata 不携带该字段。
+
+任何业务或生命周期动作成功后，页面刷新受影响列表的 `query` 和已打开对象的 `get`，再显示成功结果；动作失败也以服务端 `errorKey` 和当前返回状态为准。revision 冲突只触发刷新，不自动重放原请求；blocker 仍由动作执行时的服务端检查，页面不以预检结果推断可以绕过或不再检查 blocker。
+
 ## 4. 原子性与引用
 
 DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照并同步发布强类型事件。Party、员工、客户、客户账户、供应商、其他单位与销售合作方不应用或移除 BOB 副本；BOB 直接从 DCL stable subject、typed relationship identity、highest APPROVED entry 和完整 snapshot 提供当前有效的只读业务资料。会计映射批准或反批在同一事务更新 ACC 最新批准当前解释和科目引用登记。报表定义批准或反批在同一事务注册或停用 RPT query/export 使用权限。流程定义批准或反批在同一事务创建、替换、回落或移除 WFL 当前定义。任一 Approval subscriber 或领域内同步写入失败时，subject、typed relationship identity、entry、event 与 DCL snapshot 必须全部回滚。

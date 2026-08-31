@@ -171,7 +171,7 @@ void vm.query().then(() => {
             label="提交/批准校验参数 JSON"
             rows="3"
           />
-          <v-text-field v-model="vm.reason" label="驳回/反批原因" />
+          <v-text-field v-model="vm.reason" label="驳回/反批准原因" />
           <div v-if="vm.selected" class="text-caption text-medium-emphasis">
             Approval Entry ID：{{ vm.selected.approval.approvalEntryId }} · 版本
             {{ vm.selected.approval.versionNo }} ·
@@ -189,9 +189,7 @@ void vm.query().then(() => {
           >
           <template v-if="vm.selected">
             <v-btn
-              v-if="
-                vm.selected.approval.status === 'DRAFT' && vm.permissions.submit
-              "
+              v-if="vm.lifecycleActions?.includes('submit')"
               @click="vm.run('submit')"
               >提交</v-btn
             >
@@ -205,27 +203,18 @@ void vm.query().then(() => {
               >删除草稿</v-btn
             >
             <v-btn
-              v-if="
-                vm.selected.approval.status === 'PENDING' &&
-                vm.permissions.unsubmit
-              "
+              v-if="vm.lifecycleActions?.includes('unsubmit')"
               @click="vm.run('unsubmit')"
               >撤回</v-btn
             >
             <v-btn
-              v-if="
-                vm.selected.approval.status === 'PENDING' &&
-                vm.permissions.reject
-              "
+              v-if="vm.lifecycleActions?.includes('reject')"
               color="error"
               @click="vm.run('reject')"
               >驳回</v-btn
             >
             <v-btn
-              v-if="
-                vm.selected.approval.status === 'PENDING' &&
-                vm.permissions.approve
-              "
+              v-if="vm.lifecycleActions?.includes('approve')"
               @click="vm.run('approve')"
               >批准</v-btn
             >
@@ -238,12 +227,9 @@ void vm.query().then(() => {
               >创建下一版本</v-btn
             >
             <v-btn
-              v-if="
-                vm.selected.approval.status === 'APPROVED' &&
-                vm.permissions.unapprove
-              "
+              v-if="vm.lifecycleActions?.includes('unapprove')"
               @click="vm.run('unapprove')"
-              >反批</v-btn
+              >反批准</v-btn
             >
             <v-btn
               v-if="

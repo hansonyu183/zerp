@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { DclCustomerVersionView } from './DclCustomerVersionView';
 import type { PartyKind } from './PartyKind';
 export type DclCustomerListItem = {
@@ -15,6 +16,7 @@ export type DclCustomerListItem = {
   operatingEntityCode: string;
   operatingEntityName: string;
   enabled: boolean;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   latestApproved: DclCustomerVersionView | null;
   openVersion: DclCustomerVersionView | null;
   updatedAt: string;

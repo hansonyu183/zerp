@@ -2,6 +2,7 @@ import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { approvalActionPresentation } from '@/shared/approval'
 import {
   createDclCustomerAccount,
   customerAccountFormFromView,
@@ -44,6 +45,7 @@ export function useDclCustomerAccountViewModel() {
   const customerRelationshipId = ref('')
   const loading = ref(false)
   const saving = ref(false)
+  const actionLoading = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
   const drawerOpen = ref(false)
@@ -109,13 +111,12 @@ export function useDclCustomerAccountViewModel() {
       return {
         status: active.approval.status,
         versionNo: active.approval.versionNo,
-        submittedBy: active.approval.submittedBy,
+        availableApprovalActions: row.availableApprovalActions,
         enabled: row.enabled,
         hasOpenVersion: Boolean(row.openVersion),
         hasLatestApproved: Boolean(row.latestApproved),
       }
     },
-    () => session.user?.id,
     (path) => session.can(path),
   )
 
@@ -363,7 +364,9 @@ export function useDclCustomerAccountViewModel() {
       await query()
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       saving.value = false
@@ -374,7 +377,9 @@ export function useDclCustomerAccountViewModel() {
     action: 'submit' | 'unsubmit' | 'approve' | 'reject' | 'unapprove',
     reason = '',
   ) {
+    if (!actionAvailability(row)[action] || actionLoading.value) return false
     const approval = customerAccountActiveVersion(row).approval
+    actionLoading.value = `${action}:${row.objectId}`
     try {
       await runDclCustomerAccountAction(
         action,
@@ -383,13 +388,18 @@ export function useDclCustomerAccountViewModel() {
           approvalEntryId: approval.approvalEntryId,
           approvalRevision: approval.revision,
         },
-        reason.trim(),
+        action === 'unsubmit' ? '' : reason.trim(),
       )
       await query()
+      successMessage.value = `客户结算子账户${approvalActionPresentation[action].successLabel}。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
+    } finally {
+      actionLoading.value = null
     }
   }
   async function remove(row: DclCustomerAccountListItem) {
@@ -397,7 +407,9 @@ export function useDclCustomerAccountViewModel() {
       await deleteDclCustomerAccount(row)
       await query()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
     }
   }
   async function toggleEnabled(row: DclCustomerAccountListItem) {
@@ -417,7 +429,9 @@ export function useDclCustomerAccountViewModel() {
       )
       await query()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
     }
   }
   async function openVersions(row: DclCustomerAccountListItem) {
@@ -457,6 +471,7 @@ export function useDclCustomerAccountViewModel() {
     referenceError,
     loading,
     saving,
+    actionLoading,
     errorMessage,
     successMessage,
     drawerOpen,

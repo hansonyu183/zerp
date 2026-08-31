@@ -39,20 +39,21 @@ type CustomerHistoryInput struct {
 }
 
 type CustomerView struct {
-	ObjectID                       string                   `json:"objectId"`
-	Entity                         string                   `json:"entity"`
-	Code                           string                   `json:"code"`
-	PartyID                        string                   `json:"partyId"`
-	PartyKind                      string                   `json:"partyKind"`
-	PartyDisplayName               string                   `json:"partyDisplayName"`
-	OperatingEntityID              string                   `json:"operatingEntityId"`
-	OperatingEntityApprovalEntryID string                   `json:"operatingEntityApprovalEntryId"`
-	OperatingEntityCode            string                   `json:"operatingEntityCode"`
-	OperatingEntityName            string                   `json:"operatingEntityName"`
-	Enabled                        bool                     `json:"enabled"`
-	Approval                       approval.VersionMeta     `json:"approval"`
-	Attachments                    []CustomerAttachmentView `json:"attachments"`
-	UpdatedAt                      time.Time                `json:"updatedAt"`
+	ObjectID                       string                     `json:"objectId"`
+	Entity                         string                     `json:"entity"`
+	Code                           string                     `json:"code"`
+	PartyID                        string                     `json:"partyId"`
+	PartyKind                      string                     `json:"partyKind"`
+	PartyDisplayName               string                     `json:"partyDisplayName"`
+	OperatingEntityID              string                     `json:"operatingEntityId"`
+	OperatingEntityApprovalEntryID string                     `json:"operatingEntityApprovalEntryId"`
+	OperatingEntityCode            string                     `json:"operatingEntityCode"`
+	OperatingEntityName            string                     `json:"operatingEntityName"`
+	Enabled                        bool                       `json:"enabled"`
+	Approval                       approval.VersionMeta       `json:"approval"`
+	Attachments                    []CustomerAttachmentView   `json:"attachments"`
+	UpdatedAt                      time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions       []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type CustomerVersionView struct {
@@ -62,19 +63,20 @@ type CustomerVersionView struct {
 }
 
 type CustomerQueryItem struct {
-	ObjectID            string               `json:"objectId"`
-	Entity              string               `json:"entity"`
-	Code                string               `json:"code"`
-	PartyID             string               `json:"partyId"`
-	PartyKind           string               `json:"partyKind"`
-	PartyDisplayName    string               `json:"partyDisplayName"`
-	OperatingEntityID   string               `json:"operatingEntityId"`
-	OperatingEntityCode string               `json:"operatingEntityCode"`
-	OperatingEntityName string               `json:"operatingEntityName"`
-	Enabled             bool                 `json:"enabled"`
-	LatestApproved      *CustomerVersionView `json:"latestApproved"`
-	OpenVersion         *CustomerVersionView `json:"openVersion"`
-	UpdatedAt           time.Time            `json:"updatedAt"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	PartyID                  string                     `json:"partyId"`
+	PartyKind                string                     `json:"partyKind"`
+	PartyDisplayName         string                     `json:"partyDisplayName"`
+	OperatingEntityID        string                     `json:"operatingEntityId"`
+	OperatingEntityCode      string                     `json:"operatingEntityCode"`
+	OperatingEntityName      string                     `json:"operatingEntityName"`
+	Enabled                  bool                       `json:"enabled"`
+	LatestApproved           *CustomerVersionView       `json:"latestApproved"`
+	OpenVersion              *CustomerVersionView       `json:"openVersion"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 func (s *CustomerService) Query(ctx context.Context, in CustomerQueryInput, actor approval.Actor) (Page[CustomerQueryItem], error) {
@@ -142,6 +144,13 @@ func (s *CustomerService) Query(ctx context.Context, in CustomerQueryInput, acto
 			}
 			item.OpenVersion = &version
 		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityCustomer, row.OpenEntryID, row.LatestApprovedEntryID)
+		if entryErr != nil {
+			return Page[CustomerQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+		}
 		items = append(items, item)
 	}
 	return Page[CustomerQueryItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
@@ -206,6 +215,7 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 		OperatingEntityID: identity.OperatingEntityID, OperatingEntityApprovalEntryID: stored.OperatingEntityApprovalEntryID,
 		OperatingEntityCode: stored.OperatingEntityCode, OperatingEntityName: stored.OperatingEntityName,
 		Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Attachments: attachments, UpdatedAt: entry.UpdatedAt,
+		AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor),
 	}, nil
 }
 

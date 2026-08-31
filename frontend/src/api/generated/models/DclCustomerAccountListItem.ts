@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { DclCustomerAccountVersionView } from './DclCustomerAccountVersionView';
 export type DclCustomerAccountListItem = {
   objectId: string;
@@ -9,6 +10,7 @@ export type DclCustomerAccountListItem = {
   code: string;
   customerRelationshipId: string;
   enabled: boolean;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   latestApproved: DclCustomerAccountVersionView | null;
   openVersion: DclCustomerAccountVersionView | null;
   updatedAt: string;

@@ -47,6 +47,7 @@ const listItem: DclWflProcessDefinitionListItem = {
   code: 'test-flow',
   definitionId: '01KWFL00000000000000000002',
   enabled: false,
+  availableApprovalActions: [],
   latestApproved: null,
   openVersion: { approval },
 }

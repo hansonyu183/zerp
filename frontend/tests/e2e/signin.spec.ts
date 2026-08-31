@@ -66,6 +66,24 @@ async function operatingEntityAction(
     .click()
 }
 
+async function operatingEntityActionVisible(
+  page: Page,
+  code: string,
+  label: string,
+): Promise<boolean> {
+  const row = operatingEntityRow(page, code)
+  if ((await row.getByLabel(label, { exact: true }).count()) > 0) return true
+  const more = row.getByLabel(`更多操作 ${code}`, { exact: true })
+  if ((await more.count()) === 0) return false
+  await more.click()
+  const visible = await page
+    .locator('.v-overlay.v-menu.v-overlay--active')
+    .getByText(label, { exact: true })
+    .count()
+  await page.keyboard.press('Escape')
+  return visible > 0
+}
+
 async function submitCredentials(
   page: Page,
   credentials: { username: string; password: string },
@@ -282,8 +300,11 @@ test('DCL 经营主体变更与 BOB 当前有效资料使用独立入口和请�
     await createdRow.locator('td[data-label="编码"]').textContent()
   )?.trim()
   expect(code).toMatch(/^OPE-\d{4}$/)
-  await operatingEntityAction(page, code!, '提交审核')
+  await operatingEntityAction(page, code!, '提交')
   await expect(operatingEntityRow(page, code!)).toContainText('待批准')
+  expect(await operatingEntityActionVisible(page, code!, '撤回')).toBe(true)
+  expect(await operatingEntityActionVisible(page, code!, '批准')).toBe(false)
+  expect(await operatingEntityActionVisible(page, code!, '驳回')).toBe(false)
 
   await signOut(page)
   await submitCredentials(page, workerState.reviewer)
@@ -292,7 +313,9 @@ test('DCL 经营主体变更与 BOB 当前有效资料使用独立入口和请�
   await page.getByRole('textbox', { name: '经营主体变更关键字' }).fill(code!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(operatingEntityRow(page, code!)).toBeVisible()
-  await operatingEntityAction(page, code!, '审核通过')
+  expect(await operatingEntityActionVisible(page, code!, '批准')).toBe(true)
+  expect(await operatingEntityActionVisible(page, code!, '驳回')).toBe(true)
+  await operatingEntityAction(page, code!, '批准')
   await expect(operatingEntityRow(page, code!)).toContainText('已批准')
 
   const bobRequests: string[] = []
@@ -354,11 +377,11 @@ test('DCL 经营主体变更与 BOB 当前有效资料使用独立入口和请�
     currentDrawer.getByText(approvalEntryId!, { exact: true }),
   ).toBeVisible()
   for (const action of [
-    '提交审核',
-    '撤回提交',
-    '审核通过',
-    '审核驳回',
-    '撤销批准',
+    '提交',
+    '撤回',
+    '批准',
+    '驳回',
+    '反批准',
     '版本历史',
     '审核历史',
   ]) {

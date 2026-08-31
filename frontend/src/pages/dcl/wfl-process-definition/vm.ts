@@ -2,7 +2,10 @@ import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import type { ApprovalStatus } from '@/api/generated'
 import { ApiError, getErrorMessage } from '@/api/types'
 import { documentEntityText } from '@/components/wfl/config'
-import { type ApprovalAction, visibleApprovalActions } from '@/shared/approval'
+import {
+  approvalActionPresentation,
+  type ApprovalAction,
+} from '@/shared/approval'
 import { useSessionStore } from '@/stores/session'
 import {
   approveDclWflProcessDefinition,
@@ -173,14 +176,9 @@ export function createDclWflProcessDefinitionViewModel() {
       new Map((selected.value?.nodes ?? []).map((node) => [node.key, node])),
   )
 
-  const lifecycleActions = computed<ApprovalAction[]>(() => {
+  const lifecycleActions = computed<ApprovalAction[] | null>(() => {
     const definition = selected.value
-    if (!definition || !session.user) return []
-    return visibleApprovalActions(
-      definition.approval,
-      session.user.id,
-      (action) => permissions.value[action],
-    )
+    return definition ? definition.availableApprovalActions : null
   })
 
   let sequence = 0
@@ -199,6 +197,21 @@ export function createDclWflProcessDefinitionViewModel() {
     trialEntity.value = definition.nodes[0]?.documentEntity ?? ''
     trialDocumentId.value = ''
     trialResult.value = null
+  }
+
+  async function refreshAuthoritativeDefinition(): Promise<void> {
+    const current = selected.value
+    await query()
+    if (!current || !permissions.value.get) return
+    try {
+      const result = await getDclWflProcessDefinition(
+        current.code,
+        current.approval.approvalEntryId,
+      )
+      if (active) applyDefinition(result.data)
+    } catch {
+      // Keep the mutation error as the user-facing failure.
+    }
   }
 
   function resetEditor(): void {
@@ -336,7 +349,11 @@ export function createDclWflProcessDefinitionViewModel() {
       await query()
     } catch (error) {
       scriptDiagnostic.value = diagnosticFromError(error)
-      if (active) errorMessage.value = getErrorMessage(error)
+      if (active) {
+        const message = getErrorMessage(error)
+        await refreshAuthoritativeDefinition()
+        errorMessage.value = message
+      }
     } finally {
       if (active) saving.value = false
     }
@@ -353,7 +370,13 @@ export function createDclWflProcessDefinitionViewModel() {
       | 'delete-version',
   ): Promise<void> {
     const definition = selected.value
-    if (!definition || !permissions.value[action]) return
+    if (
+      !definition ||
+      (action === 'create-next' || action === 'delete-version'
+        ? !permissions.value[action]
+        : !definition.availableApprovalActions.includes(action))
+    )
+      return
     const requiresReason = action === 'reject' || action === 'unapprove'
     if (requiresReason && !reason.value.trim()) {
       errorMessage.value = '请填写审核意见。'
@@ -409,10 +432,17 @@ export function createDclWflProcessDefinitionViewModel() {
         if (!active) return
         applyDefinition(refreshed.data)
       }
-      successMessage.value = '流程定义操作已完成。'
+      successMessage.value =
+        action === 'create-next'
+          ? '流程定义新版本已创建。'
+          : `流程定义${approvalActionPresentation[action].successLabel}。`
       await query()
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      if (active) {
+        const message = getErrorMessage(error)
+        await refreshAuthoritativeDefinition()
+        errorMessage.value = message
+      }
     } finally {
       if (active) saving.value = false
     }
@@ -438,7 +468,11 @@ export function createDclWflProcessDefinitionViewModel() {
       successMessage.value = enabled ? '流程已启用。' : '流程已停用。'
       await query()
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      if (active) {
+        const message = getErrorMessage(error)
+        await refreshAuthoritativeDefinition()
+        errorMessage.value = message
+      }
     } finally {
       if (active) saving.value = false
     }

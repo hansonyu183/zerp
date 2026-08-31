@@ -39,3 +39,7 @@
 1. 所有维护与生命周期请求只发送到 `/dcl/wfl-process-definition/*`，仅试运行发送到 `/wfl/process-definition/trial`。
 2. 真实 PostgreSQL 覆盖 V1/V2 当前切换与回落、候选存在时 WFL 当前仍可读、历史冻结图、试运行 revision、实例钉住和反批 blocker。
 3. 真实串行 E2E 覆盖编辑、试运行、提交、批准、启用、WFL 当前只读查询与维护深链，并继续跑通实例执行。
+
+## 7. 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与流程定义业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

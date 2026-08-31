@@ -1,6 +1,5 @@
 import type {
   ApprovalLifecycleAction,
-  ApprovalMeta,
   ApprovalStatus,
   ApprovalVersionMeta,
 } from '@/api/generated'
@@ -19,6 +18,13 @@ export const approvalStatusPresentation = {
   ApprovalStatus,
   { label: string; color: string; icon: string }
 >
+
+export const approvalStatusOptions = Object.entries(
+  approvalStatusPresentation,
+).map(([value, presentation]) => ({
+  title: presentation.label,
+  value: value as ApprovalStatus,
+}))
 
 export const approvalActionPresentation = {
   submit: {
@@ -94,25 +100,5 @@ export function approvalVersionHistoryMetadata(meta: ApprovalVersionMeta) {
     versionLabel: `V${meta.versionNo}`,
     statusLabel: status.label,
     statusColor: status.color,
-  }
-}
-
-export function visibleApprovalActions(
-  meta: ApprovalMeta,
-  actorId: string,
-  can: (action: ApprovalAction) => boolean,
-): ApprovalAction[] {
-  switch (meta.status) {
-    case 'DRAFT':
-      return can('submit') ? ['submit'] : []
-    case 'PENDING':
-      const isSubmitter = meta.submittedBy === actorId
-      return [
-        ...(can('unsubmit') ? (['unsubmit'] as const) : []),
-        ...(!isSubmitter && can('reject') ? (['reject'] as const) : []),
-        ...(!isSubmitter && can('approve') ? (['approve'] as const) : []),
-      ]
-    case 'APPROVED':
-      return can('unapprove') ? ['unapprove'] : []
   }
 }

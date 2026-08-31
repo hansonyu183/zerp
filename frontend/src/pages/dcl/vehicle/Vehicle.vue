@@ -8,8 +8,8 @@ import {
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
+import { approvalStatusPresentation } from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
-import { dclVehicleStatusText } from './config'
 import { dclVehicleActiveVersion, type DclVehicleListItem } from './types'
 import { useDclVehicleViewModel } from './vm'
 
@@ -49,27 +49,6 @@ watch(
   },
 )
 
-function blockedAction(
-  row: DclVehicleListItem,
-  action: 'approve' | 'reject',
-): ListRowAction[] {
-  const reason = vm.actionBlockedReason(row, action)
-  return reason
-    ? [
-        {
-          key: `${action}-blocked`,
-          label: action === 'approve' ? '审核通过' : '审核驳回',
-          icon:
-            action === 'approve'
-              ? 'mdi-check-decagram-outline'
-              : 'mdi-close-octagon-outline',
-          disabled: true,
-          disabledReason: reason,
-        },
-      ]
-    : []
-}
-
 function rowActions(row: DclVehicleListItem): ListRowAction[] {
   const available = vm.actionAvailability(row)
   return [
@@ -95,7 +74,7 @@ function rowActions(row: DclVehicleListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交审核',
+            label: '提交',
             icon: 'mdi-send-outline',
             color: 'primary',
           },
@@ -105,7 +84,7 @@ function rowActions(row: DclVehicleListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回提交',
+            label: '撤回',
             icon: 'mdi-undo-variant',
             color: 'warning',
           },
@@ -115,17 +94,17 @@ function rowActions(row: DclVehicleListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '审核通过',
+            label: '批准',
             icon: 'mdi-check-decagram-outline',
             color: 'success',
           },
         ]
-      : blockedAction(row, 'approve')),
+      : []),
     ...(available.unapprove
       ? [
           {
             key: 'unapprove',
-            label: '撤销批准',
+            label: '反批准',
             icon: 'mdi-backup-restore',
             color: 'warning',
           },
@@ -135,12 +114,12 @@ function rowActions(row: DclVehicleListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '审核驳回',
+            label: '驳回',
             icon: 'mdi-close-octagon-outline',
             color: 'error',
           },
         ]
-      : blockedAction(row, 'reject')),
+      : []),
     ...(available.enable
       ? [
           {
@@ -283,9 +262,9 @@ async function confirmReverse(): Promise<void> {
         <div class="dcl-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
             {{
-              dclVehicleStatusText[
+              approvalStatusPresentation[
                 dclVehicleActiveVersion(row).approval.status
-              ]
+              ].label
             }}
           </v-chip>
           <v-chip
@@ -417,7 +396,7 @@ async function confirmReverse(): Promise<void> {
   >
     <v-card
       rounded="xl"
-      :title="reverseAction === 'unapprove' ? '撤销批准' : '撤回提交'"
+      :title="reverseAction === 'unapprove' ? '反批准' : '撤回'"
     >
       <v-card-text>
         <v-textarea
@@ -452,7 +431,7 @@ async function confirmReverse(): Promise<void> {
       }
     "
   >
-    <v-card rounded="xl" title="审核驳回">
+    <v-card rounded="xl" title="驳回">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
@@ -502,7 +481,7 @@ async function confirmReverse(): Promise<void> {
             >
               <td data-label="版本">V{{ item.approval.versionNo }}</td>
               <td data-label="状态">
-                {{ dclVehicleStatusText[item.approval.status] }}
+                {{ approvalStatusPresentation[item.approval.status].label }}
               </td>
               <td data-label="名称">{{ item.data.name }}</td>
               <td data-label="更新">
@@ -564,12 +543,14 @@ async function confirmReverse(): Promise<void> {
               <td data-label="变化">
                 {{
                   event.fromStatus
-                    ? dclVehicleStatusText[event.fromStatus]
+                    ? approvalStatusPresentation[event.fromStatus].label
                     : '—'
                 }}
                 →
                 {{
-                  event.toStatus ? dclVehicleStatusText[event.toStatus] : '—'
+                  event.toStatus
+                    ? approvalStatusPresentation[event.toStatus].label
+                    : '—'
                 }}
               </td>
               <td data-label="操作人">{{ event.actorId }}</td>

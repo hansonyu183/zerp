@@ -3,8 +3,8 @@ export {
   approvalActionPresentation,
   approvalActionLabels,
   approvalEventActionLabels,
+  approvalStatusOptions,
   approvalStatusPresentation,
   approvalVersionHistoryMetadata,
-  visibleApprovalActions,
 } from './presentation'
 export type { ApprovalAction } from './presentation'

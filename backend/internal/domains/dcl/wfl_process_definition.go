@@ -101,14 +101,15 @@ type WflProcessDefinitionMutation struct {
 }
 
 type WflProcessDefinitionView struct {
-	Code         string               `json:"code"`
-	DefinitionID string               `json:"definitionId"`
-	Enabled      bool                 `json:"enabled"`
-	Approval     approval.VersionMeta `json:"approval"`
-	Script       string               `json:"script"`
-	Diagnostic   *string              `json:"diagnostic,omitempty"`
-	Nodes        []WflNodeView        `json:"nodes"`
-	Edges        []WflEdgeView        `json:"edges"`
+	Code                     string                     `json:"code"`
+	DefinitionID             string                     `json:"definitionId"`
+	Enabled                  bool                       `json:"enabled"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Script                   string                     `json:"script"`
+	Diagnostic               *string                    `json:"diagnostic,omitempty"`
+	Nodes                    []WflNodeView              `json:"nodes"`
+	Edges                    []WflEdgeView              `json:"edges"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type WflNodeView struct {
@@ -139,11 +140,12 @@ type WflProcessDefinitionVersionSummary struct {
 }
 
 type WflProcessDefinitionListItem struct {
-	Code           string                              `json:"code"`
-	DefinitionID   string                              `json:"definitionId"`
-	Enabled        bool                                `json:"enabled"`
-	LatestApproved *WflProcessDefinitionVersionSummary `json:"latestApproved"`
-	OpenVersion    *WflProcessDefinitionVersionSummary `json:"openVersion"`
+	Code                     string                              `json:"code"`
+	DefinitionID             string                              `json:"definitionId"`
+	Enabled                  bool                                `json:"enabled"`
+	LatestApproved           *WflProcessDefinitionVersionSummary `json:"latestApproved"`
+	OpenVersion              *WflProcessDefinitionVersionSummary `json:"openVersion"`
+	AvailableApprovalActions []approval.LifecycleAction          `json:"availableApprovalActions"`
 }
 
 func NewWflProcessDefinitionService(pool *pgxpool.Pool, compiler WflProcessDefinitionCompiler, authorizer approval.Authorizer, bus *txevent.Bus) *WflProcessDefinitionService {
@@ -755,6 +757,7 @@ func (s *WflProcessDefinitionService) Get(ctx context.Context, input WflProcessD
 	if err != nil {
 		return WflProcessDefinitionView{}, translateError(err)
 	}
+	view.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
 	return view, nil
 }
 
@@ -834,6 +837,13 @@ func (s *WflProcessDefinitionService) Query(ctx context.Context, input WflProces
 			item.OpenVersion = &WflProcessDefinitionVersionSummary{
 				Approval: approval.VersionMetaFromEntry(entry),
 			}
+		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityWflProcessDefinition, row.OpenEntryID, row.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[WflProcessDefinitionListItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
 		}
 
 		items = append(items, item)

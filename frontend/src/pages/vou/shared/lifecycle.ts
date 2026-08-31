@@ -38,13 +38,6 @@ export async function postVoucherLifecycleAction(
   return data
 }
 
-export function canRunListLifecycleAction(
-  row: VoucherListItem,
-  action: VoucherLifecycleAction,
-): boolean {
-  return row.availableApprovalActions.includes(action)
-}
-
 interface ListLifecycleContext {
   config: VoucherEntityConfig
   rows: Ref<VoucherListItem[]>
@@ -52,7 +45,6 @@ interface ListLifecycleContext {
   actionLoading: Ref<string | null>
   errorMessage: Ref<string | null>
   successMessage: Ref<string | null>
-  canRun: (row: VoucherListItem, action: VoucherLifecycleAction) => boolean
   query: () => Promise<void>
   loadDocument: (documentId: string) => Promise<void>
   loadAudit: (page: number) => Promise<void>
@@ -64,7 +56,7 @@ export async function runListLifecycleAction(
   action: VoucherLifecycleAction,
   reason?: string,
 ): Promise<boolean> {
-  if (!context.canRun(row, action)) return false
+  if (!row.availableApprovalActions.includes(action)) return false
   context.actionLoading.value = `${action}:${row.documentId}`
   context.errorMessage.value = null
   try {

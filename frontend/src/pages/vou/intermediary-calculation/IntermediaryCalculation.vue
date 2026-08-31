@@ -8,7 +8,6 @@ import {
   VoucherDocumentHeader,
   VoucherList,
   VoucherWorkspace,
-  formatVoucherStatus,
   type VoucherLifecycleAction,
   type VoucherListItem,
 } from '@/components/voucher'
@@ -16,7 +15,10 @@ import { formatReferenceLabel } from '@/utils/reference-label'
 import { formatBillType } from '@/utils/bill-type'
 import VoucherReasonDialog from '../shared/VoucherReasonDialog.vue'
 import VoucherWorkspaceActions from '../shared/VoucherWorkspaceActions.vue'
-import { approvalActionPresentation } from '@/shared/approval'
+import {
+  approvalActionPresentation,
+  approvalStatusLabel,
+} from '@/shared/approval'
 import { useIntermediaryCalculationViewModel } from './vm'
 
 defineOptions({ name: 'IntermediaryCalculation' })
@@ -229,7 +231,7 @@ async function confirmDelete(): Promise<void> {
             entity-label="居间计算单"
             :revision="vm.documentView.approval.revision"
             :status="vm.documentView.approval.status"
-            :status-label="formatVoucherStatus(vm.documentView.approval.status)"
+            :status-label="approvalStatusLabel(vm.documentView.approval.status)"
           />
           <v-divider v-if="vm.documentView" class="my-5" />
 

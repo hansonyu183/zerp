@@ -935,7 +935,7 @@ describe('Dashboard workbench', () => {
     expect(success).toBe(false)
     expect(delivery.availableActions).toContain('submit')
     expect(vm.states.VOU.errorMessage).toBe(
-      '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再提交审核。（错误码：2001；错误标识：document_data_incomplete）',
+      '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再提交。（错误码：2001；错误标识：document_data_incomplete）',
     )
   })
 })

@@ -12,14 +12,16 @@ import {
   VoucherWorkspace,
   type VoucherLifecycleAction,
 } from '@/components/voucher'
-import { formatVoucherStatus } from '@/components/voucher/status'
 import { formatBillType } from '@/utils/bill-type'
 import { formatReferenceLabel } from '@/utils/reference-label'
 import VoucherReasonDialog from '../VoucherReasonDialog.vue'
 import { billVoucherConfigs, type BillVoucherConfig } from './config'
 import { useBillVoucherViewModel } from './vm'
 import { previewInterestAmount, summarizeBillVoucher } from './validation'
-import { approvalActionPresentation } from '@/shared/approval'
+import {
+  approvalActionPresentation,
+  approvalStatusLabel,
+} from '@/shared/approval'
 import type { BillListItem } from './vm'
 
 const props = defineProps<{ config?: BillVoucherConfig }>()
@@ -194,7 +196,7 @@ onMounted(() => void vm.query())
             <td data-label="单号">{{ row.documentNo }}</td>
             <td data-label="日期">{{ row.businessDate }}</td>
             <td data-label="往来方">{{ row.partyName || '—' }}</td>
-            <td data-label="状态">{{ formatVoucherStatus(row.status) }}</td>
+            <td data-label="状态">{{ approvalStatusLabel(row.status) }}</td>
             <td data-label="票面合计">{{ row.currency }} {{ row.amount }}</td>
             <td data-label="操作">
               <ListRowActions

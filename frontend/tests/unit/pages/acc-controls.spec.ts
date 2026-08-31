@@ -25,10 +25,7 @@ describe('ACC mapping and period controls', () => {
 
   it('keeps ACC mapping access read-only and requires complete detail permissions', () => {
     const session = useSessionStore()
-    session.permissions = [
-      '/acc/book/query',
-      '/acc/mapping/query',
-    ]
+    session.permissions = ['/acc/book/query', '/acc/mapping/query']
     const vm = createCurrentAccountingMappingViewModel()
     vm.selectedBookId = '01JACC00000000000000000001'
     expect(vm.canQuery).toBe(true)
@@ -153,7 +150,7 @@ describe('ACC mapping and period controls', () => {
     expect(vm.canDelete(subject)).toBe(true)
   })
 
-  it('requires complete query permissions for opening mutations', () => {
+  it('uses query permissions for saving and server actions for Approval lifecycle', () => {
     const session = useSessionStore()
     session.permissions = [
       '/acc/opening/save',
@@ -164,10 +161,11 @@ describe('ACC mapping and period controls', () => {
     const vm = createAccountingOpeningViewModel()
     vm.opening = {
       approval: { status: 'DRAFT' },
+      availableApprovalActions: ['submit'],
       trialBalance: [],
     } as typeof vm.opening
     expect(vm.canSave).toBe(false)
-    expect(vm.canApprove).toBe(false)
+    expect(vm.availableApprovalActions).toEqual(['submit'])
 
     session.permissions.push(
       '/acc/book/query',
@@ -175,14 +173,18 @@ describe('ACC mapping and period controls', () => {
       '/acc/opening/query',
     )
     expect(vm.canSave).toBe(true)
-    expect(vm.canSubmit).toBe(true)
+    expect(vm.availableApprovalActions).toEqual(['submit'])
 
-    vm.opening = { approval: { status: 'APPROVED' } } as typeof vm.opening
-    expect(vm.canUnapprove).toBe(true)
+    vm.opening = {
+      approval: { status: 'APPROVED' },
+      availableApprovalActions: ['unapprove'],
+    } as typeof vm.opening
+    expect(vm.availableApprovalActions).toEqual(['unapprove'])
     session.permissions = session.permissions.filter(
       (permission) => permission !== '/acc/subject/query',
     )
-    expect(vm.canUnapprove).toBe(false)
+    expect(vm.canSave).toBe(false)
+    expect(vm.availableApprovalActions).toEqual(['unapprove'])
   })
 
   it('uses labeled phone cards for ACC tables', () => {

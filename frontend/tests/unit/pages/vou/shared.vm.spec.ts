@@ -1423,8 +1423,6 @@ describe('shared VOU entity view model', () => {
     })
     const vm = useVoucherEntityViewModel(config)
 
-    expect(vm.canLifecycleAction(row, 'submit')).toBe(true)
-    expect(vm.canLifecycleAction(row, 'approve')).toBe(false)
     expect(await vm.lifecycleActionFromList(row, 'approve')).toBe(false)
     expect(await vm.lifecycleActionFromList(row, 'submit')).toBe(true)
     expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/submit', {

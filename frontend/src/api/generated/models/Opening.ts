@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalMeta } from './ApprovalMeta';
 import type { OpeningAsset } from './OpeningAsset';
 import type { OpeningBill } from './OpeningBill';
@@ -10,6 +11,7 @@ import type { OpeningLine } from './OpeningLine';
 export type Opening = {
   bookId: string;
   approval: ApprovalMeta;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   voucherId: string | null;
   lines: Array<OpeningLine>;
   assets: Array<OpeningAsset>;

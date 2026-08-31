@@ -5,7 +5,8 @@ import type { ApprovalVersionMeta } from '@/api/generated'
 import {
   ApprovalStatusBadge,
   approvalActionPresentation,
-  approvalActionLabels,
+  approvalEventActionLabels,
+  approvalStatusLabel,
   approvalStatusPresentation,
   approvalVersionHistoryMetadata,
 } from '@/shared/approval'
@@ -24,13 +25,6 @@ describe('shared Approval primitives', () => {
         color: 'success',
         icon: 'mdi-check-decagram-outline',
       },
-    })
-    expect(approvalActionLabels).toEqual({
-      submit: '提交',
-      unsubmit: '撤回',
-      reject: '驳回',
-      approve: '批准',
-      unapprove: '反批准',
     })
     expect(approvalActionPresentation).toEqual({
       submit: {
@@ -69,6 +63,12 @@ describe('shared Approval primitives', () => {
         successLabel: '已反批准',
       },
     })
+  })
+
+  it('presents lifecycle audit actions and nullable statuses', () => {
+    expect(approvalEventActionLabels.REJECTED).toBe('驳回')
+    expect(approvalStatusLabel('PENDING')).toBe('待批准')
+    expect(approvalStatusLabel(null)).toBe('—')
   })
 
   it('renders the shared badge presentation', () => {

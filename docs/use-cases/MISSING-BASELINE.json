@@ -2,7 +2,6 @@
   "missingUseCaseKeys": [
     "acc/book",
     "acc/mapping",
-    "acc/opening",
     "acc/period",
     "acc/subject",
     "aux/asset-category",

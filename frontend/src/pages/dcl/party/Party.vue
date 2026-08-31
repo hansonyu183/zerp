@@ -9,7 +9,10 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import type { components } from '@/api/generated/schema'
-import { approvalStatusPresentation } from '@/shared/approval'
+import {
+  approvalEventActionLabels,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
 import { useDclPartyViewModel } from './vm'
 
@@ -662,7 +665,9 @@ watch(
             </thead>
             <tbody>
               <tr v-for="event in vm.auditEvents" :key="event.id">
-                <td data-label="事件">{{ event.action }}</td>
+                <td data-label="事件">
+                  {{ approvalEventActionLabels[event.action] }}
+                </td>
                 <td data-label="变化">
                   {{
                     event.fromStatus

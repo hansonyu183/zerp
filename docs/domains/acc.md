@@ -55,7 +55,7 @@ ACC 的动作、路径和数据结构以 [OpenAPI ACC Schema](../../contracts/op
 
 ## 6. 账簿期初
 
-账簿开始接收 VOU 会计事实前必须明确批准期初；没有任何期初余额时也必须批准零期初。每个 `bookId` 的 Opening 是一个 Approval-only stable subject，中央条目的 `versionNo` 永远为 `NULL`，生命周期唯一为 `DRAFT -> PENDING -> APPROVED`。接口响应通过 `ApprovalMeta` 暴露状态和元数据，前端只使用 `frontend/src/shared/approval/` 的统一中文状态、徽标和动作语义。
+账簿开始接收 VOU 会计事实前必须明确批准期初；没有任何期初余额时也必须批准零期初。每个 `bookId` 的 Opening 是一个 Approval-only stable subject，中央条目的 `versionNo` 永远为 `NULL`，生命周期唯一为 `DRAFT -> PENDING -> APPROVED`。接口响应通过 `ApprovalMeta` 暴露正式状态和元数据，并在根级通过必填 `availableApprovalActions` 返回当前操作者的 Approval Action Availability；期初不维护第二个业务 `state`。前端只消费该动作快照，并使用 `frontend/src/shared/approval/` 的统一中文状态、徽标、动作、版本和审计 presentation，不根据状态、提交人或本地权限推断生命周期动作。
 
 新账簿创建时只建立由系统身份持有的零期初草稿，不自动提交或批准；批准仍必须由具备权限、且不同于提交人的人工用户明确执行。系统身份只负责初始化事实与消费已批准业务事件，不能绕过 Approval 的职责分离和审计。
 
@@ -63,7 +63,7 @@ ACC 的动作、路径和数据结构以 [OpenAPI ACC Schema](../../contracts/op
 
 期初明细使用启用的末级科目，金额精确到分。科目要求的辅助核算维度必须逐项且仅填写一次；库存数量科目同时要求产品、仓库、正数量和借方金额。期初可以创建全局固定资产、票据和空桶事实，或关联已经存在的全局资产、票据并只登记本账簿价值；资产和票据价值必须与对应辅助核算科目明细一致。批准在同一事务内生成 `OPENING` 系统凭证、登记全局对象及科目引用，随后账簿才可接收自动记账事实。
 
-批准后期初只读。账簿尚无其他系统凭证时可以反批准：ACC 同一事务内删除期初系统凭证、释放期初科目引用并将 entry 转为 `PENDING`；已有 VOU、成本结算或折旧等后续会计事实时返回 blocker 并拒绝反批准。每个期初动作同时校验独立权限和账簿范围。
+批准后期初只读。账簿尚无其他系统凭证时可以反批准：ACC 同一事务内删除期初系统凭证、释放期初科目引用并将 entry 转为 `PENDING`；已有 VOU、成本结算或折旧等后续会计事实时返回 blocker 并拒绝反批准。查询时动作快照不运行这些 blocker 检查；每个期初动作仍在执行时重新校验独立权限、账簿范围、状态、revision、职责分离和 ACC blocker。快照失效时客户端刷新当前期初且不得自动重试。
 
 ## 7. 当前记账映射
 

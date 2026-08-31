@@ -3,6 +3,8 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import {
   ApprovalStatusBadge,
   approvalActionPresentation,
+  approvalEventActionLabels,
+  approvalStatusLabel,
   approvalStatusPresentation,
 } from '@/shared/approval'
 import type { ApprovalStatus } from '@/api/generated'
@@ -383,9 +385,10 @@ void vm.initialize().then(() => {
           </thead>
           <tbody>
             <tr v-for="event in vm.auditEvents" :key="event.id">
-              <td>{{ event.action }}</td>
+              <td>{{ approvalEventActionLabels[event.action] }}</td>
               <td>
-                {{ event.fromStatus || '—' }} → {{ event.toStatus || '—' }}
+                {{ approvalStatusLabel(event.fromStatus) }} →
+                {{ approvalStatusLabel(event.toStatus) }}
               </td>
               <td>{{ event.actorId }}</td>
               <td>{{ formatLocalDateTime(event.createdAt) }}</td>

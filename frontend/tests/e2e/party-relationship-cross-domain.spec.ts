@@ -627,7 +627,7 @@ async function createAttributedCustomer(
     approvedCustomer.objectId,
   )
   if (!account.openVersion) {
-    throw new Error('客户创建未返回待审核的默认账户版本。')
+    throw new Error('客户创建未返回待批准的默认账户版本。')
   }
   const submitted = await operator.ok<Mutation>('dcl/customer-account/submit', {
     objectId: account.objectId,
@@ -988,7 +988,7 @@ async function createEmployeeAttributedCustomer(
     approvedCustomer.objectId,
   )
   if (!account.openVersion) {
-    throw new Error('客户创建未返回待审核的默认账户版本。')
+    throw new Error('客户创建未返回待批准的默认账户版本。')
   }
   const submitted = await operator.ok<Mutation>('dcl/customer-account/submit', {
     objectId: account.objectId,

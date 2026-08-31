@@ -51,6 +51,7 @@ check-contracts:
 	$(MAKE) check-openapi-generated
 	pnpm contracts:test-dcl-approval
 	pnpm contracts:test-vou-approval
+	pnpm contracts:test-acc-approval
 	$(MAKE) check-sqlc-generated
 
 check-openapi-generated:

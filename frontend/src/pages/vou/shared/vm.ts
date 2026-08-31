@@ -21,7 +21,6 @@ import { useVoucherSalesChain } from './sales-chain'
 import { validateVoucherDraft } from './validation'
 import { useVoucherFormula } from './formula'
 import {
-  canRunListLifecycleAction,
   createListLifecycleAction,
   lifecycleActionSuccessLabel,
   postVoucherLifecycleAction,
@@ -178,13 +177,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       session.can(permission('get')) &&
       session.can(permission('save'))
     )
-  }
-
-  function canLifecycleAction(
-    row: VoucherListItem,
-    action: VoucherLifecycleAction,
-  ): boolean {
-    return canRunListLifecycleAction(row, action)
   }
 
   async function query(): Promise<void> {
@@ -502,7 +494,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     actionLoading,
     errorMessage,
     successMessage,
-    canRun: canLifecycleAction,
     query,
     loadDocument,
     loadAudit,
@@ -583,7 +574,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     auditError,
     canView,
     canEdit,
-    canLifecycleAction,
     query,
     search,
     changePage,

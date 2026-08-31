@@ -619,6 +619,7 @@
         [
           'bookId',
           'approval',
+          'availableApprovalActions',
           'voucherId',
           'lines',
           'assets',
@@ -630,6 +631,11 @@
         {
           'bookId': { 'type': 'string' },
           'approval': { '$ref': './common.yaml#/ApprovalMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'voucherId': { 'type': 'string', 'nullable': true },
           'lines': { 'type': 'array', 'items': { '$ref': '#/OpeningLine' } },
           'assets': { 'type': 'array', 'items': { '$ref': '#/OpeningAsset' } },

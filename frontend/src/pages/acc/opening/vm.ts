@@ -1,6 +1,7 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { approvalActionPresentation } from '@/shared/approval'
 import { queryAccountingBooks, type AccountingBook } from '../book/api'
 import { queryAccountingSubjects, type AccountingSubject } from '../subject/api'
 import {
@@ -8,7 +9,6 @@ import {
   openingReasonAction,
   queryAccountingOpening,
   saveAccountingOpening,
-  type AccountingOpening,
   type OpeningContract,
 } from './api'
 
@@ -91,7 +91,7 @@ export function createAccountingOpeningViewModel() {
   const books = ref<AccountingBook[]>([])
   const subjects = ref<AccountingSubject[]>([])
   const selectedBookId = ref('')
-  const opening = ref<AccountingOpening | null>(null)
+  const opening = ref<OpeningContract | null>(null)
   const lines = reactive<OpeningLineForm[]>([])
   const assets = reactive<OpeningAssetForm[]>([])
   const bills = reactive<OpeningBillForm[]>([])
@@ -118,35 +118,16 @@ export function createAccountingOpeningViewModel() {
       session.can('/acc/subject/query') &&
       session.can('/acc/opening/query'),
   )
+  const canEdit = computed(() => opening.value?.approval.status === 'DRAFT')
   const canSave = computed(
     () =>
       canQuery.value &&
-      opening.value?.approval.status === 'DRAFT' &&
+      canEdit.value &&
       session.can('/acc/opening/save') &&
       validationError.value === '',
   )
-  const canSubmit = computed(
-    () =>
-      canQuery.value &&
-      opening.value?.approval.status === 'DRAFT' &&
-      !dirty.value &&
-      trialBalanced.value &&
-      session.can('/acc/opening/submit'),
-  )
-  const canUnsubmit = computed(
-    () => canQuery.value && opening.value?.approval.status === 'PENDING' && session.can('/acc/opening/unsubmit'),
-  )
-  const canApprove = computed(
-    () => canQuery.value && opening.value?.approval.status === 'PENDING' && !dirty.value && trialBalanced.value && session.can('/acc/opening/approve'),
-  )
-  const canReject = computed(
-    () => canQuery.value && opening.value?.approval.status === 'PENDING' && session.can('/acc/opening/reject'),
-  )
-  const canUnapprove = computed(
-    () =>
-      canQuery.value &&
-      opening.value?.approval.status === 'APPROVED' &&
-      session.can('/acc/opening/unapprove'),
+  const availableApprovalActions = computed(
+    () => opening.value?.availableApprovalActions ?? [],
   )
   const bookOptions = computed(() =>
     books.value.map((book) => ({
@@ -308,8 +289,14 @@ export function createAccountingOpeningViewModel() {
     }
   }
 
+  async function refreshAfterFailure(error: unknown): Promise<void> {
+    const message = getErrorMessage(error)
+    await loadSelected()
+    if (active) errorMessage.value = message
+  }
+
   function setOpening(value: OpeningContract): void {
-    opening.value = { ...value, state: value.approval.status }
+    opening.value = value
     lines.splice(
       0,
       lines.length,
@@ -557,18 +544,21 @@ export function createAccountingOpeningViewModel() {
       setOpening(result.data)
       successMessage.value = '账簿期初已保存。'
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      await refreshAfterFailure(error)
     } finally {
       if (active) saving.value = false
     }
   }
 
-  async function approvalAction(action: 'submit' | 'unsubmit' | 'approve'): Promise<void> {
-    const permitted = { submit: canSubmit.value, unsubmit: canUnsubmit.value, approve: canApprove.value }[action]
-    if (!permitted || !opening.value) {
-      errorMessage.value = dirty.value
-        ? '请先保存当前期初修改。'
-        : '期初状态或权限不允许该操作。'
+  async function approvalAction(
+    action: 'submit' | 'unsubmit' | 'approve',
+  ): Promise<void> {
+    if (!availableApprovalActions.value.includes(action) || !opening.value) {
+      errorMessage.value = '期初状态或权限不允许该操作。'
+      return
+    }
+    if (action === 'submit' && dirty.value) {
+      errorMessage.value = '请先保存当前期初修改。'
       return
     }
     saving.value = true
@@ -581,19 +571,24 @@ export function createAccountingOpeningViewModel() {
       )
       if (!active) return
       setOpening(result.data)
-      successMessage.value = { submit: '账簿期初已提交。', unsubmit: '账簿期初已撤回。', approve: '账簿期初已批准。' }[action]
+      successMessage.value = `账簿期初${approvalActionPresentation[action].successLabel}。`
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      await refreshAfterFailure(error)
     } finally {
       if (active) saving.value = false
     }
   }
 
   async function reasonAction(action: 'reject' | 'unapprove'): Promise<void> {
-    const permitted = action === 'reject' ? canReject.value : canUnapprove.value
     const reason = approvalReason.value.trim()
-    if (!permitted || !opening.value || !reason) {
-      errorMessage.value = !reason ? '请填写审批原因。' : '期初状态或权限不允许该操作。'
+    if (
+      !availableApprovalActions.value.includes(action) ||
+      !opening.value ||
+      !reason
+    ) {
+      errorMessage.value = !reason
+        ? '请填写审批原因。'
+        : '期初状态或权限不允许该操作。'
       return
     }
     saving.value = true
@@ -607,9 +602,10 @@ export function createAccountingOpeningViewModel() {
       )
       if (!active) return
       setOpening(result.data)
-      successMessage.value = action === 'reject' ? '账簿期初已驳回。' : '账簿期初已反批准。'
+      approvalReason.value = ''
+      successMessage.value = `账簿期初${approvalActionPresentation[action].successLabel}。`
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      await refreshAfterFailure(error)
     } finally {
       if (active) saving.value = false
     }
@@ -631,12 +627,9 @@ export function createAccountingOpeningViewModel() {
     successMessage,
     approvalReason,
     canQuery,
+    canEdit,
     canSave,
-    canSubmit,
-    canUnsubmit,
-    canApprove,
-    canReject,
-    canUnapprove,
+    availableApprovalActions,
     bookOptions,
     subjectOptions,
     subjectById,

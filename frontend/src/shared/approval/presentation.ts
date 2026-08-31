@@ -1,4 +1,5 @@
 import type {
+  ApprovalEventView,
   ApprovalLifecycleAction,
   ApprovalStatus,
   ApprovalVersionMeta,
@@ -73,14 +74,6 @@ export const approvalActionPresentation = {
   }
 >
 
-export const approvalActionLabels = {
-  submit: approvalActionPresentation.submit.label,
-  unsubmit: approvalActionPresentation.unsubmit.label,
-  reject: approvalActionPresentation.reject.label,
-  approve: approvalActionPresentation.approve.label,
-  unapprove: approvalActionPresentation.unapprove.label,
-} as const satisfies Record<ApprovalAction, string>
-
 export const approvalEventActionLabels = {
   CREATED: '创建',
   SAVED: '保存',
@@ -91,14 +84,21 @@ export const approvalEventActionLabels = {
   UNAPPROVED: '反批准',
   DELETED: '删除',
   MERGED: '合并',
-} as const
+} as const satisfies Record<ApprovalEventView['action'], string>
+
+export function approvalStatusLabel(
+  status: ApprovalStatus | null | undefined,
+  emptyLabel = '—',
+): string {
+  return status ? approvalStatusPresentation[status].label : emptyLabel
+}
 
 export function approvalVersionHistoryMetadata(meta: ApprovalVersionMeta) {
   const status = approvalStatusPresentation[meta.status]
   return {
     key: meta.approvalEntryId,
     versionLabel: `V${meta.versionNo}`,
-    statusLabel: status.label,
+    statusLabel: approvalStatusLabel(meta.status),
     statusColor: status.color,
   }
 }

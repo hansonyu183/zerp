@@ -8,7 +8,10 @@ import {
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
-import { approvalStatusPresentation } from '@/shared/approval'
+import {
+  approvalEventActionLabels,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
 import { dclEmployeeActiveVersion, type DclEmployeeListItem } from './types'
 import { useDclEmployeeViewModel } from './vm'
@@ -429,7 +432,7 @@ async function confirmReverse() {
           </thead>
           <tbody>
             <tr v-for="event in vm.auditEvents" :key="event.id">
-              <td>{{ event.action }}</td>
+              <td>{{ approvalEventActionLabels[event.action] }}</td>
               <td>
                 {{
                   event.fromStatus

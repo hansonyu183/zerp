@@ -4,7 +4,7 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import type { VoucherAuditEvent } from './types'
 import {
   approvalEventActionLabels,
-  approvalStatusPresentation,
+  approvalStatusLabel,
 } from '@/shared/approval'
 
 defineOptions({ name: 'VoucherAuditHistory' })
@@ -34,10 +34,6 @@ const eventText: Record<string, string> = {
   ATTACHMENT_INITIATED: '发起附件',
   ATTACHMENT_UPLOADED: '上传附件',
   ATTACHMENT_REMOVED: '移除附件',
-}
-
-function statusText(status?: VoucherAuditEvent['fromStatus']): string {
-  return status ? approvalStatusPresentation[status].label : '—'
 }
 </script>
 
@@ -71,7 +67,10 @@ function statusText(status?: VoucherAuditEvent['fromStatus']): string {
             {{ formatMediumDateTime(event.createdAt) }} · {{ event.actorId }}
           </v-card-subtitle>
           <v-card-text>
-            <div>{{ statusText(event.fromStatus) }} → {{ statusText(event.toStatus) }}</div>
+            <div>
+              {{ approvalStatusLabel(event.fromStatus) }} →
+              {{ approvalStatusLabel(event.toStatus) }}
+            </div>
             <div v-if="event.reason" class="mt-2">原因：{{ event.reason }}</div>
           </v-card-text>
         </v-card>

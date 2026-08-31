@@ -7,7 +7,6 @@ import type {
   VoucherSort,
   VoucherStatus,
 } from './types'
-import { formatVoucherStatus, voucherStatusOptions } from './status'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
@@ -15,7 +14,11 @@ import ListRowActions from '@/components/common/ListRowActions.vue'
 import MobileSortControl from '@/components/common/MobileSortControl.vue'
 import SortableTableHeader from '@/components/common/SortableTableHeader.vue'
 import FulfillmentSummary from '@/components/common/FulfillmentSummary.vue'
-import { approvalActionPresentation } from '@/shared/approval'
+import {
+  approvalActionPresentation,
+  approvalStatusLabel,
+  approvalStatusOptions,
+} from '@/shared/approval'
 
 defineOptions({ name: 'VoucherList' })
 
@@ -215,7 +218,7 @@ function summaryValues(row: T): string[] {
             hide-details
             item-title="title"
             item-value="value"
-            :items="voucherStatusOptions"
+            :items="approvalStatusOptions"
             label="状态"
             :model-value="statuses"
             multiple
@@ -344,7 +347,7 @@ function summaryValues(row: T): string[] {
               <td class="voucher-list__column--compact" data-label="状态">
                 <slot name="cell-status" :row="row">
                   <v-chip size="small" variant="tonal">{{
-                    formatVoucherStatus(row.status)
+                    approvalStatusLabel(row.status)
                   }}</v-chip>
                 </slot>
               </td>

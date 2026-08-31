@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import {
   resolveDueDate,
-  formatVoucherStatus,
   parseFixed,
   toVouAtomicDocument,
   VoucherAttachmentPanel,
@@ -26,7 +25,10 @@ import {
   type VoucherSelectableReference,
   type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
-import { approvalActionPresentation } from '@/shared/approval'
+import {
+  approvalActionPresentation,
+  approvalStatusLabel,
+} from '@/shared/approval'
 import type { VoucherEntityViewModel } from './view-model'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
@@ -59,7 +61,7 @@ const atomicDocument = computed(() =>
 )
 const atomicStatusLabel = computed(() => {
   const status = atomicDocument.value?.status
-  return status ? formatVoucherStatus(status) : ''
+  return approvalStatusLabel(status, '')
 })
 const partyEnabled = computed(() => vm.config.partyMode !== 'none')
 const partyLabel = computed(() => {

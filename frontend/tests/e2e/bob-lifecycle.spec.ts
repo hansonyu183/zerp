@@ -319,6 +319,42 @@ test(
     await searchSupplier(page, code!)
     await selectSupplierLifecycleAction(page, code!, '提交')
     await dismissSupplierNotice(page, '已提交')
+    const unsubmitRequest = page.waitForRequest((request) =>
+      request.url().endsWith('/dcl/supplier/unsubmit'),
+    )
+    await selectSupplierLifecycleAction(page, code!, '撤回')
+    const unsubmitBody = (await unsubmitRequest).postDataJSON() as Record<
+      string,
+      unknown
+    >
+    expect(unsubmitBody).not.toHaveProperty('reason')
+    await dismissSupplierNotice(page, '已撤回')
+    await expect(supplierRow(page, code!)).toContainText('草稿')
+    await selectSupplierLifecycleAction(page, code!, '提交')
+    await dismissSupplierNotice(page, '已提交')
+    await signOut(page)
+
+    await signIn(page, workerState.reviewer)
+    await openSupplier(page)
+    await searchSupplier(page, code!)
+    await selectSupplierLifecycleAction(page, code!, '驳回')
+    const rejectDialog = page.getByRole('dialog').filter({ hasText: '驳回' })
+    await expect(
+      rejectDialog.getByRole('button', { name: '确认驳回', exact: true }),
+    ).toBeDisabled()
+    await rejectDialog.getByLabel('驳回意见').fill('资料需要补充')
+    await rejectDialog
+      .getByRole('button', { name: '确认驳回', exact: true })
+      .click()
+    await dismissSupplierNotice(page, '已驳回')
+    await expect(supplierRow(page, code!)).toContainText('草稿')
+    await signOut(page)
+
+    await signIn(page, workerState.operator)
+    await openSupplier(page)
+    await searchSupplier(page, code!)
+    await selectSupplierLifecycleAction(page, code!, '提交')
+    await dismissSupplierNotice(page, '已提交')
     await signOut(page)
 
     await signIn(page, workerState.reviewer)
@@ -327,6 +363,36 @@ test(
     await selectSupplierLifecycleAction(page, code!, '批准')
     await dismissSupplierNotice(page, '已批准')
     await expect(supplierRow(page, code!)).toContainText('已批准')
+    await selectSupplierLifecycleAction(page, code!, '反批准')
+    const unapproveDialog = page
+      .getByRole('dialog')
+      .filter({ hasText: '反批准' })
+    await expect(
+      unapproveDialog.getByRole('button', { name: '确认', exact: true }),
+    ).toBeDisabled()
+    await unapproveDialog.getByLabel('原因').fill('需要重新确认资料')
+    await unapproveDialog
+      .getByRole('button', { name: '确认', exact: true })
+      .click()
+    await dismissSupplierNotice(page, '已反批准')
+    await expect(supplierRow(page, code!)).toContainText('待批准')
+    await signOut(page)
+
+    await signIn(page, workerState.operator)
+    await openSupplier(page)
+    await searchSupplier(page, code!)
+    await selectSupplierLifecycleAction(page, code!, '撤回')
+    await dismissSupplierNotice(page, '已撤回')
+    await expect(supplierRow(page, code!)).toContainText('草稿')
+    await selectSupplierLifecycleAction(page, code!, '提交')
+    await dismissSupplierNotice(page, '已提交')
+    await signOut(page)
+
+    await signIn(page, workerState.reviewer)
+    await openSupplier(page)
+    await searchSupplier(page, code!)
+    await selectSupplierLifecycleAction(page, code!, '批准')
+    await dismissSupplierNotice(page, '已批准')
     await signOut(page)
 
     await signIn(page, workerState.operator)

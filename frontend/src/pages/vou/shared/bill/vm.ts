@@ -97,7 +97,6 @@ export interface BillListItem {
 }
 type VouQueryRequest = ApiPostRequest<'vou/bill-receipt/query'>
 type VouGetRequest = ApiPostRequest<'vou/bill-receipt/get'>
-type VouRevisionRequest = ApiPostRequest<'vou/bill-receipt/submit'>
 type VouReverseRequest = ApiPostRequest<'vou/bill-receipt/unapprove'>
 type BobQueryRequest = ApiPostRequest<'bob/customer-account/query'>
 type AvailableBillQueryRequest = ApiPostRequest<'vou/bill-payment/bill-source'>
@@ -457,45 +456,41 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       saving.value = false
     }
   }
-  async function lifecycle(action: VoucherLifecycleAction, reason?: string) {
-    if (!documentId.value) return
-    const currentDocumentId = documentId.value
+  async function lifecycle(
+    action: VoucherLifecycleAction,
+    reason?: string,
+  ): Promise<boolean> {
+    const current = documentView.value
+    if (!current || !current.availableApprovalActions.includes(action))
+      return false
+    const currentDocumentId = current.documentId
     actionLoading.value = action
     try {
-      let approval
-      if (action === 'reject' || action === 'unapprove') {
-        const request: VouReverseRequest = {
-          documentId: documentId.value,
-          revision: revision.value,
-          reason: reason ?? '',
-        }
-        const result = await apiClient.postContract(
-          `vou/${config.entity}/${action}`,
-          request,
-        )
-        approval = result.data.approval
-      } else {
-        const request: VouRevisionRequest = {
-          documentId: documentId.value,
-          revision: revision.value,
-        }
-        const result = await apiClient.postContract(
-          `vou/${config.entity}/${action}`,
-          request,
-        )
-        approval = result.data.approval
-      }
+      const result = await postVoucherLifecycleAction(
+        voucherEntityConfigs[config.entity],
+        action,
+        current.documentId,
+        current.approval.revision,
+        reason,
+      )
+      const { approval } = result
       revision.value = approval.revision
       documentStatus.value = approval.status
       if (documentView.value) documentView.value.approval = approval
+      return true
     } catch (error) {
       errorMessage.value = getDiagnosticErrorMessage(error)
+      return false
     } finally {
       actionLoading.value = null
+      const refreshCurrentDocument =
+        documentView.value?.documentId === currentDocumentId
       await Promise.allSettled([
         query(),
-        openDocument({ documentId: currentDocumentId }),
-        artifacts.loadAudit(1),
+        refreshCurrentDocument
+          ? openDocument({ documentId: currentDocumentId })
+          : Promise.resolve(),
+        refreshCurrentDocument ? artifacts.loadAudit(1) : Promise.resolve(),
       ])
     }
   }
@@ -521,7 +516,15 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       return false
     } finally {
       actionLoading.value = null
-      await query()
+      const refreshCurrentDocument =
+        documentView.value?.documentId === row.documentId
+      await Promise.allSettled([
+        query(),
+        refreshCurrentDocument
+          ? openDocument({ documentId: row.documentId })
+          : Promise.resolve(),
+        refreshCurrentDocument ? artifacts.loadAudit(1) : Promise.resolve(),
+      ])
     }
   }
   async function deleteDraft(reason: string): Promise<boolean> {

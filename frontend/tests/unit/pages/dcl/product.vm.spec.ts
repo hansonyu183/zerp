@@ -353,7 +353,6 @@ describe('DCL product view model', () => {
       objectId: 'PRD-1',
       approvalEntryId: 'PRD-V1',
       approvalRevision: 2,
-      reason: '',
     })
     expect(mockedPost).toHaveBeenCalledWith('dcl/product/unapprove', {
       objectId: 'PRD-1',

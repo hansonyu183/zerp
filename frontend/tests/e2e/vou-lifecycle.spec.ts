@@ -5,6 +5,7 @@ import {
   type Page,
   type WflWorkerState,
 } from './fixtures'
+import { request } from '@playwright/test'
 import { approveVouAsReviewer } from './wfl-global-setup'
 
 interface VouMutation {
@@ -146,6 +147,34 @@ async function approveSubmittedVou(
     mutation.documentId,
     mutation.approval.revision,
   )
+}
+
+async function postAsUser<T>(
+  credentials: { username: string; password: string },
+  path: string,
+  data: unknown,
+): Promise<T> {
+  const baseURL = process.env.E2E_API_BASE_URL
+  if (!baseURL) throw new Error('VOU E2E 缺少 API 地址。')
+  const api = await request.newContext({ baseURL })
+  try {
+    const signinResponse = await api.post('app/user/signin', {
+      data: credentials,
+    })
+    const signin = (await signinResponse.json()) as Envelope<{
+      csrfToken: string
+    }>
+    expect(String(signin.code), signin.message).toBe('0')
+    const response = await api.post(path, {
+      data,
+      headers: { 'X-CSRF-Token': signin.data.csrfToken },
+    })
+    const payload = (await response.json()) as Envelope<T>
+    expect(String(payload.code), payload.message).toBe('0')
+    return payload.data
+  } finally {
+    await api.dispose()
+  }
 }
 
 async function approveCurrentDraft(
@@ -310,7 +339,14 @@ test(
     await selectReference(page, '经办人', fixture.employee, workspace)
     await selectReference(page, '资金账户', fixture.fundAccount, workspace)
     await page.getByLabel('金额').fill('100.00')
+    const createResponse = page.waitForResponse((response) =>
+      response.url().endsWith('/vou/sales-receipt/create'),
+    )
     await workspace.getByRole('button', { name: '保存', exact: true }).click()
+    const created = (await (
+      await createResponse
+    ).json()) as Envelope<VouMutation>
+    expect(String(created.code), created.message).toBe('0')
     await expectDraftCreated(workspace, /^SRC-\d{8}-\d{4}$/)
     const documentNo = (
       await workspace.locator('.voucher-document-header__number').textContent()
@@ -330,6 +366,39 @@ test(
 
     await page.getByRole('tab', { name: '单据' }).click()
     await page.getByRole('button', { name: '取消编辑' }).click()
+    const staleSubmit = workspace.getByRole('button', {
+      name: '提交',
+      exact: true,
+    })
+    await expect(staleSubmit).toBeVisible()
+    const current = await postAsUser<VouMutation>(
+      workerState.operator,
+      'vou/sales-receipt/get',
+      { documentId: created.data.documentId },
+    )
+    await postAsUser<VouMutation>(
+      workerState.operator,
+      'vou/sales-receipt/submit',
+      {
+        documentId: current.documentId,
+        revision: current.approval.revision,
+      },
+    )
+    let staleMutationRequests = 0
+    const countStaleMutation = (request: { url: () => string }) => {
+      if (request.url().endsWith('/vou/sales-receipt/submit'))
+        staleMutationRequests += 1
+    }
+    page.on('request', countStaleMutation)
+    await staleSubmit.click()
+    await expect(workspace.getByText('待批准', { exact: true })).toBeVisible()
+    await expect(staleSubmit).toHaveCount(0)
+    expect(staleMutationRequests).toBe(1)
+    page.off('request', countStaleMutation)
+    await dismissActiveSnackbar(page)
+    await workspace.getByRole('button', { name: '撤回', exact: true }).click()
+    await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
+    await dismissActiveSnackbar(page)
     await page.goto('/home/dashboard')
     await page.getByRole('tab', { name: '待办单据' }).click()
     await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)

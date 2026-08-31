@@ -453,7 +453,7 @@ describe('DCL operating entity view model', () => {
     expect(vm.errorMessage.value).toBe('操作失败，请稍后重试。')
   })
 
-  it('删除、撤回、驳回和反批准使用 DCL 并保留原因', async () => {
+  it('删除和生命周期动作使用 DCL，撤回不发送原因', async () => {
     useSessionStore().permissions = [
       '/dcl/operating-entity/query',
       '/dcl/operating-entity/delete',
@@ -495,7 +495,6 @@ describe('DCL operating entity view model', () => {
               objectId: 'OBJECT-1',
               approvalEntryId: 'ENTRY-1',
               approvalRevision: 2,
-              reason: '',
             }
           : {
               objectId: 'OBJECT-1',

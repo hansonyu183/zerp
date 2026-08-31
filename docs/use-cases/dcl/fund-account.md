@@ -5,7 +5,7 @@
 ## 1. 页面与列表
 
 1. 页面入口为 `/dcl/fund-account`；它是资金账户唯一维护入口。工作台、审批待办和审批记录中的资金账户深链都进入该页面。
-2. 列表调用 `POST /dcl/fund-account/query`，展示最新已批准版本和唯一开放候选。新建、保存、启停、提交、撤回、驳回、批准、反批、删除、版本及审计分别检查精确 `/dcl/fund-account/*` 权限。
+2. 列表调用 `POST /dcl/fund-account/query`，展示最新已批准版本和唯一开放候选。新建、保存、启停、提交、撤回、驳回、批准、反批准、删除、版本及审计分别检查精确 `/dcl/fund-account/*` 权限。
 3. 页面不调用 BOB 写路径；`/bob/fund-account` 仅显示当前正式档案。
 
 ## 2. 新建、编辑与启停申请
@@ -17,15 +17,15 @@
 
 ## 3. 审批、引用阻断与历史
 
-1. V1 批准后资金账户进入 BOB 只读资料并可供 VOU/ACC 选择；后续版本批准后 BOB typed query 自然读取新版本。反批最新正式版本后回落到上一正式版本；反批首版后 BOB 查询不再返回资金账户。
-2. 正式或开放候选占用的账号不能被其他资金账户复用；批准新版本释放旧账号。如反批会回落到已被复用的旧账号，反批被原子拒绝。
-3. 任一已持久化 VOU 正文精确引用该 Approval Entry 时反批返回 `bob_unapprove_blocked`；失败不改变 Approval、占用、VOU 快照或由该 VOU 派生的 ACC 事实。
+1. V1 批准后资金账户进入 BOB 只读资料并可供 VOU/ACC 选择；后续版本批准后 BOB typed query 自然读取新版本。反批准最新正式版本后回落到上一正式版本；反批准首版后 BOB 查询不再返回资金账户。
+2. 正式或开放候选占用的账号不能被其他资金账户复用；批准新版本释放旧账号。如反批准会回落到已被复用的旧账号，反批准被原子拒绝。
+3. 任一已持久化 VOU 正文精确引用该 Approval Entry 时反批准返回 `bob_unapprove_blocked`；失败不改变 Approval、占用、VOU 快照或由该 VOU 派生的 ACC 事实。
 4. `versions` 与 `audit-history` 只读展示服务端历史；revision 冲突、自审、非最新版本、账号冲突、经营主体来源漂移和引用 blocker 均按稳定 `errorKey` 提示。
 
 ## 4. 验收场景
 
 1. 全部资金账户生命周期请求均发送到 `/dcl/fund-account/*`，BOB 当前入口没有任何写或审批动作。
-2. V1/V2 批准和反批后，BOB typed query 不经额外写入即可显示、切换、回落或隐藏；失败时 DCL snapshot、Approval 与账号占用全部回滚。
+2. V1/V2 批准和反批准后，BOB typed query 不经额外写入即可显示、切换、回落或隐藏；失败时 DCL snapshot、Approval 与账号占用全部回滚。
 3. 经营主体来源漂移、账号并发唯一、回落冲突及 VOU blocker 由真实 PostgreSQL 测试覆盖。
 4. 历史 VOU 在资金账户后续改版、改币种或改所属主体后，仍保留原 stable ID、Approval Entry ID 与快照；ACC 仍通过不可变 VOU `source_id` 追溯该版本。
 

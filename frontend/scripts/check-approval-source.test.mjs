@@ -17,6 +17,19 @@ test('rejects legacy copies, private maps, lifecycle inference and raw audit val
     'src/pages/dcl/example/Example.vue':
       "<td>{{ event.action }}</td><span>{{ event.fromStatus || '—' }}</span>",
     'src/pages/example.vue': '<button>撤回提交</button>',
+    'src/pages/dcl/example/InlineActions.vue': `
+      const action = {
+        key: 'unapprove',
+        label: '反批准',
+        icon: 'mdi-backup-restore',
+        color: 'warning',
+      }
+    `,
+    '../backend/db/schema.sql':
+      "INSERT INTO app_permissions VALUES ('id', '/dcl/customer/submit', 'dcl', 'customer', 'submit', '提交客户审核');",
+    '../contracts/openapi/openapi.yaml':
+      "'/dcl/product/approve':\n  post:\n    summary: '批准产品审核'",
+    '../docs/domains/dcl.md': '候选版本允许反批。',
   })
 
   assert.deepEqual(
@@ -28,6 +41,10 @@ test('rejects legacy copies, private maps, lifecycle inference and raw audit val
       'private-approval-presentation',
       'raw-approval-audit',
       'legacy-approval-copy',
+      'private-inline-action-presentation',
+      'legacy-permission-copy',
+      'legacy-openapi-copy',
+      'legacy-current-doc-copy',
     ],
   )
 })
@@ -41,6 +58,10 @@ test('accepts server actions and shared Approval presentation', () => {
         const status = approvalStatusPresentation[item.approval.status].label
         const event = approvalEventActionLabels[audit.action]
       `,
+      '../backend/db/fixtures/cutovers/historical.sql':
+        "INSERT INTO app_permissions VALUES ('id', '/dcl/customer/submit', 'dcl', 'customer', 'submit', '提交审核客户');",
+      '../docs/use-cases/vou/example.md':
+        '采购审核时重新锁定合同，业务对象仍可标记为待审核。',
     }),
     [],
   )

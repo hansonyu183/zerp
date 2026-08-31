@@ -9,6 +9,7 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import {
+  approvalActionPresentation,
   approvalEventActionLabels,
   approvalStatusPresentation,
 } from '@/shared/approval'
@@ -72,40 +73,15 @@ function actions(row: DclRelationshipListItem): ListRowAction[] {
       icon: 'mdi-eye-outline',
     })
   if (available.submit)
-    result.push({
-      key: 'submit',
-      label: '提交',
-      icon: 'mdi-send-outline',
-      color: 'primary',
-    })
+    result.push({ key: 'submit', ...approvalActionPresentation.submit })
   if (available.unsubmit)
-    result.push({
-      key: 'unsubmit',
-      label: '撤回',
-      icon: 'mdi-undo-variant',
-      color: 'warning',
-    })
+    result.push({ key: 'unsubmit', ...approvalActionPresentation.unsubmit })
   if (available.approve)
-    result.push({
-      key: 'approve',
-      label: '批准',
-      icon: 'mdi-check-decagram-outline',
-      color: 'success',
-    })
+    result.push({ key: 'approve', ...approvalActionPresentation.approve })
   if (available.unapprove)
-    result.push({
-      key: 'unapprove',
-      label: '反批准',
-      icon: 'mdi-backup-restore',
-      color: 'warning',
-    })
+    result.push({ key: 'unapprove', ...approvalActionPresentation.unapprove })
   if (available.reject)
-    result.push({
-      key: 'reject',
-      label: '驳回',
-      icon: 'mdi-close-octagon-outline',
-      color: 'error',
-    })
+    result.push({ key: 'reject', ...approvalActionPresentation.reject })
   if (available.enable || available.disable)
     result.push({
       key: 'toggle-enabled',
@@ -334,7 +310,7 @@ async function confirmReverse() {
   >
     <v-card
       rounded="xl"
-      :title="reverseAction === 'unapprove' ? '反批准' : '撤回'"
+      :title="approvalActionPresentation[reverseAction].label"
     >
       <v-card-text>
         <v-textarea
@@ -350,7 +326,7 @@ async function confirmReverse() {
         <v-spacer />
         <v-btn variant="text" @click="reverseTarget = null">取消</v-btn>
         <v-btn
-          color="warning"
+          :color="approvalActionPresentation[reverseAction].color"
           :disabled="!reverseReason.trim()"
           @click="confirmReverse"
         >
@@ -369,7 +345,7 @@ async function confirmReverse() {
       }
     "
   >
-    <v-card rounded="xl" title="驳回">
+    <v-card rounded="xl" :title="approvalActionPresentation.reject.label">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
@@ -384,11 +360,11 @@ async function confirmReverse() {
         <v-spacer />
         <v-btn variant="text" @click="reviewTarget = null">取消</v-btn>
         <v-btn
-          color="error"
+          :color="approvalActionPresentation.reject.color"
           :disabled="!reviewComment.trim()"
           @click="confirmReview"
         >
-          确认驳回
+          确认{{ approvalActionPresentation.reject.label }}
         </v-btn>
       </v-card-actions>
     </v-card>

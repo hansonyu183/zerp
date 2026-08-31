@@ -6,7 +6,7 @@
 
 1. 页面入口为 `/dcl/operating-entity`，使用独立 DCL 菜单项和 ViewModel；APP 工作台、审批待办与审批记录中的经营主体深链都进入该页面。
 2. 列表调用 `POST /dcl/operating-entity/query`，同时展示 latest approved 与唯一开放候选；已知审批状态使用共享中文映射。
-3. 新建、编辑、启停、提交、撤回、驳回、批准、反批、删除、版本和审计动作分别检查对应 `/dcl/operating-entity/*` 精确权限。页面不调用 BOB 写路径，也不借用 BOB ViewModel 路由跨域请求。
+3. 新建、编辑、启停、提交、撤回、驳回、批准、反批准、删除、版本和审计动作分别检查对应 `/dcl/operating-entity/*` 精确权限。页面不调用 BOB 写路径，也不借用 BOB ViewModel 路由跨域请求。
 
 ## 2. 新建与编辑
 
@@ -18,8 +18,8 @@
 ## 3. 审批与回落
 
 1. V1 批准后经营主体才进入 BOB 只读资料和交易候选；V2 批准后 BOB 查询自然读取 V2，无额外 current 写入。
-2. 反批 V2 后重新读取并显示 V1 为当前正式版本；反批 V1 后保留 subject、编码和历史，但 BOB 查询不再返回该主体。
-3. 只允许反批最新正式版本。存在开放候选、精确历史引用 blocker、revision 过期或提交人自审时，页面按稳定 `errorKey` 展示业务提示，不按 message 文本分支。
+2. 反批准 V2 后重新读取并显示 V1 为当前正式版本；反批准 V1 后保留 subject、编码和历史，但 BOB 查询不再返回该主体。
+3. 只允许反批准最新正式版本。存在开放候选、精确历史引用 blocker、revision 过期或提交人自审时，页面按稳定 `errorKey` 展示业务提示，不按 message 文本分支。
 
 ## 4. 历史与异常
 

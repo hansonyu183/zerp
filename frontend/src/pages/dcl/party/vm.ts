@@ -366,8 +366,10 @@ export function useDclPartyViewModel() {
     if (!permissions(row)[action] || actionLoading.value) return false
     const approval = activeVersion(row)?.approval
     if (!approval) return false
-    const normalizedReason = action === 'unsubmit' ? '' : reason.trim()
-    if (['reject', 'unapprove'].includes(action) && !normalizedReason) {
+    const reasonRequired =
+      action !== 'delete' && approvalActionPresentation[action].reasonRequired
+    const normalizedReason = reasonRequired ? reason.trim() : ''
+    if (reasonRequired && !normalizedReason) {
       errorMessage.value = '原因不能为空。'
       return false
     }

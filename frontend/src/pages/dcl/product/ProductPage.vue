@@ -11,6 +11,7 @@ import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
 import {
+  approvalActionPresentation,
   approvalEventActionLabels,
   approvalStatusLabel,
 } from '@/shared/approval'
@@ -44,7 +45,7 @@ const deleteTarget = ref<DclProductListItem | null>(null)
 const reviewTarget = ref<DclProductListItem | null>(null)
 const reviewComment = ref('')
 const reverseTarget = ref<DclProductListItem | null>(null)
-const reverseAction = ref<'unsubmit' | 'unapprove'>('unsubmit')
+const reverseAction = ref<'unapprove'>('unapprove')
 const reverseReason = ref('')
 const formulaOpen = ref(false)
 const formulaModel = ref<ProductFormulaDraft | null>(null)
@@ -111,10 +112,7 @@ function requestReject(row: DclProductListItem): void {
   reviewComment.value = ''
 }
 
-function requestReverse(
-  row: DclProductListItem,
-  action: 'unsubmit' | 'unapprove',
-): void {
+function requestReverse(row: DclProductListItem, action: 'unapprove'): void {
   reverseTarget.value = row
   reverseAction.value = action
   reverseReason.value = ''
@@ -145,9 +143,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交',
-            icon: 'mdi-send-outline',
-            color: 'primary',
+            ...approvalActionPresentation.submit,
           },
         ]
       : []),
@@ -155,9 +151,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回',
-            icon: 'mdi-undo-variant',
-            color: 'warning',
+            ...approvalActionPresentation.unsubmit,
           },
         ]
       : []),
@@ -165,9 +159,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '批准',
-            icon: 'mdi-check-decagram-outline',
-            color: 'success',
+            ...approvalActionPresentation.approve,
           },
         ]
       : []),
@@ -175,9 +167,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'unapprove',
-            label: '反批准',
-            icon: 'mdi-backup-restore',
-            color: 'warning',
+            ...approvalActionPresentation.unapprove,
           },
         ]
       : []),
@@ -185,9 +175,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '驳回',
-            icon: 'mdi-close-octagon-outline',
-            color: 'error',
+            ...approvalActionPresentation.reject,
           },
         ]
       : []),
@@ -240,7 +228,7 @@ function selectRowAction(action: string, row: DclProductListItem): void {
   if (action === 'edit') requestEdit(row)
   else if (action === 'view') void vm.openView(row)
   else if (action === 'submit') void vm.submitObject(row)
-  else if (action === 'unsubmit') requestReverse(row, 'unsubmit')
+  else if (action === 'unsubmit') void vm.reverse(row, 'unsubmit')
   else if (action === 'approve') void vm.review(row, 'approve', '')
   else if (action === 'unapprove') requestReverse(row, 'unapprove')
   else if (action === 'reject') requestReject(row)
@@ -788,7 +776,7 @@ function saveFormula(value: ProductFormulaDraft): void {
   >
     <v-card
       rounded="xl"
-      :title="reverseAction === 'unapprove' ? '反批准' : '撤回'"
+      :title="approvalActionPresentation[reverseAction].label"
     >
       <v-card-text>
         <v-alert
@@ -812,7 +800,7 @@ function saveFormula(value: ProductFormulaDraft): void {
         <v-spacer />
         <v-btn variant="text" @click="closeReverse(false)">取消</v-btn>
         <v-btn
-          color="warning"
+          :color="approvalActionPresentation[reverseAction].color"
           :disabled="!reverseReason.trim()"
           :loading="
             vm.actionLoading === `${reverseAction}:${reverseTarget?.objectId}`
@@ -830,7 +818,7 @@ function saveFormula(value: ProductFormulaDraft): void {
     max-width="620"
     @update:model-value="closeReview"
   >
-    <v-card rounded="xl" title="驳回">
+    <v-card rounded="xl" :title="approvalActionPresentation.reject.label">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
@@ -845,12 +833,12 @@ function saveFormula(value: ProductFormulaDraft): void {
         <v-spacer />
         <v-btn variant="text" @click="closeReview(false)">取消</v-btn>
         <v-btn
-          color="error"
+          :color="approvalActionPresentation.reject.color"
           :disabled="!reviewComment.trim()"
           :loading="vm.actionLoading === `reject:${reviewTarget?.objectId}`"
           @click="confirmReview"
         >
-          确认驳回
+          确认{{ approvalActionPresentation.reject.label }}
         </v-btn>
       </v-card-actions>
     </v-card>

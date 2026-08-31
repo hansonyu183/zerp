@@ -345,7 +345,10 @@ export function createDclAccMappingViewModel() {
       return
     }
     const reason = approvalReason.value.trim()
-    if ((action === 'reject' || action === 'unapprove') && !reason) {
+    const reasonRequired =
+      (action === 'reject' || action === 'unapprove') &&
+      approvalActionPresentation[action].reasonRequired
+    if (reasonRequired && !reason) {
       errorMessage.value = '请填写审批原因。'
       return
     }

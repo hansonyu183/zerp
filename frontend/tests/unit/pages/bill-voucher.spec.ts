@@ -777,6 +777,30 @@ describe('bill maturity payload', () => {
 })
 
 describe('bill voucher view model behavior', () => {
+  it('rejects a detail lifecycle action absent from the server snapshot before loading or request', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-receipt/query',
+        '/vou/bill-receipt/get',
+        '/vou/bill-receipt/approve',
+      ],
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-receipt']),
+    )!
+    await vm.openDocument({ documentId: 'DOC-1' })
+    expect(vm.documentView.value?.availableApprovalActions).toEqual(['submit'])
+    mockedPost.mockClear()
+
+    await expect(vm.lifecycle('approve')).resolves.toBe(false)
+
+    expect(mockedPost).not.toHaveBeenCalled()
+    expect(vm.actionLoading.value).toBeNull()
+    scope.stop()
+  })
+
   it('keeps the request id in displayed API errors', async () => {
     const session = useSessionStore()
     session.$patch({ permissions: ['/vou/bill-receipt/query'] })
@@ -960,6 +984,7 @@ describe('bill voucher view model behavior', () => {
       expect.anything(),
     )
     await vm.openDocument({ documentId: 'DOC-1' })
+    vm.documentView.value!.availableApprovalActions = ['unsubmit']
     mockedPost.mockClear()
 
     await vm.lifecycle('unsubmit')
@@ -1012,6 +1037,7 @@ describe('bill voucher view model behavior', () => {
       expect.anything(),
     )
     await vm.openDocument({ documentId: 'DOC-1' })
+    vm.documentView.value!.availableApprovalActions = ['unsubmit']
     mockedPost.mockClear()
 
     await vm.lifecycle('unsubmit')
@@ -1044,6 +1070,7 @@ describe('bill voucher view model behavior', () => {
       expect.anything(),
     )
     await vm.openDocument({ documentId: 'DOC-1' })
+    vm.documentView.value!.availableApprovalActions = ['unsubmit']
     mockedPost.mockClear()
 
     await vm.lifecycle('unsubmit')

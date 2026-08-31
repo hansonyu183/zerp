@@ -74,14 +74,12 @@ export async function runDclFundAccountAction(
   request: FundAccountVersionRequest,
   reason: string,
 ): Promise<void> {
-  if (action === 'submit' || action === 'approve') {
-    await apiClient.postContract(`dcl/fund-account/${action}`, request)
-  } else {
+  if (action === 'reject' || action === 'unapprove') {
     await apiClient.postContract(`dcl/fund-account/${action}`, {
       ...request,
       reason,
     })
-  }
+  } else await apiClient.postContract(`dcl/fund-account/${action}`, request)
 }
 
 export function dclFundAccountFormFromView(

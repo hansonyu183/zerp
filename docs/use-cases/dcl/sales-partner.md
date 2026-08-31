@@ -18,7 +18,7 @@
 ## 验收场景
 
 1. 既有 Party 与新 Party 创建均带准确 payload；缺经营主体或同时传两种 Party 入口不能提交。
-2. BOB 直接读取 highest APPROVED snapshot，在 DCL 批准或反批后自然切换或回落；无 BOB 直接写入口。
+2. BOB 直接读取 highest APPROVED snapshot，在 DCL 批准或反批准后自然切换或回落；无 BOB 直接写入口。
 3. 深链可打开目标 candidate，状态和权限不允许的动作既不展示也不发起请求。
 4. 空能力草稿可以创建和保存，但 submit 与 approve 都返回稳定校验错误；补充至少一种合法能力后才允许进入或保持正式状态。
 

@@ -127,14 +127,12 @@ export async function runDclProductAction(
   request: ProductVersionRequest,
   reason: string,
 ): Promise<void> {
-  if (action === 'submit' || action === 'approve') {
-    await apiClient.postContract(`dcl/product/${action}`, request)
-  } else {
+  if (action === 'reject' || action === 'unapprove') {
     await apiClient.postContract(`dcl/product/${action}`, {
       ...request,
       reason,
     })
-  }
+  } else await apiClient.postContract(`dcl/product/${action}`, request)
 }
 
 export async function createDclProduct(data: DclProductInput): Promise<void> {

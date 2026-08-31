@@ -388,7 +388,7 @@ export function useDclCustomerAccountViewModel() {
           approvalEntryId: approval.approvalEntryId,
           approvalRevision: approval.revision,
         },
-        action === 'unsubmit' ? '' : reason.trim(),
+        approvalActionPresentation[action].reasonRequired ? reason.trim() : '',
       )
       await query()
       successMessage.value = `客户结算子账户${approvalActionPresentation[action].successLabel}。`

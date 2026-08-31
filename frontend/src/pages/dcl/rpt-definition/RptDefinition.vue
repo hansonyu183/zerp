@@ -5,6 +5,7 @@ import type { BusinessObjectColumn } from '@/components/business-object'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import {
+  approvalActionPresentation,
   approvalEventActionLabels,
   approvalStatusPresentation,
 } from '@/shared/approval'
@@ -171,7 +172,15 @@ void vm.query().then(() => {
             label="提交/批准校验参数 JSON"
             rows="3"
           />
-          <v-text-field v-model="vm.reason" label="驳回/反批准原因" />
+          <v-text-field
+            v-if="
+              vm.lifecycleActions?.some(
+                (action) => approvalActionPresentation[action].reasonRequired,
+              )
+            "
+            v-model="vm.reason"
+            label="驳回/反批准原因"
+          />
           <div v-if="vm.selected" class="text-caption text-medium-emphasis">
             Approval Entry ID：{{ vm.selected.approval.approvalEntryId }} · 版本
             {{ vm.selected.approval.versionNo }} ·
@@ -190,8 +199,10 @@ void vm.query().then(() => {
           <template v-if="vm.selected">
             <v-btn
               v-if="vm.lifecycleActions?.includes('submit')"
+              :color="approvalActionPresentation.submit.color"
+              :prepend-icon="approvalActionPresentation.submit.icon"
               @click="vm.run('submit')"
-              >提交</v-btn
+              >{{ approvalActionPresentation.submit.label }}</v-btn
             >
             <v-btn
               v-if="
@@ -204,19 +215,24 @@ void vm.query().then(() => {
             >
             <v-btn
               v-if="vm.lifecycleActions?.includes('unsubmit')"
+              :color="approvalActionPresentation.unsubmit.color"
+              :prepend-icon="approvalActionPresentation.unsubmit.icon"
               @click="vm.run('unsubmit')"
-              >撤回</v-btn
+              >{{ approvalActionPresentation.unsubmit.label }}</v-btn
             >
             <v-btn
               v-if="vm.lifecycleActions?.includes('reject')"
-              color="error"
+              :color="approvalActionPresentation.reject.color"
+              :prepend-icon="approvalActionPresentation.reject.icon"
               @click="vm.run('reject')"
-              >驳回</v-btn
+              >{{ approvalActionPresentation.reject.label }}</v-btn
             >
             <v-btn
               v-if="vm.lifecycleActions?.includes('approve')"
+              :color="approvalActionPresentation.approve.color"
+              :prepend-icon="approvalActionPresentation.approve.icon"
               @click="vm.run('approve')"
-              >批准</v-btn
+              >{{ approvalActionPresentation.approve.label }}</v-btn
             >
             <v-btn
               v-if="
@@ -228,8 +244,10 @@ void vm.query().then(() => {
             >
             <v-btn
               v-if="vm.lifecycleActions?.includes('unapprove')"
+              :color="approvalActionPresentation.unapprove.color"
+              :prepend-icon="approvalActionPresentation.unapprove.icon"
               @click="vm.run('unapprove')"
-              >反批准</v-btn
+              >{{ approvalActionPresentation.unapprove.label }}</v-btn
             >
             <v-btn
               v-if="

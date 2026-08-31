@@ -377,7 +377,10 @@ export function createDclWflProcessDefinitionViewModel() {
         : !definition.availableApprovalActions.includes(action))
     )
       return
-    const requiresReason = action === 'reject' || action === 'unapprove'
+    const requiresReason =
+      action !== 'create-next' &&
+      action !== 'delete-version' &&
+      approvalActionPresentation[action].reasonRequired
     if (requiresReason && !reason.value.trim()) {
       errorMessage.value = '请填写审核意见。'
       return

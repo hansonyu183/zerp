@@ -314,7 +314,7 @@ export function useDclCustomerViewModel() {
           approvalEntryId: approval.approvalEntryId,
           approvalRevision: approval.revision,
         },
-        action === 'unsubmit' ? '' : reason.trim(),
+        approvalActionPresentation[action].reasonRequired ? reason.trim() : '',
       )
       await query()
       successMessage.value = `客户关系${approvalActionPresentation[action].successLabel}。`

@@ -242,7 +242,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
     };
   };
@@ -338,7 +338,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
     };
   };
@@ -434,7 +434,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
     };
   };
@@ -530,7 +530,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
     };
   };
@@ -1330,7 +1330,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
     };
   };

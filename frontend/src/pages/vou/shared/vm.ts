@@ -461,7 +461,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     reason?: string,
   ): Promise<boolean> {
     const current = documentView.value
-    if (!current || !actionAvailability.value[action]) return false
+    if (!current || !current.availableApprovalActions.includes(action))
+      return false
     actionLoading.value = action
     workspaceError.value = null
     try {
@@ -472,7 +473,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
         current.approval.revision,
         reason,
       )
-      await loadDocument(current.documentId)
       editing.value = false
       successMessage.value = `${current.documentNo} ${lifecycleActionSuccessLabel(action)}。`
       return true
@@ -482,7 +482,11 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     } finally {
       actionLoading.value = null
       if (documentView.value?.documentId === current.documentId) {
-        await Promise.allSettled([query(), loadAudit(1)])
+        await Promise.allSettled([
+          loadDocument(current.documentId),
+          query(),
+          loadAudit(1),
+        ])
       }
     }
   }

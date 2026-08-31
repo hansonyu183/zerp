@@ -75,10 +75,7 @@ export async function runDclOperatingEntityAction(
   } else if (action === 'approve') {
     await apiClient.postContract('dcl/operating-entity/approve', request)
   } else if (action === 'unsubmit') {
-    await apiClient.postContract('dcl/operating-entity/unsubmit', {
-      ...request,
-      reason,
-    })
+    await apiClient.postContract('dcl/operating-entity/unsubmit', request)
   } else if (action === 'reject') {
     await apiClient.postContract('dcl/operating-entity/reject', {
       ...request,

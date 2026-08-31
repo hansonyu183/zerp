@@ -197,8 +197,9 @@ export function useDclDeclarationLifecycle<TItem>(
     handleError?: (error: unknown) => boolean,
   ): Promise<boolean> {
     if (!actionAvailability(item)[action] || actionLoading.value) return false
-    const reason = action === 'reject' ? comment.trim() : ''
-    if (action === 'reject' && !reason) {
+    const reasonRequired = approvalActionPresentation[action].reasonRequired
+    const reason = reasonRequired ? comment.trim() : ''
+    if (reasonRequired && !reason) {
       errorMessage.value = '驳回意见不能为空。'
       return false
     }
@@ -231,8 +232,9 @@ export function useDclDeclarationLifecycle<TItem>(
     reason?: string,
   ): Promise<boolean> {
     if (!actionAvailability(item)[action] || actionLoading.value) return false
-    const normalizedReason = action === 'unsubmit' ? '' : (reason?.trim() ?? '')
-    if (action === 'unapprove' && !normalizedReason) {
+    const reasonRequired = approvalActionPresentation[action].reasonRequired
+    const normalizedReason = reasonRequired ? (reason?.trim() ?? '') : ''
+    if (reasonRequired && !normalizedReason) {
       errorMessage.value = '反批准原因不能为空。'
       return false
     }

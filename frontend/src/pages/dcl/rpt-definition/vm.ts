@@ -315,10 +315,11 @@ export function createDclRptDefinitionViewModel() {
         : !definition.availableApprovalActions.includes(action))
     )
       return
-    if (
-      (action === 'reject' || action === 'unapprove') &&
-      !reason.value.trim()
-    ) {
+    const reasonRequired =
+      action !== 'create-next' &&
+      action !== 'delete-version' &&
+      approvalActionPresentation[action].reasonRequired
+    if (reasonRequired && !reason.value.trim()) {
       errorMessage.value = '请填写原因。'
       return
     }

@@ -67,9 +67,6 @@ export async function runListLifecycleAction(
       row.revision,
       reason,
     )
-    if (context.documentView.value?.documentId === row.documentId) {
-      await context.loadDocument(row.documentId)
-    }
     context.successMessage.value = `${row.documentNo} ${lifecycleActionSuccessLabel(action)}。`
     return true
   } catch (error) {
@@ -77,11 +74,15 @@ export async function runListLifecycleAction(
     return false
   } finally {
     context.actionLoading.value = null
+    const currentDocument = context.documentView.value
+    const refreshCurrentDocument =
+      currentDocument?.documentId === row.documentId
     await Promise.allSettled([
       context.query(),
-      context.documentView.value?.documentId === row.documentId
-        ? context.loadAudit(1)
+      refreshCurrentDocument
+        ? context.loadDocument(row.documentId)
         : Promise.resolve(),
+      refreshCurrentDocument ? context.loadAudit(1) : Promise.resolve(),
     ])
   }
 }

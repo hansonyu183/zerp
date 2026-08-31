@@ -10,6 +10,7 @@ import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import type { components } from '@/api/generated/schema'
 import {
+  approvalActionPresentation,
   approvalEventActionLabels,
   approvalStatusPresentation,
 } from '@/shared/approval'
@@ -107,9 +108,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交',
-            icon: 'mdi-send-outline',
-            color: 'primary' as const,
+            ...approvalActionPresentation.submit,
           },
         ]
       : []),
@@ -117,9 +116,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回',
-            icon: 'mdi-undo-variant',
-            color: 'warning' as const,
+            ...approvalActionPresentation.unsubmit,
           },
         ]
       : []),
@@ -127,9 +124,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '批准',
-            icon: 'mdi-check-decagram-outline',
-            color: 'success' as const,
+            ...approvalActionPresentation.approve,
           },
         ]
       : []),
@@ -137,9 +132,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '驳回',
-            icon: 'mdi-close-octagon-outline',
-            color: 'error' as const,
+            ...approvalActionPresentation.reject,
           },
         ]
       : []),
@@ -147,9 +140,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'unapprove',
-            label: '反批准',
-            icon: 'mdi-backup-restore',
-            color: 'warning' as const,
+            ...approvalActionPresentation.unapprove,
           },
         ]
       : []),
@@ -571,7 +562,10 @@ watch(
       ></v-dialog
     >
     <v-dialog :model-value="Boolean(reasonTarget)" max-width="620"
-      ><v-card :title="reasonTarget?.action === 'reject' ? '驳回' : '反批准'"
+      ><v-card
+        :title="
+          approvalActionPresentation[reasonTarget?.action ?? 'reject'].label
+        "
         ><v-card-text
           ><v-textarea
             v-model="reason"
@@ -581,7 +575,9 @@ watch(
         ><v-card-actions
           ><v-spacer /><v-btn @click="reasonTarget = null">取消</v-btn
           ><v-btn
-            :color="reasonTarget?.action === 'reject' ? 'error' : 'warning'"
+            :color="
+              approvalActionPresentation[reasonTarget?.action ?? 'reject'].color
+            "
             :disabled="!reason.trim()"
             @click="confirmReason"
             >确认</v-btn

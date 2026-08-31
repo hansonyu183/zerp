@@ -108,6 +108,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     referenceError,
     searchReference,
     clearReferenceSearches,
+    preloadCreateReferences,
   } = useVoucherReferences(config, form)
 
   const dirty = computed(
@@ -229,7 +230,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       if (sequence !== querySequence) return
       rows.value = []
       total.value = 0
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       if (sequence === querySequence) loading.value = false
       if (queryController === controller) queryController = null
@@ -272,6 +273,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     attachmentError.value = null
     auditEvents.value = []
     workspaceOpen.value = true
+    preloadCreateReferences()
     if (config.parentEntity) void searchSourceDocuments('')
   }
 

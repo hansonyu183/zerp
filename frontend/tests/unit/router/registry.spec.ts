@@ -574,7 +574,7 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
-  it('为全部十一类 AUX 实体生成中文菜单并加载真实页面组件', () => {
+  it('为全部十二类 AUX 实体生成中文菜单并加载真实页面组件', () => {
     const entities = [
       'settlement-method',
       'payment-method',
@@ -582,6 +582,7 @@ describe('permission menu registry', () => {
       'product-category',
       'product-type',
       'department',
+      'employee-category',
       'position',
       'measurement-unit',
       'dictionary-type',
@@ -595,6 +596,7 @@ describe('permission menu registry', () => {
       '产品分类',
       '产品类型',
       '部门',
+      '人员类别',
       '岗位',
       '计量单位',
       '字典类型',

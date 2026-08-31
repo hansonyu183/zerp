@@ -972,6 +972,144 @@ describe('shared VOU entity view model', () => {
     expect(vm.actionAvailability.value.attachmentRemove).toBe(true)
   })
 
+  it('preloads customer references when opening sale-order create', async () => {
+    const config = voucherEntityConfigs['sale-order']
+    mockedPost.mockResolvedValue({
+      data: [
+        {
+          objectId: 'customer-a',
+          approvalEntryId: 'customer-ver',
+          code: 'CUS-001',
+          name: '客户 A',
+        },
+      ],
+    } as never)
+    useSessionStore().permissions = [
+      '/vou/sale-order/create',
+      '/bob/customer-account/query',
+    ]
+
+    const vm = useVoucherEntityViewModel(config)
+    expect(vm.canCreate.value).toBe(true)
+    vm.openCreate()
+    await vi.waitFor(() => expect(vm.referenceOptions('customer')).toHaveLength(1))
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/reference/query',
+      { entity: 'customer-account' },
+      expect.any(Object),
+    )
+    expect(vm.referenceOptions('customer')).toEqual([
+      expect.objectContaining({
+        objectId: 'customer-a',
+        entity: 'customer-account',
+        code: 'CUS-001',
+      }),
+    ])
+    expect(vm.referenceError('customer')).toBeNull()
+  })
+
+  it('preloads supplier references when opening purchase-order and asset-acquisition create', async () => {
+    const cases = ['purchase-order', 'asset-acquisition'] as const
+    mockedPost.mockResolvedValue({
+      data: [
+        {
+          objectId: 'supplier-a',
+          approvalEntryId: 'supplier-ver',
+          code: 'SUP-001',
+          name: '供应商 A',
+        },
+      ],
+    } as never)
+
+    for (const entity of cases) {
+      const config = voucherEntityConfigs[entity]
+      useSessionStore().permissions = [
+        `/vou/${entity}/create`,
+        '/bob/supplier/query',
+      ]
+      mockedPost.mockClear()
+
+      const vm = useVoucherEntityViewModel(config)
+      vm.openCreate()
+      await vi.waitFor(() =>
+        expect(vm.referenceOptions('supplier')).toHaveLength(1),
+      )
+
+      expect(mockedPost).toHaveBeenCalledWith(
+        'bob/reference/query',
+        { entity: 'supplier' },
+        expect.any(Object),
+      )
+      expect(vm.referenceOptions('supplier')).toEqual([
+        expect.objectContaining({
+          objectId: 'supplier-a',
+          entity: 'supplier',
+          code: 'SUP-001',
+        }),
+      ])
+    }
+  })
+
+  it('preloads employee counterparties when opening employee-loan create', async () => {
+    const config = voucherEntityConfigs['employee-loan']
+    mockedPost.mockResolvedValue({
+      data: [
+        {
+          objectId: 'employee-a',
+          approvalEntryId: 'employee-ver',
+          code: 'EMP-001',
+          name: '员工 A',
+        },
+      ],
+    } as never)
+    useSessionStore().permissions = [
+      '/vou/employee-loan/create',
+      '/bob/employee/query',
+    ]
+
+    const vm = useVoucherEntityViewModel(config)
+    vm.openCreate()
+    await vi.waitFor(() =>
+      expect(vm.referenceOptions('counterparty')).toHaveLength(1),
+    )
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/reference/query',
+      { entity: 'employee' },
+      expect.any(Object),
+    )
+    expect(vm.referenceOptions('counterparty')).toEqual([
+      expect.objectContaining({
+        objectId: 'employee-a',
+        entity: 'employee',
+        code: 'EMP-001',
+      }),
+    ])
+    expect(vm.referenceError('counterparty')).toBeNull()
+  })
+
+  it('keeps legal empty required references as empty without error on create', async () => {
+    const config = voucherEntityConfigs['sale-order']
+    mockedPost.mockResolvedValue({ data: [] } as never)
+    useSessionStore().permissions = [
+      '/vou/sale-order/create',
+      '/bob/customer-account/query',
+    ]
+
+    const vm = useVoucherEntityViewModel(config)
+    vm.openCreate()
+    await vi.waitFor(() => expect(vm.referenceOptions('customer')).toHaveLength(0))
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/reference/query',
+      { entity: 'customer-account' },
+      expect.any(Object),
+    )
+    expect(vm.referenceOptions('customer')).toEqual([])
+    expect(vm.referenceError('customer')).toBeNull()
+  })
+
   it('only exposes matching effective BOB object and version pairs', async () => {
     vi.useFakeTimers()
     useSessionStore().permissions = ['/bob/customer-account/query']

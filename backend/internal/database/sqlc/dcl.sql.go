@@ -1628,6 +1628,34 @@ func (q *Queries) DeleteDclWflProcessDefinition(ctx context.Context, definitionI
 	return result.RowsAffected(), nil
 }
 
+const findActiveDCLRelationshipByEndpoints = `-- name: FindActiveDCLRelationshipByEndpoints :one
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code
+FROM dcl_party_relationship_endpoints relationship
+JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity=relationship.entity
+WHERE relationship.entity=$1
+  AND relationship.party_id=$2
+  AND relationship.operating_entity_id=$3
+  AND relationship.merged_into_object_id IS NULL
+`
+
+type FindActiveDCLRelationshipByEndpointsParams struct {
+	Entity            string `db:"entity" json:"entity"`
+	PartyID           string `db:"party_id" json:"party_id"`
+	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
+}
+
+type FindActiveDCLRelationshipByEndpointsRow struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Code     string `db:"code" json:"code"`
+}
+
+func (q *Queries) FindActiveDCLRelationshipByEndpoints(ctx context.Context, arg FindActiveDCLRelationshipByEndpointsParams) (FindActiveDCLRelationshipByEndpointsRow, error) {
+	row := q.db.QueryRow(ctx, findActiveDCLRelationshipByEndpoints, arg.Entity, arg.PartyID, arg.OperatingEntityID)
+	var i FindActiveDCLRelationshipByEndpointsRow
+	err := row.Scan(&i.ObjectID, &i.Code)
+	return i, err
+}
+
 const findDCLFundAccountIdentifierConflict = `-- name: FindDCLFundAccountIdentifierConflict :one
 WITH selected AS (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=$1 AND status IN ('DRAFT','PENDING') UNION ALL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=$1 AND status='APPROVED' ORDER BY version_no DESC LIMIT 1)), desired AS (SELECT upper(replace(replace(btrim(account_number),' ',''),'-','')) value FROM dcl_fund_account_versions v JOIN selected e ON e.id=v.approval_entry_id WHERE account_number IS NOT NULL AND upper(replace(replace(btrim(account_number),' ',''),'-',''))<>'') SELECT desired.value AS normalized_account_number FROM desired JOIN dcl_fund_account_identifier_claims c ON c.normalized_account_number=desired.value WHERE c.object_id<>$1 LIMIT 1
 `

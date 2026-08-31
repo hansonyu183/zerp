@@ -9,7 +9,27 @@ import (
 
 func TestSystemParameterManagementIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	_, err := pool.Exec(t.Context(), `
+	if _, err := pool.Exec(t.Context(), `DELETE FROM app_system_parameters WHERE parameter_key = 'app.enterprise-name'`); err != nil {
+		t.Fatalf("delete enterprise name baseline: %v", err)
+	}
+	if err := service.SynchronizeSystemParameters(t.Context()); err != nil {
+		t.Fatalf("synchronize enterprise name baseline: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		UPDATE app_system_parameters
+		SET configured_value = '已配置企业', revision = revision + 1
+		WHERE parameter_key = 'app.enterprise-name'
+	`); err != nil {
+		t.Fatalf("customize enterprise name: %v", err)
+	}
+	if err := service.SynchronizeSystemParameters(t.Context()); err != nil {
+		t.Fatalf("resynchronize enterprise name baseline: %v", err)
+	}
+	branding, err := service.GetBranding(t.Context())
+	if err != nil || branding.EnterpriseName != "已配置企业" {
+		t.Fatalf("baseline branding = %+v, %v", branding, err)
+	}
+	_, err = pool.Exec(t.Context(), `
 		INSERT INTO app_system_parameters (
 			parameter_key, name, value_type, configured_value, default_value,
 			editable, constraints

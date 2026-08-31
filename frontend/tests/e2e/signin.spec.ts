@@ -106,6 +106,47 @@ async function expectSingleDirectWorkbenchEntry(page: Page): Promise<void> {
   ).toHaveAttribute('href', '/home/dashboard')
 }
 
+test('匿名品牌名称、顶栏和退出标题保持一致', async ({ page, workerState }) => {
+  await page.goto('/signin')
+  await expect(page).toHaveTitle('登录 · ZERP')
+  await expect(page.getByText('ZERP 演示企业', { exact: true })).toBeVisible()
+
+  await submitCredentials(page, workerState.operator)
+  await expect(page).toHaveURL(/\/home\/dashboard$/)
+  await expect(page.locator('.company__copy')).toContainText('ZERP 演示企业')
+
+  await page.goto('/app/menu')
+  await expect(page).toHaveTitle('菜单管理 · ZERP')
+
+  await signOut(page)
+  await expect(page).toHaveTitle('登录 · ZERP')
+  await page.goBack()
+  await expect(page).toHaveURL(/\/signin/)
+  await expect(page).toHaveTitle('登录 · ZERP')
+})
+
+test('服务合同与资产清算重复深链和硬刷新均保留可诊断页面壳', async ({
+  page,
+  workerState,
+}) => {
+  await signIn(page, workerState)
+
+  for (const path of ['/vou/service-contract', '/vou/asset-liquidation']) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await page.goto(path)
+      await expect(page.locator('.voucher-page')).toBeVisible()
+      await expect(
+        page.getByRole('button', { name: '查询', exact: true }),
+      ).toBeVisible()
+      await page.reload()
+      await expect(page.locator('.voucher-page')).toBeVisible()
+      await expect(
+        page.getByRole('button', { name: '查询', exact: true }),
+      ).toBeVisible()
+    }
+  }
+})
+
 test('未登录访问完整深链后登录返回原路径', async ({ page, workerState }) => {
   await page.goto('/bob/customer?tab=history#version-2')
   await expect(page).toHaveURL(/\/signin\?redirect=/)

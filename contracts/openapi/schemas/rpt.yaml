@@ -19,6 +19,7 @@ RptReferenceType:
       FUND_ACCOUNT,
       ASSET,
       BILL,
+      OTHER_PARTY,
     ]
 
 RptResultType:

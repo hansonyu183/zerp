@@ -627,6 +627,15 @@ JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='ope
 JOIN dcl_operating_entity_versions operating_current ON operating_current.approval_entry_id=operating_entry.id
 WHERE subject.id=sqlc.arg(object_id) AND subject.entity=sqlc.arg(entity);
 
+-- name: FindActiveDCLRelationshipByEndpoints :one
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code
+FROM dcl_party_relationship_endpoints relationship
+JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity=relationship.entity
+WHERE relationship.entity=sqlc.arg(entity)
+  AND relationship.party_id=sqlc.arg(party_id)
+  AND relationship.operating_entity_id=sqlc.arg(operating_entity_id)
+  AND relationship.merged_into_object_id IS NULL;
+
 -- name: CountDCLRelationshipApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity=sqlc.arg(entity) AND subject_id=sqlc.arg(object_id);
 -- name: ListDCLRelationshipApprovalEvents :many

@@ -19,6 +19,21 @@ var (
 	decimalValuePattern       = regexp.MustCompile(`^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$`)
 )
 
+func (s *Service) SynchronizeSystemParameters(ctx context.Context) error {
+	if err := s.queries.EnsureEnterpriseNameSystemParameter(ctx); err != nil {
+		return s.internal("synchronize enterprise name system parameter", err)
+	}
+	return nil
+}
+
+func (s *Service) GetBranding(ctx context.Context) (BrandingView, error) {
+	parameter, err := s.GetSystemParameter(ctx, enterpriseNameKey)
+	if err != nil {
+		return BrandingView{}, err
+	}
+	return BrandingView{EnterpriseName: parameter.ConfiguredValue}, nil
+}
+
 func (s *Service) QuerySystemParameters(ctx context.Context, request PageRequest) (Page[SystemParameterView], error) {
 	spec, err := validateFixedPage(request, "key", "asc")
 	if err != nil {

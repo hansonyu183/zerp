@@ -85,6 +85,7 @@ describe('ACC accounting subject view model', () => {
         data: { items: [], total: 0, page: 1, pageSize: 200 },
       })
       .mockResolvedValueOnce({ data: subject })
+      .mockResolvedValueOnce({ data: subject })
       .mockResolvedValueOnce({
         data: { items: [subject], total: 1, page: 1, pageSize: 200 },
       })
@@ -110,5 +111,10 @@ describe('ACC accounting subject view model', () => {
       inventoryQuantity: true,
       settlementPurpose: 'NONE',
     })
+    expect(mockedPost).toHaveBeenNthCalledWith(4, 'acc/subject/get', {
+      bookId: book.bookId,
+      subjectId: subject.subjectId,
+    })
+    expect(vm.successMessage).toBe('科目已创建。')
   })
 })

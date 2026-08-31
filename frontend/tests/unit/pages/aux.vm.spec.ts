@@ -153,6 +153,64 @@ describe('AUX entity view model', () => {
     })
   })
 
+  it('新查询开始时清除旧结果并拒绝较早响应覆盖', async () => {
+    let finishFirst: ((value: unknown) => void) | undefined
+    let finishSecond: ((value: unknown) => void) | undefined
+    mockedPost
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishSecond = resolve
+          }),
+      )
+    const vm = createAuxEntityViewModel(auxConfigs.position)
+    vm.rows.value = [
+      {
+        objectId: 'OLD',
+        entity: 'position',
+        code: 'POS-OLD',
+        enabled: true,
+        objectRevision: 1,
+        data: { name: '旧结果' },
+        updatedAt: '2026-08-31T00:00:00Z',
+        updatedBy: 'USER-1',
+      },
+    ]
+
+    const first = vm.query()
+    expect(vm.rows.value).toEqual([])
+    const second = vm.query()
+    finishSecond?.({
+      data: {
+        items: [
+          {
+            objectId: 'NEW',
+            entity: 'position',
+            code: 'POS-NEW',
+            enabled: true,
+            objectRevision: 1,
+            data: { name: '新结果' },
+            updatedAt: '2026-08-31T00:00:00Z',
+            updatedBy: 'USER-1',
+          },
+        ],
+        total: 1,
+      },
+    })
+    await second
+    finishFirst?.({ data: { items: [], total: 0 } })
+    await first
+
+    expect(vm.rows.value.map((row) => row.objectId)).toEqual(['NEW'])
+    expect(vm.loading.value).toBe(false)
+  })
+
   it('产品类型按行为模板筛选并保留封闭选项', async () => {
     useSessionStore().permissions = ['/aux/product-type/query']
     mockedPost.mockResolvedValue({

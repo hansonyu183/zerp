@@ -4,6 +4,8 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
+统计口径：页面入口只统计静态注册页面，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。
+
 - 页面入口：91
 - 已覆盖入口：45
 - 已登记用例：44

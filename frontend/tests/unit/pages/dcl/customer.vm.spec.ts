@@ -220,7 +220,12 @@ describe('DCL customer declarations', () => {
 
   it('drives customer account list and lifecycle interactions', async () => {
     const session = useSessionStore()
-    session.permissions = ['/dcl/customer-account/create']
+    session.permissions = [
+      '/dcl/customer-account/create',
+      '/bob/customer/query',
+      '/aux/reference/query',
+      '/bob/reference/query',
+    ]
     const approval = {
       approvalEntryId: 'ENTRY-2',
       revision: 2,
@@ -239,7 +244,24 @@ describe('DCL customer declarations', () => {
       objectId: 'CAC-1',
       enabled: true,
       approval,
-      data: dclCustomerAccountPayload(form),
+      data: {
+        ...dclCustomerAccountPayload(form),
+        customerType: {
+          sourceObjectId: form.customerTypeId,
+          code: 'TYPE-001',
+          name: '普通客户',
+        },
+        operatingEntityId: 'OPE-1',
+        operatingEntity: null,
+        settlementMethod: null,
+        paymentMethod: null,
+        primarySalesAttribution: {
+          ...form.primarySalesAttribution,
+          subjectApprovalEntryId: 'EMP-ENTRY-1',
+          subjectCode: 'EMP-001',
+          subjectName: '张三',
+        },
+      },
     }
     mockedPost.mockImplementation(async (path) => {
       const value = String(path)
@@ -257,7 +279,6 @@ describe('DCL customer declarations', () => {
     await vm.query()
     await vm.search()
     await vm.changePage(3)
-    vm.customerRelationshipId.value = 'CUR-1'
     vm.openCreate()
     expect(vm.drawerOpen.value).toBe(true)
     expect(await vm.save()).toBe(false)
@@ -275,5 +296,144 @@ describe('DCL customer declarations', () => {
     expect(vm.editorMode.value).toBe('edit')
     expect(vm.versionsOpen.value).toBe(true)
     expect(vm.auditOpen.value).toBe(true)
+  })
+
+  it('preloads controlled customer references and gates creation on every query permission', async () => {
+    const session = useSessionStore()
+    session.permissions = ['/dcl/customer/create']
+    const vm = useDclCustomerViewModel()
+
+    expect(vm.canCreate.value).toBe(false)
+    vm.openCreate()
+    expect(vm.createOpen.value).toBe(false)
+
+    session.permissions = [
+      '/dcl/customer/create',
+      '/bob/party/query',
+      '/bob/operating-entity/query',
+      '/aux/reference/query',
+      '/bob/reference/query',
+    ]
+    mockedPost.mockImplementation(async (path, body) => {
+      if (path === 'bob/party/query')
+        return {
+          data: { items: [{ partyId: 'PTY-1', displayName: '华南主体' }] },
+        } as never
+      if (path === 'bob/operating-entity/query')
+        return {
+          data: {
+            items: [
+              {
+                objectId: 'OPE-1',
+                code: 'OPE-001',
+                data: { name: '华南经营主体' },
+              },
+            ],
+          },
+        } as never
+      if (path === 'aux/reference/query') {
+        const entity = (body as { entity: string }).entity
+        return {
+          data: [
+            {
+              objectId: `${entity}-1`,
+              code: 'REF-001',
+              name: `${entity} 名称`,
+            },
+          ],
+        } as never
+      }
+      if (path === 'bob/reference/query')
+        return {
+          data: [{ objectId: 'EMP-1', code: 'EMP-001', name: '张三' }],
+        } as never
+      return { data: {} } as never
+    })
+
+    vm.openCreate()
+    await vi.waitFor(() =>
+      expect(vm.referenceOptions.value.operatingEntityId).toEqual([
+        { value: 'OPE-1', title: 'OPE-001 · 华南经营主体' },
+      ]),
+    )
+
+    expect(vm.referenceOptions.value.partyId).toEqual([
+      { value: 'PTY-1', title: 'PTY-1 · 华南主体' },
+    ])
+    expect(
+      vm.referenceOptions.value.primarySalesAttributionSubjectObjectId,
+    ).toEqual([{ value: 'EMP-1', title: 'EMP-001 · 张三' }])
+  })
+
+  it('keeps the latest customer account reference result and the selected relationship', async () => {
+    vi.useFakeTimers()
+    const session = useSessionStore()
+    session.permissions = [
+      '/dcl/customer-account/create',
+      '/bob/customer/query',
+      '/aux/reference/query',
+      '/bob/reference/query',
+    ]
+    let resolveFirst!: (value: never) => void
+    let resolveSecond!: (value: never) => void
+    let customerQueries = 0
+    mockedPost.mockImplementation((path) => {
+      if (path === 'bob/customer/query') {
+        customerQueries += 1
+        return new Promise((resolve) => {
+          if (customerQueries === 1)
+            resolveFirst = resolve as typeof resolveFirst
+          else resolveSecond = resolve as typeof resolveSecond
+        }) as never
+      }
+      if (path === 'aux/reference/query')
+        return Promise.resolve({ data: [] }) as never
+      if (path === 'bob/reference/query')
+        return Promise.resolve({ data: [] }) as never
+      return Promise.resolve({ data: {} }) as never
+    })
+    const vm = useDclCustomerAccountViewModel()
+    vm.customerRelationshipId.value = 'CUR-SELECTED'
+    vm.searchCustomerRelationships('旧关键词')
+    await vi.advanceTimersByTimeAsync(250)
+    vm.searchCustomerRelationships('新关键词')
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(customerQueries).toBe(2)
+
+    resolveSecond({
+      data: {
+        items: [
+          {
+            objectId: 'CUR-NEW',
+            code: 'CUR-002',
+            partyDisplayName: '新客户',
+          },
+        ],
+      },
+    } as never)
+    await Promise.resolve()
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(0)
+    resolveFirst({
+      data: {
+        items: [
+          {
+            objectId: 'CUR-OLD',
+            code: 'CUR-001',
+            partyDisplayName: '旧客户',
+          },
+        ],
+      },
+    } as never)
+    await Promise.resolve()
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(vm.customerRelationshipOptions.value).toEqual([
+      { value: 'CUR-NEW', title: 'CUR-002 · 新客户' },
+      { value: 'CUR-SELECTED', title: 'CUR-SELECTED' },
+    ])
+    vi.useRealTimers()
   })
 })

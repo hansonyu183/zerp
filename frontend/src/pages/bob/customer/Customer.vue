@@ -5,8 +5,13 @@ import type { BusinessObjectColumn } from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import { type BobCustomerListItem, useBobCustomerViewModel } from './vm'
+import { useDetailDrawerFocus } from '../shared/detail-focus'
 
-const vm = reactive(useBobCustomerViewModel())
+const model = useBobCustomerViewModel()
+const vm = reactive(model)
+const { rememberTrigger, setDrawerContent } = useDetailDrawerFocus(
+  model.drawerOpen,
+)
 const columns: readonly BusinessObjectColumn<BobCustomerListItem>[] = [
   { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
   { key: 'party', label: '主体', value: (row) => row.partyDisplayName },
@@ -23,6 +28,11 @@ const columns: readonly BusinessObjectColumn<BobCustomerListItem>[] = [
   },
 ]
 void vm.query()
+
+function openDetail(objectId: string): void {
+  rememberTrigger()
+  void vm.openById(objectId)
+}
 </script>
 
 <template>
@@ -62,12 +72,18 @@ void vm.query()
         <ListRowActions
           :actions="
             vm.canView
-              ? [{ key: 'view', label: '查看', icon: 'mdi-eye-outline' }]
+              ? [
+                  {
+                    key: 'view',
+                    label: `查看客户 ${row.code}`,
+                    icon: 'mdi-eye-outline',
+                  },
+                ]
               : []
           "
           :label="`操作 ${row.code}`"
           :more-label="`更多操作 ${row.code}`"
-          @select="vm.openById(row.objectId)"
+          @select="openDetail(row.objectId)"
         />
       </template>
     </BusinessObjectList>
@@ -79,24 +95,31 @@ void vm.query()
     width="620"
   >
     <v-card v-if="vm.currentView" flat>
-      <v-card-title>客户关系（当前有效资料）</v-card-title>
-      <v-list density="compact">
-        <v-list-item title="编码" :subtitle="vm.currentView.code" />
-        <v-list-item title="主体" :subtitle="vm.currentView.partyDisplayName" />
-        <v-list-item
-          title="经营主体"
-          :subtitle="`${vm.currentView.operatingEntityCode} · ${vm.currentView.operatingEntityName}`"
-        />
-        <v-list-item
-          title="状态"
-          :subtitle="vm.currentView.enabled ? '启用' : '禁用'"
-        />
-      </v-list>
-      <v-card-actions
-        ><v-spacer /><v-btn @click="vm.drawerOpen = false"
-          >关闭</v-btn
-        ></v-card-actions
-      >
+      <div :ref="setDrawerContent">
+        <v-card-title>客户关系（当前有效资料）</v-card-title>
+        <v-list density="compact">
+          <v-list-item title="编码" :subtitle="vm.currentView.code" />
+          <v-list-item
+            title="主体"
+            :subtitle="vm.currentView.partyDisplayName"
+          />
+          <v-list-item
+            title="经营主体"
+            :subtitle="`${vm.currentView.operatingEntityCode} · ${vm.currentView.operatingEntityName}`"
+          />
+          <v-list-item
+            title="状态"
+            :subtitle="vm.currentView.enabled ? '启用' : '禁用'"
+          />
+        </v-list>
+        <v-card-actions
+          ><v-spacer /><v-btn
+            data-detail-drawer-close
+            @click="vm.drawerOpen = false"
+            >关闭</v-btn
+          ></v-card-actions
+        >
+      </div>
     </v-card>
   </v-navigation-drawer>
 </template>

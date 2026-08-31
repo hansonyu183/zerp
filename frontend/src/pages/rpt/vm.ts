@@ -1,8 +1,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '@/api/client'
-import { getErrorMessage } from '@/api/types'
+import { getDiagnosticErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { downloadBlob } from '@/utils/download'
 import {
   executeParameters,
   formatResultValue,
@@ -179,14 +180,12 @@ export function useReportViewModel() {
       definitions.value = directory.items.map(parseReportMetadata)
       if (disposed) return
       const routeCode =
-        typeof route.meta.reportCode === 'string'
-          ? route.meta.reportCode
-          : ''
+        typeof route.meta.reportCode === 'string' ? route.meta.reportCode : ''
       setSelected(
         preferredCode || routeCode || definitions.value[0]?.code || '',
       )
     } catch (error) {
-      if (!disposed) errorMessage.value = getErrorMessage(error)
+      if (!disposed) errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       if (!disposed) loading.value = false
     }
@@ -234,7 +233,7 @@ export function useReportViewModel() {
         queryGeneration === requestGeneration &&
         selectedCode.value === code
       ) {
-        errorMessage.value = getErrorMessage(error)
+        errorMessage.value = getDiagnosticErrorMessage(error)
       }
     } finally {
       if (
@@ -307,7 +306,7 @@ export function useReportViewModel() {
           ? [selectedItem]
           : []
         referenceErrors.value[parameter.key] =
-          `引用数据加载失败：${getErrorMessage(error)}`
+          `引用数据加载失败：${getDiagnosticErrorMessage(error)}`
       }
     } finally {
       if (!disposed && referenceRequestIds.value[parameter.key] === requestId) {
@@ -350,15 +349,10 @@ export function useReportViewModel() {
           pageSize: 50,
         },
       )
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      link.click()
-      URL.revokeObjectURL(url)
+      downloadBlob(blob, filename)
       notice.value = '导出已完成。'
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       exporting.value = false
     }

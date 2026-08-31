@@ -309,6 +309,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     documentStatus.value = 'DRAFT'
     editing.value = true
     workspaceOpen.value = true
+    if (config.entity === 'bill-receipt') {
+      void searchCustomer('')
+      void searchHandler('')
+    }
   }
   async function openDocument(
     row: Pick<BillListItem, 'documentId'>,

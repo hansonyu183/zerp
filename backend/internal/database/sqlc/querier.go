@@ -262,8 +262,10 @@ type Querier interface {
 	DeleteVouSaleSignoffDetails(ctx context.Context, documentID string) error
 	DeleteVouSaleSignoffLines(ctx context.Context, documentID string) error
 	DisposeAccountingAsset(ctx context.Context, arg DisposeAccountingAssetParams) (int64, error)
+	EnsureEnterpriseNameSystemParameter(ctx context.Context) error
 	FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error)
 	FindAccountingBookIDByDescription(ctx context.Context, description string) (string, error)
+	FindActiveDCLRelationshipByEndpoints(ctx context.Context, arg FindActiveDCLRelationshipByEndpointsParams) (FindActiveDCLRelationshipByEndpointsRow, error)
 	FindAppRoleIDByNormalizedNameExcludingID(ctx context.Context, arg FindAppRoleIDByNormalizedNameExcludingIDParams) (string, error)
 	FindAuxObjectByCodeOrName(ctx context.Context, arg FindAuxObjectByCodeOrNameParams) (string, error)
 	FindAuxObjectByName(ctx context.Context, arg FindAuxObjectByNameParams) (string, error)
@@ -828,6 +830,7 @@ type Querier interface {
 	RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error)
 	RptListAssetReferences(ctx context.Context, arg RptListAssetReferencesParams) ([]RptListAssetReferencesRow, error)
 	RptListBOBReferences(ctx context.Context, arg RptListBOBReferencesParams) ([]RptListBOBReferencesRow, error)
+	RptListBillOriginPartyReferences(ctx context.Context, arg RptListBillOriginPartyReferencesParams) ([]RptListBillOriginPartyReferencesRow, error)
 	RptListBillReferences(ctx context.Context, arg RptListBillReferencesParams) ([]RptListBillReferencesRow, error)
 	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)

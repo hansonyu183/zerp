@@ -33,6 +33,7 @@ type applicationService interface {
 	SetRoleStatus(context.Context, string, int64, string, Principal, string) (RoleDetail, error)
 	QueryPermissions(context.Context, PageRequest, Principal) (Page[PermissionView], error)
 	GetPermission(context.Context, string, Principal) (PermissionDetail, error)
+	GetBranding(context.Context) (BrandingView, error)
 	QuerySystemParameters(context.Context, PageRequest) (Page[SystemParameterView], error)
 	GetSystemParameter(context.Context, string) (SystemParameterView, error)
 	SaveSystemParameter(context.Context, SaveSystemParameterInput, string, string) (SystemParameterView, error)
@@ -60,6 +61,7 @@ func NewHandler(service applicationService, authorizer authorization.Authorizer,
 
 func (h *Handler) Register(router *gin.Engine) {
 	appGroup := router.Group("/app")
+	appGroup.POST("/branding/get", h.getBranding)
 	user := appGroup.Group("/user")
 	user.POST("/signin", h.signin)
 	user.POST("/session", h.requireSession("/app/user/session"), h.session)

@@ -140,6 +140,20 @@ export function useVoucherReferences(
     return { entities: [] }
   }
 
+  function createReferenceKeysToPreload(): readonly string[] {
+    switch (config.entity) {
+      case 'sale-order':
+        return ['customer']
+      case 'purchase-order':
+      case 'asset-acquisition':
+        return ['supplier']
+      case 'employee-loan':
+        return ['counterparty']
+      default:
+        return []
+    }
+  }
+
   function selectedReferences(): VoucherReference[] {
     const result: VoucherReference[] = []
     for (const value of Object.values(form.value)) {
@@ -347,6 +361,12 @@ export function useVoucherReferences(
     referenceControllers.clear()
   }
 
+  function preloadCreateReferences(): void {
+    for (const key of createReferenceKeysToPreload()) {
+      void loadReference(key, '')
+    }
+  }
+
   if (getCurrentScope()) onScopeDispose(clearReferenceSearches)
 
   return {
@@ -355,5 +375,6 @@ export function useVoucherReferences(
     referenceError,
     searchReference,
     clearReferenceSearches,
+    preloadCreateReferences,
   }
 }

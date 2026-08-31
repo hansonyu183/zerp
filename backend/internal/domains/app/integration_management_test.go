@@ -219,7 +219,7 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	_, pool, _ := appIntegrationService(t)
 	auxEntities := []string{
-		"product-category", "product-type", "department", "position", "settlement-method",
+		"product-category", "product-type", "employee-category", "department", "position", "settlement-method",
 		"payment-method", "dictionary-type", "dictionary-item", "measurement-unit",
 		"income-expense-type", "asset-category",
 	}
@@ -229,6 +229,9 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	expected := make(map[string]struct{}, len(auxEntities)*len(auxActions))
 	for _, entity := range auxEntities {
 		for _, action := range auxActions {
+			if entity == "settlement-method" && (action == "create" || action == "delete") {
+				continue
+			}
 			expected["/aux/"+entity+"/"+action] = struct{}{}
 		}
 	}

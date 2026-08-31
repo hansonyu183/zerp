@@ -36,6 +36,9 @@ type databasePinger interface {
 
 func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine, error) {
 	appService := appdomain.NewService(db, cfg, logger)
+	if err := appService.SynchronizeSystemParameters(ctx); err != nil {
+		return nil, fmt.Errorf("synchronize system parameters: %w", err)
+	}
 	if err := appService.SynchronizeMenuRoutes(ctx); err != nil {
 		return nil, fmt.Errorf("synchronize menu routes: %w", err)
 	}

@@ -4303,7 +4303,6 @@ INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000911', '/aux/s
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000921', '/aux/payment-method/query', 'aux', 'payment-method', 'query', '查询收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000912', '/aux/settlement-method/get', 'aux', 'settlement-method', 'get', '查看结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000922', '/aux/payment-method/get', 'aux', 'payment-method', 'get', '查看收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000913', '/aux/settlement-method/create', 'aux', 'settlement-method', 'create', '创建结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000923', '/aux/payment-method/create', 'aux', 'payment-method', 'create', '创建收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000914', '/aux/settlement-method/save', 'aux', 'settlement-method', 'save', '保存结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000924', '/aux/payment-method/save', 'aux', 'payment-method', 'save', '保存收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
@@ -4311,7 +4310,13 @@ INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000915', '/aux/s
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000925', '/aux/payment-method/enable', 'aux', 'payment-method', 'enable', '启用收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000916', '/aux/settlement-method/disable', 'aux', 'settlement-method', 'disable', '停用结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000926', '/aux/payment-method/disable', 'aux', 'payment-method', 'disable', '停用收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000917', '/aux/settlement-method/delete', 'aux', 'settlement-method', 'delete', '删除结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000301', '/aux/employee-category/query', 'aux', 'employee-category', 'query', '查询人员类别', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, 25);
+INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000302', '/aux/employee-category/get', 'aux', 'employee-category', 'get', '查看人员类别', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000303', '/aux/employee-category/create', 'aux', 'employee-category', 'create', '创建人员类别', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000304', '/aux/employee-category/save', 'aux', 'employee-category', 'save', '保存人员类别', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000305', '/aux/employee-category/enable', 'aux', 'employee-category', 'enable', '启用人员类别', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000306', '/aux/employee-category/disable', 'aux', 'employee-category', 'disable', '停用人员类别', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000307', '/aux/employee-category/delete', 'aux', 'employee-category', 'delete', '删除人员类别', 'ENABLED', '2026-08-31 00:00:00+00', NULL, '2026-08-31 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000927', '/aux/payment-method/delete', 'aux', 'payment-method', 'delete', '删除收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000001', '/dcl/operating-entity/approve', 'dcl', 'operating-entity', 'approve', '审核经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000002', '/dcl/operating-entity/audit-history', 'dcl', 'operating-entity', 'audit-history', '查看经营主体审计', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
@@ -4423,6 +4428,8 @@ INSERT INTO public.app_roles VALUES ('01JAPPSYST3MR0X30000000000', 'system', '�
 --
 -- Data for Name: app_system_parameters; Type: TABLE DATA; Schema: public; Owner: -
 --
+
+INSERT INTO public.app_system_parameters VALUES ('app.enterprise-name', '企业名称', '登录页和登录后顶栏显示的当前使用单位名称', 'STRING', 'ZERP 演示企业', 'ZERP 演示企业', true, 1, '{"required": true, "minLength": 1, "maxLength": 128, "minimum": null, "maximum": null, "allowedValues": []}'::jsonb);
 
 
 

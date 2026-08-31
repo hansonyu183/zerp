@@ -1,5 +1,5 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
-import { getErrorMessage } from '@/api/types'
+import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { queryAccountingBooks, type AccountingBook } from '../book/api'
 import {
@@ -169,11 +169,11 @@ export function createAccountingSubjectViewModel() {
     }
   }
 
-  async function query(existingSequence?: number): Promise<void> {
+  async function query(existingSequence?: number): Promise<boolean> {
     if (!canQuery.value || !selectedBookId.value) {
       rows.value = []
       total.value = 0
-      return
+      return false
     }
     const current = existingSequence ?? ++sequence
     loading.value = true
@@ -186,12 +186,14 @@ export function createAccountingSubjectViewModel() {
         pageSize: pageSize.value,
         ...(search ? { keyword: search } : {}),
       })
-      if (!active || current !== sequence) return
+      if (!active || current !== sequence) return false
       rows.value = result.data.items
       total.value = result.data.total
+      return true
     } catch (error) {
       if (active && current === sequence)
         errorMessage.value = getErrorMessage(error)
+      return false
     } finally {
       if (active && current === sequence) loading.value = false
     }
@@ -284,21 +286,25 @@ export function createAccountingSubjectViewModel() {
       settlementPurpose: form.settlementPurpose,
     }
     try {
-      if (editing.value) {
-        await saveAccountingSubject({
+      const wasEditing = Boolean(editing.value)
+      const result = editing.value
+        ? await saveAccountingSubject({
           ...common,
           subjectId: editing.value.subjectId,
           revision: editing.value.revision,
         })
-      } else {
-        await createAccountingSubject(common)
-      }
+        : await createAccountingSubject(common)
       if (!active) return
-      successMessage.value = editing.value ? '科目已保存。' : '科目已创建。'
+      await getAccountingSubject(
+        selectedBookId.value,
+        result.data.subjectId,
+      )
+      if (!active) return
+      if (!(await query())) return
+      successMessage.value = wasEditing ? '科目已保存。' : '科目已创建。'
       closeEditor()
-      await query()
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      if (active) errorMessage.value = getDiagnosticErrorMessage(error)
     } finally {
       if (active) saving.value = false
     }

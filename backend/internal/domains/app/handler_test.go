@@ -35,7 +35,12 @@ type handlerServiceStub struct {
 	resetPassword         ResetPasswordInput
 	resetPasswordResult   ResetPasswordResult
 	queryUsersResult      Page[UserListItem]
+	brandingResult        BrandingView
 	workbenchInput        WorkbenchQueryInput
+}
+
+func (stub *handlerServiceStub) GetBranding(context.Context) (BrandingView, error) {
+	return stub.brandingResult, nil
 }
 
 func (stub *handlerServiceStub) Signin(context.Context, string, string, string) (SessionResult, error) {
@@ -138,6 +143,7 @@ func testRouter(stub *handlerServiceStub) *gin.Engine {
 func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 	router := testRouter(&handlerServiceStub{})
 	expected := []string{
+		"/app/branding/get",
 		"/app/user/signin", "/app/user/session", "/app/user/signout",
 		"/app/user/profile", "/app/user/change-password", "/app/user/query",
 		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable", "/app/user/reset-password",
@@ -167,6 +173,31 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 	}
 	if len(router.Routes()) != len(expected) {
 		t.Fatalf("route count = %d, want %d", len(router.Routes()), len(expected))
+	}
+}
+
+func TestBrandingIsPublicAndReturnsOnlyDisplayName(t *testing.T) {
+	stub := &handlerServiceStub{brandingResult: BrandingView{EnterpriseName: "测试企业"}}
+	request := httptest.NewRequest(http.MethodPost, "/app/branding/get", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	testRouter(stub).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if stub.sessionAuthorizedPath != "" || stub.authorizedPath != "" {
+		t.Fatalf("branding unexpectedly used authorization: session=%q permission=%q", stub.sessionAuthorizedPath, stub.authorizedPath)
+	}
+	var payload struct {
+		Data BrandingView `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode branding response: %v", err)
+	}
+	if payload.Data.EnterpriseName != "测试企业" {
+		t.Fatalf("branding = %+v", payload.Data)
 	}
 }
 

@@ -8773,6 +8773,45 @@
                 },
             },
         },
+      '/app/branding/get':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '读取公开品牌展示信息',
+              'operationId': 'appBrandingGet',
+              'security': [],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/EmptyObject' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '只包含企业名称的公开展示信息。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/BrandingResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/app/system-parameter/query':
         {
           'post':
@@ -9187,7 +9226,8 @@
               'summary': '创建辅助对象并立即生效',
               'operationId': 'auxcreate',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/AuxCreatableEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -9351,7 +9391,8 @@
               'summary': '删除未引用辅助对象',
               'operationId': 'auxdelete',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/AuxCreatableEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -12201,6 +12242,13 @@
               'in': 'path',
               'required': true,
               'schema': { '$ref': './schemas/aux.yaml#/AuxEntity' },
+            },
+          'AuxCreatableEntity':
+            {
+              'name': 'entity',
+              'in': 'path',
+              'required': true,
+              'schema': { '$ref': './schemas/aux.yaml#/AuxCreatableEntity' },
             },
           'VouEntity':
             {

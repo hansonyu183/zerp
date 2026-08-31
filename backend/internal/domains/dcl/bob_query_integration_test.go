@@ -235,6 +235,59 @@ func assertBOBQueryResult(t *testing.T, entity string, item bobdomain.QueryItem)
 	}
 }
 
+func TestBOBReferenceCandidatesReturnLatestApprovedEnabledOnly(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	fixtures := seedBOBQueryFixtures(t, pool)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+
+	candidates, err := business.QueryReferenceCandidates(t.Context(), bobdomain.ReferenceQueryInput{
+		Entity: bobdomain.EntitySalesPartner,
+	})
+	if err != nil {
+		t.Fatalf("query sales partner reference candidates first: %v", err)
+	}
+	if len(candidates) != 1 || candidates[0].ObjectID != fixtures[bobdomain.EntitySalesPartner].objectID {
+		t.Fatalf("sales partner candidates initial result = %+v", candidates)
+	}
+
+	disabledEntryID := ulid.Make().String()
+	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl',$2,$3,2,'APPROVED',$4,$5,now(),$5,now(),$5,now(),$6,now())`, disabledEntryID, bobdomain.EntitySalesPartner, fixtures[bobdomain.EntitySalesPartner].objectID, 4, ulid.Make().String(), ulid.Make().String()); err != nil {
+		t.Fatalf("insert disabled approved entry: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,capabilities,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,ARRAY['CHANNEL_PARTNER']::varchar[],'候选联系人','13900139000','sales2@example.test','地址', '说明',false)`, disabledEntryID); err != nil {
+		t.Fatalf("insert disabled sales partner snapshot: %v", err)
+	}
+
+	candidates, err = business.QueryReferenceCandidates(t.Context(), bobdomain.ReferenceQueryInput{
+		Entity: bobdomain.EntitySalesPartner,
+	})
+	if err != nil {
+		t.Fatalf("query sales partner reference candidates disabled latest: %v", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("sales partner candidates after disabled latest should be empty, got=%+v", candidates)
+	}
+
+	enabledEntryID := ulid.Make().String()
+	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl',$2,$3,3,'APPROVED',$4,$5,now(),$5,now(),$5,now(),$6,now())`, enabledEntryID, bobdomain.EntitySalesPartner, fixtures[bobdomain.EntitySalesPartner].objectID, 4, ulid.Make().String(), ulid.Make().String()); err != nil {
+		t.Fatalf("insert enabled approved entry: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,capabilities,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,ARRAY['EXTERNAL_PART_TIME']::varchar[],'最新版联系人','13900139001','sales3@example.test','地址','说明',true)`, enabledEntryID); err != nil {
+		t.Fatalf("insert enabled sales partner snapshot: %v", err)
+	}
+
+	candidates, err = business.QueryReferenceCandidates(t.Context(), bobdomain.ReferenceQueryInput{
+		Entity: bobdomain.EntitySalesPartner,
+	})
+	if err != nil {
+		t.Fatalf("query sales partner reference candidates re-enabled latest: %v", err)
+	}
+	if len(candidates) != 1 || candidates[0].ObjectID != fixtures[bobdomain.EntitySalesPartner].objectID || candidates[0].ApprovalEntryID != enabledEntryID {
+		t.Fatalf("sales partner candidates after re-enabled latest = %+v", candidates)
+	}
+}
+
 func TestBOBQueryListAndCountShareRepeatableReadSnapshotIntegration(t *testing.T) {
 	basePool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, basePool)

@@ -3,11 +3,13 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from 'vuetify'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
+import { useBrandingStore } from '@/stores/branding'
 import { useSessionStore } from '@/stores/session'
 
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
+const branding = useBrandingStore()
 const theme = useTheme()
 
 const drawer = ref(!window.matchMedia('(max-width: 959px)').matches)
@@ -224,7 +226,10 @@ async function handlePageShow(event: PageTransitionEvent): Promise<void> {
   }
 }
 
-onMounted(() => window.addEventListener('pageshow', handlePageShow))
+onMounted(() => {
+  window.addEventListener('pageshow', handlePageShow)
+  void branding.load()
+})
 onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
 </script>
 
@@ -235,7 +240,7 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
       <div class="company__mark">Z</div>
       <div class="company__copy">
         <strong>ZERP</strong>
-        <span>企业资源管理系统</span>
+        <span v-if="branding.enterpriseName">{{ branding.enterpriseName }}</span>
       </div>
     </div>
     <v-spacer />
@@ -349,6 +354,12 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
     :message="session.menuErrorMessage"
     :timeout="-1"
     @action="retryMenu"
+  />
+  <AppSnackbar
+    action-label="重新加载"
+    :message="branding.errorMessage"
+    :timeout="-1"
+    @action="branding.load(true)"
   />
 
   <v-dialog v-model="profileDialog" max-width="520">

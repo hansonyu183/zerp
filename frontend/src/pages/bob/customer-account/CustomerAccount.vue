@@ -8,8 +8,13 @@ import {
   type BobCustomerAccountListItem,
   useBobCustomerAccountViewModel,
 } from './vm'
+import { useDetailDrawerFocus } from '../shared/detail-focus'
 
-const vm = reactive(useBobCustomerAccountViewModel())
+const model = useBobCustomerAccountViewModel()
+const vm = reactive(model)
+const { rememberTrigger, setDrawerContent } = useDetailDrawerFocus(
+  model.drawerOpen,
+)
 const columns: readonly BusinessObjectColumn<BobCustomerAccountListItem>[] = [
   { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
   { key: 'name', label: '账户名称', value: (row) => row.name },
@@ -27,6 +32,11 @@ const columns: readonly BusinessObjectColumn<BobCustomerAccountListItem>[] = [
   },
 ]
 void vm.query()
+
+function openDetail(objectId: string): void {
+  rememberTrigger()
+  void vm.openById(objectId)
+}
 </script>
 
 <template>
@@ -62,12 +72,18 @@ void vm.query()
         <ListRowActions
           :actions="
             vm.canView
-              ? [{ key: 'view', label: '查看', icon: 'mdi-eye-outline' }]
+              ? [
+                  {
+                    key: 'view',
+                    label: `查看客户结算子账户 ${row.code}`,
+                    icon: 'mdi-eye-outline',
+                  },
+                ]
               : []
           "
           :label="`操作 ${row.code}`"
           :more-label="`更多操作 ${row.code}`"
-          @select="vm.openById(row.objectId)"
+          @select="openDetail(row.objectId)"
         />
       </template>
     </BusinessObjectList>
@@ -79,40 +95,44 @@ void vm.query()
     width="720"
   >
     <v-card v-if="vm.currentView" flat>
-      <v-card-title>客户结算子账户（当前有效资料）</v-card-title>
-      <v-list density="compact">
-        <v-list-item title="编码" :subtitle="vm.currentView.code" />
-        <v-list-item title="账户名称" :subtitle="vm.currentView.data.name" />
-        <v-list-item
-          title="客户类型"
-          :subtitle="vm.currentView.data.customerTypeId"
-        />
-        <v-list-item
-          title="联系人"
-          :subtitle="vm.currentView.data.contactName ?? '—'"
-        />
-        <v-list-item
-          title="联系电话"
-          :subtitle="vm.currentView.data.contactPhone ?? '—'"
-        />
-        <v-list-item
-          title="业务归属"
-          :subtitle="vm.currentView.data.primarySalesAttribution.subjectName"
-        />
-        <v-list-item
-          title="信用额度"
-          :subtitle="vm.currentView.data.creditLimits[0]?.amount ?? '—'"
-        />
-        <v-list-item
-          title="附件数"
-          :subtitle="String(vm.currentView.attachments.length)"
-        />
-      </v-list>
-      <v-card-actions
-        ><v-spacer /><v-btn @click="vm.drawerOpen = false"
-          >关闭</v-btn
-        ></v-card-actions
-      >
+      <div :ref="setDrawerContent">
+        <v-card-title>客户结算子账户（当前有效资料）</v-card-title>
+        <v-list density="compact">
+          <v-list-item title="编码" :subtitle="vm.currentView.code" />
+          <v-list-item title="账户名称" :subtitle="vm.currentView.data.name" />
+          <v-list-item
+            title="客户类型"
+            :subtitle="vm.currentView.data.customerTypeId"
+          />
+          <v-list-item
+            title="联系人"
+            :subtitle="vm.currentView.data.contactName ?? '—'"
+          />
+          <v-list-item
+            title="联系电话"
+            :subtitle="vm.currentView.data.contactPhone ?? '—'"
+          />
+          <v-list-item
+            title="业务归属"
+            :subtitle="vm.currentView.data.primarySalesAttribution.subjectName"
+          />
+          <v-list-item
+            title="信用额度"
+            :subtitle="vm.currentView.data.creditLimits[0]?.amount ?? '—'"
+          />
+          <v-list-item
+            title="附件数"
+            :subtitle="String(vm.currentView.attachments.length)"
+          />
+        </v-list>
+        <v-card-actions
+          ><v-spacer /><v-btn
+            data-detail-drawer-close
+            @click="vm.drawerOpen = false"
+            >关闭</v-btn
+          ></v-card-actions
+        >
+      </div>
     </v-card>
   </v-navigation-drawer>
 </template>

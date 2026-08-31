@@ -2,6 +2,10 @@ import { computed, ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import {
+  ENTERPRISE_NAME_PARAMETER_KEY,
+  useBrandingStore,
+} from '@/stores/branding'
+import {
   getSystemParameter,
   querySystemParameters,
   resetSystemParameter,
@@ -36,6 +40,7 @@ function isGenericEditable(parameter: SystemParameter): boolean {
 
 export function createSystemParameterViewModel() {
   const session = useSessionStore()
+  const branding = useBrandingStore()
   const rows = ref<SystemParameter[]>([])
   const total = ref(0)
   const page = ref(1)
@@ -295,6 +300,9 @@ export function createSystemParameterViewModel() {
       successMessage.value = '系统参数已保存。'
       closeEditor(true)
       await query()
+      if (parameter.key === ENTERPRISE_NAME_PARAMETER_KEY) {
+        await branding.load(true)
+      }
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     } finally {
@@ -330,6 +338,9 @@ export function createSystemParameterViewModel() {
       successMessage.value = '系统参数已恢复默认值。'
       resetTarget.value = null
       await query()
+      if (target.key === ENTERPRISE_NAME_PARAMETER_KEY) {
+        await branding.load(true)
+      }
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     } finally {

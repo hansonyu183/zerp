@@ -196,6 +196,27 @@ test('票据收入批准后进入真实票据台账', async ({ page, workerState
   await approveCurrentDraft(page, workspace, workerState, 'bill-receipt')
 })
 
+test('资产购置打开新增即加载已批准供应商候选', async ({
+  page,
+  workerState,
+}) => {
+  test.skip(
+    test.info().project.name === 'mobile-chromium',
+    '引用主动加载由桌面真实数据链路覆盖。',
+  )
+  const fixture = vouFixture(workerState)
+  await signIn(page)
+  await page.goto('/vou/asset-acquisition')
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const supplier = page
+    .locator('.voucher-workspace')
+    .getByRole('combobox', { name: '普通供应商' })
+  await supplier.click()
+  await expect(
+    page.getByRole('option').filter({ hasText: fixture.supplier }).first(),
+  ).toBeVisible({ timeout: 15_000 })
+})
+
 async function verifyEmployeeLoanLifecycle(
   page: Page,
   workerState: WflWorkerState,

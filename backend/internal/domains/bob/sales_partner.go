@@ -39,6 +39,12 @@ func ValidateSalesPartnerDeclaration(capabilities []string, contactName, contact
 	if err := validateEffectiveSalesPartnerCapabilities(capabilities); err != nil {
 		return err
 	}
+	return ValidateSalesPartnerDraft(contactName, contactPhone, email, address, remark)
+}
+
+// ValidateSalesPartnerDraft validates the fields that are required even while
+// a DCL draft intentionally has no selected capability.
+func ValidateSalesPartnerDraft(contactName, contactPhone, email, address, remark string) error {
 	return validateLengthsAndFormats(DetailView{
 		ContactName: strings.TrimSpace(contactName), ContactPhone: strings.TrimSpace(contactPhone),
 		Email: strings.TrimSpace(email), Address: strings.TrimSpace(address), Remark: strings.TrimSpace(remark),

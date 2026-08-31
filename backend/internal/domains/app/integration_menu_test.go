@@ -18,6 +18,12 @@ func TestSynchronizeMenuRoutesInitializesCatalogAndIsIdempotent(t *testing.T) {
 	if err != nil || !menuContainsRoute(initialized.BusinessMenu, "app/menu") {
 		t.Fatalf("initialized menu = %+v, %v", initialized, err)
 	}
+	// The original functional-test baseline had 95 runtime routes because
+	// employee-category was missing. Restoring that AUX route makes the
+	// authoritative runtime surface 96 routes, including eight RPT instances.
+	if got := menuRouteTotal(initialized.BusinessMenu); got != 96 {
+		t.Fatalf("runtime menu route count = %d, want 96", got)
+	}
 	if err = service.SynchronizeMenuRoutes(t.Context()); err != nil {
 		t.Fatalf("idempotent menu route synchronization: %v", err)
 	}
@@ -235,6 +241,16 @@ func TestMenuManagementIntegration(t *testing.T) {
 
 func menuContainsRoute(tree MenuTree, key string) bool {
 	return menuRouteCount(tree, key) > 0
+}
+
+func menuRouteTotal(tree MenuTree) int {
+	count := 0
+	for _, item := range tree.Items {
+		if item.Type == MenuItemRoute {
+			count++
+		}
+	}
+	return count
 }
 
 func menuRouteCount(tree MenuTree, key string) int {

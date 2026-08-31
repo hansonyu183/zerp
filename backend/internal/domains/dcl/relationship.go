@@ -80,6 +80,9 @@ func (s *RelationshipService) CreateOtherUnit(ctx context.Context, in OtherUnitC
 	if in.NewParty != nil {
 		party, err = s.parties.CreateForRelationship(ctx, tx, *in.NewParty, actor, false)
 	} else {
+		if err = rejectActiveRelationshipDuplicate(ctx, tx, EntityOtherUnit, in.PartyID, in.OperatingEntityID); err != nil {
+			return RelationshipMutation{}, translateError(err)
+		}
 		party, err = resolveExistingPartyForRelationship(ctx, tx, s.partyReader, in.PartyID)
 	}
 	if err != nil {
@@ -315,16 +318,16 @@ func otherDataFromStored(r dbsqlc.DclOtherUnitVersion) OtherUnitData {
 	return OtherUnitData{ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), SettlementTermCode: stringValue(r.SettlementTermCode), SettlementRuleType: stringValue(r.SettlementRuleType), SettlementMonthOffset: r.SettlementMonthOffset, SettlementDayOfMonth: r.SettlementDayOfMonth, SettlementDayOffset: r.SettlementDayOffset, Remark: stringValue(r.Remark)}
 }
 
-func normalizedSales(data SalesPartnerData) (SalesPartnerData, error) {
+func normalizedSales(data SalesPartnerData, requireCapability bool) (SalesPartnerData, error) {
 	seen := map[string]struct{}{}
 	for _, raw := range data.Capabilities {
 		v := strings.TrimSpace(raw)
 		if v != "EXTERNAL_PART_TIME" && v != "CHANNEL_PARTNER" {
-			return SalesPartnerData{}, newError(ErrorValidation, "validation_failed", "invalid Sales Partner capability", nil, nil)
+			return SalesPartnerData{}, newError(ErrorValidation, "validation_failed", "invalid sales relationship capability", nil, nil)
 		}
 		seen[v] = struct{}{}
 	}
-	data.Capabilities = data.Capabilities[:0]
+	data.Capabilities = make([]string, 0, len(seen))
 	for v := range seen {
 		data.Capabilities = append(data.Capabilities, v)
 	}
@@ -335,12 +338,23 @@ func normalizedSales(data SalesPartnerData) (SalesPartnerData, error) {
 	data.Address = strings.TrimSpace(data.Address)
 	data.Remark = strings.TrimSpace(data.Remark)
 	if len(data.Capabilities) == 0 {
-		return SalesPartnerData{}, newError(ErrorValidation, "validation_failed", "Sales Partner requires at least one capability", nil, nil)
+		if requireCapability {
+			return SalesPartnerData{}, newError(ErrorValidation, "validation_failed", "sales relationship requires at least one capability", nil, nil)
+		}
+		if err := bobdomain.ValidateSalesPartnerDraft(data.ContactName, data.ContactPhone, data.Email, data.Address, data.Remark); err != nil {
+			return SalesPartnerData{}, translateError(err)
+		}
+		return data, nil
 	}
 	if err := bobdomain.ValidateSalesPartnerDeclaration(data.Capabilities, data.ContactName, data.ContactPhone, data.Email, data.Address, data.Remark); err != nil {
 		return SalesPartnerData{}, translateError(err)
 	}
 	return data, nil
+}
+
+func validateSalesPartnerCapabilitiesForLifecycle(data SalesPartnerData) error {
+	_, err := normalizedSales(SalesPartnerData{Capabilities: data.Capabilities, ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark}, true)
+	return err
 }
 func salesPayload(id bobdomain.RelationshipIdentity, enabled bool) dclapproval.SalesPartnerPayload {
 	return dclapproval.SalesPartnerPayload{SubjectID: id.ObjectID, Code: id.Code, PartyID: id.PartyID, Enabled: enabled}
@@ -350,7 +364,7 @@ func salesStored(r dbsqlc.DclSalesPartnerVersion) SalesPartnerData {
 }
 
 func (s *RelationshipService) CreateSalesPartner(ctx context.Context, in SalesPartnerCreateInput, actor approval.Actor) (RelationshipMutation, error) {
-	data, err := normalizedSales(in.Data)
+	data, err := normalizedSales(in.Data, false)
 	if err != nil || !validActor(actor) || !validID(in.OperatingEntityID) || (in.PartyID == "") == (in.NewParty == nil) {
 		if err == nil {
 			err = newError(ErrorValidation, "validation_failed", "invalid Sales Partner create", nil, nil)
@@ -369,6 +383,9 @@ func (s *RelationshipService) CreateSalesPartner(ctx context.Context, in SalesPa
 	if in.NewParty != nil {
 		party, err = s.parties.CreateForRelationship(ctx, tx, *in.NewParty, actor, false)
 	} else {
+		if err = rejectActiveRelationshipDuplicate(ctx, tx, EntitySalesPartner, in.PartyID, in.OperatingEntityID); err != nil {
+			return RelationshipMutation{}, translateError(err)
+		}
 		party, err = resolveExistingPartyForRelationship(ctx, tx, s.partyReader, in.PartyID)
 	}
 	if err != nil {
@@ -392,7 +409,7 @@ func (s *RelationshipService) CreateSalesPartner(ctx context.Context, in SalesPa
 	return otherMutation(id, true, e), nil
 }
 func (s *RelationshipService) SaveSalesPartner(ctx context.Context, in SalesPartnerSaveInput, actor approval.Actor) (RelationshipMutation, error) {
-	data, err := normalizedSales(in.Data)
+	data, err := normalizedSales(in.Data, false)
 	if err != nil || !validVersionInput(in.ObjectID, in.ApprovalEntryID, in.ApprovalRevision, actor) {
 		if err == nil {
 			err = newError(ErrorValidation, "validation_failed", "invalid Sales Partner save", nil, nil)
@@ -529,6 +546,9 @@ func (s *RelationshipService) transitionSales(ctx context.Context, in Relationsh
 		return RelationshipMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
+		if err = validateSalesPartnerCapabilitiesForLifecycle(salesStored(stored)); err != nil {
+			return RelationshipMutation{}, translateError(err)
+		}
 		if _, err = s.partyReader.ResolveForRelationship(ctx, tx, id.PartyID); err == nil {
 			_, err = s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, id.OperatingEntityID)
 		}

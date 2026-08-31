@@ -1,4 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
 import { useDclProductViewModel } from '@/pages/dcl/product/vm'
@@ -394,5 +395,60 @@ describe('DCL product view model', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('preloads enabled product type, unit, and category candidates on create', async () => {
+    grantEditorPermissions()
+    mockedPost.mockImplementation(async (path) => {
+      const entity = String(path).split('/')[1]
+      return {
+        data: {
+          items: [
+            {
+              objectId: `${entity}-1`,
+              entity,
+              code: entity === 'measurement-unit' ? 'UNT-0009' : 'PCT-0003',
+              enabled: true,
+              objectRevision: 1,
+              data: { name: `${entity} 候选` },
+              updatedAt: '2026-08-31T00:00:00Z',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      } as never
+    })
+
+    const vm = useDclProductViewModel()
+    vm.openCreate()
+    await flushPromises()
+
+    expect(mockedPost.mock.calls.map(([path]) => String(path))).toEqual(
+      expect.arrayContaining([
+        'aux/product-type/query',
+        'aux/measurement-unit/query',
+        'aux/product-category/query',
+      ]),
+    )
+    expect(
+      vm.editorFields.value.find((field) => field.key === 'unitConversions')
+        ?.options,
+    ).toEqual([
+      expect.objectContaining({
+        value: 'measurement-unit-1',
+        title: 'UNT-0009 · measurement-unit 候选',
+      }),
+    ])
+    expect(
+      vm.editorFields.value.find((field) => field.key === 'categoryId')
+        ?.options,
+    ).toEqual([
+      expect.objectContaining({
+        value: 'product-category-1',
+        title: 'PCT-0003 · product-category 候选',
+      }),
+    ])
   })
 })

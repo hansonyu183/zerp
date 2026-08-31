@@ -16,6 +16,24 @@ func resolveExistingPartyForRelationship(ctx context.Context, tx pgx.Tx, reader 
 	return reader.ResolveForRelationship(ctx, tx, partyID)
 }
 
+func rejectActiveRelationshipDuplicate(ctx context.Context, tx pgx.Tx, entity, partyID, operatingEntityID string) error {
+	if err := lockPartyRoot(ctx, tx, partyID); err != nil {
+		return err
+	}
+	existing, err := dbsqlc.New(tx).FindActiveDCLRelationshipByEndpoints(ctx, dbsqlc.FindActiveDCLRelationshipByEndpointsParams{
+		Entity: entity, PartyID: partyID, OperatingEntityID: operatingEntityID,
+	})
+	if err == pgx.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return newError(ErrorConflict, "relationship_exists", "DCL relationship already exists", map[string]any{
+		"entity": entity, "objectId": existing.ObjectID, "code": existing.Code,
+	}, nil)
+}
+
 func reserveRelationshipIdentity(ctx context.Context, tx pgx.Tx, entity, prefix, partyID, operatingEntityID, actorID string) (bobdomain.RelationshipIdentity, error) {
 	if tx == nil || !validID(partyID) || !validID(operatingEntityID) || !validID(actorID) {
 		return bobdomain.RelationshipIdentity{}, newError(ErrorValidation, "validation_failed", "invalid relationship identity request", nil, nil)
@@ -23,11 +41,14 @@ func reserveRelationshipIdentity(ctx context.Context, tx pgx.Tx, entity, prefix,
 	if err := lockPartyRoot(ctx, tx, partyID); err != nil {
 		return bobdomain.RelationshipIdentity{}, err
 	}
+	q := dbsqlc.New(tx)
+	if err := rejectActiveRelationshipDuplicate(ctx, tx, entity, partyID, operatingEntityID); err != nil {
+		return bobdomain.RelationshipIdentity{}, err
+	}
 	subject, err := reserveSubject(ctx, tx, entity, prefix, actorID)
 	if err != nil {
 		return bobdomain.RelationshipIdentity{}, err
 	}
-	q := dbsqlc.New(tx)
 	switch entity {
 	case EntityCustomer:
 		err = q.InsertDCLCustomerRelationship(ctx, dbsqlc.InsertDCLCustomerRelationshipParams{ObjectID: subject.ObjectID, PartyID: partyID, OperatingEntityID: operatingEntityID})

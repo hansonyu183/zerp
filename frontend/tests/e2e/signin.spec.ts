@@ -258,7 +258,9 @@ test('DCL 经营主体申报与 BOB 当前有效资料使用独立入口和请�
     exact: true,
   })
   await expect(declarationLink).toBeVisible()
-  await declarationLink.click()
+  await declarationLink.focus()
+  await expect(declarationLink).toBeFocused()
+  await declarationLink.press('Enter')
   await expect(page).toHaveURL(/\/dcl\/operating-entity$/)
   await expect(
     page.getByRole('button', { name: '新增', exact: true }),
@@ -305,7 +307,9 @@ test('DCL 经营主体申报与 BOB 当前有效资料使用独立入口和请�
     exact: true,
   })
   await expect(currentProfileLink).toBeVisible()
-  await currentProfileLink.click()
+  await currentProfileLink.focus()
+  await expect(currentProfileLink).toBeFocused()
+  await currentProfileLink.press('Enter')
   await expect(page).toHaveURL(/\/bob\/operating-entity$/)
   await expect(
     page.getByRole('textbox', {

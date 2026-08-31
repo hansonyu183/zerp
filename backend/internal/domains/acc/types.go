@@ -208,13 +208,14 @@ type OpeningLineView struct {
 }
 
 type OpeningView struct {
-	BookID     string                 `json:"bookId"`
-	Approval   approval.Meta          `json:"approval"`
-	VoucherID  *string                `json:"voucherId"`
-	Lines      []OpeningLineView      `json:"lines"`
-	Assets     []OpeningAssetView     `json:"assets"`
-	Bills      []OpeningBillView      `json:"bills"`
-	Containers []OpeningContainerView `json:"containers"`
+	BookID                   string                     `json:"bookId"`
+	Approval                 approval.Meta              `json:"approval"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
+	VoucherID                *string                    `json:"voucherId"`
+	Lines                    []OpeningLineView          `json:"lines"`
+	Assets                   []OpeningAssetView         `json:"assets"`
+	Bills                    []OpeningBillView          `json:"bills"`
+	Containers               []OpeningContainerView     `json:"containers"`
 }
 
 const (

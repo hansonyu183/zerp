@@ -2,6 +2,7 @@ import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { approvalActionPresentation } from '@/shared/approval'
 import {
   createCustomerAccountForm,
   customerAccountFormErrors,
@@ -120,13 +121,12 @@ export function useDclCustomerViewModel() {
       return {
         status: active.approval.status,
         versionNo: active.approval.versionNo,
-        submittedBy: active.approval.submittedBy,
+        availableApprovalActions: row.availableApprovalActions,
         enabled: row.enabled,
         hasOpenVersion: Boolean(row.openVersion),
         hasLatestApproved: Boolean(row.latestApproved),
       }
     },
-    () => session.user?.id,
     (path) => session.can(path),
   )
 
@@ -245,6 +245,18 @@ export function useDclCustomerViewModel() {
       errorMessage.value = getErrorMessage(error)
     }
   }
+  async function refreshAuthoritativeCustomer(row: DclCustomerListItem) {
+    await query()
+    if (currentView.value?.objectId !== row.objectId) return
+    try {
+      currentView.value = await getDclCustomer(
+        row.objectId,
+        currentView.value.approval.approvalEntryId,
+      )
+    } catch {
+      // Keep the lifecycle error as the user-facing failure.
+    }
+  }
   function openCreate() {
     if (!canCreate.value) return
     createForm.value = createCustomerForm()
@@ -278,7 +290,9 @@ export function useDclCustomerViewModel() {
       await query()
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       saving.value = false
@@ -289,6 +303,7 @@ export function useDclCustomerViewModel() {
     action: 'submit' | 'unsubmit' | 'approve' | 'reject' | 'unapprove',
     reason = '',
   ) {
+    if (!actionAvailability(row)[action] || actionLoading.value) return false
     const approval = customerActiveVersion(row).approval
     actionLoading.value = row.objectId
     try {
@@ -299,12 +314,15 @@ export function useDclCustomerViewModel() {
           approvalEntryId: approval.approvalEntryId,
           approvalRevision: approval.revision,
         },
-        reason.trim(),
+        approvalActionPresentation[action].reasonRequired ? reason.trim() : '',
       )
       await query()
+      successMessage.value = `客户关系${approvalActionPresentation[action].successLabel}。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAuthoritativeCustomer(row)
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null
@@ -321,7 +339,9 @@ export function useDclCustomerViewModel() {
       })
       await query()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAuthoritativeCustomer(row)
+      errorMessage.value = message
     }
   }
   async function remove(row: DclCustomerListItem) {
@@ -329,7 +349,9 @@ export function useDclCustomerViewModel() {
       await deleteDclCustomer(row)
       await query()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAuthoritativeCustomer(row)
+      errorMessage.value = message
     }
   }
   async function openVersions(row: DclCustomerListItem) {

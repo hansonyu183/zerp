@@ -33,6 +33,7 @@ const data = {
 const row = {
   partyId: 'party-1',
   entity: 'party' as const,
+  availableApprovalActions: ['submit'],
   latestApproved: null,
   openVersion: { approval, data },
   updatedAt: '2026-08-28T00:00:00Z',
@@ -116,6 +117,7 @@ describe('DCL Party view model', () => {
     const target = {
       partyId: 'party-2',
       entity: 'party' as const,
+      availableApprovalActions: [],
       latestApproved: {
         approval: approved,
         data: { ...data, legalName: '保留主体' },
@@ -152,7 +154,7 @@ describe('DCL Party view model', () => {
     })
   })
 
-  it('awaits list refresh after lifecycle actions and requires the exact DCL permission', async () => {
+  it('awaits list refresh after server-authorized lifecycle actions', async () => {
     const session = useSessionStore()
     session.permissions = ['/dcl/party/query', '/dcl/party/submit']
     const vm = useDclPartyViewModel()
@@ -166,7 +168,9 @@ describe('DCL Party view model', () => {
       'dcl/party/query',
     ])
     session.permissions = ['/bob/party/submit']
-    expect(vm.permissions(row).submit).toBe(false)
+    expect(
+      vm.permissions({ ...row, availableApprovalActions: [] }).submit,
+    ).toBe(false)
   })
 
   it('only offers deletion for a later draft candidate with an approved fallback', () => {
@@ -191,6 +195,7 @@ describe('DCL Party view model', () => {
     useSessionStore().permissions = ['/dcl/party/unapprove']
     const approvedRow = {
       ...row,
+      availableApprovalActions: ['unapprove'],
       openVersion: null,
       latestApproved: {
         approval: { ...approval, status: 'APPROVED' as const },
@@ -210,7 +215,9 @@ describe('DCL Party view model', () => {
       }),
     )
     const vm = useDclPartyViewModel()
-    await expect(vm.runAction(approvedRow, 'unapprove', '业务调整')).resolves.toBe(false)
+    await expect(
+      vm.runAction(approvedRow, 'unapprove', '业务调整'),
+    ).resolves.toBe(false)
     expect(vm.errorMessage.value).toBe(
       '该主体仍被已批准的业务关系引用，不能撤销最后一个批准版本。引用：客户 2 条、供应商 1 条。',
     )

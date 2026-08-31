@@ -242,7 +242,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
     };
   };
@@ -338,7 +338,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclFundAccountMutationResponse } } };
     };
   };
@@ -434,7 +434,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
     };
   };
@@ -530,7 +530,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
     };
   };
@@ -1330,7 +1330,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
     };
   };
@@ -1434,7 +1434,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclAccMappingReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclAccMappingVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
     };
   };
@@ -1538,7 +1538,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclRptDefinitionReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
     };
   };
@@ -2142,6 +2142,14 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.VouMutationResponse } } };
     };
   };
+  "/vou/{entity}/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path: { "entity": Models.VouEntity; }; cookie?: never };
+      requestBody: { content: { 'application/json': Models.VouReverseRequest } };
+      responses: { 200: { content: { 'application/json': Models.VouMutationResponse } } };
+    };
+  };
   "/vou/{entity}/approve": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -2451,6 +2459,7 @@ export interface paths {
 export interface components {
   schemas: {
       "ApprovalStatus": Models.ApprovalStatus;
+      "ApprovalLifecycleAction": Models.ApprovalLifecycleAction;
       "ApprovalMeta": Models.ApprovalMeta;
       "ApprovalVersionMeta": Models.ApprovalVersionMeta;
       "BookQueryRequest": Models.BookQueryRequest;

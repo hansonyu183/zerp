@@ -1,6 +1,6 @@
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import type { ApprovalStatus } from '@/api/generated'
+import type { ApprovalLifecycleAction, ApprovalStatus } from '@/api/generated'
 
 type DclMappingView = components['schemas']['DclAccMappingView']
 type DclMappingListItem = components['schemas']['DclAccMappingListItem']
@@ -8,7 +8,8 @@ type DclMappingListItem = components['schemas']['DclAccMappingListItem']
 export type AccountingMappingDefinition =
   components['schemas']['MappingDefinition']
 export type AccountingMappingCatalog = components['schemas']['MappingCatalog']
-export type AccountingMappingAuditEvent = components['schemas']['ApprovalEventView']
+export type AccountingMappingAuditEvent =
+  components['schemas']['ApprovalEventView']
 export type AccountingMapping = Omit<DclMappingView, 'data'> &
   DclMappingView['data'] & {
     state: DclMappingView['approval']['status']
@@ -22,6 +23,12 @@ export type AccountingMappingCreate = {
   definition: AccountingMappingDefinition
 }
 export type AccountingMappingSave = AccountingMappingCreate & {
+  approvalEntryId: string
+  approvalRevision: number
+}
+export type AccountingMappingLifecycleInput = {
+  bookId: string
+  vouEntity: string
   approvalEntryId: string
   approvalRevision: number
 }
@@ -98,13 +105,9 @@ export function mappingApprovalAction(
     approvalEntryId: mapping.approval.approvalEntryId,
     approvalRevision: mapping.approval.revision,
   }
-  if (action === 'unsubmit') {
-    return apiClient.postContract('dcl/acc-mapping/unsubmit', {
-      ...request,
-      reason: null,
-    })
-  }
-  return apiClient.postContract(`dcl/acc-mapping/${action}`, request)
+  if (action === 'delete-version')
+    return apiClient.postContract('dcl/acc-mapping/delete-version', request)
+  return runAccountingMappingLifecycleAction(action, request)
 }
 
 export function mappingReasonAction(
@@ -112,11 +115,36 @@ export function mappingReasonAction(
   mapping: AccountingMapping,
   reason: string,
 ) {
-  return apiClient.postContract(`dcl/acc-mapping/${action}`, {
-    bookId: mapping.bookId,
-    vouEntity: mapping.vouEntity,
-    approvalEntryId: mapping.approval.approvalEntryId,
-    approvalRevision: mapping.approval.revision,
+  return runAccountingMappingLifecycleAction(
+    action,
+    {
+      bookId: mapping.bookId,
+      vouEntity: mapping.vouEntity,
+      approvalEntryId: mapping.approval.approvalEntryId,
+      approvalRevision: mapping.approval.revision,
+    },
+    reason,
+  )
+}
+
+export function runAccountingMappingLifecycleAction(
+  action: ApprovalLifecycleAction,
+  input: AccountingMappingLifecycleInput,
+  reason = '',
+) {
+  if (action === 'submit')
+    return apiClient.postContract('dcl/acc-mapping/submit', input)
+  if (action === 'unsubmit')
+    return apiClient.postContract('dcl/acc-mapping/unsubmit', input)
+  if (action === 'approve')
+    return apiClient.postContract('dcl/acc-mapping/approve', input)
+  if (action === 'reject')
+    return apiClient.postContract('dcl/acc-mapping/reject', {
+      ...input,
+      reason,
+    })
+  return apiClient.postContract('dcl/acc-mapping/unapprove', {
+    ...input,
     reason,
   })
 }

@@ -51,6 +51,9 @@ func (*handlerServiceStub) Submit(context.Context, string, DocumentRevisionInput
 func (*handlerServiceStub) Unsubmit(context.Context, string, DocumentRevisionInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
+func (*handlerServiceStub) Reject(context.Context, string, ReverseInput, approval.Actor) (MutationResult, error) {
+	return MutationResult{}, nil
+}
 func (*handlerServiceStub) Approve(context.Context, string, DocumentRevisionInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }

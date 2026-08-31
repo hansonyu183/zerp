@@ -4,6 +4,7 @@ import { apiClient } from '@/api/client'
 import {
   createRptDefinition,
   getRptDefinitionAuditHistory,
+  runRptDefinitionReviewAction,
   runRptDefinitionVersionAction,
   setRptDefinitionEnabled,
   type RptDefinition,
@@ -49,6 +50,7 @@ const definition: RptDefinition = {
   description: '',
   enabled: true,
   approval,
+  availableApprovalActions: ['submit'],
   validity: 'VALID',
   data,
 }
@@ -100,6 +102,18 @@ describe('DCL report definition boundary', () => {
     )
   })
 
+  it('unsubmits report definitions without a review reason field', async () => {
+    mockedPost.mockResolvedValue({ data: {} } as never)
+
+    await runRptDefinitionReviewAction('unsubmit', definition, 'ignored')
+
+    expect(mockedPost).toHaveBeenCalledWith('dcl/rpt-definition/unsubmit', {
+      code: definition.code,
+      approvalEntryId: approval.approvalEntryId,
+      approvalRevision: approval.revision,
+    })
+  })
+
   it('orchestrates the sole maintenance VM without RPT lifecycle permissions', async () => {
     useSessionStore().permissions = [
       '/dcl/rpt-definition/query',
@@ -121,6 +135,7 @@ describe('DCL report definition boundary', () => {
                 name: definition.name,
                 description: '',
                 enabled: true,
+                availableApprovalActions: ['submit'],
                 latestApproved: null,
                 openVersion: {
                   name: definition.name,

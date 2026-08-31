@@ -42,6 +42,7 @@ function row(enabled = true): DclWarehouseListItem {
     entity: 'warehouse',
     code: 'WHS-0001',
     enabled,
+    availableApprovalActions: [],
     latestApproved: { approval, data: warehouseData, enabled },
     openVersion: null,
     updatedAt: '2026-08-27T06:00:00Z',
@@ -153,6 +154,7 @@ describe('DCL warehouse view model', () => {
     useSessionStore().permissions = ['/dcl/warehouse/approve']
     const disabledCandidate: DclWarehouseListItem = {
       ...row(),
+      availableApprovalActions: ['approve'],
       openVersion: {
         approval: {
           ...approval,
@@ -171,13 +173,15 @@ describe('DCL warehouse view model', () => {
       sources: [],
       references: [],
     }
-    mockedPost.mockRejectedValueOnce(
-      new ApiError('business', 'warehouse cannot be disabled', {
-        code: 3001,
-        errorKey: 'warehouse_disable_blocked',
-        details: blockers,
-      }),
-    )
+    mockedPost
+      .mockRejectedValueOnce(
+        new ApiError('business', 'warehouse cannot be disabled', {
+          code: 3001,
+          errorKey: 'warehouse_disable_blocked',
+          details: blockers,
+        }),
+      )
+      .mockResolvedValueOnce(emptyPage())
     const vm = useDclWarehouseViewModel()
 
     await expect(vm.review(disabledCandidate, 'approve', '')).resolves.toBe(
@@ -193,6 +197,7 @@ describe('DCL warehouse view model', () => {
     useSessionStore().permissions = ['/dcl/warehouse/approve']
     const enabledCandidate: DclWarehouseListItem = {
       ...row(),
+      availableApprovalActions: ['approve'],
       openVersion: {
         approval: {
           ...approval,

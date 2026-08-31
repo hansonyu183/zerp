@@ -14,13 +14,17 @@ export function useVoucherActionAvailability(
 
   return computed<VoucherActionAvailability>(() => {
     const status = documentView.value?.approval.status
+    const lifecycleActions = new Set(
+      documentView.value?.availableApprovalActions ?? [],
+    )
     return {
       get: can(permission('get')),
       save: status === 'DRAFT' && can(permission('save')),
-      submit: status === 'DRAFT' && can(permission('submit')),
-      unsubmit: status === 'PENDING' && can(permission('unsubmit')),
-      approve: status === 'PENDING' && can(permission('approve')),
-      unapprove: status === 'APPROVED' && can(permission('unapprove')),
+      submit: lifecycleActions.has('submit'),
+      unsubmit: lifecycleActions.has('unsubmit'),
+      reject: lifecycleActions.has('reject'),
+      approve: lifecycleActions.has('approve'),
+      unapprove: lifecycleActions.has('unapprove'),
       delete: status === 'DRAFT' && can(permission('delete')),
       audit: Boolean(documentView.value) && can(permission('audit-history')),
       attachmentInitiate:

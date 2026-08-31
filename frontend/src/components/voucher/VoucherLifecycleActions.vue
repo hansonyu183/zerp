@@ -1,21 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type {
   VoucherActionAvailability,
-  VoucherLifecycleLabels,
-  VoucherStatus,
+  VoucherLifecycleAction,
 } from './types'
+import { approvalActionPresentation } from '@/shared/approval'
 
 defineOptions({ name: 'VoucherLifecycleActions' })
 
 const props = withDefaults(
   defineProps<{
-    status: VoucherStatus
     availability: VoucherActionAvailability
     loadingAction?: string | null
     disabled?: boolean
     disabledReason?: string
-    labels: VoucherLifecycleLabels
   }>(),
   {
     loadingAction: null,
@@ -25,20 +23,21 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  action: [
-    action: 'submit' | 'approve' | 'unsubmit' | 'unapprove',
-    reason?: string,
-  ]
+  action: [action: VoucherLifecycleAction, reason?: string]
 }>()
 
 const reverseOpen = ref(false)
-const reverseAction = ref<'unapprove'>('unapprove')
+const reverseAction = ref<Extract<VoucherLifecycleAction, 'reject' | 'unapprove'>>(
+  'reject',
+)
 const reason = ref('')
 const reverseTitle = ref('')
 
-function openReverse(action: 'unapprove', title: string): void {
+function openReverse(
+  action: Extract<VoucherLifecycleAction, 'reject' | 'unapprove'>,
+): void {
   reverseAction.value = action
-  reverseTitle.value = title
+  reverseTitle.value = approvalActionPresentation[action].label
   reason.value = ''
   reverseOpen.value = true
 }
@@ -49,58 +48,37 @@ function confirmReverse(): void {
   reverseOpen.value = false
   emit('action', reverseAction.value, normalized)
 }
+
+const actions = computed(() =>
+  (Object.keys(approvalActionPresentation) as VoucherLifecycleAction[]).filter(
+    (action) => props.availability[action],
+  ),
+)
+
+function run(action: VoucherLifecycleAction): void {
+  if (approvalActionPresentation[action].reasonRequired) {
+    openReverse(action as Extract<VoucherLifecycleAction, 'reject' | 'unapprove'>)
+    return
+  }
+  emit('action', action)
+}
 </script>
 
 <template>
   <div class="voucher-lifecycle-actions">
     <v-btn
-      v-if="status === 'DRAFT' && availability.submit"
-      color="primary"
+      v-for="action in actions"
+      :key="action"
+      :color="approvalActionPresentation[action].color"
       :disabled="disabled"
-      :loading="loadingAction === 'submit'"
+      :loading="loadingAction === action"
       :title="disabled ? disabledReason : undefined"
-      prepend-icon="mdi-send-outline"
-      @click="emit('action', 'submit')"
+      :prepend-icon="approvalActionPresentation[action].icon"
+      variant="tonal"
+      @click="run(action)"
     >
-      {{ labels.submit }}
+      {{ approvalActionPresentation[action].label }}
     </v-btn>
-    <template v-if="status === 'PENDING'">
-      <v-btn
-        v-if="availability.unsubmit"
-        :disabled="disabled"
-        :loading="loadingAction === 'unsubmit'"
-        :title="disabled ? disabledReason : undefined"
-        prepend-icon="mdi-undo-variant"
-        variant="tonal"
-        @click="emit('action', 'unsubmit')"
-      >
-        {{ labels.unsubmit }}
-      </v-btn>
-      <v-btn
-        v-if="availability.approve"
-        color="primary"
-        :disabled="disabled"
-        :loading="loadingAction === 'approve'"
-        :title="disabled ? disabledReason : undefined"
-        prepend-icon="mdi-check-decagram-outline"
-        @click="emit('action', 'approve')"
-      >
-        {{ labels.approve }}
-      </v-btn>
-    </template>
-    <template v-if="status === 'APPROVED'">
-      <v-btn
-        v-if="availability.unapprove"
-        :disabled="disabled"
-        :loading="loadingAction === 'unapprove'"
-        :title="disabled ? disabledReason : undefined"
-        prepend-icon="mdi-undo-variant"
-        variant="tonal"
-        @click="openReverse('unapprove', labels.unapprove)"
-      >
-        {{ labels.unapprove }}
-      </v-btn>
-    </template>
   </div>
 
   <v-dialog v-model="reverseOpen" max-width="560">

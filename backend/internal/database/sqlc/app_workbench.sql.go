@@ -33,11 +33,12 @@ CROSS JOIN LATERAL (
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
     WHEN 'rpt-definition' THEN (SELECT payload.name FROM dcl_rpt_definition_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'wfl-process-definition' THEN subject.code
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition','wfl-process-definition')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY($1::text[]))
     OR (
@@ -89,11 +90,20 @@ JOIN approval_entries approval
  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE (
     (approval.status = 'DRAFT' AND document.entity = ANY($1::text[]))
-    OR (approval.status = 'PENDING' AND document.entity = ANY($2::text[]))
+    OR (
+      approval.status = 'PENDING'
+      AND (
+        (
+          document.entity = ANY($2::text[])
+          AND approval.submitted_by IS DISTINCT FROM $3::text
+        )
+        OR document.entity = ANY($4::text[])
+      )
+    )
   )
   AND (
-    $3::text = ''
-    OR document.document_no ILIKE '%' || $3 || '%'
+    $5::text = ''
+    OR document.document_no ILIKE '%' || $5 || '%'
     OR EXISTS (
       SELECT 1
       FROM (
@@ -112,19 +122,27 @@ WHERE (
         UNION ALL SELECT employee_name FROM vou_employee_loan_writeoff_details WHERE document_id = document.id
         UNION ALL SELECT COALESCE(NULLIF(counterparty_name, ''), source_name) FROM vou_other_income_details WHERE document_id = document.id
       ) parties
-      WHERE parties.party_name ILIKE '%' || $3 || '%'
+      WHERE parties.party_name ILIKE '%' || $5 || '%'
     )
   )
 `
 
 type CountWorkbenchVouItemsParams struct {
-	DraftEntities   []string `db:"draft_entities" json:"draft_entities"`
-	PendingEntities []string `db:"pending_entities" json:"pending_entities"`
-	Keyword         string   `db:"keyword" json:"keyword"`
+	DraftEntities    []string `db:"draft_entities" json:"draft_entities"`
+	PendingEntities  []string `db:"pending_entities" json:"pending_entities"`
+	ActorID          string   `db:"actor_id" json:"actor_id"`
+	UnsubmitEntities []string `db:"unsubmit_entities" json:"unsubmit_entities"`
+	Keyword          string   `db:"keyword" json:"keyword"`
 }
 
 func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbenchVouItemsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countWorkbenchVouItems, arg.DraftEntities, arg.PendingEntities, arg.Keyword)
+	row := q.db.QueryRow(ctx, countWorkbenchVouItems,
+		arg.DraftEntities,
+		arg.PendingEntities,
+		arg.ActorID,
+		arg.UnsubmitEntities,
+		arg.Keyword,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -133,7 +151,7 @@ func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbench
 const listWorkbenchBobItems = `-- name: ListWorkbenchBobItems :many
 SELECT entry.subject_id AS object_id, entry.entity,
        CASE
-         WHEN entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','supplier','other-unit','sales-partner','customer','customer-account','rpt-definition')
+         WHEN entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','supplier','other-unit','sales-partner','customer','customer-account','rpt-definition','wfl-process-definition')
            THEN dcl_require_subject_code(subject.code)
          WHEN entry.entity='acc-mapping' THEN mapping.vou_entity
          ELSE ''
@@ -142,10 +160,7 @@ SELECT entry.subject_id AS object_id, entry.entity,
        COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
        entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision,
        COALESCE(subject.created_at, mapping.updated_at, entry.updated_at) AS object_updated_at,
-       CASE
-         WHEN entry.submitted_by = $1::text THEN true
-         ELSE false
-       END AS is_submitted_by_actor
+       entry.submitted_by
 FROM approval_entries entry
 LEFT JOIN dcl_subjects subject ON subject.id=entry.subject_id AND subject.entity=entry.entity
 LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
@@ -166,19 +181,20 @@ CROSS JOIN LATERAL (
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
     WHEN 'rpt-definition' THEN (SELECT payload.name FROM dcl_rpt_definition_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'wfl-process-definition' THEN subject.code
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition','wfl-process-definition')
   AND (
-    (entry.status = 'DRAFT' AND entry.entity = ANY($2::text[]))
+    (entry.status = 'DRAFT' AND entry.entity = ANY($1::text[]))
     OR (
       entry.status = 'PENDING'
       AND (
         (
-          entry.entity = ANY($3::text[])
-          AND entry.submitted_by IS DISTINCT FROM $1::text
+          entry.entity = ANY($2::text[])
+          AND entry.submitted_by IS DISTINCT FROM $3::text
         )
         OR entry.entity = ANY($4::text[])
       )
@@ -196,9 +212,9 @@ LIMIT $7 OFFSET $6
 `
 
 type ListWorkbenchBobItemsParams struct {
-	ActorID          string   `db:"actor_id" json:"actor_id"`
 	DraftEntities    []string `db:"draft_entities" json:"draft_entities"`
 	PendingEntities  []string `db:"pending_entities" json:"pending_entities"`
+	ActorID          string   `db:"actor_id" json:"actor_id"`
 	UnsubmitEntities []string `db:"unsubmit_entities" json:"unsubmit_entities"`
 	Keyword          string   `db:"keyword" json:"keyword"`
 	PageOffset       int32    `db:"page_offset" json:"page_offset"`
@@ -206,24 +222,24 @@ type ListWorkbenchBobItemsParams struct {
 }
 
 type ListWorkbenchBobItemsRow struct {
-	ObjectID           string             `db:"object_id" json:"object_id"`
-	Entity             string             `db:"entity" json:"entity"`
-	Code               string             `db:"code" json:"code"`
-	Name               string             `db:"name" json:"name"`
-	BookID             string             `db:"book_id" json:"book_id"`
-	VouEntity          string             `db:"vou_entity" json:"vou_entity"`
-	ApprovalEntryID    string             `db:"approval_entry_id" json:"approval_entry_id"`
-	Status             string             `db:"status" json:"status"`
-	ApprovalRevision   int64              `db:"approval_revision" json:"approval_revision"`
-	ObjectUpdatedAt    pgtype.Timestamptz `db:"object_updated_at" json:"object_updated_at"`
-	IsSubmittedByActor bool               `db:"is_submitted_by_actor" json:"is_submitted_by_actor"`
+	ObjectID         string             `db:"object_id" json:"object_id"`
+	Entity           string             `db:"entity" json:"entity"`
+	Code             string             `db:"code" json:"code"`
+	Name             string             `db:"name" json:"name"`
+	BookID           string             `db:"book_id" json:"book_id"`
+	VouEntity        string             `db:"vou_entity" json:"vou_entity"`
+	ApprovalEntryID  string             `db:"approval_entry_id" json:"approval_entry_id"`
+	Status           string             `db:"status" json:"status"`
+	ApprovalRevision int64              `db:"approval_revision" json:"approval_revision"`
+	ObjectUpdatedAt  pgtype.Timestamptz `db:"object_updated_at" json:"object_updated_at"`
+	SubmittedBy      *string            `db:"submitted_by" json:"submitted_by"`
 }
 
 func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBobItemsParams) ([]ListWorkbenchBobItemsRow, error) {
 	rows, err := q.db.Query(ctx, listWorkbenchBobItems,
-		arg.ActorID,
 		arg.DraftEntities,
 		arg.PendingEntities,
+		arg.ActorID,
 		arg.UnsubmitEntities,
 		arg.Keyword,
 		arg.PageOffset,
@@ -247,7 +263,7 @@ func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBo
 			&i.Status,
 			&i.ApprovalRevision,
 			&i.ObjectUpdatedAt,
-			&i.IsSubmittedByActor,
+			&i.SubmittedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -263,7 +279,7 @@ const listWorkbenchVouItems = `-- name: ListWorkbenchVouItems :many
 SELECT document.id AS document_id, document.entity, document.document_no,
        approval.status, approval.revision, document.business_date::text AS business_date,
        COALESCE(document.currency, '') AS currency, document.total_amount_cents,
-       approval.updated_at,
+       approval.updated_at, approval.submitted_by,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
                 receipt.counterparty_name, payment.counterparty_name, expense.employee_name, writeoff.employee_name,
@@ -288,27 +304,38 @@ LEFT JOIN vou_employee_loan_writeoff_details writeoff ON writeoff.document_id = 
 LEFT JOIN vou_other_income_details income ON income.document_id = document.id
 WHERE (
     (approval.status = 'DRAFT' AND document.entity = ANY($1::text[]))
-    OR (approval.status = 'PENDING' AND document.entity = ANY($2::text[]))
+    OR (
+      approval.status = 'PENDING'
+      AND (
+        (
+          document.entity = ANY($2::text[])
+          AND approval.submitted_by IS DISTINCT FROM $3::text
+        )
+        OR document.entity = ANY($4::text[])
+      )
+    )
   )
   AND (
-    $3::text = ''
-    OR document.document_no ILIKE '%' || $3 || '%'
+    $5::text = ''
+    OR document.document_no ILIKE '%' || $5 || '%'
     OR COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
                 receipt.counterparty_name, payment.counterparty_name, expense.employee_name, writeoff.employee_name,
                 NULLIF(income.counterparty_name, ''), income.source_name, '')
-       ILIKE '%' || $3 || '%'
+       ILIKE '%' || $5 || '%'
   )
 ORDER BY approval.updated_at DESC, document.id ASC
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type ListWorkbenchVouItemsParams struct {
-	DraftEntities   []string `db:"draft_entities" json:"draft_entities"`
-	PendingEntities []string `db:"pending_entities" json:"pending_entities"`
-	Keyword         string   `db:"keyword" json:"keyword"`
-	PageOffset      int32    `db:"page_offset" json:"page_offset"`
-	PageSize        int32    `db:"page_size" json:"page_size"`
+	DraftEntities    []string `db:"draft_entities" json:"draft_entities"`
+	PendingEntities  []string `db:"pending_entities" json:"pending_entities"`
+	ActorID          string   `db:"actor_id" json:"actor_id"`
+	UnsubmitEntities []string `db:"unsubmit_entities" json:"unsubmit_entities"`
+	Keyword          string   `db:"keyword" json:"keyword"`
+	PageOffset       int32    `db:"page_offset" json:"page_offset"`
+	PageSize         int32    `db:"page_size" json:"page_size"`
 }
 
 type ListWorkbenchVouItemsRow struct {
@@ -321,6 +348,7 @@ type ListWorkbenchVouItemsRow struct {
 	Currency         string             `db:"currency" json:"currency"`
 	TotalAmountCents int64              `db:"total_amount_cents" json:"total_amount_cents"`
 	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	SubmittedBy      *string            `db:"submitted_by" json:"submitted_by"`
 	PartyName        string             `db:"party_name" json:"party_name"`
 }
 
@@ -328,6 +356,8 @@ func (q *Queries) ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVo
 	rows, err := q.db.Query(ctx, listWorkbenchVouItems,
 		arg.DraftEntities,
 		arg.PendingEntities,
+		arg.ActorID,
+		arg.UnsubmitEntities,
 		arg.Keyword,
 		arg.PageOffset,
 		arg.PageSize,
@@ -349,6 +379,7 @@ func (q *Queries) ListWorkbenchVouItems(ctx context.Context, arg ListWorkbenchVo
 			&i.Currency,
 			&i.TotalAmountCents,
 			&i.UpdatedAt,
+			&i.SubmittedBy,
 			&i.PartyName,
 		); err != nil {
 			return nil, err

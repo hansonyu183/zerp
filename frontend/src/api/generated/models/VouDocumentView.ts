@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalMeta } from './ApprovalMeta';
 import type { VouAttachmentView } from './VouAttachmentView';
 import type { VouDocumentDataView } from './VouDocumentDataView';
@@ -14,6 +15,7 @@ export type VouDocumentView = {
   amount: string;
   data: VouDocumentDataView;
   attachments: Array<VouAttachmentView>;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   parentEntity?: VouEntity;
   parentDocumentId?: string;
   parentDocumentNo?: string;

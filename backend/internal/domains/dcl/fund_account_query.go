@@ -67,6 +67,13 @@ func (s *FundAccountService) Query(ctx context.Context, input FundAccountQueryIn
 			}
 			item.OpenVersion = &v
 		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityFundAccount, r.OpenEntryID, r.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[FundAccountQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+		}
 		items = append(items, item)
 	}
 	return Page[FundAccountQueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
@@ -112,7 +119,7 @@ func (s *FundAccountService) Get(ctx context.Context, input FundAccountGetInput,
 	if err != nil {
 		return FundAccountView{}, translateError(err)
 	}
-	return FundAccountView{ObjectID: identity.ID, Entity: EntityFundAccount, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: fundAccountVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
+	return FundAccountView{ObjectID: identity.ID, Entity: EntityFundAccount, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: fundAccountVersionData(stored), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
 }
 
 func (s *FundAccountService) Versions(ctx context.Context, input FundAccountHistoryInput, actor approval.Actor) (Page[FundAccountVersionView], error) {

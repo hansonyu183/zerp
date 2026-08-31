@@ -80,6 +80,13 @@ func (s *OperatingEntityService) Query(
 			}
 			item.OpenVersion = &view
 		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityOperatingEntity, row.OpenEntryID, row.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[OperatingEntityQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+		}
 		items = append(items, item)
 	}
 	return Page[OperatingEntityQueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil

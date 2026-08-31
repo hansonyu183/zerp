@@ -12,10 +12,10 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
   account_disabled: '账号已停用，请联系管理员。',
   account_locked: '账号已临时锁定，请稍后重试。',
   invalid_current_password: '当前密码错误，请重新输入。',
-  submitter_cannot_review:
+  approval_self_review_forbidden:
     '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
   document_data_incomplete:
-    '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再提交审核。',
+    '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再提交。',
   warehouse_disable_blocked:
     '仓库仍有库存、待处理业务或有效引用，暂时不能停用。',
   object_has_active_references:
@@ -24,21 +24,17 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
   funds_insufficient: '可用资金不足，无法完成本次操作。',
   candidate_exists: '该资料已有候选版本，请先处理现有候选版本。',
   approval_open_version_exists:
-    '该资料已有草稿或待审核版本，请先处理现有版本后再撤销审核。',
-  approval_stale_revision:
-    '当前版本已被其他操作修改，请刷新后重试。',
+    '该资料已有草稿或待批准版本，请先处理现有版本后再反批准。',
+  approval_stale_revision: '当前版本已被其他操作修改，请刷新后重试。',
   bob_unapprove_blocked:
     '该主体仍被已批准的业务关系引用，不能撤销最后一个批准版本。',
   party_merged: '该主体已被合并，不能继续操作。',
   vou_settlement_term_required: '订单必须具有明确账期，请先维护结算方式。',
-  vehicle_identifier_conflict:
-    '车牌号或 VIN 已被其他车辆占用，请修改后重试。',
+  vehicle_identifier_conflict: '车牌号或 VIN 已被其他车辆占用，请修改后重试。',
   vehicle_type_reference_unavailable:
     '车型资料不存在、已失效或不属于车辆类型字典。',
-  vehicle_type_reference_stale:
-    '车型资料已更新，请重新选择并保存。',
-  vehicle_carrier_reference_stale:
-    '承运方资料已更新，请重新选择并保存。',
+  vehicle_type_reference_stale: '车型资料已更新，请重新选择并保存。',
+  vehicle_carrier_reference_stale: '承运方资料已更新，请重新选择并保存。',
   fund_account_identifier_conflict: '资金账户标识已存在，请检查后重试。',
   fund_account_operating_reference_stale:
     '所选经营主体已发生变化，请刷新后重试。',

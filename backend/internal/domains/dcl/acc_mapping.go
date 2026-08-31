@@ -195,8 +195,8 @@ func (s *AccMappingService) Submit(ctx context.Context, i AccMappingVersionInput
 	return s.transition(ctx, i, "", approval.ActionSubmitted, a)
 }
 
-func (s *AccMappingService) Unsubmit(ctx context.Context, i AccMappingReviewInput, a approval.Actor) (AccMappingMutation, error) {
-	return s.transition(ctx, accMappingVersionInput(i), "", approval.ActionUnsubmitted, a)
+func (s *AccMappingService) Unsubmit(ctx context.Context, i AccMappingVersionInput, a approval.Actor) (AccMappingMutation, error) {
+	return s.transition(ctx, i, "", approval.ActionUnsubmitted, a)
 }
 
 func (s *AccMappingService) Reject(ctx context.Context, i AccMappingReviewInput, a approval.Actor) (AccMappingMutation, error) {
@@ -437,5 +437,7 @@ func (s *AccMappingService) Get(ctx context.Context, input AccMappingGetInput, a
 	if err != nil {
 		return AccMappingView{}, translateError(err)
 	}
-	return accMappingView(input.BookID, input.VouEntity, stored.DefaultResult, stored.Definition, entry), nil
+	view := accMappingView(input.BookID, input.VouEntity, stored.DefaultResult, stored.Definition, entry)
+	view.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+	return view, nil
 }

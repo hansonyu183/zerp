@@ -554,7 +554,7 @@
           'post':
             {
               'tags': ['acc'],
-              'summary': '提交账簿期初审批',
+              'summary': '提交账簿期初',
               'operationId': 'accOpeningSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -595,7 +595,7 @@
           'post':
             {
               'tags': ['acc'],
-              'summary': '撤回账簿期初审批',
+              'summary': '撤回账簿期初',
               'operationId': 'accOpeningUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -636,7 +636,7 @@
           'post':
             {
               'tags': ['acc'],
-              'summary': '驳回账簿期初审批',
+              'summary': '驳回账簿期初',
               'operationId': 'accOpeningReject',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -1106,7 +1106,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交仓库声明审批',
+              'summary': '提交仓库声明',
               'operationId': 'dclWarehouseSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -1147,7 +1147,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回仓库声明审批',
+              'summary': '撤回仓库声明',
               'operationId': 'dclWarehouseUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -1159,7 +1159,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl.yaml#/DclWarehouseReviewRequest',
+                              '$ref': './schemas/dcl.yaml#/DclWarehouseVersionRequest',
                             },
                         },
                     },
@@ -1188,7 +1188,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '驳回仓库声明审批',
+              'summary': '驳回仓库声明',
               'operationId': 'dclWarehouseReject',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -1636,7 +1636,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl.yaml#/DclFundAccountReviewRequest',
+                              '$ref': './schemas/dcl.yaml#/DclFundAccountVersionRequest',
                             },
                         },
                     },
@@ -1747,7 +1747,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批资金账户申报',
+              'summary': '反批准资金账户申报',
               'operationId': 'dclFundAccountUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -2059,7 +2059,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交车辆声明审批',
+              'summary': '提交车辆声明',
               'operationId': 'dclVehicleSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -2100,7 +2100,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回车辆声明审批',
+              'summary': '撤回车辆声明',
               'operationId': 'dclVehicleUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -2112,7 +2112,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl.yaml#/DclVehicleReviewRequest',
+                              '$ref': './schemas/dcl.yaml#/DclVehicleVersionRequest',
                             },
                         },
                     },
@@ -2141,7 +2141,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '驳回车辆声明审批',
+              'summary': '驳回车辆声明',
               'operationId': 'dclVehicleReject',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -2589,7 +2589,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl.yaml#/DclProductReviewRequest',
+                              '$ref': './schemas/dcl.yaml#/DclProductVersionRequest',
                             },
                         },
                     },
@@ -2659,7 +2659,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '审核通过产品声明',
+              'summary': '批准产品声明',
               'operationId': 'dclProductApprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -2700,7 +2700,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反审核产品声明',
+              'summary': '反批准产品声明',
               'operationId': 'dclProductUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3028,7 +3028,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交员工申报审核',
+              'summary': '提交员工申报',
               'operationId': 'dclEmployeeSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3069,7 +3069,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回员工申报审核',
+              'summary': '撤回员工申报',
               'operationId': 'dclEmployeeUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3192,7 +3192,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批员工申报',
+              'summary': '反批准员工申报',
               'operationId': 'dclEmployeeUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3505,7 +3505,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交其他单位申报审核',
+              'summary': '提交其他单位申报',
               'operationId': 'dclOtherUnitSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3546,7 +3546,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回其他单位申报审核',
+              'summary': '撤回其他单位申报',
               'operationId': 'dclOtherUnitUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3669,7 +3669,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批其他单位申报',
+              'summary': '反批准其他单位申报',
               'operationId': 'dclOtherUnitUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4228,7 +4228,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批客户申报',
+              'summary': '反批准客户申报',
               'operationId': 'dclCustomerUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -4720,7 +4720,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批客户结算子账户申报',
+              'summary': '反批准客户结算子账户申报',
               'operationId': 'dclCustomerAccountUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -5172,7 +5172,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交供应商申报审核',
+              'summary': '提交供应商申报',
               'operationId': 'dclSupplierSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -5213,7 +5213,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回供应商申报审核',
+              'summary': '撤回供应商申报',
               'operationId': 'dclSupplierUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -5336,7 +5336,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批供应商申报',
+              'summary': '反批准供应商申报',
               'operationId': 'dclSupplierUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -5567,7 +5567,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交销售合作方申报审核',
+              'summary': '提交销售合作方申报',
               'operationId': 'dclSalesPartnerSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -5608,7 +5608,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回销售合作方申报审核',
+              'summary': '撤回销售合作方申报',
               'operationId': 'dclSalesPartnerUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -5731,7 +5731,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批销售合作方申报',
+              'summary': '反批准销售合作方申报',
               'operationId': 'dclSalesPartnerUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -6562,7 +6562,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交经营主体声明审批',
+              'summary': '提交经营主体声明',
               'operationId': 'dclOperatingEntitySubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -6603,7 +6603,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回经营主体声明审批',
+              'summary': '撤回经营主体声明',
               'operationId': 'dclOperatingEntityUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -6615,7 +6615,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityReviewRequest',
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityVersionRequest',
                             },
                         },
                     },
@@ -6644,7 +6644,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '驳回经营主体声明审批',
+              'summary': '驳回经营主体声明',
               'operationId': 'dclOperatingEntityReject',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -7080,7 +7080,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交会计映射审批',
+              'summary': '提交会计映射',
               'operationId': 'dclAccMappingSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -7121,7 +7121,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回会计映射审批',
+              'summary': '撤回会计映射',
               'operationId': 'dclAccMappingUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -7133,7 +7133,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl.yaml#/DclAccMappingReviewRequest',
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingVersionRequest',
                             },
                         },
                     },
@@ -7162,7 +7162,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '驳回会计映射审批',
+              'summary': '驳回会计映射',
               'operationId': 'dclAccMappingReject',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -7244,7 +7244,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批会计映射',
+              'summary': '反批准会计映射',
               'operationId': 'dclAccMappingUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -7598,7 +7598,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交报表定义审批',
+              'summary': '提交报表定义',
               'operationId': 'dclRptDefinitionSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -7639,7 +7639,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回报表定义审批',
+              'summary': '撤回报表定义',
               'operationId': 'dclRptDefinitionUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -7651,7 +7651,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionReviewRequest',
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionVersionRequest',
                             },
                         },
                     },
@@ -7680,7 +7680,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '驳回报表定义审批',
+              'summary': '驳回报表定义',
               'operationId': 'dclRptDefinitionReject',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -7762,7 +7762,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '反批报表定义',
+              'summary': '反批准报表定义',
               'operationId': 'dclRptDefinitionUnapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -10629,7 +10629,7 @@
           'post':
             {
               'tags': ['vou'],
-              'summary': '撤回业务单据提交',
+              'summary': '撤回业务单据',
               'operationId': 'vouunsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
@@ -10652,6 +10652,46 @@
                   '200':
                     {
                       'description': '单据撤回提交结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/vou/{entity}/reject':
+        {
+          'post':
+            {
+              'tags': ['vou'],
+              'summary': '驳回业务单据',
+              'operationId': 'voureject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/vou.yaml#/VouReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '单据驳回结果。',
                       'content':
                         {
                           'application/json':
@@ -10713,7 +10753,7 @@
           'post':
             {
               'tags': ['vou'],
-              'summary': '取消批准业务单据',
+              'summary': '反批准业务单据',
               'operationId': 'vouunapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
@@ -11042,7 +11082,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '提交流程定义版本审核',
+              'summary': '提交流程定义版本',
               'operationId': 'dclWflProcessDefinitionSubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -11083,7 +11123,7 @@
           'post':
             {
               'tags': ['dcl'],
-              'summary': '撤回流程定义版本审核',
+              'summary': '撤回流程定义版本',
               'operationId': 'dclWflProcessDefinitionUnsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -12206,6 +12246,8 @@
       'schemas':
         {
           'ApprovalStatus': { '$ref': './schemas/common.yaml#/ApprovalStatus' },
+          'ApprovalLifecycleAction':
+            { '$ref': './schemas/common.yaml#/ApprovalLifecycleAction' },
           'ApprovalMeta': { '$ref': './schemas/common.yaml#/ApprovalMeta' },
           'ApprovalVersionMeta':
             { '$ref': './schemas/common.yaml#/ApprovalVersionMeta' },

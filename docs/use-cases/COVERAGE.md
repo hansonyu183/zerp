@@ -7,9 +7,9 @@
 统计口径：页面入口只统计静态注册页面，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。
 
 - 页面入口：91
-- 已覆盖入口：45
-- 已登记用例：44
-- 缺少用例：46
+- 已覆盖入口：46
+- 已登记用例：45
+- 缺少用例：45
 - 孤儿用例：0
 
 ## APP
@@ -47,13 +47,13 @@
 
 ## ACC
 
-| 页面              | 路由           | 来源                                                | 状态     |
-| ----------------- | -------------- | --------------------------------------------------- | -------- |
-| 会计账簿          | `/acc/book`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 会计科目          | `/acc/subject` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 账簿期初          | `/acc/opening` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 当前 VOU 会计映射 | `/acc/mapping` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 会计期间          | `/acc/period`  | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 页面              | 路由           | 来源                                                | 状态                       |
+| ----------------- | -------------- | --------------------------------------------------- | -------------------------- |
+| 会计账簿          | `/acc/book`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                   |
+| 会计科目          | `/acc/subject` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                   |
+| 账簿期初          | `/acc/opening` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](acc/opening.md) |
+| 当前 VOU 会计映射 | `/acc/mapping` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                   |
+| 会计期间          | `/acc/period`  | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                   |
 
 ## BOB
 

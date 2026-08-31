@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { DclVehicleData } from './DclVehicleData';
 export type DclVehicleView = {
@@ -10,6 +11,7 @@ export type DclVehicleView = {
   code: string;
   enabled: boolean;
   approval: ApprovalVersionMeta;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   data: DclVehicleData;
   updatedAt: string;
 };

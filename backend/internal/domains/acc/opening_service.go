@@ -33,12 +33,12 @@ func (s *Service) GetOpening(ctx context.Context, bookID string, actor approval.
 	if err := s.requireApprovalAccess(ctx, s.queries, bookID, actor, false); err != nil {
 		return OpeningView{}, err
 	}
-	return loadOpening(ctx, s.queries, s.pool, bookID)
+	return s.loadOpening(ctx, s.queries, s.pool, bookID, actor)
 }
 
-func loadOpening(ctx context.Context, q *dbsqlc.Queries, raw interface {
+func (s *Service) loadOpening(ctx context.Context, q *dbsqlc.Queries, raw interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
-}, bookID string) (OpeningView, error) {
+}, bookID string, actor approval.Actor) (OpeningView, error) {
 	row, err := q.GetAccountingOpening(ctx, bookID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if _, bookErr := q.GetAccountingBook(ctx, bookID); errors.Is(bookErr, pgx.ErrNoRows) {
@@ -46,7 +46,7 @@ func loadOpening(ctx context.Context, q *dbsqlc.Queries, raw interface {
 		} else if bookErr != nil {
 			return OpeningView{}, databaseError("get accounting book", bookErr)
 		}
-		return OpeningView{BookID: bookID, Approval: approval.Meta{Status: approval.StatusDraft}, Lines: []OpeningLineView{}, Assets: []OpeningAssetView{}, Bills: []OpeningBillView{}, Containers: []OpeningContainerView{}}, nil
+		return OpeningView{BookID: bookID, Approval: approval.Meta{Status: approval.StatusDraft}, AvailableApprovalActions: []approval.LifecycleAction{}, Lines: []OpeningLineView{}, Assets: []OpeningAssetView{}, Bills: []OpeningBillView{}, Containers: []OpeningContainerView{}}, nil
 	}
 	if err != nil {
 		return OpeningView{}, databaseError("get accounting opening", err)
@@ -55,7 +55,7 @@ func loadOpening(ctx context.Context, q *dbsqlc.Queries, raw interface {
 	if err != nil {
 		return OpeningView{}, databaseError("get accounting opening approval", err)
 	}
-	result := OpeningView{BookID: row.BookID, Approval: approval.MetaFromEntry(entry), VoucherID: row.VoucherID, Lines: []OpeningLineView{}}
+	result := OpeningView{BookID: row.BookID, Approval: approval.MetaFromEntry(entry), AvailableApprovalActions: s.openingApproval.LifecycleActions(entry, actor), VoucherID: row.VoucherID, Lines: []OpeningLineView{}}
 	lines, err := q.ListAccountingOpeningLines(ctx, bookID)
 	if err != nil {
 		return OpeningView{}, databaseError("get accounting opening lines", err)
@@ -152,7 +152,7 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 			return OpeningView{}, mapApprovalError(err)
 		}
 	}
-	result, err := loadOpening(ctx, qtx, tx, input.BookID)
+	result, err := s.loadOpening(ctx, qtx, tx, input.BookID, actor)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -391,7 +391,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 		return OpeningView{}, mapApprovalError(err)
 	}
 	_ = state
-	result, err := loadOpening(ctx, qtx, tx, bookID)
+	result, err := s.loadOpening(ctx, qtx, tx, bookID, actor)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -458,7 +458,7 @@ func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision 
 	if _, err = s.openingApproval.Commit(ctx, tx, prepared, accapproval.Payload{BookID: bookID}); err != nil {
 		return OpeningView{}, mapApprovalError(err)
 	}
-	result, err := loadOpening(ctx, qtx, tx, bookID)
+	result, err := s.loadOpening(ctx, qtx, tx, bookID, actor)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -507,7 +507,7 @@ func (s *Service) transitionOpening(ctx context.Context, bookID string, revision
 	if _, err = s.openingApproval.Commit(ctx, tx, prepared, accapproval.Payload{BookID: bookID}); err != nil {
 		return OpeningView{}, mapApprovalError(err)
 	}
-	result, err := loadOpening(ctx, qtx, tx, bookID)
+	result, err := s.loadOpening(ctx, qtx, tx, bookID, actor)
 	if err != nil {
 		return OpeningView{}, err
 	}

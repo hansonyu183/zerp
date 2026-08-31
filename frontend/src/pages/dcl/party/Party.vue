@@ -9,6 +9,11 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import type { components } from '@/api/generated/schema'
+import {
+  approvalActionPresentation,
+  approvalEventActionLabels,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
 import { useDclPartyViewModel } from './vm'
 
@@ -23,11 +28,6 @@ const reason = ref('')
 type DclPartyListItem = components['schemas']['DclPartyListItem']
 type DclPartyMergeRelationshipConflict =
   components['schemas']['DclPartyMergeRelationshipConflict']
-const statusText: Record<components['schemas']['ApprovalStatus'], string> = {
-  DRAFT: '草稿',
-  PENDING: '待批准',
-  APPROVED: '已批准',
-}
 const relationshipLabels: Record<
   DclPartyMergeRelationshipConflict['relationshipType'],
   string
@@ -61,7 +61,12 @@ const columns: readonly BusinessObjectColumn<DclPartyListItem>[] = [
   {
     key: 'status',
     label: '状态',
-    value: (row) => active(row)?.approval.status ?? '—',
+    value: (row) => {
+      const version = active(row)
+      return version
+        ? approvalStatusPresentation[version.approval.status].label
+        : '—'
+    },
     sizing: 'compact',
   },
 ]
@@ -103,9 +108,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交审核',
-            icon: 'mdi-send-outline',
-            color: 'primary' as const,
+            ...approvalActionPresentation.submit,
           },
         ]
       : []),
@@ -113,9 +116,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回提交',
-            icon: 'mdi-undo-variant',
-            color: 'warning' as const,
+            ...approvalActionPresentation.unsubmit,
           },
         ]
       : []),
@@ -123,9 +124,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '审核通过',
-            icon: 'mdi-check-decagram-outline',
-            color: 'success' as const,
+            ...approvalActionPresentation.approve,
           },
         ]
       : []),
@@ -133,9 +132,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '审核驳回',
-            icon: 'mdi-close-octagon-outline',
-            color: 'error' as const,
+            ...approvalActionPresentation.reject,
           },
         ]
       : []),
@@ -143,9 +140,7 @@ function rowActions(row: DclPartyListItem): ListRowAction[] {
       ? [
           {
             key: 'unapprove',
-            label: '撤销批准',
-            icon: 'mdi-backup-restore',
-            color: 'warning' as const,
+            ...approvalActionPresentation.unapprove,
           },
         ]
       : []),
@@ -279,7 +274,9 @@ watch(
           /></template>
           <template #cell-status="{ row }"
             ><v-chip v-if="active(row)" size="small" variant="tonal">{{
-              statusText[active(row)?.approval.status ?? 'DRAFT']
+              approvalStatusPresentation[
+                active(row)?.approval.status ?? 'DRAFT'
+              ].label
             }}</v-chip
             ><v-chip
               v-if="row.latestApproved"
@@ -567,9 +564,7 @@ watch(
     <v-dialog :model-value="Boolean(reasonTarget)" max-width="620"
       ><v-card
         :title="
-          reasonTarget?.action === 'reject'
-            ? '审核驳回'
-            : '撤销批准'
+          approvalActionPresentation[reasonTarget?.action ?? 'reject'].label
         "
         ><v-card-text
           ><v-textarea
@@ -580,7 +575,9 @@ watch(
         ><v-card-actions
           ><v-spacer /><v-btn @click="reasonTarget = null">取消</v-btn
           ><v-btn
-            :color="reasonTarget?.action === 'reject' ? 'error' : 'warning'"
+            :color="
+              approvalActionPresentation[reasonTarget?.action ?? 'reject'].color
+            "
             :disabled="!reason.trim()"
             @click="confirmReason"
             >确认</v-btn
@@ -611,7 +608,7 @@ watch(
               >
                 <td data-label="版本">V{{ item.approval.versionNo }}</td>
                 <td data-label="状态">
-                  {{ statusText[item.approval.status] }}
+                  {{ approvalStatusPresentation[item.approval.status].label }}
                 </td>
                 <td data-label="法定名称">{{ item.data.legalName }}</td>
                 <td data-label="更新">
@@ -664,10 +661,21 @@ watch(
             </thead>
             <tbody>
               <tr v-for="event in vm.auditEvents" :key="event.id">
-                <td data-label="事件">{{ event.action }}</td>
+                <td data-label="事件">
+                  {{ approvalEventActionLabels[event.action] }}
+                </td>
                 <td data-label="变化">
-                  {{ event.fromStatus ? statusText[event.fromStatus] : '—' }} →
-                  {{ event.toStatus ? statusText[event.toStatus] : '—' }}
+                  {{
+                    event.fromStatus
+                      ? approvalStatusPresentation[event.fromStatus].label
+                      : '—'
+                  }}
+                  →
+                  {{
+                    event.toStatus
+                      ? approvalStatusPresentation[event.toStatus].label
+                      : '—'
+                  }}
                 </td>
                 <td data-label="操作人">{{ event.actorId }}</td>
                 <td data-label="时间">

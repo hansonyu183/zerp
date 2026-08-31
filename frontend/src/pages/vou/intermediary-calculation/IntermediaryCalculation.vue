@@ -8,7 +8,6 @@ import {
   VoucherDocumentHeader,
   VoucherList,
   VoucherWorkspace,
-  formatVoucherStatus,
   type VoucherLifecycleAction,
   type VoucherListItem,
 } from '@/components/voucher'
@@ -16,7 +15,10 @@ import { formatReferenceLabel } from '@/utils/reference-label'
 import { formatBillType } from '@/utils/bill-type'
 import VoucherReasonDialog from '../shared/VoucherReasonDialog.vue'
 import VoucherWorkspaceActions from '../shared/VoucherWorkspaceActions.vue'
-import { lifecycleLabels } from '../shared/config'
+import {
+  approvalActionPresentation,
+  approvalStatusLabel,
+} from '@/shared/approval'
 import { useIntermediaryCalculationViewModel } from './vm'
 
 defineOptions({ name: 'IntermediaryCalculation' })
@@ -25,13 +27,12 @@ const model = useIntermediaryCalculationViewModel()
 const vm = reactive(model)
 const route = useRoute()
 const router = useRouter()
-const labels = lifecycleLabels(vm.config)
 const detailOpen = ref(false)
 const secondaryOpen = ref(false)
 const secondaryReason = ref('')
 const listLifecycleTarget = ref<VoucherListItem | null>(null)
 const listLifecycleAction =
-  ref<Extract<VoucherLifecycleAction, 'unapprove'>>('unapprove')
+  ref<Extract<VoucherLifecycleAction, 'reject' | 'unapprove'>>('reject')
 const listLifecycleReason = ref('')
 const payeeEntityLabels: Readonly<Record<string, string>> = {
   customer: '客户',
@@ -79,9 +80,12 @@ function requestListLifecycleAction(
   row: VoucherListItem,
   action: VoucherLifecycleAction,
 ): void {
-  if (action === 'unapprove') {
+  if (approvalActionPresentation[action].reasonRequired) {
     listLifecycleTarget.value = row
-    listLifecycleAction.value = action
+    listLifecycleAction.value = action as Extract<
+      VoucherLifecycleAction,
+      'reject' | 'unapprove'
+    >
     listLifecycleReason.value = ''
     return
   }
@@ -135,13 +139,11 @@ async function confirmDelete(): Promise<void> {
     <VoucherList
       :action-loading="vm.actionLoading"
       :can-edit="vm.canEdit"
-      :can-lifecycle-action="vm.canLifecycleAction"
       :can-view="vm.canView"
       :creatable="vm.canCreate"
       :date-from="vm.filters.dateFrom"
       :date-to="vm.filters.dateTo"
       :keyword="vm.filters.keyword"
-      :lifecycle-labels="labels"
       :loading="vm.loading"
       :page="vm.page"
       :page-size="vm.pageSize"
@@ -169,13 +171,13 @@ async function confirmDelete(): Promise<void> {
 
   <VoucherReasonDialog
     :model-value="Boolean(listLifecycleTarget)"
-    :confirm-label="`确认${labels[listLifecycleAction]}`"
+    :confirm-label="`确认${approvalActionPresentation[listLifecycleAction].label}`"
     :loading="
       vm.actionLoading ===
       `${listLifecycleAction}:${listLifecycleTarget?.documentId}`
     "
     :reason="listLifecycleReason"
-    :title="labels[listLifecycleAction]"
+    :title="approvalActionPresentation[listLifecycleAction].label"
     @confirm="confirmListLifecycleAction"
     @update:model-value="
       (value) => {
@@ -209,7 +211,6 @@ async function confirmDelete(): Promise<void> {
   >
     <template #actions>
       <VoucherWorkspaceActions
-        :labels="labels"
         :model="model"
         @save="saveDocument"
         @secondary="
@@ -230,7 +231,7 @@ async function confirmDelete(): Promise<void> {
             entity-label="居间计算单"
             :revision="vm.documentView.approval.revision"
             :status="vm.documentView.approval.status"
-            :status-label="formatVoucherStatus(vm.documentView.approval.status)"
+            :status-label="approvalStatusLabel(vm.documentView.approval.status)"
           />
           <v-divider v-if="vm.documentView" class="my-5" />
 

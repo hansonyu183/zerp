@@ -4,7 +4,7 @@
 
 ## 1. 页面与权限边界
 
-1. `/dcl/acc-mapping` 是会计映射唯一维护入口，覆盖新建、编辑、提交、撤回、驳回、批准、反批、删除、版本和审计。
+1. `/dcl/acc-mapping` 是会计映射唯一维护入口，覆盖新建、编辑、提交、撤回、驳回、批准、反批准、删除、版本和审计。
 2. 列表调用 `POST /dcl/acc-mapping/query`，按账簿和 VOU 类型筛选并区分 latest approved 与 open candidate。
 3. 每个动作检查精确 `/dcl/acc-mapping/*` 权限，不调用 ACC 写路径。
 
@@ -17,7 +17,7 @@
 ## 3. 审批与 ACC 当前解释
 
 1. 提交前用统一前端检查定位问题，后端在提交和批准时独立重复完整校验。
-2. 批准后原子更新 ACC 当前记账解释和科目登记，反批后原子回落。
+2. 批准后原子更新 ACC 当前记账解释和科目登记，反批准后原子回落。
 3. 精确 `mappingApprovalEntryId` blocker 和并发控制按领域规则执行。
 4. 新批准版本只影响之后发生的会计事实，历史凭证身份和记账结果不变。
 
@@ -38,3 +38,7 @@
 2. 真实 PostgreSQL 覆盖完整 snapshot、V1/V2 ACC 当前解释切换与回落、blocker、并发 candidate 和事务回滚。
 3. 真实全栈流程覆盖多 VOU 类型、候选换版和独立 ACC 当前只读，待办深链进入 DCL。
 4. 映射换版后，既有 VOU 凭证保留原 `approvalEntryId` 和快照，ACC 当前解释只影响新凭证。
+
+## 7. 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与映射业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

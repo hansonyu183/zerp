@@ -67,6 +67,13 @@ func (s *SupplierService) Query(ctx context.Context, in SupplierQueryInput, acto
 			}
 			item.OpenVersion = &v
 		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntitySupplier, r.OpenEntryID, r.LatestApprovedEntryID)
+		if entryErr != nil {
+			return Page[SupplierQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+		}
 		items = append(items, item)
 	}
 	return Page[SupplierQueryItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
@@ -115,7 +122,7 @@ func (s *SupplierService) Get(ctx context.Context, in SupplierGetInput, actor ap
 	if err != nil {
 		return SupplierView{}, translateError(err)
 	}
-	return SupplierView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySupplier, Code: id.Code, PartyID: id.PartyID, PartyKind: stored.PartyKind, PartyDisplayName: stored.DisplayName, OperatingEntityID: id.OperatingEntityID, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e)}, OperatingEntityApprovalEntryID: operating.ApprovalEntryID, OperatingEntityCode: operating.Code, OperatingEntityName: operating.Data.Name, Data: supplierStored(stored), UpdatedAt: e.UpdatedAt}, nil
+	return SupplierView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySupplier, Code: id.Code, PartyID: id.PartyID, PartyKind: stored.PartyKind, PartyDisplayName: stored.DisplayName, OperatingEntityID: id.OperatingEntityID, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e)}, OperatingEntityApprovalEntryID: operating.ApprovalEntryID, OperatingEntityCode: operating.Code, OperatingEntityName: operating.Data.Name, Data: supplierStored(stored), UpdatedAt: e.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(e, actor)}, nil
 }
 func (s *SupplierService) Versions(ctx context.Context, in SupplierHistoryInput, actor approval.Actor) (Page[SupplierVersionView], error) {
 	if _, ok := dclPageOffset(in.Page, in.PageSize); !ok || !validID(in.ObjectID) || !validActor(actor) {

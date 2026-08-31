@@ -355,7 +355,10 @@ const bobReviewerActions = new Set([
   '/acc/book/query',
   '/acc/book/get',
   '/acc/book/save',
+  '/acc/opening/query',
   '/acc/opening/approve',
+  '/acc/opening/reject',
+  '/acc/subject/query',
   '/dcl/acc-mapping/approve',
   '/dcl/wfl-process-definition/approve',
   '/bob/customer/query',
@@ -387,6 +390,7 @@ const bobReviewerActions = new Set([
   '/dcl/operating-entity/query',
   '/dcl/operating-entity/get',
   '/dcl/operating-entity/approve',
+  '/dcl/operating-entity/reject',
   '/dcl/warehouse/query',
   '/dcl/warehouse/get',
   '/dcl/warehouse/approve',
@@ -689,7 +693,7 @@ async function createEffectiveCustomer(
   const account = accounts.items[0]
   if (!account) throw new Error('客户创建未生成默认结算子账户。')
   if (!account.openVersion) {
-    throw new Error('客户创建未返回待审核的默认账户版本。')
+    throw new Error('客户创建未返回待批准的默认账户版本。')
   }
   const submitted = await operator.post<BobMutation>(
     'dcl/customer-account/submit',
@@ -1253,12 +1257,15 @@ async function ensureAccountingControlBook(
         data: { defaultResult, definition },
       }))
     if (candidate.approval.status === 'DRAFT') {
-      candidate = await api.post<AccountingMappingView>('dcl/acc-mapping/submit', {
-        bookId: book.bookId,
-        vouEntity,
-        approvalEntryId: candidate.approval.approvalEntryId,
-        approvalRevision: candidate.approval.revision,
-      })
+      candidate = await api.post<AccountingMappingView>(
+        'dcl/acc-mapping/submit',
+        {
+          bookId: book.bookId,
+          vouEntity,
+          approvalEntryId: candidate.approval.approvalEntryId,
+          approvalRevision: candidate.approval.revision,
+        },
+      )
     }
     await reviewer.post<AccountingMappingView>('dcl/acc-mapping/approve', {
       bookId: book.bookId,
@@ -1325,7 +1332,8 @@ export async function createWflWorkerState(options: {
       (item) =>
         item.status === 'ENABLED' &&
         (bobReviewerActions.has(item.path) ||
-          /^\/vou\/[^/]+\/approve$/.test(item.path)),
+          item.path === '/app/workbench/query' ||
+          /^\/vou\/[^/]+\/(?:query|get|reject|approve)$/.test(item.path)),
     )
 
     const suffix =

@@ -4,7 +4,7 @@
 
 RPT（Reporting）定义、验证、执行和导出面向用户的查询报表。它读取其他领域已形成的事实，不拥有或改写客户、供应商、单据、会计分录、库存数量或核算对象。
 
-RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、按报表授权的查询与导出，以及运行时审计。报表定义的 stable ID、code 与创建审计在 DCL subject；候选编辑、提交、撤回、驳回、批准、反批、草稿删除、版本历史和审计读取也由 DCL 统一拥有。RPT 不保存 definition root、root revision、current pointer 或业务 snapshot；它只保留执行与独立 VALID/INVALID 规则。它不拥有 ACC 查询投影、第二套角色权限、用户账簿分配或执行层账簿过滤，也不提供未授权报表菜单或集中报表中心。
+RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、按报表授权的查询与导出，以及运行时审计。报表定义的 stable ID、code 与创建审计在 DCL subject；候选编辑、提交、撤回、驳回、批准、反批准、草稿删除、版本历史和审计读取也由 DCL 统一拥有。RPT 不保存 definition root、root revision、current pointer 或业务 snapshot；它只保留执行与独立 VALID/INVALID 规则。它不拥有 ACC 查询投影、第二套角色权限、用户账簿分配或执行层账簿过滤，也不提供未授权报表菜单或集中报表中心。
 
 公开动作、路径和数据结构以 [OpenAPI RPT Schema](../../contracts/openapi/schemas/rpt.yaml) 为唯一线协议来源。
 
@@ -40,7 +40,7 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 ## 3. 报表定义与 DCL
 
-报表定义的生命周期完全由 [DCL 报表定义申报](dcl.md#39-报表定义申报) 拥有。`/dcl/rpt-definition` 是唯一维护入口，覆盖创建、保存、提交、撤回、驳回、批准、反批、删除、版本和审计。RPT 不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
+报表定义的生命周期完全由 [DCL 报表定义申报](dcl.md#39-报表定义申报) 拥有。`/dcl/rpt-definition` 是唯一维护入口，覆盖创建、保存、提交、撤回、驳回、批准、反批准、删除、版本和审计。RPT 不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
 
 最新 `APPROVED + enabled + VALID` entry 是唯一执行版本。不存在这类 entry 时定义不能执行；开放候选和非最新批准 entry 不能执行，也不能替代正式版本。`enabled` 是 DCL typed snapshot 的版本事实，仅 DRAFT candidate 可以修改；当前 approved 定义需先创建下一候选。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`，不在 RPT 另建状态映射。
 

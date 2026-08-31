@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
-import {
-  VoucherLifecycleActions,
-  type VoucherLifecycleLabels,
-} from '@/components/voucher'
+import { VoucherLifecycleActions } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
 import type { VoucherEntityViewModel } from './view-model'
 
 const props = defineProps<{
   model: VoucherEntityViewModel
-  labels: VoucherLifecycleLabels
 }>()
 const emit = defineEmits<{
   save: []
@@ -59,9 +55,7 @@ const lifecycleDisabledReason = computed(() => {
       :availability="vm.actionAvailability"
       :disabled="vm.busy || vm.dirty"
       :disabled-reason="lifecycleDisabledReason"
-      :labels="labels"
       :loading-action="vm.actionLoading"
-      :status="vm.documentView.approval.status"
       @action="vm.lifecycleAction"
     />
     <span

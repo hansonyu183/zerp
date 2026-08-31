@@ -174,6 +174,8 @@ function formCounterpartyType(
   reference: VoucherReferenceView | undefined,
 ): VoucherDraftForm['counterpartyType'] {
   switch (reference?.entity) {
+    case 'customer-account':
+      return 'customer'
     case 'customer':
     case 'supplier':
     case 'other-unit':

@@ -1,23 +1,7 @@
 import type {
   VoucherEntity,
   VoucherEntityConfig,
-  VoucherLifecycleLabels,
 } from '@/components/voucher'
-
-const defaultLifecycleLabels: VoucherLifecycleLabels = {
-  submit: '提交审核',
-  unsubmit: '撤回提交',
-  approve: '批准',
-  unapprove: '反批准',
-  pending: '待审核',
-  approved: '已批准',
-}
-
-export function lifecycleLabels(
-  config: VoucherEntityConfig,
-): VoucherLifecycleLabels {
-  return { ...defaultLifecycleLabels, ...config.lifecycleLabels }
-}
 
 export const voucherEntityConfigs: Readonly<
   Record<VoucherEntity, VoucherEntityConfig>
@@ -105,9 +89,6 @@ export const voucherEntityConfigs: Readonly<
     partyMode: 'none',
     lineKind: 'inventory-count',
     usesWarehouse: true,
-    lifecycleLabels: {
-      approved: '已盘点',
-    },
   },
   'purchase-order': {
     entity: 'purchase-order',

@@ -7,25 +7,13 @@ import type {
   VoucherLifecycleAction,
   VoucherListItem,
   VoucherMutationResult,
-  VoucherStatus,
 } from '@/components/voucher'
-
-const lifecycleStatuses: Record<VoucherLifecycleAction, VoucherStatus> = {
-  submit: 'DRAFT',
-  unsubmit: 'PENDING',
-  approve: 'PENDING',
-  unapprove: 'APPROVED',
-}
+import { approvalActionPresentation } from '@/shared/approval'
 
 export function lifecycleActionSuccessLabel(
   action: VoucherLifecycleAction,
 ): string {
-  return {
-    submit: '已提交审核',
-    unsubmit: '已撤回提交',
-    approve: '已批准',
-    unapprove: '已反批准',
-  }[action]
+  return approvalActionPresentation[action].successLabel
 }
 
 export async function postVoucherLifecycleAction(
@@ -36,8 +24,8 @@ export async function postVoucherLifecycleAction(
   reason?: string,
 ): Promise<VoucherMutationResult> {
   const response =
-    action === 'unapprove'
-      ? await apiClient.postContract(`vou/${config.entity}/unapprove`, {
+    action === 'reject' || action === 'unapprove'
+      ? await apiClient.postContract(`vou/${config.entity}/${action}`, {
           documentId,
           revision,
           reason: reason ?? '',
@@ -50,19 +38,6 @@ export async function postVoucherLifecycleAction(
   return data
 }
 
-export function canRunListLifecycleAction(
-  config: VoucherEntityConfig,
-  row: VoucherListItem,
-  action: VoucherLifecycleAction,
-  can: (permission: string) => boolean,
-): boolean {
-  return (
-    (row.status === lifecycleStatuses[action] ||
-      (action === 'unapprove' && row.status === 'APPROVED')) &&
-    can(`/vou/${config.entity}/${action}`)
-  )
-}
-
 interface ListLifecycleContext {
   config: VoucherEntityConfig
   rows: Ref<VoucherListItem[]>
@@ -70,7 +45,6 @@ interface ListLifecycleContext {
   actionLoading: Ref<string | null>
   errorMessage: Ref<string | null>
   successMessage: Ref<string | null>
-  canRun: (row: VoucherListItem, action: VoucherLifecycleAction) => boolean
   query: () => Promise<void>
   loadDocument: (documentId: string) => Promise<void>
   loadAudit: (page: number) => Promise<void>
@@ -82,29 +56,17 @@ export async function runListLifecycleAction(
   action: VoucherLifecycleAction,
   reason?: string,
 ): Promise<boolean> {
-  if (!context.canRun(row, action)) return false
+  if (!row.availableApprovalActions.includes(action)) return false
   context.actionLoading.value = `${action}:${row.documentId}`
   context.errorMessage.value = null
   try {
-    const data = await postVoucherLifecycleAction(
+    await postVoucherLifecycleAction(
       context.config,
       action,
       row.documentId,
       row.revision,
       reason,
     )
-    context.rows.value = context.rows.value.map((item) =>
-      item.documentId === row.documentId
-        ? {
-            ...item,
-            status: data.approval.status,
-            revision: data.approval.revision,
-          }
-        : item,
-    )
-    if (context.documentView.value?.documentId === row.documentId) {
-      await context.loadDocument(row.documentId)
-    }
     context.successMessage.value = `${row.documentNo} ${lifecycleActionSuccessLabel(action)}。`
     return true
   } catch (error) {
@@ -112,11 +74,15 @@ export async function runListLifecycleAction(
     return false
   } finally {
     context.actionLoading.value = null
-    void Promise.allSettled([
+    const currentDocument = context.documentView.value
+    const refreshCurrentDocument =
+      currentDocument?.documentId === row.documentId
+    await Promise.allSettled([
       context.query(),
-      context.documentView.value?.documentId === row.documentId
-        ? context.loadAudit(1)
+      refreshCurrentDocument
+        ? context.loadDocument(row.documentId)
         : Promise.resolve(),
+      refreshCurrentDocument ? context.loadAudit(1) : Promise.resolve(),
     ])
   }
 }

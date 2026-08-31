@@ -67,6 +67,13 @@ func (s *WarehouseService) Query(ctx context.Context, input WarehouseQueryInput,
 			}
 			item.OpenVersion = &v
 		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityWarehouse, r.OpenEntryID, r.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[WarehouseQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+		}
 		items = append(items, item)
 	}
 	return Page[WarehouseQueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
@@ -112,7 +119,7 @@ func (s *WarehouseService) Get(ctx context.Context, input WarehouseGetInput, act
 	if err != nil {
 		return WarehouseView{}, translateError(err)
 	}
-	return WarehouseView{ObjectID: identity.ID, Entity: EntityWarehouse, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: warehouseVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
+	return WarehouseView{ObjectID: identity.ID, Entity: EntityWarehouse, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: warehouseVersionData(stored), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
 }
 
 func (s *WarehouseService) Versions(ctx context.Context, input WarehouseHistoryInput, actor approval.Actor) (Page[WarehouseVersionView], error) {

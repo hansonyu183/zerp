@@ -8,9 +8,10 @@ import type { ListRowAction } from '@/components/common/list-row-actions'
 import CustomerAccountFields from '../customer-account/CustomerAccountFields.vue'
 import CustomerAttachments from '../customer-account/CustomerAttachments.vue'
 import {
-  dclApprovalEventActionText,
-  dclApprovalStatusText,
-} from '../shared/declaration'
+  approvalActionPresentation,
+  approvalEventActionLabels,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import type { DclCustomerListItem } from './data'
 import { customerActiveVersion, useDclCustomerViewModel } from './vm'
 
@@ -32,7 +33,8 @@ const columns: readonly BusinessObjectColumn<DclCustomerListItem>[] = [
     key: 'status',
     label: '审核状态',
     value: (row) =>
-      dclApprovalStatusText[customerActiveVersion(row).approval.status],
+      approvalStatusPresentation[customerActiveVersion(row).approval.status]
+        .label,
   },
   {
     key: 'candidate',
@@ -47,7 +49,7 @@ function actions(row: DclCustomerListItem): ListRowAction[] {
     ? [{ key: 'view', label: '查看', icon: 'mdi-eye-outline' }]
     : []
   if (available.submit)
-    result.push({ key: 'submit', label: '提交审核', icon: 'mdi-send-outline' })
+    result.push({ key: 'submit', ...approvalActionPresentation.submit })
   if (available.delete)
     result.push({
       key: 'delete',
@@ -56,27 +58,13 @@ function actions(row: DclCustomerListItem): ListRowAction[] {
       color: 'error',
     })
   if (available.approve)
-    result.push({
-      key: 'approve',
-      label: '审核通过',
-      icon: 'mdi-check-outline',
-      color: 'success',
-    })
+    result.push({ key: 'approve', ...approvalActionPresentation.approve })
   if (available.reject)
-    result.push({
-      key: 'reject',
-      label: '审核驳回',
-      icon: 'mdi-close-outline',
-      color: 'error',
-    })
+    result.push({ key: 'reject', ...approvalActionPresentation.reject })
   if (available.unsubmit)
-    result.push({ key: 'unsubmit', label: '撤回提交', icon: 'mdi-undo' })
+    result.push({ key: 'unsubmit', ...approvalActionPresentation.unsubmit })
   if (available.unapprove)
-    result.push({
-      key: 'unapprove',
-      label: '撤销批准',
-      icon: 'mdi-backup-restore',
-    })
+    result.push({ key: 'unapprove', ...approvalActionPresentation.unapprove })
   if (available.enable || available.disable)
     result.push({
       key: 'toggle',
@@ -305,7 +293,9 @@ void vm.query()
         />
         <v-list-item
           title="审核状态"
-          :subtitle="dclApprovalStatusText[vm.currentView.approval.status]"
+          :subtitle="
+            approvalStatusPresentation[vm.currentView.approval.status].label
+          "
         />
         <v-list-item
           title="附件数"
@@ -340,7 +330,7 @@ void vm.query()
         <v-list-item
           v-for="version in vm.versions"
           :key="version.approval.approvalEntryId"
-          :title="`V${version.approval.versionNo} · ${dclApprovalStatusText[version.approval.status]}`"
+          :title="`V${version.approval.versionNo} · ${approvalStatusPresentation[version.approval.status].label}`"
           :subtitle="version.approval.updatedAt"
         />
       </v-list>
@@ -357,7 +347,7 @@ void vm.query()
         <v-list-item
           v-for="event in vm.auditEvents"
           :key="event.id"
-          :title="dclApprovalEventActionText[event.action]"
+          :title="approvalEventActionLabels[event.action]"
           :subtitle="`${event.createdAt}${event.reason ? ` · ${event.reason}` : ''}`"
         />
       </v-list>
@@ -378,7 +368,9 @@ void vm.query()
     "
   >
     <v-card
-      :title="reasonTarget?.action === 'reject' ? '审核驳回' : '撤销批准'"
+      :title="
+        approvalActionPresentation[reasonTarget?.action ?? 'reject'].label
+      "
     >
       <v-card-text
         ><v-textarea
@@ -391,7 +383,9 @@ void vm.query()
       <v-card-actions
         ><v-spacer /><v-btn @click="reasonTarget = null">取消</v-btn
         ><v-btn
-          color="warning"
+          :color="
+            approvalActionPresentation[reasonTarget?.action ?? 'reject'].color
+          "
           :disabled="!reason.trim()"
           @click="confirmReason"
           >确认</v-btn

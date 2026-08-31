@@ -43,7 +43,10 @@ function listItem(
 function productView(
   value: components['schemas']['DclProductView'],
 ): DclProductView {
-  return { ...value, data: { ...value.data } as DclProductView['data'] } as unknown as DclProductView
+  return {
+    ...value,
+    data: { ...value.data } as DclProductView['data'],
+  } as unknown as DclProductView
 }
 
 export async function queryDclProducts(request: {
@@ -124,14 +127,12 @@ export async function runDclProductAction(
   request: ProductVersionRequest,
   reason: string,
 ): Promise<void> {
-  if (action === 'submit' || action === 'approve') {
-    await apiClient.postContract(`dcl/product/${action}`, request)
-  } else {
+  if (action === 'reject' || action === 'unapprove') {
     await apiClient.postContract(`dcl/product/${action}`, {
       ...request,
       reason,
     })
-  }
+  } else await apiClient.postContract(`dcl/product/${action}`, request)
 }
 
 export async function createDclProduct(data: DclProductInput): Promise<void> {
@@ -161,7 +162,6 @@ export async function deleteDclProduct(
 
 export const dclProductLifecyclePort: DclDeclarationLifecyclePort<DclProductListItem> =
   {
-    unsubmitReasonRequired: true,
     run: runDclProductLifecycle,
     async changeEnabled(item) {
       const view = await getDclProduct(

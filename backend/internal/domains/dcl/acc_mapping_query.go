@@ -65,7 +65,7 @@ func (s *AccMappingService) Query(ctx context.Context, input AccMappingQueryInpu
 		if err != nil {
 			return Page[AccMappingListItem]{}, translateError(err)
 		}
-		items = append(items, AccMappingListItem{BookID: r.BookID, VouEntity: r.VouEntity, Approval: approval.VersionMetaFromEntry(entry), Data: accMappingVersionData(stored)})
+		items = append(items, AccMappingListItem{BookID: r.BookID, VouEntity: r.VouEntity, Approval: approval.VersionMetaFromEntry(entry), Data: accMappingVersionData(stored), AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)})
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return Page[AccMappingListItem]{}, translateError(err)

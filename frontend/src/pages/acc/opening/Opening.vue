@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
-import { ApprovalStatusBadge } from '@/shared/approval'
+import {
+  ApprovalStatusBadge,
+  approvalActionPresentation,
+} from '@/shared/approval'
 import {
   createAccountingOpeningViewModel,
   openingDimensionLabels,
@@ -49,7 +52,7 @@ void vm.initialize()
       <v-progress-linear v-if="vm.loading" color="primary" indeterminate />
       <v-card-text class="pa-5">
         <v-alert
-          v-if="vm.opening?.state === 'APPROVED'"
+          v-if="vm.opening?.approval.status === 'APPROVED'"
           class="mb-5"
           density="compact"
           type="success"
@@ -75,7 +78,7 @@ void vm.initialize()
                 <td class="opening-lines__subject" data-label="会计科目">
                   <v-autocomplete
                     density="compact"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     hide-details
                     item-title="title"
                     item-value="value"
@@ -89,7 +92,7 @@ void vm.initialize()
                   <v-text-field
                     v-model="line.currency"
                     density="compact"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     hide-details
                     maxlength="3"
                     variant="underlined"
@@ -100,7 +103,7 @@ void vm.initialize()
                   <v-text-field
                     v-model="line.debitAmount"
                     density="compact"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     hide-details
                     inputmode="decimal"
                     variant="underlined"
@@ -111,7 +114,7 @@ void vm.initialize()
                   <v-text-field
                     v-model="line.creditAmount"
                     density="compact"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     hide-details
                     inputmode="decimal"
                     variant="underlined"
@@ -123,7 +126,7 @@ void vm.initialize()
                     v-if="subjectFor(line)?.inventoryQuantity"
                     v-model="line.quantity"
                     density="compact"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     hide-details
                     inputmode="decimal"
                     variant="underlined"
@@ -142,7 +145,7 @@ void vm.initialize()
                     v-model="line.dimensions[dimension]"
                     class="mb-1"
                     density="compact"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     hide-details
                     :label="openingDimensionLabels[dimension] ?? dimension"
                     variant="underlined"
@@ -158,7 +161,7 @@ void vm.initialize()
                 </td>
                 <td data-label="操作">
                   <v-btn
-                    v-if="vm.opening?.state === 'DRAFT'"
+                    v-if="vm.opening?.approval.status === 'DRAFT'"
                     aria-label="删除期初行"
                     color="error"
                     icon="mdi-delete-outline"
@@ -179,7 +182,7 @@ void vm.initialize()
 
         <div class="d-flex flex-wrap align-center ga-3 mt-5">
           <v-btn
-            v-if="vm.opening?.state === 'DRAFT'"
+            v-if="vm.opening?.approval.status === 'DRAFT'"
             prepend-icon="mdi-plus"
             variant="tonal"
             @click="vm.addLine"
@@ -221,47 +224,35 @@ void vm.initialize()
                       ><v-text-field
                         v-model="asset.assetId"
                         label="已有资产 ID（可空）"
-                        :disabled="vm.opening?.state === 'APPROVED'"
+                        :disabled="!vm.canEdit"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="4"
                       ><v-text-field
                         v-model="asset.assetNo"
                         label="资产编号"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' ||
-                          !asset.createObject
-                        "
+                        :disabled="!vm.canEdit || !asset.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="4"
                       ><v-text-field
                         v-model="asset.name"
                         label="资产名称"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' ||
-                          !asset.createObject
-                        "
+                        :disabled="!vm.canEdit || !asset.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="4"
                       ><v-text-field
                         v-model="asset.categoryId"
                         label="资产类别 ID"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' ||
-                          !asset.createObject
-                        "
+                        :disabled="!vm.canEdit || !asset.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="4"
                       ><v-text-field
                         v-model="asset.departmentId"
                         label="部门 ID"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' ||
-                          !asset.createObject
-                        "
+                        :disabled="!vm.canEdit || !asset.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="2"
@@ -269,20 +260,14 @@ void vm.initialize()
                         v-model.number="asset.usefulLifeMonths"
                         label="使用月数"
                         type="number"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' ||
-                          !asset.createObject
-                        "
+                        :disabled="!vm.canEdit || !asset.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="2"
                       ><v-text-field
                         v-model="asset.residualRate"
                         label="残值率"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' ||
-                          !asset.createObject
-                        "
+                        :disabled="!vm.canEdit || !asset.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="3"
@@ -290,10 +275,7 @@ void vm.initialize()
                         v-model="asset.acquiredOn"
                         label="取得日期"
                         type="date"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' ||
-                          !asset.createObject
-                        "
+                        :disabled="!vm.canEdit || !asset.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="4" md="2"
@@ -301,24 +283,27 @@ void vm.initialize()
                         v-model="asset.currency"
                         label="币种"
                         maxlength="3"
-                        :disabled="vm.opening?.state === 'APPROVED'"
+                        :disabled="!vm.canEdit"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="8" md="3"
                       ><v-text-field
                         v-model="asset.originalValue"
                         label="原值"
-                        :disabled="vm.opening?.state === 'APPROVED'"
+                        :disabled="!vm.canEdit"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="10" md="3"
                       ><v-text-field
                         v-model="asset.accumulatedDepreciation"
                         label="累计折旧"
-                        :disabled="vm.opening?.state === 'APPROVED'"
+                        :disabled="!vm.canEdit"
                         @update:model-value="vm.markDirty"
                     /></v-col>
-                    <v-col v-if="vm.opening?.state === 'DRAFT'" cols="2" md="1"
+                    <v-col
+                      v-if="vm.opening?.approval.status === 'DRAFT'"
+                      cols="2"
+                      md="1"
                       ><v-btn
                         aria-label="删除期初资产"
                         color="error"
@@ -330,7 +315,7 @@ void vm.initialize()
                 </v-card-text>
               </v-card>
               <v-btn
-                v-if="vm.opening?.state === 'DRAFT'"
+                v-if="vm.opening?.approval.status === 'DRAFT'"
                 prepend-icon="mdi-plus"
                 variant="tonal"
                 @click="vm.addAsset"
@@ -362,16 +347,14 @@ void vm.initialize()
                       ><v-text-field
                         v-model="bill.billId"
                         label="已有票据 ID（可空）"
-                        :disabled="vm.opening?.state === 'APPROVED'"
+                        :disabled="!vm.canEdit"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="4"
                       ><v-text-field
                         v-model="bill.billNo"
                         label="票据编号"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="2"
@@ -382,9 +365,7 @@ void vm.initialize()
                           { title: '应付', value: 'LIABILITY' },
                         ]"
                         label="头寸"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="2"
@@ -395,18 +376,14 @@ void vm.initialize()
                           { title: '纸质', value: 'PAPER' },
                         ]"
                         label="介质"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="3"
                       ><v-text-field
                         v-model="bill.billType"
                         label="票据类型"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="4" md="2"
@@ -414,23 +391,21 @@ void vm.initialize()
                         v-model="bill.currency"
                         label="币种"
                         maxlength="3"
-                        :disabled="vm.opening?.state === 'APPROVED'"
+                        :disabled="!vm.canEdit"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="8" md="3"
                       ><v-text-field
                         v-model="bill.faceAmount"
                         label="票面金额"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="4"
                       ><v-text-field
                         v-model="bill.valueAmount"
                         label="本账簿价值"
-                        :disabled="vm.opening?.state === 'APPROVED'"
+                        :disabled="!vm.canEdit"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="3"
@@ -438,9 +413,7 @@ void vm.initialize()
                         v-model="bill.issueDate"
                         label="出票日"
                         type="date"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="3"
@@ -448,36 +421,28 @@ void vm.initialize()
                         v-model="bill.maturityDate"
                         label="到期日"
                         type="date"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="3"
                       ><v-text-field
                         v-model="bill.drawer"
                         label="出票人"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="3"
                       ><v-text-field
                         v-model="bill.acceptor"
                         label="承兑人"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="12" md="3"
                       ><v-text-field
                         v-model="bill.payee"
                         label="收款人"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="3"
@@ -485,9 +450,7 @@ void vm.initialize()
                         v-model.number="bill.annualRateBps"
                         label="年利率基点"
                         type="number"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="3"
@@ -495,27 +458,21 @@ void vm.initialize()
                         v-model.number="bill.interestDays"
                         label="计息天数"
                         type="number"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="3"
                       ><v-text-field
                         v-model="bill.interestAmount"
                         label="利息"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <v-col cols="6" md="3"
                       ><v-text-field
                         v-model="bill.customerCostAmount"
                         label="客户成本"
-                        :disabled="
-                          vm.opening?.state === 'APPROVED' || !bill.createObject
-                        "
+                        :disabled="!vm.canEdit || !bill.createObject"
                         @update:model-value="vm.markDirty"
                     /></v-col>
                     <template v-if="bill.createObject">
@@ -523,39 +480,42 @@ void vm.initialize()
                         ><v-text-field
                           v-model="bill.partyEntity"
                           label="来源对象类型"
-                          :disabled="vm.opening?.state === 'APPROVED'"
+                          :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                       <v-col cols="12" md="3"
                         ><v-text-field
                           v-model="bill.partyObjectId"
                           label="来源对象 ID"
-                          :disabled="vm.opening?.state === 'APPROVED'"
+                          :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                       <v-col cols="12" md="3"
                         ><v-text-field
                           v-model="bill.partyApprovalEntryId"
                           label="来源版本 ID"
-                          :disabled="vm.opening?.state === 'APPROVED'"
+                          :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                       <v-col cols="6" md="2"
                         ><v-text-field
                           v-model="bill.partyCode"
                           label="来源编码"
-                          :disabled="vm.opening?.state === 'APPROVED'"
+                          :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                       <v-col cols="6" md="2"
                         ><v-text-field
                           v-model="bill.partyName"
                           label="来源名称"
-                          :disabled="vm.opening?.state === 'APPROVED'"
+                          :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                     </template>
-                    <v-col v-if="vm.opening?.state === 'DRAFT'" cols="2" md="1"
+                    <v-col
+                      v-if="vm.opening?.approval.status === 'DRAFT'"
+                      cols="2"
+                      md="1"
                       ><v-btn
                         aria-label="删除期初票据"
                         color="error"
@@ -567,7 +527,7 @@ void vm.initialize()
                 </v-card-text>
               </v-card>
               <v-btn
-                v-if="vm.opening?.state === 'DRAFT'"
+                v-if="vm.opening?.approval.status === 'DRAFT'"
                 prepend-icon="mdi-plus"
                 variant="tonal"
                 @click="vm.addBill"
@@ -587,7 +547,7 @@ void vm.initialize()
                   ><v-text-field
                     v-model="item.customerId"
                     label="客户 ID"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     @update:model-value="vm.markDirty"
                 /></v-col>
                 <v-col cols="6" md="3"
@@ -598,7 +558,7 @@ void vm.initialize()
                       { title: '树脂桶', value: 'RESIN' },
                     ]"
                     label="空桶类型"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     @update:model-value="vm.markDirty"
                 /></v-col>
                 <v-col cols="4" md="2"
@@ -606,10 +566,13 @@ void vm.initialize()
                     v-model.number="item.quantity"
                     label="数量"
                     type="number"
-                    :disabled="vm.opening?.state === 'APPROVED'"
+                    :disabled="!vm.canEdit"
                     @update:model-value="vm.markDirty"
                 /></v-col>
-                <v-col v-if="vm.opening?.state === 'DRAFT'" cols="2" md="1"
+                <v-col
+                  v-if="vm.opening?.approval.status === 'DRAFT'"
+                  cols="2"
+                  md="1"
                   ><v-btn
                     aria-label="删除期初空桶"
                     color="error"
@@ -619,7 +582,7 @@ void vm.initialize()
                 /></v-col>
               </v-row>
               <v-btn
-                v-if="vm.opening?.state === 'DRAFT'"
+                v-if="vm.opening?.approval.status === 'DRAFT'"
                 prepend-icon="mdi-plus"
                 variant="tonal"
                 @click="vm.addContainer"
@@ -641,6 +604,10 @@ void vm.initialize()
       <v-divider />
       <v-card-actions class="pa-5">
         <v-text-field
+          v-if="
+            vm.availableApprovalActions.includes('reject') ||
+            vm.availableApprovalActions.includes('unapprove')
+          "
           v-model="vm.approvalReason"
           density="compact"
           hide-details
@@ -649,38 +616,62 @@ void vm.initialize()
         />
         <v-spacer />
         <v-btn
-          v-if="vm.opening?.state === 'APPROVED'"
-          color="warning"
-          :disabled="!vm.canUnapprove"
+          v-if="vm.availableApprovalActions.includes('unapprove')"
+          :color="approvalActionPresentation.unapprove.color"
+          :prepend-icon="approvalActionPresentation.unapprove.icon"
           :loading="vm.saving"
           variant="tonal"
           @click="vm.reasonAction('unapprove')"
         >
-          反批准
+          {{ approvalActionPresentation.unapprove.label }}
         </v-btn>
-        <template v-else-if="vm.opening?.state === 'DRAFT'">
-          <v-btn
-            :disabled="!vm.canSave"
-            :loading="vm.saving"
-            variant="tonal"
-            @click="vm.save"
-          >
-            保存草稿
-          </v-btn>
-          <v-btn
-            color="primary"
-            :disabled="!vm.canSubmit"
-            :loading="vm.saving"
-            @click="vm.approvalAction('submit')"
-          >
-            提交期初
-          </v-btn>
-        </template>
-        <template v-else>
-          <v-btn :disabled="!vm.canUnsubmit" :loading="vm.saving" variant="tonal" @click="vm.approvalAction('unsubmit')">撤回提交</v-btn>
-          <v-btn color="error" :disabled="!vm.canReject" :loading="vm.saving" variant="tonal" @click="vm.reasonAction('reject')">驳回</v-btn>
-          <v-btn color="primary" :disabled="!vm.canApprove" :loading="vm.saving" @click="vm.approvalAction('approve')">批准期初</v-btn>
-        </template>
+        <v-btn
+          v-if="vm.opening?.approval.status === 'DRAFT'"
+          :disabled="!vm.canSave"
+          :loading="vm.saving"
+          variant="tonal"
+          @click="vm.save"
+        >
+          保存草稿
+        </v-btn>
+        <v-btn
+          v-if="vm.availableApprovalActions.includes('submit')"
+          :color="approvalActionPresentation.submit.color"
+          :loading="vm.saving"
+          :prepend-icon="approvalActionPresentation.submit.icon"
+          @click="vm.approvalAction('submit')"
+        >
+          {{ approvalActionPresentation.submit.label }}
+        </v-btn>
+        <v-btn
+          v-if="vm.availableApprovalActions.includes('unsubmit')"
+          :color="approvalActionPresentation.unsubmit.color"
+          :loading="vm.saving"
+          :prepend-icon="approvalActionPresentation.unsubmit.icon"
+          variant="tonal"
+          @click="vm.approvalAction('unsubmit')"
+        >
+          {{ approvalActionPresentation.unsubmit.label }}
+        </v-btn>
+        <v-btn
+          v-if="vm.availableApprovalActions.includes('reject')"
+          :color="approvalActionPresentation.reject.color"
+          :loading="vm.saving"
+          :prepend-icon="approvalActionPresentation.reject.icon"
+          variant="tonal"
+          @click="vm.reasonAction('reject')"
+        >
+          {{ approvalActionPresentation.reject.label }}
+        </v-btn>
+        <v-btn
+          v-if="vm.availableApprovalActions.includes('approve')"
+          :color="approvalActionPresentation.approve.color"
+          :loading="vm.saving"
+          :prepend-icon="approvalActionPresentation.approve.icon"
+          @click="vm.approvalAction('approve')"
+        >
+          {{ approvalActionPresentation.approve.label }}
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-container>

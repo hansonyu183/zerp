@@ -90,26 +90,22 @@ export function useDclProductViewModel() {
     filterReferenceLoading,
     filterReferenceError,
   } = useBobReferences(config, editorMode, filters)
-  const {
-    permission,
-    actionAvailability: baseActionAvailability,
-    actionBlockedReason,
-  } = useDclDeclarationActionAvailability(
-    'product',
-    (row: DclProductListItem) => {
-      const approval = dclProductActiveVersion(row).approval
-      return {
-        status: approval.status,
-        versionNo: approval.versionNo,
-        submittedBy: approval.submittedBy,
-        enabled: row.enabled,
-        hasOpenVersion: row.openVersion !== null,
-        hasLatestApproved: row.latestApproved !== null,
-      }
-    },
-    () => session.user?.id,
-    (path) => session.can(path),
-  )
+  const { permission, actionAvailability: baseActionAvailability } =
+    useDclDeclarationActionAvailability(
+      'product',
+      (row: DclProductListItem) => {
+        const approval = dclProductActiveVersion(row).approval
+        return {
+          status: approval.status,
+          versionNo: approval.versionNo,
+          availableApprovalActions: row.availableApprovalActions,
+          enabled: row.enabled,
+          hasOpenVersion: row.openVersion !== null,
+          hasLatestApproved: row.latestApproved !== null,
+        }
+      },
+      (path) => session.can(path),
+    )
   function actionAvailability(row: Readonly<DclProductListItem>) {
     const availability = baseActionAvailability(row)
     if (availability.edit) availability.edit = canEdit.value
@@ -306,6 +302,13 @@ export function useDclProductViewModel() {
     }
   }
 
+  async function refreshAfterMutationFailure(): Promise<void> {
+    const view = currentView.value
+    const mode = editorMode.value
+    await query()
+    if (view && mode !== 'create') await openById(view.objectId, mode)
+  }
+
   function closeEditor(): void {
     if (saving.value) return
     drawerOpen.value = false
@@ -352,7 +355,9 @@ export function useDclProductViewModel() {
       await query()
       return true
     } catch (error) {
-      editorErrorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAfterMutationFailure()
+      editorErrorMessage.value = message
       return false
     } finally {
       saving.value = false
@@ -379,10 +384,12 @@ export function useDclProductViewModel() {
     try {
       await dclProductLifecyclePort.run(row, 'submit', '')
       await query()
-      successMessage.value = `${row.code} 已提交审核。`
+      successMessage.value = `${row.code} 已提交。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null
@@ -399,7 +406,9 @@ export function useDclProductViewModel() {
       successMessage.value = `${row.code} 已删除。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAfterMutationFailure()
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null
@@ -455,7 +464,6 @@ export function useDclProductViewModel() {
     editorTitle,
     editorFields,
     actionAvailability,
-    actionBlockedReason,
     hasAnyAction,
     query,
     search,

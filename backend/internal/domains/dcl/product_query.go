@@ -68,6 +68,13 @@ func (s *ProductService) Query(ctx context.Context, input ProductQueryInput, act
 			}
 			item.OpenVersion = &v
 		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityProduct, r.OpenEntryID, r.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[ProductQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+		}
 		items = append(items, item)
 	}
 	return Page[ProductQueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
@@ -113,7 +120,7 @@ func (s *ProductService) Get(ctx context.Context, input ProductGetInput, actor a
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
-	return ProductView{ObjectID: identity.ID, Entity: EntityProduct, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: productVersionData(stored), UpdatedAt: entry.UpdatedAt}, nil
+	return ProductView{ObjectID: identity.ID, Entity: EntityProduct, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: productVersionData(stored), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
 }
 
 func (s *ProductService) Versions(ctx context.Context, input ProductHistoryInput, actor approval.Actor) (Page[ProductVersionView], error) {

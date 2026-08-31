@@ -311,6 +311,40 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	if obsoleteBOBWrites != 0 {
 		t.Fatalf("obsolete BOB current-data write permissions = %d", obsoleteBOBWrites)
 	}
+	rows, err = pool.Query(t.Context(), `SELECT path, action, description
+		FROM app_permissions
+		WHERE action = ANY($1::text[])
+		ORDER BY path`, []string{"submit", "unsubmit", "reject", "approve", "unapprove"})
+	if err != nil {
+		t.Fatalf("query Approval lifecycle permission descriptions: %v", err)
+	}
+	defer rows.Close()
+	canonicalActionWords := map[string]string{
+		"submit": "提交", "unsubmit": "撤回", "reject": "驳回",
+		"approve": "批准", "unapprove": "反批准",
+	}
+	legacyWords := map[string][]string{
+		"submit": {"审核"}, "unsubmit": {"提交"},
+		"reject": {"审核"}, "approve": {"审核"},
+		"unapprove": {"审核", "撤销"},
+	}
+	for rows.Next() {
+		var path, action, description string
+		if err = rows.Scan(&path, &action, &description); err != nil {
+			t.Fatalf("scan Approval lifecycle permission: %v", err)
+		}
+		if !strings.HasPrefix(description, canonicalActionWords[action]) {
+			t.Errorf("Approval lifecycle permission %s description %q does not start with %q", path, description, canonicalActionWords[action])
+		}
+		for _, legacyWord := range legacyWords[action] {
+			if strings.Contains(description, legacyWord) {
+				t.Errorf("Approval lifecycle permission %s description %q contains legacy word %q", path, description, legacyWord)
+			}
+		}
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatalf("iterate Approval lifecycle permission descriptions: %v", err)
+	}
 }
 
 func TestUserManagementSecurityIntegration(t *testing.T) {

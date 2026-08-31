@@ -2,27 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   calculateDueDate,
   calculateLineAmount,
-  formatVoucherStatus,
   isMoney,
   isQuantity,
   parseFixed,
   resolveDueDate,
   sumMoney,
   toVouAtomicDocument,
-  voucherStatusOptions,
 } from '@/components/voucher'
 
 describe('VOU decimal and settlement helpers', () => {
-  it('keeps voucher status labels in one ordered source', () => {
-    expect(formatVoucherStatus('PENDING')).toBe('待审核')
-    expect(formatVoucherStatus('PENDING', { PENDING: '审核中' })).toBe('审核中')
-    expect(voucherStatusOptions.map((option) => option.value)).toEqual([
-      'DRAFT',
-      'PENDING',
-      'APPROVED',
-    ])
-  })
-
   it('parses quantities and money without floating point conversion', () => {
     expect(parseFixed('1.234567', 6)).toBe(1_234_567n)
     expect(parseFixed('0', 6, true)).toBe(0n)

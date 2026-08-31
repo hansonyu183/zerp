@@ -13,8 +13,17 @@ import { runDclProductAction } from '@/pages/dcl/product/data'
 import { runDclEmployeeAction } from '@/pages/dcl/employee/data'
 import { runDclSupplierAction } from '@/pages/dcl/supplier/data'
 import { runDclRelationshipAction } from '@/pages/dcl/relationship/data'
+import { runAccountingMappingLifecycleAction } from '@/pages/dcl/acc-mapping/api'
+import { runRptDefinitionLifecycleAction } from '@/pages/dcl/rpt-definition/api'
+import { runWflProcessDefinitionLifecycleAction } from '@/pages/dcl/wfl-process-definition/api'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
-import { approveVoucher, submitVoucher, unsubmitVoucher } from '@/api/vou'
+import {
+  approveVoucher,
+  rejectVoucher,
+  submitVoucher,
+  unsubmitVoucher,
+} from '@/api/vou'
+import { approvalActionPresentation } from '@/shared/approval'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
 export type WorkbenchAction = components['schemas']['WorkbenchAction']
@@ -24,10 +33,7 @@ export type WorkbenchObjectItem = components['schemas']['WorkbenchObjectItem']
 export type WorkbenchDocumentItem =
   components['schemas']['WorkbenchDocumentItem']
 export type WorkbenchItem = WorkbenchObjectItem | WorkbenchDocumentItem
-export type WorkbenchConfirmationAction = Extract<
-  WorkbenchAction,
-  'reject' | 'unsubmit'
->
+export type WorkbenchConfirmationAction = Extract<WorkbenchAction, 'reject'>
 
 export function workbenchItemPath(item: WorkbenchItem): string {
   if (item.category === 'VOU') return `/vou/${item.entity}`
@@ -49,7 +55,10 @@ export function workbenchItemQuery(
       mode,
     }
   }
-  if (item.entity === 'rpt-definition') {
+  if (
+    item.entity === 'rpt-definition' ||
+    item.entity === 'wfl-process-definition'
+  ) {
     return {
       code: item.code,
       approvalEntryId: item.versionId,
@@ -260,11 +269,7 @@ export function useDashboardViewModel() {
     if (!item.availableActions.includes(action) || actionLoading.value) {
       return false
     }
-    if (
-      (action === 'reject' ||
-        (item.category === 'BOB' && action === 'unsubmit')) &&
-      !comment.trim()
-    ) {
+    if (approvalActionPresentation[action].reasonRequired && !comment.trim()) {
       return false
     }
     const category = item.category
@@ -330,6 +335,37 @@ export function useDashboardViewModel() {
             request,
             comment.trim(),
           )
+        } else if (item.entity === 'acc-mapping') {
+          await runAccountingMappingLifecycleAction(
+            action,
+            {
+              bookId: item.bookId ?? '',
+              vouEntity: item.vouEntity ?? '',
+              approvalEntryId: item.versionId,
+              approvalRevision: item.revision,
+            },
+            comment.trim(),
+          )
+        } else if (item.entity === 'rpt-definition') {
+          await runRptDefinitionLifecycleAction(
+            action,
+            {
+              code: item.code,
+              approvalEntryId: item.versionId,
+              approvalRevision: item.revision,
+            },
+            comment.trim(),
+          )
+        } else if (item.entity === 'wfl-process-definition') {
+          await runWflProcessDefinitionLifecycleAction(
+            action,
+            {
+              code: item.code,
+              approvalEntryId: item.versionId,
+              approvalRevision: item.revision,
+            },
+            comment.trim(),
+          )
         } else {
           throw new Error('BOB current data has no lifecycle actions.')
         }
@@ -344,18 +380,17 @@ export function useDashboardViewModel() {
           await unsubmitVoucher(item.entity, request)
         } else if (action === 'approve') {
           await approveVoucher(item.entity, request)
+        } else if (action === 'reject') {
+          await rejectVoucher(item.entity, {
+            ...request,
+            reason: comment.trim(),
+          })
         }
       }
       const refreshed = await query(category)
       if (!refreshed) return false
       const identity = item.category === 'BOB' ? item.code : item.documentNo
-      const label = {
-        submit: '已提交审核',
-        unsubmit: '已撤回提交',
-        approve: item.category === 'BOB' ? '已审核通过' : '已批准',
-        reject: '已审核驳回',
-      }[action]
-      successMessage.value = `${identity} ${label}。`
+      successMessage.value = `${identity} ${approvalActionPresentation[action].successLabel}。`
       return true
     } catch (error) {
       const message = getDiagnosticErrorMessage(error)
@@ -371,10 +406,7 @@ export function useDashboardViewModel() {
     item: WorkbenchItem,
     action: WorkbenchConfirmationAction,
   ): boolean {
-    const supported =
-      (item.category === 'BOB' &&
-        (action === 'reject' || action === 'unsubmit')) ||
-      (item.category === 'VOU' && action === 'unsubmit')
+    const supported = action === 'reject'
     if (!supported || !item.availableActions.includes(action)) return false
     confirmationTarget.value = item
     confirmationAction.value = action

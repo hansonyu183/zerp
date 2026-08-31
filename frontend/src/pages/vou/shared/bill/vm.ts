@@ -15,9 +15,11 @@ import { validateBillVoucherForm } from './validation'
 import type { BillVoucherConfig } from './config'
 import { useVoucherArtifacts } from '../artifacts'
 import { voucherEntityConfigs } from '../config'
+import { postVoucherLifecycleAction } from '../lifecycle'
 import type {
   VoucherActionAvailability,
   VoucherDocumentView,
+  VoucherLifecycleAction,
   VoucherStatus,
 } from '@/components/voucher'
 
@@ -86,6 +88,7 @@ export interface BillListItem {
   documentNo: string
   status: VoucherStatus
   revision: number
+  availableApprovalActions: VoucherLifecycleAction[]
   businessDate: string
   currency: string
   amount: string
@@ -94,7 +97,6 @@ export interface BillListItem {
 }
 type VouQueryRequest = ApiPostRequest<'vou/bill-receipt/query'>
 type VouGetRequest = ApiPostRequest<'vou/bill-receipt/get'>
-type VouRevisionRequest = ApiPostRequest<'vou/bill-receipt/submit'>
 type VouReverseRequest = ApiPostRequest<'vou/bill-receipt/unapprove'>
 type BobQueryRequest = ApiPostRequest<'bob/customer-account/query'>
 type AvailableBillQueryRequest = ApiPostRequest<'vou/bill-payment/bill-source'>
@@ -211,14 +213,17 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const heldBillOptions = ref<BillLineDraft[]>([])
   const heldSelection = ref<string[]>([])
   const heldDialogOpen = ref(false)
+  const lifecycleActions = computed(
+    () => new Set(documentView.value?.availableApprovalActions ?? []),
+  )
   const actionAvailability = computed<VoucherActionAvailability>(() => ({
     get: session.can(permission('get')),
     save: session.can(permission('save')) && hasRequiredHeldBillAccess.value,
-    submit: documentStatus.value === 'DRAFT' && session.can(permission('submit')),
-    unsubmit:
-      documentStatus.value === 'PENDING' && session.can(permission('unsubmit')),
-    approve: session.can(permission('approve')),
-    unapprove: session.can(permission('unapprove')),
+    submit: lifecycleActions.value.has('submit'),
+    unsubmit: lifecycleActions.value.has('unsubmit'),
+    reject: lifecycleActions.value.has('reject'),
+    approve: lifecycleActions.value.has('approve'),
+    unapprove: lifecycleActions.value.has('unapprove'),
     delete: session.can(permission('delete')),
     audit: session.can(permission('audit-history')),
     attachmentInitiate: session.can(permission('attachment-initiate')),
@@ -251,7 +256,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         filters: {
           ...(normalizedKeyword ? { keyword: normalizedKeyword } : {}),
           ...(status.value.length
-            ? { status: status.value as components['schemas']['ApprovalStatus'][] }
+            ? {
+                status:
+                  status.value as components['schemas']['ApprovalStatus'][],
+              }
             : {}),
         },
         sort: [{ field: 'documentNo', order: 'desc' }],
@@ -366,7 +374,9 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       })
       documentView.value = data
       editing.value =
-        edit && data.approval.status === 'DRAFT' && actionAvailability.value.save
+        edit &&
+        data.approval.status === 'DRAFT' &&
+        actionAvailability.value.save
     } catch (error) {
       if (current === documentLoadSequence && !requestController.signal.aborted)
         errorMessage.value = getDiagnosticErrorMessage(error)
@@ -447,42 +457,74 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     }
   }
   async function lifecycle(
-    action: 'submit' | 'unsubmit' | 'approve' | 'unapprove',
+    action: VoucherLifecycleAction,
     reason?: string,
-  ) {
-    if (!documentId.value) return
+  ): Promise<boolean> {
+    const current = documentView.value
+    if (!current || !current.availableApprovalActions.includes(action))
+      return false
+    const currentDocumentId = current.documentId
     actionLoading.value = action
     try {
-      let result
-      if (action === 'unapprove') {
-        const request: VouReverseRequest = {
-          documentId: documentId.value,
-          revision: revision.value,
-          reason: reason ?? '',
-        }
-        result = await apiClient.postContract(
-          `vou/${config.entity}/${action}`,
-          request,
-        )
-      } else {
-        const request: VouRevisionRequest = {
-          documentId: documentId.value,
-          revision: revision.value,
-        }
-        result = await apiClient.postContract(
-          `vou/${config.entity}/${action}`,
-          request,
-        )
-      }
-      revision.value = result.data.approval.revision
-      documentStatus.value = result.data.approval.status as VoucherStatus
-      if (documentView.value) {
-        documentView.value.approval = result.data.approval
-      }
+      const result = await postVoucherLifecycleAction(
+        voucherEntityConfigs[config.entity],
+        action,
+        current.documentId,
+        current.approval.revision,
+        reason,
+      )
+      const { approval } = result
+      revision.value = approval.revision
+      documentStatus.value = approval.status
+      if (documentView.value) documentView.value.approval = approval
+      return true
     } catch (error) {
       errorMessage.value = getDiagnosticErrorMessage(error)
+      return false
     } finally {
       actionLoading.value = null
+      const refreshCurrentDocument =
+        documentView.value?.documentId === currentDocumentId
+      await Promise.allSettled([
+        query(),
+        refreshCurrentDocument
+          ? openDocument({ documentId: currentDocumentId })
+          : Promise.resolve(),
+        refreshCurrentDocument ? artifacts.loadAudit(1) : Promise.resolve(),
+      ])
+    }
+  }
+  async function lifecycleFromList(
+    row: BillListItem,
+    action: VoucherLifecycleAction,
+    reason?: string,
+  ): Promise<boolean> {
+    if (!row.availableApprovalActions.includes(action)) return false
+    actionLoading.value = `${action}:${row.documentId}`
+    errorMessage.value = null
+    try {
+      await postVoucherLifecycleAction(
+        voucherEntityConfigs[config.entity],
+        action,
+        row.documentId,
+        row.revision,
+        reason,
+      )
+      return true
+    } catch (error) {
+      errorMessage.value = getDiagnosticErrorMessage(error)
+      return false
+    } finally {
+      actionLoading.value = null
+      const refreshCurrentDocument =
+        documentView.value?.documentId === row.documentId
+      await Promise.allSettled([
+        query(),
+        refreshCurrentDocument
+          ? openDocument({ documentId: row.documentId })
+          : Promise.resolve(),
+        refreshCurrentDocument ? artifacts.loadAudit(1) : Promise.resolve(),
+      ])
     }
   }
   async function deleteDraft(reason: string): Promise<boolean> {
@@ -843,6 +885,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     closeWorkspace,
     save,
     lifecycle,
+    lifecycleFromList,
     deleteDraft,
     addBillLine,
     addCashLine,

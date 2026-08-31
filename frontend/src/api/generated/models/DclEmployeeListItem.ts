@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { DclEmployeeVersionView } from './DclEmployeeVersionView';
 import type { PartyKind } from './PartyKind';
 export type DclEmployeeListItem = {
@@ -15,6 +16,7 @@ export type DclEmployeeListItem = {
   operatingEntityCode: string;
   operatingEntityName: string;
   enabled: boolean;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   latestApproved: DclEmployeeVersionView | null;
   openVersion: DclEmployeeVersionView | null;
   updatedAt: string;

@@ -542,6 +542,19 @@ test(
       await expect(
         page.getByText('超级管理员', { exact: true }).first(),
       ).toBeVisible()
+      const superadminRow = page
+        .locator('tbody tr')
+        .filter({ hasText: '超级管理员' })
+      await superadminRow
+        .getByRole('button', { name: '查看', exact: true })
+        .click()
+      const roleDrawer = page.locator('.v-navigation-drawer')
+      const lifecyclePermission = roleDrawer
+        .locator('.v-list-item')
+        .filter({ hasText: '/dcl/product/unapprove' })
+      await expect(lifecyclePermission).toContainText('反批准')
+      await expect(lifecyclePermission).not.toContainText('反审核')
+      await roleDrawer.locator('.v-card-title button').click()
       await page.getByRole('button', { name: '新增', exact: true }).click()
       await page
         .getByLabel('角色名称', { exact: true })

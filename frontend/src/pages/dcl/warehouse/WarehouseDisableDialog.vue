@@ -41,7 +41,7 @@ const vm = props.model
         </v-alert>
         <template v-else>
           <v-alert class="mb-4" type="warning" variant="tonal">
-            请先处理以下阻断项；停用候选将保持待审核，当前正式仓库继续启用。
+            请先处理以下阻断项；停用候选将保持待批准，当前正式仓库继续启用。
           </v-alert>
           <div v-if="vm.warehouseDisableBlockers.inventory.length" class="mb-4">
             <div class="text-subtitle-2 mb-1">非零库存</div>

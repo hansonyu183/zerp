@@ -5,6 +5,7 @@ package dcl
 import (
 	"context"
 	"errors"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -24,6 +25,74 @@ import (
 type signalingRelationshipPartyReader struct {
 	called chan<- struct{}
 	result bobdomain.PartyRelationshipResolved
+}
+
+func TestPartyQueryAndGetReturnServerApprovalActionsIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, pool)
+	service := newPartyIntegrationService(pool, nil)
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+	permissions := []string{
+		"/dcl/party/submit", "/dcl/party/unsubmit", "/dcl/party/reject",
+		"/dcl/party/approve", "/dcl/party/unapprove",
+	}
+	creator := func(requestID string) approval.Actor {
+		return dclActorWithPermissions(t, creatorID, requestID, permissions...)
+	}
+	reviewer := func(requestID string) approval.Actor {
+		return dclActorWithPermissions(t, reviewerID, requestID, permissions...)
+	}
+
+	draft := createPartyDraft(t, service, partyDeclarationData("动作资格主体", "91310000PARTYACTION"), creator("party-actions-create"))
+	assertPartyProjectionActions(t, service, draft.PartyID, creator("party-actions-draft-query"), []approval.LifecycleAction{approval.LifecycleSubmit})
+
+	pending, err := service.Submit(t.Context(), partyVersionInput(draft), creator("party-actions-submit"))
+	if err != nil {
+		t.Fatalf("submit Party: %v", err)
+	}
+	assertPartyProjectionActions(t, service, draft.PartyID, creator("party-actions-self-query"), []approval.LifecycleAction{approval.LifecycleUnsubmit})
+	assertPartyProjectionActions(t, service, draft.PartyID, reviewer("party-actions-reviewer-query"), []approval.LifecycleAction{
+		approval.LifecycleUnsubmit, approval.LifecycleReject, approval.LifecycleApprove,
+	})
+
+	approved, err := service.Approve(t.Context(), partyVersionInput(pending), reviewer("party-actions-approve"))
+	if err != nil {
+		t.Fatalf("approve Party: %v", err)
+	}
+	if approved.Approval.Status != approval.StatusApproved {
+		t.Fatalf("approved status = %s", approved.Approval.Status)
+	}
+	assertPartyProjectionActions(t, service, draft.PartyID, reviewer("party-actions-approved-query"), []approval.LifecycleAction{approval.LifecycleUnapprove})
+}
+
+func assertPartyProjectionActions(
+	t *testing.T,
+	service *PartyService,
+	partyID string,
+	actor approval.Actor,
+	want []approval.LifecycleAction,
+) {
+	t.Helper()
+	view, err := service.Get(t.Context(), PartyGetInput{PartyID: partyID}, bobdomain.PartyRelationshipVisibility{}, actor)
+	if err != nil {
+		t.Fatalf("get Party: %v", err)
+	}
+	if !slices.Equal(view.AvailableApprovalActions, want) {
+		t.Fatalf("get actions = %v, want %v", view.AvailableApprovalActions, want)
+	}
+	page, err := service.Query(t.Context(), bobdomain.QueryInput{Page: 1, PageSize: 20}, actor)
+	if err != nil {
+		t.Fatalf("query Parties: %v", err)
+	}
+	for _, item := range page.Items {
+		if item.PartyID == partyID {
+			if !slices.Equal(item.AvailableApprovalActions, want) {
+				t.Fatalf("query actions = %v, want %v", item.AvailableApprovalActions, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("Party %s absent from query", partyID)
 }
 
 func (r signalingRelationshipPartyReader) ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error) {

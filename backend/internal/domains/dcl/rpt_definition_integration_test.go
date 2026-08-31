@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -125,6 +126,91 @@ func approveRptDefinition(t *testing.T, service *RptDefinitionService, mutation 
 	return approved
 }
 
+func TestDclRptDefinitionQueryAndGetReturnServerApprovalActionsIntegration(t *testing.T) {
+	pool := dclIntegrationPool(t)
+	resetRptDefinitionIntegrationData(t, pool)
+	validator, err := rptdomain.NewService(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewRptDefinitionService(pool, validator, authorization.Func(nil), txevent.NewBus())
+	permissions := []string{
+		"/dcl/rpt-definition/submit", "/dcl/rpt-definition/unsubmit",
+		"/dcl/rpt-definition/reject", "/dcl/rpt-definition/approve",
+		"/dcl/rpt-definition/unapprove",
+	}
+	creator := func(requestID string) approval.Actor {
+		return dclActorWithPermissions(t, rptDefinitionCreatorID, requestID, permissions...)
+	}
+	reviewer := func(requestID string) approval.Actor {
+		return dclActorWithPermissions(t, rptDefinitionReviewerID, requestID, permissions...)
+	}
+
+	draft, err := service.Create(t.Context(), RptDefinitionCreateInput{
+		Name: "动作资格报表", Enabled: true, Data: rptDefinitionTestData(t, "actions"),
+	}, creator("rpt-actions-create"))
+	if err != nil {
+		t.Fatalf("create report definition: %v", err)
+	}
+	assertRptDefinitionProjectionActions(t, service, draft.Code, creator("rpt-actions-draft-query"), []approval.LifecycleAction{approval.LifecycleSubmit})
+
+	pending, err := service.Submit(t.Context(), RptDefinitionVersionInput{
+		Code: draft.Code, ApprovalEntryID: draft.Approval.ApprovalEntryID,
+		ApprovalRevision: draft.Approval.Revision, ValidationParameters: map[string]any{},
+	}, creator("rpt-actions-submit"))
+	if err != nil {
+		t.Fatalf("submit report definition: %v", err)
+	}
+	assertRptDefinitionProjectionActions(t, service, draft.Code, creator("rpt-actions-self-query"), []approval.LifecycleAction{approval.LifecycleUnsubmit})
+	assertRptDefinitionProjectionActions(t, service, draft.Code, reviewer("rpt-actions-reviewer-query"), []approval.LifecycleAction{
+		approval.LifecycleUnsubmit, approval.LifecycleReject, approval.LifecycleApprove,
+	})
+
+	approved, err := service.Approve(t.Context(), RptDefinitionVersionInput{
+		Code: draft.Code, ApprovalEntryID: pending.Approval.ApprovalEntryID,
+		ApprovalRevision: pending.Approval.Revision, ValidationParameters: map[string]any{},
+	}, reviewer("rpt-actions-approve"))
+	if err != nil {
+		t.Fatalf("approve report definition: %v", err)
+	}
+	if approved.Approval.Status != approval.StatusApproved {
+		t.Fatalf("approved status = %s", approved.Approval.Status)
+	}
+	assertRptDefinitionProjectionActions(t, service, draft.Code, reviewer("rpt-actions-approved-query"), []approval.LifecycleAction{approval.LifecycleUnapprove})
+}
+
+func assertRptDefinitionProjectionActions(
+	t *testing.T,
+	service *RptDefinitionService,
+	code string,
+	actor approval.Actor,
+	want []approval.LifecycleAction,
+) {
+	t.Helper()
+	view, err := service.Get(t.Context(), RptDefinitionGetInput{Code: code}, actor)
+	if err != nil {
+		t.Fatalf("get report definition: %v", err)
+	}
+	if !slices.Equal(view.AvailableApprovalActions, want) {
+		t.Fatalf("get actions = %v, want %v", view.AvailableApprovalActions, want)
+	}
+	page, err := service.Query(t.Context(), RptDefinitionQueryInput{
+		Page: 1, PageSize: 20, Filters: RptDefinitionFilters{IncludeDisabled: true},
+	}, actor)
+	if err != nil {
+		t.Fatalf("query report definitions: %v", err)
+	}
+	for _, item := range page.Items {
+		if item.Code == code {
+			if !slices.Equal(item.AvailableApprovalActions, want) {
+				t.Fatalf("query actions = %v, want %v", item.AvailableApprovalActions, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("report definition %s absent from query", code)
+}
+
 func TestDclRptDefinitionCurrentSwitchFallbackAndAuditIdentityIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetRptDefinitionIntegrationData(t, pool)
@@ -202,7 +288,7 @@ func TestDclRptDefinitionCurrentSwitchFallbackAndAuditIdentityIntegration(t *tes
 	if err != nil || result.Items[0]["value"] != "v1" {
 		t.Fatalf("execute fallback V1 = %+v, err=%v", result, err)
 	}
-	v2Draft, err = service.Unsubmit(t.Context(), RptDefinitionReviewInput{
+	v2Draft, err = service.Unsubmit(t.Context(), RptDefinitionVersionInput{
 		Code: code, ApprovalEntryID: v2Draft.Approval.ApprovalEntryID,
 		ApprovalRevision: v2Draft.Approval.Revision,
 	}, dclActor(t, rptDefinitionCreatorID, "dcl-rpt-unsubmit-v2"))

@@ -448,7 +448,7 @@ async function createAndApproveContract(
   const submitResponse = page.waitForResponse((response) =>
     response.url().endsWith('/vou/service-contract/submit'),
   )
-  await workspace.getByRole('button', { name: '提交审核', exact: true }).click()
+  await workspace.getByRole('button', { name: '提交', exact: true }).click()
   const submittedEnvelope = (await (
     await submitResponse
   ).json()) as Envelope<VoucherMutation>
@@ -494,7 +494,7 @@ async function createAndApproveAcceptance(
   const submitResponse = page.waitForResponse((response) =>
     response.url().endsWith('/vou/service-acceptance/submit'),
   )
-  await workspace.getByRole('button', { name: '提交审核', exact: true }).click()
+  await workspace.getByRole('button', { name: '提交', exact: true }).click()
   const submittedEnvelope = (await (
     await submitResponse
   ).json()) as Envelope<VoucherMutation>
@@ -627,7 +627,7 @@ async function createAttributedCustomer(
     approvedCustomer.objectId,
   )
   if (!account.openVersion) {
-    throw new Error('客户创建未返回待审核的默认账户版本。')
+    throw new Error('客户创建未返回待批准的默认账户版本。')
   }
   const submitted = await operator.ok<Mutation>('dcl/customer-account/submit', {
     objectId: account.objectId,
@@ -988,7 +988,7 @@ async function createEmployeeAttributedCustomer(
     approvedCustomer.objectId,
   )
   if (!account.openVersion) {
-    throw new Error('客户创建未返回待审核的默认账户版本。')
+    throw new Error('客户创建未返回待批准的默认账户版本。')
   }
   const submitted = await operator.ok<Mutation>('dcl/customer-account/submit', {
     objectId: account.objectId,

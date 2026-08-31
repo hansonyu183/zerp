@@ -1,23 +1,19 @@
 import type { BusinessObjectField } from '@/components/business-object'
-import type { components } from '@/api/generated/schema'
+import type { ApprovalStatus } from '@/api/generated'
 import {
   decimalPattern,
   patternRule,
   vinPattern,
 } from '@/pages/bob/shared/config-helpers'
 import {
+  approvalStatusOptions,
+  approvalStatusPresentation,
+} from '@/shared/approval'
+import {
   dclVehicleActiveVersion,
   type DclVehicleConfig,
   type DclVehicleForm,
 } from './types'
-
-type ApprovalStatus = components['schemas']['ApprovalVersionMeta']['status']
-
-export const dclVehicleStatusText: Record<ApprovalStatus, string> = {
-  DRAFT: '草稿',
-  PENDING: '待批准',
-  APPROVED: '已批准',
-}
 
 const fields: readonly BusinessObjectField<DclVehicleForm>[] = [
   { key: 'code', label: '车辆编码', type: 'readonly' },
@@ -111,7 +107,8 @@ export const dclVehicleConfig: DclVehicleConfig = {
       key: 'status',
       label: '状态',
       value: (row) => dclVehicleActiveVersion(row).approval.status,
-      format: (value) => dclVehicleStatusText[value as ApprovalStatus],
+      format: (value) =>
+        approvalStatusPresentation[value as ApprovalStatus].label,
       sizing: 'compact',
     },
   ],
@@ -121,11 +118,7 @@ export const dclVehicleConfig: DclVehicleConfig = {
       label: '状态',
       type: 'select',
       multiple: true,
-      options: [
-        { title: '草稿', value: 'DRAFT' },
-        { title: '待批准', value: 'PENDING' },
-        { title: '已批准', value: 'APPROVED' },
-      ],
+      options: approvalStatusOptions,
     },
     {
       key: 'enabled',

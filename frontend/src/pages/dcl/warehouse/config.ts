@@ -1,18 +1,14 @@
 import type { BusinessObjectField } from '@/components/business-object'
-import type { components } from '@/api/generated/schema'
+import type { ApprovalStatus } from '@/api/generated'
+import {
+  approvalStatusOptions,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import {
   dclWarehouseActiveVersion,
   type DclWarehouseConfig,
   type DclWarehouseForm,
 } from './types'
-
-type ApprovalStatus = components['schemas']['ApprovalVersionMeta']['status']
-
-export const dclStatusText: Record<ApprovalStatus, string> = {
-  DRAFT: '草稿',
-  PENDING: '待批准',
-  APPROVED: '已批准',
-}
 
 const maxLength = (label: string, maximum: number) => (value: unknown) =>
   typeof value !== 'string' || Array.from(value).length <= maximum
@@ -102,7 +98,8 @@ export const dclWarehouseConfig: DclWarehouseConfig = {
       key: 'status',
       label: '状态',
       value: (row) => dclWarehouseActiveVersion(row).approval.status,
-      format: (value) => dclStatusText[value as ApprovalStatus],
+      format: (value) =>
+        approvalStatusPresentation[value as ApprovalStatus].label,
       sizing: 'compact',
     },
   ],
@@ -112,11 +109,7 @@ export const dclWarehouseConfig: DclWarehouseConfig = {
       label: '状态',
       type: 'select',
       multiple: true,
-      options: [
-        { title: '草稿', value: 'DRAFT' },
-        { title: '待批准', value: 'PENDING' },
-        { title: '已批准', value: 'APPROVED' },
-      ],
+      options: approvalStatusOptions,
     },
     {
       key: 'enabled',

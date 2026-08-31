@@ -182,6 +182,7 @@ describe('DCL customer declarations', () => {
     const row = {
       objectId: 'CUR-1',
       enabled: true,
+      availableApprovalActions: ['submit'],
       openVersion: { approval },
       latestApproved: null,
     } as never
@@ -218,6 +219,118 @@ describe('DCL customer declarations', () => {
     expect(vm.auditOpen.value).toBe(true)
   })
 
+  it('refreshes the customer relationship after a lifecycle failure without replaying it', async () => {
+    const approval = {
+      approvalEntryId: 'ENTRY-STALE',
+      revision: 1,
+      status: 'DRAFT',
+      versionNo: 1,
+      submittedBy: null,
+    }
+    const row = {
+      objectId: 'CUR-STALE',
+      enabled: true,
+      availableApprovalActions: ['submit'],
+      openVersion: { approval },
+      latestApproved: null,
+    } as never
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'dcl/customer/submit') throw new Error('版本已变化')
+      if (path === 'dcl/customer/get')
+        return {
+          data: { objectId: 'CUR-STALE', enabled: true, approval },
+        } as never
+      if (path === 'dcl/customer/query')
+        return {
+          data: { items: [], total: 0, page: 1, pageSize: 20 },
+        } as never
+      return { data: {} } as never
+    })
+
+    const vm = useDclCustomerViewModel()
+    await vm.openById('CUR-STALE', 'ENTRY-STALE')
+    expect(await vm.runAction(row, 'submit')).toBe(false)
+
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/submit'),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/query'),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/get'),
+    ).toHaveLength(2)
+    expect(vm.errorMessage.value).toBe('版本已变化')
+  })
+
+  it('refreshes the customer relationship after enabled-state and delete failures without replay', async () => {
+    const approval = {
+      approvalEntryId: 'ENTRY-MUTATION',
+      revision: 4,
+      status: 'DRAFT',
+      versionNo: 1,
+      submittedBy: null,
+    }
+    const row = {
+      objectId: 'CUR-MUTATION',
+      enabled: true,
+      availableApprovalActions: [],
+      openVersion: { approval },
+      latestApproved: null,
+    } as never
+    const view = {
+      objectId: 'CUR-MUTATION',
+      enabled: true,
+      approval,
+    }
+    const vm = useDclCustomerViewModel()
+    mockedPost.mockResolvedValueOnce({ data: view } as never)
+    await vm.openById('CUR-MUTATION', 'ENTRY-MUTATION')
+
+    vi.clearAllMocks()
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'dcl/customer/save')
+        throw new Error('enabled stale revision')
+      if (path === 'dcl/customer/query')
+        return {
+          data: { items: [], total: 0, page: 1, pageSize: 20 },
+        } as never
+      if (path === 'dcl/customer/get') return { data: view } as never
+      return { data: {} } as never
+    })
+    await vm.toggleEnabled(row)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/save'),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/query'),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/get'),
+    ).toHaveLength(1)
+
+    vi.clearAllMocks()
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'dcl/customer/delete') throw new Error('delete blocked')
+      if (path === 'dcl/customer/query')
+        return {
+          data: { items: [], total: 0, page: 1, pageSize: 20 },
+        } as never
+      if (path === 'dcl/customer/get') return { data: view } as never
+      return { data: {} } as never
+    })
+    await vm.remove(row)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/delete'),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/query'),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/customer/get'),
+    ).toHaveLength(1)
+  })
+
   it('drives customer account list and lifecycle interactions', async () => {
     const session = useSessionStore()
     session.permissions = [
@@ -236,6 +349,7 @@ describe('DCL customer declarations', () => {
     const row = {
       objectId: 'CAC-1',
       enabled: true,
+      availableApprovalActions: ['submit'],
       openVersion: { approval },
       latestApproved: null,
     } as never
@@ -296,6 +410,75 @@ describe('DCL customer declarations', () => {
     expect(vm.editorMode.value).toBe('edit')
     expect(vm.versionsOpen.value).toBe(true)
     expect(vm.auditOpen.value).toBe(true)
+  })
+
+  it('refreshes customer account rows after delete and enabled-state failures without replay', async () => {
+    const approval = {
+      approvalEntryId: 'ENTRY-FAIL',
+      revision: 2,
+      status: 'DRAFT',
+      versionNo: 1,
+      submittedBy: null,
+    }
+    const row = {
+      objectId: 'CAC-FAIL',
+      enabled: true,
+      availableApprovalActions: [],
+      openVersion: { approval },
+      latestApproved: null,
+    } as never
+    const form = createCustomerAccountForm()
+    const view = {
+      objectId: 'CAC-FAIL',
+      enabled: true,
+      approval,
+      data: dclCustomerAccountPayload(form),
+    }
+    const vm = useDclCustomerAccountViewModel()
+
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'dcl/customer-account/delete')
+        throw new Error('delete stale revision')
+      if (path === 'dcl/customer-account/query')
+        return {
+          data: { items: [], total: 0, page: 1, pageSize: 20 },
+        } as never
+      return { data: {} } as never
+    })
+    await vm.remove(row)
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'dcl/customer-account/delete',
+      ),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'dcl/customer-account/query',
+      ),
+    ).toHaveLength(1)
+
+    vi.clearAllMocks()
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'dcl/customer-account/get') return { data: view } as never
+      if (path === 'dcl/customer-account/save')
+        throw new Error('enabled stale revision')
+      if (path === 'dcl/customer-account/query')
+        return {
+          data: { items: [], total: 0, page: 1, pageSize: 20 },
+        } as never
+      return { data: {} } as never
+    })
+    await vm.toggleEnabled(row)
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'dcl/customer-account/save',
+      ),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'dcl/customer-account/query',
+      ),
+    ).toHaveLength(1)
   })
 
   it('preloads controlled customer references and gates creation on every query permission', async () => {

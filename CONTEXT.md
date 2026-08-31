@@ -31,6 +31,16 @@ HTTP 响应中表达 Approval 信息、供界面呈现的元数据。
 _Avoid_: Domain 自定义审批元数据、按协议原码直接显示
 _Authority_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 
+**Approval Action Availability（审批动作资格）**:
+中央 Approval 根据审批条目事实、当前操作者和精确权限生成的查询时生命周期动作快照；动作执行仍重新验证全部权威事实和业务不变量。
+_Avoid_: 前端动作推断、Domain 动作资格、把动作列表当作授权凭证
+_Authority_: [Approval 动作资格](docs/domains/approval.md#32-approval-action-availability)
+
+**Workbench Pending Stage（工作台待办阶段）**:
+APP 工作台用于区分待提交与待批准任务的分类维度，不是 Approval Status，也不改变条目的真实审批状态。
+_Avoid_: 待办状态、把 `SUBMIT` 或 `APPROVE` 显示为 Approval Status
+_Authority_: [APP 工作台待办](docs/domains/app.md#工作台待办)
+
 **Trusted System Actor（受信系统操作者）**:
 用于执行中央 Approval 自动操作的系统身份。
 _Avoid_: 把普通用户当作系统身份、绕过审批

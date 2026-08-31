@@ -10,7 +10,11 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
-import { approvalStatusPresentation } from '@/shared/approval'
+import {
+  approvalActionPresentation,
+  approvalEventActionLabels,
+  approvalStatusLabel,
+} from '@/shared/approval'
 import { dclProductFormFromView } from './data'
 import type { DclProductViewModel } from './vm'
 import { dclProductActiveVersion, type DclProductListItem } from './types'
@@ -32,12 +36,6 @@ type ProductUnitConversionDraft = {
   factor: string
 }
 
-function getApprovalStatusText(
-  status?: keyof typeof approvalStatusPresentation,
-): string {
-  return status ? approvalStatusPresentation[status].label : '未标记'
-}
-
 const props = defineProps<{ model: DclProductViewModel }>()
 const vm = reactive(props.model)
 const route = useRoute()
@@ -47,7 +45,7 @@ const deleteTarget = ref<DclProductListItem | null>(null)
 const reviewTarget = ref<DclProductListItem | null>(null)
 const reviewComment = ref('')
 const reverseTarget = ref<DclProductListItem | null>(null)
-const reverseAction = ref<'unsubmit' | 'unapprove'>('unsubmit')
+const reverseAction = ref<'unapprove'>('unapprove')
 const reverseReason = ref('')
 const formulaOpen = ref(false)
 const formulaModel = ref<ProductFormulaDraft | null>(null)
@@ -114,10 +112,7 @@ function requestReject(row: DclProductListItem): void {
   reviewComment.value = ''
 }
 
-function requestReverse(
-  row: DclProductListItem,
-  action: 'unsubmit' | 'unapprove',
-): void {
+function requestReverse(row: DclProductListItem, action: 'unapprove'): void {
   reverseTarget.value = row
   reverseAction.value = action
   reverseReason.value = ''
@@ -148,9 +143,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交审核',
-            icon: 'mdi-send-outline',
-            color: 'primary',
+            ...approvalActionPresentation.submit,
           },
         ]
       : []),
@@ -158,9 +151,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回提交',
-            icon: 'mdi-undo-variant',
-            color: 'warning',
+            ...approvalActionPresentation.unsubmit,
           },
         ]
       : []),
@@ -168,21 +159,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '审核通过',
-            icon: 'mdi-check-decagram-outline',
-            color: 'success',
-          },
-        ]
-      : []),
-    ...(!availability.approve && vm.actionBlockedReason(row, 'approve')
-      ? [
-          {
-            key: 'approve-blocked',
-            label: '审核通过',
-            icon: 'mdi-check-decagram-outline',
-            color: 'success',
-            disabled: true,
-            disabledReason: vm.actionBlockedReason(row, 'approve') ?? undefined,
+            ...approvalActionPresentation.approve,
           },
         ]
       : []),
@@ -190,9 +167,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'unapprove',
-            label: '撤销批准',
-            icon: 'mdi-backup-restore',
-            color: 'warning',
+            ...approvalActionPresentation.unapprove,
           },
         ]
       : []),
@@ -200,9 +175,7 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '审核驳回',
-            icon: 'mdi-close-octagon-outline',
-            color: 'error',
+            ...approvalActionPresentation.reject,
           },
         ]
       : []),
@@ -238,18 +211,6 @@ function rowActions(row: DclProductListItem): ListRowAction[] {
           },
         ]
       : []),
-    ...(!availability.reject && vm.actionBlockedReason(row, 'reject')
-      ? [
-          {
-            key: 'reject-blocked',
-            label: '审核驳回',
-            icon: 'mdi-close-octagon-outline',
-            color: 'error',
-            disabled: true,
-            disabledReason: vm.actionBlockedReason(row, 'reject') ?? undefined,
-          },
-        ]
-      : []),
     ...(availability.delete
       ? [
           {
@@ -267,7 +228,7 @@ function selectRowAction(action: string, row: DclProductListItem): void {
   if (action === 'edit') requestEdit(row)
   else if (action === 'view') void vm.openView(row)
   else if (action === 'submit') void vm.submitObject(row)
-  else if (action === 'unsubmit') requestReverse(row, 'unsubmit')
+  else if (action === 'unsubmit') void vm.reverse(row, 'unsubmit')
   else if (action === 'approve') void vm.review(row, 'approve', '')
   else if (action === 'unapprove') requestReverse(row, 'unapprove')
   else if (action === 'reject') requestReject(row)
@@ -501,9 +462,7 @@ function saveFormula(value: ProductFormulaDraft): void {
         <div class="bob-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
             {{
-              getApprovalStatusText(
-                dclProductActiveVersion(row).approval.status,
-              )
+              approvalStatusLabel(dclProductActiveVersion(row).approval.status)
             }}
           </v-chip>
           <v-chip
@@ -817,7 +776,7 @@ function saveFormula(value: ProductFormulaDraft): void {
   >
     <v-card
       rounded="xl"
-      :title="reverseAction === 'unapprove' ? '撤销批准' : '撤回提交'"
+      :title="approvalActionPresentation[reverseAction].label"
     >
       <v-card-text>
         <v-alert
@@ -841,7 +800,7 @@ function saveFormula(value: ProductFormulaDraft): void {
         <v-spacer />
         <v-btn variant="text" @click="closeReverse(false)">取消</v-btn>
         <v-btn
-          color="warning"
+          :color="approvalActionPresentation[reverseAction].color"
           :disabled="!reverseReason.trim()"
           :loading="
             vm.actionLoading === `${reverseAction}:${reverseTarget?.objectId}`
@@ -859,7 +818,7 @@ function saveFormula(value: ProductFormulaDraft): void {
     max-width="620"
     @update:model-value="closeReview"
   >
-    <v-card rounded="xl" title="审核驳回">
+    <v-card rounded="xl" :title="approvalActionPresentation.reject.label">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
@@ -874,12 +833,12 @@ function saveFormula(value: ProductFormulaDraft): void {
         <v-spacer />
         <v-btn variant="text" @click="closeReview(false)">取消</v-btn>
         <v-btn
-          color="error"
+          :color="approvalActionPresentation.reject.color"
           :disabled="!reviewComment.trim()"
           :loading="vm.actionLoading === `reject:${reviewTarget?.objectId}`"
           @click="confirmReview"
         >
-          确认驳回
+          确认{{ approvalActionPresentation.reject.label }}
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -908,7 +867,7 @@ function saveFormula(value: ProductFormulaDraft): void {
             <tr v-for="item in vm.versions" :key="item.approvalEntryId">
               <td data-label="版本">V{{ item.versionNo }}</td>
               <td data-label="状态">
-                {{ getApprovalStatusText(item.status) }}
+                {{ approvalStatusLabel(item.status) }}
               </td>
               <td data-label="名称">{{ item.summary.name }}</td>
               <td data-label="更新">
@@ -968,17 +927,15 @@ function saveFormula(value: ProductFormulaDraft): void {
           </thead>
           <tbody>
             <tr v-for="event in vm.auditEvents" :key="event.id">
-              <td data-label="事件">{{ event.action }}</td>
+              <td data-label="事件">
+                {{ approvalEventActionLabels[event.action] }}
+              </td>
               <td data-label="变化">
                 {{
-                  event.fromStatus
-                    ? getApprovalStatusText(event.fromStatus)
-                    : '—'
+                  event.fromStatus ? approvalStatusLabel(event.fromStatus) : '—'
                 }}
                 →
-                {{
-                  event.toStatus ? getApprovalStatusText(event.toStatus) : '—'
-                }}
+                {{ event.toStatus ? approvalStatusLabel(event.toStatus) : '—' }}
               </td>
               <td data-label="操作人">{{ event.actorId }}</td>
               <td data-label="时间">

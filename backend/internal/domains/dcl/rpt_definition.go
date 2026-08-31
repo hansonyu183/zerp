@@ -104,14 +104,15 @@ type RptDefinitionMutation struct {
 }
 
 type RptDefinitionView struct {
-	Code         string               `json:"code"`
-	DefinitionID string               `json:"definitionId"`
-	Name         string               `json:"name"`
-	Description  string               `json:"description"`
-	Enabled      bool                 `json:"enabled"`
-	Approval     approval.VersionMeta `json:"approval"`
-	Validity     string               `json:"validity"`
-	Data         RptDefinitionData    `json:"data"`
+	Code                     string                     `json:"code"`
+	DefinitionID             string                     `json:"definitionId"`
+	Name                     string                     `json:"name"`
+	Description              string                     `json:"description"`
+	Enabled                  bool                       `json:"enabled"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Validity                 string                     `json:"validity"`
+	Data                     RptDefinitionData          `json:"data"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 type RptDefinitionVersionView struct {
@@ -132,13 +133,14 @@ type RptDefinitionVersionSummary struct {
 }
 
 type RptDefinitionListItem struct {
-	Code           string                       `json:"code"`
-	DefinitionID   string                       `json:"definitionId"`
-	Name           string                       `json:"name"`
-	Description    string                       `json:"description"`
-	Enabled        bool                         `json:"enabled"`
-	LatestApproved *RptDefinitionVersionSummary `json:"latestApproved"`
-	OpenVersion    *RptDefinitionVersionSummary `json:"openVersion"`
+	Code                     string                       `json:"code"`
+	DefinitionID             string                       `json:"definitionId"`
+	Name                     string                       `json:"name"`
+	Description              string                       `json:"description"`
+	Enabled                  bool                         `json:"enabled"`
+	LatestApproved           *RptDefinitionVersionSummary `json:"latestApproved"`
+	OpenVersion              *RptDefinitionVersionSummary `json:"openVersion"`
+	AvailableApprovalActions []approval.LifecycleAction   `json:"availableApprovalActions"`
 }
 
 type RptDefinitionService struct {
@@ -394,7 +396,7 @@ func (s *RptDefinitionService) Submit(ctx context.Context, input RptDefinitionVe
 	return s.transition(ctx, input.ApprovalEntryID, input.ApprovalRevision, input.Code, approval.ActionSubmitted, actor, "", input.ValidationParameters)
 }
 
-func (s *RptDefinitionService) Unsubmit(ctx context.Context, input RptDefinitionReviewInput, actor approval.Actor) (RptDefinitionMutation, error) {
+func (s *RptDefinitionService) Unsubmit(ctx context.Context, input RptDefinitionVersionInput, actor approval.Actor) (RptDefinitionMutation, error) {
 	return s.transition(ctx, input.ApprovalEntryID, input.ApprovalRevision, input.Code, approval.ActionUnsubmitted, actor, "", nil)
 }
 
@@ -722,7 +724,9 @@ func (s *RptDefinitionService) Get(ctx context.Context, input RptDefinitionGetIn
 		return RptDefinitionView{}, translateError(err)
 	}
 
-	return rptDefinitionViewFromParts(input.Code, def.ID, entry, stored), nil
+	view := rptDefinitionViewFromParts(input.Code, def.ID, entry, stored)
+	view.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+	return view, nil
 }
 
 func (s *RptDefinitionService) Query(ctx context.Context, input RptDefinitionQueryInput, actor approval.Actor) (Page[RptDefinitionListItem], error) {
@@ -804,6 +808,13 @@ func (s *RptDefinitionService) Query(ctx context.Context, input RptDefinitionQue
 				item.Name = version.Name
 				item.Description = version.Description
 			}
+		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityRptDefinition, row.OpenEntryID, row.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[RptDefinitionListItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
 		}
 
 		items = append(items, item)

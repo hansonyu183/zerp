@@ -1,6 +1,6 @@
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import type { ApprovalStatus } from '@/api/generated'
+import type { ApprovalLifecycleAction, ApprovalStatus } from '@/api/generated'
 
 export type RptDefinition = components['schemas']['DclRptDefinitionView']
 export type RptDefinitionListItem =
@@ -8,8 +8,12 @@ export type RptDefinitionListItem =
 export type RptDefinitionVersion =
   components['schemas']['DclRptDefinitionVersionView']
 export type RptDefinitionData = components['schemas']['RptVersionData']
-export type RptDefinitionAuditEvent =
-  components['schemas']['ApprovalEventView']
+export type RptDefinitionAuditEvent = components['schemas']['ApprovalEventView']
+export type RptDefinitionLifecycleInput = {
+  code: string
+  approvalEntryId: string
+  approvalRevision: number
+}
 
 export async function queryRptDefinitions(input: {
   keyword?: string
@@ -67,14 +71,21 @@ export function runRptDefinitionVersionAction(
     code: definition.code,
     approvalEntryId: definition.approval.approvalEntryId,
     approvalRevision: definition.approval.revision,
-    ...(action === 'submit' || action === 'approve'
-      ? { validationParameters }
-      : {}),
   }
   if (action === 'submit')
-    return apiClient.postContract('dcl/rpt-definition/submit', input)
+    return runRptDefinitionLifecycleAction(
+      action,
+      input,
+      '',
+      validationParameters,
+    )
   if (action === 'approve')
-    return apiClient.postContract('dcl/rpt-definition/approve', input)
+    return runRptDefinitionLifecycleAction(
+      action,
+      input,
+      '',
+      validationParameters,
+    )
   return apiClient.postContract('dcl/rpt-definition/create-next', input)
 }
 
@@ -83,17 +94,44 @@ export function runRptDefinitionReviewAction(
   definition: RptDefinition,
   reason: string,
 ) {
-  const input = {
-    code: definition.code,
-    approvalEntryId: definition.approval.approvalEntryId,
-    approvalRevision: definition.approval.revision,
-    reason: reason || null,
-  }
+  return runRptDefinitionLifecycleAction(
+    action,
+    {
+      code: definition.code,
+      approvalEntryId: definition.approval.approvalEntryId,
+      approvalRevision: definition.approval.revision,
+    },
+    reason,
+  )
+}
+
+export function runRptDefinitionLifecycleAction(
+  action: ApprovalLifecycleAction,
+  input: RptDefinitionLifecycleInput,
+  reason = '',
+  validationParameters: Record<string, unknown> = {},
+) {
+  if (action === 'submit')
+    return apiClient.postContract('dcl/rpt-definition/submit', {
+      ...input,
+      validationParameters,
+    })
   if (action === 'unsubmit')
     return apiClient.postContract('dcl/rpt-definition/unsubmit', input)
+  if (action === 'approve')
+    return apiClient.postContract('dcl/rpt-definition/approve', {
+      ...input,
+      validationParameters,
+    })
   if (action === 'reject')
-    return apiClient.postContract('dcl/rpt-definition/reject', input)
-  return apiClient.postContract('dcl/rpt-definition/unapprove', input)
+    return apiClient.postContract('dcl/rpt-definition/reject', {
+      ...input,
+      reason,
+    })
+  return apiClient.postContract('dcl/rpt-definition/unapprove', {
+    ...input,
+    reason,
+  })
 }
 
 export function deleteRptDefinitionVersion(definition: RptDefinition) {

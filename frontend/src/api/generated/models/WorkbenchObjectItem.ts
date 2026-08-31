@@ -2,13 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalStatus } from './ApprovalStatus';
 import type { WorkbenchAction } from './WorkbenchAction';
 import type { WorkbenchObjectEntity } from './WorkbenchObjectEntity';
 import type { WorkbenchPendingStage } from './WorkbenchPendingStage';
 export type WorkbenchObjectItem = {
   category: 'BOB';
   entity: WorkbenchObjectEntity;
-  status: 'DRAFT' | 'PENDING';
+  status: ApprovalStatus;
   pendingStage: WorkbenchPendingStage;
   availableActions: Array<WorkbenchAction>;
   updatedAt: string;

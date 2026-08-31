@@ -1,5 +1,9 @@
 import { ref, type Ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
+import {
+  approvalActionPresentation,
+  type ApprovalAction,
+} from '@/shared/approval'
 
 export type DclDeclarationEntity =
   | 'party'
@@ -16,33 +20,16 @@ export type DclDeclarationEntity =
   | 'sales-partner'
   | 'acc-mapping'
   | 'rpt-definition'
+  | 'wfl-process-definition'
 export type DclDeclarationLifecycleAction =
-  'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
+  ApprovalAction | 'enable' | 'disable'
 export type DclDeclarationWireAction =
   Exclude<DclDeclarationLifecycleAction, 'enable' | 'disable'> | 'submit'
-
-export const dclApprovalStatusText = {
-  DRAFT: '草稿',
-  PENDING: '待审核',
-  APPROVED: '已批准',
-} as const
-
-export const dclApprovalEventActionText = {
-  CREATED: '创建',
-  SAVED: '保存',
-  SUBMITTED: '提交审核',
-  UNSUBMITTED: '撤回提交',
-  REJECTED: '审核驳回',
-  APPROVED: '审核通过',
-  UNAPPROVED: '撤销批准',
-  DELETED: '删除草稿',
-  MERGED: '主体合并',
-} as const
 
 export type DclDeclarationActionState = {
   status: 'DRAFT' | 'PENDING' | 'APPROVED'
   versionNo: number
-  submittedBy: string | null | undefined
+  availableApprovalActions: readonly ApprovalAction[]
   enabled: boolean
   hasOpenVersion: boolean
   hasLatestApproved: boolean
@@ -64,7 +51,6 @@ export interface DclDeclarationActionAvailability {
 }
 
 export type DclDeclarationLifecyclePort<TItem> = {
-  unsubmitReasonRequired?: boolean
   run: (
     item: TItem,
     action: DclDeclarationWireAction,
@@ -115,7 +101,8 @@ export function isDclDeclarationEntity(
     entity === 'other-unit' ||
     entity === 'sales-partner' ||
     entity === 'acc-mapping' ||
-    entity === 'rpt-definition'
+    entity === 'rpt-definition' ||
+    entity === 'wfl-process-definition'
   )
 }
 
@@ -127,10 +114,11 @@ export function dclDeclarationLifecycleSuccessLabel(
   action: DclDeclarationLifecycleAction,
 ): string {
   return {
-    approve: '已审核通过',
-    reject: '已审核驳回',
-    unsubmit: '已撤回提交',
-    unapprove: '已撤销批准',
+    submit: approvalActionPresentation.submit.successLabel,
+    unsubmit: approvalActionPresentation.unsubmit.successLabel,
+    reject: approvalActionPresentation.reject.successLabel,
+    approve: approvalActionPresentation.approve.successLabel,
+    unapprove: approvalActionPresentation.unapprove.successLabel,
     enable: '已生成启用草稿',
     disable: '已生成禁用草稿',
   }[action]
@@ -139,7 +127,6 @@ export function dclDeclarationLifecycleSuccessLabel(
 export function useDclDeclarationActionAvailability<TItem>(
   entity: DclDeclarationEntity,
   actionState: (item: Readonly<TItem>) => DclDeclarationActionState,
-  userId: () => string | undefined,
   can: (path: string) => boolean,
 ) {
   const permission = (action: string): string =>
@@ -149,8 +136,8 @@ export function useDclDeclarationActionAvailability<TItem>(
     item: Readonly<TItem>,
   ): DclDeclarationActionAvailability {
     const state = actionState(item)
-    const selfReview =
-      state.status === 'PENDING' && state.submittedBy === userId()
+    const hasApprovalAction = (action: ApprovalAction): boolean =>
+      state.availableApprovalActions.includes(action)
     return {
       view: can(permission('get')),
       edit:
@@ -162,13 +149,11 @@ export function useDclDeclarationActionAvailability<TItem>(
         state.status === 'DRAFT' &&
         state.versionNo === 1 &&
         !state.hasLatestApproved,
-      submit: can(permission('submit')) && state.status === 'DRAFT',
-      unsubmit: can(permission('unsubmit')) && state.status === 'PENDING',
-      approve:
-        can(permission('approve')) && state.status === 'PENDING' && !selfReview,
-      unapprove: can(permission('unapprove')) && state.status === 'APPROVED',
-      reject:
-        can(permission('reject')) && state.status === 'PENDING' && !selfReview,
+      submit: hasApprovalAction('submit'),
+      unsubmit: hasApprovalAction('unsubmit'),
+      approve: hasApprovalAction('approve'),
+      unapprove: hasApprovalAction('unapprove'),
+      reject: hasApprovalAction('reject'),
       enable:
         can(permission('get')) &&
         can(permission('save')) &&
@@ -186,23 +171,11 @@ export function useDclDeclarationActionAvailability<TItem>(
     }
   }
 
-  function actionBlockedReason(
-    item: Readonly<TItem>,
-    action: 'approve' | 'reject',
-  ): string | null {
-    const state = actionState(item)
-    return state.status === 'PENDING' &&
-      state.submittedBy === userId() &&
-      can(permission(action))
-      ? '提交人不能审核自己提交的版本，请由其他审核人处理。'
-      : null
-  }
-
   function hasAnyAction(item: Readonly<TItem>): boolean {
     return Object.values(actionAvailability(item)).some(Boolean)
   }
 
-  return { permission, actionAvailability, actionBlockedReason, hasAnyAction }
+  return { permission, actionAvailability, hasAnyAction }
 }
 
 export function useDclDeclarationLifecycle<TItem>(
@@ -224,8 +197,9 @@ export function useDclDeclarationLifecycle<TItem>(
     handleError?: (error: unknown) => boolean,
   ): Promise<boolean> {
     if (!actionAvailability(item)[action] || actionLoading.value) return false
-    const reason = action === 'reject' ? comment.trim() : ''
-    if (action === 'reject' && !reason) {
+    const reasonRequired = approvalActionPresentation[action].reasonRequired
+    const reason = reasonRequired ? comment.trim() : ''
+    if (reasonRequired && !reason) {
       errorMessage.value = '驳回意见不能为空。'
       return false
     }
@@ -241,7 +215,11 @@ export function useDclDeclarationLifecycle<TItem>(
       onSuccess(item, action)
       return true
     } catch (error) {
-      if (!handleError?.(error)) errorMessage.value = getErrorMessage(error)
+      const handled = handleError?.(error) ?? false
+      const handledMessage = handled ? errorMessage.value : null
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = handled ? handledMessage : message
       return false
     } finally {
       actionLoading.value = null
@@ -251,15 +229,13 @@ export function useDclDeclarationLifecycle<TItem>(
   async function reverse(
     item: TItem,
     action: 'unsubmit' | 'unapprove',
-    reason: string,
+    reason?: string,
   ): Promise<boolean> {
     if (!actionAvailability(item)[action] || actionLoading.value) return false
-    const normalizedReason = reason.trim()
-    if (
-      (action === 'unapprove' || port.unsubmitReasonRequired) &&
-      !normalizedReason
-    ) {
-      errorMessage.value = '反向操作原因不能为空。'
+    const reasonRequired = approvalActionPresentation[action].reasonRequired
+    const normalizedReason = reasonRequired ? (reason?.trim() ?? '') : ''
+    if (reasonRequired && !normalizedReason) {
+      errorMessage.value = '反批准原因不能为空。'
       return false
     }
     if (Array.from(normalizedReason).length > 1000) {
@@ -274,7 +250,9 @@ export function useDclDeclarationLifecycle<TItem>(
       onSuccess(item, action)
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null
@@ -295,7 +273,11 @@ export function useDclDeclarationLifecycle<TItem>(
       onSuccess(item, action)
       return true
     } catch (error) {
-      if (!handleError?.(error)) errorMessage.value = getErrorMessage(error)
+      const handled = handleError?.(error) ?? false
+      const handledMessage = handled ? errorMessage.value : null
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = handled ? handledMessage : message
       return false
     } finally {
       actionLoading.value = null

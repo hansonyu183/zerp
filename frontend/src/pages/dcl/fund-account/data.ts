@@ -74,14 +74,12 @@ export async function runDclFundAccountAction(
   request: FundAccountVersionRequest,
   reason: string,
 ): Promise<void> {
-  if (action === 'submit' || action === 'approve') {
-    await apiClient.postContract(`dcl/fund-account/${action}`, request)
-  } else {
+  if (action === 'reject' || action === 'unapprove') {
     await apiClient.postContract(`dcl/fund-account/${action}`, {
       ...request,
       reason,
     })
-  }
+  } else await apiClient.postContract(`dcl/fund-account/${action}`, request)
 }
 
 export function dclFundAccountFormFromView(
@@ -130,7 +128,10 @@ export async function queryDclFundAccountOperatingEntities(
     sort: [{ field: 'name', order: 'asc' }],
   })
   return data.items.map((item) => ({
-    title: formatReferenceLabel({ code: item.code, name: String(item.data.name ?? '') }),
+    title: formatReferenceLabel({
+      code: item.code,
+      name: String(item.data.name ?? ''),
+    }),
     value: item.objectId,
   }))
 }
@@ -164,7 +165,6 @@ export async function deleteDclFundAccount(
 
 export const dclFundAccountLifecyclePort: DclDeclarationLifecyclePort<DclFundAccountListItem> =
   {
-    unsubmitReasonRequired: true,
     run: runDclFundAccountLifecycle,
     async changeEnabled(item) {
       const view = await getDclFundAccount(

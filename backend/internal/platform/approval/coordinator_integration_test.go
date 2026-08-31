@@ -256,8 +256,13 @@ func TestApprovalPersistenceLifecycleIntegration(t *testing.T) {
 		}
 		if _, selfErr := mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
 			return coordinator.Approve(t.Context(), tx, entry.ID, entry.Revision, actorOne("self-approve"), payload)
-		}); !IsKey(selfErr, "approval_self_approval_forbidden") {
+		}); !IsKey(selfErr, "approval_self_review_forbidden") {
 			t.Fatalf("self approval error = %v", selfErr)
+		}
+		if _, selfErr := mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return coordinator.Reject(t.Context(), tx, entry.ID, entry.Revision, actorOne("self-reject"), "own submission", payload)
+		}); !IsKey(selfErr, "approval_self_review_forbidden") {
+			t.Fatalf("self rejection error = %v", selfErr)
 		}
 		if _, reasonErr := mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
 			return coordinator.Reject(t.Context(), tx, entry.ID, entry.Revision, actorTwo("reject-no-reason"), "  ", payload)

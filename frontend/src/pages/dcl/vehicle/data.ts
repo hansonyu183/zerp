@@ -61,13 +61,12 @@ export async function runDclVehicleAction(
   request: VehicleVersionRequest,
   reason: string,
 ): Promise<void> {
-  if (action === 'submit' || action === 'approve')
-    await apiClient.postContract(`dcl/vehicle/${action}`, request)
-  else
+  if (action === 'reject' || action === 'unapprove')
     await apiClient.postContract(`dcl/vehicle/${action}`, {
       ...request,
       reason,
     })
+  else await apiClient.postContract(`dcl/vehicle/${action}`, request)
 }
 
 export function dclVehicleFormFromView(view: DclVehicleView): DclVehicleForm {

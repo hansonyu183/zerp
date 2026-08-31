@@ -1,9 +1,10 @@
 export { default as ApprovalStatusBadge } from './ApprovalStatusBadge.vue'
 export {
-  approvalActionLabels,
+  approvalActionPresentation,
   approvalEventActionLabels,
+  approvalStatusLabel,
+  approvalStatusOptions,
   approvalStatusPresentation,
   approvalVersionHistoryMetadata,
-  visibleApprovalActions,
 } from './presentation'
 export type { ApprovalAction } from './presentation'

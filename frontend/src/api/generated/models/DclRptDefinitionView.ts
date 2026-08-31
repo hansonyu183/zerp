@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { RptVersionData } from './RptVersionData';
 export type DclRptDefinitionView = {
@@ -11,6 +12,7 @@ export type DclRptDefinitionView = {
   description: string;
   enabled: boolean;
   approval: ApprovalVersionMeta;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   validity: 'VALID' | 'INVALID';
   data: RptVersionData;
 };

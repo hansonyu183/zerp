@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { DclRptDefinitionVersionSummary } from './DclRptDefinitionVersionSummary';
 export type DclRptDefinitionListItem = {
   code: string;
@@ -9,6 +10,7 @@ export type DclRptDefinitionListItem = {
   name: string;
   description: string;
   enabled: boolean;
+  availableApprovalActions: Array<ApprovalLifecycleAction>;
   latestApproved: DclRptDefinitionVersionSummary | null;
   openVersion: DclRptDefinitionVersionSummary | null;
 };

@@ -4,7 +4,7 @@
 
 ## 1. 页面、权限与版本边界
 
-1. 页面入口为 `/dcl/product`，是产品新建、编辑、启停、提交、撤回、驳回、批准、反批、删除、版本和审计的唯一维护入口；工作台、审批待办和审批记录中的产品深链进入本页。
+1. 页面入口为 `/dcl/product`，是产品新建、编辑、启停、提交、撤回、驳回、批准、反批准、删除、版本和审计的唯一维护入口；工作台、审批待办和审批记录中的产品深链进入本页。
 2. 列表调用 `POST /dcl/product/query`，每个 stable product 显示一行并区分 latest approved 与 open candidate。查看、编辑或历史详情必须调用 `get` 或 `versions`，不得用列表行拼装完整 snapshot。
 3. 每个动作检查精确 `/dcl/product/*` 权限。页面不调用 BOB 写路径；`/bob/product` 仅显示当前正式档案。
 
@@ -25,9 +25,9 @@
 ## 4. 提交、批准与当前有效资料
 
 1. 页面在提交前用统一前端检查定位产品类型、默认包装规格、单位配置与固定配方问题；后端在提交和批准时独立重复完整校验。
-2. V1 批准后 BOB typed query 直接读取该 snapshot；后续版本批准或反批后，不经额外写入即可自然切换、回落或隐藏。BOB 不保存 current source，也不复制第二份单位或配方事实。
+2. V1 批准后 BOB typed query 直接读取该 snapshot；后续版本批准或反批准后，不经额外写入即可自然切换、回落或隐藏。BOB 不保存 current source，也不复制第二份单位或配方事实。
 3. latest approved 与唯一 open candidate 共同占用非空条码。条码冲突、并发候选、revision 冲突、原料来源漂移或正式业务引用 blocker 均返回稳定错误，且 DCL snapshot、Approval 与占用全部保持原状；AUX current 后续变化不使已存 snapshot 漂移。
-4. 任一库存、订单、生产或其他正式业务事实精确引用目标 Approval Entry 时禁止反批。产品后续改版不重算历史数量、配方、金额、库存或 ACC 事实。
+4. 任一库存、订单、生产或其他正式业务事实精确引用目标 Approval Entry 时禁止反批准。产品后续改版不重算历史数量、配方、金额、库存或 ACC 事实。
 
 ## 5. 查询、历史与异常恢复
 
@@ -41,3 +41,7 @@
 2. 真实 PostgreSQL 覆盖完整 snapshot、V1/V2 highest-approved 读取与回落、AUX/原料精确来源、条码占用、正式引用 blocker、并发 candidate 和事务回滚。
 3. 真实全栈流程覆盖三类产品、固定配方、候选换版和独立 BOB 只读资料；待办深链进入 DCL。
 4. 产品换版后，既有 VOU、库存、生产与 ACC 仍保留原 stable ID、Approval Entry、数量与名称等不可变快照。
+
+## 7. 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与产品业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

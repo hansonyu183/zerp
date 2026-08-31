@@ -589,6 +589,7 @@ export interface VoucherListRow {
   documentNo: string
   status: VoucherStatus
   revision: number
+  availableApprovalActions: components['schemas']['ApprovalLifecycleAction'][]
   businessDate: string
   partyName?: string
   currency: string
@@ -642,17 +643,8 @@ export type VoucherLineKind =
   | 'asset-liquidation'
   | 'bill'
   | 'none'
-export interface VoucherLifecycleLabels {
-  submit: string
-  unsubmit: string
-  approve: string
-  unapprove: string
-  pending: string
-  approved: string
-}
-
 export type VoucherLifecycleAction =
-  'submit' | 'approve' | 'unsubmit' | 'unapprove'
+  components['schemas']['ApprovalLifecycleAction']
 
 export interface VoucherEntityConfig {
   entity: VoucherEntity
@@ -663,7 +655,6 @@ export interface VoucherEntityConfig {
   fixedCounterpartyType?:
     'customer' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner'
   lineKind: VoucherLineKind
-  lifecycleLabels?: Partial<VoucherLifecycleLabels>
   parentEntity?: VoucherEntity
   usesSalesperson?: boolean
   usesPurchaser?: boolean
@@ -682,6 +673,7 @@ export interface VoucherActionAvailability {
   save: boolean
   submit: boolean
   unsubmit: boolean
+  reject: boolean
   approve: boolean
   unapprove: boolean
   delete: boolean

@@ -6,7 +6,7 @@
 
 1. 页面入口为 `/bob/operating-entity`，使用独立 BOB 菜单项和 ViewModel，只按 BOB `query/get` 精确权限出现与读取。
 2. 列表调用 `POST /bob/operating-entity/query`，只展示已经批准的当前正式档案；详情调用 `POST /bob/operating-entity/get` 重新读取 DCL highest APPROVED typed snapshot。
-3. 页面不展示候选、审批状态、创建、编辑、启停、提交、撤回、驳回、批准、反批、删除、版本或审计控件，也不调用任何 `/dcl/operating-entity/*` 或 BOB 写接口。
+3. 页面不展示候选、审批状态、创建、编辑、启停、提交、撤回、驳回、批准、反批准、删除、版本或审计控件，也不调用任何 `/dcl/operating-entity/*` 或 BOB 写接口。
 
 ## 2. 当前有效资料
 
@@ -17,7 +17,7 @@
 ## 3. 正式资料变化
 
 1. V1 批准前列表和详情均不可见；V1 批准后出现。V2 草稿或待审期间继续显示 V1，V2 批准后一次切换到 V2。
-2. DCL 反批 V2 后，下一次读取显示回落的 V1；反批 V1 后列表不再返回该主体，直接打开旧深链时按稳定未找到错误处理。
+2. DCL 反批准 V2 后，下一次读取显示回落的 V1；反批准 V1 后列表不再返回该主体，直接打开旧深链时按稳定未找到错误处理。
 3. BOB 页面只观察 highest-approved 读取结果，不发起或模拟任何审批动作。
 
 ## 4. 异常与验收

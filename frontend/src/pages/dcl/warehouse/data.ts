@@ -71,10 +71,7 @@ export async function runDclWarehouseAction(
   } else if (action === 'approve') {
     await apiClient.postContract('dcl/warehouse/approve', request)
   } else if (action === 'unsubmit') {
-    await apiClient.postContract('dcl/warehouse/unsubmit', {
-      ...request,
-      reason,
-    })
+    await apiClient.postContract('dcl/warehouse/unsubmit', request)
   } else if (action === 'reject') {
     await apiClient.postContract('dcl/warehouse/reject', { ...request, reason })
   } else {
@@ -105,7 +102,6 @@ async function changeDclWarehouseEnabled(
 
 export const dclWarehouseLifecyclePort: DclDeclarationLifecyclePort<DclWarehouseListItem> =
   {
-    unsubmitReasonRequired: true,
     run: runDclWarehouseLifecycle,
     changeEnabled: changeDclWarehouseEnabled,
   }

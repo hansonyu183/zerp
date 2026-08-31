@@ -67,6 +67,13 @@ func (s *VehicleService) Query(ctx context.Context, input VehicleQueryInput, act
 			}
 			item.OpenVersion = &view
 		}
+		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityVehicle, row.OpenEntryID, row.ApprovedEntryID)
+		if entryErr != nil {
+			return Page[VehicleQueryItem]{}, entryErr
+		}
+		if ok {
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+		}
 		items = append(items, item)
 	}
 	return Page[VehicleQueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
@@ -112,7 +119,7 @@ func (s *VehicleService) Get(ctx context.Context, input VehicleGetInput, actor a
 	if err != nil {
 		return VehicleView{}, translateError(err)
 	}
-	return VehicleView{ObjectID: identity.ID, Entity: EntityVehicle, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: vehicleDCLData(vehicleStoredData(stored)), UpdatedAt: entry.UpdatedAt}, nil
+	return VehicleView{ObjectID: identity.ID, Entity: EntityVehicle, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: vehicleDCLData(vehicleStoredData(stored)), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
 }
 
 func (s *VehicleService) Versions(ctx context.Context, input VehicleHistoryInput, actor approval.Actor) (Page[VehicleVersionView], error) {

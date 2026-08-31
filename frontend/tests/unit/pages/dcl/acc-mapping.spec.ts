@@ -17,6 +17,7 @@ const mockedPost = vi.mocked(apiClient.postContract)
 const mapping = {
   bookId: '01JACC00000000000000000001',
   vouEntity: 'sale-order',
+  availableApprovalActions: [],
   approval: {
     approvalEntryId: '01JMAP00000000000000000001',
     revision: 3,
@@ -56,24 +57,36 @@ describe('DCL accounting mapping API boundary', () => {
     })
   })
 
+  it('unsubmits mappings without a review reason field', async () => {
+    mockedPost.mockResolvedValue({ data: {} } as never)
+
+    await mappingApprovalAction('unsubmit', mapping)
+
+    expect(mockedPost).toHaveBeenCalledWith('dcl/acc-mapping/unsubmit', {
+      bookId: mapping.bookId,
+      vouEntity: mapping.vouEntity,
+      approvalEntryId: mapping.approval.approvalEntryId,
+      approvalRevision: mapping.approval.revision,
+    })
+  })
+
   it('loads DCL audit history with bounded pagination', async () => {
     mockedPost.mockResolvedValue({ data: { items: [] } } as never)
 
     await getAccountingMappingAuditHistory(mapping.bookId, mapping.vouEntity)
 
-    expect(mockedPost).toHaveBeenCalledWith(
-      'dcl/acc-mapping/audit-history',
-      {
-        bookId: mapping.bookId,
-        vouEntity: mapping.vouEntity,
-        page: 1,
-        pageSize: 100,
-      },
-    )
+    expect(mockedPost).toHaveBeenCalledWith('dcl/acc-mapping/audit-history', {
+      bookId: mapping.bookId,
+      vouEntity: mapping.vouEntity,
+      page: 1,
+      pageSize: 100,
+    })
   })
 
   it('sends VOU and approval status filters only when the user applies them', async () => {
-    mockedPost.mockResolvedValue({ data: { items: [], total: 0, page: 1, pageSize: 20 } } as never)
+    mockedPost.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    } as never)
 
     await queryAccountingMappings({
       bookId: mapping.bookId,
@@ -94,7 +107,12 @@ describe('DCL accounting mapping API boundary', () => {
 
   it('hides approve and reject from the submitter', () => {
     const session = useSessionStore()
-    session.user = { id: 'USER-1', username: 'submitter', displayName: '提交人', avatarUrl: null }
+    session.user = {
+      id: 'USER-1',
+      username: 'submitter',
+      displayName: '提交人',
+      avatarUrl: null,
+    }
     session.permissions = [
       '/acc/book/query',
       '/dcl/acc-mapping/query',
@@ -106,6 +124,7 @@ describe('DCL accounting mapping API boundary', () => {
     const vm = createDclAccMappingViewModel()
     const pending = {
       ...mapping,
+      availableApprovalActions: ['unsubmit'],
       approval: {
         ...mapping.approval,
         status: 'PENDING',
@@ -113,7 +132,7 @@ describe('DCL accounting mapping API boundary', () => {
       },
     } as AccountingMapping
 
-    expect(vm.approvalActions(pending)).toEqual(['unsubmit', 'reject'])
+    expect(vm.approvalActions(pending)).toEqual(['unsubmit'])
   })
 
   it('orchestrates DCL maintenance, history, and lifecycle actions', async () => {
@@ -132,6 +151,7 @@ describe('DCL accounting mapping API boundary', () => {
     ]
     const fullMapping = {
       ...mapping,
+      availableApprovalActions: ['submit'],
       approval: {
         ...mapping.approval,
         versionNo: 1,
@@ -154,9 +174,7 @@ describe('DCL accounting mapping API boundary', () => {
       if (path === 'acc/book/query') {
         return Promise.resolve({
           data: {
-            items: [
-              { bookId: mapping.bookId, code: 'MAIN', name: '主账簿' },
-            ],
+            items: [{ bookId: mapping.bookId, code: 'MAIN', name: '主账簿' }],
             total: 1,
           },
         })
@@ -199,6 +217,7 @@ describe('DCL accounting mapping API boundary', () => {
     await vm.changeState(
       {
         ...fullMapping,
+        availableApprovalActions: ['unapprove'],
         approval: { ...fullMapping.approval, status: 'APPROVED' },
       },
       'unapprove',

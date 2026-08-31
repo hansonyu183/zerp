@@ -20,7 +20,7 @@ BOB 负责：
 BOB 不负责：
 
 - 销售、采购、库存、资金收付等交易流程；
-- 创建、保存、提交、撤回、驳回、批准、反批、删除、版本或审计等声明写入与 lifecycle HTTP API；
+- 创建、保存、提交、撤回、驳回、批准、反批准、删除、版本或审计等声明写入与 lifecycle HTTP API；
 - 保存 stable identity、business code、当前资料副本、`bob` domain Approval entry、版本号、候选、审计事件或 current-version pointer；
 - 修改已发生业务记录中的历史引用；
 - 替交易领域决定需要保存哪些业务快照；
@@ -30,7 +30,7 @@ BOB 将现实中的业务参与者统一建模为主体。主体类型只分为 
 
 客户、供应商、员工、其他单位和销售合作方不是互斥的主体类型，而是外部主体与一个我方经营主体之间的强类型关系。同一外部主体可以同时拥有客户关系、供应关系、雇佣关系、服务关系或销售合作关系；面对不同经营主体时分别建立关系，不跨法人共享合同、信用、结算或债权债务生命周期。各关系独立保存该业务专属资料和生命周期。关系使用封闭类型和各自的类型化明细；禁止使用无约束 JSONB、EAV 或管理员运行时自定义字段承载正式关系属性，也不提供要求所有调用方理解全部关系规则的万能关系接口。
 
-全部业务对象的 stable subject、business code、声明创建、保存、启停候选、提交、撤回、驳回、批准、反批、删除、版本与审计固定由 DCL 编排，不进入 BOB 写服务。BOB 只保留各实体 `query/get/reference`、业务校验与精确历史引用能力；批准或反批不调用 BOB writer。新增实体字段或查询规则不得继续堆入一个要求理解全部 BOB 实体的万能查询或保存流程，也不得为了消除表面重复而把实体规则改造成运行时 metadata。
+全部业务对象的 stable subject、business code、声明创建、保存、启停候选、提交、撤回、驳回、批准、反批准、删除、版本与审计固定由 DCL 编排，不进入 BOB 写服务。BOB 只保留各实体 `query/get/reference`、业务校验与精确历史引用能力；批准或反批准不调用 BOB writer。新增实体字段或查询规则不得继续堆入一个要求理解全部 BOB 实体的万能查询或保存流程，也不得为了消除表面重复而把实体规则改造成运行时 metadata。
 
 BOB 列表只返回当前正式资料、stable ID、编码、`sourceApprovalEntryId`、`sourceVersionNo` 与实体所需最小字段，不返回 `latestApproved`、`openVersion`、Approval status 或候选摘要。`sourceApprovalEntryId` 与 `sourceVersionNo` 直接来自同一 highest APPROVED DCL Approval Entry，仅用于展示和来源追溯，不成为 BOB 版本权威。产品单位换算和配方、员工雇佣资料均从该 entry 对应的完整 DCL snapshot 读取，并使用固定次数的 typed 查询；详情同样不接受历史 entry 参数。
 
@@ -186,7 +186,7 @@ BOB 不实现任何审核、版本或归档流程。稳定对象编码由服务�
 
 ### 2.3 Stable identity 与草稿删除边界
 
-BOB 不公开 `delete`，也不拥有 stable identity writer。DCL 删除未进入正式历史的 V1 草稿时，必须在同一事务锁定 DCL subject，证明不存在已批准版本、历史 DCL/VOU/ACC 或其他持久化引用，再删除 typed snapshot、Approval Entry 与 subject。已分配的 business code 永不复用，编码计数器不得回退。DCL 反批只改变 Approval lifecycle，不能删除历史 DCL snapshot、Approval Entry、subject 或业务引用；BOB 下一次 typed query 按 highest APPROVED 自然回落或不可见。
+BOB 不公开 `delete`，也不拥有 stable identity writer。DCL 删除未进入正式历史的 V1 草稿时，必须在同一事务锁定 DCL subject，证明不存在已批准版本、历史 DCL/VOU/ACC 或其他持久化引用，再删除 typed snapshot、Approval Entry 与 subject。已分配的 business code 永不复用，编码计数器不得回退。DCL 反批准只改变 Approval lifecycle，不能删除历史 DCL snapshot、Approval Entry、subject 或业务引用；BOB 下一次 typed query 按 highest APPROVED 自然回落或不可见。
 
 ### 2.4 车辆承运归属
 
@@ -194,7 +194,7 @@ BOB 不公开 `delete`，也不拥有 stable identity writer。DCL 删除未进�
 
 车辆申报必须保存完整的 `carrierAffiliation` 封闭对象，`type` 的完整 wire value 集合为 `INTERNAL`（自有）和 `EXTERNAL`（外部承运）。`INTERNAL` 必须且只能引用一个当前启用且存在 latest approved 版本的经营主体；`EXTERNAL` 必须且只能引用一条当前启用且存在 latest approved 版本的“其他单位”服务关系。每辆车只能有一种承运归属，不允许为空，不为自有车辆虚构其他单位，也不允许送货时临时改成另一承运方。线协议只接受 `carrierAffiliation`，不接受 `platformObjectId`、双读或双写。
 
-车辆由 DCL 保存承运归属的稳定对象和 `approvalEntryId` 快照；创建和保存时解析 latest approved，提交和审核时确认已存 entry 仍是 latest approved。外部服务关系编辑期间旧 latest approved 版本继续被已批准车辆快照保留，候选审核通过后旧快照不会自动改写，必须编辑车辆候选才能选用新版本；经营主体或服务关系仍被 highest-approved 车辆资料引用时拒绝禁用，用户必须先通过 DCL 车辆正常编辑、提交和审核流程修改承运归属。已有历史单据引用不被改写。
+车辆由 DCL 保存承运归属的稳定对象和 `approvalEntryId` 快照；创建和保存时解析 latest approved，提交和审核时确认已存 entry 仍是 latest approved。外部服务关系编辑期间旧 latest approved 版本继续被已批准车辆快照保留，候选批准后旧快照不会自动改写，必须编辑车辆候选才能选用新版本；经营主体或服务关系仍被 highest-approved 车辆资料引用时拒绝禁用，用户必须先通过 DCL 车辆正常编辑、提交和审核流程修改承运归属。已有历史单据引用不被改写。
 
 车辆使用明确的 `bulkLiquidCapable` 布尔能力表示能否作为槽车承运散水，默认 `false`。`vehicleType` 仍只是 AUX 字典分类，VOU 不得根据车型编码或名称猜测散水承运能力；车辆容量、核载量或历史装载量也不形成每车产品数量换算。
 
@@ -238,7 +238,7 @@ BOB 没有公开生命周期状态机。所有实体的 `DRAFT`、`PENDING`、`A
 - V1 批准后，BOB typed query 读取 V1；
 - 后续候选未批准时继续读取上一批准版本；
 - 新版本批准后，查询自然读取新的 highest APPROVED entry；
-- latest approved 反批后，查询自然回落到上一批准版本，首版反批后无结果；
+- latest approved 反批准后，查询自然回落到上一批准版本，首版反批准后无结果；
 - approve/unapprove 不执行 BOB apply、remove、rollback、rebuild 或 refresh。
 
 BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读取模式。候选、版本、审计、合并写动作和启停申请只由 DCL 路由处理；BOB 内部只保留业务规则、typed read 与精确引用校验能力。
@@ -300,7 +300,7 @@ BOB 不注册 `create/save/enable/disable/submit/unsubmit/reject/approve/unappro
 
 ### 7.2 数据库锁
 
-DCL 创建候选、批准、反批与删除必须在事务内按固定顺序锁定 DCL stable subject、typed relationship identity、Approval Entry 与相关引用，避免死锁和交错状态。BOB 不参与写事务；约束冲突转换为领域冲突，不能把 PostgreSQL 错误文本返回客户端。
+DCL 创建候选、批准、反批准与删除必须在事务内按固定顺序锁定 DCL stable subject、typed relationship identity、Approval Entry 与相关引用，避免死锁和交错状态。BOB 不参与写事务；约束冲突转换为领域冲突，不能把 PostgreSQL 错误文本返回客户端。
 
 ### 7.3 幂等边界
 
@@ -332,7 +332,7 @@ AUX 产品分类、部门、岗位和结算方式只在用户选择或更换时�
 
 引用候选在读取时有效不构成写入保证。为避免“校验后、交易写入前”发生编辑失效，交易事务应对对象行取得与 BOB 编辑更新互斥的共享锁，或采用经验证的等效数据库约束/串行化方案。
 
-已经保存的历史业务引用不因后续批准、反批或启停而失效、级联更新或删除。BOB 表禁止配置会破坏历史引用的级联删除。
+已经保存的历史业务引用不因后续批准、反批准或启停而失效、级联更新或删除。BOB 表禁止配置会破坏历史引用的级联删除。
 
 ## 9. 校验与唯一性
 
@@ -376,7 +376,7 @@ BOB 验收以“当前有效的只读业务资料”公共边界为准，并由�
 1. 每个 BOB entity 提供 `query/get`，共享引用提供 `reference/query`；
 2. query/get 只读取 current，不返回候选、Approval metadata 或历史读取模式；
 3. 每个 current 响应返回 DCL `sourceApprovalEntryId` 与 `sourceVersionNo`，两者来自同一实体、subject 和 approved entry；
-4. DCL V1/V2 批准与反批后，BOB typed query 分别自然出现、切换、回落或消失；候选待审期间仍读取上一批准版本；
+4. DCL V1/V2 批准与反批准后，BOB typed query 分别自然出现、切换、回落或消失；候选待审期间仍读取上一批准版本；
 5. DCL lifecycle 事务失败时 stable subject、typed relationship identity、snapshot、Approval 与 event 整体回滚，BOB 不保存这些资料的副本；
 6. 新引用只选择 current enabled 对象，已有业务继续按精确 DCL Approval Entry 校验历史来源；
 7. BOB 前端只调用 query/get/reference，没有隐藏写分支、lifecycle 控件、版本或审计弹窗；

@@ -51,11 +51,7 @@ export function useDclVehicleViewModel() {
   const currentView = ref<DclVehicleView | null>(null)
   const effectiveView = ref<DclVehicleView | null>(null)
   const editContext = ref<DclVehicleEditContext | null>(null)
-  const {
-    permission,
-    actionAvailability: baseActionAvailability,
-    actionBlockedReason,
-  } =
+  const { permission, actionAvailability: baseActionAvailability } =
     useDclDeclarationActionAvailability(
       'vehicle',
       (row: DclVehicleListItem) => {
@@ -63,13 +59,12 @@ export function useDclVehicleViewModel() {
         return {
           status: version.status,
           versionNo: version.versionNo,
-          submittedBy: version.submittedBy,
+          availableApprovalActions: row.availableApprovalActions,
           enabled: row.enabled,
           hasOpenVersion: row.openVersion !== null,
           hasLatestApproved: row.latestApproved !== null,
         }
       },
-      () => session.user?.id,
       (path) => session.can(path),
     )
   const references = useDclVehicleReferences(config)
@@ -173,10 +168,7 @@ export function useDclVehicleViewModel() {
     drawerOpen.value = true
     references.preloadReferences(editorModel.value)
   }
-  async function openView(
-    row: DclVehicleListItem,
-    approvalEntryId?: string,
-  ) {
+  async function openView(row: DclVehicleListItem, approvalEntryId?: string) {
     await open(row, 'view', approvalEntryId)
   }
   async function openEdit(row: DclVehicleListItem) {
@@ -268,6 +260,12 @@ export function useDclVehicleViewModel() {
       editorLoading.value = false
     }
   }
+  async function refreshAfterSaveFailure(): Promise<void> {
+    const view = currentView.value
+    const mode = editorMode.value
+    await query()
+    if (view && mode !== 'create') await openById(view.objectId, mode)
+  }
   function closeEditor() {
     if (!saving.value) {
       drawerOpen.value = false
@@ -279,9 +277,7 @@ export function useDclVehicleViewModel() {
   async function save(form: DclVehicleForm): Promise<boolean> {
     if (saving.value || editorMode.value === 'view') return false
     if (
-      editorMode.value === 'create'
-        ? !canCreate.value
-        : !canEditVehicle.value
+      editorMode.value === 'create' ? !canCreate.value : !canEditVehicle.value
     ) {
       editorErrorMessage.value = '当前权限不足，无法保存车辆变更。'
       return false
@@ -320,7 +316,9 @@ export function useDclVehicleViewModel() {
       await query()
       return true
     } catch (error) {
-      editorErrorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await refreshAfterSaveFailure()
+      editorErrorMessage.value = message
       return false
     } finally {
       saving.value = false
@@ -350,12 +348,12 @@ export function useDclVehicleViewModel() {
       await query()
       if (currentView.value?.objectId === row.objectId) closeEditor()
       successMessage.value =
-        action === 'delete'
-          ? `${row.code} 已删除。`
-          : `${row.code} 已提交审核。`
+        action === 'delete' ? `${row.code} 已删除。` : `${row.code} 已提交。`
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      const message = getErrorMessage(error)
+      await query()
+      errorMessage.value = message
       return false
     } finally {
       actionLoading.value = null
@@ -368,7 +366,6 @@ export function useDclVehicleViewModel() {
     (row) => row.enabled,
     actionAvailability,
     {
-      unsubmitReasonRequired: true,
       run: runDclVehicleLifecycle,
       changeEnabled: async (row) => {
         const view = await getDclVehicle(
@@ -418,7 +415,6 @@ export function useDclVehicleViewModel() {
     effectiveEditorModel,
     searchEditorReference: references.searchEditorReference,
     actionAvailability,
-    actionBlockedReason,
     hasAnyAction,
     query,
     search,

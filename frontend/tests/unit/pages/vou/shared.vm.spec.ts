@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
+import { ApiError } from '@/api/types'
 import type {
   VoucherDocumentView,
   VoucherDraftForm,
@@ -65,6 +66,7 @@ function documentView(
     documentId: 'DOCUMENT-1',
     entity: config.entity,
     documentNo: 'DOC-1',
+    availableApprovalActions: ['submit'],
     approval: {
       status: 'DRAFT',
       revision: 1,
@@ -992,7 +994,9 @@ describe('shared VOU entity view model', () => {
     const vm = useVoucherEntityViewModel(config)
     expect(vm.canCreate.value).toBe(true)
     vm.openCreate()
-    await vi.waitFor(() => expect(vm.referenceOptions('customer')).toHaveLength(1))
+    await vi.waitFor(() =>
+      expect(vm.referenceOptions('customer')).toHaveLength(1),
+    )
 
     expect(mockedPost).toHaveBeenCalledWith(
       'bob/reference/query',
@@ -1099,7 +1103,9 @@ describe('shared VOU entity view model', () => {
 
     const vm = useVoucherEntityViewModel(config)
     vm.openCreate()
-    await vi.waitFor(() => expect(vm.referenceOptions('customer')).toHaveLength(0))
+    await vi.waitFor(() =>
+      expect(vm.referenceOptions('customer')).toHaveLength(0),
+    )
 
     expect(mockedPost).toHaveBeenCalledWith(
       'bob/reference/query',
@@ -1317,6 +1323,7 @@ describe('shared VOU entity view model', () => {
       amount: '10.00',
     })
     view.approval.status = 'PENDING'
+    view.availableApprovalActions = ['unsubmit', 'approve']
     useSessionStore().permissions = [
       '/vou/purchase-payment/get',
       '/vou/purchase-payment/approve',
@@ -1356,6 +1363,18 @@ describe('shared VOU entity view model', () => {
     })
   })
 
+  it('hydrates customer accounts as the customer form counterparty type', () => {
+    const config = voucherEntityConfigs['sales-receipt']
+    const currentForm = useVoucherEntityViewModel(config).form.value
+    populate(config, currentForm)
+    currentForm.counterparty = reference('customer-account')
+
+    expect(formFromDocument(documentView(config, currentForm))).toMatchObject({
+      counterpartyType: 'customer',
+      counterparty: { entity: 'customer-account' },
+    })
+  })
+
   it('rejects service acceptance payloads without a settlement direction', () => {
     const config = voucherEntityConfigs['service-acceptance']
     const form = useVoucherEntityViewModel(config).form.value
@@ -1381,6 +1400,7 @@ describe('shared VOU entity view model', () => {
       documentNo: 'SO-1',
       status: 'DRAFT' as const,
       revision: 3,
+      availableApprovalActions: ['submit'],
       businessDate: '2026-07-31',
       currency: 'CNY',
       amount: '10.00',
@@ -1404,8 +1424,6 @@ describe('shared VOU entity view model', () => {
     })
     const vm = useVoucherEntityViewModel(config)
 
-    expect(vm.canLifecycleAction(row, 'submit')).toBe(true)
-    expect(vm.canLifecycleAction(row, 'approve')).toBe(false)
     expect(await vm.lifecycleActionFromList(row, 'approve')).toBe(false)
     expect(await vm.lifecycleActionFromList(row, 'submit')).toBe(true)
     expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/submit', {
@@ -1419,8 +1437,119 @@ describe('shared VOU entity view model', () => {
       }),
       expect.any(Object),
     )
-    expect(vm.successMessage.value).toBe('SO-1 已提交审核。')
+    expect(vm.successMessage.value).toBe('SO-1 已提交。')
     expect(vm.actionLoading.value).toBeNull()
+  })
+
+  it('rejects a workspace lifecycle action absent from the detail snapshot without replay', async () => {
+    const config = voucherEntityConfigs['sale-order']
+    useSessionStore().permissions = [
+      '/vou/sale-order/query',
+      '/vou/sale-order/get',
+      '/vou/sale-order/approve',
+    ]
+    const view = documentView(
+      config,
+      useVoucherEntityViewModel(config).form.value,
+    )
+    view.availableApprovalActions = ['submit']
+    mockedPost.mockResolvedValue({ data: view })
+    const vm = useVoucherEntityViewModel(config)
+    await vm.openDocument({
+      documentId: view.documentId,
+      entity: config.entity,
+      documentNo: view.documentNo,
+      status: 'DRAFT',
+      revision: 1,
+      businessDate: '2026-07-24',
+      currency: 'CNY',
+      amount: '10.00',
+      updatedAt: '2026-07-24T00:00:00Z',
+    })
+    mockedPost.mockClear()
+
+    await expect(vm.lifecycleAction('approve')).resolves.toBe(false)
+
+    expect(mockedPost).not.toHaveBeenCalled()
+    expect(vm.actionLoading.value).toBeNull()
+  })
+
+  it('refreshes the detail, list, and audit after one stale lifecycle request without replay', async () => {
+    const config = voucherEntityConfigs['sale-order']
+    useSessionStore().permissions = [
+      '/vou/sale-order/query',
+      '/vou/sale-order/get',
+      '/vou/sale-order/submit',
+      '/vou/sale-order/audit-history',
+    ]
+    const view = documentView(
+      config,
+      useVoucherEntityViewModel(config).form.value,
+    )
+    const refreshedView: VoucherDocumentView = {
+      ...view,
+      availableApprovalActions: ['unsubmit'],
+      approval: {
+        ...view.approval,
+        status: 'PENDING',
+        revision: view.approval.revision + 1,
+      },
+    }
+    let getCount = 0
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'vou/sale-order/submit') {
+        throw new ApiError('business', 'stale', {
+          errorKey: 'approval_stale_revision',
+        })
+      }
+      if (path === 'vou/sale-order/get') {
+        getCount += 1
+        return { data: getCount === 1 ? view : refreshedView }
+      }
+      if (path === 'vou/sale-order/query') {
+        return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
+      }
+      if (path === 'vou/sale-order/audit-history') {
+        return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
+      }
+      throw new Error(`unexpected request: ${path}`)
+    })
+    const vm = useVoucherEntityViewModel(config)
+    await vm.openDocument({
+      documentId: view.documentId,
+      entity: config.entity,
+      documentNo: view.documentNo,
+      status: 'DRAFT',
+      revision: view.approval.revision,
+      businessDate: view.data.businessDate,
+      currency: view.data.currency,
+      amount: view.amount,
+      updatedAt: view.approval.updatedAt,
+    })
+
+    await expect(vm.lifecycleAction('submit')).resolves.toBe(false)
+
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'vou/sale-order/submit',
+      ),
+    ).toHaveLength(1)
+    expect(getCount).toBe(2)
+    expect(mockedPost).toHaveBeenCalledWith(
+      'vou/sale-order/query',
+      expect.any(Object),
+      expect.any(Object),
+    )
+    expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/audit-history', {
+      documentId: view.documentId,
+      page: 1,
+      pageSize: 20,
+    })
+    expect(vm.documentView.value).toMatchObject({
+      availableApprovalActions: ['unsubmit'],
+      approval: { status: 'PENDING', revision: 2 },
+    })
+    expect(vm.workspaceError.value).toContain('当前版本已被其他操作修改')
   })
 
   it('keeps list and workspace navigation behavior stable', async () => {

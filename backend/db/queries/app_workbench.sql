@@ -20,11 +20,12 @@ CROSS JOIN LATERAL (
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
     WHEN 'rpt-definition' THEN (SELECT payload.name FROM dcl_rpt_definition_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'wfl-process-definition' THEN subject.code
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition','wfl-process-definition')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
@@ -49,7 +50,7 @@ WHERE entry.domain='dcl'
 -- name: ListWorkbenchBobItems :many
 SELECT entry.subject_id AS object_id, entry.entity,
        CASE
-         WHEN entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','supplier','other-unit','sales-partner','customer','customer-account','rpt-definition')
+         WHEN entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','supplier','other-unit','sales-partner','customer','customer-account','rpt-definition','wfl-process-definition')
            THEN dcl_require_subject_code(subject.code)
          WHEN entry.entity='acc-mapping' THEN mapping.vou_entity
          ELSE ''
@@ -58,10 +59,7 @@ SELECT entry.subject_id AS object_id, entry.entity,
        COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
        entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision,
        COALESCE(subject.created_at, mapping.updated_at, entry.updated_at) AS object_updated_at,
-       CASE
-         WHEN entry.submitted_by = sqlc.arg(actor_id)::text THEN true
-         ELSE false
-       END AS is_submitted_by_actor
+       entry.submitted_by
 FROM approval_entries entry
 LEFT JOIN dcl_subjects subject ON subject.id=entry.subject_id AND subject.entity=entry.entity
 LEFT JOIN acc_mappings mapping ON entry.entity='acc-mapping' AND mapping.id=entry.subject_id
@@ -82,11 +80,12 @@ CROSS JOIN LATERAL (
     WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM dcl_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'acc-mapping' THEN mapping_book.name || ' · ' || mapping.vou_entity
     WHEN 'rpt-definition' THEN (SELECT payload.name FROM dcl_rpt_definition_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'wfl-process-definition' THEN subject.code
     ELSE ''
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition','wfl-process-definition')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
@@ -118,7 +117,16 @@ JOIN approval_entries approval
  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE (
     (approval.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
-    OR (approval.status = 'PENDING' AND document.entity = ANY(sqlc.arg(pending_entities)::text[]))
+    OR (
+      approval.status = 'PENDING'
+      AND (
+        (
+          document.entity = ANY(sqlc.arg(pending_entities)::text[])
+          AND approval.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text
+        )
+        OR document.entity = ANY(sqlc.arg(unsubmit_entities)::text[])
+      )
+    )
   )
   AND (
     sqlc.arg(keyword)::text = ''
@@ -149,7 +157,7 @@ WHERE (
 SELECT document.id AS document_id, document.entity, document.document_no,
        approval.status, approval.revision, document.business_date::text AS business_date,
        COALESCE(document.currency, '') AS currency, document.total_amount_cents,
-       approval.updated_at,
+       approval.updated_at, approval.submitted_by,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
                 receipt.counterparty_name, payment.counterparty_name, expense.employee_name, writeoff.employee_name,
@@ -174,7 +182,16 @@ LEFT JOIN vou_employee_loan_writeoff_details writeoff ON writeoff.document_id = 
 LEFT JOIN vou_other_income_details income ON income.document_id = document.id
 WHERE (
     (approval.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
-    OR (approval.status = 'PENDING' AND document.entity = ANY(sqlc.arg(pending_entities)::text[]))
+    OR (
+      approval.status = 'PENDING'
+      AND (
+        (
+          document.entity = ANY(sqlc.arg(pending_entities)::text[])
+          AND approval.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text
+        )
+        OR document.entity = ANY(sqlc.arg(unsubmit_entities)::text[])
+      )
+    )
   )
   AND (
     sqlc.arg(keyword)::text = ''

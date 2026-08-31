@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BusinessObjectEditor, BusinessObjectList } from '@/components/business-object'
+import {
+  BusinessObjectEditor,
+  BusinessObjectList,
+} from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
+import {
+  approvalActionPresentation,
+  approvalEventActionLabels,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
-import { dclStatusText } from './config'
 import type { DclOperatingEntityListItem } from './types'
 import { dclOperatingEntityActiveVersion } from './types'
 import { useDclOperatingEntityViewModel } from './vm'
@@ -18,7 +25,7 @@ const deleteTarget = ref<DclOperatingEntityListItem | null>(null)
 const reviewTarget = ref<DclOperatingEntityListItem | null>(null)
 const reviewComment = ref('')
 const reverseTarget = ref<DclOperatingEntityListItem | null>(null)
-const reverseAction = ref<'unsubmit' | 'unapprove'>('unsubmit')
+const reverseAction = ref<'unapprove'>('unapprove')
 const reverseReason = ref('')
 const versionsLength = computed(() =>
   Math.max(1, Math.ceil(vm.versionsTotal / vm.versionsPageSize)),
@@ -47,27 +54,6 @@ watch(
   },
 )
 
-function blockedAction(
-  row: DclOperatingEntityListItem,
-  action: 'approve' | 'reject',
-): ListRowAction[] {
-  const reason = vm.actionBlockedReason(row, action)
-  return reason
-    ? [
-        {
-          key: `${action}-blocked`,
-          label: action === 'approve' ? '审核通过' : '审核驳回',
-          icon:
-            action === 'approve'
-              ? 'mdi-check-decagram-outline'
-              : 'mdi-close-octagon-outline',
-          disabled: true,
-          disabledReason: reason,
-        },
-      ]
-    : []
-}
-
 function rowActions(row: DclOperatingEntityListItem): ListRowAction[] {
   const availability = vm.actionAvailability(row)
   return [
@@ -93,9 +79,7 @@ function rowActions(row: DclOperatingEntityListItem): ListRowAction[] {
       ? [
           {
             key: 'submit',
-            label: '提交审核',
-            icon: 'mdi-send-outline',
-            color: 'primary',
+            ...approvalActionPresentation.submit,
           },
         ]
       : []),
@@ -103,9 +87,7 @@ function rowActions(row: DclOperatingEntityListItem): ListRowAction[] {
       ? [
           {
             key: 'unsubmit',
-            label: '撤回提交',
-            icon: 'mdi-undo-variant',
-            color: 'warning',
+            ...approvalActionPresentation.unsubmit,
           },
         ]
       : []),
@@ -113,19 +95,15 @@ function rowActions(row: DclOperatingEntityListItem): ListRowAction[] {
       ? [
           {
             key: 'approve',
-            label: '审核通过',
-            icon: 'mdi-check-decagram-outline',
-            color: 'success',
+            ...approvalActionPresentation.approve,
           },
         ]
-      : blockedAction(row, 'approve')),
+      : []),
     ...(availability.unapprove
       ? [
           {
             key: 'unapprove',
-            label: '撤销批准',
-            icon: 'mdi-backup-restore',
-            color: 'warning',
+            ...approvalActionPresentation.unapprove,
           },
         ]
       : []),
@@ -133,12 +111,10 @@ function rowActions(row: DclOperatingEntityListItem): ListRowAction[] {
       ? [
           {
             key: 'reject',
-            label: '审核驳回',
-            icon: 'mdi-close-octagon-outline',
-            color: 'error',
+            ...approvalActionPresentation.reject,
           },
         ]
-      : blockedAction(row, 'reject')),
+      : []),
     ...(availability.enable
       ? [
           {
@@ -191,9 +167,9 @@ function selectRowAction(
   if (action === 'edit') void vm.openEdit(row)
   else if (action === 'view') void vm.openView(row)
   else if (action === 'submit') void vm.submitObject(row)
-  else if (action === 'unsubmit' || action === 'unapprove') {
+  else if (action === 'unsubmit') void vm.reverse(row, 'unsubmit')
+  else if (action === 'unapprove') {
     reverseTarget.value = row
-    reverseAction.value = action
     reverseReason.value = ''
   } else if (action === 'approve') void vm.review(row, 'approve', '')
   else if (action === 'reject') {
@@ -284,9 +260,9 @@ async function confirmReverse(): Promise<void> {
         <div class="dcl-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
             {{
-              dclStatusText[
+              approvalStatusPresentation[
                 dclOperatingEntityActiveVersion(row).approval.status
-              ]
+              ].label
             }}
           </v-chip>
           <v-chip
@@ -389,7 +365,11 @@ async function confirmReverse(): Promise<void> {
   <v-dialog
     :model-value="Boolean(deleteTarget)"
     max-width="540"
-    @update:model-value="(value) => { if (!value) deleteTarget = null }"
+    @update:model-value="
+      (value) => {
+        if (!value) deleteTarget = null
+      }
+    "
   >
     <v-card rounded="xl" title="确认删除经营主体变更草稿">
       <v-card-text>
@@ -406,11 +386,15 @@ async function confirmReverse(): Promise<void> {
   <v-dialog
     :model-value="Boolean(reverseTarget)"
     max-width="620"
-    @update:model-value="(value) => { if (!value) reverseTarget = null }"
+    @update:model-value="
+      (value) => {
+        if (!value) reverseTarget = null
+      }
+    "
   >
     <v-card
       rounded="xl"
-      :title="reverseAction === 'unapprove' ? '撤销批准' : '撤回提交'"
+      :title="approvalActionPresentation[reverseAction].label"
     >
       <v-card-text>
         <v-textarea
@@ -426,7 +410,7 @@ async function confirmReverse(): Promise<void> {
         <v-spacer />
         <v-btn variant="text" @click="reverseTarget = null">取消</v-btn>
         <v-btn
-          color="warning"
+          :color="approvalActionPresentation[reverseAction].color"
           :disabled="!reverseReason.trim()"
           @click="confirmReverse"
         >
@@ -439,9 +423,13 @@ async function confirmReverse(): Promise<void> {
   <v-dialog
     :model-value="Boolean(reviewTarget)"
     max-width="620"
-    @update:model-value="(value) => { if (!value) reviewTarget = null }"
+    @update:model-value="
+      (value) => {
+        if (!value) reviewTarget = null
+      }
+    "
   >
-    <v-card rounded="xl" title="审核驳回">
+    <v-card rounded="xl" :title="approvalActionPresentation.reject.label">
       <v-card-text>
         <v-textarea
           v-model="reviewComment"
@@ -456,11 +444,11 @@ async function confirmReverse(): Promise<void> {
         <v-spacer />
         <v-btn variant="text" @click="reviewTarget = null">取消</v-btn>
         <v-btn
-          color="error"
+          :color="approvalActionPresentation.reject.color"
           :disabled="!reviewComment.trim()"
           @click="confirmReview"
         >
-          确认驳回
+          确认{{ approvalActionPresentation.reject.label }}
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -491,7 +479,7 @@ async function confirmReverse(): Promise<void> {
             >
               <td data-label="版本">V{{ item.approval.versionNo }}</td>
               <td data-label="状态">
-                {{ dclStatusText[item.approval.status] }}
+                {{ approvalStatusPresentation[item.approval.status].label }}
               </td>
               <td data-label="名称">{{ item.data.name }}</td>
               <td data-label="更新">
@@ -506,10 +494,7 @@ async function confirmReverse(): Promise<void> {
                   variant="text"
                   @click="
                     vm.historyObject &&
-                    vm.openView(
-                      vm.historyObject,
-                      item.approval.approvalEntryId,
-                    )
+                    vm.openView(vm.historyObject, item.approval.approvalEntryId)
                   "
                 >
                   查看
@@ -552,12 +537,21 @@ async function confirmReverse(): Promise<void> {
           </thead>
           <tbody>
             <tr v-for="event in vm.auditEvents" :key="event.id">
-              <td data-label="事件">{{ event.action }}</td>
+              <td data-label="事件">
+                {{ approvalEventActionLabels[event.action] }}
+              </td>
               <td data-label="变化">
                 {{
-                  event.fromStatus ? dclStatusText[event.fromStatus] : '—'
+                  event.fromStatus
+                    ? approvalStatusPresentation[event.fromStatus].label
+                    : '—'
                 }}
-                → {{ event.toStatus ? dclStatusText[event.toStatus] : '—' }}
+                →
+                {{
+                  event.toStatus
+                    ? approvalStatusPresentation[event.toStatus].label
+                    : '—'
+                }}
               </td>
               <td data-label="操作人">{{ event.actorId }}</td>
               <td data-label="时间">

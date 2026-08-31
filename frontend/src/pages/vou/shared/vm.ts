@@ -21,7 +21,6 @@ import { useVoucherSalesChain } from './sales-chain'
 import { validateVoucherDraft } from './validation'
 import { useVoucherFormula } from './formula'
 import {
-  canRunListLifecycleAction,
   createListLifecycleAction,
   lifecycleActionSuccessLabel,
   postVoucherLifecycleAction,
@@ -180,13 +179,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     )
   }
 
-  function canLifecycleAction(
-    row: VoucherListItem,
-    action: VoucherLifecycleAction,
-  ): boolean {
-    return canRunListLifecycleAction(config, row, action, session.can)
-  }
-
   async function query(): Promise<void> {
     if (!canQuery.value) {
       rows.value = []
@@ -343,6 +335,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
           documentNo: data.parentDocumentNo,
           status: 'APPROVED',
           revision: 0,
+          availableApprovalActions: [],
           businessDate: data.data.businessDate,
           currency: data.data.currency,
           amount: data.amount,
@@ -468,7 +461,8 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     reason?: string,
   ): Promise<boolean> {
     const current = documentView.value
-    if (!current || !actionAvailability.value[action]) return false
+    if (!current || !current.availableApprovalActions.includes(action))
+      return false
     actionLoading.value = action
     workspaceError.value = null
     try {
@@ -479,7 +473,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
         current.approval.revision,
         reason,
       )
-      await loadDocument(current.documentId)
       editing.value = false
       successMessage.value = `${current.documentNo} ${lifecycleActionSuccessLabel(action)}。`
       return true
@@ -489,7 +482,11 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     } finally {
       actionLoading.value = null
       if (documentView.value?.documentId === current.documentId) {
-        void Promise.allSettled([query(), loadAudit(1)])
+        await Promise.allSettled([
+          loadDocument(current.documentId),
+          query(),
+          loadAudit(1),
+        ])
       }
     }
   }
@@ -501,7 +498,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     actionLoading,
     errorMessage,
     successMessage,
-    canRun: canLifecycleAction,
     query,
     loadDocument,
     loadAudit,
@@ -582,7 +578,6 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     auditError,
     canView,
     canEdit,
-    canLifecycleAction,
     query,
     search,
     changePage,

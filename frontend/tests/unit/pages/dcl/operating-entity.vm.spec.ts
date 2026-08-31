@@ -34,6 +34,7 @@ function approval(status: 'DRAFT' | 'PENDING' | 'APPROVED' = 'DRAFT') {
 function row(
   status: 'DRAFT' | 'PENDING' | 'APPROVED' = 'DRAFT',
   enabled = true,
+  availableApprovalActions: DclOperatingEntityListItem['availableApprovalActions'] = [],
 ): DclOperatingEntityListItem {
   const version = {
     approval: approval(status),
@@ -52,6 +53,7 @@ function row(
     entity: 'operating-entity',
     code: 'OPE-0001',
     enabled,
+    availableApprovalActions,
     latestApproved: status === 'APPROVED' ? version : null,
     openVersion: status === 'APPROVED' ? null : version,
     updatedAt: '2026-08-27T06:00:00Z',
@@ -101,6 +103,7 @@ describe('DCL operating entity view model', () => {
             entity: 'operating-entity',
             code: 'OPE-0001',
             enabled: true,
+            availableApprovalActions: [],
             latestApproved: null,
             openVersion: {
               approval: approval(),
@@ -183,7 +186,9 @@ describe('DCL operating entity view model', () => {
     mockedPost
       .mockResolvedValueOnce({ data: {} })
       .mockResolvedValueOnce(emptyPage())
-    await expect(vm.submitObject(row())).resolves.toBe(true)
+    await expect(vm.submitObject(row('DRAFT', true, ['submit']))).resolves.toBe(
+      true,
+    )
     expect(mockedPost).toHaveBeenNthCalledWith(
       1,
       'dcl/operating-entity/submit',
@@ -198,7 +203,9 @@ describe('DCL operating entity view model', () => {
     mockedPost
       .mockResolvedValueOnce({ data: {} })
       .mockResolvedValueOnce(emptyPage())
-    await expect(vm.review(row('PENDING'), 'approve', '')).resolves.toBe(true)
+    await expect(
+      vm.review(row('PENDING', true, ['approve']), 'approve', ''),
+    ).resolves.toBe(true)
     expect(mockedPost).toHaveBeenNthCalledWith(
       1,
       'dcl/operating-entity/approve',
@@ -211,6 +218,20 @@ describe('DCL operating entity view model', () => {
     expect(
       mockedPost.mock.calls.some(([path]) => String(path).startsWith('bob/')),
     ).toBe(false)
+  })
+
+  it('生命周期资格只消费服务端动作数组', () => {
+    useSessionStore().permissions = ['/dcl/operating-entity/approve']
+    const vm = useDclOperatingEntityViewModel()
+    const pending = row('PENDING', true, ['unsubmit'])
+
+    expect(vm.actionAvailability(pending)).toMatchObject({
+      submit: false,
+      unsubmit: true,
+      reject: false,
+      approve: false,
+      unapprove: false,
+    })
   })
 
   it('版本和审计只通过 DCL 历史接口读取', async () => {
@@ -307,6 +328,51 @@ describe('DCL operating entity view model', () => {
     })
   })
 
+  it('保存失败后刷新列表和已打开详情且不重放保存', async () => {
+    useSessionStore().permissions = [
+      '/dcl/operating-entity/query',
+      '/dcl/operating-entity/get',
+      '/dcl/operating-entity/save',
+    ]
+    const refreshed = {
+      ...objectView(),
+      approval: { ...approval(), revision: 3 },
+      data: { ...objectView().data, name: '服务端最新经营主体' },
+    }
+    mockedPost
+      .mockResolvedValueOnce({ data: objectView() })
+      .mockRejectedValueOnce(new Error('approval stale revision'))
+      .mockResolvedValueOnce({
+        data: { items: [row()], total: 1, page: 1, pageSize: 20 },
+      })
+      .mockResolvedValueOnce({ data: refreshed })
+    const vm = useDclOperatingEntityViewModel()
+
+    await vm.openEdit(row())
+    await expect(
+      vm.save({ ...vm.config.emptyForm(), name: '本地旧编辑' }),
+    ).resolves.toBe(false)
+
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'dcl/operating-entity/save',
+      ),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'dcl/operating-entity/query',
+      ),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'dcl/operating-entity/get',
+      ),
+    ).toHaveLength(2)
+    expect(vm.currentView.value?.approval.revision).toBe(3)
+    expect(vm.editorModel.value.name).toBe('服务端最新经营主体')
+    expect(vm.editorErrorMessage.value).toBe('操作失败，请稍后重试。')
+  })
+
   it('启停必须同时具备 get 与 save 权限', () => {
     const session = useSessionStore()
     session.permissions = ['/dcl/operating-entity/save']
@@ -326,28 +392,68 @@ describe('DCL operating entity view model', () => {
       '/dcl/operating-entity/unsubmit',
     ]
     let finishQuery!: (value: ReturnType<typeof emptyPage>) => void
-    mockedPost
-      .mockResolvedValueOnce({ data: {} })
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            finishQuery = resolve
-          }),
-      )
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishQuery = resolve
+        }),
+    )
     const vm = useDclOperatingEntityViewModel()
 
-    const pending = vm.reverse(row('PENDING'), 'unsubmit', '退回修改')
+    const pending = vm.reverse(
+      row('PENDING', true, ['unsubmit']),
+      'unsubmit',
+      '退回修改',
+    )
     await vi.waitFor(() => expect(mockedPost).toHaveBeenCalledTimes(2))
     expect(vm.successMessage.value).toBeNull()
     expect(vm.actionLoading.value).toBe('unsubmit:OBJECT-1')
 
     finishQuery(emptyPage())
     await expect(pending).resolves.toBe(true)
-    expect(vm.successMessage.value).toBe('OPE-0001 已撤回提交。')
+    expect(vm.successMessage.value).toBe('OPE-0001 已撤回。')
     expect(vm.actionLoading.value).toBeNull()
   })
 
-  it('删除、撤回、驳回和反批准使用 DCL 并保留原因', async () => {
+  it('生命周期动作失败后刷新服务端资格且不重放动作', async () => {
+    useSessionStore().permissions = ['/dcl/operating-entity/query']
+    mockedPost
+      .mockRejectedValueOnce(new Error('approval entry changed'))
+      .mockResolvedValueOnce({
+        data: {
+          items: [row('PENDING', true, [])],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      })
+    const vm = useDclOperatingEntityViewModel()
+
+    await expect(
+      vm.review(row('PENDING', true, ['approve']), 'approve', ''),
+    ).resolves.toBe(false)
+
+    expect(mockedPost).toHaveBeenCalledTimes(2)
+    expect(
+      mockedPost.mock.calls.filter(
+        ([path]) => path === 'dcl/operating-entity/approve',
+      ),
+    ).toHaveLength(1)
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      2,
+      'dcl/operating-entity/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {},
+        sort: [{ field: 'code', order: 'asc' }],
+      },
+    )
+    expect(vm.actionAvailability(vm.rows.value[0]!).approve).toBe(false)
+    expect(vm.errorMessage.value).toBe('操作失败，请稍后重试。')
+  })
+
+  it('删除和生命周期动作使用 DCL，撤回不发送原因', async () => {
     useSessionStore().permissions = [
       '/dcl/operating-entity/query',
       '/dcl/operating-entity/delete',
@@ -358,9 +464,19 @@ describe('DCL operating entity view model', () => {
     const vm = useDclOperatingEntityViewModel()
 
     for (const [action, target, reason, path] of [
-      ['unsubmit', row('PENDING'), ' 退回修改 ', 'unsubmit'],
-      ['reject', row('PENDING'), ' 资料不全 ', 'reject'],
-      ['unapprove', row('APPROVED'), ' 重新申报 ', 'unapprove'],
+      [
+        'unsubmit',
+        row('PENDING', true, ['unsubmit']),
+        ' 退回修改 ',
+        'unsubmit',
+      ],
+      ['reject', row('PENDING', true, ['reject']), ' 资料不全 ', 'reject'],
+      [
+        'unapprove',
+        row('APPROVED', true, ['unapprove']),
+        ' 重新申报 ',
+        'unapprove',
+      ],
     ] as const) {
       vi.clearAllMocks()
       mockedPost
@@ -374,12 +490,18 @@ describe('DCL operating entity view model', () => {
       expect(mockedPost).toHaveBeenNthCalledWith(
         1,
         `dcl/operating-entity/${path}`,
-        {
-          objectId: 'OBJECT-1',
-          approvalEntryId: 'ENTRY-1',
-          approvalRevision: 2,
-          reason: reason.trim(),
-        },
+        action === 'unsubmit'
+          ? {
+              objectId: 'OBJECT-1',
+              approvalEntryId: 'ENTRY-1',
+              approvalRevision: 2,
+            }
+          : {
+              objectId: 'OBJECT-1',
+              approvalEntryId: 'ENTRY-1',
+              approvalRevision: 2,
+              reason: reason.trim(),
+            },
       )
     }
 

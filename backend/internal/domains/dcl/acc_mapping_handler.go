@@ -14,7 +14,7 @@ type accMappingApplicationService interface {
 	Create(context.Context, AccMappingCreateInput, approval.Actor) (AccMappingMutation, error)
 	Save(context.Context, AccMappingSaveInput, approval.Actor) (AccMappingMutation, error)
 	Submit(context.Context, AccMappingVersionInput, approval.Actor) (AccMappingMutation, error)
-	Unsubmit(context.Context, AccMappingReviewInput, approval.Actor) (AccMappingMutation, error)
+	Unsubmit(context.Context, AccMappingVersionInput, approval.Actor) (AccMappingMutation, error)
 	Reject(context.Context, AccMappingReviewInput, approval.Actor) (AccMappingMutation, error)
 	Approve(context.Context, AccMappingVersionInput, approval.Actor) (AccMappingMutation, error)
 	Unapprove(context.Context, AccMappingReviewInput, approval.Actor) (AccMappingMutation, error)
@@ -70,7 +70,7 @@ func (h *AccMappingHandler) submit(c *gin.Context) {
 }
 
 func (h *AccMappingHandler) unsubmit(c *gin.Context) {
-	var input AccMappingReviewInput
+	var input AccMappingVersionInput
 	if h.bind(c, &input) {
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.service.Unsubmit(c, input, actor) })
 	}

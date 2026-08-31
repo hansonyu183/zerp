@@ -2,7 +2,10 @@ import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 import type { ApprovalStatus } from '@/api/generated'
 import { useSessionStore } from '@/stores/session'
-import { visibleApprovalActions, type ApprovalAction } from '@/shared/approval'
+import {
+  approvalActionPresentation,
+  type ApprovalAction,
+} from '@/shared/approval'
 import { queryAccountingBooks, type AccountingBook } from '../../acc/book/api'
 import {
   createNextAccountingMapping,
@@ -89,21 +92,6 @@ export function createDclAccMappingViewModel() {
   )
   const canView = computed(
     () => canQuery.value && session.can('/dcl/acc-mapping/get'),
-  )
-  const canApprove = computed(
-    () => canQuery.value && session.can('/dcl/acc-mapping/approve'),
-  )
-  const canUnapprove = computed(
-    () => canQuery.value && session.can('/dcl/acc-mapping/unapprove'),
-  )
-  const canSubmitApproval = computed(
-    () => canQuery.value && session.can('/dcl/acc-mapping/submit'),
-  )
-  const canUnsubmitApproval = computed(
-    () => canQuery.value && session.can('/dcl/acc-mapping/unsubmit'),
-  )
-  const canRejectApproval = computed(
-    () => canQuery.value && session.can('/dcl/acc-mapping/reject'),
   )
   const canCreateNext = computed(
     () => canQuery.value && session.can('/dcl/acc-mapping/create-next'),
@@ -281,6 +269,21 @@ export function createDclAccMappingViewModel() {
     catalog.value = null
   }
 
+  async function refreshAuthoritativeMapping(
+    target?: AccountingMapping,
+  ): Promise<void> {
+    await query()
+    const current = editing.value
+    if (
+      !current ||
+      (target &&
+        current.approval.approvalEntryId !== target.approval.approvalEntryId)
+    )
+      return
+    const readOnly = editorReadOnly.value
+    await openEdit(current, readOnly)
+  }
+
   async function save(): Promise<void> {
     if (!canSubmit.value || !parsedDefinition.value) {
       errorMessage.value = validationError.value || '没有权限保存映射。'
@@ -313,7 +316,11 @@ export function createDclAccMappingViewModel() {
       closeEditor()
       await query()
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      if (active) {
+        const message = getErrorMessage(error)
+        await refreshAuthoritativeMapping(editing.value ?? undefined)
+        errorMessage.value = message
+      }
     } finally {
       if (active) saving.value = false
     }
@@ -329,20 +336,19 @@ export function createDclAccMappingViewModel() {
       | 'unapprove'
       | 'delete-version',
   ): Promise<void> {
-    const permitted = {
-      submit: canSubmitApproval.value,
-      unsubmit: canUnsubmitApproval.value,
-      approve: canApprove.value,
-      reject: canRejectApproval.value,
-      unapprove: canUnapprove.value,
-      'delete-version': canDeleteVersion.value,
-    }[action]
+    const permitted =
+      action === 'delete-version'
+        ? canDeleteVersion.value
+        : mapping.availableApprovalActions.includes(action)
     if (!permitted) {
       errorMessage.value = '没有权限变更会计映射状态。'
       return
     }
     const reason = approvalReason.value.trim()
-    if ((action === 'reject' || action === 'unapprove') && !reason) {
+    const reasonRequired =
+      (action === 'reject' || action === 'unapprove') &&
+      approvalActionPresentation[action].reasonRequired
+    if (reasonRequired && !reason) {
       errorMessage.value = '请填写审批原因。'
       return
     }
@@ -353,7 +359,10 @@ export function createDclAccMappingViewModel() {
         await mappingReasonAction(action, mapping, reason)
       else await mappingApprovalAction(action, mapping)
       if (!active) return
-      successMessage.value = '映射版本状态已更新。'
+      successMessage.value =
+        action === 'delete-version'
+          ? '映射版本已删除。'
+          : `映射版本${approvalActionPresentation[action].successLabel}。`
       if (
         editing.value?.approval.approvalEntryId ===
         mapping.approval.approvalEntryId
@@ -361,25 +370,18 @@ export function createDclAccMappingViewModel() {
         closeEditor()
       await query()
     } catch (error) {
-      if (active) errorMessage.value = getErrorMessage(error)
+      if (active) {
+        const message = getErrorMessage(error)
+        await refreshAuthoritativeMapping(mapping)
+        errorMessage.value = message
+      }
     } finally {
       if (active) loading.value = false
     }
   }
 
   function approvalActions(mapping: AccountingMapping): ApprovalAction[] {
-    const permissions: Record<ApprovalAction, boolean> = {
-      submit: canSubmitApproval.value,
-      unsubmit: canUnsubmitApproval.value,
-      reject: canRejectApproval.value,
-      approve: canApprove.value,
-      unapprove: canUnapprove.value,
-    }
-    return visibleApprovalActions(
-      mapping.approval,
-      session.user?.id ?? '',
-      (action) => permissions[action],
-    )
+    return mapping.availableApprovalActions
   }
 
   async function openByTarget(
@@ -478,11 +480,6 @@ export function createDclAccMappingViewModel() {
     canCreate,
     canEdit,
     canView,
-    canApprove,
-    canUnapprove,
-    canSubmitApproval,
-    canUnsubmitApproval,
-    canRejectApproval,
     canCreateNext,
     canVersions,
     canAudit,

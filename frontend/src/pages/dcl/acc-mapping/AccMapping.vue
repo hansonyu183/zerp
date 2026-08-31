@@ -2,7 +2,9 @@
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import {
   ApprovalStatusBadge,
-  approvalActionLabels,
+  approvalActionPresentation,
+  approvalEventActionLabels,
+  approvalStatusLabel,
   approvalStatusPresentation,
 } from '@/shared/approval'
 import type { ApprovalStatus } from '@/api/generated'
@@ -25,7 +27,12 @@ const statusOptions = (
 ).map(([value, item]) => ({ title: item.label, value }))
 
 function actions(mapping: AccountingMapping): ListRowAction[] {
-  const lifecycle = new Set(vm.approvalActions(mapping))
+  const lifecycle = vm.approvalActions(mapping).map((action) => ({
+    key: action,
+    label: approvalActionPresentation[action].label,
+    icon: approvalActionPresentation[action].icon,
+    color: approvalActionPresentation[action].color,
+  }))
   const historyActions: ListRowAction[] = [
     ...(vm.canVersions
       ? [{ key: 'versions', label: '版本历史', icon: 'mdi-history' }]
@@ -40,90 +47,35 @@ function actions(mapping: AccountingMapping): ListRowAction[] {
         ]
       : []),
   ]
-  if (mapping.approval.status === 'DRAFT') {
-    return [
-      ...(vm.canEdit
-        ? [
-            {
-              key: 'edit',
-              label: '编辑',
-              icon: 'mdi-pencil-outline',
-              color: 'primary',
-            },
-          ]
-        : []),
-      ...(lifecycle.has('submit')
-        ? [
-            {
-              key: 'submit',
-              label: approvalActionLabels.submit,
-              icon: 'mdi-send-outline',
-            },
-          ]
-        : []),
-      ...(vm.canDeleteVersion
-        ? [
-            {
-              key: 'delete-version',
-              label: '删除草稿',
-              icon: 'mdi-delete-outline',
-              color: 'error',
-            },
-          ]
-        : []),
-      ...historyActions,
-    ]
-  }
-  if (mapping.approval.status === 'PENDING') {
-    return [
-      ...(lifecycle.has('unsubmit')
-        ? [
-            {
-              key: 'unsubmit',
-              label: approvalActionLabels.unsubmit,
-              icon: 'mdi-undo',
-            },
-          ]
-        : []),
-      ...(lifecycle.has('reject')
-        ? [
-            {
-              key: 'reject',
-              label: approvalActionLabels.reject,
-              icon: 'mdi-close-circle-outline',
-              color: 'error',
-            },
-          ]
-        : []),
-      ...(lifecycle.has('approve')
-        ? [
-            {
-              key: 'approve',
-              label: approvalActionLabels.approve,
-              icon: 'mdi-check-circle-outline',
-            },
-          ]
-        : []),
-      ...historyActions,
-    ]
-  }
   return [
-    ...(vm.canCreateNext
+    ...(mapping.approval.status === 'DRAFT' && vm.canEdit
+      ? [
+          {
+            key: 'edit',
+            label: '编辑',
+            icon: 'mdi-pencil-outline',
+            color: 'primary',
+          },
+        ]
+      : []),
+    ...lifecycle,
+    ...(mapping.approval.status === 'DRAFT' && vm.canDeleteVersion
+      ? [
+          {
+            key: 'delete-version',
+            label: '删除草稿',
+            icon: 'mdi-delete-outline',
+            color: 'error',
+          },
+        ]
+      : []),
+    ...(mapping.approval.status === 'APPROVED' && vm.canCreateNext
       ? [
           {
             key: 'create-next',
             label: '基于此版本新建',
             icon: 'mdi-content-copy',
             color: 'primary',
-          },
-        ]
-      : []),
-    ...(lifecycle.has('unapprove')
-      ? [
-          {
-            key: 'unapprove',
-            label: '反批准',
-            icon: 'mdi-backup-restore',
           },
         ]
       : []),
@@ -433,9 +385,10 @@ void vm.initialize().then(() => {
           </thead>
           <tbody>
             <tr v-for="event in vm.auditEvents" :key="event.id">
-              <td>{{ event.action }}</td>
+              <td>{{ approvalEventActionLabels[event.action] }}</td>
               <td>
-                {{ event.fromStatus || '—' }} → {{ event.toStatus || '—' }}
+                {{ approvalStatusLabel(event.fromStatus) }} →
+                {{ approvalStatusLabel(event.toStatus) }}
               </td>
               <td>{{ event.actorId }}</td>
               <td>{{ formatLocalDateTime(event.createdAt) }}</td>

@@ -134,6 +134,15 @@ test('标准采购脚本经编辑、试算和批准后支持手工重建下级 @
   await expect(
     definition.locator('.definition-editor__sidebar .text-caption').first(),
   ).toContainText('待批准')
+  await expect(
+    definition.getByRole('button', { name: '撤回', exact: true }),
+  ).toBeVisible()
+  await expect(
+    definition.getByRole('button', { name: '批准', exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    definition.getByRole('button', { name: '驳回', exact: true }),
+  ).toHaveCount(0)
   await approveWorkflowDefinitionAsReviewer(
     process.env.E2E_API_BASE_URL!,
     workerState.reviewer,
@@ -194,7 +203,7 @@ test('标准采购脚本经编辑、试算和批准后支持手工重建下级 @
     response.url().endsWith('/vou/purchase-order/submit'),
   )
   await orderWorkspace
-    .getByRole('button', { name: '提交审核', exact: true })
+    .getByRole('button', { name: '提交', exact: true })
     .click()
   const submitOrderEnvelope = (await (
     await submitOrderResponsePromise

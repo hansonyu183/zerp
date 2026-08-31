@@ -78,6 +78,7 @@ describe('DCL vehicle view model', () => {
               entity: 'vehicle',
               code: 'VEH-0001',
               enabled: true,
+              availableApprovalActions: ['submit'],
               latestApproved: null,
               openVersion: {
                 approval,

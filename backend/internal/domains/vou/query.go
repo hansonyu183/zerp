@@ -37,12 +37,21 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		return Page[ListItem]{}, s.internal("list documents", err)
 	}
 	items := make([]ListItem, 0, len(rows))
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return Page[ListItem]{}, err
+	}
 	for _, row := range rows {
+		entry := approval.Entry{
+			EntryRef: approval.EntryRef{ID: row.ApprovalEntryID, Domain: "vou", Entity: row.Entity, SubjectID: row.ID},
+			Status:   approval.Status(row.Status), Revision: row.Revision, SubmittedBy: row.SubmittedBy,
+		}
 		items = append(items, ListItem{
 			DocumentID: row.ID, Entity: row.Entity, DocumentNo: row.DocumentNo,
 			Status: documentStatus(entity, row.Status), Revision: row.Revision, BusinessDate: formatDate(row.BusinessDate),
 			PartyName: row.PartyName, Currency: deref(row.Currency), Amount: documentAmount(row.Entity, row.TotalAmountCents),
-			UpdatedAt: row.UpdatedAt.Time,
+			UpdatedAt:                row.UpdatedAt.Time,
+			AvailableApprovalActions: coordinator.LifecycleActions(entry, input.actor),
 		})
 	}
 	if len(items) > 0 && (entity == EntitySaleOrder || entity == EntityPurchaseOrder) {
@@ -123,6 +132,11 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Docum
 		return DocumentView{}, s.internal("list attachments", err)
 	}
 	view := documentView(document, data, attachmentViews(attachments))
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	view.AvailableApprovalActions = coordinator.LifecycleActions(document.approvalEntry(), input.actor)
 	if document.ParentDocumentID != nil {
 		view.ParentDocumentID = *document.ParentDocumentID
 		if document.ParentEntity != nil {

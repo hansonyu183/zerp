@@ -53,7 +53,9 @@ test('两个用户通过产品界面按独立范围维护账簿且首本控制�
   await page.getByRole('button', { name: '新增', exact: true }).click()
   const drawer = page.locator('.v-navigation-drawer--right')
   await drawer.getByLabel('名称').fill('E2E 管理账簿')
-  await drawer.getByLabel('开始月份').fill('2026-08')
+  // Keep this Approval E2E book outside the shared workers' business dates so
+  // its intentionally incomplete posting mappings cannot receive their VOU facts.
+  await drawer.getByLabel('开始月份').fill('2099-01')
   await drawer.getByLabel('基础币种').fill('CNY')
   await drawer.getByLabel('说明').fill('跨用户访问范围')
   await drawer
@@ -78,7 +80,7 @@ test('两个用户通过产品界面按独立范围维护账簿且首本控制�
   const code = (await row.locator('td').first().textContent())?.trim()
   expect(code).toMatch(/^ACC-\d{4}$/)
   await expect(row).toContainText('独立核算')
-  await expect(row).toContainText('2026-08')
+  await expect(row).toContainText('2099-01')
   await expect(row).toContainText('CNY')
   await expect(row).toContainText('跨用户访问范围')
   await expect(row.getByRole('button', { name: '编辑' })).toBeVisible()
@@ -87,7 +89,7 @@ test('两个用户通过产品界面按独立范围维护账簿且首本控制�
 
   await page.getByRole('button', { name: '新增', exact: true }).click()
   await drawer.getByLabel('名称').fill('E2E 独立账簿')
-  await drawer.getByLabel('开始月份').fill('2026-09')
+  await drawer.getByLabel('开始月份').fill('2099-02')
   await drawer.getByLabel('基础币种').fill('CNY')
   await drawer.getByRole('button', { name: '保存', exact: true }).click()
   const secondRow = page.locator('tbody tr').filter({ hasText: 'E2E 独立账簿' })
@@ -118,9 +120,67 @@ test('两个用户通过产品界面按独立范围维护账簿且首本控制�
   await selectAccountingBook(page, /E2E 管理账簿/)
   await expect(page.getByText('零期初也需要明确批准')).toBeVisible()
   await expect(page.getByText('草稿', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '保存草稿', exact: true }).click()
+  await expect(
+    page.getByText('账簿期初已保存。', { exact: true }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: '提交', exact: true }).click()
+  await expect(page.getByText('待批准', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '批准', exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: '撤回', exact: true }),
+  ).toBeVisible()
 
   await signOut(page)
   await signIn(page, workerState.reviewer)
+  await page.goto('/acc/opening')
+  await selectAccountingBook(page, /E2E 管理账簿/)
+  await expect(page.getByText('待批准', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '批准', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '撤回', exact: true }),
+  ).toHaveCount(0)
+
+  const staleReviewPage = await page.context().newPage()
+  await staleReviewPage.goto('/acc/opening')
+  await selectAccountingBook(staleReviewPage, /E2E 管理账簿/)
+  await expect(
+    staleReviewPage.getByRole('button', { name: '批准', exact: true }),
+  ).toBeVisible()
+
+  await page.getByLabel('驳回/反批准原因').fill('补充期初说明后重新提交')
+  await page.getByRole('button', { name: '驳回', exact: true }).click()
+  await expect(page.getByText('草稿', { exact: true })).toBeVisible()
+
+  await staleReviewPage
+    .getByRole('button', { name: '批准', exact: true })
+    .click()
+  await expect(
+    staleReviewPage.getByText('当前版本已被其他操作修改，请刷新后重试。', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(staleReviewPage.getByText('草稿', { exact: true })).toBeVisible()
+  await staleReviewPage.close()
+
+  await signOut(page)
+  await signIn(page, workerState.operator)
+  await page.goto('/acc/opening')
+  await selectAccountingBook(page, /E2E 管理账簿/)
+  await page.getByRole('button', { name: '提交', exact: true }).click()
+  await expect(page.getByText('待批准', { exact: true })).toBeVisible()
+
+  await signOut(page)
+  await signIn(page, workerState.reviewer)
+  await page.goto('/acc/opening')
+  await selectAccountingBook(page, /E2E 管理账簿/)
+  await page.getByRole('button', { name: '批准', exact: true }).click()
+  await expect(page.getByText('已批准', { exact: true })).toBeVisible()
+
   await page.goto('/acc/book')
   await expect(
     page.locator('tbody tr').filter({ hasText: code! }),

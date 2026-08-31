@@ -14,5 +14,9 @@
 ## 生命周期与验收
 
 1. 页面编排 `query|get|create|save|submit|unsubmit|reject|approve|unapprove|delete|versions|audit-history`，并按每个动作独立权限显示。
-2. 关系 V2 不影响 BOB V1 正式资料；批准切换和反批回落由 highest APPROVED 查询自然体现，不执行 current 写入。
+2. 关系 V2 不影响 BOB V1 正式资料；批准切换和反批准回落由 highest APPROVED 查询自然体现，不执行 current 写入。
 3. 正式销售事实 blocker 与历史 exact entry 回读按 [DCL 引用规则](../../domains/dcl.md#361-客户与客户结算子账户申报) 验收。
+
+## 服务端动作与刷新
+
+列表项和详情根级 `availableApprovalActions` 是生命周期按钮的唯一依据，并与客户业务动作共同组成页面 ViewModel；页面不自行推导动作。任何业务或生命周期动作完成后刷新受影响的 `query` 与已打开对象的 `get`；失败或 revision 冲突不自动重放，仍由执行接口检查并返回 blocker。

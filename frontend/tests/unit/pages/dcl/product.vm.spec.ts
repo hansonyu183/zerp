@@ -46,7 +46,12 @@ function productView(status: 'DRAFT' | 'PENDING' | 'APPROVED' = 'DRAFT') {
   }
 }
 
-function productListItem(status: 'DRAFT' | 'PENDING' | 'APPROVED' = 'DRAFT') {
+function productListItem(
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' = 'DRAFT',
+  availableApprovalActions: Array<
+    'submit' | 'unsubmit' | 'reject' | 'approve' | 'unapprove'
+  > = [],
+) {
   const version = {
     approval: { ...approval, status },
     enabled: true,
@@ -57,6 +62,7 @@ function productListItem(status: 'DRAFT' | 'PENDING' | 'APPROVED' = 'DRAFT') {
     entity: 'product' as const,
     code: 'PRD-0001',
     enabled: true,
+    availableApprovalActions,
     latestApproved: status === 'APPROVED' ? version : null,
     openVersion: status === 'APPROVED' ? null : version,
     updatedAt: '2026-08-28T00:00:00Z',
@@ -95,6 +101,7 @@ describe('DCL product view model', () => {
               entity: 'product',
               code: 'PRD-0001',
               enabled: true,
+              availableApprovalActions: ['submit'],
               latestApproved: null,
               openVersion: { approval, enabled: true, data: productData },
               updatedAt: '2026-08-28T00:00:00Z',
@@ -265,9 +272,9 @@ describe('DCL product view model', () => {
     ]
     const vm = useDclProductViewModel()
     const pending = {
-      ...productListItem('PENDING'),
+      ...productListItem('PENDING', ['unsubmit']),
       openVersion: {
-        ...productListItem('PENDING').openVersion!,
+        ...productListItem('PENDING', ['unsubmit']).openVersion!,
         approval: {
           ...approval,
           status: 'PENDING' as const,
@@ -276,9 +283,7 @@ describe('DCL product view model', () => {
       },
     }
     expect(vm.actionAvailability(pending).approve).toBe(false)
-    expect(vm.actionBlockedReason(pending, 'approve')).toContain('不能审核自己')
     expect(vm.actionAvailability(pending).unsubmit).toBe(true)
-    await expect(vm.reverse(pending, 'unsubmit', '')).resolves.toBe(false)
 
     const approved = productListItem('APPROVED')
     expect(vm.actionAvailability(approved).disable).toBe(true)
@@ -311,9 +316,10 @@ describe('DCL product view model', () => {
       })
     const vm = useDclProductViewModel()
     const pending = {
-      ...productListItem('PENDING'),
+      ...productListItem('PENDING', ['approve', 'reject', 'unsubmit']),
       openVersion: {
-        ...productListItem('PENDING').openVersion!,
+        ...productListItem('PENDING', ['approve', 'reject', 'unsubmit'])
+          .openVersion!,
         approval: {
           ...approval,
           status: 'PENDING' as const,
@@ -321,7 +327,7 @@ describe('DCL product view model', () => {
         },
       },
     }
-    const approved = productListItem('APPROVED')
+    const approved = productListItem('APPROVED', ['unapprove'])
 
     await expect(vm.review(pending, 'approve', '')).resolves.toBe(true)
     await expect(vm.review(pending, 'reject', ' 信息缺失 ')).resolves.toBe(true)
@@ -347,7 +353,6 @@ describe('DCL product view model', () => {
       objectId: 'PRD-1',
       approvalEntryId: 'PRD-V1',
       approvalRevision: 2,
-      reason: '补充资料',
     })
     expect(mockedPost).toHaveBeenCalledWith('dcl/product/unapprove', {
       objectId: 'PRD-1',
@@ -355,6 +360,39 @@ describe('DCL product view model', () => {
       approvalRevision: 2,
       reason: '重新维护',
     })
+  })
+
+  it('refreshes product rows after a delete failure without replaying the delete', async () => {
+    useSessionStore().permissions = [
+      '/dcl/product/query',
+      '/dcl/product/delete',
+    ]
+    const stale = productListItem()
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'dcl/product/delete')
+        throw new Error('delete stale revision')
+      if (path === 'dcl/product/query')
+        return {
+          data: {
+            items: [{ ...stale, availableApprovalActions: [] }],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+          },
+        } as never
+      return { data: {} } as never
+    })
+    const vm = useDclProductViewModel()
+
+    await expect(vm.deleteObject(stale)).resolves.toBe(false)
+
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/product/delete'),
+    ).toHaveLength(1)
+    expect(
+      mockedPost.mock.calls.filter(([path]) => path === 'dcl/product/query'),
+    ).toHaveLength(1)
+    expect(vm.rows.value).toHaveLength(1)
   })
 
   it('queries DCL product filters and reference search without BOB write routes', async () => {

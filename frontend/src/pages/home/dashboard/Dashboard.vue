@@ -27,6 +27,12 @@ import {
 } from './vm'
 import { isDclDeclarationEntity } from '@/pages/dcl/shared/declaration'
 import WorkbenchActionDialog from './WorkbenchActionDialog.vue'
+import {
+  ApprovalStatusBadge,
+  approvalActionPresentation,
+  approvalStatusPresentation,
+  type ApprovalAction,
+} from '@/shared/approval'
 
 const vm = reactive(useDashboardViewModel())
 const router = useRouter()
@@ -100,7 +106,7 @@ const entityFilterOptions = computed(() => {
   return [...options].map(([value, title]) => ({ title, value }))
 })
 const pendingStageFilterOptions = computed(() => [
-  { title: '待提交审核', value: 'SUBMIT' as const },
+  { title: '待提交', value: 'SUBMIT' as const },
   { title: '待批准', value: 'APPROVE' as const },
 ])
 
@@ -118,7 +124,12 @@ const objectColumns: readonly BusinessObjectColumn<WorkbenchObjectItem>[] = [
     value: (row) => row.name,
     sizing: 'fluid',
   },
-  { key: 'status', label: '状态', value: pendingStatus, sizing: 'compact' },
+  {
+    key: 'status',
+    label: '状态',
+    value: (row) => approvalStatusPresentation[row.status].label,
+    sizing: 'compact',
+  },
 ]
 
 const objectRows = computed(() =>
@@ -133,29 +144,29 @@ const documentRows = computed(() =>
 )
 const documentSort: VoucherSort = { field: 'updatedAt', order: 'desc' }
 const documentLifecycleLabels: VoucherLifecycleLabels = {
-  submit: '提交审核',
-  unsubmit: '撤回提交',
-  approve: '批准',
-  unapprove: '反批准',
-  pending: '待审核',
-  approved: '已批准',
+  submit: approvalActionPresentation.submit.label,
+  unsubmit: approvalActionPresentation.unsubmit.label,
+  approve: approvalActionPresentation.approve.label,
+  unapprove: approvalActionPresentation.unapprove.label,
+  pending: approvalStatusPresentation.PENDING.label,
+  approved: approvalStatusPresentation.APPROVED.label,
 }
 
-const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
+const resourceActionDefinitions = {
   view: { label: '查看', icon: 'mdi-eye-outline' },
   edit: { label: '编辑', icon: 'mdi-pencil-outline', color: 'primary' },
-  approve: {
-    label: '批准',
-    icon: 'mdi-check-decagram-outline',
-    color: 'success',
-  },
-  reject: { label: '驳回', icon: 'mdi-close-octagon-outline', color: 'error' },
-  submit: { label: '提交审核', icon: 'mdi-send-outline', color: 'primary' },
-  unsubmit: {
-    label: '撤回提交',
-    icon: 'mdi-undo-variant',
-    color: 'warning',
-  },
+} as const
+
+function actionDefinition(action: WorkbenchAction): Omit<ListRowAction, 'key'> {
+  if (action === 'view' || action === 'edit') {
+    return resourceActionDefinitions[action]
+  }
+  const presentation = approvalActionPresentation[action as ApprovalAction]
+  return {
+    label: presentation.label,
+    icon: presentation.icon,
+    color: presentation.color,
+  }
 }
 
 function entityTitle(row: Readonly<WorkbenchItem>): string {
@@ -166,19 +177,6 @@ function entityTitle(row: Readonly<WorkbenchItem>): string {
         ? 'dcl'
         : 'bob'
   return pageRegistry[`${domain}/${row.entity}`]?.entityTitle ?? row.entity
-}
-
-function pendingStatus(row: Readonly<WorkbenchItem>): string {
-  const labels: Record<string, string> = {
-    SUBMIT: '待提交审核',
-    APPROVE: '待批准',
-  }
-  return labels[row.pendingStage] ?? '待处理'
-}
-
-function pendingColor(row: Readonly<WorkbenchItem>): string {
-  if (row.pendingStage === 'APPROVE') return 'success'
-  return 'warning'
 }
 
 function rowIdentity(row: WorkbenchItem): string {
@@ -197,11 +195,14 @@ function rowActions(row: WorkbenchItem): ListRowAction[] {
     ['submit', 'approve', 'reject'].includes(action),
   )
   const primaryAction = forward ?? actions[0]
-  const toAction = (action: WorkbenchAction): ListRowAction => ({
-    key: action,
-    ...actionDefinitions[action],
-    label: `${actionDefinitions[action].label} ${rowIdentity(row)}`,
-  })
+  const toAction = (action: WorkbenchAction): ListRowAction => {
+    const definition = actionDefinition(action)
+    return {
+      key: action,
+      ...definition,
+      label: `${definition.label} ${rowIdentity(row)}`,
+    }
+  }
   return [
     ...(primaryAction ? [toAction(primaryAction)] : []),
     ...actions.filter((action) => action !== primaryAction).map(toAction),
@@ -248,15 +249,7 @@ async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
     vm.requestConfirmation(row, action)
     return
   }
-  if (action === 'unsubmit' && row.category === 'BOB') {
-    vm.requestConfirmation(row, action)
-    return
-  }
-  if (action === 'unsubmit' && row.category === 'VOU') {
-    vm.requestConfirmation(row, action)
-    return
-  }
-  if (action === 'submit' || action === 'approve') {
+  if (action === 'submit' || action === 'unsubmit' || action === 'approve') {
     await vm.runAction(row, action)
   }
 }
@@ -364,14 +357,7 @@ void vm.query('VOU')
           </template>
 
           <template #cell-status="{ row }">
-            <v-chip
-              :color="pendingColor(row)"
-              density="comfortable"
-              size="small"
-              variant="tonal"
-            >
-              {{ pendingStatus(row) }}
-            </v-chip>
+            <ApprovalStatusBadge :status="row.status" />
           </template>
 
           <template #actions="{ row }">
@@ -443,14 +429,7 @@ void vm.query('VOU')
           </template>
 
           <template #cell-status="{ row }">
-            <v-chip
-              :color="pendingColor(row)"
-              density="comfortable"
-              size="small"
-              variant="tonal"
-            >
-              {{ pendingStatus(row) }}
-            </v-chip>
+            <ApprovalStatusBadge :status="row.status" />
           </template>
 
           <template #cell-amount="{ row }">

@@ -12,7 +12,7 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
   account_disabled: '账号已停用，请联系管理员。',
   account_locked: '账号已临时锁定，请稍后重试。',
   invalid_current_password: '当前密码错误，请重新输入。',
-  submitter_cannot_review:
+  approval_self_review_forbidden:
     '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
   document_data_incomplete:
     '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再提交审核。',

@@ -1,6 +1,6 @@
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import type { ApprovalStatus } from '@/api/generated'
+import type { ApprovalLifecycleAction, ApprovalStatus } from '@/api/generated'
 
 export type DclWflProcessDefinition =
   components['schemas']['DclWflProcessDefinitionView']
@@ -17,6 +17,21 @@ export type WflDefinitionTrialResult =
 export type WflDefinitionDiagnostic =
   components['schemas']['WflDefinitionDiagnostic']
 export type VouEntity = components['schemas']['VouEntity']
+export type WflProcessDefinitionLifecycleInput = {
+  code: string
+  approvalEntryId: string
+  approvalRevision: number
+}
+
+function lifecycleInput(
+  definition: DclWflProcessDefinition,
+): WflProcessDefinitionLifecycleInput {
+  return {
+    code: definition.code,
+    approvalEntryId: definition.approval.approvalEntryId,
+    approvalRevision: definition.approval.revision,
+  }
+}
 
 export async function queryDclWflProcessDefinitions(input: {
   keyword?: string
@@ -65,53 +80,70 @@ export function saveDclWflProcessDefinition(input: {
 export function submitDclWflProcessDefinition(
   definition: DclWflProcessDefinition,
 ) {
-  return apiClient.postContract('dcl/wfl-process-definition/submit', {
-    code: definition.code,
-    approvalEntryId: definition.approval.approvalEntryId,
-    approvalRevision: definition.approval.revision,
-  })
+  return runWflProcessDefinitionLifecycleAction(
+    'submit',
+    lifecycleInput(definition),
+  )
 }
 
 export function unsubmitDclWflProcessDefinition(
   definition: DclWflProcessDefinition,
 ) {
-  return apiClient.postContract('dcl/wfl-process-definition/unsubmit', {
-    code: definition.code,
-    approvalEntryId: definition.approval.approvalEntryId,
-    approvalRevision: definition.approval.revision,
-  })
+  return runWflProcessDefinitionLifecycleAction(
+    'unsubmit',
+    lifecycleInput(definition),
+  )
 }
 
 export function rejectDclWflProcessDefinition(
   definition: DclWflProcessDefinition,
   reason: string,
 ) {
-  return apiClient.postContract('dcl/wfl-process-definition/reject', {
-    code: definition.code,
-    approvalEntryId: definition.approval.approvalEntryId,
-    approvalRevision: definition.approval.revision,
+  return runWflProcessDefinitionLifecycleAction(
+    'reject',
+    lifecycleInput(definition),
     reason,
-  })
+  )
 }
 
 export function approveDclWflProcessDefinition(
   definition: DclWflProcessDefinition,
 ) {
-  return apiClient.postContract('dcl/wfl-process-definition/approve', {
-    code: definition.code,
-    approvalEntryId: definition.approval.approvalEntryId,
-    approvalRevision: definition.approval.revision,
-  })
+  return runWflProcessDefinitionLifecycleAction(
+    'approve',
+    lifecycleInput(definition),
+  )
 }
 
 export function unapproveDclWflProcessDefinition(
   definition: DclWflProcessDefinition,
   reason: string,
 ) {
+  return runWflProcessDefinitionLifecycleAction(
+    'unapprove',
+    lifecycleInput(definition),
+    reason,
+  )
+}
+
+export function runWflProcessDefinitionLifecycleAction(
+  action: ApprovalLifecycleAction,
+  input: WflProcessDefinitionLifecycleInput,
+  reason = '',
+) {
+  if (action === 'submit')
+    return apiClient.postContract('dcl/wfl-process-definition/submit', input)
+  if (action === 'unsubmit')
+    return apiClient.postContract('dcl/wfl-process-definition/unsubmit', input)
+  if (action === 'approve')
+    return apiClient.postContract('dcl/wfl-process-definition/approve', input)
+  if (action === 'reject')
+    return apiClient.postContract('dcl/wfl-process-definition/reject', {
+      ...input,
+      reason,
+    })
   return apiClient.postContract('dcl/wfl-process-definition/unapprove', {
-    code: definition.code,
-    approvalEntryId: definition.approval.approvalEntryId,
-    approvalRevision: definition.approval.revision,
+    ...input,
     reason,
   })
 }

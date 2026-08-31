@@ -1,24 +1,78 @@
 import type {
+  ApprovalLifecycleAction,
   ApprovalMeta,
   ApprovalStatus,
   ApprovalVersionMeta,
 } from '@/api/generated'
 
-export type ApprovalAction =
-  'submit' | 'unsubmit' | 'reject' | 'approve' | 'unapprove'
+export type ApprovalAction = ApprovalLifecycleAction
 
 export const approvalStatusPresentation = {
-  DRAFT: { label: '草稿', color: 'warning' },
-  PENDING: { label: '待批准', color: 'info' },
-  APPROVED: { label: '已批准', color: 'success' },
-} as const satisfies Record<ApprovalStatus, { label: string; color: string }>
+  DRAFT: { label: '草稿', color: 'warning', icon: 'mdi-file-edit-outline' },
+  PENDING: { label: '待批准', color: 'info', icon: 'mdi-clock-check-outline' },
+  APPROVED: {
+    label: '已批准',
+    color: 'success',
+    icon: 'mdi-check-decagram-outline',
+  },
+} as const satisfies Record<
+  ApprovalStatus,
+  { label: string; color: string; icon: string }
+>
+
+export const approvalActionPresentation = {
+  submit: {
+    label: '提交',
+    icon: 'mdi-send-outline',
+    color: 'primary',
+    reasonRequired: false,
+    successLabel: '已提交',
+  },
+  unsubmit: {
+    label: '撤回',
+    icon: 'mdi-undo-variant',
+    color: 'warning',
+    reasonRequired: false,
+    successLabel: '已撤回',
+  },
+  reject: {
+    label: '驳回',
+    icon: 'mdi-close-octagon-outline',
+    color: 'error',
+    reasonRequired: true,
+    successLabel: '已驳回',
+  },
+  approve: {
+    label: '批准',
+    icon: 'mdi-check-decagram-outline',
+    color: 'success',
+    reasonRequired: false,
+    successLabel: '已批准',
+  },
+  unapprove: {
+    label: '反批准',
+    icon: 'mdi-undo-variant',
+    color: 'warning',
+    reasonRequired: true,
+    successLabel: '已反批准',
+  },
+} as const satisfies Record<
+  ApprovalLifecycleAction,
+  {
+    label: string
+    icon: string
+    color: string
+    reasonRequired: boolean
+    successLabel: string
+  }
+>
 
 export const approvalActionLabels = {
-  submit: '提交',
-  unsubmit: '撤回',
-  reject: '驳回',
-  approve: '批准',
-  unapprove: '反批准',
+  submit: approvalActionPresentation.submit.label,
+  unsubmit: approvalActionPresentation.unsubmit.label,
+  reject: approvalActionPresentation.reject.label,
+  approve: approvalActionPresentation.approve.label,
+  unapprove: approvalActionPresentation.unapprove.label,
 } as const satisfies Record<ApprovalAction, string>
 
 export const approvalEventActionLabels = {
@@ -52,12 +106,11 @@ export function visibleApprovalActions(
     case 'DRAFT':
       return can('submit') ? ['submit'] : []
     case 'PENDING':
+      const isSubmitter = meta.submittedBy === actorId
       return [
         ...(can('unsubmit') ? (['unsubmit'] as const) : []),
-        ...(can('reject') ? (['reject'] as const) : []),
-        ...(meta.submittedBy !== actorId && can('approve')
-          ? (['approve'] as const)
-          : []),
+        ...(!isSubmitter && can('reject') ? (['reject'] as const) : []),
+        ...(!isSubmitter && can('approve') ? (['approve'] as const) : []),
       ]
     case 'APPROVED':
       return can('unapprove') ? ['unapprove'] : []

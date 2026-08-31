@@ -1434,7 +1434,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclAccMappingReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclAccMappingVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclAccMappingMutationResponse } } };
     };
   };
@@ -1538,7 +1538,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclRptDefinitionReviewRequest } };
+      requestBody: { content: { 'application/json': Models.DclRptDefinitionVersionRequest } };
       responses: { 200: { content: { 'application/json': Models.DclRptDefinitionMutationResponse } } };
     };
   };
@@ -2451,6 +2451,7 @@ export interface paths {
 export interface components {
   schemas: {
       "ApprovalStatus": Models.ApprovalStatus;
+      "ApprovalLifecycleAction": Models.ApprovalLifecycleAction;
       "ApprovalMeta": Models.ApprovalMeta;
       "ApprovalVersionMeta": Models.ApprovalVersionMeta;
       "BookQueryRequest": Models.BookQueryRequest;

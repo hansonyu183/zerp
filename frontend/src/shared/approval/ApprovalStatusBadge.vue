@@ -13,6 +13,7 @@ const presentation = computed(() => approvalStatusPresentation[props.status])
     class="approval-status-badge"
     :color="presentation.color"
     density="compact"
+    :prepend-icon="presentation.icon"
     size="small"
     variant="tonal"
   >

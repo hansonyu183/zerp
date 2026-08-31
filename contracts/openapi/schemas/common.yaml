@@ -74,6 +74,12 @@
       'enum': ['DRAFT', 'PENDING', 'APPROVED'],
       'description': 'Approval 唯一生命周期状态。',
     },
+  'ApprovalLifecycleAction':
+    {
+      'type': 'string',
+      'enum': ['submit', 'unsubmit', 'reject', 'approve', 'unapprove'],
+      'description': 'Approval 唯一公开生命周期动作闭集。',
+    },
   'ApprovalMeta':
     {
       'type': 'object',

@@ -1112,8 +1112,11 @@
   'WorkbenchPendingStage': { 'type': 'string', 'enum': ['SUBMIT', 'APPROVE'] },
   'WorkbenchAction':
     {
-      'type': 'string',
-      'enum': ['view', 'edit', 'submit', 'unsubmit', 'approve', 'reject'],
+      'oneOf':
+        [
+          { 'type': 'string', 'enum': ['view', 'edit'] },
+          { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+        ],
     },
   'WorkbenchQueryRequest':
     {
@@ -1166,6 +1169,7 @@
           'sales-partner',
           'acc-mapping',
           'rpt-definition',
+          'wfl-process-definition',
         ],
     },
   'WorkbenchObjectItem':
@@ -1190,7 +1194,7 @@
         {
           'category': { 'type': 'string', 'enum': ['BOB'] },
           'entity': { '$ref': '#/WorkbenchObjectEntity' },
-          'status': { 'type': 'string', 'enum': ['DRAFT', 'PENDING'] },
+          'status': { '$ref': './common.yaml#/ApprovalStatus' },
           'pendingStage': { '$ref': '#/WorkbenchPendingStage' },
           'availableActions':
             { 'type': 'array', 'items': { '$ref': '#/WorkbenchAction' } },

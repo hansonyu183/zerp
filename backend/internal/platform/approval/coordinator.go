@@ -350,8 +350,8 @@ func (c *Coordinator[T]) Prepare(ctx context.Context, tx pgx.Tx, action Action, 
 	if !transitionAllowed(entry.Status, action) {
 		return Prepared{}, newError(ErrorConflict, "approval_invalid_transition", "approval action is not allowed in the current status", nil)
 	}
-	if action == ActionApproved && entry.SubmittedBy != nil && *entry.SubmittedBy == actor.ID() {
-		return Prepared{}, newError(ErrorForbidden, "approval_self_approval_forbidden", "submitter cannot approve the same entry", nil)
+	if (action == ActionApproved || action == ActionRejected) && entry.SubmittedBy != nil && *entry.SubmittedBy == actor.ID() {
+		return Prepared{}, newError(ErrorForbidden, "approval_self_review_forbidden", "submitter cannot review the same entry", nil)
 	}
 	if action == ActionUnapproved && entry.VersionNo != nil {
 		if err := c.requireLatestApprovedVersion(ctx, tx, entry); err != nil {

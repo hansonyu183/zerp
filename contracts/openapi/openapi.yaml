@@ -7133,7 +7133,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl.yaml#/DclAccMappingReviewRequest',
+                              '$ref': './schemas/dcl.yaml#/DclAccMappingVersionRequest',
                             },
                         },
                     },
@@ -7651,7 +7651,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionReviewRequest',
+                              '$ref': './schemas/dcl-rpt-definition.yaml#/DclRptDefinitionVersionRequest',
                             },
                         },
                     },
@@ -12206,6 +12206,8 @@
       'schemas':
         {
           'ApprovalStatus': { '$ref': './schemas/common.yaml#/ApprovalStatus' },
+          'ApprovalLifecycleAction':
+            { '$ref': './schemas/common.yaml#/ApprovalLifecycleAction' },
           'ApprovalMeta': { '$ref': './schemas/common.yaml#/ApprovalMeta' },
           'ApprovalVersionMeta':
             { '$ref': './schemas/common.yaml#/ApprovalVersionMeta' },

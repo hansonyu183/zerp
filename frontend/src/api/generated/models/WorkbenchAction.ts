@@ -2,4 +2,5 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WorkbenchAction = 'view' | 'edit' | 'submit' | 'unsubmit' | 'approve' | 'reject';
+import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
+export type WorkbenchAction = ('view' | 'edit' | ApprovalLifecycleAction);

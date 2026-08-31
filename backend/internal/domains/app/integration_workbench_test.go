@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -140,6 +141,64 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit DCL pending product: %v", err)
 	}
+	mappingBookID, mappingID, mappingApprovalEntryID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
+	reportID, reportApprovalEntryID := ulid.Make().String(), ulid.Make().String()
+	workflowID, workflowApprovalEntryID := ulid.Make().String(), ulid.Make().String()
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO acc_books(id,code,name,start_month,base_currency,created_by,updated_by)
+		VALUES($1,$2,$3,'2026-08-01','CNY',$4,$4)
+	`, mappingBookID, "WB-"+suffix, "工作台会计映射-"+suffix, admin.ID); err != nil {
+		t.Fatalf("insert workbench ACC book: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO acc_mappings(id,book_id,vou_entity,created_by,updated_by)
+		VALUES($1,$2,'sale-order',$3,$3)
+	`, mappingID, mappingBookID, admin.ID); err != nil {
+		t.Fatalf("insert workbench ACC mapping: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO approval_entries(
+			id,domain,entity,subject_id,version_no,status,revision,
+			created_by,created_at,updated_by,updated_at
+		) VALUES($1,'dcl','acc-mapping',$2,1,'DRAFT',1,$3,now(),$3,now())
+	`, mappingApprovalEntryID, mappingID, admin.ID); err != nil {
+		t.Fatalf("insert workbench ACC approval entry: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO dcl_subjects(id,entity,code,created_by)
+		VALUES($1,'rpt-definition',$2,$3)
+	`, reportID, "workbench-report-"+strings.ToLower(suffix), admin.ID); err != nil {
+		t.Fatalf("insert workbench RPT subject: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO approval_entries(
+			id,domain,entity,subject_id,version_no,status,revision,
+			created_by,created_at,updated_by,updated_at
+		) VALUES($1,'dcl','rpt-definition',$2,1,'DRAFT',1,$3,now(),$3,now())
+	`, reportApprovalEntryID, reportID, admin.ID); err != nil {
+		t.Fatalf("insert workbench RPT approval entry: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO dcl_rpt_definition_versions(
+			approval_entry_id,name,sql_text,parameters,columns,created_by,updated_by
+		) VALUES($1,$2,'SELECT 1','[]','[]',$3,$3)
+	`, reportApprovalEntryID, "工作台报表定义-"+suffix, admin.ID); err != nil {
+		t.Fatalf("insert workbench RPT definition version: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO dcl_subjects(id,entity,code,created_by)
+		VALUES($1,'wfl-process-definition',$2,$3)
+	`, workflowID, "workbench-workflow-"+strings.ToLower(suffix), admin.ID); err != nil {
+		t.Fatalf("insert workbench WFL subject: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `
+		INSERT INTO approval_entries(
+			id,domain,entity,subject_id,version_no,status,revision,
+			created_by,created_at,updated_by,updated_at
+		) VALUES($1,'dcl','wfl-process-definition',$2,1,'DRAFT',1,$3,now(),$3,now())
+	`, workflowApprovalEntryID, workflowID, admin.ID); err != nil {
+		t.Fatalf("insert workbench WFL approval entry: %v", err)
+	}
 
 	baseSequence := int(time.Now().UnixNano()%9000) + 1
 	documentPrefix := "OIN-20991231"
@@ -154,13 +213,14 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 	allObjectIDs := []string{
 		draft.ObjectID, pending.ObjectID, operating.ObjectID, fund.ObjectID, dclPending.ObjectID,
-		productDraft.ObjectID, productPending.ObjectID,
+		productDraft.ObjectID, productPending.ObjectID, mappingID, reportID, workflowID,
 	}
 	allApprovalEntryIDs := []string{
 		draft.Approval.ApprovalEntryID, pending.Approval.ApprovalEntryID,
 		operatingSubmitted.Approval.ApprovalEntryID, fundSubmitted.Approval.ApprovalEntryID,
 		dclPending.Approval.ApprovalEntryID, productDraft.Approval.ApprovalEntryID,
-		productPending.Approval.ApprovalEntryID,
+		productPending.Approval.ApprovalEntryID, mappingApprovalEntryID, reportApprovalEntryID,
+		workflowApprovalEntryID,
 	}
 	t.Cleanup(func() {
 		_, _ = pool.Exec(t.Context(), `DELETE FROM vou_other_income_details WHERE document_id=ANY($1::text[])`, documentIDs)
@@ -180,10 +240,13 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_formulas WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_unit_conversions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_product_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_rpt_definition_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_warehouse_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_operating_entity_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_subjects WHERE id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_entries WHERE domain='dcl' AND subject_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM acc_mappings WHERE id=$1`, mappingID)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM acc_books WHERE id=$1`, mappingBookID)
 		_ = tx.Commit(t.Context())
 	})
 
@@ -240,9 +303,13 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		"/dcl/operating-entity/unsubmit",
 		"/dcl/product/query", "/dcl/product/get", "/dcl/product/save",
 		"/dcl/product/submit", "/dcl/product/approve", "/dcl/product/reject", "/dcl/product/unsubmit",
+		"/dcl/acc-mapping/query", "/dcl/acc-mapping/get", "/dcl/acc-mapping/save", "/dcl/acc-mapping/submit",
+		"/dcl/rpt-definition/query", "/dcl/rpt-definition/get", "/dcl/rpt-definition/save", "/dcl/rpt-definition/submit",
+		"/dcl/wfl-process-definition/query", "/dcl/wfl-process-definition/get", "/dcl/wfl-process-definition/save",
+		"/dcl/wfl-process-definition/submit",
 	}}
 	bobPage, err := service.QueryWorkbench(t.Context(), bobPrincipal, WorkbenchQueryInput{
-		Category: WorkbenchCategoryBob, Keyword: "  工作台  ", Page: 1, PageSize: 20,
+		Category: WorkbenchCategoryBob, Keyword: "  " + suffix + "  ", Page: 1, PageSize: 20,
 	})
 	if err != nil {
 		t.Fatalf("query BOB workbench: %v (cause: %v)", err, errors.Unwrap(err))
@@ -256,7 +323,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 	if dclItem := byID[dclPending.ObjectID]; dclItem.Category != WorkbenchCategoryBob ||
 		dclItem.Entity != bobdomain.EntityOperatingEntity || dclItem.PendingStage != "APPROVE" ||
-		!slices.Equal(dclItem.AvailableActions, []string{"view", "approve", "reject", "unsubmit"}) {
+		!slices.Equal(dclItem.AvailableActions, []string{"view", "unsubmit", "reject", "approve"}) {
 		t.Fatalf("DCL operating entity workbench item = %+v", dclItem)
 	}
 	if item := byID[productDraft.ObjectID]; item.Entity != bobdomain.EntityProduct ||
@@ -265,11 +332,25 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 	if item := byID[productPending.ObjectID]; item.Entity != bobdomain.EntityProduct ||
 		item.PendingStage != "APPROVE" ||
-		!slices.Equal(item.AvailableActions, []string{"view", "approve", "reject", "unsubmit"}) {
+		!slices.Equal(item.AvailableActions, []string{"view", "unsubmit", "reject", "approve"}) {
 		t.Fatalf("DCL pending product workbench item = %+v", item)
 	}
-	if bobPage.Total < 5 {
-		t.Fatalf("BOB total = %d, want at least 5", bobPage.Total)
+	if item := byID[mappingID]; item.Entity != "acc-mapping" || item.Status != "DRAFT" ||
+		item.PendingStage != "SUBMIT" || item.BookID != mappingBookID || item.VouEntity != "sale-order" ||
+		!slices.Equal(item.AvailableActions, []string{"view", "edit", "submit"}) {
+		t.Fatalf("DCL ACC mapping workbench item = %+v", item)
+	}
+	if item := byID[reportID]; item.Entity != "rpt-definition" || item.Status != "DRAFT" ||
+		item.PendingStage != "SUBMIT" || !slices.Equal(item.AvailableActions, []string{"view", "edit", "submit"}) {
+		t.Fatalf("DCL RPT definition workbench item = %+v", item)
+	}
+	if item := byID[workflowID]; item.Entity != "wfl-process-definition" || item.Status != "DRAFT" ||
+		item.PendingStage != "SUBMIT" || item.Code != "workbench-workflow-"+strings.ToLower(suffix) ||
+		!slices.Equal(item.AvailableActions, []string{"view", "edit", "submit"}) {
+		t.Fatalf("DCL WFL definition workbench item = %+v", item)
+	}
+	if bobPage.Total < 8 {
+		t.Fatalf("BOB total = %d, want at least 8", bobPage.Total)
 	}
 	if bobPage.Page != 1 || bobPage.PageSize != 20 {
 		t.Fatalf("BOB pagination = page %d size %d", bobPage.Page, bobPage.PageSize)
@@ -285,7 +366,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if !slices.Equal(byID[draft.ObjectID].AvailableActions, []string{"view", "edit", "submit"}) {
 		t.Fatalf("draft BOB actions = %v", byID[draft.ObjectID].AvailableActions)
 	}
-	if !slices.Equal(byID[pending.ObjectID].AvailableActions, []string{"view", "approve", "reject", "unsubmit"}) {
+	if !slices.Equal(byID[pending.ObjectID].AvailableActions, []string{"view", "unsubmit", "reject", "approve"}) {
 		t.Fatalf("pending BOB actions = %v", byID[pending.ObjectID].AvailableActions)
 	}
 	outsideScopePage, err := service.QueryWorkbench(t.Context(), bobPrincipal, WorkbenchQueryInput{
@@ -334,7 +415,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		t.Fatalf("query-only workbench page = %+v, err = %v", noActionPage, err)
 	}
 
-	vouPrincipal := Principal{Permissions: []string{
+	vouPrincipal := Principal{User: UserSummary{ID: reviewerID}, Permissions: []string{
 		"/vou/other-income/query", "/vou/other-income/get", "/vou/other-income/save",
 		"/vou/other-income/submit", "/vou/other-income/approve", "/vou/other-income/unsubmit",
 	}}
@@ -387,16 +468,16 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if !slices.Equal(vouByID[documentIDs[0]].AvailableActions, []string{"view", "edit", "submit"}) {
 		t.Fatalf("draft VOU actions = %v", vouByID[documentIDs[0]].AvailableActions)
 	}
-	if !slices.Equal(vouByID[documentIDs[1]].AvailableActions, []string{"view", "approve", "unsubmit"}) {
+	if !slices.Equal(vouByID[documentIDs[1]].AvailableActions, []string{"view", "unsubmit", "approve"}) {
 		t.Fatalf("pending VOU actions = %v", vouByID[documentIDs[1]].AvailableActions)
 	}
-	vouSecondPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
+	vouSecondPage, err := service.QueryWorkbench(t.Context(), Principal{User: UserSummary{ID: reviewerID}, Permissions: []string{
 		"/vou/other-income/query", "/vou/other-income/submit", "/vou/other-income/approve",
 	}}, WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: documentPrefix, Page: 2, PageSize: 20})
 	if err != nil || vouSecondPage.Total != 2 || vouSecondPage.Page != 2 || len(vouSecondPage.Items) != 0 {
 		t.Fatalf("VOU second page = %+v, err = %v", vouSecondPage, err)
 	}
-	vouApprovalPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
+	vouApprovalPage, err := service.QueryWorkbench(t.Context(), Principal{User: UserSummary{ID: reviewerID}, Permissions: []string{
 		"/vou/other-income/query", "/vou/other-income/approve",
 	}}, WorkbenchQueryInput{
 		Category: WorkbenchCategoryVou, Keyword: documentNos[1], Entities: []string{"other-income"},
@@ -406,7 +487,13 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		vouApprovalPage.Items[0].DocumentID != documentIDs[1] {
 		t.Fatalf("filtered VOU workbench page = %+v, err = %v", vouApprovalPage, err)
 	}
-	vouUnsubmitPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
+	vouSelfApprovalPage, err := service.QueryWorkbench(t.Context(), Principal{User: UserSummary{ID: admin.ID}, Permissions: []string{
+		"/vou/other-income/query", "/vou/other-income/approve",
+	}}, WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: documentNos[1], Page: 1, PageSize: 20})
+	if err != nil || vouSelfApprovalPage.Total != 0 || len(vouSelfApprovalPage.Items) != 0 {
+		t.Fatalf("self-submitted VOU workbench page = %+v, err = %v", vouSelfApprovalPage, err)
+	}
+	vouUnsubmitPage, err := service.QueryWorkbench(t.Context(), Principal{User: UserSummary{ID: reviewerID}, Permissions: []string{
 		"/vou/other-income/query", "/vou/other-income/unsubmit",
 	}}, WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: documentNos[1], Page: 1, PageSize: 20})
 	if err != nil || vouUnsubmitPage.Total != 1 || len(vouUnsubmitPage.Items) != 1 ||

@@ -394,7 +394,7 @@ func (s *RptDefinitionService) Submit(ctx context.Context, input RptDefinitionVe
 	return s.transition(ctx, input.ApprovalEntryID, input.ApprovalRevision, input.Code, approval.ActionSubmitted, actor, "", input.ValidationParameters)
 }
 
-func (s *RptDefinitionService) Unsubmit(ctx context.Context, input RptDefinitionReviewInput, actor approval.Actor) (RptDefinitionMutation, error) {
+func (s *RptDefinitionService) Unsubmit(ctx context.Context, input RptDefinitionVersionInput, actor approval.Actor) (RptDefinitionMutation, error) {
 	return s.transition(ctx, input.ApprovalEntryID, input.ApprovalRevision, input.Code, approval.ActionUnsubmitted, actor, "", nil)
 }
 

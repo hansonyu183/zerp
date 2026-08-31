@@ -3,12 +3,43 @@ package approval
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 )
+
+func TestAvailableLifecycleActions(t *testing.T) {
+	all := LifecyclePermissions{
+		Submit: true, Unsubmit: true, Reject: true, Approve: true, Unapprove: true,
+	}
+	tests := []struct {
+		name        string
+		entry       Entry
+		actorID     string
+		permissions LifecyclePermissions
+		want        []LifecycleAction
+	}{
+		{name: "draft without submit permission", entry: Entry{Status: StatusDraft}, actorID: "actor-1", permissions: LifecyclePermissions{}, want: []LifecycleAction{}},
+		{name: "draft with only submit permission", entry: Entry{Status: StatusDraft}, actorID: "actor-1", permissions: LifecyclePermissions{Submit: true}, want: []LifecycleAction{LifecycleSubmit}},
+		{name: "pending submitter cannot review", entry: Entry{Status: StatusPending, SubmittedBy: stringPointer("actor-1")}, actorID: "actor-1", permissions: all, want: []LifecycleAction{LifecycleUnsubmit}},
+		{name: "pending reviewer gets deterministic order", entry: Entry{Status: StatusPending, SubmittedBy: stringPointer("actor-1")}, actorID: "actor-2", permissions: all, want: []LifecycleAction{LifecycleUnsubmit, LifecycleReject, LifecycleApprove}},
+		{name: "pending reviewer gets each exact permission", entry: Entry{Status: StatusPending, SubmittedBy: stringPointer("actor-1")}, actorID: "actor-2", permissions: LifecyclePermissions{Reject: true}, want: []LifecycleAction{LifecycleReject}},
+		{name: "approved with only unapprove permission", entry: Entry{Status: StatusApproved}, actorID: "actor-2", permissions: LifecyclePermissions{Unapprove: true}, want: []LifecycleAction{LifecycleUnapprove}},
+		{name: "unknown status has no actions", entry: Entry{Status: Status("UNKNOWN")}, actorID: "actor-2", permissions: all, want: []LifecycleAction{}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := AvailableLifecycleActions(test.entry, test.actorID, test.permissions)
+			if !slices.Equal(got, test.want) {
+				t.Fatalf("AvailableLifecycleActions() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
 
 type allowAuthorizer struct{}
 

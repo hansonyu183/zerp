@@ -23,6 +23,7 @@
 | [ADR-0045](0045-wfl-process-definition-declarations-are-dcl-owned.md)                 | 2026-08-29 | 流程定义申报由 DCL 拥有并供 WFL 当前执行                        |
 | [ADR-0046](0046-dcl-is-the-only-approval-version-writer.md)                           | 2026-08-29 | DCL 是申报版本的唯一写入方                                      |
 | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md)                      | 2026-08-29 | DCL Subject 是版本化业务对象的唯一稳定身份                      |
+| [ADR-0048](0048-server-authoritative-approval-action-availability.md)                 | 2026-08-31 | Approval 动作资格由服务端中央决策                               |
 
 ## Superseded
 

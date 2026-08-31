@@ -24,7 +24,7 @@ PENDING --unsubmit/reject--> DRAFT
 APPROVED --unapprove--> PENDING
 ```
 
-`save` 只能用于 `DRAFT`。每次 save 或 transition 必须令 `revision += 1`。`reject` 和 `unapprove` 必须提供非空 reason；`APPROVED` 的批准人必须与当前提交人不同。
+`save` 只能用于 `DRAFT`。每次 save 或 transition 必须令 `revision += 1`。`reject` 和 `unapprove` 必须提供去除首尾空白后仍非空的 reason；`submit`、`unsubmit` 与 `approve` 不接受 reason。`PENDING` 的 `approve` 和 `reject` 操作者都必须与当前提交人不同。
 
 状态与元数据始终精确对应：`DRAFT` 的提交和批准元数据均为空；`PENDING` 的提交元数据非空、批准元数据为空；`APPROVED` 两组元数据均非空。`unsubmit` 和 `reject` 清空提交元数据，`unapprove` 仅清空批准元数据。
 
@@ -32,11 +32,26 @@ APPROVED --unapprove--> PENDING
 
 HTTP 状态 wire value 只有 `DRAFT`、`PENDING`、`APPROVED`，共享中文分别为“草稿”“待批准”“已批准”。公开生命周期 action 只有 `submit`、`unsubmit`、`reject`、`approve`、`unapprove`，共享中文分别为“提交”“撤回”“驳回”“批准”“反批准”。创建、保存和删除是资源动作，不增加审批状态；审计 action 只有 `CREATED`、`SAVED`、`SUBMITTED`、`UNSUBMITTED`、`REJECTED`、`APPROVED`、`UNAPPROVED`、`DELETED`。
 
-中央 Approval 可返回的稳定 `errorKey` 完整集合为：`approval_invalid_actor`、`approval_invalid_configuration`、`approval_invalid_action`、`approval_invalid_revision`、`approval_invalid_request`、`approval_invalid_preparation`、`approval_not_found`、`approval_version_not_found`、`approval_stale_revision`、`approval_invalid_transition`、`approval_self_approval_forbidden`、`approval_reason_required`、`approval_reason_not_allowed`、`approval_version_history_exists`、`approval_open_version_exists`、`approval_no_approved_version`、`approval_not_latest_approved`、`approval_versioned_entry`、`approval_not_versioned`、`approval_version_number_conflict`、`approval_conflict`、`approval_event_delivery_failed`。Domain blocker 使用各领域自己的稳定 `errorKey`，不得伪装成 Approval 状态或 message 分支。
+中央 Approval 可返回的稳定 `errorKey` 完整集合为：`approval_invalid_actor`、`approval_invalid_configuration`、`approval_invalid_action`、`approval_invalid_revision`、`approval_invalid_request`、`approval_invalid_preparation`、`approval_not_found`、`approval_version_not_found`、`approval_stale_revision`、`approval_invalid_transition`、`approval_self_review_forbidden`、`approval_reason_required`、`approval_reason_not_allowed`、`approval_version_history_exists`、`approval_open_version_exists`、`approval_no_approved_version`、`approval_not_latest_approved`、`approval_versioned_entry`、`approval_not_versioned`、`approval_version_number_conflict`、`approval_conflict`、`approval_event_delivery_failed`。Domain blocker 使用各领域自己的稳定 `errorKey`，不得伪装成 Approval 状态或 message 分支；不保留旧自批错误别名。
+
+### 3.2 Approval Action Availability
+
+Approval Action Availability 是中央 Approval 根据条目当前 `status`、`submittedBy`、当前操作者身份和五项精确生命周期权限生成的查询时快照。它只使用 Approval 自有事实，不运行库存、期间、引用、最高正式版本或其他 Domain blocker precheck，也不接受调用方传入任意权限路径、支持动作集合、callback、profile 或运行时注册项。
+
+动作按 `submit`、`unsubmit`、`reject`、`approve`、`unapprove` 的固定顺序返回，资格闭集如下：
+
+| Approval Status | 当前操作者 | 可按精确权限返回的动作          |
+| --------------- | ---------- | ------------------------------- |
+| `DRAFT`         | 任意       | `submit`                        |
+| `PENDING`       | 提交人本人 | `unsubmit`                      |
+| `PENDING`       | 其他人     | `unsubmit`、`reject`、`approve` |
+| `APPROVED`      | 任意       | `unapprove`                     |
+
+表中每个动作只有在操作者拥有对应 `/{domain}/{entity}/{action}` 精确权限时才返回；`query`、`get`、`save` 或其他宽泛权限不能替代。查询响应中的动作列表不是授权凭证，实际动作接口必须重新检查当前会话、精确权限、状态、revision、职责分离、版本不变量和 Domain blocker。任何快照失效都拒绝当前调用，由客户端刷新事实且不得自动重试。
 
 ## 4. 授权与事务边界
 
-Coordinator 在每次写操作中使用 APP Authorizer 做最终权限校验，并且只能从自身固定的 `(domain, entity)` 与当次 action 生成 `/{domain}/{entity}/{action}`；调用方不能传入任意 permission path。Trusted System Actor 只能使用系统用户身份显式建立，它可免普通 HTTP role permission，但不能跳过状态、expected revision、reason、职责分离、Domain validation 或 transaction invariant。
+Coordinator 在每次写操作中使用 APP Authorizer 做最终权限校验，并且只能从自身固定的 `(domain, entity)` 与当次 action 生成 `/{domain}/{entity}/{action}`；调用方不能传入任意 permission path。`approve` 与 `reject` 对提交人本人统一返回 `approval_self_review_forbidden`。Trusted System Actor 只能使用系统用户身份显式建立，它可免普通 HTTP role permission，但不能跳过状态、expected revision、reason、职责分离、Domain validation 或 transaction invariant。
 
 事务由 Domain Service 或 application service 建立，Approval 只接收调用方的 `pgx.Tx`。Approval Version 以 `(domain, entity, subject_id)` 的 PostgreSQL transaction-scoped advisory lock 串行化版本历史读写；所有版本历史读取、候选创建/删除、版本条目 `Prepare` 与 `Commit` 都先取得该锁，再取得条目行锁。`Prepare` 使用 `FOR UPDATE` 锁定条目并完成授权、expected revision、当前状态、合法转换、reason 和职责分离检查，但不写数据。Versioned subject 的反批还在该阶段确认目标仍是最高 `APPROVED` 且不存在其他 `DRAFT`/`PENDING` 候选；已有开放候选时直接返回稳定错误 `approval_open_version_exists`。Domain 完成业务校验并在调用前构造纯业务不可变 payload，`Commit(ctx, tx, prepared, payload)` 在仍持有 subject lock 时重新锁定条目并复核这些版本不变量，随后更新条目、追加审计并通过强类型 topic 同步发布。Approval 不接受 callback，也不调用领域函数或回查领域数据。
 
@@ -60,4 +75,4 @@ Versioned event 由 Approval 填充 `VersionNo`、`PreviousApprovedVersionID` �
 
 ## 7. 验收边界
 
-真实 PostgreSQL 验收覆盖 Approval-only 唯一性、V1/V2、候选删除后复号、latest approved、只反批 latest、正式版本回落、版本号与开放候选唯一性、并发候选，以及正反状态转换、stale revision、permission denied、自批、缺失 reason、元数据精确性、每次 revision 递增、subscriber error/panic 回滚和 stable subject-entry 同事务创建/删除不留 orphan。
+真实 PostgreSQL 验收覆盖 Approval-only 唯一性、V1/V2、候选删除后复号、latest approved、只反批 latest、正式版本回落、版本号与开放候选唯一性、并发候选，以及正反状态转换、stale revision、permission denied、自批与自驳回、必需或禁止 reason、元数据精确性、每次 revision 递增、subscriber error/panic 回滚和 stable subject-entry 同事务创建/删除不留 orphan。表格测试覆盖每种状态、每项精确权限、提交人/非提交人和动作确定顺序。

@@ -195,8 +195,8 @@ func (s *AccMappingService) Submit(ctx context.Context, i AccMappingVersionInput
 	return s.transition(ctx, i, "", approval.ActionSubmitted, a)
 }
 
-func (s *AccMappingService) Unsubmit(ctx context.Context, i AccMappingReviewInput, a approval.Actor) (AccMappingMutation, error) {
-	return s.transition(ctx, accMappingVersionInput(i), "", approval.ActionUnsubmitted, a)
+func (s *AccMappingService) Unsubmit(ctx context.Context, i AccMappingVersionInput, a approval.Actor) (AccMappingMutation, error) {
+	return s.transition(ctx, i, "", approval.ActionUnsubmitted, a)
 }
 
 func (s *AccMappingService) Reject(ctx context.Context, i AccMappingReviewInput, a approval.Actor) (AccMappingMutation, error) {

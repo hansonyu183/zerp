@@ -8,6 +8,7 @@ import type {
 } from '@/api/generated'
 import {
   ApprovalStatusBadge,
+  approvalActionPresentation,
   approvalActionLabels,
   approvalStatusPresentation,
   approvalVersionHistoryMetadata,
@@ -35,9 +36,17 @@ function meta(
 describe('shared Approval primitives', () => {
   it('defines complete Chinese status and action labels', () => {
     expect(approvalStatusPresentation).toEqual({
-      DRAFT: { label: '草稿', color: 'warning' },
-      PENDING: { label: '待批准', color: 'info' },
-      APPROVED: { label: '已批准', color: 'success' },
+      DRAFT: { label: '草稿', color: 'warning', icon: 'mdi-file-edit-outline' },
+      PENDING: {
+        label: '待批准',
+        color: 'info',
+        icon: 'mdi-clock-check-outline',
+      },
+      APPROVED: {
+        label: '已批准',
+        color: 'success',
+        icon: 'mdi-check-decagram-outline',
+      },
     })
     expect(approvalActionLabels).toEqual({
       submit: '提交',
@@ -45,6 +54,43 @@ describe('shared Approval primitives', () => {
       reject: '驳回',
       approve: '批准',
       unapprove: '反批准',
+    })
+    expect(approvalActionPresentation).toEqual({
+      submit: {
+        label: '提交',
+        icon: 'mdi-send-outline',
+        color: 'primary',
+        reasonRequired: false,
+        successLabel: '已提交',
+      },
+      unsubmit: {
+        label: '撤回',
+        icon: 'mdi-undo-variant',
+        color: 'warning',
+        reasonRequired: false,
+        successLabel: '已撤回',
+      },
+      reject: {
+        label: '驳回',
+        icon: 'mdi-close-octagon-outline',
+        color: 'error',
+        reasonRequired: true,
+        successLabel: '已驳回',
+      },
+      approve: {
+        label: '批准',
+        icon: 'mdi-check-decagram-outline',
+        color: 'success',
+        reasonRequired: false,
+        successLabel: '已批准',
+      },
+      unapprove: {
+        label: '反批准',
+        icon: 'mdi-undo-variant',
+        color: 'warning',
+        reasonRequired: true,
+        successLabel: '已反批准',
+      },
     })
   })
 
@@ -55,7 +101,7 @@ describe('shared Approval primitives', () => {
     )
     expect(
       visibleApprovalActions(meta('PENDING', 'actor-1'), 'actor-1', all),
-    ).toEqual(['unsubmit', 'reject'])
+    ).toEqual(['unsubmit'])
     expect(
       visibleApprovalActions(meta('PENDING', 'actor-1'), 'actor-2', all),
     ).toEqual(['unsubmit', 'reject', 'approve'])

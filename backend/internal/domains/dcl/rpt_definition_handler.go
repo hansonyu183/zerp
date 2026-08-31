@@ -14,7 +14,7 @@ type rptDefinitionApplicationService interface {
 	Create(context.Context, RptDefinitionCreateInput, approval.Actor) (RptDefinitionMutation, error)
 	Save(context.Context, RptDefinitionSaveInput, approval.Actor) (RptDefinitionMutation, error)
 	Submit(context.Context, RptDefinitionVersionInput, approval.Actor) (RptDefinitionMutation, error)
-	Unsubmit(context.Context, RptDefinitionReviewInput, approval.Actor) (RptDefinitionMutation, error)
+	Unsubmit(context.Context, RptDefinitionVersionInput, approval.Actor) (RptDefinitionMutation, error)
 	Reject(context.Context, RptDefinitionReviewInput, approval.Actor) (RptDefinitionMutation, error)
 	Approve(context.Context, RptDefinitionVersionInput, approval.Actor) (RptDefinitionMutation, error)
 	Unapprove(context.Context, RptDefinitionReviewInput, approval.Actor) (RptDefinitionMutation, error)
@@ -73,7 +73,7 @@ func (h *RptDefinitionHandler) submit(c *gin.Context) {
 }
 
 func (h *RptDefinitionHandler) unsubmit(c *gin.Context) {
-	var input RptDefinitionReviewInput
+	var input RptDefinitionVersionInput
 	if h.bind(c, &input) {
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.service.Unsubmit(c, input, actor) })
 	}

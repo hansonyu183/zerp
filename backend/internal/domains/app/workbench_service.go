@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type workbenchPermissionScope struct {
@@ -114,7 +115,7 @@ func (s *Service) QueryWorkbench(
 	if input.Category == WorkbenchCategoryBob {
 		return s.queryWorkbenchBob(ctx, principal.User.ID, scope, input, spec)
 	}
-	return s.queryWorkbenchVou(ctx, scope, input, spec)
+	return s.queryWorkbenchVou(ctx, principal.User.ID, scope, input, spec)
 }
 
 func filterWorkbenchEntities(available, selected []string) []string {
@@ -139,7 +140,7 @@ func includesWorkbenchStage(selected []string, stage string) bool {
 }
 
 func appendDCLWorkbenchEntities(scope workbenchPermissionScope, entities []string, matches func(string, string) bool) []string {
-	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account", "product", "party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account", "acc-mapping", "rpt-definition"} {
+	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account", "product", "party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account", "acc-mapping", "rpt-definition", "wfl-process-definition"} {
 		if scope.can("dcl", entity, "query") && matches("dcl", entity) {
 			entities = append(entities, entity)
 		}
@@ -199,46 +200,26 @@ func (s *Service) queryWorkbenchBob(
 	items := make([]WorkbenchItem, 0, len(rows))
 	for _, row := range rows {
 		const domain = "dcl"
-		actions := make([]string, 0, 4)
+		actions := make([]string, 0, 5)
 		if scope.can(domain, row.Entity, "get") {
 			actions = append(actions, "view")
 			if row.Status == "DRAFT" && scope.can(domain, row.Entity, "save") {
 				actions = append(actions, "edit")
 			}
 		}
-		if row.Entity == "acc-mapping" {
-			items = append(items, WorkbenchItem{
-				Category: WorkbenchCategoryBob, Entity: row.Entity, Status: row.Status,
-				PendingStage:     map[bool]string{true: "SUBMIT", false: "APPROVE"}[row.Status == "DRAFT"],
-				AvailableActions: actions, UpdatedAt: row.ObjectUpdatedAt.Time,
-				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID,
-				Revision: row.ApprovalRevision, Code: row.Code, Name: row.Name,
-				BookID: row.BookID, VouEntity: row.VouEntity,
-			})
-			continue
-		}
 		pendingStage := "APPROVE"
 		if row.Status == "DRAFT" {
 			pendingStage = "SUBMIT"
-			if scope.can(domain, row.Entity, "submit") {
-				actions = append(actions, "submit")
-			}
-		} else {
-			if !row.IsSubmittedByActor && scope.can(domain, row.Entity, "approve") {
-				actions = append(actions, "approve")
-			}
-			if !row.IsSubmittedByActor && scope.can(domain, row.Entity, "reject") {
-				actions = append(actions, "reject")
-			}
-			if scope.can(domain, row.Entity, "unsubmit") {
-				actions = append(actions, "unsubmit")
-			}
 		}
+		actions = appendApprovalLifecycleActions(actions, approval.Entry{
+			Status: approval.Status(row.Status), SubmittedBy: row.SubmittedBy,
+		}, actorID, lifecyclePermissions(scope, domain, row.Entity))
 		items = append(items, WorkbenchItem{
 			Category: WorkbenchCategoryBob, Entity: row.Entity, Status: row.Status,
 			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.ObjectUpdatedAt.Time,
 			ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID,
 			Revision: row.ApprovalRevision, Code: row.Code, Name: row.Name,
+			BookID: row.BookID, VouEntity: row.VouEntity,
 		})
 	}
 	return Page[WorkbenchItem]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
@@ -246,6 +227,7 @@ func (s *Service) queryWorkbenchBob(
 
 func (s *Service) queryWorkbenchVou(
 	ctx context.Context,
+	actorID string,
 	scope workbenchPermissionScope,
 	input WorkbenchQueryInput,
 	spec pageSpec,
@@ -254,19 +236,24 @@ func (s *Service) queryWorkbenchVou(
 		return scope.can("vou", entity, "submit")
 	})
 	pendingEntities := scope.entitiesWith("vou", func(entity string) bool {
-		return scope.can("vou", entity, "approve") || scope.can("vou", entity, "unsubmit")
+		return scope.can("vou", entity, "approve") || scope.can("vou", entity, "reject")
+	})
+	unsubmitEntities := scope.entitiesWith("vou", func(entity string) bool {
+		return scope.can("vou", entity, "unsubmit")
 	})
 	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
 	pendingEntities = filterWorkbenchEntities(pendingEntities, input.Entities)
+	unsubmitEntities = filterWorkbenchEntities(unsubmitEntities, input.Entities)
 	if !includesWorkbenchStage(input.PendingStages, "SUBMIT") {
 		draftEntities = nil
 	}
 	if !includesWorkbenchStage(input.PendingStages, "APPROVE") {
 		pendingEntities = nil
+		unsubmitEntities = nil
 	}
 	params := dbsqlc.CountWorkbenchVouItemsParams{
 		DraftEntities: draftEntities, PendingEntities: pendingEntities,
-		Keyword: input.Keyword,
+		ActorID: actorID, UnsubmitEntities: unsubmitEntities, Keyword: input.Keyword,
 	}
 	total, err := s.queries.CountWorkbenchVouItems(ctx, params)
 	if err != nil {
@@ -274,7 +261,7 @@ func (s *Service) queryWorkbenchVou(
 	}
 	rows, err := s.queries.ListWorkbenchVouItems(ctx, dbsqlc.ListWorkbenchVouItemsParams{
 		DraftEntities: draftEntities, PendingEntities: pendingEntities,
-		Keyword:  input.Keyword,
+		ActorID: actorID, UnsubmitEntities: unsubmitEntities, Keyword: input.Keyword,
 		PageSize: int32(spec.PageSize), PageOffset: spec.Offset,
 	})
 	if err != nil {
@@ -282,7 +269,7 @@ func (s *Service) queryWorkbenchVou(
 	}
 	items := make([]WorkbenchItem, 0, len(rows))
 	for _, row := range rows {
-		actions := make([]string, 0, 3)
+		actions := make([]string, 0, 5)
 		if scope.can("vou", row.Entity, "get") {
 			actions = append(actions, "view")
 			if row.Status == "DRAFT" && scope.can("vou", row.Entity, "save") {
@@ -292,15 +279,10 @@ func (s *Service) queryWorkbenchVou(
 		pendingStage := "SUBMIT"
 		if row.Status == "PENDING" {
 			pendingStage = "APPROVE"
-			if scope.can("vou", row.Entity, "approve") {
-				actions = append(actions, "approve")
-			}
-			if scope.can("vou", row.Entity, "unsubmit") {
-				actions = append(actions, "unsubmit")
-			}
-		} else if scope.can("vou", row.Entity, "submit") {
-			actions = append(actions, "submit")
 		}
+		actions = appendApprovalLifecycleActions(actions, approval.Entry{
+			Status: approval.Status(row.Status), SubmittedBy: row.SubmittedBy,
+		}, actorID, lifecyclePermissions(scope, "vou", row.Entity))
 		items = append(items, WorkbenchItem{
 			Category: WorkbenchCategoryVou, Entity: row.Entity, Status: row.Status,
 			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.UpdatedAt.Time,
@@ -310,6 +292,21 @@ func (s *Service) queryWorkbenchVou(
 		})
 	}
 	return Page[WorkbenchItem]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
+}
+
+func lifecyclePermissions(scope workbenchPermissionScope, domain, entity string) approval.LifecyclePermissions {
+	return approval.LifecyclePermissions{
+		Submit: scope.can(domain, entity, "submit"), Unsubmit: scope.can(domain, entity, "unsubmit"),
+		Reject: scope.can(domain, entity, "reject"), Approve: scope.can(domain, entity, "approve"),
+		Unapprove: scope.can(domain, entity, "unapprove"),
+	}
+}
+
+func appendApprovalLifecycleActions(actions []string, entry approval.Entry, actorID string, permissions approval.LifecyclePermissions) []string {
+	for _, action := range approval.AvailableLifecycleActions(entry, actorID, permissions) {
+		actions = append(actions, string(action))
+	}
+	return actions
 }
 
 func requiredWorkbenchString(value string) *string {

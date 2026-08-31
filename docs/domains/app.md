@@ -423,20 +423,17 @@ CSRF Token 按 Cookie 会话固定，并由服务端从随机会话令牌单向�
 
 工作台通过会话级 `POST /app/workbench/query` 聚合当前用户可处理的业务资料与业务单据。该接口不新增独立权限；后端必须从当前会话权限推导实体范围，不接受调用方指定实体或动作集合。
 
-- 资料草稿仅在同时拥有对应实体 `query` 与 `submit` 时进入“待核对”；待审核资料在拥有 `query` 且满足以下任一条件时进入“待批准”：拥有 `approve` 或 `reject` 且当前用户不是提交人，或拥有 `unsubmit`。
-- 单据草稿在拥有 `query` 与 `submit` 时进入“待提交”；待批准单据在拥有 `query` 且拥有 `approve`、`reject` 或 `unsubmit` 时进入“待批准”。`APPROVED` 是已批准并已入账的终态，不产生人工“待完成”任务。
-- 聚合响应只返回列表摘要和当前会话可执行动作；资料详情必须通过对应 DCL `get` 读取，当前正式档案浏览才使用 BOB `get`，单据详情使用 VOU `get`；正向和反向处理调用行所属 DCL/VOU 动作接口。
+- Workbench Pending Stage 只有 `SUBMIT` 与 `APPROVE`，分别表示待提交和待批准任务。它只用于待办筛选与展示，不是 Approval Status；每行“状态”始终返回并显示真实的 `DRAFT` 或 `PENDING` Approval Status。
+- 资料和单据草稿只在同时拥有对应实体 `query` 且中央 [Approval Action Availability](approval.md#32-approval-action-availability) 返回 `submit` 时进入 `SUBMIT`；待批准条目只在拥有 `query` 且中央动作资格返回 `unsubmit`、`reject` 或 `approve` 至少一项时进入 `APPROVE`。`APPROVED` 不产生工作台人工待办。
+- 聚合响应只返回列表摘要和当前会话动作快照。APP 只组合 `view`、`edit` 等资源动作，`submit`、`unsubmit`、`reject`、`approve` 生命周期动作必须原样来自中央 Approval 的确定顺序，不能在 APP 或前端按状态、提交人或权限再次推断。
+- 资料详情必须通过对应 DCL `get` 读取，当前正式档案浏览才使用 BOB `get`，单据详情使用 VOU `get`；正向和反向处理调用行所属 DCL/VOU 动作接口。ACC Mapping、RPT Definition、WFL Definition 与其他已登记 DCL 实体都使用自身 `/dcl/{entity}/{action}`，不得按展示分类改路由。
 - 关系资料待办优先显示其主体当前已批准名称；新建关系尚无已批准主体版本时显示同次申报的最新候选名称。任一待办名称缺失都不得使整页查询失败，最末回退显示资料编码。
 - 列表按更新时间倒序进行服务端分页；关键词只匹配资料编码/名称或单据号/往来方。
 - 资料和单据均可按实体类型与待办状态进行服务端筛选；客户端提交的实体筛选只用于缩小结果集，后端仍必须先按当前会话权限推导可见实体并取交集，不能将筛选值视为权限范围。
 
-待办行的反向操作限定为仍处于待办状态的直接逆向流转：
+待办行的生命周期动作限定为仍处于待办状态的直接流转。`unsubmit` 不要求也不接受 reason；`reject` 要求非空 reason；`submit` 与 `approve` 不要求也不接受 reason。DCL 和 VOU 的 `APPROVED` 不属于待办，不为提供 `unapprove` 而进入工作台；BOB 与 AUX 不产生 Approval 待办，也不提供 lifecycle 动作。
 
-- DCL `PENDING` 行在用户拥有该实体 `unsubmit` 权限时返回“撤回提交”；调用 `/dcl/{entity}/unsubmit` 将版本退回 `DRAFT`，具体原因约束以对应 DCL 契约为准；
-- VOU `PENDING` 行在用户拥有该实体 `unsubmit` 权限时返回“撤回提交”；调用 `/vou/{entity}/unsubmit` 将单据退回 `DRAFT`，不要求原因；
-- DCL 和 VOU 的 `APPROVED` 不属于待办，不为提供 `unapprove` 而进入工作台；反批准继续在对应声明或单据页面执行。BOB 不产生待办，也不提供 lifecycle 动作。
-
-反向动作和正向动作一样由后端根据行状态与当前权限写入 `availableActions`；驳回是审核人带意见退回，撤回提交是具备独立权限的逆向动作，两者审计语义不同。
+`availableActions` 是查询快照而不是授权凭证。目标 DCL/VOU 动作接口仍重新校验会话、精确权限、Approval 状态、revision、职责分离和既有 Domain blocker；成功或失败后客户端都刷新当前页，revision、状态或权限冲突不得自动重试。
 
 ### 权限变更与会话一致性
 

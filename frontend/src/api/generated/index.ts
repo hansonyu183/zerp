@@ -5,6 +5,7 @@
 
 export type { ActivateMenuRequest } from './models/ActivateMenuRequest';
 export type { ApprovalEventView } from './models/ApprovalEventView';
+export type { ApprovalLifecycleAction } from './models/ApprovalLifecycleAction';
 export type { ApprovalMeta } from './models/ApprovalMeta';
 export type { ApprovalStatus } from './models/ApprovalStatus';
 export type { ApprovalVersionMeta } from './models/ApprovalVersionMeta';

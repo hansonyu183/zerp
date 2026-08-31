@@ -25,7 +25,7 @@ const objectItem: WorkbenchItem = {
   category: 'BOB',
   entity: 'customer',
   status: 'DRAFT',
-  pendingStage: 'CHECK',
+  pendingStage: 'SUBMIT',
   availableActions: ['view', 'edit', 'submit'],
   updatedAt: '2026-08-01T08:00:00Z',
   objectId: 'object-1',
@@ -127,6 +127,20 @@ describe('Dashboard workbench', () => {
     expect(workbenchItemPath(item)).toBe('/dcl/rpt-definition')
     expect(workbenchItemQuery(item, 'edit')).toEqual({
       code: 'account-journal',
+      approvalEntryId: item.versionId,
+      mode: 'edit',
+    })
+  })
+
+  it('routes workflow definition tasks to the DCL declaration page', () => {
+    const item = {
+      ...objectItem,
+      entity: 'wfl-process-definition',
+      code: 'sales-order-flow',
+    } as WorkbenchItem
+    expect(workbenchItemPath(item)).toBe('/dcl/wfl-process-definition')
+    expect(workbenchItemQuery(item, 'edit')).toEqual({
+      code: 'sales-order-flow',
       approvalEntryId: item.versionId,
       mode: 'edit',
     })
@@ -508,7 +522,7 @@ describe('Dashboard workbench', () => {
     expect(vm.states.VOU.rows).toEqual([documentItem])
   })
 
-  it('撤回提交只调用服务器返回的动作，并在完成后刷新', async () => {
+  it('撤回只调用服务器返回的动作、不要求原因，并在完成后刷新', async () => {
     const submitted = {
       ...objectItem,
       status: 'PENDING' as const,
@@ -528,9 +542,7 @@ describe('Dashboard workbench', () => {
       .mockResolvedValueOnce(page())
     const vm = useDashboardViewModel()
 
-    await expect(
-      vm.runAction(submitted, 'unsubmit', '  资料有误  '),
-    ).resolves.toBe(true)
+    await expect(vm.runAction(submitted, 'unsubmit')).resolves.toBe(true)
     await expect(vm.runAction(pendingDocument, 'unsubmit')).resolves.toBe(true)
 
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/customer/unsubmit', {
@@ -542,39 +554,40 @@ describe('Dashboard workbench', () => {
       documentId: 'document-1',
       revision: 2,
     })
-    expect(await vm.runAction(submitted, 'unsubmit', '   ')).toBe(false)
+    expect(await vm.runAction(submitted, 'unsubmit', '   ')).toBe(true)
     expect(await vm.runAction(objectItem, 'unsubmit', '不可执行')).toBe(false)
-    expect(mockedPost).toHaveBeenCalledTimes(4)
+    expect(mockedPost).toHaveBeenCalledTimes(6)
   })
 
-  it('在 ViewModel 中完成必填原因动作的确认闭环', async () => {
+  it('在 ViewModel 中完成驳回必填原因动作的确认闭环', async () => {
     const submitted = {
       ...objectItem,
       status: 'PENDING' as const,
       pendingStage: 'APPROVE' as const,
-      availableActions: ['unsubmit'] as const,
+      availableActions: ['reject'] as const,
     }
     mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
     const vm = useDashboardViewModel()
 
-    expect(vm.requestConfirmation(submitted, 'unsubmit')).toBe(true)
+    expect(vm.requestConfirmation(submitted, 'reject')).toBe(true)
     expect(vm.confirmationTarget.value).toEqual(submitted)
-    expect(vm.confirmationAction.value).toBe('unsubmit')
+    expect(vm.confirmationAction.value).toBe('reject')
     vm.confirmationComment.value = '  资料有误  '
 
     await expect(vm.confirmAction()).resolves.toBe(true)
 
-    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/customer/unsubmit', {
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/customer/reject', {
       objectId: 'object-1',
       approvalEntryId: 'version-1',
       approvalRevision: 5,
+      reason: '资料有误',
     })
     expect(vm.confirmationTarget.value).toBeNull()
     expect(vm.confirmationAction.value).toBeNull()
     expect(vm.confirmationComment.value).toBe('')
   })
 
-  it('撤回提交确认不要求或发送原因', async () => {
+  it('撤回不打开原因确认并直接执行', async () => {
     const pendingDocument = {
       ...documentItem,
       status: 'PENDING' as const,
@@ -584,8 +597,8 @@ describe('Dashboard workbench', () => {
     mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
     const vm = useDashboardViewModel()
 
-    expect(vm.requestConfirmation(pendingDocument, 'unsubmit')).toBe(true)
-    await expect(vm.confirmAction()).resolves.toBe(true)
+    expect(vm.requestConfirmation(pendingDocument, 'reject')).toBe(false)
+    await expect(vm.runAction(pendingDocument, 'unsubmit')).resolves.toBe(true)
 
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'vou/sale-order/unsubmit', {
       documentId: 'document-1',
@@ -787,6 +800,68 @@ describe('Dashboard workbench', () => {
     })
   })
 
+  it('ACC、RPT 与 WFL 定义工作台动作调用各自 DCL 接口', async () => {
+    const mapping = {
+      ...objectItem,
+      entity: 'acc-mapping' as const,
+      status: 'PENDING' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['approve'] as const,
+      bookId: '01JACC00000000000000000001',
+      vouEntity: 'sale-order',
+    }
+    const report = {
+      ...objectItem,
+      entity: 'rpt-definition' as const,
+      status: 'PENDING' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['reject'] as const,
+      code: 'account-journal',
+    }
+    const workflow = {
+      ...objectItem,
+      entity: 'wfl-process-definition' as const,
+      availableActions: ['submit'] as const,
+      code: 'sales-order-flow',
+    }
+    mockedPost
+      .mockResolvedValueOnce({ data: {} })
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce({ data: {} })
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce({ data: {} })
+      .mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+
+    await expect(vm.runAction(mapping, 'approve')).resolves.toBe(true)
+    await expect(vm.runAction(report, 'reject', '  定义有误  ')).resolves.toBe(
+      true,
+    )
+    await expect(vm.runAction(workflow, 'submit')).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/acc-mapping/approve', {
+      bookId: mapping.bookId,
+      vouEntity: mapping.vouEntity,
+      approvalEntryId: mapping.versionId,
+      approvalRevision: mapping.revision,
+    })
+    expect(mockedPost).toHaveBeenNthCalledWith(3, 'dcl/rpt-definition/reject', {
+      code: report.code,
+      approvalEntryId: report.versionId,
+      approvalRevision: report.revision,
+      reason: '定义有误',
+    })
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      5,
+      'dcl/wfl-process-definition/submit',
+      {
+        code: workflow.code,
+        approvalEntryId: workflow.versionId,
+        approvalRevision: workflow.revision,
+      },
+    )
+  })
+
   it('批准人与提交人相同时显示明确失败原因', async () => {
     const pending = {
       ...objectItem,
@@ -798,7 +873,7 @@ describe('Dashboard workbench', () => {
       .mockRejectedValueOnce(
         new ApiError('business', 'submitter cannot review the same version', {
           code: 3001,
-          errorKey: 'submitter_cannot_review',
+          errorKey: 'approval_self_review_forbidden',
         }),
       )
       .mockResolvedValueOnce(page([pending]))
@@ -808,7 +883,7 @@ describe('Dashboard workbench', () => {
 
     expect(success).toBe(false)
     expect(vm.states.BOB.errorMessage).toBe(
-      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。（错误码：3001；错误标识：submitter_cannot_review）',
+      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。（错误码：3001；错误标识：approval_self_review_forbidden）',
     )
   })
 

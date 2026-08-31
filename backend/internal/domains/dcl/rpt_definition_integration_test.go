@@ -202,7 +202,7 @@ func TestDclRptDefinitionCurrentSwitchFallbackAndAuditIdentityIntegration(t *tes
 	if err != nil || result.Items[0]["value"] != "v1" {
 		t.Fatalf("execute fallback V1 = %+v, err=%v", result, err)
 	}
-	v2Draft, err = service.Unsubmit(t.Context(), RptDefinitionReviewInput{
+	v2Draft, err = service.Unsubmit(t.Context(), RptDefinitionVersionInput{
 		Code: code, ApprovalEntryID: v2Draft.Approval.ApprovalEntryID,
 		ApprovalRevision: v2Draft.Approval.Revision,
 	}, dclActor(t, rptDefinitionCreatorID, "dcl-rpt-unsubmit-v2"))

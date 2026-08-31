@@ -309,7 +309,7 @@ test(
     await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     let workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
-    await expect(workbenchRow).toContainText('待提交审核')
+    await expect(workbenchRow).toContainText('草稿')
     await workbenchRow.getByLabel(`编辑 ${documentNo}`).click()
     await expect(page).toHaveURL(
       new RegExp(`/vou/sales-receipt\\?documentId=[^&]+&mode=edit`),
@@ -319,8 +319,8 @@ test(
     await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
-    await expect(workbenchRow).toContainText('待提交审核')
-    await workbenchRow.getByLabel(`提交审核 ${documentNo}`).click()
+    await expect(workbenchRow).toContainText('草稿')
+    await workbenchRow.getByLabel(`提交 ${documentNo}`).click()
     await expect(workbenchRow).toContainText('待批准')
     await workbenchRow.getByLabel(`查看 ${documentNo}`).click()
     await expect(page).toHaveURL(
@@ -332,17 +332,12 @@ test(
     await page.getByRole('button', { name: '查询', exact: true }).click()
     workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
     await expect(workbenchRow).toContainText('待批准')
-    await workbenchRow.getByLabel(`撤回提交 ${documentNo}`).click()
-    const unsubmitDialog = page.getByRole('dialog').filter({
-      hasText: '撤回提交',
-    })
-    await expect(unsubmitDialog.getByLabel('原因')).toHaveCount(0)
-    await unsubmitDialog.getByRole('button', { name: '确认撤回' }).click()
-    await expect(workbenchRow).toContainText('待提交审核')
+    await workbenchRow.getByLabel(`撤回 ${documentNo}`).click()
+    await expect(workbenchRow).toContainText('草稿')
     const submitted = await submitVou(
       page,
       'sales-receipt',
-      workbenchRow.getByLabel(`提交审核 ${documentNo}`),
+      workbenchRow.getByLabel(`提交 ${documentNo}`),
     )
     await expect(workbenchRow).toContainText('待批准')
     await approveSubmittedVou(workerState, 'sales-receipt', submitted)
@@ -604,11 +599,11 @@ test('销售订单经动态流程生成出库草稿', async ({ page, workerState
   const outboundWorkbenchRow = page
     .locator('tbody tr')
     .filter({ hasText: outboundNo! })
-  await expect(outboundWorkbenchRow).toContainText('待提交审核')
+  await expect(outboundWorkbenchRow).toContainText('草稿')
   const submittedOutbound = await submitVou(
     page,
     'sale-outbound',
-    outboundWorkbenchRow.getByLabel(`提交审核 ${outboundNo}`),
+    outboundWorkbenchRow.getByLabel(`提交 ${outboundNo}`),
   )
   await expect(outboundWorkbenchRow).toContainText('待批准')
   await approveSubmittedVou(workerState, 'sale-outbound', submittedOutbound)

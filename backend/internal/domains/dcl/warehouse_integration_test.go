@@ -162,16 +162,16 @@ func insertAccountingPartyReferenceFixtures(t *testing.T, pool *pgxpool.Pool, ob
 		{`INSERT INTO acc_bills(
 			id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,
 			issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,
-			interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-			origin_party_object_id,origin_party_approval_entry_id,origin_party_code,
-			origin_party_name,state,source_document_id,source_line_id
+			interest_amount_minor,customer_cost_amount_minor,origin_counterparty_entity,
+			origin_counterparty_object_id,origin_counterparty_approval_entry_id,origin_counterparty_code,
+			origin_counterparty_name,state,source_document_id,source_line_id
 		) VALUES($1,'BILL-EXACT-REF','BANK_ACCEPTANCE','ASSET','CNY','ELECTRONIC',100,
 			'2026-08-01','2026-08-31','出票人','承兑人','收款人',0,0,0,0,'employee',
 			$2,$3,'EMP-0001','精确引用员工','AVAILABLE',$4,$5)`, []any{billID, objectID, entryID, ulid.Make().String(), ulid.Make().String()}},
 		{`INSERT INTO acc_opening_bills(
-			book_id,line_order,bill_id,create_object,currency,origin_party_entity,
-			origin_party_object_id,origin_party_approval_entry_id,origin_party_code,
-			origin_party_name,value_minor
+			book_id,line_order,bill_id,create_object,currency,origin_counterparty_entity,
+			origin_counterparty_object_id,origin_counterparty_approval_entry_id,origin_counterparty_code,
+			origin_counterparty_name,value_minor
 		) VALUES($1,1,$2,false,'CNY','employee',$3,$4,'EMP-0001','精确引用员工',100)`, []any{bookID, openingBillID, objectID, entryID}},
 	}
 	for _, statement := range statements {

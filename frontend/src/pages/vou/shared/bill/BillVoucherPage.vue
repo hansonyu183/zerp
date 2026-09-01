@@ -195,7 +195,7 @@ onMounted(() => void vm.query())
           <tr v-for="row in vm.rows.value" :key="row.documentId">
             <td data-label="单号">{{ row.documentNo }}</td>
             <td data-label="日期">{{ row.businessDate }}</td>
-            <td data-label="往来方">{{ row.partyName || '—' }}</td>
+            <td data-label="往来方">{{ row.counterpartyName || '—' }}</td>
             <td data-label="状态">{{ approvalStatusLabel(row.status) }}</td>
             <td data-label="票面合计">{{ row.currency }} {{ row.amount }}</td>
             <td data-label="操作">
@@ -687,8 +687,8 @@ onMounted(() => void vm.query())
                 <td data-label="到期日">{{ line.maturityDate }}</td>
                 <td data-label="往来方">
                   {{
-                    line.originatingParty
-                      ? formatReferenceLabel(line.originatingParty)
+                    line.originatingCounterparty
+                      ? formatReferenceLabel(line.originatingCounterparty)
                       : '—'
                   }}
                 </td>

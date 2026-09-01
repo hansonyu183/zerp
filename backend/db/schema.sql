@@ -31,24 +31,6 @@ SET row_security = off;
 
 
 
---
--- Name: dcl_reject_merged_party_relationship(); Type: FUNCTION; Schema: public; Owner: -
---
-
--- Relationship creation and Party merge run in separate service transactions.
--- This guard closes the race in which a relationship is inserted after merge has
--- locked and inspected the Party but before the source Party becomes read-only.
-CREATE FUNCTION public.dcl_reject_merged_party_relationship() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM dcl_parties WHERE id=NEW.party_id AND merged_into_party_id IS NOT NULL) THEN
-        RAISE EXCEPTION 'merged Party cannot start a new relationship' USING ERRCODE='23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
 
 --
 -- Name: reject_locked_vou_attachment_period(); Type: FUNCTION; Schema: public; Owner: -
@@ -360,14 +342,20 @@ CREATE TABLE public.acc_asset_book_values (
     accumulated_depreciation_minor bigint DEFAULT 0 NOT NULL,
     asset_subject_id character varying(26),
     asset_dimensions jsonb DEFAULT '{}'::jsonb NOT NULL,
+    asset_dimension_references jsonb DEFAULT '{}'::jsonb NOT NULL,
     accumulated_subject_id character varying(26),
     accumulated_dimensions jsonb DEFAULT '{}'::jsonb NOT NULL,
+    accumulated_dimension_references jsonb DEFAULT '{}'::jsonb NOT NULL,
     expense_subject_id character varying(26),
     expense_dimensions jsonb DEFAULT '{}'::jsonb NOT NULL,
+    expense_dimension_references jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT acc_asset_book_values_accumulated_depreciation_minor_check CHECK ((accumulated_depreciation_minor >= 0)),
     CONSTRAINT acc_asset_book_values_accumulated_dimensions_check CHECK ((jsonb_typeof(accumulated_dimensions) = 'object'::text)),
+    CONSTRAINT acc_asset_book_values_accumulated_dimension_references_check CHECK ((jsonb_typeof(accumulated_dimension_references) = 'object'::text)),
     CONSTRAINT acc_asset_book_values_asset_dimensions_check CHECK ((jsonb_typeof(asset_dimensions) = 'object'::text)),
+    CONSTRAINT acc_asset_book_values_asset_dimension_references_check CHECK ((jsonb_typeof(asset_dimension_references) = 'object'::text)),
     CONSTRAINT acc_asset_book_values_expense_dimensions_check CHECK ((jsonb_typeof(expense_dimensions) = 'object'::text)),
+    CONSTRAINT acc_asset_book_values_expense_dimension_references_check CHECK ((jsonb_typeof(expense_dimension_references) = 'object'::text)),
     CONSTRAINT acc_asset_book_values_original_minor_check CHECK ((original_minor >= 0))
 );
 
@@ -429,11 +417,12 @@ CREATE TABLE public.acc_bills (
     interest_days integer NOT NULL,
     interest_amount_minor bigint NOT NULL,
     customer_cost_amount_minor bigint NOT NULL,
-    origin_party_entity character varying(16),
-    origin_party_object_id character varying(26),
-    origin_party_approval_entry_id character varying(26),
-    origin_party_code character varying(64),
-    origin_party_name character varying(200),
+    origin_counterparty_entity character varying(16),
+    origin_counterparty_object_id character varying(26),
+    origin_counterparty_customer_id character varying(26),
+    origin_counterparty_approval_entry_id character varying(26),
+    origin_counterparty_code character varying(64),
+    origin_counterparty_name character varying(200),
     state character varying(12) NOT NULL,
     source_document_id character varying(26) NOT NULL,
     source_line_id character varying(26) NOT NULL,
@@ -564,9 +553,11 @@ CREATE TABLE public.acc_inventory_entries (
     source_line_id character varying(64) NOT NULL,
     cost_counterpart_subject_id character varying(26),
     cost_counterpart_dimensions jsonb DEFAULT '{}'::jsonb NOT NULL,
+    cost_counterpart_dimension_references jsonb DEFAULT '{}'::jsonb NOT NULL,
     origin_source_document_id character varying(26),
     origin_source_line_id character varying(64),
     CONSTRAINT acc_inventory_entries_cost_counterpart_dimensions_check CHECK ((jsonb_typeof(cost_counterpart_dimensions) = 'object'::text)),
+    CONSTRAINT acc_inventory_entries_cost_counterpart_dimension_references_check CHECK ((jsonb_typeof(cost_counterpart_dimension_references) = 'object'::text)),
     CONSTRAINT acc_inventory_entries_quantity_delta_micros_check CHECK ((quantity_delta_micros <> 0))
 );
 
@@ -651,11 +642,12 @@ CREATE TABLE public.acc_opening_bills (
     interest_days integer,
     interest_amount_minor bigint,
     customer_cost_amount_minor bigint,
-    origin_party_entity character varying(16),
-    origin_party_object_id character varying(26),
-    origin_party_approval_entry_id character varying(26),
-    origin_party_code character varying(64),
-    origin_party_name character varying(200),
+    origin_counterparty_entity character varying(16),
+    origin_counterparty_object_id character varying(26),
+    origin_counterparty_customer_id character varying(26),
+    origin_counterparty_approval_entry_id character varying(26),
+    origin_counterparty_code character varying(64),
+    origin_counterparty_name character varying(200),
     value_minor bigint NOT NULL,
     CONSTRAINT acc_opening_bills_check CHECK (((NOT create_object) OR ((bill_no IS NOT NULL) AND (btrim((bill_no)::text) <> ''::text) AND (bill_type IS NOT NULL) AND ((position_type)::text = ANY ((ARRAY['ASSET'::character varying, 'LIABILITY'::character varying])::text[])) AND ((medium)::text = ANY ((ARRAY['PAPER'::character varying, 'ELECTRONIC'::character varying])::text[])) AND (face_amount_minor > 0) AND (issue_date IS NOT NULL) AND (maturity_date >= issue_date) AND (drawer IS NOT NULL) AND (acceptor IS NOT NULL) AND (payee IS NOT NULL) AND ((annual_rate_bps >= 0) AND (annual_rate_bps <= 100000)) AND (interest_days >= 0) AND (interest_amount_minor >= 0) AND (customer_cost_amount_minor >= 0)))),
     CONSTRAINT acc_opening_bills_line_order_check CHECK ((line_order >= 0)),
@@ -692,12 +684,14 @@ CREATE TABLE public.acc_opening_lines (
     credit_minor bigint DEFAULT 0 NOT NULL,
     quantity_micros bigint,
     dimensions jsonb DEFAULT '{}'::jsonb NOT NULL,
+    dimension_references jsonb DEFAULT '{}'::jsonb NOT NULL,
     line_order integer NOT NULL,
     CONSTRAINT acc_opening_lines_check CHECK ((((debit_minor > 0) AND (credit_minor = 0)) OR ((credit_minor > 0) AND (debit_minor = 0)))),
     CONSTRAINT acc_opening_lines_credit_minor_check CHECK ((credit_minor >= 0)),
     CONSTRAINT acc_opening_lines_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT acc_opening_lines_debit_minor_check CHECK ((debit_minor >= 0)),
     CONSTRAINT acc_opening_lines_dimensions_check CHECK ((jsonb_typeof(dimensions) = 'object'::text)),
+    CONSTRAINT acc_opening_lines_dimension_references_check CHECK ((jsonb_typeof(dimension_references) = 'object'::text)),
     CONSTRAINT acc_opening_lines_line_order_check CHECK ((line_order >= 0)),
     CONSTRAINT acc_opening_lines_quantity_micros_check CHECK ((quantity_micros > 0))
 );
@@ -778,7 +772,7 @@ CREATE TABLE public.acc_register_events (
 CREATE TABLE public.acc_subject_dimensions (
     subject_id character varying(26) NOT NULL,
     dimension character varying(32) NOT NULL,
-    CONSTRAINT acc_subject_dimensions_dimension_check CHECK (((dimension)::text = ANY (ARRAY[('CUSTOMER_ACCOUNT'::character varying)::text, ('SUPPLIER_RELATIONSHIP'::character varying)::text, ('SERVICE_RELATIONSHIP'::character varying)::text, ('EMPLOYMENT_RELATIONSHIP'::character varying)::text, ('SALES_RELATIONSHIP'::character varying)::text, ('DEPARTMENT'::character varying)::text, ('PRODUCT'::character varying)::text, ('WAREHOUSE'::character varying)::text, ('FUND_ACCOUNT'::character varying)::text, ('ASSET'::character varying)::text, ('BILL'::character varying)::text])))
+    CONSTRAINT acc_subject_dimensions_dimension_check CHECK (((dimension)::text = ANY (ARRAY[('CUSTOMER_ACCOUNT'::character varying)::text, ('SUPPLIER'::character varying)::text, ('OTHER_UNIT'::character varying)::text, ('EMPLOYEE'::character varying)::text, ('SALES_PARTNER'::character varying)::text, ('DEPARTMENT'::character varying)::text, ('PRODUCT'::character varying)::text, ('WAREHOUSE'::character varying)::text, ('FUND_ACCOUNT'::character varying)::text, ('ASSET'::character varying)::text, ('BILL'::character varying)::text])))
 );
 
 
@@ -837,12 +831,14 @@ CREATE TABLE public.acc_voucher_lines (
     credit_minor bigint DEFAULT 0 NOT NULL,
     quantity_micros bigint,
     dimensions jsonb DEFAULT '{}'::jsonb NOT NULL,
+    dimension_references jsonb DEFAULT '{}'::jsonb NOT NULL,
     source_line_id character varying(64) NOT NULL,
     line_order integer NOT NULL,
     CONSTRAINT acc_voucher_lines_credit_minor_check CHECK ((credit_minor >= 0)),
     CONSTRAINT acc_voucher_lines_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT acc_voucher_lines_debit_minor_check CHECK ((debit_minor >= 0)),
     CONSTRAINT acc_voucher_lines_dimensions_check CHECK ((jsonb_typeof(dimensions) = 'object'::text)),
+    CONSTRAINT acc_voucher_lines_dimension_references_check CHECK ((jsonb_typeof(dimension_references) = 'object'::text)),
     CONSTRAINT acc_voucher_lines_line_order_check CHECK ((line_order >= 0)),
     CONSTRAINT acc_voucher_lines_quantity_micros_check CHECK ((quantity_micros > 0)),
     CONSTRAINT acc_voucher_lines_source_line_id_check CHECK ((btrim((source_line_id)::text) <> ''::text)),
@@ -1200,9 +1196,9 @@ CREATE TABLE public.dcl_subjects (
         OR ((entity)::text = 'rpt-definition'::text AND (code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text AND (code)::text NOT IN ('definition'::text, 'directory'::text))
         OR ((entity)::text = 'wfl-process-definition'::text AND (code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text)
       ))
-      OR (code IS NULL AND (entity)::text = ANY (ARRAY['party'::text, 'acc-mapping'::text]))
+      OR (code IS NULL AND (entity)::text = ANY (ARRAY['acc-mapping'::text]))
     ),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'party'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))
 );
 
 CREATE FUNCTION public.dcl_require_subject_code(subject_code character varying) RETURNS character varying
@@ -1231,84 +1227,6 @@ CREATE TABLE public.dcl_operating_entity_versions (
     CONSTRAINT dcl_operating_entity_versions_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
 );
 
--- Party and every typed Party-to-operating-entity relationship are DCL-owned
--- stable roots.  Mutable data remains in the typed approval snapshots below.
-CREATE TABLE public.dcl_parties (
-    id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'party'::character varying NOT NULL,
-    merged_into_party_id character varying(26),
-    merged_at timestamp with time zone,
-    CONSTRAINT dcl_parties_pkey PRIMARY KEY (id),
-    CONSTRAINT dcl_parties_entity_ck CHECK (entity='party'),
-    CONSTRAINT dcl_parties_merge_state_ck CHECK ((((merged_into_party_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_party_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_party_id)::text <> (id)::text))))
-);
-
-CREATE TABLE public.dcl_employment_relationships (
-    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'employee'::character varying NOT NULL, party_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
-    merged_into_object_id character varying(26), merged_at timestamp with time zone,
-    CONSTRAINT dcl_employment_relationships_pkey PRIMARY KEY (object_id),
-    CONSTRAINT dcl_employment_relationships_entity_ck CHECK (object_entity='employee' AND operating_entity_entity='operating-entity'),
-    CONSTRAINT dcl_employment_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
-);
-CREATE TABLE public.dcl_supplier_relationships (
-    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'supplier'::character varying NOT NULL, party_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
-    merged_into_object_id character varying(26), merged_at timestamp with time zone,
-    CONSTRAINT dcl_supplier_relationships_pkey PRIMARY KEY (object_id),
-    CONSTRAINT dcl_supplier_relationships_entity_ck CHECK (object_entity='supplier' AND operating_entity_entity='operating-entity'),
-    CONSTRAINT dcl_supplier_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
-);
-CREATE TABLE public.dcl_service_relationships (
-    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'other-unit'::character varying NOT NULL, party_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
-    merged_into_object_id character varying(26), merged_at timestamp with time zone,
-    CONSTRAINT dcl_service_relationships_pkey PRIMARY KEY (object_id),
-    CONSTRAINT dcl_service_relationships_entity_ck CHECK (object_entity='other-unit' AND operating_entity_entity='operating-entity'),
-    CONSTRAINT dcl_service_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
-);
-CREATE TABLE public.dcl_sales_relationships (
-    object_id character varying(26) NOT NULL, object_entity character varying(16) DEFAULT 'sales-partner'::character varying NOT NULL, party_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL, operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
-    merged_into_object_id character varying(26), merged_at timestamp with time zone,
-    CONSTRAINT dcl_sales_relationships_pkey PRIMARY KEY (object_id),
-    CONSTRAINT dcl_sales_relationships_entity_ck CHECK (object_entity='sales-partner' AND operating_entity_entity='operating-entity'),
-    CONSTRAINT dcl_sales_relationships_merge_ck CHECK ((((merged_into_object_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_object_id IS NOT NULL) AND (merged_at IS NOT NULL) AND ((merged_into_object_id)::text <> (object_id)::text))))
-);
-CREATE VIEW public.dcl_party_relationship_endpoints AS
-  SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'supplier'::text AS entity FROM public.dcl_supplier_relationships
-  UNION ALL SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'employee'::text FROM public.dcl_employment_relationships
-  UNION ALL SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'other-unit'::text FROM public.dcl_service_relationships
-  UNION ALL SELECT object_id,party_id,operating_entity_id,merged_into_object_id,'sales-partner'::text FROM public.dcl_sales_relationships;
-CREATE TABLE public.dcl_party_merge_preflights (
-    id character varying(26) NOT NULL, source_party_id character varying(26) NOT NULL, target_party_id character varying(26) NOT NULL,
-    source_approval_entry_id character varying(26) NOT NULL, target_approval_entry_id character varying(26) NOT NULL,
-    source_approval_revision bigint NOT NULL, target_approval_revision bigint NOT NULL, state_fingerprint character(64) NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL, created_by character varying(26) NOT NULL, request_id character varying(128) NOT NULL,
-    consumed_at timestamp with time zone, consumed_by character varying(26),
-    CONSTRAINT dcl_party_merge_preflights_pkey PRIMARY KEY (id),
-    CONSTRAINT dcl_party_merge_preflights_distinct_ck CHECK (source_party_id <> target_party_id),
-    CONSTRAINT dcl_party_merge_preflights_consumed_ck CHECK (((consumed_at IS NULL) AND (consumed_by IS NULL)) OR ((consumed_at IS NOT NULL) AND (consumed_by IS NOT NULL))),
-    CONSTRAINT dcl_party_merge_preflights_revision_ck CHECK (source_approval_revision >= 1 AND target_approval_revision >= 1),
-    CONSTRAINT dcl_party_merge_preflights_fingerprint_ck CHECK (state_fingerprint ~ '^[0-9a-f]{64}$')
-);
-CREATE TABLE public.dcl_party_merge_events (
-    id character varying(26) NOT NULL, preflight_id character varying(26) NOT NULL,
-    source_party_id character varying(26) NOT NULL, target_party_id character varying(26) NOT NULL,
-    actor_id character varying(26) NOT NULL, request_id character varying(128) NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT dcl_party_merge_events_pkey PRIMARY KEY (id),
-    CONSTRAINT dcl_party_merge_events_preflight_id_key UNIQUE (preflight_id),
-    CONSTRAINT dcl_party_merge_events_distinct_ck CHECK (source_party_id <> target_party_id)
-);
-CREATE TABLE public.dcl_party_relationship_merge_events (
-    id character varying(26) NOT NULL, merge_event_id character varying(26) NOT NULL,
-    relationship_type character varying(16) NOT NULL, source_object_id character varying(26) NOT NULL,
-    target_object_id character varying(26), operating_entity_id character varying(26) NOT NULL,
-    operating_entity_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
-    action character varying(16) NOT NULL, occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT dcl_party_relationship_merge_events_pkey PRIMARY KEY (id),
-    CONSTRAINT dcl_party_relationship_merge_events_action_ck CHECK (action IN ('TRANSFERRED','MERGED')),
-    CONSTRAINT dcl_party_relationship_merge_events_shape_ck CHECK (((action='TRANSFERRED') AND target_object_id IS NULL) OR ((action='MERGED') AND target_object_id IS NOT NULL)),
-    CONSTRAINT dcl_party_relationship_merge_events_type_ck CHECK (relationship_type IN ('supplier','employee','other-unit','sales-partner')),
-    CONSTRAINT dcl_party_relationship_merge_events_operating_entity_ck CHECK (operating_entity_entity='operating-entity')
-);
 
 CREATE TABLE public.dcl_employee_versions (
     approval_entry_id character varying(26) NOT NULL,
@@ -1547,48 +1465,6 @@ CREATE TABLE public.dcl_sales_partner_version_operating_entities (
     approval_entry_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL,
     operating_entity_approval_entry_id character varying(26) NOT NULL, operating_entity_code character varying(64) NOT NULL, operating_entity_name character varying(200) NOT NULL,
     CONSTRAINT dcl_sales_partner_version_operating_entities_pkey PRIMARY KEY (approval_entry_id, operating_entity_id)
-);
-
--- DCL owns the stable Party identity referenced by every relationship. BOB
--- provides current effective read-only data from the highest approved snapshot.
-CREATE TABLE public.dcl_party_versions (
-    approval_entry_id character varying(26) NOT NULL,
-    party_id character varying(26) NOT NULL,
-    kind character varying(16) NOT NULL,
-    legal_name character varying(200) NOT NULL,
-    display_name character varying(200) NOT NULL,
-    tax_number character varying(100),
-    phone character varying(32),
-    email character varying(254),
-    address character varying(500),
-    CONSTRAINT dcl_party_versions_pkey PRIMARY KEY (approval_entry_id),
-    CONSTRAINT dcl_party_versions_kind_check CHECK ((kind)::text = ANY ((ARRAY['PERSON'::character varying, 'ORGANIZATION'::character varying])::text[])),
-    CONSTRAINT dcl_party_versions_legal_name_check CHECK ((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)),
-    CONSTRAINT dcl_party_versions_display_name_check CHECK ((length(btrim((display_name)::text)) >= 1) AND (length(btrim((display_name)::text)) <= 200))
-);
-
-CREATE TABLE public.dcl_party_version_identifiers (
-    approval_entry_id character varying(26) NOT NULL,
-    identifier_type character varying(40) NOT NULL,
-    value character varying(100) NOT NULL,
-    normalized_value character varying(100) NOT NULL,
-    CONSTRAINT dcl_party_version_identifiers_pkey PRIMARY KEY (approval_entry_id, identifier_type, normalized_value),
-    CONSTRAINT dcl_party_version_identifiers_type_check CHECK ((identifier_type)::text = ANY ((ARRAY['PERSON_ID'::character varying, 'UNIFIED_SOCIAL_CREDIT_CODE'::character varying, 'TAX_NUMBER'::character varying])::text[]))
-);
-
--- A claim holds the latest approved value plus the sole open candidate. The
--- unique key is deliberately shared by both states so no candidate can race a
--- currently approved Party identity.
-CREATE TABLE public.dcl_party_identifier_claims (
-    identifier_type character varying(40) NOT NULL,
-    normalized_value character varying(100) NOT NULL,
-    approved_party_id character varying(26),
-    approved_approval_entry_id character varying(26),
-    open_party_id character varying(26),
-    open_approval_entry_id character varying(26),
-    CONSTRAINT dcl_party_identifier_claims_pkey PRIMARY KEY (identifier_type, normalized_value),
-    CONSTRAINT dcl_party_identifier_claims_approved_pair_check CHECK ((approved_party_id IS NULL) = (approved_approval_entry_id IS NULL)),
-    CONSTRAINT dcl_party_identifier_claims_open_pair_check CHECK ((open_party_id IS NULL) = (open_approval_entry_id IS NULL))
 );
 
 CREATE TABLE public.dcl_warehouse_versions (
@@ -2158,10 +2034,12 @@ CREATE TABLE public.vou_asset_sale_details (
     entity character varying(32) DEFAULT 'asset-sale'::character varying NOT NULL,
     counterparty_entity character varying(16) NOT NULL,
     counterparty_object_id character varying(26) NOT NULL,
+    counterparty_customer_id character varying(26),
     counterparty_approval_entry_id character varying(26) NOT NULL,
     counterparty_code character varying(64) NOT NULL,
     counterparty_name character varying(200) NOT NULL,
     party_account_type character varying(16) DEFAULT 'OTHER'::character varying NOT NULL,
+    CONSTRAINT vou_asset_sale_details_counterparty_customer_ck CHECK (((counterparty_entity)::text = 'customer-account'::text AND counterparty_customer_id IS NOT NULL) OR ((counterparty_entity)::text <> 'customer-account'::text AND counterparty_customer_id IS NULL)),
     CONSTRAINT vou_asset_sale_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'other-unit'::character varying])::text[]))),
     CONSTRAINT vou_asset_sale_details_entity_check CHECK (((entity)::text = 'asset-sale'::text)),
     CONSTRAINT vou_asset_sale_details_party_account_type_check CHECK (((party_account_type)::text = ANY ((ARRAY['TRADE'::character varying, 'OTHER'::character varying])::text[])))
@@ -2219,6 +2097,7 @@ CREATE TABLE public.vou_bill_details (
     entity character varying(32) NOT NULL,
     counterparty_entity character varying(16),
     counterparty_object_id character varying(26),
+    counterparty_customer_id character varying(26),
     counterparty_approval_entry_id character varying(26),
     counterparty_code character varying(64),
     counterparty_name character varying(200),
@@ -2235,6 +2114,7 @@ CREATE TABLE public.vou_bill_details (
     interest_party_code character varying(64),
     interest_party_name character varying(200),
     with_recourse boolean DEFAULT false NOT NULL,
+    CONSTRAINT vou_bill_details_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-account'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-account'::text AND (counterparty_customer_id IS NULL))),
     CONSTRAINT vou_bill_details_check CHECK ((((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_approval_entry_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL)))),
     CONSTRAINT vou_bill_details_check1 CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL)))),
     CONSTRAINT vou_bill_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying])::text[]))),
@@ -2614,6 +2494,7 @@ CREATE TABLE public.vou_other_income_details (
     source_name character varying(200) NOT NULL,
     counterparty_entity character varying(16),
     counterparty_object_id character varying(26),
+    counterparty_customer_id character varying(26),
     counterparty_approval_entry_id character varying(26),
     counterparty_code character varying(64),
     counterparty_name character varying(200),
@@ -2625,6 +2506,7 @@ CREATE TABLE public.vou_other_income_details (
     handler_approval_entry_id character varying(26),
     handler_code character varying(64),
     handler_name character varying(200),
+    CONSTRAINT vou_other_income_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-account'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-account'::text AND (counterparty_customer_id IS NULL))),
     CONSTRAINT vou_other_income_counterparty_ck CHECK ((((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_approval_entry_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL)))),
     CONSTRAINT vou_other_income_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying])::text[]))),
     CONSTRAINT vou_other_income_details_entity_check CHECK (((entity)::text = 'other-income'::text)),
@@ -2642,6 +2524,7 @@ CREATE TABLE public.vou_payment_details (
     entity character varying(32) DEFAULT 'payment'::character varying NOT NULL,
     counterparty_entity character varying(16) NOT NULL,
     counterparty_object_id character varying(26) NOT NULL,
+    counterparty_customer_id character varying(26),
     counterparty_approval_entry_id character varying(26) NOT NULL,
     counterparty_code character varying(64) NOT NULL,
     counterparty_name character varying(200) NOT NULL,
@@ -2654,6 +2537,7 @@ CREATE TABLE public.vou_payment_details (
     handler_code character varying(64),
     handler_name character varying(200),
     other_category character varying(32),
+    CONSTRAINT vou_payment_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-account'::text) AND (counterparty_customer_id IS NOT NULL)) OR (((counterparty_entity)::text <> 'customer-account'::text) AND (counterparty_customer_id IS NULL))),
     CONSTRAINT vou_payment_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT vou_payment_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['sales-refund'::character varying, 'purchase-payment'::character varying, 'other-payment'::character varying, 'employee-loan'::character varying])::text[]))),
     CONSTRAINT vou_payment_details_entity_party_check CHECK (((((entity)::text = 'sales-refund'::text) AND ((counterparty_entity)::text = 'customer-account'::text)) OR (((entity)::text = 'purchase-payment'::text) AND ((counterparty_entity)::text = 'supplier'::text)) OR (((entity)::text = 'other-payment'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))) OR (((entity)::text = 'employee-loan'::text) AND ((counterparty_entity)::text = 'employee'::text)))),
@@ -3010,6 +2894,7 @@ CREATE TABLE public.vou_receipt_details (
     entity character varying(32) DEFAULT 'receipt'::character varying NOT NULL,
     counterparty_entity character varying(16),
     counterparty_object_id character varying(26),
+    counterparty_customer_id character varying(26),
     counterparty_approval_entry_id character varying(26),
     counterparty_code character varying(64),
     counterparty_name character varying(200),
@@ -3030,6 +2915,7 @@ CREATE TABLE public.vou_receipt_details (
     handler_code character varying(64),
     handler_name character varying(200),
     other_category character varying(32),
+    CONSTRAINT vou_receipt_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-account'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-account'::text AND (counterparty_customer_id IS NULL))),
     CONSTRAINT vou_receipt_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT vou_receipt_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['sales-receipt'::character varying, 'purchase-refund'::character varying, 'other-receipt'::character varying, 'employee-repayment'::character varying])::text[]))),
     CONSTRAINT vou_receipt_details_entity_party_check CHECK (((((entity)::text = 'sales-receipt'::text) AND (counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (customer_object_id IS NOT NULL) AND (customer_approval_entry_id IS NOT NULL) AND (operating_entity_object_id IS NOT NULL) AND (operating_entity_approval_entry_id IS NOT NULL)) OR (((entity)::text = 'purchase-refund'::text) AND ((counterparty_entity)::text = 'supplier'::text) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)) OR (((entity)::text = 'other-receipt'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[])) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)) OR (((entity)::text = 'employee-repayment'::text) AND ((counterparty_entity)::text = 'employee'::text) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)))),
@@ -3068,6 +2954,7 @@ CREATE TABLE public.vou_sale_delivery_details (
     entity character varying(32) DEFAULT 'sale-delivery'::character varying NOT NULL,
     source_outbound_id character varying(26) NOT NULL,
     customer_object_id character varying(26) NOT NULL,
+    customer_id character varying(26) NOT NULL,
     customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
@@ -3100,6 +2987,7 @@ CREATE TABLE public.vou_sale_order_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'sale-order'::character varying NOT NULL,
     customer_object_id character varying(26) NOT NULL,
+    customer_id character varying(26) NOT NULL,
     customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
@@ -3208,6 +3096,7 @@ CREATE TABLE public.vou_sale_outbound_details (
     entity character varying(32) DEFAULT 'sale-outbound'::character varying NOT NULL,
     source_order_id character varying(26) NOT NULL,
     customer_object_id character varying(26) NOT NULL,
+    customer_id character varying(26) NOT NULL,
     customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
@@ -3268,6 +3157,7 @@ CREATE TABLE public.vou_sale_return_details (
     return_kind character varying(16) NOT NULL,
     return_reason character varying(1000) NOT NULL,
     customer_object_id character varying(26) NOT NULL,
+    customer_id character varying(26) NOT NULL,
     customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
@@ -3319,6 +3209,7 @@ CREATE TABLE public.vou_sale_signoff_details (
     source_outbound_id character varying(26) NOT NULL,
     source_order_id character varying(26) NOT NULL,
     customer_object_id character varying(26) NOT NULL,
+    customer_id character varying(26) NOT NULL,
     customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
@@ -3395,8 +3286,6 @@ CREATE TABLE public.vou_service_contract_details (
     counterparty_approval_entry_id character varying(26) NOT NULL,
     counterparty_code character varying(64) NOT NULL,
     counterparty_name character varying(200) NOT NULL,
-    party_id character varying(26) NOT NULL,
-    party_name character varying(200) NOT NULL,
     operating_entity_object_id character varying(26) CONSTRAINT vou_service_contract_detail_operating_entity_object_id_not_null NOT NULL,
     operating_entity_approval_entry_id character varying(26) CONSTRAINT vou_service_contract_detail_operating_entry_not_null NOT NULL,
     operating_entity_code character varying(64) NOT NULL,
@@ -3469,9 +3358,11 @@ CREATE TABLE public.wfl_definition_instances (
     root_document_id character varying(26),
     root_document_no character varying(32) NOT NULL,
     root_entity character varying(32) NOT NULL,
-    party_object_id character varying(26),
-    party_code character varying(64),
-    party_name character varying(200),
+    counterparty_entity character varying(16),
+    counterparty_object_id character varying(26),
+    counterparty_approval_entry_id character varying(26),
+    counterparty_code character varying(64),
+    counterparty_name character varying(200),
     definition_code character varying(64) NOT NULL,
     definition_name character varying(100) NOT NULL,
     definition_approval_entry_id character varying(26) NOT NULL,
@@ -3481,6 +3372,8 @@ CREATE TABLE public.wfl_definition_instances (
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
+    CONSTRAINT wfl_definition_instances_counterparty_check CHECK (((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_approval_entry_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL))),
+    CONSTRAINT wfl_definition_instances_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'employee'::character varying])::text[]))),
     CONSTRAINT wfl_definition_instances_revision_check CHECK ((revision > 0))
 );
 
@@ -4475,22 +4368,6 @@ INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000011', '/dcl/o
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000012', '/dcl/operating-entity/unapprove', 'dcl', 'operating-entity', 'unapprove', '反批准经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000013', '/dcl/operating-entity/unsubmit', 'dcl', 'operating-entity', 'unsubmit', '撤回经营主体', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB83000000000000000014', '/dcl/operating-entity/versions', 'dcl', 'operating-entity', 'versions', '查看经营主体版本', 'ENABLED', '2026-08-24 15:23:50.224888+00', NULL, '2026-08-24 15:23:50.224888+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000001', '/bob/party/query', 'bob', 'party', 'query', '查询主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000002', '/bob/party/get', 'bob', 'party', 'get', '查看主体', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000003', '/dcl/party/create', 'dcl', 'party', 'create', '随首条关系创建主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000004', '/dcl/party/save', 'dcl', 'party', 'save', '保存主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000003', '/dcl/party/submit', 'dcl', 'party', 'submit', '提交主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000004', '/dcl/party/unsubmit', 'dcl', 'party', 'unsubmit', '撤回主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000005', '/dcl/party/reject', 'dcl', 'party', 'reject', '驳回主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000006', '/dcl/party/approve', 'dcl', 'party', 'approve', '批准主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000007', '/dcl/party/unapprove', 'dcl', 'party', 'unapprove', '反批准主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000008', '/dcl/party/delete', 'dcl', 'party', 'delete', '删除主体候选草稿', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000009', '/dcl/party/get', 'dcl', 'party', 'get', '查看主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000010', '/dcl/party/query', 'dcl', 'party', 'query', '查询主体声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, 90);
-INSERT INTO public.app_permissions VALUES ('01JDCLPTY00000000000000011', '/dcl/party/versions', 'dcl', 'party', 'versions', '查看主体声明版本', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000005', '/dcl/party/audit-history', 'dcl', 'party', 'audit-history', '查看主体声明审计', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB88MRG000000000000001', '/dcl/party/merge-preflight', 'dcl', 'party', 'merge-preflight', '预检主体合并', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB88MRG000000000000002', '/dcl/party/merge-confirm', 'dcl', 'party', 'merge-confirm', '确认主体合并', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000006', '/bob/other-unit/query', 'bob', 'other-unit', 'query', '查询其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000007', '/bob/other-unit/get', 'bob', 'other-unit', 'get', '查看其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB85000000000000000008', '/dcl/other-unit/create', 'dcl', 'other-unit', 'create', '创建其他单位', 'ENABLED', '2026-08-24 15:23:50.307347+00', NULL, '2026-08-24 15:23:50.307347+00', NULL, 1, NULL);
@@ -4724,52 +4601,10 @@ WHERE payload.object_id=object.id AND payload.entity=object.entity;
 
 
 
---
---
--- Data for Name: dcl_employment_relationships; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: dcl_fund_account_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
-
---
--- Data for Name: dcl_parties; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
-
-
---
--- Data for Name: dcl_party_identifier_claims; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: dcl_party_merge_events; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: dcl_party_merge_preflights; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: dcl_party_relationship_merge_events; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: dcl_product_formula_lines; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -4791,21 +4626,6 @@ WHERE payload.object_id=object.id AND payload.entity=object.entity;
 -- Data for Name: dcl_product_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-
-
---
--- Data for Name: dcl_sales_relationships; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: dcl_service_relationships; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 
 --
 -- Data for Name: dcl_vehicle_versions; Type: TABLE DATA; Schema: public; Owner: -
@@ -4905,7 +4725,7 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
       bill.position_type::text AS position_type,bill.currency::text AS currency,
       (bill.face_amount_minor::numeric/100) AS original_amount,
       (value.value_minor::numeric/100) AS carrying_amount,bill.maturity_date::date AS maturity_date,
-      coalesce(bill.origin_party_object_id,'''')::text AS party_id,
+      coalesce(bill.origin_counterparty_object_id,'''')::text AS counterparty_object_id,
       coalesce(source.entity,''OPENING'')::text AS source_entity,bill.source_document_id::text AS source_document_id
     FROM acc_bills bill
     JOIN acc_bill_book_values value ON value.bill_id=bill.id
@@ -4913,14 +4733,14 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
     LEFT JOIN vou_documents source ON source.id=bill.source_document_id
     LEFT JOIN vou_documents settled ON settled.id=bill.settled_by_document_id
     WHERE ($1::text='''' OR value.book_id=$1) AND ($2::text='''' OR bill.id=$2)
-      AND ($3::text='''' OR bill.origin_party_object_id=$3)
+      AND ($3::text='''' OR bill.origin_counterparty_object_id=$3)
       AND ($4::text='''' OR CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$6::date THEN ''SETTLED'' ELSE ''AVAILABLE'' END=$4)
       AND bill.maturity_date <@ $5::daterange AND bill.issue_date<=$6::date
     ORDER BY book.code,bill.bill_no,bill.id
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "billId", "name": "票据", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "BILL"}, {"key": "partyId", "name": "往来方", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "OTHER_PARTY"}, {"key": "status", "name": "状态", "type": "ENUM", "required": false, "enumValues": ["", "AVAILABLE", "SETTLED"], "defaultValue": ""}, {"key": "maturityRange", "name": "到期日范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "票据ID", "type": "ID", "alias": "bill_id", "order": 2, "width": 180, "visible": false}, {"name": "票据号", "type": "TEXT", "alias": "bill_no", "order": 3, "width": 160, "visible": true}, {"name": "业务状态", "type": "TEXT", "alias": "business_status", "order": 4, "width": 110, "visible": true}, {"name": "账簿方向", "type": "TEXT", "alias": "position_type", "order": 5, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "原值", "type": "DECIMAL", "alias": "original_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "账面金额", "type": "DECIMAL", "alias": "carrying_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "到期日", "type": "DATE", "alias": "maturity_date", "order": 9, "width": 110, "format": "date", "visible": true}, {"name": "往来方", "type": "ID", "alias": "party_id", "order": 10, "width": 180, "visible": false}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "billId", "name": "票据", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "BILL"}, {"key": "counterpartyObjectId", "name": "相对方", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "COUNTERPARTY"}, {"key": "status", "name": "状态", "type": "ENUM", "required": false, "enumValues": ["", "AVAILABLE", "SETTLED"], "defaultValue": ""}, {"key": "maturityRange", "name": "到期日范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "票据ID", "type": "ID", "alias": "bill_id", "order": 2, "width": 180, "visible": false}, {"name": "票据号", "type": "TEXT", "alias": "bill_no", "order": 3, "width": 160, "visible": true}, {"name": "业务状态", "type": "TEXT", "alias": "business_status", "order": 4, "width": 110, "visible": true}, {"name": "账簿方向", "type": "TEXT", "alias": "position_type", "order": 5, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "原值", "type": "DECIMAL", "alias": "original_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "账面金额", "type": "DECIMAL", "alias": "carrying_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "到期日", "type": "DATE", "alias": "maturity_date", "order": 9, "width": 110, "format": "date", "visible": true}, {"name": "相对方ID", "type": "ID", "alias": "counterparty_object_id", "order": 10, "width": 180, "visible": false}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
 INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV43189400de7a6fe5d7978ed', true, '客户应收预收账龄', '系统预置报表', '
     WITH facts AS (
-      SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''CUSTOMER_ACCOUNT'' AS party_id,v.business_date,
+      SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''CUSTOMER_ACCOUNT'' AS customer_account_id,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
         (e.debit_minor-e.credit_minor) AS signed_minor
       FROM acc_voucher_lines e JOIN acc_vouchers v ON v.id=e.voucher_id
@@ -4931,13 +4751,13 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
         AND ($3::text='''' OR e.currency=$3) AND v.business_date<=$4::date
     ), ranked AS (
       SELECT f.*,
-        sum(greatest(f.signed_minor,0)) OVER party AS total_positive,
-        sum(greatest(-f.signed_minor,0)) OVER party AS total_negative,
+        sum(greatest(f.signed_minor,0)) OVER customer_account AS total_positive,
+        sum(greatest(-f.signed_minor,0)) OVER customer_account AS total_negative,
         coalesce(sum(greatest(f.signed_minor,0)) OVER fifo_before,0) AS prior_positive,
         coalesce(sum(greatest(-f.signed_minor,0)) OVER fifo_before,0) AS prior_negative
       FROM facts f
-      WINDOW party AS (PARTITION BY f.book_id,f.party_id,f.currency),
-        fifo_before AS (PARTITION BY f.book_id,f.party_id,f.currency
+      WINDOW customer_account AS (PARTITION BY f.book_id,f.customer_account_id,f.currency),
+        fifo_before AS (PARTITION BY f.book_id,f.customer_account_id,f.currency
           ORDER BY f.due_date,f.business_date,f.voucher_id,f.line_order,f.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
     ), residuals AS (
       SELECT r.*,
@@ -4948,19 +4768,19 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
           ELSE 0 END AS residual_minor
       FROM ranked r
     ), balances AS (
-      SELECT r.book_id,r.party_id,r.currency,
+      SELECT r.book_id,r.customer_account_id,r.currency,
         sum(CASE WHEN r.settlement_purpose=''RECEIVABLE'' AND r.signed_minor>0 THEN r.signed_minor ELSE 0 END) AS receivable_minor,
         sum(CASE WHEN r.settlement_purpose=''ADVANCE_RECEIPT'' AND r.signed_minor<0 THEN -r.signed_minor ELSE 0 END) AS advance_minor,
         sum(r.signed_minor) AS net_minor,min(r.due_date) FILTER (WHERE r.residual_minor>0) AS oldest_due_date
-      FROM residuals r GROUP BY r.book_id,r.party_id,r.currency HAVING sum(r.signed_minor)<>0
+      FROM residuals r GROUP BY r.book_id,r.customer_account_id,r.currency HAVING sum(r.signed_minor)<>0
     )
-    SELECT b.code::text AS book_code,x.party_id::text AS customer_id,coalesce(account.code,x.party_id)::text AS customer_code,
-      coalesce(account_snapshot.name,x.party_id)::text AS customer_name,x.currency::text AS currency,
+    SELECT b.code::text AS book_code,x.customer_account_id::text AS customer_account_id,coalesce(account.code,x.customer_account_id)::text AS customer_account_code,
+      coalesce(account_snapshot.name,x.customer_account_id)::text AS customer_account_name,x.currency::text AS currency,
       (x.receivable_minor::numeric/100) AS receivable_amount,(x.advance_minor::numeric/100) AS advance_amount,
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN dcl_customer_account_roots account ON account.account_id=x.party_id
+    LEFT JOIN dcl_customer_account_roots account ON account.account_id=x.customer_account_id
     LEFT JOIN LATERAL (
       SELECT line.data->>''name'' AS name
       FROM dcl_customer_version_accounts line
@@ -4969,28 +4789,28 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
       ORDER BY entry.version_no DESC LIMIT 1
     ) account_snapshot ON true
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
-    ORDER BY b.code,customer_code,x.currency
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
+    ORDER BY b.code,customer_account_code,x.currency
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerAccountId", "name": "客户核算账户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户核算账户ID", "type": "ID", "alias": "customer_account_id", "order": 2, "width": 180, "visible": false}, {"name": "客户核算账户编码", "type": "TEXT", "alias": "customer_account_code", "order": 3, "width": 120, "visible": true}, {"name": "客户核算账户名称", "type": "TEXT", "alias": "customer_account_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
 INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV24d57c02d870b62329517d0', true, '供应商应付预付账龄', '系统预置报表', '
     WITH facts AS (
-      SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''SUPPLIER_RELATIONSHIP'' AS party_id,v.business_date,
+      SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''SUPPLIER'' AS supplier_id,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
         (e.credit_minor-e.debit_minor) AS signed_minor
       FROM acc_voucher_lines e JOIN acc_vouchers v ON v.id=e.voucher_id
       JOIN acc_subjects s ON s.id=e.subject_id AND s.book_id=e.book_id
       LEFT JOIN vou_documents d ON v.source_type=''VOU'' AND d.id=v.source_id
-      WHERE s.settlement_purpose IN (''PAYABLE'',''PREPAID'') AND e.dimensions ? ''SUPPLIER_RELATIONSHIP''
-        AND ($1::text='''' OR e.book_id=$1) AND ($2::text='''' OR e.dimensions->>''SUPPLIER_RELATIONSHIP''=$2)
+      WHERE s.settlement_purpose IN (''PAYABLE'',''PREPAID'') AND e.dimensions ? ''SUPPLIER''
+        AND ($1::text='''' OR e.book_id=$1) AND ($2::text='''' OR e.dimensions->>''SUPPLIER''=$2)
         AND ($3::text='''' OR e.currency=$3) AND v.business_date<=$4::date
     ), ranked AS (
       SELECT f.*,
-        sum(greatest(f.signed_minor,0)) OVER party AS total_positive,
-        sum(greatest(-f.signed_minor,0)) OVER party AS total_negative,
+        sum(greatest(f.signed_minor,0)) OVER supplier AS total_positive,
+        sum(greatest(-f.signed_minor,0)) OVER supplier AS total_negative,
         coalesce(sum(greatest(f.signed_minor,0)) OVER fifo_before,0) AS prior_positive,
         coalesce(sum(greatest(-f.signed_minor,0)) OVER fifo_before,0) AS prior_negative
       FROM facts f
-      WINDOW party AS (PARTITION BY f.book_id,f.party_id,f.currency),
-        fifo_before AS (PARTITION BY f.book_id,f.party_id,f.currency
+      WINDOW supplier AS (PARTITION BY f.book_id,f.supplier_id,f.currency),
+        fifo_before AS (PARTITION BY f.book_id,f.supplier_id,f.currency
           ORDER BY f.due_date,f.business_date,f.voucher_id,f.line_order,f.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
     ), residuals AS (
       SELECT r.*,
@@ -5001,22 +4821,22 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
           ELSE 0 END AS residual_minor
       FROM ranked r
     ), balances AS (
-      SELECT r.book_id,r.party_id,r.currency,
+      SELECT r.book_id,r.supplier_id,r.currency,
         sum(CASE WHEN r.settlement_purpose=''PAYABLE'' AND r.signed_minor>0 THEN r.signed_minor ELSE 0 END) AS payable_minor,
         sum(CASE WHEN r.settlement_purpose=''PREPAID'' AND r.signed_minor<0 THEN -r.signed_minor ELSE 0 END) AS advance_minor,
         sum(r.signed_minor) AS net_minor,min(r.due_date) FILTER (WHERE r.residual_minor>0) AS oldest_due_date
-      FROM residuals r GROUP BY r.book_id,r.party_id,r.currency HAVING sum(r.signed_minor)<>0
+      FROM residuals r GROUP BY r.book_id,r.supplier_id,r.currency HAVING sum(r.signed_minor)<>0
     )
-    SELECT b.code::text AS book_code,x.party_id::text AS supplier_id,coalesce(p.code,x.party_id)::text AS supplier_code,
-      x.party_id::text AS supplier_name,x.currency::text AS currency,
+    SELECT b.code::text AS book_code,x.supplier_id::text AS supplier_id,coalesce(p.code,x.supplier_id)::text AS supplier_code,
+      x.supplier_id::text AS supplier_name,x.currency::text AS currency,
       (x.payable_minor::numeric/100) AS payable_amount,(x.advance_minor::numeric/100) AS advance_amount,
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN dcl_subjects p ON p.id=x.party_id AND p.entity=''supplier''
+    LEFT JOIN dcl_subjects p ON p.id=x.supplier_id AND p.entity=''supplier''
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,supplier_code,x.currency
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
 INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV57bcbf1d2df6010d41816c0', true, '空桶', '系统预置报表', '
     WITH facts AS (
       SELECT book.id AS book_id,book.code,e.customer_id,e.container_type,e.quantity_delta,
@@ -5063,20 +4883,20 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 5, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 6, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 7, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 10, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 11, "width": 130, "format": "money", "visible": true}]', 'SYSTEM', 'SYSTEM');
 INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV517f80b4080608d1ef8ce23', true, '员工借款', '系统预置报表', '
     WITH facts AS (
-      SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''EMPLOYMENT_RELATIONSHIP'' AS employee_id,v.business_date,v.source_entity,
+      SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''EMPLOYEE'' AS employee_id,v.business_date,v.source_entity,
         (e.debit_minor-e.credit_minor) AS signed_minor
       FROM acc_voucher_lines e JOIN acc_vouchers v ON v.id=e.voucher_id
-      WHERE e.dimensions ? ''EMPLOYMENT_RELATIONSHIP'' AND v.source_entity IN (''employee-loan'',''employee-repayment'',''employee-loan-writeoff'')
-        AND ($1::text='''' OR e.book_id=$1) AND ($2::text='''' OR e.dimensions->>''EMPLOYMENT_RELATIONSHIP''=$2)
+      WHERE e.dimensions ? ''EMPLOYEE'' AND v.source_entity IN (''employee-loan'',''employee-repayment'',''employee-loan-writeoff'')
+        AND ($1::text='''' OR e.book_id=$1) AND ($2::text='''' OR e.dimensions->>''EMPLOYEE''=$2)
         AND ($3::text='''' OR e.currency=$3) AND v.business_date<=$4::date
     ), ranked AS (
       SELECT f.*,
-        sum(greatest(f.signed_minor,0)) OVER party AS total_positive,
-        sum(greatest(-f.signed_minor,0)) OVER party AS total_negative,
+        sum(greatest(f.signed_minor,0)) OVER employee AS total_positive,
+        sum(greatest(-f.signed_minor,0)) OVER employee AS total_negative,
         coalesce(sum(greatest(f.signed_minor,0)) OVER fifo_before,0) AS prior_positive,
         coalesce(sum(greatest(-f.signed_minor,0)) OVER fifo_before,0) AS prior_negative
       FROM facts f
-      WINDOW party AS (PARTITION BY f.book_id,f.employee_id,f.currency),
+      WINDOW employee AS (PARTITION BY f.book_id,f.employee_id,f.currency),
         fifo_before AS (PARTITION BY f.book_id,f.employee_id,f.currency
           ORDER BY f.business_date,f.voucher_id,f.line_order,f.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
     ), residuals AS (
@@ -5104,7 +4924,7 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
     FROM balances x JOIN acc_books b ON b.id=x.book_id
     LEFT JOIN dcl_subjects p ON p.id=x.employee_id AND p.entity=''employee''
     ORDER BY b.code,employee_code,x.currency
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "employeeId", "name": "员工", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "EMPLOYMENT_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "员工ID", "type": "ID", "alias": "employee_id", "order": 2, "width": 180, "visible": false}, {"name": "员工编码", "type": "TEXT", "alias": "employee_code", "order": 3, "width": 120, "visible": true}, {"name": "员工姓名", "type": "TEXT", "alias": "employee_name", "order": 4, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "借款", "type": "DECIMAL", "alias": "loan_amount", "order": 6, "width": 120, "format": "money", "visible": true}, {"name": "还款", "type": "DECIMAL", "alias": "repayment_amount", "order": 7, "width": 120, "format": "money", "visible": true}, {"name": "费用核销", "type": "DECIMAL", "alias": "writeoff_amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "余额", "type": "DECIMAL", "alias": "balance", "order": 9, "width": 120, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 10, "width": 120, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 11, "width": 120, "visible": true}, {"name": "余额含义", "type": "TEXT", "alias": "balance_meaning", "order": 12, "width": 170, "visible": true}]', 'SYSTEM', 'SYSTEM');
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "employeeId", "name": "员工", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "EMPLOYEE"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "员工ID", "type": "ID", "alias": "employee_id", "order": 2, "width": 180, "visible": false}, {"name": "员工编码", "type": "TEXT", "alias": "employee_code", "order": 3, "width": 120, "visible": true}, {"name": "员工姓名", "type": "TEXT", "alias": "employee_name", "order": 4, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "借款", "type": "DECIMAL", "alias": "loan_amount", "order": 6, "width": 120, "format": "money", "visible": true}, {"name": "还款", "type": "DECIMAL", "alias": "repayment_amount", "order": 7, "width": 120, "format": "money", "visible": true}, {"name": "费用核销", "type": "DECIMAL", "alias": "writeoff_amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "余额", "type": "DECIMAL", "alias": "balance", "order": 9, "width": 120, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 10, "width": 120, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 11, "width": 120, "visible": true}, {"name": "余额含义", "type": "TEXT", "alias": "balance_meaning", "order": 12, "width": 170, "visible": true}]', 'SYSTEM', 'SYSTEM');
 
 INSERT INTO public.rpt_definition_validities (approval_entry_id, validity, created_by, updated_by)
 SELECT approval_entry_id, 'VALID', 'SYSTEM', 'SYSTEM'
@@ -6175,11 +5995,6 @@ ALTER TABLE ONLY public.dcl_customer_files
 
 --
 --
--- Name: dcl_employment_relationships dcl_employment_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
---
 -- Name: dcl_fund_account_versions dcl_fund_account_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6188,42 +6003,6 @@ ALTER TABLE ONLY public.dcl_fund_account_versions
 
 
 --
---
--- Name: dcl_parties dcl_parties_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
-
---
--- Name: dcl_party_identifier_claims dcl_party_identifier_claims_identifier_type_normalized_value_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_identifier_claims dcl_party_identifier_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_events dcl_party_merge_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_events dcl_party_merge_events_preflight_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_preflights dcl_party_merge_preflights_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_relationship_merge_events dcl_party_relationship_merge_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
 --
 -- Name: dcl_product_formula_lines dcl_product_formula_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
@@ -6265,23 +6044,6 @@ ALTER TABLE ONLY public.dcl_product_versions
 
 
 
---
--- Name: dcl_sales_relationships dcl_sales_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
-
---
--- Name: dcl_service_relationships dcl_service_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_supplier_relationships dcl_supplier_relationships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-
---
 --
 -- Name: dcl_vehicle_versions dcl_vehicle_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
@@ -7300,44 +7062,10 @@ CREATE INDEX dcl_customer_files_pending_idx ON public.dcl_customer_files USING b
 
 --
 --
--- Name: dcl_employment_relationships_active_party_operating_key; Type: INDEX; Schema: public; Owner: -
---
-
-
---
-
---
 -- Name: dcl_subjects_entity_code_uq; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX dcl_subjects_entity_code_uq ON public.dcl_subjects USING btree (entity, upper((code)::text)) WHERE (code IS NOT NULL);
-
-
---
--- Name: dcl_parties_name_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX dcl_party_versions_display_name_idx ON public.dcl_party_versions USING btree (upper((display_name)::text), party_id);
-
-CREATE INDEX dcl_party_versions_party_idx ON public.dcl_party_versions USING btree (party_id, approval_entry_id);
-
-CREATE INDEX dcl_party_identifier_claims_approved_party_idx ON public.dcl_party_identifier_claims USING btree (approved_party_id) WHERE (approved_party_id IS NOT NULL);
-
-CREATE INDEX dcl_party_identifier_claims_open_party_idx ON public.dcl_party_identifier_claims USING btree (open_party_id) WHERE (open_party_id IS NOT NULL);
-
-
---
--- Name: dcl_party_merge_preflights_open_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX dcl_party_merge_preflights_open_idx ON public.dcl_party_merge_preflights USING btree (source_party_id, target_party_id, created_at DESC) WHERE (consumed_at IS NULL);
-
-
---
--- Name: dcl_party_relationship_merge_events_source_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX dcl_party_relationship_merge_events_source_idx ON public.dcl_party_relationship_merge_events USING btree (source_object_id, occurred_at DESC) INCLUDE (merge_event_id);
 
 
 --
@@ -7564,34 +7292,6 @@ CREATE INDEX wfl_node_instances_document_idx ON public.wfl_node_instances USING 
 --
 
 CREATE INDEX wfl_runtime_audit_history_idx ON public.wfl_runtime_audit_events USING btree (process_id, occurred_at DESC, id DESC);
-
-
---
--- Name: dcl_employment_relationships bob_employment_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER dcl_employment_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_employment_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
-
-
---
--- Name: dcl_sales_relationships bob_sales_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER dcl_sales_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_sales_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
-
-
---
--- Name: dcl_service_relationships bob_service_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER dcl_service_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_service_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
-
-
---
--- Name: dcl_supplier_relationships bob_supplier_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER dcl_supplier_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.dcl_supplier_relationships FOR EACH ROW EXECUTE FUNCTION public.dcl_reject_merged_party_relationship();
 
 
 --
@@ -8325,26 +8025,6 @@ ALTER TABLE ONLY public.dcl_customer_download_tokens
 --
 --
 --
--- Name: dcl_employment_relationships dcl_employment_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_employment_relationships dcl_employment_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_employment_relationships dcl_employment_relationships_operating_entity_id_operating_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_employment_relationships dcl_employment_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
 -- Name: dcl_fund_account_versions dcl_fund_account_operating_object_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8383,153 +8063,6 @@ ALTER TABLE ONLY public.dcl_product_barcode_claims
     ADD CONSTRAINT dcl_product_barcode_claims_open_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_operating_entity_versions
     ADD CONSTRAINT dcl_operating_entity_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-
---
--- Name: dcl_parties dcl_parties_merged_into_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.dcl_party_versions
-    ADD CONSTRAINT dcl_party_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_party_versions
-    ADD CONSTRAINT dcl_party_versions_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_party_version_identifiers
-    ADD CONSTRAINT dcl_party_version_identifiers_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_party_versions(approval_entry_id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.dcl_party_identifier_claims
-    ADD CONSTRAINT dcl_party_identifier_claims_approved_party_id_fkey FOREIGN KEY (approved_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_party_identifier_claims
-    ADD CONSTRAINT dcl_party_identifier_claims_approved_approval_entry_id_fkey FOREIGN KEY (approved_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_party_identifier_claims
-    ADD CONSTRAINT dcl_party_identifier_claims_open_party_id_fkey FOREIGN KEY (open_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_party_identifier_claims
-    ADD CONSTRAINT dcl_party_identifier_claims_open_approval_entry_id_fkey FOREIGN KEY (open_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_parties
-    ADD CONSTRAINT dcl_parties_subject_fkey FOREIGN KEY (id, entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_parties
-    ADD CONSTRAINT dcl_parties_merged_into_fkey FOREIGN KEY (merged_into_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_employment_relationships
-    ADD CONSTRAINT dcl_employment_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_employment_relationships
-    ADD CONSTRAINT dcl_employment_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_employment_relationships
-    ADD CONSTRAINT dcl_employment_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_employment_relationships
-    ADD CONSTRAINT dcl_employment_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_employment_relationships(object_id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_supplier_relationships
-    ADD CONSTRAINT dcl_supplier_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_supplier_relationships
-    ADD CONSTRAINT dcl_supplier_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_supplier_relationships
-    ADD CONSTRAINT dcl_supplier_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_supplier_relationships
-    ADD CONSTRAINT dcl_supplier_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_supplier_relationships(object_id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_service_relationships
-    ADD CONSTRAINT dcl_service_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_service_relationships
-    ADD CONSTRAINT dcl_service_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_service_relationships
-    ADD CONSTRAINT dcl_service_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_service_relationships
-    ADD CONSTRAINT dcl_service_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_service_relationships(object_id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_sales_relationships
-    ADD CONSTRAINT dcl_sales_relationships_subject_fkey FOREIGN KEY (object_id, object_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_sales_relationships
-    ADD CONSTRAINT dcl_sales_relationships_party_fkey FOREIGN KEY (party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_sales_relationships
-    ADD CONSTRAINT dcl_sales_relationships_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_sales_relationships
-    ADD CONSTRAINT dcl_sales_relationships_merged_fkey FOREIGN KEY (merged_into_object_id) REFERENCES public.dcl_sales_relationships(object_id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY public.dcl_party_merge_preflights
-    ADD CONSTRAINT dcl_party_merge_preflights_source_fkey FOREIGN KEY (source_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_party_merge_preflights
-    ADD CONSTRAINT dcl_party_merge_preflights_target_fkey FOREIGN KEY (target_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_party_merge_preflights
-    ADD CONSTRAINT dcl_party_merge_preflights_source_entry_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_party_merge_preflights
-    ADD CONSTRAINT dcl_party_merge_preflights_target_entry_fkey FOREIGN KEY (target_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_party_merge_events
-    ADD CONSTRAINT dcl_party_merge_events_preflight_fkey FOREIGN KEY (preflight_id) REFERENCES public.dcl_party_merge_preflights(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_party_merge_events
-    ADD CONSTRAINT dcl_party_merge_events_source_fkey FOREIGN KEY (source_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_party_merge_events
-    ADD CONSTRAINT dcl_party_merge_events_target_fkey FOREIGN KEY (target_party_id) REFERENCES public.dcl_parties(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_party_relationship_merge_events
-    ADD CONSTRAINT dcl_party_relationship_merge_events_merge_fkey FOREIGN KEY (merge_event_id) REFERENCES public.dcl_party_merge_events(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_party_relationship_merge_events
-    ADD CONSTRAINT dcl_party_relationship_merge_events_operating_fkey FOREIGN KEY (operating_entity_id, operating_entity_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-
-
-
---
--- Name: dcl_party_identifier_claims dcl_party_identifier_claims_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_events dcl_party_merge_events_preflight_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_events dcl_party_merge_events_source_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_events dcl_party_merge_events_target_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_preflights dcl_party_merge_preflights_source_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_preflights dcl_party_merge_preflights_source_entry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_preflights dcl_party_merge_preflights_target_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_merge_preflights dcl_party_merge_preflights_target_entry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_relationship_merge_events dcl_party_relationship_merge_events_merge_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_relationship_merge_events dcl_party_relationship_merge_events_operating_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_relationship_merge_events source object has immutable historical identity; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_party_relationship_merge_events target object has immutable historical identity; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
 
 --
@@ -8589,70 +8122,6 @@ ALTER TABLE ONLY public.dcl_product_versions
 
 
 
---
--- Name: dcl_sales_relationships dcl_sales_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_sales_relationships dcl_sales_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_sales_relationships dcl_sales_relationships_operating_entity_id_operating_enti_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_sales_relationships dcl_sales_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_service_relationships bob_service_relationship_merged_into_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
-
---
--- Name: dcl_service_relationships dcl_service_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_service_relationships dcl_service_relationships_operating_entity_id_operating_en_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_service_relationships dcl_service_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_supplier_relationships dcl_supplier_relationships_merged_into_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_supplier_relationships dcl_supplier_relationships_object_id_object_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_supplier_relationships dcl_supplier_relationships_operating_entity_id_operating_e_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
--- Name: dcl_supplier_relationships dcl_supplier_relationships_party_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-
---
---
---
 --
 -- Name: dcl_vehicle_versions dcl_vehicle_versions_carrier_operating_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
@@ -9767,14 +9236,6 @@ CREATE INDEX dcl_customer_version_identifiers_normalized_idx
     ON public.dcl_customer_version_identifiers USING btree (identifier_type, normalized_value);
 CREATE INDEX dcl_customer_attachments_entry_account_idx
     ON public.dcl_customer_attachments USING btree (approval_entry_id, account_id, created_at, file_id);
-CREATE UNIQUE INDEX dcl_employment_relationships_active_party_operating_key
-    ON public.dcl_employment_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
-CREATE UNIQUE INDEX dcl_supplier_relationships_active_party_operating_key
-    ON public.dcl_supplier_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
-CREATE UNIQUE INDEX dcl_service_relationships_active_party_operating_key
-    ON public.dcl_service_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
-CREATE UNIQUE INDEX dcl_sales_relationships_active_party_operating_key
-    ON public.dcl_sales_relationships USING btree (party_id, operating_entity_id) WHERE merged_into_object_id IS NULL;
 
 
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;

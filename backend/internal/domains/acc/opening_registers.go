@@ -115,15 +115,16 @@ func (s *Service) saveOpeningBill(ctx context.Context, tx pgx.Tx, q *dbsqlc.Quer
 		if err != nil || interestErr != nil || costErr != nil || issueErr != nil || maturityErr != nil || maturityDate.Before(issueDate) ||
 			strings.TrimSpace(bill.BillNo) == "" || strings.TrimSpace(bill.Drawer) == "" || strings.TrimSpace(bill.Acceptor) == "" || strings.TrimSpace(bill.Payee) == "" ||
 			(bill.PositionType != "ASSET" && bill.PositionType != "LIABILITY") || (bill.Medium != "PAPER" && bill.Medium != "ELECTRONIC") ||
-			bill.AnnualRateBps < 0 || bill.InterestDays < 0 || !validID(bill.OriginatingParty.ObjectID) || !validID(bill.OriginatingParty.ApprovalEntryID) {
+			bill.AnnualRateBps < 0 || bill.InterestDays < 0 || !validID(bill.OriginatingCounterparty.ObjectID) || !validID(bill.OriginatingCounterparty.ApprovalEntryID) {
 			return domainError(ErrorValidation, "invalid opening bill facts", firstError(err, interestErr, costErr, issueErr, maturityErr))
 		}
-		reference, referenceErr := s.references.ValidateHistoricalReference(ctx, tx, bill.OriginatingParty.Entity, bill.OriginatingParty.ObjectID, bill.OriginatingParty.ApprovalEntryID)
+		reference, referenceErr := s.references.ValidateHistoricalReference(ctx, tx, bill.OriginatingCounterparty.Entity, bill.OriginatingCounterparty.ObjectID, bill.OriginatingCounterparty.ApprovalEntryID)
 		if referenceErr != nil {
 			return domainError(ErrorConflict, "opening bill originating party approval snapshot is unavailable", referenceErr)
 		}
-		bill.OriginatingParty.Code = reference.Code
-		bill.OriginatingParty.Name = reference.Data.Name
+		bill.OriginatingCounterparty.Code = reference.Code
+		bill.OriginatingCounterparty.Name = reference.Data.Name
+		bill.OriginatingCounterparty.CustomerID = reference.CustomerID
 		issue = pgtype.Date{Time: issueDate, Valid: true}
 		maturity = pgtype.Date{Time: maturityDate, Valid: true}
 	}
@@ -135,9 +136,10 @@ func (s *Service) saveOpeningBill(ctx context.Context, tx pgx.Tx, q *dbsqlc.Quer
 		IssueDate: issue, MaturityDate: maturity, Drawer: optionalRegisterText(bill.Drawer), Acceptor: optionalRegisterText(bill.Acceptor), Payee: optionalRegisterText(bill.Payee),
 		AnnualRateBps: optionalRegisterInt(createObject, bill.AnnualRateBps), InterestDays: optionalRegisterInt(createObject, bill.InterestDays),
 		InterestAmountMinor: optionalRegisterMoney(createObject, interest), CustomerCostAmountMinor: optionalRegisterMoney(createObject, cost),
-		OriginPartyEntity: optionalRegisterText(bill.OriginatingParty.Entity), OriginPartyObjectID: optionalRegisterText(bill.OriginatingParty.ObjectID),
-		OriginPartyApprovalEntryID: optionalRegisterText(bill.OriginatingParty.ApprovalEntryID), OriginPartyCode: optionalRegisterText(bill.OriginatingParty.Code),
-		OriginPartyName: optionalRegisterText(bill.OriginatingParty.Name), ValueMinor: value,
+		OriginCounterpartyEntity: optionalRegisterText(bill.OriginatingCounterparty.Entity), OriginCounterpartyObjectID: optionalRegisterText(bill.OriginatingCounterparty.ObjectID),
+		OriginCounterpartyCustomerID:      optionalRegisterText(bill.OriginatingCounterparty.CustomerID),
+		OriginCounterpartyApprovalEntryID: optionalRegisterText(bill.OriginatingCounterparty.ApprovalEntryID), OriginCounterpartyCode: optionalRegisterText(bill.OriginatingCounterparty.Code),
+		OriginCounterpartyName: optionalRegisterText(bill.OriginatingCounterparty.Name), ValueMinor: value,
 	})
 	if err != nil {
 		return databaseError("save accounting opening bill", err)
@@ -179,11 +181,11 @@ func loadOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, view *OpeningV
 				PositionType: row.PositionType, Medium: row.Medium, Currency: row.Currency,
 				Drawer: row.Drawer, Acceptor: row.Acceptor, Payee: row.Payee,
 				AnnualRateBps: row.AnnualRateBps, InterestDays: row.InterestDays,
-				FaceAmount:         fixeddecimal.Format(row.FaceAmountMinor, 2, false),
-				InterestAmount:     fixeddecimal.Format(row.InterestAmountMinor, 2, false),
-				CustomerCostAmount: fixeddecimal.Format(row.CustomerCostAmountMinor, 2, false),
-				ValueAmount:        fixeddecimal.Format(row.ValueMinor, 2, false),
-				OriginatingParty:   OpeningPartyInput{Entity: row.OriginPartyEntity, ObjectID: row.OriginPartyObjectID, ApprovalEntryID: row.OriginPartyApprovalEntryID, Code: row.OriginPartyCode, Name: row.OriginPartyName},
+				FaceAmount:              fixeddecimal.Format(row.FaceAmountMinor, 2, false),
+				InterestAmount:          fixeddecimal.Format(row.InterestAmountMinor, 2, false),
+				CustomerCostAmount:      fixeddecimal.Format(row.CustomerCostAmountMinor, 2, false),
+				ValueAmount:             fixeddecimal.Format(row.ValueMinor, 2, false),
+				OriginatingCounterparty: &BusinessArchiveDimensionReference{Entity: row.OriginCounterpartyEntity, ObjectID: row.OriginCounterpartyObjectID, CustomerID: row.OriginCounterpartyCustomerID, ApprovalEntryID: row.OriginCounterpartyApprovalEntryID, Code: row.OriginCounterpartyCode, Name: row.OriginCounterpartyName},
 			},
 			CreateObject: row.CreateObject,
 		}
@@ -241,8 +243,9 @@ func approveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, bookID stri
 			BookID: bookID, AssetID: asset.AssetID, Currency: asset.Currency,
 			OriginalMinor: asset.OriginalMinor, AccumulatedMinor: asset.AccumulatedMinor,
 			AssetSubjectID: &assetSubjectID, AssetDimensions: assetDimensions,
-			AccumulatedSubjectID: &accumulatedSubjectID, AccumulatedDimensions: assetDimensions,
-			ExpenseSubjectID: &expenseSubjectID, ExpenseDimensions: []byte(`{}`),
+			AssetDimensionReferences: []byte(`{}`),
+			AccumulatedSubjectID:     &accumulatedSubjectID, AccumulatedDimensions: assetDimensions, AccumulatedDimensionReferences: []byte(`{}`),
+			ExpenseSubjectID: &expenseSubjectID, ExpenseDimensions: []byte(`{}`), ExpenseDimensionReferences: []byte(`{}`),
 		}); err != nil {
 			return databaseError("create opening asset book value", err)
 		}
@@ -266,8 +269,9 @@ func approveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, bookID stri
 				IssueDate: bill.IssueDate, MaturityDate: bill.MaturityDate, Drawer: *bill.Drawer, Acceptor: *bill.Acceptor, Payee: *bill.Payee,
 				AnnualRateBps: *bill.AnnualRateBps, InterestDays: *bill.InterestDays,
 				InterestAmountMinor: *bill.InterestAmountMinor, CustomerCostAmountMinor: *bill.CustomerCostAmountMinor,
-				OriginPartyEntity: bill.OriginPartyEntity, OriginPartyObjectID: bill.OriginPartyObjectID,
-				OriginPartyApprovalEntryID: bill.OriginPartyApprovalEntryID, OriginPartyCode: bill.OriginPartyCode, OriginPartyName: bill.OriginPartyName,
+				OriginCounterpartyEntity: bill.OriginCounterpartyEntity, OriginCounterpartyObjectID: bill.OriginCounterpartyObjectID,
+				OriginCounterpartyCustomerID:      bill.OriginCounterpartyCustomerID,
+				OriginCounterpartyApprovalEntryID: bill.OriginCounterpartyApprovalEntryID, OriginCounterpartyCode: bill.OriginCounterpartyCode, OriginCounterpartyName: bill.OriginCounterpartyName,
 				SourceDocumentID: bookID, SourceLineID: bill.BillID,
 			}); err != nil {
 				return databaseError("create opening bill", err)

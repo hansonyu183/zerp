@@ -142,7 +142,6 @@ type relationshipAwareLifecycleService struct {
 	products          *dcldomain.ProductService
 	employees         *dcldomain.EmployeeService
 	suppliers         *dcldomain.SupplierService
-	parties           *dcldomain.PartyService
 }
 
 func (service relationshipAwareLifecycleService) Create(
@@ -1014,7 +1013,6 @@ func New(pool *pgxpool.Pool) *Seeder {
 	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	bus := txevent.NewBus()
-	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentReader(pool), authorizer, bus)
 	service := bob.NewService(pool, auxiliaryResolver)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, service, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, service, authorizer, bus)
@@ -1029,7 +1027,7 @@ func New(pool *pgxpool.Pool) *Seeder {
 		service: relationshipAwareLifecycleService{relationships: relationships,
 			business: service, customers: customers, auxiliary: auxiliary, pool: pool, queries: dbsqlc.New(pool), operatingEntities: operatingEntities, warehouses: warehouses,
 			vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees,
-			suppliers: suppliers, parties: partyDeclarations},
+			suppliers: suppliers},
 		lookup: queryLookup{queries: dbsqlc.New(pool)}, pool: pool,
 		auxiliary: auxiliary,
 	}

@@ -472,8 +472,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     :items="
                       vm.config.entity === 'service-contract'
                         ? [
-                            { title: '服务关系', value: 'other-unit' },
-                            { title: '销售合作关系', value: 'sales-partner' },
+                            { title: '其他单位', value: 'other-unit' },
+                            { title: '销售合作方', value: 'sales-partner' },
                           ]
                         : vm.config.entity === 'asset-sale'
                           ? [
@@ -531,7 +531,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     "
                     :disabled="!vm.editing"
                     v-bind="referenceProps('settlementMethod')"
-                    hint="服务关系有有效默认值时可以留空自动带入"
+                    hint="其他单位有有效默认值时可以留空自动带入"
                     label="结算方式"
                     :model-value="vm.form.settlementMethod"
                     @search="search('settlementMethod', $event)"

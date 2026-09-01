@@ -69,8 +69,6 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		}
 		return result, nil
 	}
-	var rows []dbsqlc.QueryBobReferenceCandidatesRow
-	var err error
 	if input.Entity == EntityProduct {
 		productRows, err := s.queries.QueryBobProductReferenceCandidates(ctx, dbsqlc.QueryBobProductReferenceCandidatesParams{Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, BehaviorProfile: input.BehaviorProfile})
 		if err != nil {
@@ -102,23 +100,6 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 			})
 		}
 		return result, nil
-	} else {
-		rows, err = s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, BehaviorProfile: input.BehaviorProfile})
 	}
-	if err != nil {
-		return nil, s.internal("query BOB reference candidates", err)
-	}
-	result := make([]ReferenceCandidate, 0, len(rows))
-	for _, row := range rows {
-		candidate := ReferenceCandidate{ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: row.Code, Name: row.Name,
-			BehaviorProfile: row.BehaviorProfile, DefaultInputUnitID: row.DefaultInputUnitID, PricingUnitID: row.PricingUnitID}
-		if input.Entity == EntityProduct {
-			candidate.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, candidate.ApprovalEntryID)
-			if err != nil {
-				return nil, s.internal("read product reference unit conversions", err)
-			}
-		}
-		result = append(result, candidate)
-	}
-	return result, nil
+	return nil, domainError(ErrorValidation, "invalid BOB reference entity", nil, nil)
 }

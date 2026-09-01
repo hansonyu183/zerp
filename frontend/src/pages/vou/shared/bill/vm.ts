@@ -50,7 +50,7 @@ export interface BillLineDraft {
   drawer: string
   acceptor: string
   payee: string
-  originatingParty?: BillReference
+  originatingCounterparty?: BillReference
   annualRateBps: number
   interestDays?: number
   interestAmount?: string
@@ -93,7 +93,7 @@ export interface BillListItem {
   currency: string
   amount: string
   updatedAt: string
-  partyName?: string
+  counterpartyName?: string
 }
 type VouQueryRequest = ApiPostRequest<'vou/bill-receipt/query'>
 type VouGetRequest = ApiPostRequest<'vou/bill-receipt/get'>
@@ -747,7 +747,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         drawer: row.drawer,
         acceptor: row.acceptor,
         payee: row.payee,
-        originatingParty: row.originatingParty,
+        originatingCounterparty: row.originatingCounterparty,
         annualRateBps: row.annualRateBps ?? 0,
         interestDays: row.interestDays,
         interestAmount: row.interestAmount,

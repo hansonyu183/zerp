@@ -147,7 +147,7 @@ test('typed business archive snapshots persist identity without Party roots', as
     ['dcl_employee_versions', 'dcl_other_unit_versions'],
     ['dcl_other_unit_versions', 'dcl_sales_partner_versions'],
     ['dcl_sales_partner_versions', 'dcl_supplier_versions'],
-    ['dcl_supplier_versions', 'dcl_party_versions'],
+    ['dcl_supplier_versions', 'dcl_employee_version_identifiers'],
   ]) {
     const start = schema.indexOf(`CREATE TABLE public.${table}`)
     const end = schema.indexOf(`CREATE TABLE public.${nextTable}`, start)
@@ -163,6 +163,8 @@ test('typed business archive snapshots persist identity without Party roots', as
     }
     assert.doesNotMatch(block, /\bparty_id\b/)
   }
+
+  assert.doesNotMatch(schema, /CREATE TABLE public\.dcl_party/)
 
   for (const entity of [
     'employee',

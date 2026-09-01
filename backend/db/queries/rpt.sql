@@ -18,21 +18,55 @@ SELECT id, bill_no AS code, bill_no AS name, count(*) OVER() AS total FROM acc_b
 WHERE (sqlc.arg(selected_id)::text = '' OR id = sqlc.arg(selected_id) OR bill_no ILIKE '%' || sqlc.arg(keyword) || '%')
 ORDER BY (id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, bill_no OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 
--- name: RptListBillOriginPartyReferences :many
-WITH parties AS (
-  SELECT DISTINCT ON (origin_party_object_id)
-    origin_party_object_id AS id,
-    COALESCE(origin_party_code, '')::text AS code,
-    COALESCE(origin_party_name, '')::text AS name
+-- name: RptListBillOriginCounterpartyReferences :many
+WITH counterparties AS (
+  SELECT DISTINCT ON (origin_counterparty_entity, origin_counterparty_object_id, origin_counterparty_approval_entry_id)
+    origin_counterparty_entity AS entity,
+    origin_counterparty_object_id AS object_id,
+    origin_counterparty_approval_entry_id AS approval_entry_id,
+    origin_counterparty_code AS code,
+    origin_counterparty_name AS name
   FROM acc_bills
-  WHERE origin_party_object_id IS NOT NULL
-  ORDER BY origin_party_object_id, id
+  WHERE origin_counterparty_entity IS NOT NULL
+    AND origin_counterparty_object_id IS NOT NULL
+    AND origin_counterparty_approval_entry_id IS NOT NULL
+    AND origin_counterparty_code IS NOT NULL
+    AND origin_counterparty_name IS NOT NULL
+  ORDER BY origin_counterparty_entity, origin_counterparty_object_id, origin_counterparty_approval_entry_id, id
 )
-SELECT id, code, name, count(*) OVER() AS total
-FROM parties
-WHERE sqlc.arg(selected_id)::text = '' OR id = sqlc.arg(selected_id)
+SELECT entity, object_id, approval_entry_id, code, name, count(*) OVER() AS total
+FROM counterparties
+WHERE sqlc.arg(selected_id)::text = '' OR object_id = sqlc.arg(selected_id)
   OR code ILIKE '%' || sqlc.arg(keyword) || '%' OR name ILIKE '%' || sqlc.arg(keyword) || '%'
-ORDER BY (id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, code, id
+ORDER BY (object_id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, code, object_id, approval_entry_id
+OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
+
+-- name: RptListCustomerAccountReferences :many
+WITH current_references AS (
+  SELECT root.account_id AS id, line.data->>'code' AS code, line.data->>'name' AS name,
+    customer_root.code AS customer_code,
+    coalesce(nullif(customer.data->>'displayName',''), customer.data->>'legalName') AS customer_name
+  FROM dcl_customer_account_roots root
+  JOIN LATERAL (
+    SELECT id
+    FROM approval_entries
+    WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) entry ON true
+  JOIN dcl_subjects customer_root ON customer_root.id=root.customer_id AND customer_root.entity='customer'
+  JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id AND customer.enabled
+  JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+  WHERE line.enabled
+)
+SELECT reference.id, reference.code::text AS code, reference.name::text AS name,
+  reference.customer_code, reference.customer_name::text AS customer_name, count(*) OVER() AS total
+FROM current_references reference
+WHERE (sqlc.arg(selected_id)::text<>'' AND reference.id=sqlc.arg(selected_id))
+   OR reference.code ILIKE '%'||sqlc.arg(keyword)||'%'
+   OR reference.name ILIKE '%'||sqlc.arg(keyword)||'%'
+   OR reference.customer_code ILIKE '%'||sqlc.arg(keyword)||'%'
+   OR reference.customer_name ILIKE '%'||sqlc.arg(keyword)||'%'
+ORDER BY (reference.id=sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text<>'') DESC, reference.code, reference.id
 OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 
 -- name: RptListBOBReferences :many
@@ -40,7 +74,7 @@ WITH current_references AS (
   SELECT subject.id, subject.code AS code, subject.code AS name
   FROM dcl_subjects subject
   JOIN LATERAL (SELECT 1 FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
-  WHERE subject.entity=sqlc.arg(entity) AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','customer','customer-account','supplier','other-unit','employee','sales-partner')
+  WHERE subject.entity=sqlc.arg(entity) AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','customer','supplier','other-unit','employee','sales-partner')
   UNION ALL
   SELECT object.id, object.code, object.data->>'name' AS name
   FROM aux_objects object

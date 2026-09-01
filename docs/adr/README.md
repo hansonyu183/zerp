@@ -37,7 +37,6 @@
 | [ADR-0035](0035-vehicle-declarations-are-dcl-owned.md)                      | 2026-08-28 | 车辆由 DCL 申报并由 BOB 只读查询                     | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
 | [ADR-0036](0036-fund-account-declarations-are-dcl-owned.md)                 | 2026-08-28 | 资金账户由 DCL 申报并由 BOB 只读查询                 | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
 | [ADR-0037](0037-product-declarations-are-dcl-owned.md)                      | 2026-08-28 | 产品由 DCL 申报并由 BOB 只读查询                     | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
-| [ADR-0038](0038-party-identity-declarations-are-dcl-owned.md)               | 2026-08-28 | Party 共享身份由 DCL 申报并由 BOB 只读查询           | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
 | [ADR-0039](0039-employee-declarations-are-dcl-owned.md)                     | 2026-08-28 | 员工申报由 DCL 拥有并由 BOB 只读查询                 | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
 | [ADR-0040](0040-other-unit-and-sales-partner-declarations-are-dcl-owned.md) | 2026-08-28 | 服务关系与销售合作关系申报由 DCL 拥有                | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |
 | [ADR-0041](0041-supplier-declarations-are-dcl-owned.md)                     | 2026-08-28 | 供应商申报由 DCL 拥有并由 BOB 只读查询               | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md) |

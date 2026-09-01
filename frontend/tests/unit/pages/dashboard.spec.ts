@@ -46,7 +46,7 @@ const documentItem: WorkbenchItem = {
   revision: 2,
   documentNo: 'SO-0001',
   businessDate: '2026-08-01',
-  partyName: '测试客户',
+  counterpartyName: '测试客户',
   currency: 'CNY',
   amount: '100.00',
 }
@@ -72,11 +72,6 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
-  it('routes Party workbench items to DCL declarations', () => {
-    const party = { ...objectItem, entity: 'party' } as WorkbenchItem
-    expect(workbenchItemPath(party)).toBe('/dcl/party')
-  })
-
   it('routes Supplier workbench items to DCL declarations', () => {
     const supplier = { ...objectItem, entity: 'supplier' } as WorkbenchItem
     expect(workbenchItemPath(supplier)).toBe('/dcl/supplier')

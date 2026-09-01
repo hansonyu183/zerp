@@ -26,8 +26,6 @@ const projections = [
   'DclFundAccountView',
   'DclProductListItem',
   'DclProductView',
-  'DclPartyListItem',
-  'DclPartyView',
   'DclEmployeeListItem',
   'DclEmployeeView',
   'DclSupplierListItem',

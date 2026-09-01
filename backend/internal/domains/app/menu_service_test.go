@@ -12,7 +12,6 @@ func testMenuCatalog() []registeredMenuRoute {
 		{RouteKey: "app/menu", RoutePath: "/app/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business"},
 		{RouteKey: "dcl/operating-entity", RoutePath: "/dcl/operating-entity", DisplayName: "经营主体", PermissionCode: "/dcl/operating-entity/query", PermissionRoot: "/dcl/operating-entity/"},
 		{RouteKey: "dcl/warehouse", RoutePath: "/dcl/warehouse", DisplayName: "仓库", PermissionCode: "/dcl/warehouse/query", PermissionRoot: "/dcl/warehouse/"},
-		{RouteKey: "dcl/party", RoutePath: "/dcl/party", DisplayName: "主体", PermissionCode: "/dcl/party/query", PermissionRoot: "/dcl/party/"},
 		{RouteKey: "bob/customer", RoutePath: "/bob/customer", DisplayName: "客户", PermissionCode: "/bob/customer/query", PermissionRoot: "/bob/customer/"},
 		{RouteKey: "bob/warehouse", RoutePath: "/bob/warehouse", DisplayName: "仓库", PermissionCode: "/bob/warehouse/query", PermissionRoot: "/bob/warehouse/"},
 	}
@@ -26,9 +25,6 @@ func TestDefaultMenuKeepsDCLDeclarationSeparateFromBOBCurrentData(t *testing.T) 
 	if !menuRouteUnderGroup(menu, "dcl/warehouse", "档案变更") {
 		t.Fatalf("DCL warehouse is not under its own declaration group: %+v", menu.Items)
 	}
-	if !menuRouteUnderGroup(menu, "dcl/party", "档案变更") {
-		t.Fatalf("DCL Party is not under its own declaration group: %+v", menu.Items)
-	}
 	if !menuRouteUnderGroup(menu, "bob/customer", "业务对象") {
 		t.Fatalf("BOB current data left the business-object group: %+v", menu.Items)
 	}
@@ -41,7 +37,6 @@ func TestDCLMenuDisplayNameKeepsOnlyObjectName(t *testing.T) {
 	cases := []struct {
 		entity, description, want string
 	}{
-		{"party", "查询主体声明", "主体"},
 		{"operating-entity", "查询经营主体申报", "经营主体"},
 		{"employee", "查询员工声明", "人员"},
 		{"wfl-process-definition", "查询流程定义声明", "流程定义"},

@@ -120,13 +120,6 @@ function registerPage(
 
 export const pageRegistrations: readonly PageRegistration[] = [
   registerPage('dcl', {
-    entity: 'party',
-    entityTitle: '主体变更',
-    icon: 'mdi-account-box-multiple-outline',
-    order: 5,
-    component: () => import('@/pages/dcl/party/Party.vue'),
-  }),
-  registerPage('dcl', {
     entity: 'operating-entity',
     entityTitle: '经营主体变更',
     icon: 'mdi-office-building-edit-outline',
@@ -252,13 +245,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-calendar-lock-outline',
     order: 50,
     component: () => import('@/pages/acc/period/Period.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'party',
-    entityTitle: '主体',
-    icon: 'mdi-account-box-multiple-outline',
-    order: 5,
-    component: () => import('@/pages/bob/party/Party.vue'),
   }),
   registerPage('bob', {
     entity: 'customer',

@@ -1124,7 +1124,7 @@
           'interestDays',
           'interestAmount',
           'customerCostAmount',
-          'originatingParty',
+          'originatingCounterparty',
           'sourceEntity',
           'sourceDocumentNo',
         ],
@@ -1152,7 +1152,7 @@
           'interestDays': { 'type': 'integer' },
           'interestAmount': { 'type': 'string' },
           'customerCostAmount': { 'type': 'string' },
-          'originatingParty': { '$ref': '#/VouBillReferenceView' },
+          'originatingCounterparty': { '$ref': '#/VouBillReferenceView' },
           'sourceEntity': { 'type': 'string' },
           'sourceDocumentNo': { 'type': 'string' },
         },
@@ -1211,7 +1211,7 @@
                     },
                   'dateFrom': { 'type': 'string', 'format': 'date' },
                   'dateTo': { 'type': 'string', 'format': 'date' },
-                  'partyObjectId': { 'type': 'string' },
+                  'counterpartyObjectId': { 'type': 'string' },
                 },
             },
           'sort':
@@ -1300,7 +1300,7 @@
           'status': { '$ref': './common.yaml#/ApprovalStatus' },
           'revision': { 'type': 'integer', 'format': 'int64' },
           'businessDate': { 'type': 'string', 'format': 'date' },
-          'partyName': { 'type': 'string' },
+          'counterpartyName': { 'type': 'string' },
           'currency': { 'type': 'string' },
           'amount': { 'type': 'string' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
@@ -3024,12 +3024,10 @@
   'VouServiceContractView':
     {
       'type': 'object',
-      'required': [counterparty, partyId, partyName, operatingEntity, handler],
+      'required': [counterparty, operatingEntity, handler],
       'properties':
         {
           'counterparty': { '$ref': '#/VouReferenceView' },
-          'partyId': { 'type': 'string' },
-          'partyName': { 'type': 'string' },
           'operatingEntity': { '$ref': '#/VouReferenceView' },
           'handler': { '$ref': '#/VouReferenceView' },
           'settlementMethod': { '$ref': '#/VouSettlementMethodSnapshotView' },

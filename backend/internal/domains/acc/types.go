@@ -50,17 +50,17 @@ const (
 	BalanceDirectionDebit  = "DEBIT"
 	BalanceDirectionCredit = "CREDIT"
 
-	DimensionCustomerAccount        = "CUSTOMER_ACCOUNT"
-	DimensionSupplierRelationship   = "SUPPLIER_RELATIONSHIP"
-	DimensionServiceRelationship    = "SERVICE_RELATIONSHIP"
-	DimensionEmploymentRelationship = "EMPLOYMENT_RELATIONSHIP"
-	DimensionSalesRelationship      = "SALES_RELATIONSHIP"
-	DimensionDepartment             = "DEPARTMENT"
-	DimensionProduct                = "PRODUCT"
-	DimensionWarehouse              = "WAREHOUSE"
-	DimensionFundAccount            = "FUND_ACCOUNT"
-	DimensionAsset                  = "ASSET"
-	DimensionBill                   = "BILL"
+	DimensionCustomerAccount = "CUSTOMER_ACCOUNT"
+	DimensionSupplier        = "SUPPLIER"
+	DimensionOtherUnit       = "OTHER_UNIT"
+	DimensionEmployee        = "EMPLOYEE"
+	DimensionSalesPartner    = "SALES_PARTNER"
+	DimensionDepartment      = "DEPARTMENT"
+	DimensionProduct         = "PRODUCT"
+	DimensionWarehouse       = "WAREHOUSE"
+	DimensionFundAccount     = "FUND_ACCOUNT"
+	DimensionAsset           = "ASSET"
+	DimensionBill            = "BILL"
 
 	SettlementPurposeNone           = "NONE"
 	SettlementPurposeReceivable     = "RECEIVABLE"
@@ -119,12 +119,22 @@ type SubjectPage struct {
 }
 
 type OpeningLineInput struct {
-	SubjectID    string            `json:"subjectId"`
-	Currency     string            `json:"currency"`
-	DebitAmount  string            `json:"debitAmount"`
-	CreditAmount string            `json:"creditAmount"`
-	Quantity     *string           `json:"quantity,omitempty"`
-	Dimensions   map[string]string `json:"dimensions"`
+	SubjectID           string                                       `json:"subjectId"`
+	Currency            string                                       `json:"currency"`
+	DebitAmount         string                                       `json:"debitAmount"`
+	CreditAmount        string                                       `json:"creditAmount"`
+	Quantity            *string                                      `json:"quantity,omitempty"`
+	Dimensions          map[string]string                            `json:"dimensions"`
+	DimensionReferences map[string]BusinessArchiveDimensionReference `json:"dimensionReferences"`
+}
+
+type BusinessArchiveDimensionReference struct {
+	Entity          string `json:"entity"`
+	ObjectID        string `json:"objectId"`
+	CustomerID      string `json:"customerId,omitempty"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }
 
 type OpeningAssetInput struct {
@@ -142,32 +152,24 @@ type OpeningAssetInput struct {
 }
 
 type OpeningBillInput struct {
-	BillID             string            `json:"billId,omitempty"`
-	BillNo             string            `json:"billNo,omitempty"`
-	BillType           string            `json:"billType,omitempty"`
-	PositionType       string            `json:"positionType,omitempty"`
-	Medium             string            `json:"medium,omitempty"`
-	Currency           string            `json:"currency"`
-	FaceAmount         string            `json:"faceAmount,omitempty"`
-	IssueDate          string            `json:"issueDate,omitempty"`
-	MaturityDate       string            `json:"maturityDate,omitempty"`
-	Drawer             string            `json:"drawer,omitempty"`
-	Acceptor           string            `json:"acceptor,omitempty"`
-	Payee              string            `json:"payee,omitempty"`
-	AnnualRateBps      int32             `json:"annualRateBps,omitempty"`
-	InterestDays       int32             `json:"interestDays,omitempty"`
-	InterestAmount     string            `json:"interestAmount,omitempty"`
-	CustomerCostAmount string            `json:"customerCostAmount,omitempty"`
-	ValueAmount        string            `json:"valueAmount"`
-	OriginatingParty   OpeningPartyInput `json:"originatingParty,omitempty"`
-}
-
-type OpeningPartyInput struct {
-	Entity          string `json:"entity"`
-	ObjectID        string `json:"objectId"`
-	ApprovalEntryID string `json:"approvalEntryId"`
-	Code            string `json:"code"`
-	Name            string `json:"name"`
+	BillID                  string                             `json:"billId,omitempty"`
+	BillNo                  string                             `json:"billNo,omitempty"`
+	BillType                string                             `json:"billType,omitempty"`
+	PositionType            string                             `json:"positionType,omitempty"`
+	Medium                  string                             `json:"medium,omitempty"`
+	Currency                string                             `json:"currency"`
+	FaceAmount              string                             `json:"faceAmount,omitempty"`
+	IssueDate               string                             `json:"issueDate,omitempty"`
+	MaturityDate            string                             `json:"maturityDate,omitempty"`
+	Drawer                  string                             `json:"drawer,omitempty"`
+	Acceptor                string                             `json:"acceptor,omitempty"`
+	Payee                   string                             `json:"payee,omitempty"`
+	AnnualRateBps           int32                              `json:"annualRateBps,omitempty"`
+	InterestDays            int32                              `json:"interestDays,omitempty"`
+	InterestAmount          string                             `json:"interestAmount,omitempty"`
+	CustomerCostAmount      string                             `json:"customerCostAmount,omitempty"`
+	ValueAmount             string                             `json:"valueAmount"`
+	OriginatingCounterparty *BusinessArchiveDimensionReference `json:"originatingCounterparty,omitempty"`
 }
 
 type OpeningContainerInput struct {
@@ -198,13 +200,14 @@ type OpeningBillView struct {
 type OpeningContainerView = OpeningContainerInput
 
 type OpeningLineView struct {
-	ID           string            `json:"lineId"`
-	SubjectID    string            `json:"subjectId"`
-	Currency     string            `json:"currency"`
-	DebitAmount  string            `json:"debitAmount"`
-	CreditAmount string            `json:"creditAmount"`
-	Quantity     *string           `json:"quantity"`
-	Dimensions   map[string]string `json:"dimensions"`
+	ID                  string                                       `json:"lineId"`
+	SubjectID           string                                       `json:"subjectId"`
+	Currency            string                                       `json:"currency"`
+	DebitAmount         string                                       `json:"debitAmount"`
+	CreditAmount        string                                       `json:"creditAmount"`
+	Quantity            *string                                      `json:"quantity"`
+	Dimensions          map[string]string                            `json:"dimensions"`
+	DimensionReferences map[string]BusinessArchiveDimensionReference `json:"dimensionReferences"`
 }
 
 type OpeningView struct {

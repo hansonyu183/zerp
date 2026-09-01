@@ -77,14 +77,14 @@ func (s *Seeder) seedAccounting(ctx context.Context, counts *Counts) error {
 	}
 	serviceReceivable, err := s.ensureAccountingSubjectWithConfiguration(
 		ctx, book.ID, accountingActor, "122102", "测试服务往来应收", accdomain.BalanceDirectionDebit,
-		[]string{accdomain.DimensionServiceRelationship}, accdomain.SettlementPurposeOther,
+		[]string{accdomain.DimensionOtherUnit}, accdomain.SettlementPurposeOther,
 	)
 	if err != nil {
 		return err
 	}
 	servicePayable, err := s.ensureAccountingSubjectWithConfiguration(
 		ctx, book.ID, accountingActor, "224102", "测试服务往来应付", accdomain.BalanceDirectionCredit,
-		[]string{accdomain.DimensionServiceRelationship}, accdomain.SettlementPurposeOther,
+		[]string{accdomain.DimensionOtherUnit}, accdomain.SettlementPurposeOther,
 	)
 	if err != nil {
 		return err
@@ -115,10 +115,10 @@ func (s *Seeder) seedAccounting(ctx context.Context, counts *Counts) error {
 			definition.Templates = []accdomain.PostingTemplate{
 				{ID: payableTemplateID, Lines: []accdomain.PostingLineTemplate{
 					{SubjectSource: "FIXED", SubjectValue: serviceExpense.ID, Direction: accdomain.BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
-					{SubjectSource: "FIXED", SubjectValue: servicePayable.ID, Direction: accdomain.BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{accdomain.DimensionServiceRelationship: "counterparty.objectId"}},
+					{SubjectSource: "FIXED", SubjectValue: servicePayable.ID, Direction: accdomain.BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{accdomain.DimensionOtherUnit: "counterparty.objectId"}},
 				}},
 				{ID: receivableTemplateID, Lines: []accdomain.PostingLineTemplate{
-					{SubjectSource: "FIXED", SubjectValue: serviceReceivable.ID, Direction: accdomain.BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{accdomain.DimensionServiceRelationship: "counterparty.objectId"}},
+					{SubjectSource: "FIXED", SubjectValue: serviceReceivable.ID, Direction: accdomain.BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{accdomain.DimensionOtherUnit: "counterparty.objectId"}},
 					{SubjectSource: "FIXED", SubjectValue: serviceIncome.ID, Direction: accdomain.BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 				}},
 			}

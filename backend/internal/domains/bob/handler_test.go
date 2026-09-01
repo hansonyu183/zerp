@@ -53,16 +53,6 @@ func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQue
 	return []ReferenceCandidate{}, nil
 }
 
-func (s *serviceStub) PartyQuery(_ context.Context, input QueryInput) (Page[PartyListItem], error) {
-	s.record("query", "party")
-	return Page[PartyListItem]{Items: []PartyListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
-}
-
-func (s *serviceStub) PartyGet(_ context.Context, _ PartyGetInput, _ PartyRelationshipVisibility) (PartyView, error) {
-	s.record("get", "party")
-	return PartyView{}, nil
-}
-
 func testBOBLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
@@ -99,7 +89,6 @@ func TestHandlerRegistersReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 	wanted["/bob/supplier/query"] = false
 	wanted["/bob/supplier/get"] = false
 	for _, path := range []string{
-		"/bob/party/query", "/bob/party/get",
 		"/bob/other-unit/query", "/bob/other-unit/get",
 		"/bob/sales-partner/query", "/bob/sales-partner/get",
 	} {
@@ -302,30 +291,6 @@ func TestCurrentQueryItemExposesDCLSourceInsteadOfApprovalSummary(t *testing.T) 
 	}
 	if _, exists := fields["latestApproved"]; exists {
 		t.Fatalf("legacy approval summary is public: %#v", fields)
-	}
-}
-
-func TestPartyCurrentResponsesExposeDCLSource(t *testing.T) {
-	values := []any{
-		PartyListItem{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
-		PartyView{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
-		PartyRelationshipCard{SourceApprovalEntryID: "01J00000000000000000000010", SourceVersionNo: 7},
-	}
-	for _, value := range values {
-		payload, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var fields map[string]any
-		if err = json.Unmarshal(payload, &fields); err != nil {
-			t.Fatal(err)
-		}
-		if fields["sourceApprovalEntryId"] != "01J00000000000000000000010" || fields["sourceVersionNo"] != float64(7) {
-			t.Fatalf("Party current source = %#v", fields)
-		}
-		if _, exists := fields["approval"]; exists {
-			t.Fatalf("legacy approval metadata is public: %#v", fields)
-		}
 	}
 }
 

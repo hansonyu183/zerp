@@ -13,7 +13,8 @@ import (
 
 type depreciationCandidate struct {
 	assetID, currency, accumulatedSubjectID, expenseSubjectID string
-	accumulatedDimensions, expenseDimensions                  []byte
+	accumulatedDimensions, accumulatedDimensionReferences     []byte
+	expenseDimensions, expenseDimensionReferences             []byte
 	original, accumulated                                     int64
 	residualBPS                                               int32
 	usefulLife                                                int32
@@ -32,7 +33,8 @@ func settleDepreciation(ctx context.Context, q *dbsqlc.Queries, bookID string, m
 			accumulated: row.AccumulatedDepreciationMinor, residualBPS: row.ResidualRateBps,
 			usefulLife: row.UsefulLifeMonths, acquiredOn: row.AcquiredOn.Time,
 			accumulatedSubjectID: row.AccumulatedSubjectID, accumulatedDimensions: row.AccumulatedDimensions,
-			expenseSubjectID: row.ExpenseSubjectID, expenseDimensions: row.ExpenseDimensions,
+			accumulatedDimensionReferences: row.AccumulatedDimensionReferences,
+			expenseSubjectID:               row.ExpenseSubjectID, expenseDimensions: row.ExpenseDimensions, expenseDimensionReferences: row.ExpenseDimensionReferences,
 		})
 	}
 	type calculated struct {
@@ -80,10 +82,11 @@ func settleDepreciation(ctx context.Context, q *dbsqlc.Queries, bookID string, m
 	lineOrder := 0
 	for _, item := range calculatedRows {
 		for _, line := range []struct {
-			subject    string
-			dimensions []byte
-			debit      bool
-		}{{item.expenseSubjectID, item.expenseDimensions, true}, {item.accumulatedSubjectID, item.accumulatedDimensions, false}} {
+			subject             string
+			dimensions          []byte
+			dimensionReferences []byte
+			debit               bool
+		}{{item.expenseSubjectID, item.expenseDimensions, item.expenseDimensionReferences, true}, {item.accumulatedSubjectID, item.accumulatedDimensions, item.accumulatedDimensionReferences, false}} {
 			debit, credit := int64(0), int64(0)
 			if line.debit {
 				debit = item.amount
@@ -92,7 +95,7 @@ func settleDepreciation(ctx context.Context, q *dbsqlc.Queries, bookID string, m
 			}
 			if err = q.InsertAccountingVoucherLine(ctx, dbsqlc.InsertAccountingVoucherLineParams{
 				ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, SubjectID: line.subject,
-				Currency: "CNY", DebitMinor: debit, CreditMinor: credit, Dimensions: line.dimensions,
+				Currency: "CNY", DebitMinor: debit, CreditMinor: credit, Dimensions: line.dimensions, DimensionReferences: line.dimensionReferences,
 				SourceLineID: item.assetID, LineOrder: int32(lineOrder),
 			}); err != nil {
 				return databaseError("create depreciation voucher line", err)

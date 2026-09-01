@@ -698,13 +698,11 @@ func normalizeLoadCapacity(value string) string {
 
 func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, error) {
 	input.Keyword = strings.TrimSpace(input.Keyword)
-	input.PartyKind = strings.ToUpper(strings.TrimSpace(input.PartyKind))
 	input.ProductTypeID = strings.TrimSpace(input.ProductTypeID)
 	input.CategoryID = strings.TrimSpace(input.CategoryID)
 	input.DefaultPurchaserEmployeeID = strings.TrimSpace(input.DefaultPurchaserEmployeeID)
 	input.OperatingEntityID = strings.TrimSpace(input.OperatingEntityID)
 	if utf8.RuneCountInString(input.Keyword) > 128 ||
-		(input.PartyKind != "" && input.PartyKind != PartyKindPerson && input.PartyKind != PartyKindOrganization) ||
 		(input.ProductTypeID != "" && !validID(input.ProductTypeID)) {
 		return QueryFilters{}, domainError(ErrorValidation, "invalid query filters", nil, nil)
 	}
@@ -721,8 +719,6 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 			accepted[field] = true
 		}
 		values := map[string]bool{
-			"kind":       input.PartyKind != "" || input.provided["kind"],
-			"merged":     input.Merged != nil || input.provided["merged"],
 			"categoryId": input.CategoryID != "" || input.provided["categoryId"],
 			"defaultPurchaserEmployeeId": input.DefaultPurchaserEmployeeID != "" ||
 				input.provided["defaultPurchaserEmployeeId"],
@@ -739,8 +735,6 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	}
 	var unexpected bool
 	switch entity {
-	case "party":
-		unexpected = hasUnexpected("kind")
 	case EntityProduct:
 		unexpected = hasUnexpected("categoryId", "productTypeId")
 	case EntitySupplier:

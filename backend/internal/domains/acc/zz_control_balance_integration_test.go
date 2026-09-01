@@ -17,7 +17,8 @@ func TestZZControlBookFundsAndSettlementBalancesIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
 	service := defaultIntegrationACCService(pool)
-	fundAccountID, customerID := ulid.Make().String(), ulid.Make().String()
+	fundAccountID := ulid.Make().String()
+	customer := createAccountingCustomerAccountSnapshot(t, pool, "资金控制客户账户")
 
 	type bookSubjects struct {
 		book          BookView
@@ -47,8 +48,8 @@ func TestZZControlBookFundsAndSettlementBalancesIntegration(t *testing.T) {
 			}
 			draft, saveErr := service.SaveOpening(t.Context(), SaveOpeningInput{BookID: book.ID, Lines: []OpeningLineInput{
 				{SubjectID: cash.ID, Currency: "CNY", DebitAmount: "150.00", CreditAmount: "0", Dimensions: map[string]string{DimensionFundAccount: fundAccountID}},
-				{SubjectID: advance.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "80.00", Dimensions: map[string]string{DimensionCustomerAccount: customerID}},
-				{SubjectID: other.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "70.00", Dimensions: map[string]string{DimensionCustomerAccount: customerID}},
+				{SubjectID: advance.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "80.00", Dimensions: map[string]string{DimensionCustomerAccount: customer.ObjectID}, DimensionReferences: map[string]BusinessArchiveDimensionReference{DimensionCustomerAccount: {Entity: "customer-account", ObjectID: customer.ObjectID, CustomerID: customer.CustomerID, ApprovalEntryID: customer.ApprovalEntryID, Code: customer.Code, Name: customer.Name}}},
+				{SubjectID: other.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "70.00", Dimensions: map[string]string{DimensionCustomerAccount: customer.ObjectID}, DimensionReferences: map[string]BusinessArchiveDimensionReference{DimensionCustomerAccount: {Entity: "customer-account", ObjectID: customer.ObjectID, CustomerID: customer.CustomerID, ApprovalEntryID: customer.ApprovalEntryID, Code: customer.Code, Name: customer.Name}}},
 			}}, integrationACCActor(t, adminID, "acc-control-opening-save-"+book.ID))
 			if saveErr != nil {
 				t.Fatal(saveErr)
@@ -75,12 +76,12 @@ func TestZZControlBookFundsAndSettlementBalancesIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	advance, err := service.PartyBalance(t.Context(), tx, voudomain.PartyBalanceQuery{CounterpartyDimension: DimensionCustomerAccount, CounterpartyObjectID: customerID, Currency: "CNY", SettlementPurpose: SettlementPurposeAdvanceReceipt, AsOfDate: time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)})
+	advance, err := service.PartyBalance(t.Context(), tx, voudomain.PartyBalanceQuery{CounterpartyDimension: DimensionCustomerAccount, CounterpartyObjectID: customer.ObjectID, Currency: "CNY", SettlementPurpose: SettlementPurposeAdvanceReceipt, AsOfDate: time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)})
 	if err != nil {
 		_ = tx.Rollback(t.Context())
 		t.Fatal(err)
 	}
-	receivable, err := service.PartyBalance(t.Context(), tx, voudomain.PartyBalanceQuery{CounterpartyDimension: DimensionCustomerAccount, CounterpartyObjectID: customerID, Currency: "CNY", SettlementPurpose: SettlementPurposeReceivable, AsOfDate: time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)})
+	receivable, err := service.PartyBalance(t.Context(), tx, voudomain.PartyBalanceQuery{CounterpartyDimension: DimensionCustomerAccount, CounterpartyObjectID: customer.ObjectID, Currency: "CNY", SettlementPurpose: SettlementPurposeReceivable, AsOfDate: time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)})
 	_ = tx.Rollback(t.Context())
 	if err != nil || advance != 8000 || receivable != 0 {
 		t.Fatalf("settlement balances advance=%d receivable=%d err=%v", advance, receivable, err)

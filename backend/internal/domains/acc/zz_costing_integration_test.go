@@ -3,10 +3,12 @@
 package acc
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -16,6 +18,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	service := defaultIntegrationACCService(pool)
 	productID, warehouseID := ulid.Make().String(), ulid.Make().String()
 	product := createAccountingProductSnapshot(t, pool, productID, "成本测试产品 V1")
+	account := createAccountingCustomerAccountSnapshot(t, pool, "成本结转客户账户")
 	book, err := service.CreateBook(t.Context(), CreateBookInput{Name: "成本账", StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
 	if err != nil {
 		t.Fatal(err)
@@ -28,7 +31,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	cost, err := service.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "6401", Name: "主营业务成本", BalanceDirection: BalanceDirectionDebit, Enabled: true, RequiredDimensions: []string{DimensionProduct}, SettlementPurpose: SettlementPurposeNone}, adminID)
+	cost, err := service.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "6401", Name: "主营业务成本", BalanceDirection: BalanceDirectionDebit, Enabled: true, RequiredDimensions: []string{DimensionProduct, DimensionCustomerAccount}, SettlementPurpose: SettlementPurposeNone}, adminID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,14 +48,23 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	templateID, quantityField := "sale-cost", "baseQuantity"
 	costSubjectID := cost.ID
 	mapping, err := createDCLIntegrationMapping(t, service, dclMappingFixtureInput{BookID: book.ID, VouEntity: voudomain.EntitySaleOrder, DefaultResult: MappingResultPost, Definition: MappingDefinition{DefaultTemplateID: &templateID, Templates: []PostingTemplate{{ID: templateID, Collection: stringPointer("productLines"), Lines: []PostingLineTemplate{
-		{SubjectSource: "FIXED", SubjectValue: inventory.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", QuantityField: &quantityField, Dimensions: map[string]string{DimensionProduct: "product.objectId", DimensionWarehouse: "warehouse.objectId"}, CostCounterpartSubjectID: &costSubjectID, CostCounterpartDimensions: map[string]string{DimensionProduct: "product.objectId"}},
+		{SubjectSource: "FIXED", SubjectValue: inventory.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", QuantityField: &quantityField, Dimensions: map[string]string{DimensionProduct: "product.objectId", DimensionWarehouse: "warehouse.objectId"}, CostCounterpartSubjectID: &costSubjectID, CostCounterpartDimensions: map[string]string{DimensionProduct: "product.objectId", DimensionCustomerAccount: "customer.objectId"}},
 		{SubjectSource: "FIXED", SubjectValue: equity.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 	}}}}}, integrationACCActor(t, adminID, "acc-costing-mapping-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	approveIntegrationMapping(t, service, book.ID, voudomain.EntitySaleOrder, mapping)
-	event := inventoryApprovalEvent(product, warehouseID, "2")
+	event := approvedVOUEvent(voudomain.DocumentView{
+		DocumentID: ulid.Make().String(), Entity: voudomain.EntitySaleOrder, DocumentNo: "SO-COST-SNAPSHOT",
+		Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3}, Amount: "0",
+		Data: voudomain.DocumentDataView{
+			BusinessDate: "2026-07-25", Currency: "CNY",
+			Customer:     &voudomain.ReferenceView{Entity: "customer-account", ObjectID: account.ObjectID, CustomerID: account.CustomerID, ApprovalEntryID: account.ApprovalEntryID, Code: account.Code, Name: account.Name},
+			Warehouse:    &voudomain.ReferenceView{ObjectID: warehouseID},
+			ProductLines: []voudomain.ProductLineView{{LineID: ulid.Make().String(), Product: voudomain.ReferenceView{ObjectID: product.ObjectID, ApprovalEntryID: product.ApprovalEntryID, Code: product.Code, Name: product.Name}, BaseQuantity: "2"}},
+		},
+	})
 	deliverApprovalEvent(t, pool, service, event, false)
 
 	locked, err := service.LockPeriod(t.Context(), PeriodActionInput{BookID: book.ID, Month: "2026-07", Revision: 0}, adminID)
@@ -69,6 +81,17 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	}
 	if allocations != 2 || allocated != 7000 || debit != 2000 || credit != 2000 {
 		t.Fatalf("cost facts allocations=%d allocated=%d voucher=%d/%d", allocations, allocated, debit, credit)
+	}
+	var encodedReferences []byte
+	if err = pool.QueryRow(t.Context(), `SELECT line.dimension_references FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id WHERE voucher.book_id=$1 AND voucher.source_type='COST_SETTLEMENT' AND line.subject_id=$2`, book.ID, cost.ID).Scan(&encodedReferences); err != nil {
+		t.Fatal(err)
+	}
+	var references map[string]BusinessArchiveDimensionReference
+	if err = json.Unmarshal(encodedReferences, &references); err != nil {
+		t.Fatal(err)
+	}
+	if got := references[DimensionCustomerAccount]; got.CustomerID != account.CustomerID || got.ObjectID != account.ObjectID || got.ApprovalEntryID != account.ApprovalEntryID {
+		t.Fatalf("cost counterpart reference = %#v, want customer=%s account=%s entry=%s", got, account.CustomerID, account.ObjectID, account.ApprovalEntryID)
 	}
 	if _, err = service.UnlockPeriod(t.Context(), PeriodActionInput{BookID: book.ID, Month: "2026-07", Revision: locked.Revision}, adminID); err != nil {
 		t.Fatal(err)

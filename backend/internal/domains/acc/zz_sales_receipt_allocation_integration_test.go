@@ -34,10 +34,12 @@ func TestZZSalesReceiptSplitsReceivableAndAdvanceByAccountIntegration(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	accountA, accountB, fundID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
+	accountA := createAccountingCustomerAccountSnapshot(t, pool, "客户账户甲")
+	accountB := createAccountingCustomerAccountSnapshot(t, pool, "客户账户乙")
+	fundID := ulid.Make().String()
 	opening, err := service.SaveOpening(t.Context(), SaveOpeningInput{BookID: book.ID, Lines: []OpeningLineInput{
-		{SubjectID: receivable.ID, Currency: "CNY", DebitAmount: "70.00", CreditAmount: "0", Dimensions: map[string]string{DimensionCustomerAccount: accountA}},
-		{SubjectID: receivable.ID, Currency: "CNY", DebitAmount: "20.00", CreditAmount: "0", Dimensions: map[string]string{DimensionCustomerAccount: accountB}},
+		{SubjectID: receivable.ID, Currency: "CNY", DebitAmount: "70.00", CreditAmount: "0", Dimensions: map[string]string{DimensionCustomerAccount: accountA.ObjectID}, DimensionReferences: map[string]BusinessArchiveDimensionReference{DimensionCustomerAccount: {Entity: "customer-account", ObjectID: accountA.ObjectID, CustomerID: accountA.CustomerID, ApprovalEntryID: accountA.ApprovalEntryID, Code: accountA.Code, Name: accountA.Name}}},
+		{SubjectID: receivable.ID, Currency: "CNY", DebitAmount: "20.00", CreditAmount: "0", Dimensions: map[string]string{DimensionCustomerAccount: accountB.ObjectID}, DimensionReferences: map[string]BusinessArchiveDimensionReference{DimensionCustomerAccount: {Entity: "customer-account", ObjectID: accountB.ObjectID, CustomerID: accountB.CustomerID, ApprovalEntryID: accountB.ApprovalEntryID, Code: accountB.Code, Name: accountB.Name}}},
 		{SubjectID: equity.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "90.00", Dimensions: map[string]string{}},
 	}}, integrationACCActor(t, adminID, "sales-receipt-opening-save"))
 	if err != nil {
@@ -60,8 +62,8 @@ func TestZZSalesReceiptSplitsReceivableAndAdvanceByAccountIntegration(t *testing
 	event := approvedVOUEvent(voudomain.DocumentView{DocumentID: documentID, Entity: voudomain.EntitySalesReceipt, DocumentNo: "SRC-20260724-0001", Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3}, Amount: "150.00", Data: voudomain.DocumentDataView{
 		BusinessDate: "2026-07-24", Currency: "CNY", FundAccount: &voudomain.ReferenceView{ObjectID: fundID},
 		AccountAllocations: []voudomain.SalesReceiptAccountAllocationView{
-			{Account: voudomain.ReferenceView{ObjectID: accountA}, Amount: "100.00"},
-			{Account: voudomain.ReferenceView{ObjectID: accountB}, Amount: "50.00"},
+			{Account: voudomain.ReferenceView{ObjectID: accountA.ObjectID, CustomerID: accountA.CustomerID, Entity: "customer-account", ApprovalEntryID: accountA.ApprovalEntryID, Code: accountA.Code, Name: accountA.Name}, Amount: "100.00"},
+			{Account: voudomain.ReferenceView{ObjectID: accountB.ObjectID, CustomerID: accountB.CustomerID, Entity: "customer-account", ApprovalEntryID: accountB.ApprovalEntryID, Code: accountB.Code, Name: accountB.Name}, Amount: "50.00"},
 		},
 	}})
 	tx, err := pool.Begin(t.Context())
@@ -85,8 +87,15 @@ func TestZZSalesReceiptSplitsReceivableAndAdvanceByAccountIntegration(t *testing
 		}
 	}
 	assertAmount(cash.ID, "", 15000, 0)
-	assertAmount(receivable.ID, accountA, 0, 7000)
-	assertAmount(receivable.ID, accountB, 0, 2000)
-	assertAmount(advance.ID, accountA, 0, 3000)
-	assertAmount(advance.ID, accountB, 0, 3000)
+	assertAmount(receivable.ID, accountA.ObjectID, 0, 7000)
+	assertAmount(receivable.ID, accountB.ObjectID, 0, 2000)
+	assertAmount(advance.ID, accountA.ObjectID, 0, 3000)
+	assertAmount(advance.ID, accountB.ObjectID, 0, 3000)
+	var stored BusinessArchiveDimensionReference
+	if err = pool.QueryRow(t.Context(), `SELECT line.dimension_references->'CUSTOMER_ACCOUNT' FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id WHERE voucher.source_id=$1 AND line.subject_id=$2 AND line.dimensions->>'CUSTOMER_ACCOUNT'=$3 LIMIT 1`, documentID, receivable.ID, accountA.ObjectID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored.ObjectID != accountA.ObjectID || stored.CustomerID != accountA.CustomerID || stored.ApprovalEntryID != accountA.ApprovalEntryID || stored.Code != accountA.Code || stored.Name != accountA.Name {
+		t.Fatalf("stored customer account snapshot = %#v, want %#v", stored, accountA)
+	}
 }

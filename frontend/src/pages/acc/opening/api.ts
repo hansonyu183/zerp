@@ -1,4 +1,4 @@
-import { apiClient } from '@/api/client'
+import { apiClient, type ApiPostRequest } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 
 export type OpeningContract = components['schemas']['Opening']
@@ -13,6 +13,13 @@ export function queryAccountingOpening(bookId: string) {
 
 export function saveAccountingOpening(input: AccountingOpeningSaveInput) {
   return apiClient.postContract('acc/opening/save', input)
+}
+
+export function queryOpeningBusinessArchiveReferences(
+  input: ApiPostRequest<'bob/reference/query'>,
+  signal?: AbortSignal,
+) {
+  return apiClient.postContract('bob/reference/query', input, { signal })
 }
 
 export function openingApprovalAction(

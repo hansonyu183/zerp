@@ -31,6 +31,7 @@ func (s *Service) writeSaleDetail(
 	}
 	params := dbsqlc.InsertVouSaleOrderDetailParams{
 		DocumentID: documentID, CustomerObjectID: refs.Customer.ObjectID,
+		CustomerID:              refs.Customer.CustomerID,
 		CustomerApprovalEntryID: refs.Customer.ApprovalEntryID, CustomerCode: refs.Customer.Code, CustomerName: refs.Customer.Data.Name,
 		SalespersonObjectID:        stringPtr(refs.Salesperson.ObjectID),
 		SalespersonApprovalEntryID: stringPtr(refs.Salesperson.ApprovalEntryID),
@@ -160,8 +161,9 @@ func (s *Service) writeCashDetail(
 	if receiptEntity(entity) {
 		params := dbsqlc.InsertVouReceiptDetailParams{
 			DocumentID: documentID, Entity: entity, CounterpartyEntity: stringPtr(draft.CounterpartyType),
-			CounterpartyObjectID: stringPtr(counterparty.ObjectID), CounterpartyApprovalEntryID: stringPtr(counterparty.ApprovalEntryID),
-			CounterpartyCode: stringPtr(counterparty.Code), CounterpartyName: stringPtr(counterparty.Data.Name),
+			CounterpartyObjectID: stringPtr(counterparty.ObjectID), CounterpartyCustomerID: optionalText(counterparty.CustomerID),
+			CounterpartyApprovalEntryID: stringPtr(counterparty.ApprovalEntryID),
+			CounterpartyCode:            stringPtr(counterparty.Code), CounterpartyName: stringPtr(counterparty.Data.Name),
 			FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountApprovalEntryID: refs.FundAccount.ApprovalEntryID,
 			FundAccountCode: refs.FundAccount.Code, FundAccountName: refs.FundAccount.Data.Name,
 			OtherCategory:   otherCategory,
@@ -171,6 +173,7 @@ func (s *Service) writeCashDetail(
 		if update {
 			rows, err := q.UpdateVouReceiptDetail(ctx, dbsqlc.UpdateVouReceiptDetailParams{
 				CounterpartyEntity: params.CounterpartyEntity, CounterpartyObjectID: params.CounterpartyObjectID,
+				CounterpartyCustomerID:      params.CounterpartyCustomerID,
 				CounterpartyApprovalEntryID: params.CounterpartyApprovalEntryID, CounterpartyCode: params.CounterpartyCode,
 				CounterpartyName: params.CounterpartyName, FundAccountObjectID: params.FundAccountObjectID,
 				FundAccountApprovalEntryID: params.FundAccountApprovalEntryID, FundAccountCode: params.FundAccountCode,
@@ -185,8 +188,9 @@ func (s *Service) writeCashDetail(
 	}
 	params := dbsqlc.InsertVouPaymentDetailParams{
 		DocumentID: documentID, Entity: entity, CounterpartyEntity: draft.CounterpartyType,
-		CounterpartyObjectID: counterparty.ObjectID, CounterpartyApprovalEntryID: counterparty.ApprovalEntryID,
-		CounterpartyCode: counterparty.Code, CounterpartyName: counterparty.Data.Name,
+		CounterpartyObjectID: counterparty.ObjectID, CounterpartyCustomerID: optionalText(counterparty.CustomerID),
+		CounterpartyApprovalEntryID: counterparty.ApprovalEntryID,
+		CounterpartyCode:            counterparty.Code, CounterpartyName: counterparty.Data.Name,
 		FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountApprovalEntryID: refs.FundAccount.ApprovalEntryID,
 		FundAccountCode: refs.FundAccount.Code, FundAccountName: refs.FundAccount.Data.Name,
 		OtherCategory:   otherCategory,
@@ -196,6 +200,7 @@ func (s *Service) writeCashDetail(
 	if update {
 		rows, err := q.UpdateVouPaymentDetail(ctx, dbsqlc.UpdateVouPaymentDetailParams{
 			CounterpartyEntity: params.CounterpartyEntity, CounterpartyObjectID: params.CounterpartyObjectID,
+			CounterpartyCustomerID:      params.CounterpartyCustomerID,
 			CounterpartyApprovalEntryID: params.CounterpartyApprovalEntryID, CounterpartyCode: params.CounterpartyCode,
 			CounterpartyName: params.CounterpartyName, FundAccountObjectID: params.FundAccountObjectID,
 			FundAccountApprovalEntryID: params.FundAccountApprovalEntryID, FundAccountCode: params.FundAccountCode,
@@ -318,14 +323,16 @@ func (s *Service) writeOtherIncomeDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
-	var ce, co, cv, cc, cn *string
+	var ce, co, customerID, cv, cc, cn *string
 	if refs.Counterparty != nil {
 		ce, co, cv, cc, cn = stringPtr(draft.CounterpartyType), stringPtr(refs.Counterparty.ObjectID),
 			stringPtr(refs.Counterparty.ApprovalEntryID), stringPtr(refs.Counterparty.Code), stringPtr(refs.Counterparty.Data.Name)
+		customerID = optionalText(refs.Counterparty.CustomerID)
 	}
 	params := dbsqlc.InsertVouOtherIncomeDetailParams{
 		DocumentID: documentID, SourceName: draft.SourceName, CounterpartyEntity: ce,
-		CounterpartyObjectID: co, CounterpartyApprovalEntryID: cv, CounterpartyCode: cc, CounterpartyName: cn,
+		CounterpartyObjectID: co, CounterpartyCustomerID: customerID,
+		CounterpartyApprovalEntryID: cv, CounterpartyCode: cc, CounterpartyName: cn,
 		FundAccountObjectID: refs.FundAccount.ObjectID, FundAccountApprovalEntryID: refs.FundAccount.ApprovalEntryID,
 		FundAccountCode: refs.FundAccount.Code, FundAccountName: refs.FundAccount.Data.Name,
 		HandlerObjectID: stringPtr(refs.Handler.ObjectID), HandlerApprovalEntryID: stringPtr(refs.Handler.ApprovalEntryID),
@@ -334,6 +341,7 @@ func (s *Service) writeOtherIncomeDetail(
 	if update {
 		rows, err := q.UpdateVouOtherIncomeDetail(ctx, dbsqlc.UpdateVouOtherIncomeDetailParams{
 			SourceName: params.SourceName, CounterpartyEntity: ce, CounterpartyObjectID: co,
+			CounterpartyCustomerID:      customerID,
 			CounterpartyApprovalEntryID: cv, CounterpartyCode: cc, CounterpartyName: cn,
 			FundAccountObjectID: params.FundAccountObjectID, FundAccountApprovalEntryID: params.FundAccountApprovalEntryID,
 			FundAccountCode: params.FundAccountCode, FundAccountName: params.FundAccountName,

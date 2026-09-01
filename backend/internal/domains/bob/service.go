@@ -20,13 +20,6 @@ type Service struct {
 	auxiliaryResolver AuxiliaryResolver
 }
 
-// PartyDeclarationCreator is implemented by DCL. Relationship creation owns
-// the surrounding transaction; DCL creates the stable root and V1 candidate
-// inside it without committing.
-type PartyDeclarationCreator interface {
-	CreateForRelationship(context.Context, pgx.Tx, PartyCreateData, approval.Actor, bool) (PartyRelationshipResolved, error)
-}
-
 type AuxiliaryResolver interface {
 	ResolveCurrentAuxiliaryReference(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
 	ResolveAuxiliaryCode(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)

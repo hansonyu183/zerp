@@ -2,8 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type DclPartyVersionRequest = {
-  partyId: string;
+export type WflCounterpartyReference = {
+  entity: 'customer-account' | 'supplier' | 'employee';
+  objectId: string;
   approvalEntryId: string;
-  approvalRevision: number;
+  code: string;
+  name: string;
 };

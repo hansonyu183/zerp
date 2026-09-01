@@ -277,25 +277,6 @@ func (q *Queries) FindDCLSeedSubjectID(ctx context.Context, arg FindDCLSeedSubje
 	return subject_id, err
 }
 
-const getBobEmployeeRelationship = `-- name: GetBobEmployeeRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_employment_relationships WHERE object_id=$1
-`
-
-func (q *Queries) GetBobEmployeeRelationship(ctx context.Context, objectID string) (DclEmploymentRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobEmployeeRelationship, objectID)
-	var i DclEmploymentRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
-}
-
 const getBobFundAccountCurrent = `-- name: GetBobFundAccountCurrent :one
 SELECT subject.id object_id,subject.entity,subject.code,snapshot.approval_entry_id source_approval_entry_id,snapshot.name,snapshot.currency,snapshot.account_name,snapshot.bank_name,snapshot.bank_branch,snapshot.account_number,snapshot.remark,snapshot.operating_entity_id,snapshot.operating_entity_approval_entry_id,snapshot.operating_entity_code,snapshot.operating_entity_name,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision approval_revision,entry.created_by,entry.created_at,entry.updated_by approval_updated_by,entry.updated_at approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='fund-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_fund_account_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='fund-account'
 `
@@ -576,25 +557,6 @@ func (q *Queries) GetBobOperatingEntityCurrentReference(ctx context.Context, obj
 	return i, err
 }
 
-const getBobOtherUnitRelationship = `-- name: GetBobOtherUnitRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_service_relationships WHERE object_id=$1
-`
-
-func (q *Queries) GetBobOtherUnitRelationship(ctx context.Context, objectID string) (DclServiceRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobOtherUnitRelationship, objectID)
-	var i DclServiceRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
-}
-
 const getBobProductCurrent = `-- name: GetBobProductCurrent :one
 SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id
 FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
@@ -644,46 +606,6 @@ func (q *Queries) GetBobProductCurrentReference(ctx context.Context, objectID st
 		&i.Code,
 		&i.ApprovalEntryID,
 		&i.VersionNo,
-	)
-	return i, err
-}
-
-const getBobSalesPartnerRelationship = `-- name: GetBobSalesPartnerRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_sales_relationships WHERE object_id=$1
-`
-
-func (q *Queries) GetBobSalesPartnerRelationship(ctx context.Context, objectID string) (DclSalesRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobSalesPartnerRelationship, objectID)
-	var i DclSalesRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
-}
-
-const getBobSupplierRelationship = `-- name: GetBobSupplierRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_supplier_relationships WHERE object_id=$1
-`
-
-// BOB validates business rules through DCL-owned typed relationship identities.
-// DCL is their only writer.
-func (q *Queries) GetBobSupplierRelationship(ctx context.Context, objectID string) (DclSupplierRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobSupplierRelationship, objectID)
-	var i DclSupplierRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
 	)
 	return i, err
 }
@@ -950,8 +872,8 @@ const getDCLProductFormula = `-- name: GetDCLProductFormula :one
 SELECT product_approval_entry_id, output_base_quantity_micros, output_entered_quantity_micros, output_unit_object_id, output_unit_code, output_unit_name, output_unit_symbol, output_unit_quantity_scale FROM dcl_product_formulas WHERE product_approval_entry_id=$1
 `
 
-// DCL Product snapshots are keyed by their DCL Approval entry; DCL owns every
-// mutation and BOB reads the selected approved snapshot.
+// BOB validates business rules through DCL-owned typed relationship identities.
+// DCL is their only writer.
 func (q *Queries) GetDCLProductFormula(ctx context.Context, productApprovalEntryID string) (DclProductFormula, error) {
 	row := q.db.QueryRow(ctx, getDCLProductFormula, productApprovalEntryID)
 	var i DclProductFormula

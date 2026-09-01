@@ -18,10 +18,10 @@ func TestSynchronizeMenuRoutesInitializesCatalogAndIsIdempotent(t *testing.T) {
 	if err != nil || !menuContainsRoute(initialized.BusinessMenu, "app/menu") {
 		t.Fatalf("initialized menu = %+v, %v", initialized, err)
 	}
-	// The authoritative runtime surface has 94 routes after the independent
-	// DCL and BOB customer-account pages were retired, including eight RPT instances.
-	if got := menuRouteTotal(initialized.BusinessMenu); got != 94 {
-		t.Fatalf("runtime menu route count = %d, want 94", got)
+	// The authoritative runtime surface has 92 routes after Party and the
+	// independent customer-account pages were retired, including eight RPT instances.
+	if got := menuRouteTotal(initialized.BusinessMenu); got != 92 {
+		t.Fatalf("runtime menu route count = %d, want 92", got)
 	}
 	if err = service.SynchronizeMenuRoutes(t.Context()); err != nil {
 		t.Fatalf("idempotent menu route synchronization: %v", err)

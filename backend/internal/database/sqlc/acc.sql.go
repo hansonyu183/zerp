@@ -299,28 +299,32 @@ func (q *Queries) CreateAccountingAsset(ctx context.Context, arg CreateAccountin
 const createAccountingAssetBookValue = `-- name: CreateAccountingAssetBookValue :exec
 INSERT INTO acc_asset_book_values (
   book_id,asset_id,currency,original_minor,accumulated_depreciation_minor,
-  asset_subject_id,asset_dimensions,accumulated_subject_id,accumulated_dimensions,
-  expense_subject_id,expense_dimensions
+  asset_subject_id,asset_dimensions,asset_dimension_references,
+  accumulated_subject_id,accumulated_dimensions,accumulated_dimension_references,
+  expense_subject_id,expense_dimensions,expense_dimension_references
 ) VALUES (
   $1,$2,$3,$4,
-  $5,$6,$7,
-  $8,$9,
-  $10,$11
+  $5,$6,$7,$8,
+  $9,$10,$11,
+  $12,$13,$14
 )
 `
 
 type CreateAccountingAssetBookValueParams struct {
-	BookID                string  `db:"book_id" json:"book_id"`
-	AssetID               string  `db:"asset_id" json:"asset_id"`
-	Currency              string  `db:"currency" json:"currency"`
-	OriginalMinor         int64   `db:"original_minor" json:"original_minor"`
-	AccumulatedMinor      int64   `db:"accumulated_minor" json:"accumulated_minor"`
-	AssetSubjectID        *string `db:"asset_subject_id" json:"asset_subject_id"`
-	AssetDimensions       []byte  `db:"asset_dimensions" json:"asset_dimensions"`
-	AccumulatedSubjectID  *string `db:"accumulated_subject_id" json:"accumulated_subject_id"`
-	AccumulatedDimensions []byte  `db:"accumulated_dimensions" json:"accumulated_dimensions"`
-	ExpenseSubjectID      *string `db:"expense_subject_id" json:"expense_subject_id"`
-	ExpenseDimensions     []byte  `db:"expense_dimensions" json:"expense_dimensions"`
+	BookID                         string  `db:"book_id" json:"book_id"`
+	AssetID                        string  `db:"asset_id" json:"asset_id"`
+	Currency                       string  `db:"currency" json:"currency"`
+	OriginalMinor                  int64   `db:"original_minor" json:"original_minor"`
+	AccumulatedMinor               int64   `db:"accumulated_minor" json:"accumulated_minor"`
+	AssetSubjectID                 *string `db:"asset_subject_id" json:"asset_subject_id"`
+	AssetDimensions                []byte  `db:"asset_dimensions" json:"asset_dimensions"`
+	AssetDimensionReferences       []byte  `db:"asset_dimension_references" json:"asset_dimension_references"`
+	AccumulatedSubjectID           *string `db:"accumulated_subject_id" json:"accumulated_subject_id"`
+	AccumulatedDimensions          []byte  `db:"accumulated_dimensions" json:"accumulated_dimensions"`
+	AccumulatedDimensionReferences []byte  `db:"accumulated_dimension_references" json:"accumulated_dimension_references"`
+	ExpenseSubjectID               *string `db:"expense_subject_id" json:"expense_subject_id"`
+	ExpenseDimensions              []byte  `db:"expense_dimensions" json:"expense_dimensions"`
+	ExpenseDimensionReferences     []byte  `db:"expense_dimension_references" json:"expense_dimension_references"`
 }
 
 func (q *Queries) CreateAccountingAssetBookValue(ctx context.Context, arg CreateAccountingAssetBookValueParams) error {
@@ -332,10 +336,13 @@ func (q *Queries) CreateAccountingAssetBookValue(ctx context.Context, arg Create
 		arg.AccumulatedMinor,
 		arg.AssetSubjectID,
 		arg.AssetDimensions,
+		arg.AssetDimensionReferences,
 		arg.AccumulatedSubjectID,
 		arg.AccumulatedDimensions,
+		arg.AccumulatedDimensionReferences,
 		arg.ExpenseSubjectID,
 		arg.ExpenseDimensions,
+		arg.ExpenseDimensionReferences,
 	)
 	return err
 }
@@ -344,8 +351,8 @@ const createAccountingBill = `-- name: CreateAccountingBill :exec
 INSERT INTO acc_bills (
   id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,
   issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,
-  interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,
+  interest_amount_minor,customer_cost_amount_minor,origin_counterparty_entity,
+  origin_counterparty_object_id,origin_counterparty_customer_id,origin_counterparty_approval_entry_id,origin_counterparty_code,origin_counterparty_name,
   state,source_document_id,source_line_id
 ) VALUES (
   $1,$2,$3,$4,
@@ -353,36 +360,37 @@ INSERT INTO acc_bills (
   $9,$10,$11,$12,
   $13,$14,$15,
   $16,$17,
-  $18,$19,
-  $20,$21,'AVAILABLE',
-  $22,$23
+  $18,$19,$20,
+  $21,$22,'AVAILABLE',
+  $23,$24
 )
 `
 
 type CreateAccountingBillParams struct {
-	ID                         string      `db:"id" json:"id"`
-	BillNo                     string      `db:"bill_no" json:"bill_no"`
-	BillType                   string      `db:"bill_type" json:"bill_type"`
-	PositionType               string      `db:"position_type" json:"position_type"`
-	Currency                   string      `db:"currency" json:"currency"`
-	Medium                     string      `db:"medium" json:"medium"`
-	FaceAmountMinor            int64       `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate                  pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate               pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	Drawer                     string      `db:"drawer" json:"drawer"`
-	Acceptor                   string      `db:"acceptor" json:"acceptor"`
-	Payee                      string      `db:"payee" json:"payee"`
-	AnnualRateBps              int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays               int32       `db:"interest_days" json:"interest_days"`
-	InterestAmountMinor        int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
-	CustomerCostAmountMinor    int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
-	OriginPartyEntity          *string     `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID        *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyApprovalEntryID *string     `db:"origin_party_approval_entry_id" json:"origin_party_approval_entry_id"`
-	OriginPartyCode            *string     `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName            *string     `db:"origin_party_name" json:"origin_party_name"`
-	SourceDocumentID           string      `db:"source_document_id" json:"source_document_id"`
-	SourceLineID               string      `db:"source_line_id" json:"source_line_id"`
+	ID                                string      `db:"id" json:"id"`
+	BillNo                            string      `db:"bill_no" json:"bill_no"`
+	BillType                          string      `db:"bill_type" json:"bill_type"`
+	PositionType                      string      `db:"position_type" json:"position_type"`
+	Currency                          string      `db:"currency" json:"currency"`
+	Medium                            string      `db:"medium" json:"medium"`
+	FaceAmountMinor                   int64       `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate                         pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate                      pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                            string      `db:"drawer" json:"drawer"`
+	Acceptor                          string      `db:"acceptor" json:"acceptor"`
+	Payee                             string      `db:"payee" json:"payee"`
+	AnnualRateBps                     int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays                      int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor               int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor           int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginCounterpartyEntity          *string     `db:"origin_counterparty_entity" json:"origin_counterparty_entity"`
+	OriginCounterpartyObjectID        *string     `db:"origin_counterparty_object_id" json:"origin_counterparty_object_id"`
+	OriginCounterpartyCustomerID      *string     `db:"origin_counterparty_customer_id" json:"origin_counterparty_customer_id"`
+	OriginCounterpartyApprovalEntryID *string     `db:"origin_counterparty_approval_entry_id" json:"origin_counterparty_approval_entry_id"`
+	OriginCounterpartyCode            *string     `db:"origin_counterparty_code" json:"origin_counterparty_code"`
+	OriginCounterpartyName            *string     `db:"origin_counterparty_name" json:"origin_counterparty_name"`
+	SourceDocumentID                  string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID                      string      `db:"source_line_id" json:"source_line_id"`
 }
 
 func (q *Queries) CreateAccountingBill(ctx context.Context, arg CreateAccountingBillParams) error {
@@ -403,11 +411,12 @@ func (q *Queries) CreateAccountingBill(ctx context.Context, arg CreateAccounting
 		arg.InterestDays,
 		arg.InterestAmountMinor,
 		arg.CustomerCostAmountMinor,
-		arg.OriginPartyEntity,
-		arg.OriginPartyObjectID,
-		arg.OriginPartyApprovalEntryID,
-		arg.OriginPartyCode,
-		arg.OriginPartyName,
+		arg.OriginCounterpartyEntity,
+		arg.OriginCounterpartyObjectID,
+		arg.OriginCounterpartyCustomerID,
+		arg.OriginCounterpartyApprovalEntryID,
+		arg.OriginCounterpartyCode,
+		arg.OriginCounterpartyName,
 		arg.SourceDocumentID,
 		arg.SourceLineID,
 	)
@@ -1670,36 +1679,37 @@ INSERT INTO acc_inventory_entries (
 	id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
 	product_approval_entry_id, product_code, product_name,
 	warehouse_id, business_date, quantity_delta_micros, source_line_id,
-  cost_counterpart_subject_id, cost_counterpart_dimensions,
+  cost_counterpart_subject_id, cost_counterpart_dimensions, cost_counterpart_dimension_references,
   origin_source_document_id, origin_source_line_id
 ) VALUES (
   $1, $2, $3, $4,
 	$5, $6, $7,
 	$8, $9, $10,
   $11, $12, $13,
-  $14, $15,
-  $16, $17
+  $14, $15, $16,
+  $17, $18
 )
 `
 
 type InsertAccountingInventoryEntryParams struct {
-	ID                        string      `db:"id" json:"id"`
-	BookID                    string      `db:"book_id" json:"book_id"`
-	VoucherID                 string      `db:"voucher_id" json:"voucher_id"`
-	VoucherLineID             string      `db:"voucher_line_id" json:"voucher_line_id"`
-	SubjectID                 string      `db:"subject_id" json:"subject_id"`
-	ProductID                 string      `db:"product_id" json:"product_id"`
-	ProductApprovalEntryID    string      `db:"product_approval_entry_id" json:"product_approval_entry_id"`
-	ProductCode               string      `db:"product_code" json:"product_code"`
-	ProductName               string      `db:"product_name" json:"product_name"`
-	WarehouseID               string      `db:"warehouse_id" json:"warehouse_id"`
-	BusinessDate              pgtype.Date `db:"business_date" json:"business_date"`
-	QuantityDeltaMicros       int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
-	SourceLineID              string      `db:"source_line_id" json:"source_line_id"`
-	CostCounterpartSubjectID  *string     `db:"cost_counterpart_subject_id" json:"cost_counterpart_subject_id"`
-	CostCounterpartDimensions []byte      `db:"cost_counterpart_dimensions" json:"cost_counterpart_dimensions"`
-	OriginSourceDocumentID    *string     `db:"origin_source_document_id" json:"origin_source_document_id"`
-	OriginSourceLineID        *string     `db:"origin_source_line_id" json:"origin_source_line_id"`
+	ID                                 string      `db:"id" json:"id"`
+	BookID                             string      `db:"book_id" json:"book_id"`
+	VoucherID                          string      `db:"voucher_id" json:"voucher_id"`
+	VoucherLineID                      string      `db:"voucher_line_id" json:"voucher_line_id"`
+	SubjectID                          string      `db:"subject_id" json:"subject_id"`
+	ProductID                          string      `db:"product_id" json:"product_id"`
+	ProductApprovalEntryID             string      `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode                        string      `db:"product_code" json:"product_code"`
+	ProductName                        string      `db:"product_name" json:"product_name"`
+	WarehouseID                        string      `db:"warehouse_id" json:"warehouse_id"`
+	BusinessDate                       pgtype.Date `db:"business_date" json:"business_date"`
+	QuantityDeltaMicros                int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
+	SourceLineID                       string      `db:"source_line_id" json:"source_line_id"`
+	CostCounterpartSubjectID           *string     `db:"cost_counterpart_subject_id" json:"cost_counterpart_subject_id"`
+	CostCounterpartDimensions          []byte      `db:"cost_counterpart_dimensions" json:"cost_counterpart_dimensions"`
+	CostCounterpartDimensionReferences []byte      `db:"cost_counterpart_dimension_references" json:"cost_counterpart_dimension_references"`
+	OriginSourceDocumentID             *string     `db:"origin_source_document_id" json:"origin_source_document_id"`
+	OriginSourceLineID                 *string     `db:"origin_source_line_id" json:"origin_source_line_id"`
 }
 
 func (q *Queries) InsertAccountingInventoryEntry(ctx context.Context, arg InsertAccountingInventoryEntryParams) error {
@@ -1719,6 +1729,7 @@ func (q *Queries) InsertAccountingInventoryEntry(ctx context.Context, arg Insert
 		arg.SourceLineID,
 		arg.CostCounterpartSubjectID,
 		arg.CostCounterpartDimensions,
+		arg.CostCounterpartDimensionReferences,
 		arg.OriginSourceDocumentID,
 		arg.OriginSourceLineID,
 	)
@@ -1778,45 +1789,46 @@ const insertAccountingOpeningBill = `-- name: InsertAccountingOpeningBill :exec
 INSERT INTO acc_opening_bills(
   book_id,line_order,bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
   face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
-  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,value_minor
+  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_counterparty_entity,
+  origin_counterparty_object_id,origin_counterparty_customer_id,origin_counterparty_approval_entry_id,origin_counterparty_code,origin_counterparty_name,value_minor
 ) VALUES (
   $1,$2,$3,$4,
   $5,$6,$7,$8,
   $9,$10,$11,$12,
   $13,$14,$15,$16,
   $17,$18,$19,
-  $20,$21,$22,
-  $23,$24,$25
+  $20,$21,$22,$23,
+  $24,$25,$26
 )
 `
 
 type InsertAccountingOpeningBillParams struct {
-	BookID                     string      `db:"book_id" json:"book_id"`
-	LineOrder                  int32       `db:"line_order" json:"line_order"`
-	BillID                     string      `db:"bill_id" json:"bill_id"`
-	CreateObject               bool        `db:"create_object" json:"create_object"`
-	BillNo                     *string     `db:"bill_no" json:"bill_no"`
-	BillType                   *string     `db:"bill_type" json:"bill_type"`
-	PositionType               *string     `db:"position_type" json:"position_type"`
-	Medium                     *string     `db:"medium" json:"medium"`
-	Currency                   string      `db:"currency" json:"currency"`
-	FaceAmountMinor            *int64      `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate                  pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate               pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	Drawer                     *string     `db:"drawer" json:"drawer"`
-	Acceptor                   *string     `db:"acceptor" json:"acceptor"`
-	Payee                      *string     `db:"payee" json:"payee"`
-	AnnualRateBps              *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays               *int32      `db:"interest_days" json:"interest_days"`
-	InterestAmountMinor        *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
-	CustomerCostAmountMinor    *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
-	OriginPartyEntity          *string     `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID        *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyApprovalEntryID *string     `db:"origin_party_approval_entry_id" json:"origin_party_approval_entry_id"`
-	OriginPartyCode            *string     `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName            *string     `db:"origin_party_name" json:"origin_party_name"`
-	ValueMinor                 int64       `db:"value_minor" json:"value_minor"`
+	BookID                            string      `db:"book_id" json:"book_id"`
+	LineOrder                         int32       `db:"line_order" json:"line_order"`
+	BillID                            string      `db:"bill_id" json:"bill_id"`
+	CreateObject                      bool        `db:"create_object" json:"create_object"`
+	BillNo                            *string     `db:"bill_no" json:"bill_no"`
+	BillType                          *string     `db:"bill_type" json:"bill_type"`
+	PositionType                      *string     `db:"position_type" json:"position_type"`
+	Medium                            *string     `db:"medium" json:"medium"`
+	Currency                          string      `db:"currency" json:"currency"`
+	FaceAmountMinor                   *int64      `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate                         pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate                      pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                            *string     `db:"drawer" json:"drawer"`
+	Acceptor                          *string     `db:"acceptor" json:"acceptor"`
+	Payee                             *string     `db:"payee" json:"payee"`
+	AnnualRateBps                     *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays                      *int32      `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor               *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor           *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginCounterpartyEntity          *string     `db:"origin_counterparty_entity" json:"origin_counterparty_entity"`
+	OriginCounterpartyObjectID        *string     `db:"origin_counterparty_object_id" json:"origin_counterparty_object_id"`
+	OriginCounterpartyCustomerID      *string     `db:"origin_counterparty_customer_id" json:"origin_counterparty_customer_id"`
+	OriginCounterpartyApprovalEntryID *string     `db:"origin_counterparty_approval_entry_id" json:"origin_counterparty_approval_entry_id"`
+	OriginCounterpartyCode            *string     `db:"origin_counterparty_code" json:"origin_counterparty_code"`
+	OriginCounterpartyName            *string     `db:"origin_counterparty_name" json:"origin_counterparty_name"`
+	ValueMinor                        int64       `db:"value_minor" json:"value_minor"`
 }
 
 func (q *Queries) InsertAccountingOpeningBill(ctx context.Context, arg InsertAccountingOpeningBillParams) error {
@@ -1840,11 +1852,12 @@ func (q *Queries) InsertAccountingOpeningBill(ctx context.Context, arg InsertAcc
 		arg.InterestDays,
 		arg.InterestAmountMinor,
 		arg.CustomerCostAmountMinor,
-		arg.OriginPartyEntity,
-		arg.OriginPartyObjectID,
-		arg.OriginPartyApprovalEntryID,
-		arg.OriginPartyCode,
-		arg.OriginPartyName,
+		arg.OriginCounterpartyEntity,
+		arg.OriginCounterpartyObjectID,
+		arg.OriginCounterpartyCustomerID,
+		arg.OriginCounterpartyApprovalEntryID,
+		arg.OriginCounterpartyCode,
+		arg.OriginCounterpartyName,
 		arg.ValueMinor,
 	)
 	return err
@@ -1877,24 +1890,25 @@ func (q *Queries) InsertAccountingOpeningContainer(ctx context.Context, arg Inse
 const insertAccountingOpeningLine = `-- name: InsertAccountingOpeningLine :exec
 INSERT INTO acc_opening_lines (
   id, book_id, subject_id, currency, debit_minor, credit_minor,
-  quantity_micros, dimensions, line_order
+  quantity_micros, dimensions, dimension_references, line_order
 ) VALUES (
   $1, $2, $3, $4,
   $5, $6, $7,
-  $8, $9
+  $8, $9, $10
 )
 `
 
 type InsertAccountingOpeningLineParams struct {
-	ID             string `db:"id" json:"id"`
-	BookID         string `db:"book_id" json:"book_id"`
-	SubjectID      string `db:"subject_id" json:"subject_id"`
-	Currency       string `db:"currency" json:"currency"`
-	DebitMinor     int64  `db:"debit_minor" json:"debit_minor"`
-	CreditMinor    int64  `db:"credit_minor" json:"credit_minor"`
-	QuantityMicros *int64 `db:"quantity_micros" json:"quantity_micros"`
-	Dimensions     []byte `db:"dimensions" json:"dimensions"`
-	LineOrder      int32  `db:"line_order" json:"line_order"`
+	ID                  string `db:"id" json:"id"`
+	BookID              string `db:"book_id" json:"book_id"`
+	SubjectID           string `db:"subject_id" json:"subject_id"`
+	Currency            string `db:"currency" json:"currency"`
+	DebitMinor          int64  `db:"debit_minor" json:"debit_minor"`
+	CreditMinor         int64  `db:"credit_minor" json:"credit_minor"`
+	QuantityMicros      *int64 `db:"quantity_micros" json:"quantity_micros"`
+	Dimensions          []byte `db:"dimensions" json:"dimensions"`
+	DimensionReferences []byte `db:"dimension_references" json:"dimension_references"`
+	LineOrder           int32  `db:"line_order" json:"line_order"`
 }
 
 func (q *Queries) InsertAccountingOpeningLine(ctx context.Context, arg InsertAccountingOpeningLineParams) error {
@@ -1907,6 +1921,7 @@ func (q *Queries) InsertAccountingOpeningLine(ctx context.Context, arg InsertAcc
 		arg.CreditMinor,
 		arg.QuantityMicros,
 		arg.Dimensions,
+		arg.DimensionReferences,
 		arg.LineOrder,
 	)
 	return err
@@ -1971,26 +1986,27 @@ func (q *Queries) InsertAccountingSubjectDimension(ctx context.Context, arg Inse
 const insertAccountingVoucherLine = `-- name: InsertAccountingVoucherLine :exec
 INSERT INTO acc_voucher_lines (
   id, book_id, voucher_id, subject_id, currency, debit_minor, credit_minor,
-  quantity_micros, dimensions, source_line_id, line_order
+  quantity_micros, dimensions, dimension_references, source_line_id, line_order
 ) VALUES (
   $1, $2, $3, $4, $5,
   $6, $7, $8,
-  $9, $10, $11
+  $9, $10, $11, $12
 )
 `
 
 type InsertAccountingVoucherLineParams struct {
-	ID             string `db:"id" json:"id"`
-	BookID         string `db:"book_id" json:"book_id"`
-	VoucherID      string `db:"voucher_id" json:"voucher_id"`
-	SubjectID      string `db:"subject_id" json:"subject_id"`
-	Currency       string `db:"currency" json:"currency"`
-	DebitMinor     int64  `db:"debit_minor" json:"debit_minor"`
-	CreditMinor    int64  `db:"credit_minor" json:"credit_minor"`
-	QuantityMicros *int64 `db:"quantity_micros" json:"quantity_micros"`
-	Dimensions     []byte `db:"dimensions" json:"dimensions"`
-	SourceLineID   string `db:"source_line_id" json:"source_line_id"`
-	LineOrder      int32  `db:"line_order" json:"line_order"`
+	ID                  string `db:"id" json:"id"`
+	BookID              string `db:"book_id" json:"book_id"`
+	VoucherID           string `db:"voucher_id" json:"voucher_id"`
+	SubjectID           string `db:"subject_id" json:"subject_id"`
+	Currency            string `db:"currency" json:"currency"`
+	DebitMinor          int64  `db:"debit_minor" json:"debit_minor"`
+	CreditMinor         int64  `db:"credit_minor" json:"credit_minor"`
+	QuantityMicros      *int64 `db:"quantity_micros" json:"quantity_micros"`
+	Dimensions          []byte `db:"dimensions" json:"dimensions"`
+	DimensionReferences []byte `db:"dimension_references" json:"dimension_references"`
+	SourceLineID        string `db:"source_line_id" json:"source_line_id"`
+	LineOrder           int32  `db:"line_order" json:"line_order"`
 }
 
 func (q *Queries) InsertAccountingVoucherLine(ctx context.Context, arg InsertAccountingVoucherLineParams) error {
@@ -2004,6 +2020,7 @@ func (q *Queries) InsertAccountingVoucherLine(ctx context.Context, arg InsertAcc
 		arg.CreditMinor,
 		arg.QuantityMicros,
 		arg.Dimensions,
+		arg.DimensionReferences,
 		arg.SourceLineID,
 		arg.LineOrder,
 	)
@@ -2165,8 +2182,9 @@ const listAccountingDepreciationCandidates = `-- name: ListAccountingDepreciatio
 SELECT value.asset_id,value.currency,value.original_minor,value.accumulated_depreciation_minor,
   asset.residual_rate_bps,asset.useful_life_months,asset.acquired_on,
   COALESCE(value.accumulated_subject_id,'')::text AS accumulated_subject_id,
-  value.accumulated_dimensions,COALESCE(value.expense_subject_id,'')::text AS expense_subject_id,
-  value.expense_dimensions
+  value.accumulated_dimensions,value.accumulated_dimension_references,
+  COALESCE(value.expense_subject_id,'')::text AS expense_subject_id,
+  value.expense_dimensions,value.expense_dimension_references
 FROM acc_asset_book_values value JOIN acc_assets asset ON asset.id=value.asset_id
 WHERE value.book_id=$1 AND asset.acquired_on<$2
   AND (asset.disposed_on IS NULL OR asset.disposed_on>=$2)
@@ -2180,17 +2198,19 @@ type ListAccountingDepreciationCandidatesParams struct {
 }
 
 type ListAccountingDepreciationCandidatesRow struct {
-	AssetID                      string      `db:"asset_id" json:"asset_id"`
-	Currency                     string      `db:"currency" json:"currency"`
-	OriginalMinor                int64       `db:"original_minor" json:"original_minor"`
-	AccumulatedDepreciationMinor int64       `db:"accumulated_depreciation_minor" json:"accumulated_depreciation_minor"`
-	ResidualRateBps              int32       `db:"residual_rate_bps" json:"residual_rate_bps"`
-	UsefulLifeMonths             int32       `db:"useful_life_months" json:"useful_life_months"`
-	AcquiredOn                   pgtype.Date `db:"acquired_on" json:"acquired_on"`
-	AccumulatedSubjectID         string      `db:"accumulated_subject_id" json:"accumulated_subject_id"`
-	AccumulatedDimensions        []byte      `db:"accumulated_dimensions" json:"accumulated_dimensions"`
-	ExpenseSubjectID             string      `db:"expense_subject_id" json:"expense_subject_id"`
-	ExpenseDimensions            []byte      `db:"expense_dimensions" json:"expense_dimensions"`
+	AssetID                        string      `db:"asset_id" json:"asset_id"`
+	Currency                       string      `db:"currency" json:"currency"`
+	OriginalMinor                  int64       `db:"original_minor" json:"original_minor"`
+	AccumulatedDepreciationMinor   int64       `db:"accumulated_depreciation_minor" json:"accumulated_depreciation_minor"`
+	ResidualRateBps                int32       `db:"residual_rate_bps" json:"residual_rate_bps"`
+	UsefulLifeMonths               int32       `db:"useful_life_months" json:"useful_life_months"`
+	AcquiredOn                     pgtype.Date `db:"acquired_on" json:"acquired_on"`
+	AccumulatedSubjectID           string      `db:"accumulated_subject_id" json:"accumulated_subject_id"`
+	AccumulatedDimensions          []byte      `db:"accumulated_dimensions" json:"accumulated_dimensions"`
+	AccumulatedDimensionReferences []byte      `db:"accumulated_dimension_references" json:"accumulated_dimension_references"`
+	ExpenseSubjectID               string      `db:"expense_subject_id" json:"expense_subject_id"`
+	ExpenseDimensions              []byte      `db:"expense_dimensions" json:"expense_dimensions"`
+	ExpenseDimensionReferences     []byte      `db:"expense_dimension_references" json:"expense_dimension_references"`
 }
 
 func (q *Queries) ListAccountingDepreciationCandidates(ctx context.Context, arg ListAccountingDepreciationCandidatesParams) ([]ListAccountingDepreciationCandidatesRow, error) {
@@ -2212,8 +2232,10 @@ func (q *Queries) ListAccountingDepreciationCandidates(ctx context.Context, arg 
 			&i.AcquiredOn,
 			&i.AccumulatedSubjectID,
 			&i.AccumulatedDimensions,
+			&i.AccumulatedDimensionReferences,
 			&i.ExpenseSubjectID,
 			&i.ExpenseDimensions,
+			&i.ExpenseDimensionReferences,
 		); err != nil {
 			return nil, err
 		}
@@ -2230,8 +2252,8 @@ SELECT entry.id,entry.voucher_id,entry.subject_id,entry.product_id,entry.warehou
        entry.quantity_delta_micros,voucher.business_date,line.currency,
        (line.debit_minor-line.credit_minor)::bigint AS direct_value,
        COALESCE(voucher.source_entity,'') AS source_entity,voucher.source_id,
-       entry.source_line_id,line.dimensions,entry.cost_counterpart_subject_id,
-       entry.cost_counterpart_dimensions,entry.origin_source_document_id,
+       entry.source_line_id,line.dimensions,line.dimension_references,entry.cost_counterpart_subject_id,
+       entry.cost_counterpart_dimensions,entry.cost_counterpart_dimension_references,entry.origin_source_document_id,
        entry.origin_source_line_id
 FROM acc_inventory_entries entry
 JOIN acc_vouchers voucher ON voucher.book_id=entry.book_id AND voucher.id=entry.voucher_id
@@ -2249,23 +2271,25 @@ type ListAccountingInventoryCostFactsParams struct {
 }
 
 type ListAccountingInventoryCostFactsRow struct {
-	ID                        string      `db:"id" json:"id"`
-	VoucherID                 string      `db:"voucher_id" json:"voucher_id"`
-	SubjectID                 string      `db:"subject_id" json:"subject_id"`
-	ProductID                 string      `db:"product_id" json:"product_id"`
-	WarehouseID               string      `db:"warehouse_id" json:"warehouse_id"`
-	QuantityDeltaMicros       int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
-	BusinessDate              pgtype.Date `db:"business_date" json:"business_date"`
-	Currency                  string      `db:"currency" json:"currency"`
-	DirectValue               int64       `db:"direct_value" json:"direct_value"`
-	SourceEntity              string      `db:"source_entity" json:"source_entity"`
-	SourceID                  string      `db:"source_id" json:"source_id"`
-	SourceLineID              string      `db:"source_line_id" json:"source_line_id"`
-	Dimensions                []byte      `db:"dimensions" json:"dimensions"`
-	CostCounterpartSubjectID  *string     `db:"cost_counterpart_subject_id" json:"cost_counterpart_subject_id"`
-	CostCounterpartDimensions []byte      `db:"cost_counterpart_dimensions" json:"cost_counterpart_dimensions"`
-	OriginSourceDocumentID    *string     `db:"origin_source_document_id" json:"origin_source_document_id"`
-	OriginSourceLineID        *string     `db:"origin_source_line_id" json:"origin_source_line_id"`
+	ID                                 string      `db:"id" json:"id"`
+	VoucherID                          string      `db:"voucher_id" json:"voucher_id"`
+	SubjectID                          string      `db:"subject_id" json:"subject_id"`
+	ProductID                          string      `db:"product_id" json:"product_id"`
+	WarehouseID                        string      `db:"warehouse_id" json:"warehouse_id"`
+	QuantityDeltaMicros                int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
+	BusinessDate                       pgtype.Date `db:"business_date" json:"business_date"`
+	Currency                           string      `db:"currency" json:"currency"`
+	DirectValue                        int64       `db:"direct_value" json:"direct_value"`
+	SourceEntity                       string      `db:"source_entity" json:"source_entity"`
+	SourceID                           string      `db:"source_id" json:"source_id"`
+	SourceLineID                       string      `db:"source_line_id" json:"source_line_id"`
+	Dimensions                         []byte      `db:"dimensions" json:"dimensions"`
+	DimensionReferences                []byte      `db:"dimension_references" json:"dimension_references"`
+	CostCounterpartSubjectID           *string     `db:"cost_counterpart_subject_id" json:"cost_counterpart_subject_id"`
+	CostCounterpartDimensions          []byte      `db:"cost_counterpart_dimensions" json:"cost_counterpart_dimensions"`
+	CostCounterpartDimensionReferences []byte      `db:"cost_counterpart_dimension_references" json:"cost_counterpart_dimension_references"`
+	OriginSourceDocumentID             *string     `db:"origin_source_document_id" json:"origin_source_document_id"`
+	OriginSourceLineID                 *string     `db:"origin_source_line_id" json:"origin_source_line_id"`
 }
 
 func (q *Queries) ListAccountingInventoryCostFacts(ctx context.Context, arg ListAccountingInventoryCostFactsParams) ([]ListAccountingInventoryCostFactsRow, error) {
@@ -2291,8 +2315,10 @@ func (q *Queries) ListAccountingInventoryCostFacts(ctx context.Context, arg List
 			&i.SourceID,
 			&i.SourceLineID,
 			&i.Dimensions,
+			&i.DimensionReferences,
 			&i.CostCounterpartSubjectID,
 			&i.CostCounterpartDimensions,
+			&i.CostCounterpartDimensionReferences,
 			&i.OriginSourceDocumentID,
 			&i.OriginSourceLineID,
 		); err != nil {
@@ -2607,38 +2633,40 @@ SELECT bill_id,create_object,COALESCE(bill_no,'') AS bill_no,COALESCE(bill_type,
   COALESCE(interest_days,0)::integer AS interest_days,
   COALESCE(interest_amount_minor,0)::bigint AS interest_amount_minor,
   COALESCE(customer_cost_amount_minor,0)::bigint AS customer_cost_amount_minor,
-  COALESCE(origin_party_entity,'') AS origin_party_entity,
-  COALESCE(origin_party_object_id,'') AS origin_party_object_id,
-  COALESCE(origin_party_approval_entry_id,'') AS origin_party_approval_entry_id,
-  COALESCE(origin_party_code,'') AS origin_party_code,COALESCE(origin_party_name,'') AS origin_party_name,
+  COALESCE(origin_counterparty_entity,'') AS origin_counterparty_entity,
+  COALESCE(origin_counterparty_object_id,'') AS origin_counterparty_object_id,
+  COALESCE(origin_counterparty_customer_id,'') AS origin_counterparty_customer_id,
+  COALESCE(origin_counterparty_approval_entry_id,'') AS origin_counterparty_approval_entry_id,
+  COALESCE(origin_counterparty_code,'') AS origin_counterparty_code,COALESCE(origin_counterparty_name,'') AS origin_counterparty_name,
   value_minor
 FROM acc_opening_bills WHERE book_id=$1 ORDER BY line_order
 `
 
 type ListAccountingOpeningBillsRow struct {
-	BillID                     string      `db:"bill_id" json:"bill_id"`
-	CreateObject               bool        `db:"create_object" json:"create_object"`
-	BillNo                     string      `db:"bill_no" json:"bill_no"`
-	BillType                   string      `db:"bill_type" json:"bill_type"`
-	PositionType               string      `db:"position_type" json:"position_type"`
-	Medium                     string      `db:"medium" json:"medium"`
-	Currency                   string      `db:"currency" json:"currency"`
-	FaceAmountMinor            int64       `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate                  pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate               pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	Drawer                     string      `db:"drawer" json:"drawer"`
-	Acceptor                   string      `db:"acceptor" json:"acceptor"`
-	Payee                      string      `db:"payee" json:"payee"`
-	AnnualRateBps              int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays               int32       `db:"interest_days" json:"interest_days"`
-	InterestAmountMinor        int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
-	CustomerCostAmountMinor    int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
-	OriginPartyEntity          string      `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID        string      `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyApprovalEntryID string      `db:"origin_party_approval_entry_id" json:"origin_party_approval_entry_id"`
-	OriginPartyCode            string      `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName            string      `db:"origin_party_name" json:"origin_party_name"`
-	ValueMinor                 int64       `db:"value_minor" json:"value_minor"`
+	BillID                            string      `db:"bill_id" json:"bill_id"`
+	CreateObject                      bool        `db:"create_object" json:"create_object"`
+	BillNo                            string      `db:"bill_no" json:"bill_no"`
+	BillType                          string      `db:"bill_type" json:"bill_type"`
+	PositionType                      string      `db:"position_type" json:"position_type"`
+	Medium                            string      `db:"medium" json:"medium"`
+	Currency                          string      `db:"currency" json:"currency"`
+	FaceAmountMinor                   int64       `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate                         pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate                      pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                            string      `db:"drawer" json:"drawer"`
+	Acceptor                          string      `db:"acceptor" json:"acceptor"`
+	Payee                             string      `db:"payee" json:"payee"`
+	AnnualRateBps                     int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays                      int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor               int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor           int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginCounterpartyEntity          string      `db:"origin_counterparty_entity" json:"origin_counterparty_entity"`
+	OriginCounterpartyObjectID        string      `db:"origin_counterparty_object_id" json:"origin_counterparty_object_id"`
+	OriginCounterpartyCustomerID      string      `db:"origin_counterparty_customer_id" json:"origin_counterparty_customer_id"`
+	OriginCounterpartyApprovalEntryID string      `db:"origin_counterparty_approval_entry_id" json:"origin_counterparty_approval_entry_id"`
+	OriginCounterpartyCode            string      `db:"origin_counterparty_code" json:"origin_counterparty_code"`
+	OriginCounterpartyName            string      `db:"origin_counterparty_name" json:"origin_counterparty_name"`
+	ValueMinor                        int64       `db:"value_minor" json:"value_minor"`
 }
 
 func (q *Queries) ListAccountingOpeningBills(ctx context.Context, bookID string) ([]ListAccountingOpeningBillsRow, error) {
@@ -2668,11 +2696,12 @@ func (q *Queries) ListAccountingOpeningBills(ctx context.Context, bookID string)
 			&i.InterestDays,
 			&i.InterestAmountMinor,
 			&i.CustomerCostAmountMinor,
-			&i.OriginPartyEntity,
-			&i.OriginPartyObjectID,
-			&i.OriginPartyApprovalEntryID,
-			&i.OriginPartyCode,
-			&i.OriginPartyName,
+			&i.OriginCounterpartyEntity,
+			&i.OriginCounterpartyObjectID,
+			&i.OriginCounterpartyCustomerID,
+			&i.OriginCounterpartyApprovalEntryID,
+			&i.OriginCounterpartyCode,
+			&i.OriginCounterpartyName,
 			&i.ValueMinor,
 		); err != nil {
 			return nil, err
@@ -2688,35 +2717,36 @@ func (q *Queries) ListAccountingOpeningBills(ctx context.Context, bookID string)
 const listAccountingOpeningBillsForApproval = `-- name: ListAccountingOpeningBillsForApproval :many
 SELECT bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
   face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
-  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,value_minor
+  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_counterparty_entity,
+  origin_counterparty_object_id,origin_counterparty_customer_id,origin_counterparty_approval_entry_id,origin_counterparty_code,origin_counterparty_name,value_minor
 FROM acc_opening_bills WHERE book_id=$1
 `
 
 type ListAccountingOpeningBillsForApprovalRow struct {
-	BillID                     string      `db:"bill_id" json:"bill_id"`
-	CreateObject               bool        `db:"create_object" json:"create_object"`
-	BillNo                     *string     `db:"bill_no" json:"bill_no"`
-	BillType                   *string     `db:"bill_type" json:"bill_type"`
-	PositionType               *string     `db:"position_type" json:"position_type"`
-	Medium                     *string     `db:"medium" json:"medium"`
-	Currency                   string      `db:"currency" json:"currency"`
-	FaceAmountMinor            *int64      `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate                  pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate               pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	Drawer                     *string     `db:"drawer" json:"drawer"`
-	Acceptor                   *string     `db:"acceptor" json:"acceptor"`
-	Payee                      *string     `db:"payee" json:"payee"`
-	AnnualRateBps              *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays               *int32      `db:"interest_days" json:"interest_days"`
-	InterestAmountMinor        *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
-	CustomerCostAmountMinor    *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
-	OriginPartyEntity          *string     `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID        *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyApprovalEntryID *string     `db:"origin_party_approval_entry_id" json:"origin_party_approval_entry_id"`
-	OriginPartyCode            *string     `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName            *string     `db:"origin_party_name" json:"origin_party_name"`
-	ValueMinor                 int64       `db:"value_minor" json:"value_minor"`
+	BillID                            string      `db:"bill_id" json:"bill_id"`
+	CreateObject                      bool        `db:"create_object" json:"create_object"`
+	BillNo                            *string     `db:"bill_no" json:"bill_no"`
+	BillType                          *string     `db:"bill_type" json:"bill_type"`
+	PositionType                      *string     `db:"position_type" json:"position_type"`
+	Medium                            *string     `db:"medium" json:"medium"`
+	Currency                          string      `db:"currency" json:"currency"`
+	FaceAmountMinor                   *int64      `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate                         pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate                      pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                            *string     `db:"drawer" json:"drawer"`
+	Acceptor                          *string     `db:"acceptor" json:"acceptor"`
+	Payee                             *string     `db:"payee" json:"payee"`
+	AnnualRateBps                     *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays                      *int32      `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor               *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor           *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginCounterpartyEntity          *string     `db:"origin_counterparty_entity" json:"origin_counterparty_entity"`
+	OriginCounterpartyObjectID        *string     `db:"origin_counterparty_object_id" json:"origin_counterparty_object_id"`
+	OriginCounterpartyCustomerID      *string     `db:"origin_counterparty_customer_id" json:"origin_counterparty_customer_id"`
+	OriginCounterpartyApprovalEntryID *string     `db:"origin_counterparty_approval_entry_id" json:"origin_counterparty_approval_entry_id"`
+	OriginCounterpartyCode            *string     `db:"origin_counterparty_code" json:"origin_counterparty_code"`
+	OriginCounterpartyName            *string     `db:"origin_counterparty_name" json:"origin_counterparty_name"`
+	ValueMinor                        int64       `db:"value_minor" json:"value_minor"`
 }
 
 func (q *Queries) ListAccountingOpeningBillsForApproval(ctx context.Context, bookID string) ([]ListAccountingOpeningBillsForApprovalRow, error) {
@@ -2746,11 +2776,12 @@ func (q *Queries) ListAccountingOpeningBillsForApproval(ctx context.Context, boo
 			&i.InterestDays,
 			&i.InterestAmountMinor,
 			&i.CustomerCostAmountMinor,
-			&i.OriginPartyEntity,
-			&i.OriginPartyObjectID,
-			&i.OriginPartyApprovalEntryID,
-			&i.OriginPartyCode,
-			&i.OriginPartyName,
+			&i.OriginCounterpartyEntity,
+			&i.OriginCounterpartyObjectID,
+			&i.OriginCounterpartyCustomerID,
+			&i.OriginCounterpartyApprovalEntryID,
+			&i.OriginCounterpartyCode,
+			&i.OriginCounterpartyName,
 			&i.ValueMinor,
 		); err != nil {
 			return nil, err
@@ -2796,7 +2827,7 @@ func (q *Queries) ListAccountingOpeningContainers(ctx context.Context, bookID st
 
 const listAccountingOpeningLines = `-- name: ListAccountingOpeningLines :many
 SELECT id, book_id, subject_id, currency, debit_minor, credit_minor,
-       quantity_micros, dimensions, line_order
+       quantity_micros, dimensions, dimension_references, line_order
 FROM acc_opening_lines
 WHERE book_id = $1
 ORDER BY line_order
@@ -2820,6 +2851,7 @@ func (q *Queries) ListAccountingOpeningLines(ctx context.Context, bookID string)
 			&i.CreditMinor,
 			&i.QuantityMicros,
 			&i.Dimensions,
+			&i.DimensionReferences,
 			&i.LineOrder,
 		); err != nil {
 			return nil, err

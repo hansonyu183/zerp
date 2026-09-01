@@ -309,8 +309,6 @@ type GetInput struct {
 
 type QueryFilters struct {
 	Keyword                    string `json:"keyword,omitempty"`
-	PartyKind                  string `json:"kind,omitempty"`
-	Merged                     *bool  `json:"merged,omitempty"`
 	Enabled                    *bool  `json:"enabled,omitempty"`
 	CategoryID                 string `json:"categoryId,omitempty"`
 	DefaultPurchaserEmployeeID string `json:"defaultPurchaserEmployeeId,omitempty"`
@@ -458,36 +456,25 @@ type DetailView struct {
 }
 
 type ObjectView struct {
-	ObjectID              string                    `json:"objectId"`
-	Entity                string                    `json:"entity"`
-	Code                  string                    `json:"code"`
-	Enabled               bool                      `json:"enabled"`
-	SourceApprovalEntryID string                    `json:"sourceApprovalEntryId"`
-	SourceVersionNo       int32                     `json:"sourceVersionNo"`
-	Data                  DetailView                `json:"data"`
-	UpdatedAt             time.Time                 `json:"updatedAt"`
-	Relationship          *RelationshipIdentityView `json:"relationship,omitempty"`
-}
-
-type RelationshipIdentityView struct {
-	PartyID             string `json:"partyId"`
-	PartyKind           string `json:"partyKind"`
-	PartyDisplayName    string `json:"partyDisplayName"`
-	OperatingEntityID   string `json:"operatingEntityId"`
-	OperatingEntityCode string `json:"operatingEntityCode"`
-	OperatingEntityName string `json:"operatingEntityName"`
+	ObjectID              string     `json:"objectId"`
+	Entity                string     `json:"entity"`
+	Code                  string     `json:"code"`
+	Enabled               bool       `json:"enabled"`
+	SourceApprovalEntryID string     `json:"sourceApprovalEntryId"`
+	SourceVersionNo       int32      `json:"sourceVersionNo"`
+	Data                  DetailView `json:"data"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
 type QueryItem struct {
-	ObjectID              string                    `json:"objectId"`
-	Entity                string                    `json:"entity"`
-	Code                  string                    `json:"code"`
-	Enabled               bool                      `json:"enabled"`
-	SourceApprovalEntryID string                    `json:"sourceApprovalEntryId"`
-	SourceVersionNo       int32                     `json:"sourceVersionNo"`
-	Data                  DetailView                `json:"data"`
-	UpdatedAt             time.Time                 `json:"updatedAt"`
-	Relationship          *RelationshipIdentityView `json:"relationship,omitempty"`
+	ObjectID              string     `json:"objectId"`
+	Entity                string     `json:"entity"`
+	Code                  string     `json:"code"`
+	Enabled               bool       `json:"enabled"`
+	SourceApprovalEntryID string     `json:"sourceApprovalEntryId"`
+	SourceVersionNo       int32      `json:"sourceVersionNo"`
+	Data                  DetailView `json:"data"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
 type Page[T any] struct {

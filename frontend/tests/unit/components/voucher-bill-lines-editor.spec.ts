@@ -19,7 +19,7 @@ const changeBill: BillLineDraft = {
   drawer: '出票企业',
   acceptor: '承兑企业',
   payee: '收款企业',
-  originatingParty: {
+  originatingCounterparty: {
     objectId: 'customer-1',
     approvalEntryId: 'customer-v1',
     code: 'CUS-001',

@@ -17,7 +17,7 @@ export type WorkbenchDocumentItem = {
   revision: number;
   documentNo: string;
   businessDate: string;
-  partyName: string;
+  counterpartyName: string;
   currency: string;
   amount: string;
 };

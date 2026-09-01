@@ -53,7 +53,7 @@ const availableBillPage = {
         drawer: 'D',
         acceptor: 'A',
         payee: 'P',
-        originatingParty: {
+        originatingCounterparty: {
           objectId: 'customer-1',
           approvalEntryId: 'customer-v1',
           entity: 'customer',
@@ -1276,7 +1276,7 @@ describe('bill voucher view model behavior', () => {
       }),
       expect.anything(),
     )
-    expect(vm.heldBillOptions.value[0]?.originatingParty).toEqual({
+    expect(vm.heldBillOptions.value[0]?.originatingCounterparty).toEqual({
       objectId: 'customer-1',
       approvalEntryId: 'customer-v1',
       entity: 'customer',

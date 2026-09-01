@@ -365,14 +365,14 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	}
 	receivable, err := accounting.CreateSubject(t.Context(), CreateSubjectInput{
 		BookID: book.ID, Code: "122102", Name: "服务往来应收", BalanceDirection: BalanceDirectionDebit,
-		Enabled: true, RequiredDimensions: []string{DimensionServiceRelationship}, SettlementPurpose: SettlementPurposeOther,
+		Enabled: true, RequiredDimensions: []string{DimensionOtherUnit}, SettlementPurpose: SettlementPurposeOther,
 	}, adminID)
 	if err != nil {
 		t.Fatalf("create service receivable subject: %v", err)
 	}
 	payable, err := accounting.CreateSubject(t.Context(), CreateSubjectInput{
 		BookID: book.ID, Code: "224102", Name: "服务往来应付", BalanceDirection: BalanceDirectionCredit,
-		Enabled: true, RequiredDimensions: []string{DimensionServiceRelationship}, SettlementPurpose: SettlementPurposeOther,
+		Enabled: true, RequiredDimensions: []string{DimensionOtherUnit}, SettlementPurpose: SettlementPurposeOther,
 	}, adminID)
 	if err != nil {
 		t.Fatalf("create service payable subject: %v", err)
@@ -389,10 +389,10 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 			Templates: []PostingTemplate{
 				{ID: payableTemplateID, Lines: []PostingLineTemplate{
 					{SubjectSource: "FIXED", SubjectValue: expense.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
-					{SubjectSource: "FIXED", SubjectValue: payable.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionServiceRelationship: "counterparty.objectId"}},
+					{SubjectSource: "FIXED", SubjectValue: payable.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionOtherUnit: "counterparty.objectId"}},
 				}},
 				{ID: receivableTemplateID, Lines: []PostingLineTemplate{
-					{SubjectSource: "FIXED", SubjectValue: receivable.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionServiceRelationship: "counterparty.objectId"}},
+					{SubjectSource: "FIXED", SubjectValue: receivable.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionOtherUnit: "counterparty.objectId"}},
 					{SubjectSource: "FIXED", SubjectValue: income.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 				}},
 			},
@@ -430,7 +430,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	}
 	serviceRelationship, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
 		Data: dcldomain.OtherUnitData{
-			Kind:                     bobdomain.PartyKindOrganization,
+			Kind:                     "ORGANIZATION",
 			LegalName:                "服务验收往来单位",
 			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
 			Enabled:                  true,
@@ -529,7 +529,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 			FROM acc_voucher_lines line
 			JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
 			WHERE voucher.book_id=$1 AND voucher.source_id=$2 AND line.subject_id=$4
-		`, book.ID, acceptance.DocumentID, DimensionServiceRelationship, dimensionSubjectID).Scan(&relationshipID); err != nil || relationshipID != approvedRelationship.ObjectID {
+		`, book.ID, acceptance.DocumentID, DimensionOtherUnit, dimensionSubjectID).Scan(&relationshipID); err != nil || relationshipID != approvedRelationship.ObjectID {
 			t.Fatalf("service relationship dimensions = relationship:%q want:%q err=%v", relationshipID, approvedRelationship.ObjectID, err)
 		}
 	}

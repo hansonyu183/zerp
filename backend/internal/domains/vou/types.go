@@ -574,11 +574,11 @@ type PriceReferenceView struct {
 }
 
 type QueryFilters struct {
-	Keyword       string   `json:"keyword,omitempty"`
-	Status        []string `json:"status,omitempty"`
-	DateFrom      string   `json:"dateFrom,omitempty"`
-	DateTo        string   `json:"dateTo,omitempty"`
-	PartyObjectID string   `json:"partyObjectId,omitempty"`
+	Keyword              string   `json:"keyword,omitempty"`
+	Status               []string `json:"status,omitempty"`
+	DateFrom             string   `json:"dateFrom,omitempty"`
+	DateTo               string   `json:"dateTo,omitempty"`
+	CounterpartyObjectID string   `json:"counterpartyObjectId,omitempty"`
 }
 
 type SortInput struct {
@@ -839,25 +839,25 @@ type AvailableAssetItem struct {
 }
 
 type AvailableBillItem struct {
-	BillID             string        `json:"billId"`
-	PositionType       string        `json:"positionType"`
-	BillType           string        `json:"billType"`
-	BillNo             string        `json:"billNo"`
-	Medium             string        `json:"medium"`
-	Currency           string        `json:"currency"`
-	FaceAmount         string        `json:"faceAmount"`
-	IssueDate          string        `json:"issueDate"`
-	MaturityDate       string        `json:"maturityDate"`
-	Drawer             string        `json:"drawer"`
-	Acceptor           string        `json:"acceptor"`
-	Payee              string        `json:"payee"`
-	AnnualRateBps      int32         `json:"annualRateBps"`
-	InterestDays       int32         `json:"interestDays"`
-	InterestAmount     string        `json:"interestAmount"`
-	CustomerCostAmount string        `json:"customerCostAmount"`
-	OriginatingParty   ReferenceView `json:"originatingParty"`
-	SourceEntity       string        `json:"sourceEntity"`
-	SourceDocumentNo   string        `json:"sourceDocumentNo"`
+	BillID                  string        `json:"billId"`
+	PositionType            string        `json:"positionType"`
+	BillType                string        `json:"billType"`
+	BillNo                  string        `json:"billNo"`
+	Medium                  string        `json:"medium"`
+	Currency                string        `json:"currency"`
+	FaceAmount              string        `json:"faceAmount"`
+	IssueDate               string        `json:"issueDate"`
+	MaturityDate            string        `json:"maturityDate"`
+	Drawer                  string        `json:"drawer"`
+	Acceptor                string        `json:"acceptor"`
+	Payee                   string        `json:"payee"`
+	AnnualRateBps           int32         `json:"annualRateBps"`
+	InterestDays            int32         `json:"interestDays"`
+	InterestAmount          string        `json:"interestAmount"`
+	CustomerCostAmount      string        `json:"customerCostAmount"`
+	OriginatingCounterparty ReferenceView `json:"originatingCounterparty"`
+	SourceEntity            string        `json:"sourceEntity"`
+	SourceDocumentNo        string        `json:"sourceDocumentNo"`
 }
 
 type InventoryCountBalanceItem struct {
@@ -1036,8 +1036,6 @@ type DocumentDataView struct {
 
 type ServiceContractView struct {
 	Counterparty     *ReferenceView                `json:"counterparty"`
-	PartyID          string                        `json:"partyId"`
-	PartyName        string                        `json:"partyName"`
 	OperatingEntity  *ReferenceView                `json:"operatingEntity"`
 	Handler          *ReferenceView                `json:"handler"`
 	SettlementMethod *SettlementMethodSnapshotView `json:"settlementMethod,omitempty"`
@@ -1117,7 +1115,7 @@ type ListItem struct {
 	Status                   string                       `json:"status"`
 	Revision                 int64                        `json:"revision"`
 	BusinessDate             string                       `json:"businessDate"`
-	PartyName                string                       `json:"partyName,omitempty"`
+	CounterpartyName         string                       `json:"counterpartyName,omitempty"`
 	Currency                 string                       `json:"currency"`
 	Amount                   string                       `json:"amount"`
 	UpdatedAt                time.Time                    `json:"updatedAt"`

@@ -47,7 +47,9 @@ ACC 的动作、路径和数据结构以 [OpenAPI ACC Schema](../../contracts/op
 
 客户核算账户 code 只在所属 Customer 内唯一，不再占用 `ACC-*` DCL Subject 编码；界面、日志和诊断必须同时展示 Customer code 与账户 code，不得只凭账户 code 识别对象。
 
-辅助核算维度限定为客户核算账户、Supplier、Other Unit、Employee、Sales Partner、部门、产品、仓库、资金账户、资产和票据。应收、预收必须要求客户核算账户，应付、预付必须要求 Supplier；其他往来必须使用一种明确强类型业务档案。Party 不是核算维度且不存在。
+辅助核算维度限定为客户核算账户、Supplier、Other Unit、Employee、Sales Partner、部门、产品、仓库、资金账户、资产和票据。对应 wire value 固定为 `CUSTOMER_ACCOUNT`、`SUPPLIER`、`OTHER_UNIT`、`EMPLOYEE`、`SALES_PARTNER`、`DEPARTMENT`、`PRODUCT`、`WAREHOUSE`、`FUND_ACCOUNT`、`ASSET`、`BILL`。应收、预收必须要求客户核算账户，应付、预付必须要求 Supplier；其他往来必须使用一种明确强类型业务档案。Party 不是核算维度且不存在。
+
+会计分录继续用维度 stable ID 作为余额聚合键，同时保存业务档案维度的精确引用快照。Customer Account 快照包含 `customerId`、`accountId`、`customerApprovalEntryId`、编码和名称；Supplier、Other Unit、Employee 与 Sales Partner 快照包含明确 `entity`、stable ID、精确 `approvalEntryId`、编码和名称。后续档案改名、停用或从 Customer 新版本有效账户集合移除不改写既有分录；新期初和自动记账只接受当前有效引用。部门、产品、仓库、资金账户、资产和票据沿用各自已有的 stable ID 或专属历史快照规则，不伪装为业务档案引用。
 
 只有末级且启用的科目可以被期初、会计映射或会计事实引用。ACC 以统一的科目引用登记标记已引用科目；一旦引用，编码、名称、父级、余额方向、辅助维度、库存属性和结算用途冻结，只允许从启用变为停用。未引用且没有子科目的科目可以删除；有子科目或已有引用的科目不能删除。
 

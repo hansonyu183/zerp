@@ -26,6 +26,10 @@ func (accMappingReferenceResolver) ValidateHistoricalReference(context.Context, 
 	return bobdomain.EffectiveReference{}, nil
 }
 
+func (accMappingReferenceResolver) ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error) {
+	return bobdomain.EffectiveReference{}, nil
+}
+
 const (
 	accMappingCreatorID  = "01JDCM00000000000000000001"
 	accMappingReviewerID = "01JDCM00000000000000000002"

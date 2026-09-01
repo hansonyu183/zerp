@@ -12,20 +12,6 @@ export type CustomerAccountReferenceKey =
   | 'paymentMethodId'
   | 'primarySalesAttributionSubjectObjectId'
 
-export async function queryPartyReferences(
-  keyword: string,
-): Promise<CustomerReferenceOption[]> {
-  const { data } = await apiClient.postContract('bob/party/query', {
-    page: 1,
-    pageSize: 20,
-    filters: keyword ? { keyword } : {},
-  })
-  return data.items.map((item) => ({
-    value: item.partyId,
-    title: `${item.partyId} · ${item.displayName}`,
-  }))
-}
-
 export async function queryOperatingEntityReferences(
   keyword: string,
 ): Promise<CustomerReferenceOption[]> {

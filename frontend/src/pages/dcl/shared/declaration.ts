@@ -6,7 +6,6 @@ import {
 } from '@/shared/approval'
 
 export type DclDeclarationEntity =
-  | 'party'
   | 'operating-entity'
   | 'warehouse'
   | 'vehicle'
@@ -87,7 +86,6 @@ export function isDclDeclarationEntity(
   entity: string,
 ): entity is DclDeclarationEntity {
   return (
-    entity === 'party' ||
     entity === 'operating-entity' ||
     entity === 'warehouse' ||
     entity === 'vehicle' ||

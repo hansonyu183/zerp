@@ -18,10 +18,6 @@ type EmployeeData struct {
 	Phone, Email, HireDate, Remark         string
 }
 
-// EmployeeIdentity remains the legacy relationship-table shape for #347. The
-// direct Employee declaration flow does not construct or query it.
-type EmployeeIdentity struct{ ObjectID, Code, PartyID, OperatingEntityID string }
-
 func ValidateEmployeeData(input EmployeeData) (EmployeeData, error) {
 	input.Phone, input.Email, input.HireDate, input.Remark = strings.TrimSpace(input.Phone), strings.TrimSpace(input.Email), strings.TrimSpace(input.HireDate), strings.TrimSpace(input.Remark)
 	if err := validateLengthsAndFormats(DetailView{Phone: input.Phone, Email: input.Email, HireDate: input.HireDate, Remark: input.Remark}); err != nil {

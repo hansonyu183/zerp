@@ -225,44 +225,6 @@ func (q *Queries) CopyDCLOtherUnitVersionOperatingEntities(ctx context.Context, 
 	return err
 }
 
-const copyDCLPartyVersion = `-- name: CopyDCLPartyVersion :execrows
-INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address)
-SELECT $1,source.party_id,source.kind,source.legal_name,source.display_name,source.tax_number,source.phone,source.email,source.address
-FROM dcl_party_versions source WHERE source.approval_entry_id=$2
-`
-
-type CopyDCLPartyVersionParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLPartyVersion(ctx context.Context, arg CopyDCLPartyVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, copyDCLPartyVersion, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const copyDCLPartyVersionIdentifiers = `-- name: CopyDCLPartyVersionIdentifiers :execrows
-INSERT INTO dcl_party_version_identifiers(approval_entry_id,identifier_type,value,normalized_value)
-SELECT $1,source.identifier_type,source.value,source.normalized_value
-FROM dcl_party_version_identifiers source WHERE source.approval_entry_id=$2
-`
-
-type CopyDCLPartyVersionIdentifiersParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLPartyVersionIdentifiers(ctx context.Context, arg CopyDCLPartyVersionIdentifiersParams) (int64, error) {
-	result, err := q.db.Exec(ctx, copyDCLPartyVersionIdentifiers, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const copyDCLSalesPartnerVersion = `-- name: CopyDCLSalesPartnerVersion :execrows
 INSERT INTO dcl_sales_partner_versions(approval_entry_id,kind,legal_name,display_name,tax_number,capabilities,contact_name,contact_phone,email,address,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
 SELECT $1,source.kind,source.legal_name,source.display_name,source.tax_number,source.capabilities,source.contact_name,source.contact_phone,source.email,source.address,source.default_operating_entity_id,source.default_operating_entity_approval_entry_id,source.default_operating_entity_code,source.default_operating_entity_name,source.remark,source.enabled FROM dcl_sales_partner_versions source WHERE source.approval_entry_id=$2
@@ -490,52 +452,9 @@ const countDCLCustomerApprovalEvents = `-- name: CountDCLCustomerApprovalEvents 
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=$1
 `
 
+// Compatibility query names now read the single Customer aggregate.
 func (q *Queries) CountDCLCustomerApprovalEvents(ctx context.Context, objectID string) (int64, error) {
 	row := q.db.QueryRow(ctx, countDCLCustomerApprovalEvents, objectID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countDCLCustomers = `-- name: CountDCLCustomers :one
-SELECT count(*)
-FROM dcl_subjects subject
-LEFT JOIN LATERAL (
-  SELECT id,status,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
-  ORDER BY version_no DESC LIMIT 1
-) candidate ON true
-LEFT JOIN LATERAL (
-  SELECT id,status,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
-  ORDER BY version_no DESC LIMIT 1
-) approved ON true
-JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
-WHERE subject.entity='customer'
-  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.data->>'displayName' ILIKE '%'||$1::text||'%')
-  AND ($2::text='' OR display.data->'defaultOperatingEntity'->>'sourceObjectId'=$2)
-  AND ($3::text='' OR true)
-  AND ($4::integer=-1 OR display.enabled=($4::integer=1))
-  AND (cardinality($5::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($5::text[]))
-`
-
-type CountDCLCustomersParams struct {
-	Keyword           string   `db:"keyword" json:"keyword"`
-	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
-	PartyID           string   `db:"party_id" json:"party_id"`
-	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter      []string `db:"status_filter" json:"status_filter"`
-}
-
-// Compatibility query names now read the single Customer aggregate.
-func (q *Queries) CountDCLCustomers(ctx context.Context, arg CountDCLCustomersParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDCLCustomers,
-		arg.Keyword,
-		arg.OperatingEntityID,
-		arg.PartyID,
-		arg.EnabledFilter,
-		arg.StatusFilter,
-	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -681,63 +600,6 @@ func (q *Queries) CountDCLOperatingEntityApprovalEvents(ctx context.Context, obj
 	var count int64
 	err := row.Scan(&count)
 	return count, err
-}
-
-const countDCLParties = `-- name: CountDCLParties :one
-WITH selected AS (
-  SELECT subject.id
-  FROM dcl_subjects subject
-  JOIN dcl_parties party ON party.id=subject.id
-  LEFT JOIN LATERAL (
-    SELECT id,status FROM approval_entries
-    WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
-      AND status IN ('DRAFT','PENDING')
-    ORDER BY version_no DESC LIMIT 1
-  ) open_entry ON true
-  LEFT JOIN LATERAL (
-    SELECT id,status FROM approval_entries
-    WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
-      AND status='APPROVED'
-    ORDER BY version_no DESC LIMIT 1
-  ) approved_entry ON true
-  JOIN dcl_party_versions display ON display.approval_entry_id=COALESCE(open_entry.id,approved_entry.id)
-  WHERE subject.entity='party'
-    AND ($1::text='' OR display.kind=$1::text)
-    AND ($2::text='' OR display.legal_name ILIKE '%'||$2::text||'%' OR display.display_name ILIKE '%'||$2::text||'%')
-    AND (($3::boolean AND party.merged_into_party_id IS NOT NULL) OR (NOT $3::boolean AND party.merged_into_party_id IS NULL))
-)
-SELECT count(*) FROM selected
-`
-
-type CountDCLPartiesParams struct {
-	Kind    string `db:"kind" json:"kind"`
-	Keyword string `db:"keyword" json:"keyword"`
-	Merged  bool   `db:"merged" json:"merged"`
-}
-
-// DCL Party list keeps the latest approved and the single open candidate as
-// separate typed snapshots. Filter and sort use the candidate when present,
-// otherwise the approved snapshot, so draft-only roots are discoverable and
-// a page can be hydrated with a fixed number of batch reads.
-func (q *Queries) CountDCLParties(ctx context.Context, arg CountDCLPartiesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDCLParties, arg.Kind, arg.Keyword, arg.Merged)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countDCLPartyAuditEvents = `-- name: CountDCLPartyAuditEvents :one
-SELECT
-  (SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='party' AND subject_id=$1)
-  +
-  (SELECT count(*) FROM dcl_party_merge_events WHERE source_party_id=$1 OR target_party_id=$1)
-`
-
-func (q *Queries) CountDCLPartyAuditEvents(ctx context.Context, partyID string) (int32, error) {
-	row := q.db.QueryRow(ctx, countDCLPartyAuditEvents, partyID)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
 }
 
 const countDCLProductApprovalEvents = `-- name: CountDCLProductApprovalEvents :one
@@ -1626,18 +1488,6 @@ func (q *Queries) DeleteDCLEmployeeIdentifierClaimsForEntry(ctx context.Context,
 	return err
 }
 
-const deleteDCLEmployeeRelationship = `-- name: DeleteDCLEmployeeRelationship :execrows
-DELETE FROM dcl_employment_relationships WHERE object_id=$1 AND merged_into_object_id IS NULL
-`
-
-func (q *Queries) DeleteDCLEmployeeRelationship(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLEmployeeRelationship, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteDCLEmployeeVersion = `-- name: DeleteDCLEmployeeVersion :execrows
 DELETE FROM dcl_employee_versions WHERE approval_entry_id=$1
 `
@@ -1654,8 +1504,6 @@ const deleteDCLEmployeeVersionIdentifiers = `-- name: DeleteDCLEmployeeVersionId
 DELETE FROM dcl_employee_version_identifiers WHERE approval_entry_id=$1
 `
 
-// Typed strong identifiers are scoped per business archive type.  Advisory
-// locks serialize both an absent claim and a persisted claim in one transaction.
 func (q *Queries) DeleteDCLEmployeeVersionIdentifiers(ctx context.Context, approvalEntryID string) error {
 	_, err := q.db.Exec(ctx, deleteDCLEmployeeVersionIdentifiers, approvalEntryID)
 	return err
@@ -1704,18 +1552,6 @@ func (q *Queries) DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx context.Context
 	return err
 }
 
-const deleteDCLOtherUnitRelationship = `-- name: DeleteDCLOtherUnitRelationship :execrows
-DELETE FROM dcl_service_relationships WHERE object_id=$1 AND merged_into_object_id IS NULL
-`
-
-func (q *Queries) DeleteDCLOtherUnitRelationship(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLOtherUnitRelationship, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteDCLOtherUnitVersion = `-- name: DeleteDCLOtherUnitVersion :execrows
 DELETE FROM dcl_other_unit_versions WHERE approval_entry_id=$1
 `
@@ -1746,30 +1582,6 @@ func (q *Queries) DeleteDCLOtherUnitVersionOperatingEntities(ctx context.Context
 	return err
 }
 
-const deleteDCLPartyRoot = `-- name: DeleteDCLPartyRoot :execrows
-DELETE FROM dcl_parties WHERE id=$1 AND merged_into_party_id IS NULL
-`
-
-func (q *Queries) DeleteDCLPartyRoot(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLPartyRoot, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteDCLPartyVersion = `-- name: DeleteDCLPartyVersion :execrows
-DELETE FROM dcl_party_versions WHERE approval_entry_id=$1
-`
-
-func (q *Queries) DeleteDCLPartyVersion(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLPartyVersion, approvalEntryID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteDCLProductBarcodeClaims = `-- name: DeleteDCLProductBarcodeClaims :exec
 DELETE FROM dcl_product_barcode_claims WHERE object_id=$1
 `
@@ -1786,18 +1598,6 @@ DELETE FROM dcl_sales_partner_identifier_claims WHERE approved_approval_entry_id
 func (q *Queries) DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
 	_, err := q.db.Exec(ctx, deleteDCLSalesPartnerIdentifierClaimsForEntry, approvalEntryID)
 	return err
-}
-
-const deleteDCLSalesPartnerRelationship = `-- name: DeleteDCLSalesPartnerRelationship :execrows
-DELETE FROM dcl_sales_relationships WHERE object_id=$1 AND merged_into_object_id IS NULL
-`
-
-func (q *Queries) DeleteDCLSalesPartnerRelationship(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLSalesPartnerRelationship, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const deleteDCLSalesPartnerVersion = `-- name: DeleteDCLSalesPartnerVersion :execrows
@@ -1855,18 +1655,6 @@ DELETE FROM dcl_supplier_identifier_claims WHERE approved_approval_entry_id=$1 O
 func (q *Queries) DeleteDCLSupplierIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
 	_, err := q.db.Exec(ctx, deleteDCLSupplierIdentifierClaimsForEntry, approvalEntryID)
 	return err
-}
-
-const deleteDCLSupplierRelationship = `-- name: DeleteDCLSupplierRelationship :execrows
-DELETE FROM dcl_supplier_relationships WHERE object_id=$1 AND merged_into_object_id IS NULL
-`
-
-func (q *Queries) DeleteDCLSupplierRelationship(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLSupplierRelationship, objectID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const deleteDCLSupplierVersion = `-- name: DeleteDCLSupplierVersion :execrows
@@ -1945,34 +1733,6 @@ func (q *Queries) DeleteDclWflProcessDefinition(ctx context.Context, definitionI
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const findActiveDCLRelationshipByEndpoints = `-- name: FindActiveDCLRelationshipByEndpoints :one
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code
-FROM dcl_party_relationship_endpoints relationship
-JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity=relationship.entity
-WHERE relationship.entity=$1
-  AND relationship.party_id=$2
-  AND relationship.operating_entity_id=$3
-  AND relationship.merged_into_object_id IS NULL
-`
-
-type FindActiveDCLRelationshipByEndpointsParams struct {
-	Entity            string `db:"entity" json:"entity"`
-	PartyID           string `db:"party_id" json:"party_id"`
-	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
-}
-
-type FindActiveDCLRelationshipByEndpointsRow struct {
-	ObjectID string `db:"object_id" json:"object_id"`
-	Code     string `db:"code" json:"code"`
-}
-
-func (q *Queries) FindActiveDCLRelationshipByEndpoints(ctx context.Context, arg FindActiveDCLRelationshipByEndpointsParams) (FindActiveDCLRelationshipByEndpointsRow, error) {
-	row := q.db.QueryRow(ctx, findActiveDCLRelationshipByEndpoints, arg.Entity, arg.PartyID, arg.OperatingEntityID)
-	var i FindActiveDCLRelationshipByEndpointsRow
-	err := row.Scan(&i.ObjectID, &i.Code)
-	return i, err
 }
 
 const findDCLFundAccountIdentifierConflict = `-- name: FindDCLFundAccountIdentifierConflict :one
@@ -2086,39 +1846,6 @@ func (q *Queries) GetDCLCustomerAccountCodeMax(ctx context.Context, customerID s
 	return code_max, err
 }
 
-const getDCLCustomerIdentity = `-- name: GetDCLCustomerIdentity :one
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
-       ''::text AS party_id,''::text AS party_kind,version.data->>'displayName' AS display_name,
-       version.data->'defaultOperatingEntity'->>'sourceObjectId' AS operating_entity_id
-FROM dcl_subjects subject
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING','APPROVED') ORDER BY (status IN ('DRAFT','PENDING')) DESC,version_no DESC LIMIT 1) entry ON true
-JOIN dcl_customer_versions version ON version.approval_entry_id=entry.id
-WHERE subject.id=$1 AND subject.entity='customer'
-`
-
-type GetDCLCustomerIdentityRow struct {
-	ObjectID          string      `db:"object_id" json:"object_id"`
-	Code              string      `db:"code" json:"code"`
-	PartyID           string      `db:"party_id" json:"party_id"`
-	PartyKind         string      `db:"party_kind" json:"party_kind"`
-	DisplayName       interface{} `db:"display_name" json:"display_name"`
-	OperatingEntityID interface{} `db:"operating_entity_id" json:"operating_entity_id"`
-}
-
-func (q *Queries) GetDCLCustomerIdentity(ctx context.Context, objectID string) (GetDCLCustomerIdentityRow, error) {
-	row := q.db.QueryRow(ctx, getDCLCustomerIdentity, objectID)
-	var i GetDCLCustomerIdentityRow
-	err := row.Scan(
-		&i.ObjectID,
-		&i.Code,
-		&i.PartyID,
-		&i.PartyKind,
-		&i.DisplayName,
-		&i.OperatingEntityID,
-	)
-	return i, err
-}
-
 const getDCLCustomerVersionAggregate = `-- name: GetDCLCustomerVersionAggregate :one
 SELECT approval_entry_id,data,enabled
 FROM dcl_customer_versions
@@ -2129,25 +1856,6 @@ func (q *Queries) GetDCLCustomerVersionAggregate(ctx context.Context, approvalEn
 	row := q.db.QueryRow(ctx, getDCLCustomerVersionAggregate, approvalEntryID)
 	var i DclCustomerVersion
 	err := row.Scan(&i.ApprovalEntryID, &i.Data, &i.Enabled)
-	return i, err
-}
-
-const getDCLEmployeeRelationship = `-- name: GetDCLEmployeeRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_employment_relationships WHERE object_id=$1 FOR UPDATE
-`
-
-func (q *Queries) GetDCLEmployeeRelationship(ctx context.Context, objectID string) (DclEmploymentRelationship, error) {
-	row := q.db.QueryRow(ctx, getDCLEmployeeRelationship, objectID)
-	var i DclEmploymentRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
 	return i, err
 }
 
@@ -2235,25 +1943,6 @@ func (q *Queries) GetDCLOperatingEntityVersion(ctx context.Context, approvalEntr
 	return i, err
 }
 
-const getDCLOtherUnitRelationship = `-- name: GetDCLOtherUnitRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_service_relationships WHERE object_id=$1 FOR UPDATE
-`
-
-func (q *Queries) GetDCLOtherUnitRelationship(ctx context.Context, objectID string) (DclServiceRelationship, error) {
-	row := q.db.QueryRow(ctx, getDCLOtherUnitRelationship, objectID)
-	var i DclServiceRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
-}
-
 const getDCLOtherUnitVersion = `-- name: GetDCLOtherUnitVersion :one
 SELECT approval_entry_id, kind, legal_name, display_name, tax_number, contact_name, contact_phone, email, address, settlement_method_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, default_operating_entity_id, default_operating_entity_approval_entry_id, default_operating_entity_code, default_operating_entity_name, remark, enabled FROM dcl_other_unit_versions WHERE approval_entry_id=$1
 `
@@ -2285,128 +1974,6 @@ func (q *Queries) GetDCLOtherUnitVersion(ctx context.Context, approvalEntryID st
 		&i.DefaultOperatingEntityName,
 		&i.Remark,
 		&i.Enabled,
-	)
-	return i, err
-}
-
-const getDCLPartyRoot = `-- name: GetDCLPartyRoot :one
-SELECT id,merged_into_party_id,merged_at FROM dcl_parties WHERE id=$1 FOR UPDATE
-`
-
-type GetDCLPartyRootRow struct {
-	ID                string             `db:"id" json:"id"`
-	MergedIntoPartyID *string            `db:"merged_into_party_id" json:"merged_into_party_id"`
-	MergedAt          pgtype.Timestamptz `db:"merged_at" json:"merged_at"`
-}
-
-func (q *Queries) GetDCLPartyRoot(ctx context.Context, id string) (GetDCLPartyRootRow, error) {
-	row := q.db.QueryRow(ctx, getDCLPartyRoot, id)
-	var i GetDCLPartyRootRow
-	err := row.Scan(&i.ID, &i.MergedIntoPartyID, &i.MergedAt)
-	return i, err
-}
-
-const getDCLPartyVersion = `-- name: GetDCLPartyVersion :one
-SELECT approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address
-FROM dcl_party_versions WHERE approval_entry_id=$1
-`
-
-func (q *Queries) GetDCLPartyVersion(ctx context.Context, approvalEntryID string) (DclPartyVersion, error) {
-	row := q.db.QueryRow(ctx, getDCLPartyVersion, approvalEntryID)
-	var i DclPartyVersion
-	err := row.Scan(
-		&i.ApprovalEntryID,
-		&i.PartyID,
-		&i.Kind,
-		&i.LegalName,
-		&i.DisplayName,
-		&i.TaxNumber,
-		&i.Phone,
-		&i.Email,
-		&i.Address,
-	)
-	return i, err
-}
-
-const getDCLRelationshipIdentity = `-- name: GetDCLRelationshipIdentity :one
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
- COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.tax_number,sales_snapshot.tax_number) AS tax_number,
- COALESCE(other_snapshot.default_operating_entity_id,sales_snapshot.default_operating_entity_id) AS default_operating_entity_id,COALESCE(other_snapshot.default_operating_entity_approval_entry_id,sales_snapshot.default_operating_entity_approval_entry_id) AS default_operating_entity_approval_entry_id,COALESCE(other_snapshot.default_operating_entity_code,sales_snapshot.default_operating_entity_code) AS default_operating_entity_code,COALESCE(other_snapshot.default_operating_entity_name,sales_snapshot.default_operating_entity_name) AS default_operating_entity_name
-FROM dcl_subjects subject
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status IN ('DRAFT','PENDING','APPROVED') ORDER BY (status IN ('DRAFT','PENDING')) DESC,version_no DESC LIMIT 1) entry ON true
-LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=entry.id
-LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=entry.id
-WHERE subject.id=$1 AND subject.entity=$2
-`
-
-type GetDCLRelationshipIdentityParams struct {
-	ObjectID string `db:"object_id" json:"object_id"`
-	Entity   string `db:"entity" json:"entity"`
-}
-
-type GetDCLRelationshipIdentityRow struct {
-	ObjectID                              string  `db:"object_id" json:"object_id"`
-	Code                                  string  `db:"code" json:"code"`
-	Kind                                  string  `db:"kind" json:"kind"`
-	LegalName                             string  `db:"legal_name" json:"legal_name"`
-	DisplayName                           string  `db:"display_name" json:"display_name"`
-	TaxNumber                             *string `db:"tax_number" json:"tax_number"`
-	DefaultOperatingEntityID              string  `db:"default_operating_entity_id" json:"default_operating_entity_id"`
-	DefaultOperatingEntityApprovalEntryID string  `db:"default_operating_entity_approval_entry_id" json:"default_operating_entity_approval_entry_id"`
-	DefaultOperatingEntityCode            string  `db:"default_operating_entity_code" json:"default_operating_entity_code"`
-	DefaultOperatingEntityName            string  `db:"default_operating_entity_name" json:"default_operating_entity_name"`
-}
-
-func (q *Queries) GetDCLRelationshipIdentity(ctx context.Context, arg GetDCLRelationshipIdentityParams) (GetDCLRelationshipIdentityRow, error) {
-	row := q.db.QueryRow(ctx, getDCLRelationshipIdentity, arg.ObjectID, arg.Entity)
-	var i GetDCLRelationshipIdentityRow
-	err := row.Scan(
-		&i.ObjectID,
-		&i.Code,
-		&i.Kind,
-		&i.LegalName,
-		&i.DisplayName,
-		&i.TaxNumber,
-		&i.DefaultOperatingEntityID,
-		&i.DefaultOperatingEntityApprovalEntryID,
-		&i.DefaultOperatingEntityCode,
-		&i.DefaultOperatingEntityName,
-	)
-	return i, err
-}
-
-const getDCLRelationshipPartyID = `-- name: GetDCLRelationshipPartyID :one
-SELECT party_id FROM dcl_party_relationship_endpoints
-WHERE entity=$1 AND object_id=$2
-`
-
-type GetDCLRelationshipPartyIDParams struct {
-	Entity   string `db:"entity" json:"entity"`
-	ObjectID string `db:"object_id" json:"object_id"`
-}
-
-func (q *Queries) GetDCLRelationshipPartyID(ctx context.Context, arg GetDCLRelationshipPartyIDParams) (string, error) {
-	row := q.db.QueryRow(ctx, getDCLRelationshipPartyID, arg.Entity, arg.ObjectID)
-	var party_id string
-	err := row.Scan(&party_id)
-	return party_id, err
-}
-
-const getDCLSalesPartnerRelationship = `-- name: GetDCLSalesPartnerRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_sales_relationships WHERE object_id=$1 FOR UPDATE
-`
-
-func (q *Queries) GetDCLSalesPartnerRelationship(ctx context.Context, objectID string) (DclSalesRelationship, error) {
-	row := q.db.QueryRow(ctx, getDCLSalesPartnerRelationship, objectID)
-	var i DclSalesRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
 	)
 	return i, err
 }
@@ -2459,25 +2026,6 @@ func (q *Queries) GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (D
 		&i.Code,
 		&i.CreatedAt,
 		&i.CreatedBy,
-	)
-	return i, err
-}
-
-const getDCLSupplierRelationship = `-- name: GetDCLSupplierRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_supplier_relationships WHERE object_id=$1 FOR UPDATE
-`
-
-func (q *Queries) GetDCLSupplierRelationship(ctx context.Context, objectID string) (DclSupplierRelationship, error) {
-	row := q.db.QueryRow(ctx, getDCLSupplierRelationship, objectID)
-	var i DclSupplierRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
 	)
 	return i, err
 }
@@ -2726,27 +2274,6 @@ func (q *Queries) GetLatestApprovedDCLWarehouseVersionExcluding(ctx context.Cont
 	return i, err
 }
 
-const hasOtherApprovedDCLPartyVersion = `-- name: HasOtherApprovedDCLPartyVersion :one
-SELECT EXISTS (
-  SELECT 1
-  FROM approval_entries
-  WHERE domain='dcl' AND entity='party' AND subject_id=$1
-    AND status='APPROVED' AND id<>$2
-)
-`
-
-type HasOtherApprovedDCLPartyVersionParams struct {
-	PartyID                 string `db:"party_id" json:"party_id"`
-	ExcludedApprovalEntryID string `db:"excluded_approval_entry_id" json:"excluded_approval_entry_id"`
-}
-
-func (q *Queries) HasOtherApprovedDCLPartyVersion(ctx context.Context, arg HasOtherApprovedDCLPartyVersionParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasOtherApprovedDCLPartyVersion, arg.PartyID, arg.ExcludedApprovalEntryID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const insertDCLAccMappingSubject = `-- name: InsertDCLAccMappingSubject :exec
 
 INSERT INTO acc_mappings(id, book_id, vou_entity, created_by, updated_by)
@@ -2895,21 +2422,6 @@ func (q *Queries) InsertDCLCustomerVersionIdentifier(ctx context.Context, arg In
 		arg.Value,
 		arg.NormalizedValue,
 	)
-	return err
-}
-
-const insertDCLEmployeeRelationship = `-- name: InsertDCLEmployeeRelationship :exec
-INSERT INTO dcl_employment_relationships(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)
-`
-
-type InsertDCLEmployeeRelationshipParams struct {
-	ObjectID          string `db:"object_id" json:"object_id"`
-	PartyID           string `db:"party_id" json:"party_id"`
-	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
-}
-
-func (q *Queries) InsertDCLEmployeeRelationship(ctx context.Context, arg InsertDCLEmployeeRelationshipParams) error {
-	_, err := q.db.Exec(ctx, insertDCLEmployeeRelationship, arg.ObjectID, arg.PartyID, arg.OperatingEntityID)
 	return err
 }
 
@@ -3081,21 +2593,6 @@ func (q *Queries) InsertDCLOperatingEntityVersion(ctx context.Context, arg Inser
 	return err
 }
 
-const insertDCLOtherUnitRelationship = `-- name: InsertDCLOtherUnitRelationship :exec
-INSERT INTO dcl_service_relationships(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)
-`
-
-type InsertDCLOtherUnitRelationshipParams struct {
-	ObjectID          string `db:"object_id" json:"object_id"`
-	PartyID           string `db:"party_id" json:"party_id"`
-	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
-}
-
-func (q *Queries) InsertDCLOtherUnitRelationship(ctx context.Context, arg InsertDCLOtherUnitRelationshipParams) error {
-	_, err := q.db.Exec(ctx, insertDCLOtherUnitRelationship, arg.ObjectID, arg.PartyID, arg.OperatingEntityID)
-	return err
-}
-
 const insertDCLOtherUnitVersion = `-- name: InsertDCLOtherUnitVersion :exec
 INSERT INTO dcl_other_unit_versions(approval_entry_id,kind,legal_name,display_name,tax_number,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
@@ -3197,94 +2694,6 @@ func (q *Queries) InsertDCLOtherUnitVersionOperatingEntity(ctx context.Context, 
 		arg.OperatingEntityCode,
 		arg.OperatingEntityName,
 	)
-	return err
-}
-
-const insertDCLPartyRoot = `-- name: InsertDCLPartyRoot :exec
-INSERT INTO dcl_parties(id) SELECT $1 WHERE $2::text IS NOT NULL
-`
-
-type InsertDCLPartyRootParams struct {
-	ID      string `db:"id" json:"id"`
-	ActorID string `db:"actor_id" json:"actor_id"`
-}
-
-// #308 typed DCL stable identities.  Subjects own ID/code; these roots own the
-// immutable Party or Party-to-operating-entity relationship facts.
-func (q *Queries) InsertDCLPartyRoot(ctx context.Context, arg InsertDCLPartyRootParams) error {
-	_, err := q.db.Exec(ctx, insertDCLPartyRoot, arg.ID, arg.ActorID)
-	return err
-}
-
-const insertDCLPartyVersion = `-- name: InsertDCLPartyVersion :exec
-INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-`
-
-type InsertDCLPartyVersionParams struct {
-	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
-	PartyID         string  `db:"party_id" json:"party_id"`
-	Kind            string  `db:"kind" json:"kind"`
-	LegalName       string  `db:"legal_name" json:"legal_name"`
-	DisplayName     string  `db:"display_name" json:"display_name"`
-	TaxNumber       *string `db:"tax_number" json:"tax_number"`
-	Phone           *string `db:"phone" json:"phone"`
-	Email           *string `db:"email" json:"email"`
-	Address         *string `db:"address" json:"address"`
-}
-
-// Party identity snapshots are DCL-owned. Strong identifiers are stored with
-// every immutable version, while the claims table serializes approved/open
-// ownership across all Party roots.
-func (q *Queries) InsertDCLPartyVersion(ctx context.Context, arg InsertDCLPartyVersionParams) error {
-	_, err := q.db.Exec(ctx, insertDCLPartyVersion,
-		arg.ApprovalEntryID,
-		arg.PartyID,
-		arg.Kind,
-		arg.LegalName,
-		arg.DisplayName,
-		arg.TaxNumber,
-		arg.Phone,
-		arg.Email,
-		arg.Address,
-	)
-	return err
-}
-
-const insertDCLPartyVersionIdentifier = `-- name: InsertDCLPartyVersionIdentifier :exec
-INSERT INTO dcl_party_version_identifiers(approval_entry_id,identifier_type,value,normalized_value)
-VALUES($1,$2,$3,$4)
-`
-
-type InsertDCLPartyVersionIdentifierParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	Value           string `db:"value" json:"value"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) InsertDCLPartyVersionIdentifier(ctx context.Context, arg InsertDCLPartyVersionIdentifierParams) error {
-	_, err := q.db.Exec(ctx, insertDCLPartyVersionIdentifier,
-		arg.ApprovalEntryID,
-		arg.IdentifierType,
-		arg.Value,
-		arg.NormalizedValue,
-	)
-	return err
-}
-
-const insertDCLSalesPartnerRelationship = `-- name: InsertDCLSalesPartnerRelationship :exec
-INSERT INTO dcl_sales_relationships(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)
-`
-
-type InsertDCLSalesPartnerRelationshipParams struct {
-	ObjectID          string `db:"object_id" json:"object_id"`
-	PartyID           string `db:"party_id" json:"party_id"`
-	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
-}
-
-func (q *Queries) InsertDCLSalesPartnerRelationship(ctx context.Context, arg InsertDCLSalesPartnerRelationshipParams) error {
-	_, err := q.db.Exec(ctx, insertDCLSalesPartnerRelationship, arg.ObjectID, arg.PartyID, arg.OperatingEntityID)
 	return err
 }
 
@@ -3400,21 +2809,6 @@ func (q *Queries) InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectPara
 		arg.Code,
 		arg.ActorID,
 	)
-	return err
-}
-
-const insertDCLSupplierRelationship = `-- name: InsertDCLSupplierRelationship :exec
-INSERT INTO dcl_supplier_relationships(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)
-`
-
-type InsertDCLSupplierRelationshipParams struct {
-	ObjectID          string `db:"object_id" json:"object_id"`
-	PartyID           string `db:"party_id" json:"party_id"`
-	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
-}
-
-func (q *Queries) InsertDCLSupplierRelationship(ctx context.Context, arg InsertDCLSupplierRelationshipParams) error {
-	_, err := q.db.Exec(ctx, insertDCLSupplierRelationship, arg.ObjectID, arg.PartyID, arg.OperatingEntityID)
 	return err
 }
 
@@ -3636,47 +3030,6 @@ type InsertDclWflProcessDefinitionParams struct {
 func (q *Queries) InsertDclWflProcessDefinition(ctx context.Context, arg InsertDclWflProcessDefinitionParams) error {
 	_, err := q.db.Exec(ctx, insertDclWflProcessDefinition, arg.DefinitionID, arg.ActorID)
 	return err
-}
-
-const listApprovedDCLPartyRelationshipReferenceCounts = `-- name: ListApprovedDCLPartyRelationshipReferenceCounts :many
-SELECT endpoint.entity,'partyId'::text AS field,count(*) AS reference_count
-FROM dcl_party_relationship_endpoints endpoint
-WHERE endpoint.party_id=$1
-  AND endpoint.merged_into_object_id IS NULL
-  AND EXISTS (
-    SELECT 1
-    FROM approval_entries entry
-    WHERE entry.domain='dcl' AND entry.entity=endpoint.entity
-      AND entry.subject_id=endpoint.object_id AND entry.status='APPROVED'
-  )
-GROUP BY endpoint.entity
-ORDER BY endpoint.entity
-`
-
-type ListApprovedDCLPartyRelationshipReferenceCountsRow struct {
-	Entity         string `db:"entity" json:"entity"`
-	Field          string `db:"field" json:"field"`
-	ReferenceCount int64  `db:"reference_count" json:"reference_count"`
-}
-
-func (q *Queries) ListApprovedDCLPartyRelationshipReferenceCounts(ctx context.Context, partyID string) ([]ListApprovedDCLPartyRelationshipReferenceCountsRow, error) {
-	rows, err := q.db.Query(ctx, listApprovedDCLPartyRelationshipReferenceCounts, partyID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListApprovedDCLPartyRelationshipReferenceCountsRow{}
-	for rows.Next() {
-		var i ListApprovedDCLPartyRelationshipReferenceCountsRow
-		if err := rows.Scan(&i.Entity, &i.Field, &i.ReferenceCount); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listDCLAccMappingApprovalEvents = `-- name: ListDCLAccMappingApprovalEvents :many
@@ -4100,102 +3453,6 @@ func (q *Queries) ListDCLCustomerVersionIdentifiers(ctx context.Context, custome
 			&i.IdentifierType,
 			&i.Value,
 			&i.NormalizedValue,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLCustomers = `-- name: ListDCLCustomers :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
-       ''::text AS party_id,''::text AS party_kind,display.data->>'displayName' AS display_name,
-       display.data->'defaultOperatingEntity'->>'sourceObjectId' AS operating_entity_id,
-       display.data->'defaultOperatingEntity'->>'code' AS operating_entity_code,
-       display.data->'defaultOperatingEntity'->>'name' AS operating_entity_name,
-       display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
-       COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
-FROM dcl_subjects subject
-LEFT JOIN LATERAL (
-  SELECT id,status,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
-  ORDER BY version_no DESC LIMIT 1
-) candidate ON true
-LEFT JOIN LATERAL (
-  SELECT id,status,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
-  ORDER BY version_no DESC LIMIT 1
-) approved ON true
-JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
-WHERE subject.entity='customer'
-  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.data->>'displayName' ILIKE '%'||$1::text||'%')
-  AND ($2::text='' OR display.data->'defaultOperatingEntity'->>'sourceObjectId'=$2)
-  AND ($3::text='' OR true)
-  AND ($4::integer=-1 OR display.enabled=($4::integer=1))
-  AND (cardinality($5::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($5::text[]))
-ORDER BY subject.code ASC,subject.id ASC
-LIMIT $7 OFFSET $6
-`
-
-type ListDCLCustomersParams struct {
-	Keyword           string   `db:"keyword" json:"keyword"`
-	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
-	PartyID           string   `db:"party_id" json:"party_id"`
-	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter      []string `db:"status_filter" json:"status_filter"`
-	RowOffset         int32    `db:"row_offset" json:"row_offset"`
-	RowLimit          int32    `db:"row_limit" json:"row_limit"`
-}
-
-type ListDCLCustomersRow struct {
-	ObjectID              string             `db:"object_id" json:"object_id"`
-	Code                  string             `db:"code" json:"code"`
-	PartyID               string             `db:"party_id" json:"party_id"`
-	PartyKind             string             `db:"party_kind" json:"party_kind"`
-	DisplayName           interface{}        `db:"display_name" json:"display_name"`
-	OperatingEntityID     interface{}        `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode   interface{}        `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName   interface{}        `db:"operating_entity_name" json:"operating_entity_name"`
-	Enabled               bool               `db:"enabled" json:"enabled"`
-	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	LatestApprovedEntryID string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
-	OpenEntryID           string             `db:"open_entry_id" json:"open_entry_id"`
-}
-
-func (q *Queries) ListDCLCustomers(ctx context.Context, arg ListDCLCustomersParams) ([]ListDCLCustomersRow, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomers,
-		arg.Keyword,
-		arg.OperatingEntityID,
-		arg.PartyID,
-		arg.EnabledFilter,
-		arg.StatusFilter,
-		arg.RowOffset,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListDCLCustomersRow{}
-	for rows.Next() {
-		var i ListDCLCustomersRow
-		if err := rows.Scan(
-			&i.ObjectID,
-			&i.Code,
-			&i.PartyID,
-			&i.PartyKind,
-			&i.DisplayName,
-			&i.OperatingEntityID,
-			&i.OperatingEntityCode,
-			&i.OperatingEntityName,
-			&i.Enabled,
-			&i.UpdatedAt,
-			&i.LatestApprovedEntryID,
-			&i.OpenEntryID,
 		); err != nil {
 			return nil, err
 		}
@@ -4708,294 +3965,6 @@ func (q *Queries) ListDCLOtherUnitVersionOperatingEntities(ctx context.Context, 
 			&i.OperatingEntityApprovalEntryID,
 			&i.OperatingEntityCode,
 			&i.OperatingEntityName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLParties = `-- name: ListDCLParties :many
-SELECT subject.id AS party_id,
-       COALESCE(approved_entry.id,'')::text AS latest_approved_entry_id,
-       COALESCE(open_entry.id,'')::text AS open_entry_id,
-       COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
-FROM dcl_subjects subject
-JOIN dcl_parties party ON party.id=subject.id
-LEFT JOIN LATERAL (
-  SELECT id,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
-    AND status IN ('DRAFT','PENDING')
-  ORDER BY version_no DESC LIMIT 1
-) open_entry ON true
-LEFT JOIN LATERAL (
-  SELECT id,updated_at FROM approval_entries
-  WHERE domain='dcl' AND entity='party' AND subject_id=subject.id
-    AND status='APPROVED'
-  ORDER BY version_no DESC LIMIT 1
-) approved_entry ON true
-JOIN dcl_party_versions display ON display.approval_entry_id=COALESCE(open_entry.id,approved_entry.id)
-WHERE subject.entity='party'
-  AND ($1::text='' OR display.kind=$1::text)
-  AND ($2::text='' OR display.legal_name ILIKE '%'||$2::text||'%' OR display.display_name ILIKE '%'||$2::text||'%')
-  AND (($3::boolean AND party.merged_into_party_id IS NOT NULL) OR (NOT $3::boolean AND party.merged_into_party_id IS NULL))
-ORDER BY display.display_name ASC,subject.id ASC
-LIMIT $5 OFFSET $4
-`
-
-type ListDCLPartiesParams struct {
-	Kind      string `db:"kind" json:"kind"`
-	Keyword   string `db:"keyword" json:"keyword"`
-	Merged    bool   `db:"merged" json:"merged"`
-	RowOffset int32  `db:"row_offset" json:"row_offset"`
-	RowLimit  int32  `db:"row_limit" json:"row_limit"`
-}
-
-type ListDCLPartiesRow struct {
-	PartyID               string             `db:"party_id" json:"party_id"`
-	LatestApprovedEntryID string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
-	OpenEntryID           string             `db:"open_entry_id" json:"open_entry_id"`
-	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-func (q *Queries) ListDCLParties(ctx context.Context, arg ListDCLPartiesParams) ([]ListDCLPartiesRow, error) {
-	rows, err := q.db.Query(ctx, listDCLParties,
-		arg.Kind,
-		arg.Keyword,
-		arg.Merged,
-		arg.RowOffset,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListDCLPartiesRow{}
-	for rows.Next() {
-		var i ListDCLPartiesRow
-		if err := rows.Scan(
-			&i.PartyID,
-			&i.LatestApprovedEntryID,
-			&i.OpenEntryID,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLPartyAuditEvents = `-- name: ListDCLPartyAuditEvents :many
-SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
-       from_revision,to_revision,actor_id,reason,request_id,created_at
-FROM (
-  SELECT event.id,event.entry_id,event.domain,event.entity,event.subject_id,event.version_no,
-         event.action,event.from_status,event.to_status,event.from_revision,event.to_revision,
-         event.actor_id,event.reason,event.request_id,event.created_at
-  FROM approval_events event
-  WHERE event.domain='dcl' AND event.entity='party' AND event.subject_id=$1
-  UNION ALL
-  SELECT merge_event.id,
-         CASE WHEN merge_event.source_party_id=$1
-              THEN preflight.source_approval_entry_id
-              ELSE preflight.target_approval_entry_id END AS entry_id,
-         'dcl'::character varying AS domain,'party'::character varying AS entity,
-         $1::character varying AS subject_id,NULL::integer AS version_no,
-         'MERGED'::character varying AS action,NULL::character varying AS from_status,
-         NULL::character varying AS to_status,NULL::bigint AS from_revision,
-         NULL::bigint AS to_revision,merge_event.actor_id,NULL::text AS reason,
-         merge_event.request_id,merge_event.occurred_at AS created_at
-  FROM dcl_party_merge_events merge_event
-  JOIN dcl_party_merge_preflights preflight ON preflight.id=merge_event.preflight_id
-  WHERE merge_event.source_party_id=$1 OR merge_event.target_party_id=$1
-) audit
-ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
-`
-
-type ListDCLPartyAuditEventsParams struct {
-	PartyID   string `db:"party_id" json:"party_id"`
-	RowOffset int32  `db:"row_offset" json:"row_offset"`
-	RowLimit  int32  `db:"row_limit" json:"row_limit"`
-}
-
-func (q *Queries) ListDCLPartyAuditEvents(ctx context.Context, arg ListDCLPartyAuditEventsParams) ([]ApprovalEvent, error) {
-	rows, err := q.db.Query(ctx, listDCLPartyAuditEvents, arg.PartyID, arg.RowOffset, arg.RowLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ApprovalEvent{}
-	for rows.Next() {
-		var i ApprovalEvent
-		if err := rows.Scan(
-			&i.ID,
-			&i.EntryID,
-			&i.Domain,
-			&i.Entity,
-			&i.SubjectID,
-			&i.VersionNo,
-			&i.Action,
-			&i.FromStatus,
-			&i.ToStatus,
-			&i.FromRevision,
-			&i.ToRevision,
-			&i.ActorID,
-			&i.Reason,
-			&i.RequestID,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLPartyVersionIdentifiers = `-- name: ListDCLPartyVersionIdentifiers :many
-SELECT identifier_type,value,normalized_value FROM dcl_party_version_identifiers
-WHERE approval_entry_id=$1 ORDER BY identifier_type,normalized_value
-`
-
-type ListDCLPartyVersionIdentifiersRow struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	Value           string `db:"value" json:"value"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) ListDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) ([]ListDCLPartyVersionIdentifiersRow, error) {
-	rows, err := q.db.Query(ctx, listDCLPartyVersionIdentifiers, approvalEntryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListDCLPartyVersionIdentifiersRow{}
-	for rows.Next() {
-		var i ListDCLPartyVersionIdentifiersRow
-		if err := rows.Scan(&i.IdentifierType, &i.Value, &i.NormalizedValue); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLPartyVersionIdentifiersByEntryIDs = `-- name: ListDCLPartyVersionIdentifiersByEntryIDs :many
-SELECT approval_entry_id,identifier_type,value,normalized_value
-FROM dcl_party_version_identifiers
-WHERE approval_entry_id=ANY($1::text[])
-ORDER BY approval_entry_id,identifier_type,normalized_value
-`
-
-func (q *Queries) ListDCLPartyVersionIdentifiersByEntryIDs(ctx context.Context, approvalEntryIds []string) ([]DclPartyVersionIdentifier, error) {
-	rows, err := q.db.Query(ctx, listDCLPartyVersionIdentifiersByEntryIDs, approvalEntryIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DclPartyVersionIdentifier{}
-	for rows.Next() {
-		var i DclPartyVersionIdentifier
-		if err := rows.Scan(
-			&i.ApprovalEntryID,
-			&i.IdentifierType,
-			&i.Value,
-			&i.NormalizedValue,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLPartyVersionsByEntryIDs = `-- name: ListDCLPartyVersionsByEntryIDs :many
-SELECT entry.id AS approval_entry_id,entry.domain,entry.entity,entry.subject_id,entry.version_no,
-       entry.status,entry.revision,entry.created_by,entry.created_at,entry.updated_by,entry.updated_at,
-       entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at,
-       version.party_id,version.kind,version.legal_name,version.display_name,version.tax_number,
-       version.phone,version.email,version.address
-FROM approval_entries entry
-JOIN dcl_party_versions version ON version.approval_entry_id=entry.id
-WHERE entry.id=ANY($1::text[])
-ORDER BY entry.id
-`
-
-type ListDCLPartyVersionsByEntryIDsRow struct {
-	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
-	Domain          string             `db:"domain" json:"domain"`
-	Entity          string             `db:"entity" json:"entity"`
-	SubjectID       string             `db:"subject_id" json:"subject_id"`
-	VersionNo       *int32             `db:"version_no" json:"version_no"`
-	Status          string             `db:"status" json:"status"`
-	Revision        int64              `db:"revision" json:"revision"`
-	CreatedBy       string             `db:"created_by" json:"created_by"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
-	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	SubmittedBy     *string            `db:"submitted_by" json:"submitted_by"`
-	SubmittedAt     pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	ApprovedBy      *string            `db:"approved_by" json:"approved_by"`
-	ApprovedAt      pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	PartyID         string             `db:"party_id" json:"party_id"`
-	Kind            string             `db:"kind" json:"kind"`
-	LegalName       string             `db:"legal_name" json:"legal_name"`
-	DisplayName     string             `db:"display_name" json:"display_name"`
-	TaxNumber       *string            `db:"tax_number" json:"tax_number"`
-	Phone           *string            `db:"phone" json:"phone"`
-	Email           *string            `db:"email" json:"email"`
-	Address         *string            `db:"address" json:"address"`
-}
-
-func (q *Queries) ListDCLPartyVersionsByEntryIDs(ctx context.Context, approvalEntryIds []string) ([]ListDCLPartyVersionsByEntryIDsRow, error) {
-	rows, err := q.db.Query(ctx, listDCLPartyVersionsByEntryIDs, approvalEntryIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListDCLPartyVersionsByEntryIDsRow{}
-	for rows.Next() {
-		var i ListDCLPartyVersionsByEntryIDsRow
-		if err := rows.Scan(
-			&i.ApprovalEntryID,
-			&i.Domain,
-			&i.Entity,
-			&i.SubjectID,
-			&i.VersionNo,
-			&i.Status,
-			&i.Revision,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedBy,
-			&i.UpdatedAt,
-			&i.SubmittedBy,
-			&i.SubmittedAt,
-			&i.ApprovedBy,
-			&i.ApprovedAt,
-			&i.PartyID,
-			&i.Kind,
-			&i.LegalName,
-			&i.DisplayName,
-			&i.TaxNumber,
-			&i.Phone,
-			&i.Email,
-			&i.Address,
 		); err != nil {
 			return nil, err
 		}
@@ -6360,18 +5329,6 @@ func (q *Queries) RebuildDCLVehicleIdentifierClaims(ctx context.Context, objectI
 	return err
 }
 
-const replaceDCLPartyVersionIdentifiers = `-- name: ReplaceDCLPartyVersionIdentifiers :execrows
-DELETE FROM dcl_party_version_identifiers WHERE approval_entry_id=$1
-`
-
-func (q *Queries) ReplaceDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, replaceDCLPartyVersionIdentifiers, approvalEntryID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateDCLAccMappingVersion = `-- name: UpdateDCLAccMappingVersion :execrows
 UPDATE dcl_acc_mapping_versions SET
   default_result = $1, definition = $2
@@ -6616,39 +5573,6 @@ func (q *Queries) UpdateDCLOtherUnitVersion(ctx context.Context, arg UpdateDCLOt
 		arg.DefaultOperatingEntityName,
 		arg.Remark,
 		arg.Enabled,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const updateDCLPartyVersion = `-- name: UpdateDCLPartyVersion :execrows
-UPDATE dcl_party_versions SET kind=$1,legal_name=$2,display_name=$3,tax_number=$4,phone=$5,email=$6,address=$7
-WHERE approval_entry_id=$8
-`
-
-type UpdateDCLPartyVersionParams struct {
-	Kind            string  `db:"kind" json:"kind"`
-	LegalName       string  `db:"legal_name" json:"legal_name"`
-	DisplayName     string  `db:"display_name" json:"display_name"`
-	TaxNumber       *string `db:"tax_number" json:"tax_number"`
-	Phone           *string `db:"phone" json:"phone"`
-	Email           *string `db:"email" json:"email"`
-	Address         *string `db:"address" json:"address"`
-	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateDCLPartyVersion(ctx context.Context, arg UpdateDCLPartyVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateDCLPartyVersion,
-		arg.Kind,
-		arg.LegalName,
-		arg.DisplayName,
-		arg.TaxNumber,
-		arg.Phone,
-		arg.Email,
-		arg.Address,
 		arg.ApprovalEntryID,
 	)
 	if err != nil {

@@ -116,10 +116,10 @@ type validatedDraft struct {
 }
 
 type validatedQuery struct {
-	Page, PageSize                               int
-	Keyword, PartyObjectID, SortField, SortOrder string
-	Statuses                                     []string
-	DateFrom, DateTo                             *time.Time
+	Page, PageSize                                      int
+	Keyword, CounterpartyObjectID, SortField, SortOrder string
+	Statuses                                            []string
+	DateFrom, DateTo                                    *time.Time
 }
 
 func validEntity(entity string) bool {
@@ -770,11 +770,11 @@ func validateQuery(input QueryInput) (validatedQuery, error) {
 	}
 	result := validatedQuery{
 		Page: input.Page, PageSize: input.PageSize, Keyword: strings.TrimSpace(input.Filters.Keyword),
-		PartyObjectID: strings.TrimSpace(input.Filters.PartyObjectID),
-		SortField:     "updatedAt", SortOrder: "desc",
+		CounterpartyObjectID: strings.TrimSpace(input.Filters.CounterpartyObjectID),
+		SortField:            "updatedAt", SortOrder: "desc",
 	}
-	if result.PartyObjectID != "" && !validID(result.PartyObjectID) {
-		return validatedQuery{}, domainError(ErrorValidation, "invalid partyObjectId", nil, nil)
+	if result.CounterpartyObjectID != "" && !validID(result.CounterpartyObjectID) {
+		return validatedQuery{}, domainError(ErrorValidation, "invalid counterpartyObjectId", nil, nil)
 	}
 	allowedStatuses := map[string]bool{
 		StatusDraft: true, StatusPending: true, StatusApproved: true,

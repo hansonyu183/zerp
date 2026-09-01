@@ -33,14 +33,6 @@ func TestSalesPartnerCapabilitiesAreClosedAndRequiredForSubmission(t *testing.T)
 	}
 }
 
-func TestPartyQueryRequiresFixedPageSize(t *testing.T) {
-	t.Parallel()
-	service := &Service{}
-	if _, err := service.PartyQuery(t.Context(), QueryInput{Page: 1, PageSize: 10}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("PartyQuery pageSize=10 error = %v, want validation", err)
-	}
-}
-
 func TestExactAuxiliarySnapshotsDoNotRequireCurrentSource(t *testing.T) {
 	t.Parallel()
 	service := &Service{}
@@ -66,23 +58,6 @@ func TestExactAuxiliarySnapshotsDoNotRequireCurrentSource(t *testing.T) {
 	}, true)
 	if err != nil || vehicle.VehicleTypeName != "厢式货车" {
 		t.Fatalf("exact vehicle type snapshot = %+v, err = %v", vehicle, err)
-	}
-}
-
-func TestPartyTaxNumberHasSinglePublicSource(t *testing.T) {
-	t.Parallel()
-	_, _, err := validatePartyData(PartyCreateData{
-		Kind: PartyKindOrganization, LegalName: "测试机构",
-		StrongIdentifiers: []PartyIdentifierInput{{Type: PartyIdentifierTaxNumber, Value: "91330001"}},
-	})
-	if !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("strongIdentifiers TAX_NUMBER error = %v, want validation", err)
-	}
-	_, identifiers, err := validatePartyData(PartyCreateData{
-		Kind: PartyKindOrganization, LegalName: "测试机构", TaxNumber: " 9133-0001 ",
-	})
-	if err != nil || len(identifiers) != 1 || identifiers[0].Type != PartyIdentifierTaxNumber {
-		t.Fatalf("taxNumber identifiers = %+v, error = %v", identifiers, err)
 	}
 }
 

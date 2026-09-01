@@ -27,14 +27,14 @@ type fixedSignoffLine struct {
 }
 
 type salesSource struct {
-	ID, Number, Entity, Status, Currency        string
-	BusinessDate                                time.Time
-	Total                                       int64
-	CustomerObjectID, CustomerApprovalEntryID   string
-	CustomerCode, CustomerName                  string
-	WarehouseObjectID, WarehouseApprovalEntryID string
-	WarehouseCode, WarehouseName                string
-	OperatingEntityObjectID                     string
+	ID, Number, Entity, Status, Currency                  string
+	BusinessDate                                          time.Time
+	Total                                                 int64
+	CustomerObjectID, CustomerID, CustomerApprovalEntryID string
+	CustomerCode, CustomerName                            string
+	WarehouseObjectID, WarehouseApprovalEntryID           string
+	WarehouseCode, WarehouseName                          string
+	OperatingEntityObjectID                               string
 }
 
 func validateChainHeader(data DraftInput) (time.Time, *string, error) {
@@ -236,7 +236,7 @@ func (s *Service) lockSalesSource(
 	switch entity {
 	case EntitySaleOrder:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,a.status,d.business_date,d.currency,d.total_amount_cents,
-			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
+			x.customer_object_id,x.customer_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
 			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_approval_entry_id,''),
 			COALESCE(x.warehouse_code,''),COALESCE(x.warehouse_name,'')
 			FROM vou_documents d JOIN vou_sale_order_details x ON x.document_id=d.id
@@ -244,7 +244,7 @@ func (s *Service) lockSalesSource(
 				AND a.entity=d.entity AND a.subject_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-order' FOR UPDATE`, id).
 			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
-				&source.CustomerObjectID, &source.CustomerApprovalEntryID, &source.CustomerCode, &source.CustomerName,
+				&source.CustomerObjectID, &source.CustomerID, &source.CustomerApprovalEntryID, &source.CustomerCode, &source.CustomerName,
 				&source.WarehouseObjectID, &source.WarehouseApprovalEntryID, &source.WarehouseCode, &source.WarehouseName)
 	case EntitySaleOutbound:
 		var row dbsqlc.LockVouSaleOutboundSourceRow
@@ -252,7 +252,7 @@ func (s *Service) lockSalesSource(
 		if err == nil {
 			source.Number, source.Status, date, source.Currency, source.Total =
 				row.DocumentNo, row.Status, row.BusinessDate.Time, row.Currency, row.TotalAmountCents
-			source.CustomerObjectID, source.CustomerApprovalEntryID = row.CustomerObjectID, row.CustomerApprovalEntryID
+			source.CustomerObjectID, source.CustomerID, source.CustomerApprovalEntryID = row.CustomerObjectID, row.CustomerID, row.CustomerApprovalEntryID
 			source.CustomerCode, source.CustomerName = row.CustomerCode, row.CustomerName
 			source.WarehouseObjectID, source.WarehouseApprovalEntryID = deref(row.WarehouseObjectID), deref(row.WarehouseApprovalEntryID)
 			source.WarehouseCode, source.WarehouseName = deref(row.WarehouseCode), deref(row.WarehouseName)
@@ -260,7 +260,7 @@ func (s *Service) lockSalesSource(
 		}
 	case EntitySaleDelivery:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,a.status,d.business_date,d.currency,d.total_amount_cents,
-			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
+			x.customer_object_id,x.customer_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
 			o.warehouse_object_id,o.warehouse_approval_entry_id,o.warehouse_code,o.warehouse_name
 			FROM vou_documents d JOIN vou_sale_delivery_details x ON x.document_id=d.id
 			JOIN vou_sale_outbound_details o ON o.document_id=x.source_outbound_id
@@ -268,7 +268,7 @@ func (s *Service) lockSalesSource(
 				AND a.entity=d.entity AND a.subject_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-delivery' FOR UPDATE`, id).
 			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
-				&source.CustomerObjectID, &source.CustomerApprovalEntryID, &source.CustomerCode, &source.CustomerName,
+				&source.CustomerObjectID, &source.CustomerID, &source.CustomerApprovalEntryID, &source.CustomerCode, &source.CustomerName,
 				&source.WarehouseObjectID, &source.WarehouseApprovalEntryID, &source.WarehouseCode, &source.WarehouseName)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -430,10 +430,10 @@ func (s *Service) writeSaleOutbound(
 			return MutationResult{}, err
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO vou_sale_outbound_details(
-			document_id,source_order_id,customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+			document_id,source_order_id,customer_object_id,customer_id,customer_approval_entry_id,customer_code,customer_name,
 			warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name)
-			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-			id, source.ID, source.CustomerObjectID, source.CustomerApprovalEntryID, source.CustomerCode, source.CustomerName,
+			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			id, source.ID, source.CustomerObjectID, source.CustomerID, source.CustomerApprovalEntryID, source.CustomerCode, source.CustomerName,
 			warehouse.ObjectID, warehouse.ApprovalEntryID, warehouse.Code, warehouse.Data.Name)
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
@@ -641,6 +641,7 @@ func (s *Service) writeSaleDelivery(
 	detail := dbsqlc.InsertVouSaleDeliveryDetailParams{
 		SourceOutboundID: source.ID,
 		CustomerObjectID: source.CustomerObjectID, CustomerApprovalEntryID: source.CustomerApprovalEntryID,
+		CustomerID:   source.CustomerID,
 		CustomerCode: source.CustomerCode, CustomerName: source.CustomerName,
 		CarrierType:                               transport.carrierType,
 		CarrierOperatingEntityObjectID:            transport.operating.objectID,
@@ -776,11 +777,11 @@ func (s *Service) writeSaleSignoff(
 		if err == nil {
 			_, err = tx.Exec(ctx, `INSERT INTO vou_sale_signoff_details(
 				document_id,source_delivery_id,source_outbound_id,source_order_id,
-				customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+				customer_object_id,customer_id,customer_approval_entry_id,customer_code,customer_name,
 				warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name)
-				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 				id, source.ID, outboundID, orderID,
-				source.CustomerObjectID, source.CustomerApprovalEntryID, source.CustomerCode, source.CustomerName,
+				source.CustomerObjectID, source.CustomerID, source.CustomerApprovalEntryID, source.CustomerCode, source.CustomerName,
 				source.WarehouseObjectID, source.WarehouseApprovalEntryID, source.WarehouseCode, source.WarehouseName)
 		}
 	} else {

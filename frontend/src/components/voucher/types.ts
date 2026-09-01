@@ -367,8 +367,6 @@ export interface VoucherDocumentData {
   intermediaryCalculation?: IntermediaryCalculationInput
   serviceContract?: {
     counterparty: VoucherReferenceView
-    partyId: string
-    partyName: string
     operatingEntity: VoucherReferenceView
     handler: VoucherReferenceView
     settlementMethod?: SettlementMethodSnapshot
@@ -599,7 +597,7 @@ export interface VoucherListRow {
   revision: number
   availableApprovalActions: components['schemas']['ApprovalLifecycleAction'][]
   businessDate: string
-  partyName?: string
+  counterpartyName?: string
   currency: string
   amount: string
   updatedAt: string
@@ -633,7 +631,7 @@ export interface VoucherQueryFilters {
   status: VoucherStatus[]
   dateFrom: string
   dateTo: string
-  partyObjectId: string
+  counterpartyObjectId: string
 }
 
 export interface VoucherSort {

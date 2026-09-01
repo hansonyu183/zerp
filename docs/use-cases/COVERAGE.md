@@ -6,9 +6,9 @@
 
 统计口径：页面入口只统计静态注册页面，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。
 
-- 页面入口：89
-- 已覆盖入口：45
-- 已登记用例：44
+- 页面入口：87
+- 已覆盖入口：43
+- 已登记用例：42
 - 缺少用例：44
 - 孤儿用例：0
 
@@ -29,7 +29,6 @@
 
 | 页面           | 路由                          | 来源                                                | 状态                                      |
 | -------------- | ----------------------------- | --------------------------------------------------- | ----------------------------------------- |
-| 主体变更       | `/dcl/party`                  | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/party.md)                  |
 | 经营主体变更   | `/dcl/operating-entity`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md)       |
 | 仓库变更       | `/dcl/warehouse`              | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)              |
 | 车辆变更       | `/dcl/vehicle`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)                |
@@ -58,7 +57,6 @@
 
 | 页面                     | 路由                    | 来源                                                | 状态                                |
 | ------------------------ | ----------------------- | --------------------------------------------------- | ----------------------------------- |
-| 主体                     | `/bob/party`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/party.md)            |
 | 客户                     | `/bob/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer.md)         |
 | 供应商                   | `/bob/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/supplier.md)         |
 | 其他单位                 | `/bob/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/other-unit.md)       |

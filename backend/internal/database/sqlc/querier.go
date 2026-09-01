@@ -37,7 +37,6 @@ type Querier interface {
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ClearWorkflowNodeDocument(ctx context.Context, documentID *string) error
 	ConsumeCustomerDownloadToken(ctx context.Context, tokenHash string) (ConsumeCustomerDownloadTokenRow, error)
-	ConsumePartyMergePreflight(ctx context.Context, arg ConsumePartyMergePreflightParams) (int64, error)
 	ConsumeVouDownloadToken(ctx context.Context, tokenHash string) (ConsumeVouDownloadTokenRow, error)
 	CopyDCLAccMappingVersion(ctx context.Context, arg CopyDCLAccMappingVersionParams) (int64, error)
 	CopyDCLCustomerAttachments(ctx context.Context, arg CopyDCLCustomerAttachmentsParams) error
@@ -53,8 +52,6 @@ type Querier interface {
 	CopyDCLOtherUnitVersion(ctx context.Context, arg CopyDCLOtherUnitVersionParams) (int64, error)
 	CopyDCLOtherUnitVersionIdentifiers(ctx context.Context, arg CopyDCLOtherUnitVersionIdentifiersParams) error
 	CopyDCLOtherUnitVersionOperatingEntities(ctx context.Context, arg CopyDCLOtherUnitVersionOperatingEntitiesParams) error
-	CopyDCLPartyVersion(ctx context.Context, arg CopyDCLPartyVersionParams) (int64, error)
-	CopyDCLPartyVersionIdentifiers(ctx context.Context, arg CopyDCLPartyVersionIdentifiersParams) (int64, error)
 	CopyDCLProductSnapshot(ctx context.Context, arg CopyDCLProductSnapshotParams) error
 	CopyDCLSalesPartnerVersion(ctx context.Context, arg CopyDCLSalesPartnerVersionParams) (int64, error)
 	CopyDCLSalesPartnerVersionIdentifiers(ctx context.Context, arg CopyDCLSalesPartnerVersionIdentifiersParams) error
@@ -72,41 +69,27 @@ type Querier interface {
 	CountAppUsersExcept(ctx context.Context, excludedUserID string) (int64, error)
 	CountBobCustomerCurrents(ctx context.Context, arg CountBobCustomerCurrentsParams) (int64, error)
 	CountBobEmployeeCurrentsTyped(ctx context.Context, arg CountBobEmployeeCurrentsTypedParams) (int64, error)
-	CountBobEmployees(ctx context.Context, arg CountBobEmployeesParams) (int64, error)
 	CountBobFundAccounts(ctx context.Context, arg CountBobFundAccountsParams) (int64, error)
 	CountBobOperatingEntities(ctx context.Context, arg CountBobOperatingEntitiesParams) (int64, error)
-	CountBobOtherUnitCurrents(ctx context.Context, arg CountBobOtherUnitCurrentsParams) (int64, error)
 	CountBobOtherUnitCurrentsTyped(ctx context.Context, arg CountBobOtherUnitCurrentsTypedParams) (int64, error)
 	CountBobProductsCurrent(ctx context.Context, arg CountBobProductsCurrentParams) (int64, error)
-	CountBobSalesPartnerCurrents(ctx context.Context, arg CountBobSalesPartnerCurrentsParams) (int64, error)
 	CountBobSalesPartnerCurrentsTyped(ctx context.Context, arg CountBobSalesPartnerCurrentsTypedParams) (int64, error)
 	CountBobSupplierCurrentsTyped(ctx context.Context, arg CountBobSupplierCurrentsTypedParams) (int64, error)
-	CountBobSuppliersCurrent(ctx context.Context, arg CountBobSuppliersCurrentParams) (int64, error)
 	CountBobVehicles(ctx context.Context, arg CountBobVehiclesParams) (int64, error)
 	CountBobWarehouses(ctx context.Context, arg CountBobWarehousesParams) (int64, error)
 	CountCurrentWorkflowDefinitions(ctx context.Context, arg CountCurrentWorkflowDefinitionsParams) (int64, error)
 	CountDCLAccMappingApprovalEvents(ctx context.Context, subjectID string) (int64, error)
 	CountDCLAccMappings(ctx context.Context, arg CountDCLAccMappingsParams) (int64, error)
-	// Typed read queries for BOB callers. Every row is derived directly from a
-	// typed DCL subject and its latest APPROVED entry.
-	CountDCLApprovedPartiesForBOB(ctx context.Context, arg CountDCLApprovedPartiesForBOBParams) (int64, error)
 	CountDCLCustomerAggregates(ctx context.Context, arg CountDCLCustomerAggregatesParams) (int64, error)
+	// Compatibility query names now read the single Customer aggregate.
 	CountDCLCustomerApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLCustomerAttachments(ctx context.Context, approvalEntryID string) (int64, error)
-	// Compatibility query names now read the single Customer aggregate.
-	CountDCLCustomers(ctx context.Context, arg CountDCLCustomersParams) (int64, error)
 	CountDCLEmployeeApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLEmployees(ctx context.Context, arg CountDCLEmployeesParams) (int64, error)
 	CountDCLFundAccountApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLFundAccounts(ctx context.Context, arg CountDCLFundAccountsParams) (int64, error)
 	CountDCLOperatingEntities(ctx context.Context, arg CountDCLOperatingEntitiesParams) (int64, error)
 	CountDCLOperatingEntityApprovalEvents(ctx context.Context, objectID string) (int64, error)
-	// DCL Party list keeps the latest approved and the single open candidate as
-	// separate typed snapshots. Filter and sort use the candidate when present,
-	// otherwise the approved snapshot, so draft-only roots are discoverable and
-	// a page can be hydrated with a fixed number of batch reads.
-	CountDCLParties(ctx context.Context, arg CountDCLPartiesParams) (int64, error)
-	CountDCLPartyAuditEvents(ctx context.Context, partyID string) (int32, error)
 	CountDCLProductApprovalEvents(ctx context.Context, objectID string) (int64, error)
 	CountDCLProducts(ctx context.Context, arg CountDCLProductsParams) (int64, error)
 	CountDCLRelationshipApprovalEvents(ctx context.Context, arg CountDCLRelationshipApprovalEventsParams) (int64, error)
@@ -217,33 +200,25 @@ type Querier interface {
 	DeleteDCLCustomerVersionAggregate(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLCustomerVersionIdentifiers(ctx context.Context, customerApprovalEntryID string) error
 	DeleteDCLEmployeeIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error
-	DeleteDCLEmployeeRelationship(ctx context.Context, objectID string) (int64, error)
 	DeleteDCLEmployeeVersion(ctx context.Context, approvalEntryID string) (int64, error)
-	// Typed strong identifiers are scoped per business archive type.  Advisory
-	// locks serialize both an absent claim and a persisted claim in one transaction.
 	DeleteDCLEmployeeVersionIdentifiers(ctx context.Context, approvalEntryID string) error
 	DeleteDCLFundAccountIdentifierClaims(ctx context.Context, objectID string) error
 	DeleteDCLFundAccountVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLOperatingEntityVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error
-	DeleteDCLOtherUnitRelationship(ctx context.Context, objectID string) (int64, error)
 	DeleteDCLOtherUnitVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLOtherUnitVersionIdentifiers(ctx context.Context, approvalEntryID string) error
 	DeleteDCLOtherUnitVersionOperatingEntities(ctx context.Context, approvalEntryID string) error
-	DeleteDCLPartyRoot(ctx context.Context, id string) (int64, error)
-	DeleteDCLPartyVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLProductBarcodeClaims(ctx context.Context, objectID string) error
 	DeleteDCLProductFormula(ctx context.Context, productApprovalEntryID string) error
 	DeleteDCLProductSnapshot(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLProductUnitConversions(ctx context.Context, productApprovalEntryID string) error
 	DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error
-	DeleteDCLSalesPartnerRelationship(ctx context.Context, objectID string) (int64, error)
 	DeleteDCLSalesPartnerVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLSalesPartnerVersionIdentifiers(ctx context.Context, approvalEntryID string) error
 	DeleteDCLSalesPartnerVersionOperatingEntities(ctx context.Context, approvalEntryID string) error
 	DeleteDCLSubject(ctx context.Context, arg DeleteDCLSubjectParams) (int64, error)
 	DeleteDCLSupplierIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error
-	DeleteDCLSupplierRelationship(ctx context.Context, objectID string) (int64, error)
 	DeleteDCLSupplierVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLSupplierVersionIdentifiers(ctx context.Context, approvalEntryID string) error
 	// The operating set is copied with its parent candidate and replaced by the
@@ -290,7 +265,6 @@ type Querier interface {
 	EnsureEnterpriseNameSystemParameter(ctx context.Context) error
 	FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error)
 	FindAccountingBookIDByDescription(ctx context.Context, description string) (string, error)
-	FindActiveDCLRelationshipByEndpoints(ctx context.Context, arg FindActiveDCLRelationshipByEndpointsParams) (FindActiveDCLRelationshipByEndpointsRow, error)
 	FindAppRoleIDByNormalizedNameExcludingID(ctx context.Context, arg FindAppRoleIDByNormalizedNameExcludingIDParams) (string, error)
 	FindAuxObjectByCodeOrName(ctx context.Context, arg FindAuxObjectByCodeOrNameParams) (string, error)
 	FindAuxObjectByName(ctx context.Context, arg FindAuxObjectByNameParams) (string, error)
@@ -350,6 +324,8 @@ type Querier interface {
 	GetAuxObjectRevisionForUpdate(ctx context.Context, arg GetAuxObjectRevisionForUpdateParams) (int64, error)
 	GetAuxObjectStateForUpdate(ctx context.Context, arg GetAuxObjectStateForUpdateParams) (GetAuxObjectStateForUpdateRow, error)
 	GetBobCustomerCurrent(ctx context.Context, objectID string) (GetBobCustomerCurrentRow, error)
+	// Typed read queries for BOB callers. Every row is derived directly from a
+	// typed DCL subject and its latest APPROVED entry.
 	GetBobCustomerCurrentReference(ctx context.Context, objectID string) (GetBobCustomerCurrentReferenceRow, error)
 	GetBobCustomerHistoricalReference(ctx context.Context, arg GetBobCustomerHistoricalReferenceParams) (GetBobCustomerHistoricalReferenceRow, error)
 	// Customer accounts are child roots of Customer, not DCL subjects.  These
@@ -357,11 +333,8 @@ type Querier interface {
 	// internal VOU/ACC reference resolution.
 	GetBobEmbeddedCustomerAccountCurrentReference(ctx context.Context, objectID string) (GetBobEmbeddedCustomerAccountCurrentReferenceRow, error)
 	GetBobEmbeddedCustomerAccountHistoricalReference(ctx context.Context, arg GetBobEmbeddedCustomerAccountHistoricalReferenceParams) (GetBobEmbeddedCustomerAccountHistoricalReferenceRow, error)
-	GetBobEmployeeCurrent(ctx context.Context, objectID string) (GetBobEmployeeCurrentRow, error)
-	GetBobEmployeeCurrentReference(ctx context.Context, objectID string) (GetBobEmployeeCurrentReferenceRow, error)
 	GetBobEmployeeCurrentTyped(ctx context.Context, objectID string) (GetBobEmployeeCurrentTypedRow, error)
 	GetBobEmployeeCurrentTypedReference(ctx context.Context, objectID string) (GetBobEmployeeCurrentTypedReferenceRow, error)
-	GetBobEmployeeRelationship(ctx context.Context, objectID string) (DclEmploymentRelationship, error)
 	GetBobFundAccountCurrent(ctx context.Context, objectID string) (GetBobFundAccountCurrentRow, error)
 	GetBobFundAccountCurrentReference(ctx context.Context, objectID string) (GetBobFundAccountCurrentReferenceRow, error)
 	GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error)
@@ -369,28 +342,14 @@ type Querier interface {
 	// entry and its typed snapshot.
 	GetBobOperatingEntityCurrent(ctx context.Context, objectID string) (GetBobOperatingEntityCurrentRow, error)
 	GetBobOperatingEntityCurrentReference(ctx context.Context, objectID string) (GetBobOperatingEntityCurrentReferenceRow, error)
-	GetBobOtherUnitCurrent(ctx context.Context, objectID string) (GetBobOtherUnitCurrentRow, error)
-	GetBobOtherUnitCurrentReference(ctx context.Context, objectID string) (GetBobOtherUnitCurrentReferenceRow, error)
 	GetBobOtherUnitCurrentTyped(ctx context.Context, objectID string) (GetBobOtherUnitCurrentTypedRow, error)
 	GetBobOtherUnitCurrentTypedReference(ctx context.Context, arg GetBobOtherUnitCurrentTypedReferenceParams) (GetBobOtherUnitCurrentTypedReferenceRow, error)
-	GetBobOtherUnitRelationship(ctx context.Context, objectID string) (DclServiceRelationship, error)
-	GetBobParty(ctx context.Context, partyID string) (GetBobPartyRow, error)
 	GetBobProductCurrent(ctx context.Context, objectID string) (GetBobProductCurrentRow, error)
 	GetBobProductCurrentReference(ctx context.Context, objectID string) (GetBobProductCurrentReferenceRow, error)
-	GetBobSalesPartnerCurrent(ctx context.Context, objectID string) (GetBobSalesPartnerCurrentRow, error)
-	GetBobSalesPartnerCurrentReference(ctx context.Context, objectID string) (GetBobSalesPartnerCurrentReferenceRow, error)
 	GetBobSalesPartnerCurrentTyped(ctx context.Context, objectID string) (GetBobSalesPartnerCurrentTypedRow, error)
 	GetBobSalesPartnerCurrentTypedReference(ctx context.Context, arg GetBobSalesPartnerCurrentTypedReferenceParams) (GetBobSalesPartnerCurrentTypedReferenceRow, error)
-	GetBobSalesPartnerRelationship(ctx context.Context, objectID string) (DclSalesRelationship, error)
-	GetBobSupplierCurrent(ctx context.Context, objectID string) (GetBobSupplierCurrentRow, error)
-	GetBobSupplierCurrentReference(ctx context.Context, objectID string) (GetBobSupplierCurrentReferenceRow, error)
-	// Typed archive reads: all four paths start at their own highest APPROVED
-	// snapshot and intentionally never consult Party or relationship roots.
 	GetBobSupplierCurrentTyped(ctx context.Context, objectID string) (GetBobSupplierCurrentTypedRow, error)
 	GetBobSupplierCurrentTypedReference(ctx context.Context, arg GetBobSupplierCurrentTypedReferenceParams) (GetBobSupplierCurrentTypedReferenceRow, error)
-	// BOB validates business rules through DCL-owned typed relationship identities.
-	// DCL is their only writer.
-	GetBobSupplierRelationship(ctx context.Context, objectID string) (DclSupplierRelationship, error)
 	GetBobVehicleCurrent(ctx context.Context, objectID string) (GetBobVehicleCurrentRow, error)
 	GetBobVehicleCurrentReference(ctx context.Context, objectID string) (GetBobVehicleCurrentReferenceRow, error)
 	GetBobWarehouseCurrent(ctx context.Context, objectID string) (GetBobWarehouseCurrentRow, error)
@@ -401,31 +360,20 @@ type Querier interface {
 	GetCurrentWorkflowDefinitionIdentity(ctx context.Context, definitionID string) (GetCurrentWorkflowDefinitionIdentityRow, error)
 	GetDCLAccMappingSubject(ctx context.Context, arg GetDCLAccMappingSubjectParams) (GetDCLAccMappingSubjectRow, error)
 	GetDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (DclAccMappingVersion, error)
-	GetDCLApprovedPartyForBOB(ctx context.Context, partyID string) (GetDCLApprovedPartyForBOBRow, error)
 	GetDCLCustomerAccountCodeMax(ctx context.Context, customerID string) (int64, error)
-	GetDCLCustomerIdentity(ctx context.Context, objectID string) (GetDCLCustomerIdentityRow, error)
 	GetDCLCustomerVersion(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error)
 	GetDCLCustomerVersionAggregate(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error)
-	GetDCLEmployeeRelationship(ctx context.Context, objectID string) (DclEmploymentRelationship, error)
 	GetDCLEmployeeVersion(ctx context.Context, approvalEntryID string) (DclEmployeeVersion, error)
 	GetDCLFundAccountVersion(ctx context.Context, approvalEntryID string) (DclFundAccountVersion, error)
 	GetDCLOperatingEntityVersion(ctx context.Context, approvalEntryID string) (DclOperatingEntityVersion, error)
-	GetDCLOtherUnitRelationship(ctx context.Context, objectID string) (DclServiceRelationship, error)
 	GetDCLOtherUnitVersion(ctx context.Context, approvalEntryID string) (DclOtherUnitVersion, error)
-	GetDCLPartyRoot(ctx context.Context, id string) (GetDCLPartyRootRow, error)
-	GetDCLPartyVersion(ctx context.Context, approvalEntryID string) (DclPartyVersion, error)
-	// DCL Product snapshots are keyed by their DCL Approval entry; DCL owns every
-	// mutation and BOB reads the selected approved snapshot.
+	// BOB validates business rules through DCL-owned typed relationship identities.
+	// DCL is their only writer.
 	GetDCLProductFormula(ctx context.Context, productApprovalEntryID string) (DclProductFormula, error)
 	GetDCLProductSnapshot(ctx context.Context, approvalEntryID string) (DclProductVersion, error)
-	GetDCLRelationshipIdentity(ctx context.Context, arg GetDCLRelationshipIdentityParams) (GetDCLRelationshipIdentityRow, error)
-	GetDCLRelationshipPartyID(ctx context.Context, arg GetDCLRelationshipPartyIDParams) (string, error)
-	GetDCLSalesPartnerRelationship(ctx context.Context, objectID string) (DclSalesRelationship, error)
 	GetDCLSalesPartnerVersion(ctx context.Context, approvalEntryID string) (DclSalesPartnerVersion, error)
 	GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (DclSubject, error)
 	GetDCLSupplierOpenEntry(ctx context.Context, objectID string) (ApprovalEntry, error)
-	GetDCLSupplierRelationship(ctx context.Context, objectID string) (DclSupplierRelationship, error)
-	GetDCLSupplierRelationshipPartyIDForBOB(ctx context.Context, objectID string) (string, error)
 	GetDCLSupplierVersion(ctx context.Context, approvalEntryID string) (DclSupplierVersion, error)
 	GetDCLVehicleVersion(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error)
 	GetDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (DclWarehouseVersion, error)
@@ -493,7 +441,6 @@ type Querier interface {
 	HasApprovalEntryApprovedEvent(ctx context.Context, approvalEntryID string) (bool, error)
 	HasApprovedIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
 	HasIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
-	HasOtherApprovedDCLPartyVersion(ctx context.Context, arg HasOtherApprovedDCLPartyVersionParams) (bool, error)
 	HasVouPurchaseInboundLines(ctx context.Context, documentID string) (bool, error)
 	HasVouPurchaseReturnLines(ctx context.Context, documentID string) (bool, error)
 	InsertAccountingDepreciationEntry(ctx context.Context, arg InsertAccountingDepreciationEntryParams) error
@@ -530,36 +477,24 @@ type Querier interface {
 	// default operating entity, and every account line; roots are only stable IDs.
 	InsertDCLCustomerVersionAggregate(ctx context.Context, arg InsertDCLCustomerVersionAggregateParams) error
 	InsertDCLCustomerVersionIdentifier(ctx context.Context, arg InsertDCLCustomerVersionIdentifierParams) error
-	InsertDCLEmployeeRelationship(ctx context.Context, arg InsertDCLEmployeeRelationshipParams) error
 	// Employee identity and current operating-entity snapshot are stored directly.
 	InsertDCLEmployeeVersion(ctx context.Context, arg InsertDCLEmployeeVersionParams) error
 	InsertDCLEmployeeVersionIdentifier(ctx context.Context, arg InsertDCLEmployeeVersionIdentifierParams) error
 	InsertDCLFundAccountVersion(ctx context.Context, arg InsertDCLFundAccountVersionParams) error
 	InsertDCLOperatingEntityVersion(ctx context.Context, arg InsertDCLOperatingEntityVersionParams) error
-	InsertDCLOtherUnitRelationship(ctx context.Context, arg InsertDCLOtherUnitRelationshipParams) error
 	InsertDCLOtherUnitVersion(ctx context.Context, arg InsertDCLOtherUnitVersionParams) error
 	InsertDCLOtherUnitVersionIdentifier(ctx context.Context, arg InsertDCLOtherUnitVersionIdentifierParams) error
 	InsertDCLOtherUnitVersionOperatingEntity(ctx context.Context, arg InsertDCLOtherUnitVersionOperatingEntityParams) error
-	// #308 typed DCL stable identities.  Subjects own ID/code; these roots own the
-	// immutable Party or Party-to-operating-entity relationship facts.
-	InsertDCLPartyRoot(ctx context.Context, arg InsertDCLPartyRootParams) error
-	// Party identity snapshots are DCL-owned. Strong identifiers are stored with
-	// every immutable version, while the claims table serializes approved/open
-	// ownership across all Party roots.
-	InsertDCLPartyVersion(ctx context.Context, arg InsertDCLPartyVersionParams) error
-	InsertDCLPartyVersionIdentifier(ctx context.Context, arg InsertDCLPartyVersionIdentifierParams) error
 	InsertDCLProductFormula(ctx context.Context, arg InsertDCLProductFormulaParams) error
 	InsertDCLProductFormulaLine(ctx context.Context, arg InsertDCLProductFormulaLineParams) error
 	InsertDCLProductSnapshot(ctx context.Context, arg InsertDCLProductSnapshotParams) error
 	InsertDCLProductUnitConversion(ctx context.Context, arg InsertDCLProductUnitConversionParams) error
-	InsertDCLSalesPartnerRelationship(ctx context.Context, arg InsertDCLSalesPartnerRelationshipParams) error
 	InsertDCLSalesPartnerVersion(ctx context.Context, arg InsertDCLSalesPartnerVersionParams) error
 	InsertDCLSalesPartnerVersionIdentifier(ctx context.Context, arg InsertDCLSalesPartnerVersionIdentifierParams) error
 	InsertDCLSalesPartnerVersionOperatingEntity(ctx context.Context, arg InsertDCLSalesPartnerVersionOperatingEntityParams) error
 	// DCL keeps one stable subject and one typed full snapshot per central
 	// Approval Version.  It deliberately stores no current/base/next pointer.
 	InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectParams) error
-	InsertDCLSupplierRelationship(ctx context.Context, arg InsertDCLSupplierRelationshipParams) error
 	// Supplier is a typed DCL snapshot; Party and relationship roots are not read.
 	InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSupplierVersionParams) error
 	InsertDCLSupplierVersionIdentifier(ctx context.Context, arg InsertDCLSupplierVersionIdentifierParams) error
@@ -570,9 +505,6 @@ type Querier interface {
 	InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWarehouseVersionParams) error
 	// ── WFL Process Definition (DCL-owned) ──────────────────────────────────
 	InsertDclWflProcessDefinition(ctx context.Context, arg InsertDclWflProcessDefinitionParams) error
-	InsertPartyMergeEvent(ctx context.Context, arg InsertPartyMergeEventParams) error
-	InsertPartyMergePreflight(ctx context.Context, arg InsertPartyMergePreflightParams) error
-	InsertPartyRelationshipMergeEvent(ctx context.Context, arg InsertPartyRelationshipMergeEventParams) error
 	InsertVouAssetAcquisitionDetail(ctx context.Context, arg InsertVouAssetAcquisitionDetailParams) error
 	InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertVouAssetAcquisitionLineParams) error
 	InsertVouAssetLiquidationDetail(ctx context.Context, documentID string) error
@@ -653,7 +585,6 @@ type Querier interface {
 	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error)
-	ListApprovedDCLPartyRelationshipReferenceCounts(ctx context.Context, partyID string) ([]ListApprovedDCLPartyRelationshipReferenceCountsRow, error)
 	ListAuxObjectDeleteBlockers(ctx context.Context, objectID string) ([]ListAuxObjectDeleteBlockersRow, error)
 	// Exact BOB Approval-entry blocker data. Every approved declaration
 	// remains a persisted formal fact, including versions that are no longer the
@@ -663,17 +594,13 @@ type Querier interface {
 	ListBobCustomerCurrents(ctx context.Context, arg ListBobCustomerCurrentsParams) ([]ListBobCustomerCurrentsRow, error)
 	ListBobEmbeddedCustomerAccountReferenceCandidates(ctx context.Context, keyword string) ([]ListBobEmbeddedCustomerAccountReferenceCandidatesRow, error)
 	ListBobEmployeeCurrentsTyped(ctx context.Context, arg ListBobEmployeeCurrentsTypedParams) ([]ListBobEmployeeCurrentsTypedRow, error)
-	ListBobEmployees(ctx context.Context, arg ListBobEmployeesParams) ([]ListBobEmployeesRow, error)
 	ListBobFundAccounts(ctx context.Context, arg ListBobFundAccountsParams) ([]ListBobFundAccountsRow, error)
 	ListBobOperatingEntities(ctx context.Context, arg ListBobOperatingEntitiesParams) ([]ListBobOperatingEntitiesRow, error)
 	ListBobOperatingEntityReferenceCandidates(ctx context.Context, arg ListBobOperatingEntityReferenceCandidatesParams) ([]ListBobOperatingEntityReferenceCandidatesRow, error)
-	ListBobOtherUnitCurrents(ctx context.Context, arg ListBobOtherUnitCurrentsParams) ([]ListBobOtherUnitCurrentsRow, error)
 	ListBobOtherUnitCurrentsTyped(ctx context.Context, arg ListBobOtherUnitCurrentsTypedParams) ([]ListBobOtherUnitCurrentsTypedRow, error)
 	ListBobProductsCurrent(ctx context.Context, arg ListBobProductsCurrentParams) ([]ListBobProductsCurrentRow, error)
-	ListBobSalesPartnerCurrents(ctx context.Context, arg ListBobSalesPartnerCurrentsParams) ([]ListBobSalesPartnerCurrentsRow, error)
 	ListBobSalesPartnerCurrentsTyped(ctx context.Context, arg ListBobSalesPartnerCurrentsTypedParams) ([]ListBobSalesPartnerCurrentsTypedRow, error)
 	ListBobSupplierCurrentsTyped(ctx context.Context, arg ListBobSupplierCurrentsTypedParams) ([]ListBobSupplierCurrentsTypedRow, error)
-	ListBobSuppliersCurrent(ctx context.Context, arg ListBobSuppliersCurrentParams) ([]ListBobSuppliersCurrentRow, error)
 	ListBobVehicles(ctx context.Context, arg ListBobVehiclesParams) ([]ListBobVehiclesRow, error)
 	ListBobWarehouses(ctx context.Context, arg ListBobWarehousesParams) ([]ListBobWarehousesRow, error)
 	ListCompletedWorkflowActionTargets(ctx context.Context, processID string) ([]ListCompletedWorkflowActionTargetsRow, error)
@@ -685,9 +612,6 @@ type Querier interface {
 	ListCustomerSalesReferencesForSalesPartner(ctx context.Context, sourceObjectID *string) ([]ListCustomerSalesReferencesForSalesPartnerRow, error)
 	ListDCLAccMappingApprovalEvents(ctx context.Context, arg ListDCLAccMappingApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLAccMappings(ctx context.Context, arg ListDCLAccMappingsParams) ([]ListDCLAccMappingsRow, error)
-	ListDCLApprovedPartiesForBOB(ctx context.Context, arg ListDCLApprovedPartiesForBOBParams) ([]ListDCLApprovedPartiesForBOBRow, error)
-	ListDCLApprovedPartyIdentifiersForBOB(ctx context.Context, partyID string) ([]ListDCLApprovedPartyIdentifiersForBOBRow, error)
-	ListDCLApprovedPartyRelationshipCardsForBOB(ctx context.Context, partyID string) ([]ListDCLApprovedPartyRelationshipCardsForBOBRow, error)
 	ListDCLCustomerAccountRoots(ctx context.Context, customerID string) ([]ListDCLCustomerAccountRootsRow, error)
 	ListDCLCustomerAggregates(ctx context.Context, arg ListDCLCustomerAggregatesParams) ([]ListDCLCustomerAggregatesRow, error)
 	ListDCLCustomerApprovalEvents(ctx context.Context, arg ListDCLCustomerApprovalEventsParams) ([]ApprovalEvent, error)
@@ -695,7 +619,6 @@ type Querier interface {
 	ListDCLCustomerVersionAccountCreditLimits(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionAccountCreditLimit, error)
 	ListDCLCustomerVersionAccounts(ctx context.Context, customerApprovalEntryID string) ([]ListDCLCustomerVersionAccountsRow, error)
 	ListDCLCustomerVersionIdentifiers(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionIdentifier, error)
-	ListDCLCustomers(ctx context.Context, arg ListDCLCustomersParams) ([]ListDCLCustomersRow, error)
 	ListDCLEmployeeApprovalEvents(ctx context.Context, arg ListDCLEmployeeApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLEmployeeVersionIdentifiers(ctx context.Context, versionApprovalEntryID string) ([]DclEmployeeVersionIdentifier, error)
 	ListDCLEmployees(ctx context.Context, arg ListDCLEmployeesParams) ([]ListDCLEmployeesRow, error)
@@ -705,11 +628,6 @@ type Querier interface {
 	ListDCLOperatingEntityApprovalEvents(ctx context.Context, arg ListDCLOperatingEntityApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLOtherUnitVersionIdentifiers(ctx context.Context, versionApprovalEntryID string) ([]DclOtherUnitVersionIdentifier, error)
 	ListDCLOtherUnitVersionOperatingEntities(ctx context.Context, versionApprovalEntryID string) ([]DclOtherUnitVersionOperatingEntity, error)
-	ListDCLParties(ctx context.Context, arg ListDCLPartiesParams) ([]ListDCLPartiesRow, error)
-	ListDCLPartyAuditEvents(ctx context.Context, arg ListDCLPartyAuditEventsParams) ([]ApprovalEvent, error)
-	ListDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) ([]ListDCLPartyVersionIdentifiersRow, error)
-	ListDCLPartyVersionIdentifiersByEntryIDs(ctx context.Context, approvalEntryIds []string) ([]DclPartyVersionIdentifier, error)
-	ListDCLPartyVersionsByEntryIDs(ctx context.Context, approvalEntryIds []string) ([]ListDCLPartyVersionsByEntryIDsRow, error)
 	ListDCLProductApprovalEntriesByEntryIDs(ctx context.Context, productApprovalEntryIds []string) ([]ApprovalEntry, error)
 	ListDCLProductApprovalEvents(ctx context.Context, arg ListDCLProductApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLProductFormulaLines(ctx context.Context, productApprovalEntryID string) ([]ListDCLProductFormulaLinesRow, error)
@@ -748,7 +666,6 @@ type Querier interface {
 	ListIntermediaryReturnAdjustmentRows(ctx context.Context, arg ListIntermediaryReturnAdjustmentRowsParams) ([]ListIntermediaryReturnAdjustmentRowsRow, error)
 	ListIntermediarySignoffReturnTimelineRows(ctx context.Context, arg ListIntermediarySignoffReturnTimelineRowsParams) ([]ListIntermediarySignoffReturnTimelineRowsRow, error)
 	ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error)
-	ListPartyMergeRelationships(ctx context.Context, partyID string) ([]ListPartyMergeRelationshipsRow, error)
 	ListPurchaseOrderBaseQuantitySummaries(ctx context.Context, orderIds []string) ([]ListPurchaseOrderBaseQuantitySummariesRow, error)
 	// These order summaries are VOU read models kept here because they are shared
 	// by the workflow-facing order list and the ordinary voucher list.
@@ -815,9 +732,6 @@ type Querier interface {
 	LockDCLVehicleIdentifierClaims(ctx context.Context) error
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
 	LockLatestApprovedVersion(ctx context.Context, arg LockLatestApprovedVersionParams) (ApprovalEntry, error)
-	LockPartyMergeObjects(ctx context.Context, objectIds []string) ([]LockPartyMergeObjectsRow, error)
-	LockPartyMergeParty(ctx context.Context, partyID string) (LockPartyMergePartyRow, error)
-	LockPartyMergePreflight(ctx context.Context, id string) (DclPartyMergePreflight, error)
 	LockPendingDCLCustomerUpload(ctx context.Context, tokenHash string) (LockPendingDCLCustomerUploadRow, error)
 	LockPendingVouUpload(ctx context.Context, uploadTokenHash string) (LockPendingVouUploadRow, error)
 	LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAttachmentForRemovalParams) (LockVouAttachmentForRemovalRow, error)
@@ -841,18 +755,9 @@ type Querier interface {
 	LockWorkflowRootInstance(ctx context.Context, arg LockWorkflowRootInstanceParams) (LockWorkflowRootInstanceRow, error)
 	MarkCustomerFileReady(ctx context.Context, fileID string) (int64, error)
 	MarkDCLCustomerAccountRootApproved(ctx context.Context, arg MarkDCLCustomerAccountRootApprovedParams) (int64, error)
-	MarkEmploymentRelationshipMerged(ctx context.Context, arg MarkEmploymentRelationshipMergedParams) (int64, error)
-	MarkPartyMerged(ctx context.Context, arg MarkPartyMergedParams) (int64, error)
-	MarkSalesRelationshipMerged(ctx context.Context, arg MarkSalesRelationshipMergedParams) (int64, error)
-	MarkServiceRelationshipMerged(ctx context.Context, arg MarkServiceRelationshipMergedParams) (int64, error)
-	MarkSupplierRelationshipMerged(ctx context.Context, arg MarkSupplierRelationshipMergedParams) (int64, error)
 	MarkVouFileReady(ctx context.Context, id string) (int64, error)
 	MarkWorkflowNodeEvaluated(ctx context.Context, id string) error
 	MarkWorkflowRootDocumentDeleted(ctx context.Context, arg MarkWorkflowRootDocumentDeletedParams) error
-	MoveEmploymentRelationshipParty(ctx context.Context, arg MoveEmploymentRelationshipPartyParams) (int64, error)
-	MoveSalesRelationshipParty(ctx context.Context, arg MoveSalesRelationshipPartyParams) (int64, error)
-	MoveServiceRelationshipParty(ctx context.Context, arg MoveServiceRelationshipPartyParams) (int64, error)
-	MoveSupplierRelationshipParty(ctx context.Context, arg MoveSupplierRelationshipPartyParams) (int64, error)
 	NextAccountingBookNumber(ctx context.Context) (int32, error)
 	NextAppRoleCode(ctx context.Context) (string, error)
 	NextDCLSubjectCode(ctx context.Context, entity string) (int32, error)
@@ -862,7 +767,6 @@ type Querier interface {
 	// Approval entry, candidate, version, or historical payload identity.
 	QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxReferenceCandidatesParams) ([]QueryAuxReferenceCandidatesRow, error)
 	QueryBobProductReferenceCandidates(ctx context.Context, arg QueryBobProductReferenceCandidatesParams) ([]QueryBobProductReferenceCandidatesRow, error)
-	QueryBobReferenceCandidates(ctx context.Context, arg QueryBobReferenceCandidatesParams) ([]QueryBobReferenceCandidatesRow, error)
 	QueryBobTypedReferenceCandidates(ctx context.Context, arg QueryBobTypedReferenceCandidatesParams) ([]QueryBobTypedReferenceCandidatesRow, error)
 	RebuildDCLFundAccountIdentifierClaims(ctx context.Context, objectID string) error
 	RebuildDCLProductBarcodeClaims(ctx context.Context, objectID string) error
@@ -872,7 +776,6 @@ type Querier interface {
 	RefreshAppSession(ctx context.Context, arg RefreshAppSessionParams) (int64, error)
 	RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error)
 	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
-	ReplaceDCLPartyVersionIdentifiers(ctx context.Context, approvalEntryID string) (int64, error)
 	ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error)
 	ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error)
 	ResetSigninFailures(ctx context.Context, id string) error
@@ -894,9 +797,10 @@ type Querier interface {
 	RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error)
 	RptListAssetReferences(ctx context.Context, arg RptListAssetReferencesParams) ([]RptListAssetReferencesRow, error)
 	RptListBOBReferences(ctx context.Context, arg RptListBOBReferencesParams) ([]RptListBOBReferencesRow, error)
-	RptListBillOriginPartyReferences(ctx context.Context, arg RptListBillOriginPartyReferencesParams) ([]RptListBillOriginPartyReferencesRow, error)
+	RptListBillOriginCounterpartyReferences(ctx context.Context, arg RptListBillOriginCounterpartyReferencesParams) ([]RptListBillOriginCounterpartyReferencesRow, error)
 	RptListBillReferences(ctx context.Context, arg RptListBillReferencesParams) ([]RptListBillReferencesRow, error)
 	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
+	RptListCustomerAccountReferences(ctx context.Context, arg RptListCustomerAccountReferencesParams) ([]RptListCustomerAccountReferencesRow, error)
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
 	RptUpsertDefinitionValidity(ctx context.Context, arg RptUpsertDefinitionValidityParams) error
@@ -930,7 +834,6 @@ type Querier interface {
 	UpdateDCLFundAccountVersion(ctx context.Context, arg UpdateDCLFundAccountVersionParams) (int64, error)
 	UpdateDCLOperatingEntityVersion(ctx context.Context, arg UpdateDCLOperatingEntityVersionParams) (int64, error)
 	UpdateDCLOtherUnitVersion(ctx context.Context, arg UpdateDCLOtherUnitVersionParams) (int64, error)
-	UpdateDCLPartyVersion(ctx context.Context, arg UpdateDCLPartyVersionParams) (int64, error)
 	UpdateDCLProductSnapshot(ctx context.Context, arg UpdateDCLProductSnapshotParams) (int64, error)
 	UpdateDCLSalesPartnerVersion(ctx context.Context, arg UpdateDCLSalesPartnerVersionParams) (int64, error)
 	UpdateDCLSupplierVersion(ctx context.Context, arg UpdateDCLSupplierVersionParams) (int64, error)

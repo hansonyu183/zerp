@@ -194,7 +194,7 @@ func TestSubjectHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.
 func TestOpeningHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.T) {
 	tests := []struct{ action, body string }{
 		{"query", `{"bookId":"01JACC00000000000000000001"}`},
-		{"save", `{"bookId":"01JACC00000000000000000001","revision":0,"lines":[]}`},
+		{"save", `{"bookId":"01JACC00000000000000000001","revision":0,"lines":[{"subjectId":"01JACC00000000000000000002","currency":"CNY","debitAmount":"100.00","creditAmount":"0.00","dimensions":{"CUSTOMER_ACCOUNT":"01JACC00000000000000000003"},"dimensionReferences":{"CUSTOMER_ACCOUNT":{"entity":"customer-account","objectId":"01JACC00000000000000000003","customerId":"01JACC00000000000000000004","approvalEntryId":"01JACC00000000000000000005","code":"ACC-0001","name":"客户账户"}}}],"assets":[],"bills":[],"containers":[]}`},
 		{"approve", `{"bookId":"01JACC00000000000000000001","revision":0}`},
 		{"unapprove", `{"bookId":"01JACC00000000000000000001","revision":1}`},
 	}

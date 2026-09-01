@@ -14,7 +14,6 @@ const (
 	EntityVehicle         = "vehicle"
 	EntityFundAccount     = "fund-account"
 	EntityProduct         = "product"
-	EntityParty           = "party"
 	EntityEmployee        = "employee"
 	EntityOtherUnit       = "other-unit"
 	EntitySalesPartner    = "sales-partner"
@@ -431,59 +430,6 @@ type EmployeeQueryItem struct {
 	OpenVersion              *EmployeeVersionView            `json:"openVersion"`
 	UpdatedAt                time.Time                       `json:"updatedAt"`
 	AvailableApprovalActions []approval.LifecycleAction      `json:"availableApprovalActions"`
-}
-
-type PartyData = bobdomain.PartyCreateData
-type PartyMutation struct {
-	PartyID  string               `json:"partyId"`
-	Approval approval.VersionMeta `json:"approval"`
-}
-type PartySaveInput struct {
-	PartyID          string    `json:"partyId"`
-	ApprovalEntryID  string    `json:"approvalEntryId"`
-	ApprovalRevision int64     `json:"approvalRevision"`
-	Data             PartyData `json:"data"`
-}
-type PartyGetInput struct {
-	PartyID         string `json:"partyId"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
-}
-type PartyHistoryInput struct {
-	PartyID  string `json:"partyId"`
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
-}
-type PartyVersionView struct {
-	Approval approval.VersionMeta `json:"approval"`
-	Data     PartyData            `json:"data"`
-}
-type PartyView struct {
-	PartyID                  string                            `json:"partyId"`
-	Entity                   string                            `json:"entity"`
-	Approval                 approval.VersionMeta              `json:"approval"`
-	Data                     PartyData                         `json:"data"`
-	ImpactRelationships      []bobdomain.PartyRelationshipCard `json:"impactRelationships"`
-	UpdatedAt                time.Time                         `json:"updatedAt"`
-	AvailableApprovalActions []approval.LifecycleAction        `json:"availableApprovalActions"`
-}
-type PartyListItem struct {
-	PartyID                  string                     `json:"partyId"`
-	Entity                   string                     `json:"entity"`
-	LatestApproved           *PartyVersionView          `json:"latestApproved"`
-	OpenVersion              *PartyVersionView          `json:"openVersion"`
-	UpdatedAt                time.Time                  `json:"updatedAt"`
-	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
-}
-type PartyVersionInput struct {
-	PartyID          string `json:"partyId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-type PartyReviewInput struct {
-	PartyID          string `json:"partyId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Reason           string `json:"reason"`
 }
 
 // ProductInput is the complete, mutable product declaration. Snapshot fields

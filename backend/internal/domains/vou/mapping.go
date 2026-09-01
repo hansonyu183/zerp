@@ -92,6 +92,7 @@ func (s *Service) loadData(
 			return data, err
 		}
 		data.Customer = reference(detail.CustomerObjectID, detail.CustomerApprovalEntryID, bobdomain.EntityCustomerAccount, detail.CustomerCode, detail.CustomerName, "", "", "")
+		data.Customer.CustomerID = detail.CustomerID
 		data.Salesperson = optionalReference(
 			detail.SalespersonObjectID, detail.SalespersonApprovalEntryID, "employee",
 			detail.SalespersonCode, detail.SalespersonName,
@@ -268,6 +269,7 @@ func (s *Service) loadData(
 		}
 		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity,
 			detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
+		data.Counterparty.CustomerID = detail.CounterpartyCustomerID
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
@@ -282,6 +284,7 @@ func (s *Service) loadData(
 		}
 		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity,
 			detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
+		data.Counterparty.CustomerID = deref(detail.CounterpartyCustomerID)
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
@@ -343,6 +346,7 @@ func (s *Service) loadData(
 		if detail.CounterpartyObjectID != nil {
 			data.Counterparty = reference(deref(detail.CounterpartyObjectID), deref(detail.CounterpartyApprovalEntryID),
 				deref(detail.CounterpartyEntity), deref(detail.CounterpartyCode), deref(detail.CounterpartyName), "", "", "")
+			data.Counterparty.CustomerID = deref(detail.CounterpartyCustomerID)
 		}
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")

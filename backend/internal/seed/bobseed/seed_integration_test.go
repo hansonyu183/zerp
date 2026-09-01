@@ -90,7 +90,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
 		Data: dcldomain.SalesPartnerData{
-			Kind:                     bob.PartyKindOrganization,
+			Kind:                     "ORGANIZATION",
 			LegalName:                "销售合作方",
 			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
 			Enabled:                  true,

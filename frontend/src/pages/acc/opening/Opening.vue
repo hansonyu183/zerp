@@ -6,6 +6,7 @@ import {
 } from '@/shared/approval'
 import {
   createAccountingOpeningViewModel,
+  openingBusinessArchiveEntities,
   openingDimensionLabels,
   type AccountingOpeningLineForm,
 } from './vm'
@@ -138,10 +139,27 @@ void vm.initialize()
                   class="opening-lines__dimensions"
                   data-label="辅助核算对象 ID"
                 >
-                  <v-text-field
+                  <v-autocomplete
                     v-for="dimension in subjectFor(line)?.requiredDimensions ??
                     []"
                     :key="dimension"
+                    v-show="Boolean(openingBusinessArchiveEntities[dimension])"
+                    v-model="line.dimensions[dimension]"
+                    class="mb-1"
+                    density="compact"
+                    :disabled="!vm.canEdit"
+                    hide-details
+                    item-title="name"
+                    item-value="objectId"
+                    :items="vm.dimensionReferenceOptions[vm.dimensionReferenceKey(line, dimension)] ?? Object.values(line.dimensionReferences).filter((item) => item.entity === openingBusinessArchiveEntities[dimension])"
+                    :label="openingDimensionLabels[dimension] ?? dimension"
+                    variant="underlined"
+                    @update:search="vm.searchDimensionReferences(line, dimension, $event)"
+                    @update:model-value="vm.selectDimensionReference(line, dimension, $event)"
+                  />
+                  <v-text-field
+                    v-for="dimension in (subjectFor(line)?.requiredDimensions ?? []).filter((item) => !openingBusinessArchiveEntities[item])"
+                    :key="`plain-${dimension}`"
                     v-model="line.dimensions[dimension]"
                     class="mb-1"
                     density="compact"
@@ -478,35 +496,35 @@ void vm.initialize()
                     <template v-if="bill.createObject">
                       <v-col cols="12" md="3"
                         ><v-text-field
-                          v-model="bill.partyEntity"
+                          v-model="bill.counterpartyEntity"
                           label="来源对象类型"
                           :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                       <v-col cols="12" md="3"
                         ><v-text-field
-                          v-model="bill.partyObjectId"
+                          v-model="bill.counterpartyObjectId"
                           label="来源对象 ID"
                           :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                       <v-col cols="12" md="3"
                         ><v-text-field
-                          v-model="bill.partyApprovalEntryId"
+                          v-model="bill.counterpartyApprovalEntryId"
                           label="来源版本 ID"
                           :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                       <v-col cols="6" md="2"
                         ><v-text-field
-                          v-model="bill.partyCode"
+                          v-model="bill.counterpartyCode"
                           label="来源编码"
                           :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"
                       /></v-col>
                       <v-col cols="6" md="2"
                         ><v-text-field
-                          v-model="bill.partyName"
+                          v-model="bill.counterpartyName"
                           label="来源名称"
                           :disabled="!vm.canEdit"
                           @update:model-value="vm.markDirty"

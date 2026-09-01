@@ -6,8 +6,6 @@ import type { VouReferenceView } from './VouReferenceView';
 import type { VouSettlementMethodSnapshotView } from './VouSettlementMethodSnapshotView';
 export type VouServiceContractView = {
   counterparty: VouReferenceView;
-  partyId: string;
-  partyName: string;
   operatingEntity: VouReferenceView;
   handler: VouReferenceView;
   settlementMethod?: VouSettlementMethodSnapshotView;

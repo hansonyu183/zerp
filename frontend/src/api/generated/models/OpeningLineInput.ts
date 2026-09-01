@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BusinessArchiveDimensionReference } from './BusinessArchiveDimensionReference';
 export type OpeningLineInput = {
   subjectId: string;
   currency: string;
@@ -9,4 +10,5 @@ export type OpeningLineInput = {
   creditAmount: string;
   quantity?: string;
   dimensions: Record<string, string>;
+  dimensionReferences: Record<string, BusinessArchiveDimensionReference>;
 };

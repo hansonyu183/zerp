@@ -29,9 +29,9 @@ type fixedReturnLine struct {
 }
 
 type returnSource struct {
-	orderID, currency, customerID, customerVersion, customerCode, customerName string
-	lines                                                                      []fixedReturnLine
-	total                                                                      int64
+	orderID, currency, customerID, rootCustomerID, customerVersion, customerCode, customerName string
+	lines                                                                                      []fixedReturnLine
+	total                                                                                      int64
 }
 
 func validateReturnHeader(data DraftInput) (time.Time, string, error) {
@@ -71,9 +71,9 @@ func (s *Service) resolveReturnSource(
 		}
 		var line fixedReturnLine
 		var signed int64
-		var orderID, currency, customerID, customerVersion, customerCode, customerName, status string
+		var orderID, currency, customerID, rootCustomerID, customerVersion, customerCode, customerName, status string
 		err = tx.QueryRow(ctx, `SELECT sl.document_id,sd.source_order_id,a.status,d.business_date,
-			od.currency,sd.customer_object_id,sd.customer_approval_entry_id,sd.customer_code,sd.customer_name,
+			od.currency,sd.customer_object_id,sd.customer_id,sd.customer_approval_entry_id,sd.customer_code,sd.customer_name,
 			sl.product_object_id,sl.product_approval_entry_id,sl.product_code,sl.product_name,sl.entered_unit_symbol,
 			sl.signed_base_quantity_micros,sl.unit_price_cents
 			FROM vou_sale_signoff_lines sl
@@ -84,7 +84,7 @@ func (s *Service) resolveReturnSource(
 			JOIN vou_documents od ON od.id=sd.source_order_id
 			WHERE sl.id=$1 FOR UPDATE OF sl`, input.SourceLineID).Scan(
 			&line.signoffID, &orderID, &status, &line.signoffDate,
-			&currency, &customerID, &customerVersion, &customerCode, &customerName,
+			&currency, &customerID, &rootCustomerID, &customerVersion, &customerCode, &customerName,
 			&line.productID, &line.productVersion, &line.productCode, &line.productName, &line.productUnit,
 			&signed, &line.price,
 		)
@@ -99,7 +99,7 @@ func (s *Service) resolveReturnSource(
 		}
 		if result.orderID == "" {
 			result.orderID, result.currency = orderID, currency
-			result.customerID, result.customerVersion = customerID, customerVersion
+			result.customerID, result.rootCustomerID, result.customerVersion = customerID, rootCustomerID, customerVersion
 			result.customerCode, result.customerName = customerCode, customerName
 		} else if result.orderID != orderID {
 			return result, domainError(ErrorValidation, "return lines must belong to one sales fulfillment", nil, nil)
@@ -319,6 +319,7 @@ func (s *Service) insertSaleReturnDetail(
 	return q.InsertVouSaleReturnDetail(ctx, dbsqlc.InsertVouSaleReturnDetailParams{
 		DocumentID: id, SourceOrderID: source.orderID, SourceSignoffID: optionalText(signoffID),
 		ReturnKind: kind, ReturnReason: reason, CustomerObjectID: source.customerID,
+		CustomerID:              source.rootCustomerID,
 		CustomerApprovalEntryID: source.customerVersion, CustomerCode: source.customerCode,
 		CustomerName: source.customerName, WarehouseObjectID: warehouse.ObjectID,
 		WarehouseApprovalEntryID: warehouse.ApprovalEntryID, WarehouseCode: warehouse.Code,
@@ -347,17 +348,18 @@ func (s *Service) insertSaleReturnLines(
 func (s *Service) loadSaleReturnData(
 	ctx context.Context, q *dbsqlc.Queries, document documentRecord, data DocumentDataView,
 ) (DocumentDataView, error) {
-	var customerID, customerVersion, customerCode, customerName string
+	var customerID, rootCustomerID, customerVersion, customerCode, customerName string
 	var warehouseID, warehouseVersion, warehouseCode, warehouseName string
 	if err := s.pool.QueryRow(ctx, `SELECT return_kind,return_reason,
-		customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+		customer_object_id,customer_id,customer_approval_entry_id,customer_code,customer_name,
 		warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name
 		FROM vou_sale_return_details WHERE document_id=$1`, document.ID).Scan(
-		&data.ReturnKind, &data.ReturnReason, &customerID, &customerVersion, &customerCode, &customerName,
+		&data.ReturnKind, &data.ReturnReason, &customerID, &rootCustomerID, &customerVersion, &customerCode, &customerName,
 		&warehouseID, &warehouseVersion, &warehouseCode, &warehouseName); err != nil {
 		return data, err
 	}
 	data.Customer = reference(customerID, customerVersion, bobdomain.EntityCustomerAccount, customerCode, customerName, "", "", "")
+	data.Customer.CustomerID = rootCustomerID
 	data.Warehouse = reference(warehouseID, warehouseVersion, "warehouse", warehouseCode, warehouseName, "", "", "")
 	rows, err := s.pool.Query(ctx, `SELECT l.id,l.source_signoff_line_id,l.source_signoff_id,
 		s.document_no,l.line_no,l.product_object_id,l.product_approval_entry_id,l.product_code,
@@ -433,7 +435,7 @@ func (s *Service) ensureRefusalReturnDraft(
 		return err
 	}
 	source.orderID, source.currency = sourceRow.SourceOrderID, deref(sourceRow.Currency)
-	source.customerID, source.customerVersion = sourceRow.CustomerObjectID, sourceRow.CustomerApprovalEntryID
+	source.customerID, source.rootCustomerID, source.customerVersion = sourceRow.CustomerObjectID, sourceRow.CustomerID, sourceRow.CustomerApprovalEntryID
 	source.customerCode, source.customerName = sourceRow.CustomerCode, sourceRow.CustomerName
 	warehouse.ObjectID, warehouse.ApprovalEntryID = sourceRow.WarehouseObjectID, sourceRow.WarehouseApprovalEntryID
 	warehouse.Code, warehouse.Data.Name = sourceRow.WarehouseCode, sourceRow.WarehouseName

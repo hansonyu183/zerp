@@ -5,10 +5,10 @@ import "testing"
 func TestRelationshipDimensionsReplaceLegacyCounterpartyDimensions(t *testing.T) {
 	for _, dimension := range []string{
 		DimensionCustomerAccount,
-		DimensionSupplierRelationship,
-		DimensionServiceRelationship,
-		DimensionEmploymentRelationship,
-		DimensionSalesRelationship,
+		DimensionSupplier,
+		DimensionOtherUnit,
+		DimensionEmployee,
+		DimensionSalesPartner,
 	} {
 		_, err := normalizeSubject(CreateSubjectInput{
 			Code: "2241", Name: "其他往来", BalanceDirection: BalanceDirectionCredit,
@@ -18,7 +18,7 @@ func TestRelationshipDimensionsReplaceLegacyCounterpartyDimensions(t *testing.T)
 			t.Fatalf("relationship dimension %s was rejected: %v", dimension, err)
 		}
 	}
-	for _, legacy := range []string{"CUSTOMER", "SUPPLIER", "OTHER_PARTY", "EMPLOYEE"} {
+	for _, legacy := range []string{"CUSTOMER", "SUPPLIER_RELATIONSHIP", "SERVICE_RELATIONSHIP", "EMPLOYMENT_RELATIONSHIP", "SALES_RELATIONSHIP", "OTHER_PARTY"} {
 		_, err := normalizeSubject(CreateSubjectInput{
 			Code: "2241", Name: "旧往来", BalanceDirection: BalanceDirectionCredit,
 			Enabled: true, RequiredDimensions: []string{legacy}, SettlementPurpose: SettlementPurposeOther,
@@ -35,8 +35,8 @@ func TestTradeSettlementPurposesRequireTypedTransactionIdentity(t *testing.T) {
 	}{
 		{SettlementPurposeReceivable, DimensionCustomerAccount},
 		{SettlementPurposeAdvanceReceipt, DimensionCustomerAccount},
-		{SettlementPurposePayable, DimensionSupplierRelationship},
-		{SettlementPurposePrepaid, DimensionSupplierRelationship},
+		{SettlementPurposePayable, DimensionSupplier},
+		{SettlementPurposePrepaid, DimensionSupplier},
 	}
 	for _, tc := range cases {
 		_, err := normalizeSubject(CreateSubjectInput{

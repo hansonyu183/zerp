@@ -73,11 +73,11 @@ type DefinitionTrialResult struct {
 	UncoveredBranches []string                 `json:"uncoveredBranches"`
 }
 type InstanceQueryInput struct {
-	Page          int    `json:"page"`
-	PageSize      int    `json:"pageSize"`
-	Keyword       string `json:"keyword,omitempty"`
-	DefinitionID  string `json:"definitionId,omitempty"`
-	PartyObjectID string `json:"partyObjectId,omitempty"`
+	Page                 int    `json:"page"`
+	PageSize             int    `json:"pageSize"`
+	Keyword              string `json:"keyword,omitempty"`
+	DefinitionID         string `json:"definitionId,omitempty"`
+	CounterpartyObjectID string `json:"counterpartyObjectId,omitempty"`
 }
 type InstanceGetInput struct {
 	ProcessID string `json:"processId"`
@@ -88,18 +88,24 @@ type InstanceHistoryInput struct {
 	PageSize  int    `json:"pageSize"`
 }
 type InstanceListItem struct {
-	ProcessID       string    `json:"processId"`
-	DefinitionID    string    `json:"definitionId"`
-	ApprovalEntryID string    `json:"approvalEntryId"`
-	DefinitionCode  string    `json:"definitionCode"`
-	DefinitionName  string    `json:"definitionName"`
-	Revision        int64     `json:"revision"`
-	RootDocumentID  string    `json:"rootDocumentId"`
-	RootDocumentNo  string    `json:"rootDocumentNo"`
-	RootEntity      string    `json:"rootEntity"`
-	PartyCode       string    `json:"partyCode"`
-	PartyName       string    `json:"partyName"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	ProcessID       string                 `json:"processId"`
+	DefinitionID    string                 `json:"definitionId"`
+	ApprovalEntryID string                 `json:"approvalEntryId"`
+	DefinitionCode  string                 `json:"definitionCode"`
+	DefinitionName  string                 `json:"definitionName"`
+	Revision        int64                  `json:"revision"`
+	RootDocumentID  string                 `json:"rootDocumentId"`
+	RootDocumentNo  string                 `json:"rootDocumentNo"`
+	RootEntity      string                 `json:"rootEntity"`
+	Counterparty    *CounterpartyReference `json:"counterparty,omitempty"`
+	UpdatedAt       time.Time              `json:"updatedAt"`
+}
+type CounterpartyReference struct {
+	Entity          string `json:"entity"`
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }
 type NodeInstanceView struct {
 	NodeInstanceID           string     `json:"nodeInstanceId"`

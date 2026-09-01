@@ -34,7 +34,6 @@ describe('DCL customer workspace', () => {
     const session = useSessionStore()
     session.permissions = [
       '/dcl/customer/create',
-      '/bob/party/query',
       '/bob/operating-entity/query',
       '/aux/reference/query',
       '/bob/reference/query',

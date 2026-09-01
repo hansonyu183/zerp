@@ -20,7 +20,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		return Page[ListItem]{}, err
 	}
 	params := dbsqlc.CountVouDocumentsParams{
-		Entity: entity, Statuses: storedStatuses(entity, query.Statuses), Keyword: query.Keyword, PartyObjectID: query.PartyObjectID,
+		Entity: entity, Statuses: storedStatuses(entity, query.Statuses), Keyword: query.Keyword, CounterpartyObjectID: query.CounterpartyObjectID,
 		DateFrom: optionalDate(query.DateFrom), DateTo: optionalDate(query.DateTo),
 	}
 	total, err := s.queries.CountVouDocuments(ctx, params)
@@ -28,7 +28,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		return Page[ListItem]{}, s.internal("count documents", err)
 	}
 	rows, err := s.queries.ListVouDocuments(ctx, dbsqlc.ListVouDocumentsParams{
-		Entity: entity, Statuses: storedStatuses(entity, query.Statuses), Keyword: query.Keyword, PartyObjectID: query.PartyObjectID,
+		Entity: entity, Statuses: storedStatuses(entity, query.Statuses), Keyword: query.Keyword, CounterpartyObjectID: query.CounterpartyObjectID,
 		DateFrom: optionalDate(query.DateFrom), DateTo: optionalDate(query.DateTo),
 		SortField: query.SortField, SortOrder: query.SortOrder,
 		PageOffset: int32((query.Page - 1) * query.PageSize), PageSize: int32(query.PageSize),
@@ -49,7 +49,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		items = append(items, ListItem{
 			DocumentID: row.ID, Entity: row.Entity, DocumentNo: row.DocumentNo,
 			Status: documentStatus(entity, row.Status), Revision: row.Revision, BusinessDate: formatDate(row.BusinessDate),
-			PartyName: row.PartyName, Currency: deref(row.Currency), Amount: documentAmount(row.Entity, row.TotalAmountCents),
+			CounterpartyName: row.CounterpartyName, Currency: deref(row.Currency), Amount: documentAmount(row.Entity, row.TotalAmountCents),
 			UpdatedAt:                row.UpdatedAt.Time,
 			AvailableApprovalActions: coordinator.LifecycleActions(entry, input.actor),
 		})

@@ -42,7 +42,6 @@ func (s *Service) writeServiceContractDetail(
 		DocumentID: documentID, CounterpartyEntity: draft.CounterpartyType,
 		CounterpartyObjectID: refs.Counterparty.ObjectID, CounterpartyApprovalEntryID: refs.Counterparty.ApprovalEntryID,
 		CounterpartyCode: refs.Counterparty.Code, CounterpartyName: refs.Counterparty.Data.Name,
-		PartyID: identity.PartyID, PartyName: identity.PartyName,
 		OperatingEntityObjectID: identity.OperatingEntityObjectID, OperatingEntityApprovalEntryID: identity.OperatingEntityApprovalEntryID,
 		OperatingEntityCode: deref(identity.OperatingEntityCode), OperatingEntityName: identity.OperatingEntityName,
 		HandlerObjectID: refs.Handler.ObjectID, HandlerApprovalEntryID: refs.Handler.ApprovalEntryID,
@@ -82,7 +81,7 @@ func (s *Service) writeServiceContractDetail(
 	return oneRow(q.UpdateVouServiceContractDetail(ctx, dbsqlc.UpdateVouServiceContractDetailParams{
 		DocumentID: params.DocumentID, CounterpartyEntity: params.CounterpartyEntity, CounterpartyObjectID: params.CounterpartyObjectID,
 		CounterpartyApprovalEntryID: params.CounterpartyApprovalEntryID, CounterpartyCode: params.CounterpartyCode, CounterpartyName: params.CounterpartyName,
-		PartyID: params.PartyID, PartyName: params.PartyName, OperatingEntityObjectID: params.OperatingEntityObjectID,
+		OperatingEntityObjectID:        params.OperatingEntityObjectID,
 		OperatingEntityApprovalEntryID: params.OperatingEntityApprovalEntryID, OperatingEntityCode: params.OperatingEntityCode, OperatingEntityName: params.OperatingEntityName,
 		HandlerObjectID: params.HandlerObjectID, HandlerApprovalEntryID: params.HandlerApprovalEntryID, HandlerCode: params.HandlerCode, HandlerName: params.HandlerName,
 		SettlementMethodObjectID: params.SettlementMethodObjectID,
@@ -148,8 +147,7 @@ func parseContractDate(value string) (time.Time, error) { return time.Parse(date
 
 func contractDetailView(detail dbsqlc.VouServiceContractDetail) *ServiceContractView {
 	return &ServiceContractView{
-		Counterparty: reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity, detail.CounterpartyCode, detail.CounterpartyName, "", "", ""),
-		PartyID:      detail.PartyID, PartyName: detail.PartyName,
+		Counterparty:    reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity, detail.CounterpartyCode, detail.CounterpartyName, "", "", ""),
 		OperatingEntity: reference(detail.OperatingEntityObjectID, detail.OperatingEntityApprovalEntryID, "operating-entity", detail.OperatingEntityCode, detail.OperatingEntityName, "", "", ""),
 		Handler:         reference(detail.HandlerObjectID, detail.HandlerApprovalEntryID, bobdomain.EntityEmployee, detail.HandlerCode, detail.HandlerName, "", "", ""),
 		SettlementMethod: settlementView(

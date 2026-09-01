@@ -9,10 +9,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// RelationshipIdentity is retained for old Supplier/Party code only. Other
-// Unit and Sales Partner current views no longer populate it.
-type RelationshipIdentity struct{ ObjectID, Code, PartyID, OperatingEntityID string }
-
 func (s *Service) ResolveOtherUnitDeclaration(ctx context.Context, tx pgx.Tx, data DetailView, exact bool) (DetailView, error) {
 	if data.SettlementMethodID == "" {
 		return validateDetailData(EntityOtherUnit, data)
@@ -142,7 +138,7 @@ func (s *Service) ensureDifferentCustomerSalesIdentity(ctx context.Context, q *d
 		return s.internal("get sales-partner typed identifiers", err)
 	}
 	for _, identifier := range identifiers {
-		if customerValue := customerIdentifiers[identifier.IdentifierType]; customerValue != "" && normalizePartyIdentifier(customerValue) == identifier.NormalizedValue {
+		if customerValue := customerIdentifiers[identifier.IdentifierType]; customerValue != "" && strings.ToUpper(strings.TrimSpace(customerValue)) == identifier.NormalizedValue {
 			return domainError(ErrorConflict, "customer cannot attribute sales to the same business identity", nil, nil)
 		}
 	}
@@ -296,7 +292,11 @@ func (s *Service) validateOtherUnitSnapshotReference(ctx context.Context, q *dbs
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Other Unit snapshot", err)
 	}
-	return EffectiveReference{ObjectID: objectID, Entity: EntityOtherUnit, Code: "", ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName}}, nil
+	object, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityOtherUnit})
+	if err != nil {
+		return EffectiveReference{}, s.internal("load Other Unit identity", err)
+	}
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName}}, nil
 }
 func (s *Service) validateSalesPartnerSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntitySalesPartner, objectID, "Sales Partner approval snapshot is unavailable")
@@ -307,7 +307,11 @@ func (s *Service) validateSalesPartnerSnapshotReference(ctx context.Context, q *
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Sales Partner snapshot", err)
 	}
-	return EffectiveReference{ObjectID: objectID, Entity: EntitySalesPartner, ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, SalesCapabilities: row.Capabilities}}, nil
+	object, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntitySalesPartner})
+	if err != nil {
+		return EffectiveReference{}, s.internal("load Sales Partner identity", err)
+	}
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, SalesCapabilities: row.Capabilities}}, nil
 }
 func (s *Service) resolveOtherUnitCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
 	row, err := q.GetBobOtherUnitCurrentTyped(ctx, objectID)

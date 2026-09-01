@@ -294,17 +294,6 @@ INSERT INTO dcl_product_versions(approval_entry_id,entity,name,category_id,categ
 SELECT sqlc.arg(new_approval_entry_id),entity,name,category_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,returnable,default_packaging_spec_micros,product_type_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,enabled FROM dcl_product_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- BOB validates business rules through DCL-owned typed relationship identities.
 -- DCL is their only writer.
--- name: GetBobSupplierRelationship :one
-SELECT * FROM dcl_supplier_relationships WHERE object_id=sqlc.arg(object_id);
--- name: GetBobOtherUnitRelationship :one
-SELECT * FROM dcl_service_relationships WHERE object_id=sqlc.arg(object_id);
--- name: GetBobEmployeeRelationship :one
-SELECT * FROM dcl_employment_relationships WHERE object_id=sqlc.arg(object_id);
--- name: GetBobSalesPartnerRelationship :one
-SELECT * FROM dcl_sales_relationships WHERE object_id=sqlc.arg(object_id);
-
--- DCL Product snapshots are keyed by their DCL Approval entry; DCL owns every
--- mutation and BOB reads the selected approved snapshot.
 -- name: GetDCLProductFormula :one
 SELECT * FROM dcl_product_formulas WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
 -- name: DeleteDCLProductFormula :exec

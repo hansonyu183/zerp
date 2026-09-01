@@ -11,7 +11,7 @@ export type VouQueryRequest = {
     status?: Array<ApprovalStatus>;
     dateFrom?: string;
     dateTo?: string;
-    partyObjectId?: string;
+    counterpartyObjectId?: string;
   };
   sort: Array<{
     field: string;

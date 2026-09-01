@@ -357,7 +357,6 @@ const bobReviewerActions = new Set([
   '/bob/customer/query',
   '/bob/customer/get',
   ...[
-    'party',
     'employee',
     'supplier',
     'other-unit',
@@ -1133,7 +1132,7 @@ async function ensureAccountingControlBook(
               direction: 'CREDIT',
               amountField: 'lineAmount',
               currencyField: 'currency',
-              dimensions: { SUPPLIER_RELATIONSHIP: 'supplier.objectId' },
+              dimensions: { SUPPLIER: 'supplier.objectId' },
               quantityField: null,
               costCounterpartSubjectId: null,
               costCounterpartDimensions: {},
@@ -1247,7 +1246,7 @@ async function ensureAccountingControlBook(
               amountField: 'amount',
               currencyField: 'currency',
               dimensions: {
-                SALES_RELATIONSHIP: 'payee.objectId',
+                SALES_PARTNER: 'payee.objectId',
               },
               quantityField: null,
               costCounterpartSubjectId: null,

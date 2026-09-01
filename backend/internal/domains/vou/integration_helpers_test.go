@@ -301,7 +301,7 @@ func createApprovedSupplierDeclaration(t *testing.T, pool *pgxpool.Pool, busines
 	authorizer := authorization.Func(nil)
 	suppliers := dcldomain.NewSupplierService(pool, business, authorizer, bus)
 	created, err := suppliers.Create(t.Context(), dcldomain.SupplierCreateInput{
-		Data: dcldomain.SupplierInput{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name,
+		Data: dcldomain.SupplierInput{Kind: "ORGANIZATION", LegalName: data.Name,
 			Enabled: true, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
 			ShortName: data.ShortName, ContactName: data.ContactName, ContactPhone: data.ContactPhone,
 			Email: data.Email, Address: data.Address, Remark: data.Remark, SettlementMethodID: data.SettlementMethodID,
@@ -331,7 +331,7 @@ func createApprovedOtherUnitDeclaration(t *testing.T, pool *pgxpool.Pool, busine
 	relationships := dcldomain.NewRelationshipService(pool, business, authorizer, bus)
 	created, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
 		Data: dcldomain.OtherUnitData{
-			Kind: bobdomain.PartyKindOrganization, LegalName: data.Name,
+			Kind: "ORGANIZATION", LegalName: data.Name,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, SettlementMethodID: data.SettlementMethodID,
 			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
 			Enabled:                  true,

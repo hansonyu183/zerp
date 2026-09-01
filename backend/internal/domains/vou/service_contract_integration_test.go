@@ -110,27 +110,29 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 
 	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
 		Data: dcldomain.SalesPartnerData{
-			Kind:                     bobdomain.PartyKindOrganization,
+			Kind:                     "ORGANIZATION",
 			LegalName:                "渠道合作方",
+			DisplayName:              "渠道合作方",
 			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
 			OperatingEntityIDs:       []string{refs.salesReceiptOperatingEntity.ObjectID},
 			DefaultOperatingEntityID: refs.salesReceiptOperatingEntity.ObjectID,
-			Capabilities:             []string{bobdomain.SalesCapabilityChannelPartner}},
+			Capabilities:             []string{bobdomain.SalesCapabilityChannelPartner},
+			Enabled:                  true},
 	}, trustedIntegrationActor(t, "customer-channel-create"))
 	if err != nil {
-		t.Fatalf("create channel relationship on customer Party: %v", err)
+		t.Fatalf("create Sales Partner archive: %v", err)
 	}
 	submitted, err := relationships.SubmitSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID, ApprovalRevision: salesPartner.Approval.Revision,
 	}, trustedIntegrationActor(t, "customer-channel-submit"))
 	if err != nil {
-		t.Fatalf("submit channel relationship: %v", err)
+		t.Fatalf("submit Sales Partner archive: %v", err)
 	}
 	approvedSalesPartner, err := relationships.ApproveSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
 	}, trustedIntegrationActor(t, "customer-channel-approve"))
 	if err != nil {
-		t.Fatalf("approve channel relationship: %v", err)
+		t.Fatalf("approve Sales Partner archive: %v", err)
 	}
 	salesReference := ReferenceInput{ObjectID: approvedSalesPartner.ObjectID, ApprovalEntryID: approvedSalesPartner.Approval.ApprovalEntryID}
 	contractStatus, contractSnapshot, err := service.intermediarySalesContract(t.Context(), dbsqlc.New(pool),
@@ -170,7 +172,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		FundAccount: &refs.fundAccount, Handler: &refs.employee, OtherCategory: "COMMISSION",
 	}}, integrationApprovalActor(t, integrationActorOne, "sales-partner-payment-create"))
 	if err != nil {
-		t.Fatalf("create sales relationship payment: %v", err)
+		t.Fatalf("create Sales Partner payment: %v", err)
 	}
 	var paymentCounterpartyEntity, paymentCounterpartyObjectID string
 	if err = pool.QueryRow(t.Context(), `
@@ -180,7 +182,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		t.Fatalf("read sales relationship payment: %v", err)
 	}
 	if paymentCounterpartyEntity != bobdomain.EntitySalesPartner || paymentCounterpartyObjectID != approvedSalesPartner.ObjectID {
-		t.Fatalf("payment counterparty=%s/%s, want sales relationship %s", paymentCounterpartyEntity, paymentCounterpartyObjectID, approvedSalesPartner.ObjectID)
+		t.Fatalf("payment counterparty=%s/%s, want Sales Partner %s", paymentCounterpartyEntity, paymentCounterpartyObjectID, approvedSalesPartner.ObjectID)
 	}
 	if _, err = service.Create(t.Context(), EntityServiceAcceptance, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-08-10", Currency: "CNY", Amount: "100.00",

@@ -236,7 +236,7 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 		}
 	}
 	currentEntities := []string{
-		"operating-entity", "warehouse", "vehicle", "fund-account", "party", "product",
+		"operating-entity", "warehouse", "vehicle", "fund-account", "product",
 		"customer", "supplier", "other-unit", "employee", "sales-partner",
 	}
 	for _, entity := range currentEntities {
@@ -255,12 +255,6 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 		} {
 			expected["/dcl/"+entity+"/"+action] = struct{}{}
 		}
-	}
-	for _, action := range []string{
-		"create", "save", "submit", "unsubmit", "reject", "approve", "unapprove",
-		"delete", "get", "query", "versions", "audit-history", "merge-preflight", "merge-confirm",
-	} {
-		expected["/dcl/party/"+action] = struct{}{}
 	}
 	referencePaths := []string{"/aux/reference/query", "/bob/reference/query"}
 	for _, path := range referencePaths {

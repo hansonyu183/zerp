@@ -305,7 +305,7 @@
         'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
         'keyword': { 'type': 'string' },
         'definitionId': { 'type': 'string' },
-        'partyObjectId': { 'type': 'string' },
+        'counterpartyObjectId': { 'type': 'string' },
       },
   }
 'WflInstanceListItem':
@@ -322,8 +322,6 @@
         'rootDocumentId',
         'rootDocumentNo',
         'rootEntity',
-        'partyCode',
-        'partyName',
         'updatedAt',
       ],
     'additionalProperties': false,
@@ -338,8 +336,7 @@
         'rootDocumentId': { 'type': 'string' },
         'rootDocumentNo': { 'type': 'string' },
         'rootEntity': { 'type': 'string' },
-        'partyCode': { 'type': 'string' },
-        'partyName': { 'type': 'string' },
+        'counterparty': { '$ref': '#/WflCounterpartyReference' },
         'updatedAt': { 'type': 'string', 'format': 'date-time' },
       },
   }
@@ -355,6 +352,25 @@
         'total': { 'type': 'integer', 'format': 'int64' },
         'page': { 'type': 'integer' },
         'pageSize': { 'type': 'integer' },
+      },
+  }
+'WflCounterpartyReference':
+  {
+    'type': 'object',
+    'required': ['entity', 'objectId', 'approvalEntryId', 'code', 'name'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'entity':
+          {
+            'type': 'string',
+            'enum': ['customer-account', 'supplier', 'employee'],
+          },
+        'objectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+        'approvalEntryId':
+          { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+        'code': { 'type': 'string' },
+        'name': { 'type': 'string' },
       },
   }
 'WflInstanceQueryResponse':
@@ -454,8 +470,6 @@
         'rootDocumentId',
         'rootDocumentNo',
         'rootEntity',
-        'partyCode',
-        'partyName',
         'updatedAt',
         'approvalEntryId',
         'nodes',
@@ -472,8 +486,7 @@
         'rootDocumentId': { 'type': 'string' },
         'rootDocumentNo': { 'type': 'string' },
         'rootEntity': { 'type': 'string' },
-        'partyCode': { 'type': 'string' },
-        'partyName': { 'type': 'string' },
+        'counterparty': { '$ref': '#/WflCounterpartyReference' },
         'updatedAt': { 'type': 'string', 'format': 'date-time' },
         'approvalEntryId': { 'type': 'string' },
         'nodes': { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },

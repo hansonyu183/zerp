@@ -22,14 +22,7 @@ type relationshipBusinessRules interface {
 	EnsureSalesPartnerUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 
-// Kept for Supplier's legacy relationship identity helpers until its own
-// typed cutover; Other Unit/Sales Partner do not use it.
-type relationshipPartyReader interface {
-	ResolveForRelationship(context.Context, pgx.Tx, string) (bobdomain.PartyRelationshipResolved, error)
-}
-
-// RelationshipService is the legacy composition name only. Both public paths
-// own a direct typed subject and never create or resolve Party/Relationship.
+// RelationshipService coordinates the Other Unit and Sales Partner archives.
 type RelationshipService struct {
 	pool    *pgxpool.Pool
 	queries *dbsqlc.Queries
@@ -636,7 +629,7 @@ func (s *RelationshipService) writeOther(ctx context.Context, q *dbsqlc.Queries,
 func (s *RelationshipService) updateOther(ctx context.Context, q *dbsqlc.Queries, entryID string, data OtherUnitData) error {
 	n, err := q.UpdateDCLOtherUnitVersion(ctx, otherParams(entryID, data))
 	if err == nil && n != 1 {
-		err = errors.New("Other Unit snapshot missing")
+		err = errors.New("other unit snapshot missing")
 	}
 	if err != nil {
 		return err
@@ -759,7 +752,7 @@ func (s *RelationshipService) writeSales(ctx context.Context, q *dbsqlc.Queries,
 func (s *RelationshipService) updateSales(ctx context.Context, q *dbsqlc.Queries, entryID string, data SalesPartnerData) error {
 	n, err := q.UpdateDCLSalesPartnerVersion(ctx, salesParams(entryID, data))
 	if err == nil && n != 1 {
-		err = errors.New("Sales Partner snapshot missing")
+		err = errors.New("sales partner snapshot missing")
 	}
 	if err != nil {
 		return err

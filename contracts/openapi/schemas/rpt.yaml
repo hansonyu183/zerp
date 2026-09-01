@@ -9,17 +9,17 @@ RptReferenceType:
       ACCOUNTING_BOOK,
       ACCOUNT_SUBJECT,
       CUSTOMER_ACCOUNT,
-      SUPPLIER_RELATIONSHIP,
-      SERVICE_RELATIONSHIP,
-      EMPLOYMENT_RELATIONSHIP,
-      SALES_RELATIONSHIP,
+      SUPPLIER,
+      OTHER_UNIT,
+      EMPLOYEE,
+      SALES_PARTNER,
       DEPARTMENT,
       PRODUCT,
       WAREHOUSE,
       FUND_ACCOUNT,
       ASSET,
       BILL,
-      OTHER_PARTY,
+      COUNTERPARTY,
     ]
 
 RptResultType:
@@ -149,6 +149,28 @@ RptReferenceItem:
     id: { type: string }
     code: { type: string }
     name: { type: string }
+RptCustomerAccountReference:
+  type: object
+  additionalProperties: false
+  required: [id, code, name, customerCode, customerName]
+  properties:
+    id: { type: string, minLength: 26, maxLength: 26 }
+    code: { type: string, minLength: 1, maxLength: 32 }
+    name: { type: string, minLength: 1, maxLength: 200 }
+    customerCode: { type: string, minLength: 1, maxLength: 32 }
+    customerName: { type: string, minLength: 1, maxLength: 200 }
+RptCounterpartyReference:
+  type: object
+  additionalProperties: false
+  required: [entity, objectId, approvalEntryId, code, name]
+  properties:
+    entity:
+      type: string
+      enum: [customer-account, supplier, other-unit, employee, sales-partner]
+    objectId: { type: string, minLength: 26, maxLength: 26 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
+    code: { type: string, minLength: 1, maxLength: 64 }
+    name: { type: string, minLength: 1, maxLength: 200 }
 RptReferencePageData:
   type: object
   additionalProperties: false
@@ -156,7 +178,11 @@ RptReferencePageData:
   properties:
     items:
       type: array
-      items: { $ref: '#/RptReferenceItem' }
+      items:
+        oneOf:
+          - { $ref: '#/RptReferenceItem' }
+          - { $ref: '#/RptCustomerAccountReference' }
+          - { $ref: '#/RptCounterpartyReference' }
     total: { type: integer, format: int64 }
     page: { type: integer }
     pageSize: { type: integer }

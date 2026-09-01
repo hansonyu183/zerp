@@ -2,9 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type OpeningPartyInput = {
-  entity: string;
+export type BusinessArchiveDimensionReference = {
+  entity: 'customer-account' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
   objectId: string;
+  customerId?: string;
   approvalEntryId: string;
   code: string;
   name: string;

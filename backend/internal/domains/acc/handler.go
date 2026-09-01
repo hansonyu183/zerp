@@ -247,10 +247,18 @@ func (h *Handler) saveOpening(c *gin.Context) {
 	}
 	lines := make([]OpeningLineInput, 0, len(body.Lines))
 	for _, line := range body.Lines {
+		dimensionReferences := make(map[string]BusinessArchiveDimensionReference, len(line.DimensionReferences))
+		for dimension, reference := range line.DimensionReferences {
+			dimensionReferences[dimension] = BusinessArchiveDimensionReference{
+				Entity: string(reference.Entity), ObjectID: reference.ObjectId,
+				CustomerID: optionalString(reference.CustomerId), ApprovalEntryID: reference.ApprovalEntryId,
+				Code: reference.Code, Name: reference.Name,
+			}
+		}
 		lines = append(lines, OpeningLineInput{
 			SubjectID: line.SubjectId, Currency: line.Currency,
 			DebitAmount: line.DebitAmount, CreditAmount: line.CreditAmount,
-			Quantity: line.Quantity, Dimensions: line.Dimensions,
+			Quantity: line.Quantity, Dimensions: line.Dimensions, DimensionReferences: dimensionReferences,
 		})
 	}
 	assets := make([]OpeningAssetInput, 0, len(body.Assets))
@@ -279,8 +287,8 @@ func (h *Handler) saveOpening(c *gin.Context) {
 		if item.MaturityDate != nil {
 			bill.MaturityDate = item.MaturityDate.Time.Format("2006-01-02")
 		}
-		if item.OriginatingParty != nil {
-			bill.OriginatingParty = OpeningPartyInput{Entity: item.OriginatingParty.Entity, ObjectID: item.OriginatingParty.ObjectId, ApprovalEntryID: item.OriginatingParty.ApprovalEntryId, Code: item.OriginatingParty.Code, Name: item.OriginatingParty.Name}
+		if item.OriginatingCounterparty != nil {
+			bill.OriginatingCounterparty = &BusinessArchiveDimensionReference{Entity: string(item.OriginatingCounterparty.Entity), ObjectID: item.OriginatingCounterparty.ObjectId, CustomerID: optionalString(item.OriginatingCounterparty.CustomerId), ApprovalEntryID: item.OriginatingCounterparty.ApprovalEntryId, Code: item.OriginatingCounterparty.Code, Name: item.OriginatingCounterparty.Name}
 		}
 		bills = append(bills, bill)
 	}

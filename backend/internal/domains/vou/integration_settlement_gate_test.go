@@ -105,7 +105,7 @@ func activateSettlementLedgerForParty(
 	}
 	for index, definition := range []struct{ purpose, dimension, direction string }{
 		{"RECEIVABLE", "CUSTOMER_ACCOUNT", "DEBIT"}, {"ADVANCE_RECEIPT", "CUSTOMER_ACCOUNT", "CREDIT"},
-		{"PAYABLE", "SUPPLIER_RELATIONSHIP", "CREDIT"}, {"PREPAID", "SUPPLIER_RELATIONSHIP", "DEBIT"},
+		{"PAYABLE", "SUPPLIER", "CREDIT"}, {"PREPAID", "SUPPLIER", "DEBIT"},
 		{"OTHER", "CUSTOMER_ACCOUNT", "DEBIT"},
 	} {
 		subjectID := newID()
@@ -156,7 +156,7 @@ func insertAccountingPartyEntry(
 ) error {
 	dimension := "CUSTOMER_ACCOUNT"
 	if partyEntity == "supplier" {
-		dimension = "SUPPLIER_RELATIONSHIP"
+		dimension = "SUPPLIER"
 	}
 	var bookID, subjectID, direction string
 	if err := executor.QueryRow(ctx, `SELECT subject.book_id,subject.id,subject.balance_direction

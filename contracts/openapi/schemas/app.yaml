@@ -1155,7 +1155,6 @@
       'type': 'string',
       'enum':
         [
-          'party',
           'operating-entity',
           'warehouse',
           'vehicle',
@@ -1222,7 +1221,7 @@
           'revision',
           'documentNo',
           'businessDate',
-          'partyName',
+          'counterpartyName',
           'currency',
           'amount',
         ],
@@ -1240,7 +1239,7 @@
           'revision': { 'type': 'integer', 'format': 'int64' },
           'documentNo': { 'type': 'string' },
           'businessDate': { 'type': 'string', 'format': 'date' },
-          'partyName': { 'type': 'string' },
+          'counterpartyName': { 'type': 'string' },
           'currency': { 'type': 'string' },
           'amount': { 'type': 'string' },
         },

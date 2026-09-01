@@ -229,7 +229,7 @@ WITH current_references AS (
   SELECT subject.id, subject.code AS code, subject.code AS name
   FROM dcl_subjects subject
   JOIN LATERAL (SELECT 1 FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
-  WHERE subject.entity=$5 AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','customer','customer-account','supplier','other-unit','employee','sales-partner')
+  WHERE subject.entity=$5 AND subject.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','customer','supplier','other-unit','employee','sales-partner')
   UNION ALL
   SELECT object.id, object.code, object.data->>'name' AS name
   FROM aux_objects object
@@ -290,40 +290,48 @@ func (q *Queries) RptListBOBReferences(ctx context.Context, arg RptListBOBRefere
 	return items, nil
 }
 
-const rptListBillOriginPartyReferences = `-- name: RptListBillOriginPartyReferences :many
-WITH parties AS (
-  SELECT DISTINCT ON (origin_party_object_id)
-    origin_party_object_id AS id,
-    COALESCE(origin_party_code, '')::text AS code,
-    COALESCE(origin_party_name, '')::text AS name
+const rptListBillOriginCounterpartyReferences = `-- name: RptListBillOriginCounterpartyReferences :many
+WITH counterparties AS (
+  SELECT DISTINCT ON (origin_counterparty_entity, origin_counterparty_object_id, origin_counterparty_approval_entry_id)
+    origin_counterparty_entity AS entity,
+    origin_counterparty_object_id AS object_id,
+    origin_counterparty_approval_entry_id AS approval_entry_id,
+    origin_counterparty_code AS code,
+    origin_counterparty_name AS name
   FROM acc_bills
-  WHERE origin_party_object_id IS NOT NULL
-  ORDER BY origin_party_object_id, id
+  WHERE origin_counterparty_entity IS NOT NULL
+    AND origin_counterparty_object_id IS NOT NULL
+    AND origin_counterparty_approval_entry_id IS NOT NULL
+    AND origin_counterparty_code IS NOT NULL
+    AND origin_counterparty_name IS NOT NULL
+  ORDER BY origin_counterparty_entity, origin_counterparty_object_id, origin_counterparty_approval_entry_id, id
 )
-SELECT id, code, name, count(*) OVER() AS total
-FROM parties
-WHERE $1::text = '' OR id = $1
+SELECT entity, object_id, approval_entry_id, code, name, count(*) OVER() AS total
+FROM counterparties
+WHERE $1::text = '' OR object_id = $1
   OR code ILIKE '%' || $2 || '%' OR name ILIKE '%' || $2 || '%'
-ORDER BY (id = $1 AND $1::text <> '') DESC, code, id
+ORDER BY (object_id = $1 AND $1::text <> '') DESC, code, object_id, approval_entry_id
 OFFSET $3 LIMIT $4
 `
 
-type RptListBillOriginPartyReferencesParams struct {
+type RptListBillOriginCounterpartyReferencesParams struct {
 	SelectedID string  `db:"selected_id" json:"selected_id"`
 	Keyword    *string `db:"keyword" json:"keyword"`
 	RowOffset  int32   `db:"row_offset" json:"row_offset"`
 	RowLimit   int32   `db:"row_limit" json:"row_limit"`
 }
 
-type RptListBillOriginPartyReferencesRow struct {
-	ID    *string `db:"id" json:"id"`
-	Code  string  `db:"code" json:"code"`
-	Name  string  `db:"name" json:"name"`
-	Total int64   `db:"total" json:"total"`
+type RptListBillOriginCounterpartyReferencesRow struct {
+	Entity          *string `db:"entity" json:"entity"`
+	ObjectID        *string `db:"object_id" json:"object_id"`
+	ApprovalEntryID *string `db:"approval_entry_id" json:"approval_entry_id"`
+	Code            *string `db:"code" json:"code"`
+	Name            *string `db:"name" json:"name"`
+	Total           int64   `db:"total" json:"total"`
 }
 
-func (q *Queries) RptListBillOriginPartyReferences(ctx context.Context, arg RptListBillOriginPartyReferencesParams) ([]RptListBillOriginPartyReferencesRow, error) {
-	rows, err := q.db.Query(ctx, rptListBillOriginPartyReferences,
+func (q *Queries) RptListBillOriginCounterpartyReferences(ctx context.Context, arg RptListBillOriginCounterpartyReferencesParams) ([]RptListBillOriginCounterpartyReferencesRow, error) {
+	rows, err := q.db.Query(ctx, rptListBillOriginCounterpartyReferences,
 		arg.SelectedID,
 		arg.Keyword,
 		arg.RowOffset,
@@ -333,11 +341,13 @@ func (q *Queries) RptListBillOriginPartyReferences(ctx context.Context, arg RptL
 		return nil, err
 	}
 	defer rows.Close()
-	items := []RptListBillOriginPartyReferencesRow{}
+	items := []RptListBillOriginCounterpartyReferencesRow{}
 	for rows.Next() {
-		var i RptListBillOriginPartyReferencesRow
+		var i RptListBillOriginCounterpartyReferencesRow
 		if err := rows.Scan(
-			&i.ID,
+			&i.Entity,
+			&i.ObjectID,
+			&i.ApprovalEntryID,
 			&i.Code,
 			&i.Name,
 			&i.Total,
@@ -440,6 +450,83 @@ func (q *Queries) RptListBookReferences(ctx context.Context, arg RptListBookRefe
 			&i.ID,
 			&i.Code,
 			&i.Name,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const rptListCustomerAccountReferences = `-- name: RptListCustomerAccountReferences :many
+WITH current_references AS (
+  SELECT root.account_id AS id, line.data->>'code' AS code, line.data->>'name' AS name,
+    customer_root.code AS customer_code,
+    coalesce(nullif(customer.data->>'displayName',''), customer.data->>'legalName') AS customer_name
+  FROM dcl_customer_account_roots root
+  JOIN LATERAL (
+    SELECT id
+    FROM approval_entries
+    WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+  ) entry ON true
+  JOIN dcl_subjects customer_root ON customer_root.id=root.customer_id AND customer_root.entity='customer'
+  JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id AND customer.enabled
+  JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+  WHERE line.enabled
+)
+SELECT reference.id, reference.code::text AS code, reference.name::text AS name,
+  reference.customer_code, reference.customer_name::text AS customer_name, count(*) OVER() AS total
+FROM current_references reference
+WHERE ($1::text<>'' AND reference.id=$1)
+   OR reference.code ILIKE '%'||$2||'%'
+   OR reference.name ILIKE '%'||$2||'%'
+   OR reference.customer_code ILIKE '%'||$2||'%'
+   OR reference.customer_name ILIKE '%'||$2||'%'
+ORDER BY (reference.id=$1 AND $1::text<>'') DESC, reference.code, reference.id
+OFFSET $3 LIMIT $4
+`
+
+type RptListCustomerAccountReferencesParams struct {
+	SelectedID string  `db:"selected_id" json:"selected_id"`
+	Keyword    *string `db:"keyword" json:"keyword"`
+	RowOffset  int32   `db:"row_offset" json:"row_offset"`
+	RowLimit   int32   `db:"row_limit" json:"row_limit"`
+}
+
+type RptListCustomerAccountReferencesRow struct {
+	ID           string  `db:"id" json:"id"`
+	Code         string  `db:"code" json:"code"`
+	Name         string  `db:"name" json:"name"`
+	CustomerCode *string `db:"customer_code" json:"customer_code"`
+	CustomerName string  `db:"customer_name" json:"customer_name"`
+	Total        int64   `db:"total" json:"total"`
+}
+
+func (q *Queries) RptListCustomerAccountReferences(ctx context.Context, arg RptListCustomerAccountReferencesParams) ([]RptListCustomerAccountReferencesRow, error) {
+	rows, err := q.db.Query(ctx, rptListCustomerAccountReferences,
+		arg.SelectedID,
+		arg.Keyword,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RptListCustomerAccountReferencesRow{}
+	for rows.Next() {
+		var i RptListCustomerAccountReferencesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.CustomerCode,
+			&i.CustomerName,
 			&i.Total,
 		); err != nil {
 			return nil, err

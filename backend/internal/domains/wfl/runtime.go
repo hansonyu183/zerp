@@ -168,17 +168,23 @@ func (s *Service) ensureRootInstance(ctx context.Context, tx pgx.Tx, definition 
 	}
 	processID, nodeID := newID(), newID()
 	root := compiledNodeByKey(definition.compiled, definition.compiled.RootKey)
-	var partyObjectID, partyCode, partyName string
-	for _, party := range []*voudomain.ReferenceView{event.Snapshot.Data.Customer, event.Snapshot.Data.Supplier, event.Snapshot.Data.Employee} {
-		if party != nil {
-			partyObjectID, partyCode, partyName = party.ObjectID, party.Code, party.Name
+	var counterparty *voudomain.ReferenceView
+	for _, candidate := range []*voudomain.ReferenceView{event.Snapshot.Data.Customer, event.Snapshot.Data.Supplier, event.Snapshot.Data.Employee} {
+		if candidate != nil {
+			counterparty = candidate
 			break
 		}
+	}
+	var counterpartyEntity, counterpartyObjectID, counterpartyApprovalEntryID, counterpartyCode, counterpartyName string
+	if counterparty != nil {
+		counterpartyEntity, counterpartyObjectID, counterpartyApprovalEntryID = counterparty.Entity, counterparty.ObjectID, counterparty.ApprovalEntryID
+		counterpartyCode, counterpartyName = counterparty.Code, counterparty.Name
 	}
 	if err = queries.CreateWorkflowDefinitionInstance(ctx, sqlc.CreateWorkflowDefinitionInstanceParams{
 		ID: processID, DefinitionID: definition.id, RootDocumentID: workflowText(event.DocumentID), RootDocumentNo: event.DocumentNo,
 		RootEntity: event.Entity, DefinitionCode: definition.code, DefinitionName: definition.name,
-		PartyObjectID: nullableText(partyObjectID), PartyCode: nullableText(partyCode), PartyName: nullableText(partyName),
+		CounterpartyEntity: nullableText(counterpartyEntity), CounterpartyObjectID: nullableText(counterpartyObjectID),
+		CounterpartyApprovalEntryID: nullableText(counterpartyApprovalEntryID), CounterpartyCode: nullableText(counterpartyCode), CounterpartyName: nullableText(counterpartyName),
 		DefinitionApprovalEntryID: definition.approvalEntryID, ActorID: event.ActorID,
 	}); err != nil {
 		return "", "", false, err

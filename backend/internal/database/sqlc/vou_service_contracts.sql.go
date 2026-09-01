@@ -12,7 +12,7 @@ import (
 )
 
 const findLatestApplicableSalesContract = `-- name: FindLatestApplicableSalesContract :one
-SELECT contract.document_id, contract.entity, contract.counterparty_entity, contract.counterparty_object_id, contract.counterparty_approval_entry_id, contract.counterparty_code, contract.counterparty_name, contract.party_id, contract.party_name, contract.operating_entity_object_id, contract.operating_entity_approval_entry_id, contract.operating_entity_code, contract.operating_entity_name, contract.handler_object_id, contract.handler_approval_entry_id, contract.handler_code, contract.handler_name, contract.settlement_method_object_id, contract.settlement_method_code, contract.settlement_method_name, contract.settlement_term_code, contract.settlement_rule_type, contract.settlement_month_offset, contract.settlement_day_of_month, contract.settlement_day_offset, contract.capabilities, contract.applicable_from, contract.applicable_to, contract.contract_terms
+SELECT contract.document_id, contract.entity, contract.counterparty_entity, contract.counterparty_object_id, contract.counterparty_approval_entry_id, contract.counterparty_code, contract.counterparty_name, contract.operating_entity_object_id, contract.operating_entity_approval_entry_id, contract.operating_entity_code, contract.operating_entity_name, contract.handler_object_id, contract.handler_approval_entry_id, contract.handler_code, contract.handler_name, contract.settlement_method_object_id, contract.settlement_method_code, contract.settlement_method_name, contract.settlement_term_code, contract.settlement_rule_type, contract.settlement_month_offset, contract.settlement_day_of_month, contract.settlement_day_offset, contract.capabilities, contract.applicable_from, contract.applicable_to, contract.contract_terms
 FROM vou_service_contract_details contract
 JOIN vou_documents document ON document.id=contract.document_id
 JOIN approval_entries approval ON approval.id=document.approval_entry_id
@@ -44,8 +44,6 @@ func (q *Queries) FindLatestApplicableSalesContract(ctx context.Context, arg Fin
 		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
-		&i.PartyID,
-		&i.PartyName,
 		&i.OperatingEntityObjectID,
 		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
@@ -137,7 +135,7 @@ func (q *Queries) GetVouServiceAcceptanceDetail(ctx context.Context, documentID 
 }
 
 const getVouServiceContractDetail = `-- name: GetVouServiceContractDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, party_id, party_name, operating_entity_object_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, settlement_method_object_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, capabilities, applicable_from, applicable_to, contract_terms FROM vou_service_contract_details WHERE document_id=$1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, operating_entity_object_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, settlement_method_object_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, capabilities, applicable_from, applicable_to, contract_terms FROM vou_service_contract_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error) {
@@ -151,8 +149,6 @@ func (q *Queries) GetVouServiceContractDetail(ctx context.Context, documentID st
 		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
-		&i.PartyID,
-		&i.PartyName,
 		&i.OperatingEntityObjectID,
 		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
@@ -215,18 +211,18 @@ func (q *Queries) InsertVouServiceAcceptanceDetail(ctx context.Context, arg Inse
 const insertVouServiceContractDetail = `-- name: InsertVouServiceContractDetail :exec
 INSERT INTO vou_service_contract_details(
  document_id,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,
- party_id,party_name,operating_entity_object_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,
+ operating_entity_object_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,
  handler_object_id,handler_approval_entry_id,handler_code,handler_name,
  settlement_method_object_id,settlement_method_code,settlement_method_name,
  settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,
  capabilities,applicable_from,applicable_to,contract_terms
 ) VALUES (
  $1,$2,$3,$4,$5,$6,
- $7,$8,$9,$10,$11,$12,
- $13,$14,$15,$16,
- $17,$18,$19,
- $20,$21,$22,$23,$24,
- $25,$26,$27,$28
+ $7,$8,$9,$10,
+ $11,$12,$13,$14,
+ $15,$16,$17,
+ $18,$19,$20,$21,$22,
+ $23,$24,$25,$26
 )
 `
 
@@ -237,8 +233,6 @@ type InsertVouServiceContractDetailParams struct {
 	CounterpartyApprovalEntryID    string      `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
 	CounterpartyCode               string      `db:"counterparty_code" json:"counterparty_code"`
 	CounterpartyName               string      `db:"counterparty_name" json:"counterparty_name"`
-	PartyID                        string      `db:"party_id" json:"party_id"`
-	PartyName                      string      `db:"party_name" json:"party_name"`
 	OperatingEntityObjectID        string      `db:"operating_entity_object_id" json:"operating_entity_object_id"`
 	OperatingEntityApprovalEntryID string      `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
 	OperatingEntityCode            string      `db:"operating_entity_code" json:"operating_entity_code"`
@@ -269,8 +263,6 @@ func (q *Queries) InsertVouServiceContractDetail(ctx context.Context, arg Insert
 		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
-		arg.PartyID,
-		arg.PartyName,
 		arg.OperatingEntityObjectID,
 		arg.OperatingEntityApprovalEntryID,
 		arg.OperatingEntityCode,
@@ -318,7 +310,7 @@ func (q *Queries) LockVouServiceAcceptanceContract(ctx context.Context, contract
 }
 
 const lockVouServiceContractDetail = `-- name: LockVouServiceContractDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, party_id, party_name, operating_entity_object_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, settlement_method_object_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, capabilities, applicable_from, applicable_to, contract_terms FROM vou_service_contract_details WHERE document_id=$1 FOR UPDATE
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, operating_entity_object_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, settlement_method_object_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, capabilities, applicable_from, applicable_to, contract_terms FROM vou_service_contract_details WHERE document_id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error) {
@@ -332,8 +324,6 @@ func (q *Queries) LockVouServiceContractDetail(ctx context.Context, documentID s
 		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
-		&i.PartyID,
-		&i.PartyName,
 		&i.OperatingEntityObjectID,
 		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
@@ -361,7 +351,6 @@ func (q *Queries) LockVouServiceContractDetail(ctx context.Context, documentID s
 const resolveVouContractCounterparty = `-- name: ResolveVouContractCounterparty :one
 SELECT object.id AS counterparty_object_id,object.entity AS counterparty_entity,
        version.id AS counterparty_approval_entry_id,object.code AS counterparty_code,
-       party.id AS party_id,party_current.display_name AS party_name,
        operating.id AS operating_entity_object_id,operating_entry.id AS operating_entity_approval_entry_id,
        operating.code AS operating_entity_code,operating_detail.legal_name AS operating_entity_name,
        COALESCE(sales.capabilities,ARRAY[]::varchar(32)[]) AS capabilities,
@@ -375,19 +364,17 @@ JOIN LATERAL (
   WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) version ON true
-LEFT JOIN dcl_service_relationships service_rel ON service_rel.object_id=object.id AND object.entity='other-unit'
 LEFT JOIN dcl_other_unit_versions service_detail ON service_detail.approval_entry_id=version.id AND object.entity='other-unit'
-LEFT JOIN dcl_sales_relationships sales_rel ON sales_rel.object_id=object.id AND object.entity='sales-partner'
 LEFT JOIN dcl_sales_partner_versions sales ON sales.approval_entry_id=version.id AND object.entity='sales-partner'
-JOIN dcl_parties party ON party.id=COALESCE(service_rel.party_id,sales_rel.party_id)
-JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=party.id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party_current ON true
-JOIN dcl_subjects operating ON operating.id=COALESCE(service_rel.operating_entity_id,sales_rel.operating_entity_id) AND operating.entity='operating-entity'
+JOIN dcl_subjects operating ON operating.id=COALESCE(service_detail.default_operating_entity_id,sales.default_operating_entity_id) AND operating.entity='operating-entity'
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
-JOIN dcl_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id AND operating_detail.enabled
+JOIN dcl_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id
+  AND operating_entry.id=COALESCE(service_detail.default_operating_entity_approval_entry_id,sales.default_operating_entity_approval_entry_id)
+  AND operating_detail.enabled
 WHERE object.id=$1 AND object.entity=$2
   AND object.entity IN ('other-unit','sales-partner')
   AND COALESCE(service_detail.enabled,sales.enabled)
-FOR SHARE OF object,party,operating
+FOR SHARE OF object,operating
 `
 
 type ResolveVouContractCounterpartyParams struct {
@@ -400,8 +387,6 @@ type ResolveVouContractCounterpartyRow struct {
 	CounterpartyEntity             string   `db:"counterparty_entity" json:"counterparty_entity"`
 	CounterpartyApprovalEntryID    string   `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
 	CounterpartyCode               *string  `db:"counterparty_code" json:"counterparty_code"`
-	PartyID                        string   `db:"party_id" json:"party_id"`
-	PartyName                      string   `db:"party_name" json:"party_name"`
 	OperatingEntityObjectID        string   `db:"operating_entity_object_id" json:"operating_entity_object_id"`
 	OperatingEntityApprovalEntryID string   `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
 	OperatingEntityCode            *string  `db:"operating_entity_code" json:"operating_entity_code"`
@@ -425,8 +410,6 @@ func (q *Queries) ResolveVouContractCounterparty(ctx context.Context, arg Resolv
 		&i.CounterpartyEntity,
 		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
-		&i.PartyID,
-		&i.PartyName,
 		&i.OperatingEntityObjectID,
 		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
@@ -483,12 +466,12 @@ func (q *Queries) UpdateVouServiceAcceptanceDetail(ctx context.Context, arg Upda
 const updateVouServiceContractDetail = `-- name: UpdateVouServiceContractDetail :execrows
 UPDATE vou_service_contract_details SET
  counterparty_entity=$1,counterparty_object_id=$2,counterparty_approval_entry_id=$3,counterparty_code=$4,counterparty_name=$5,
- party_id=$6,party_name=$7,operating_entity_object_id=$8,operating_entity_approval_entry_id=$9,operating_entity_code=$10,operating_entity_name=$11,
- handler_object_id=$12,handler_approval_entry_id=$13,handler_code=$14,handler_name=$15,
-	settlement_method_object_id=$16,settlement_method_code=$17,settlement_method_name=$18,
- settlement_term_code=$19,settlement_rule_type=$20,settlement_month_offset=$21,settlement_day_of_month=$22,settlement_day_offset=$23,
- capabilities=$24,applicable_from=$25,applicable_to=$26,contract_terms=$27
-WHERE document_id=$28
+ operating_entity_object_id=$6,operating_entity_approval_entry_id=$7,operating_entity_code=$8,operating_entity_name=$9,
+ handler_object_id=$10,handler_approval_entry_id=$11,handler_code=$12,handler_name=$13,
+	settlement_method_object_id=$14,settlement_method_code=$15,settlement_method_name=$16,
+ settlement_term_code=$17,settlement_rule_type=$18,settlement_month_offset=$19,settlement_day_of_month=$20,settlement_day_offset=$21,
+ capabilities=$22,applicable_from=$23,applicable_to=$24,contract_terms=$25
+WHERE document_id=$26
 `
 
 type UpdateVouServiceContractDetailParams struct {
@@ -497,8 +480,6 @@ type UpdateVouServiceContractDetailParams struct {
 	CounterpartyApprovalEntryID    string      `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
 	CounterpartyCode               string      `db:"counterparty_code" json:"counterparty_code"`
 	CounterpartyName               string      `db:"counterparty_name" json:"counterparty_name"`
-	PartyID                        string      `db:"party_id" json:"party_id"`
-	PartyName                      string      `db:"party_name" json:"party_name"`
 	OperatingEntityObjectID        string      `db:"operating_entity_object_id" json:"operating_entity_object_id"`
 	OperatingEntityApprovalEntryID string      `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
 	OperatingEntityCode            string      `db:"operating_entity_code" json:"operating_entity_code"`
@@ -529,8 +510,6 @@ func (q *Queries) UpdateVouServiceContractDetail(ctx context.Context, arg Update
 		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
-		arg.PartyID,
-		arg.PartyName,
 		arg.OperatingEntityObjectID,
 		arg.OperatingEntityApprovalEntryID,
 		arg.OperatingEntityCode,

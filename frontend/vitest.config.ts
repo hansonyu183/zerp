@@ -29,6 +29,12 @@ export default defineConfig({
           branches: 68,
           functions: 75,
         },
+        'src/pages/dcl/shared/typed-business-archive/vm.ts': {
+          lines: 59.8,
+          statements: 57.8,
+          branches: 45.7,
+          functions: 58,
+        },
         'src/pages/vou/shared/vm.ts': {
           lines: 55.9,
           statements: 51,

@@ -7,8 +7,7 @@ LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'customer' THEN (SELECT payload.display_name FROM dcl_customer_relationships relationship JOIN approval_entries party_entry ON party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE relationship.object_id=entry.subject_id ORDER BY (party_entry.status='APPROVED') DESC,party_entry.version_no DESC LIMIT 1)
-    WHEN 'customer-account' THEN (SELECT payload.name FROM dcl_customer_account_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'customer' THEN (SELECT payload.data->>'displayName' FROM dcl_customer_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'supplier' THEN (SELECT payload.display_name FROM dcl_supplier_relationships relationship JOIN approval_entries party_entry ON party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE relationship.object_id=entry.subject_id ORDER BY (party_entry.status='APPROVED') DESC,party_entry.version_no DESC LIMIT 1)
     WHEN 'other-unit' THEN (SELECT payload.display_name FROM dcl_service_relationships relationship JOIN approval_entries party_entry ON party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE relationship.object_id=entry.subject_id ORDER BY (party_entry.status='APPROVED') DESC,party_entry.version_no DESC LIMIT 1)
     WHEN 'employee' THEN (SELECT payload.display_name FROM dcl_employment_relationships relationship JOIN approval_entries party_entry ON party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL ORDER BY (party_entry.status='APPROVED') DESC,party_entry.version_no DESC LIMIT 1)
@@ -25,7 +24,7 @@ CROSS JOIN LATERAL (
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition','wfl-process-definition')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','acc-mapping','rpt-definition','wfl-process-definition')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
@@ -50,7 +49,7 @@ WHERE entry.domain='dcl'
 -- name: ListWorkbenchBobItems :many
 SELECT entry.subject_id AS object_id, entry.entity,
        CASE
-         WHEN entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','supplier','other-unit','sales-partner','customer','customer-account','rpt-definition','wfl-process-definition')
+         WHEN entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','supplier','other-unit','sales-partner','customer','rpt-definition','wfl-process-definition')
            THEN dcl_require_subject_code(subject.code)
          WHEN entry.entity='acc-mapping' THEN mapping.vou_entity
          ELSE ''
@@ -67,8 +66,7 @@ LEFT JOIN acc_books mapping_book ON mapping_book.id=mapping.book_id
 CROSS JOIN LATERAL (
   SELECT CASE entry.entity
     WHEN 'party' THEN (SELECT payload.display_name FROM dcl_party_versions payload WHERE payload.approval_entry_id=entry.id)
-    WHEN 'customer' THEN (SELECT payload.display_name FROM dcl_customer_relationships relationship JOIN approval_entries party_entry ON party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE relationship.object_id=entry.subject_id ORDER BY (party_entry.status='APPROVED') DESC,party_entry.version_no DESC LIMIT 1)
-    WHEN 'customer-account' THEN (SELECT payload.name FROM dcl_customer_account_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'customer' THEN (SELECT payload.data->>'displayName' FROM dcl_customer_versions payload WHERE payload.approval_entry_id=entry.id)
     WHEN 'supplier' THEN (SELECT payload.display_name FROM dcl_supplier_relationships relationship JOIN approval_entries party_entry ON party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE relationship.object_id=entry.subject_id ORDER BY (party_entry.status='APPROVED') DESC,party_entry.version_no DESC LIMIT 1)
     WHEN 'other-unit' THEN (SELECT payload.display_name FROM dcl_service_relationships relationship JOIN approval_entries party_entry ON party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE relationship.object_id=entry.subject_id ORDER BY (party_entry.status='APPROVED') DESC,party_entry.version_no DESC LIMIT 1)
     WHEN 'employee' THEN (SELECT payload.display_name FROM dcl_employment_relationships relationship JOIN approval_entries party_entry ON party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE relationship.object_id=entry.subject_id AND relationship.merged_into_object_id IS NULL ORDER BY (party_entry.status='APPROVED') DESC,party_entry.version_no DESC LIMIT 1)
@@ -85,7 +83,7 @@ CROSS JOIN LATERAL (
   END AS name
 ) named
 WHERE entry.domain='dcl'
-  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','customer-account','acc-mapping','rpt-definition','wfl-process-definition')
+  AND entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','party','employee','supplier','other-unit','sales-partner','customer','acc-mapping','rpt-definition','wfl-process-definition')
   AND (
     (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (

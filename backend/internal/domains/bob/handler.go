@@ -19,8 +19,6 @@ type applicationService interface {
 	Get(context.Context, string, GetInput) (ObjectView, error)
 	CustomerCurrentQuery(context.Context, CustomerCurrentQueryInput) (Page[CustomerCurrentListItem], error)
 	CustomerCurrentGet(context.Context, string) (CustomerCurrentView, error)
-	CustomerAccountCurrentQuery(context.Context, CustomerAccountCurrentQueryInput) (Page[CustomerAccountCurrentListItem], error)
-	CustomerAccountCurrentGet(context.Context, string) (CustomerAccountCurrentView, error)
 	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
 }
 
@@ -112,7 +110,11 @@ func (h *Handler) referenceQuery(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	if !authmiddleware.CheckPermission(c, h.authorizer, "/bob/"+input.Entity+"/query", h.writeAuthorizationError) {
+	permission := "/bob/" + input.Entity + "/query"
+	if input.Entity == EntityCustomerAccount {
+		permission = "/bob/customer/query"
+	}
+	if !authmiddleware.CheckPermission(c, h.authorizer, permission, h.writeAuthorizationError) {
 		return
 	}
 	result, err := h.service.QueryReferenceCandidates(c.Request.Context(), input)
@@ -132,14 +134,6 @@ func (h *Handler) query(c *gin.Context, entity string) {
 		}
 		return
 	}
-	if entity == EntityCustomerAccount {
-		var input CustomerAccountCurrentQueryInput
-		if h.bind(c, &input) {
-			result, err := h.service.CustomerAccountCurrentQuery(c.Request.Context(), input)
-			h.result(c, result, err)
-		}
-		return
-	}
 	var input QueryInput
 	if h.bind(c, &input) {
 		result, err := h.service.Query(c.Request.Context(), entity, input)
@@ -152,11 +146,6 @@ func (h *Handler) get(c *gin.Context, entity string) {
 	if h.bind(c, &input) {
 		if entity == EntityCustomer {
 			result, err := h.service.CustomerCurrentGet(c.Request.Context(), input.ObjectID)
-			h.result(c, result, err)
-			return
-		}
-		if entity == EntityCustomerAccount {
-			result, err := h.service.CustomerAccountCurrentGet(c.Request.Context(), input.ObjectID)
 			h.result(c, result, err)
 			return
 		}

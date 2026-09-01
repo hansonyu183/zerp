@@ -4,17 +4,18 @@
 -- entry rather than the stable object.
 -- name: ListBobApprovalEntryReferenceCounts :many
 WITH snapshot_references(entity, field, entry_id) AS (
-    SELECT 'customer-account','customer-operating',payload.operating_entity_approval_entry_id
-    FROM dcl_customer_account_versions payload
-    JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
-    WHERE current_entry.domain='dcl' AND current_entry.entity='customer-account' AND current_entry.status='APPROVED'
-    UNION ALL SELECT 'customer-account',CASE payload.primary_sales_attribution_type
+    SELECT 'customer','customer-operating',customer.data->'defaultOperatingEntity'->>'approvalEntryId'
+    FROM dcl_customer_versions customer
+    JOIN approval_entries current_entry ON current_entry.id=customer.approval_entry_id
+    WHERE current_entry.domain='dcl' AND current_entry.entity='customer' AND current_entry.status='APPROVED'
+    UNION ALL SELECT 'customer',CASE line.data->'primarySalesAttribution'->>'type'
         WHEN 'INTERNAL_EMPLOYEE' THEN 'customer-sales'
         WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales'
-        ELSE 'customer-channel-sales' END,payload.primary_sales_subject_approval_entry_id
-    FROM dcl_customer_account_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
-    WHERE current_entry.domain='dcl' AND current_entry.entity='customer-account' AND current_entry.status='APPROVED'
-      AND payload.primary_sales_attribution_type IS NOT NULL
+        ELSE 'customer-channel-sales' END,line.data->'primarySalesAttribution'->>'subjectApprovalEntryId'
+    FROM dcl_customer_version_accounts line
+    JOIN approval_entries current_entry ON current_entry.id=line.customer_approval_entry_id
+    WHERE current_entry.domain='dcl' AND current_entry.entity='customer' AND current_entry.status='APPROVED'
+      AND line.enabled AND line.data->'primarySalesAttribution'->>'type' IS NOT NULL
     UNION ALL SELECT 'supplier','supplier-purchaser',payload.default_purchaser_employee_approval_entry_id
     FROM dcl_supplier_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
     WHERE current_entry.domain='dcl' AND current_entry.entity='supplier' AND current_entry.status='APPROVED'

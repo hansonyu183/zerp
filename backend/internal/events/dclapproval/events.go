@@ -74,21 +74,12 @@ type SupplierPayload struct {
 
 var SupplierTopic = approval.MustTopic[SupplierPayload]("dcl.supplier.approval")
 
-// Customer and Customer Account are separate DCL approval subjects.  Their
-// shared Party-to-operating-entity and account-to-customer bindings remain
-// stable BOB identities.
 type CustomerPayload struct {
-	SubjectID, Code, PartyID string
-	Enabled                  bool
-}
-
-type CustomerAccountPayload struct {
-	SubjectID, Code, CustomerRelationshipID, Name string
-	Enabled                                       bool
+	SubjectID, Code string
+	Enabled         bool
 }
 
 var CustomerTopic = approval.MustTopic[CustomerPayload]("dcl.customer.approval")
-var CustomerAccountTopic = approval.MustTopic[CustomerAccountPayload]("dcl.customer-account.approval")
 
 var SalesPartnerTopic = approval.MustTopic[SalesPartnerPayload]("dcl.sales-partner.approval")
 

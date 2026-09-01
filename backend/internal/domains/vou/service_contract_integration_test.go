@@ -81,7 +81,6 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	bus := txevent.NewBus()
 	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
 	relationships := dcldomain.NewRelationshipService(pool, bobService, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
-	accounts := dcldomain.NewCustomerAccountService(pool, bobService, authorization.Func(nil), bus)
 	service := newIntegrationService(t, pool)
 
 	serviceContract := approveServiceContractIntegration(t, service, DraftInput{
@@ -110,36 +109,29 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		t.Fatalf("approve service acceptance: %v", err)
 	}
 
-	var customerRelationshipID, customerPartyID, operatingEntityID string
-	if err = pool.QueryRow(t.Context(), `
-		SELECT relationship.object_id,relationship.party_id,relationship.operating_entity_id
-		FROM dcl_customer_accounts account
-		JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
-		WHERE account.object_id=$1
-	`, refs.customer.ObjectID).Scan(&customerRelationshipID, &customerPartyID, &operatingEntityID); err != nil {
-		t.Fatalf("load customer relationship identity: %v", err)
-	}
-	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: customerPartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "customer-party-get"))
-	if err != nil {
-		t.Fatalf("get customer Party declaration: %v", err)
-	}
-	if party.Approval.Status != "APPROVED" {
-		pendingParty, submitErr := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: customerPartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedIntegrationActor(t, "customer-party-submit"))
-		if submitErr != nil {
-			t.Fatalf("submit customer Party declaration: %v", submitErr)
-		}
-		if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: customerPartyID, ApprovalEntryID: pendingParty.Approval.ApprovalEntryID, ApprovalRevision: pendingParty.Approval.Revision}, trustedIntegrationActor(t, "customer-party-approve")); err != nil {
-			t.Fatalf("approve customer Party declaration: %v", err)
-		}
-	}
 	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
-		PartyID:           customerPartyID,
-		OperatingEntityID: operatingEntityID,
+		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "渠道合作方"},
+		OperatingEntityID: refs.salesReceiptOperatingEntity.ObjectID,
 		Data: dcldomain.SalesPartnerData{
 			Capabilities: []string{bobdomain.SalesCapabilityChannelPartner}},
 	}, trustedIntegrationActor(t, "customer-channel-create"))
 	if err != nil {
 		t.Fatalf("create channel relationship on customer Party: %v", err)
+	}
+	partyView, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: salesPartner.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "customer-channel-party-get"))
+	if err != nil {
+		t.Fatalf("get channel Party declaration: %v", err)
+	}
+	partyPending, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{
+		PartyID: salesPartner.PartyID, ApprovalEntryID: partyView.Approval.ApprovalEntryID, ApprovalRevision: partyView.Approval.Revision,
+	}, trustedIntegrationActor(t, "customer-channel-party-submit"))
+	if err != nil {
+		t.Fatalf("submit channel Party declaration: %v", err)
+	}
+	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{
+		PartyID: salesPartner.PartyID, ApprovalEntryID: partyPending.Approval.ApprovalEntryID, ApprovalRevision: partyPending.Approval.Revision,
+	}, trustedIntegrationActor(t, "customer-channel-party-approve")); err != nil {
+		t.Fatalf("approve channel Party declaration: %v", err)
 	}
 	submitted, err := relationships.SubmitSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID, ApprovalRevision: salesPartner.Approval.Revision,
@@ -152,23 +144,6 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	}, trustedIntegrationActor(t, "customer-channel-approve"))
 	if err != nil {
 		t.Fatalf("approve channel relationship: %v", err)
-	}
-	if _, err = accounts.Create(t.Context(), dcldomain.CustomerAccountCreateInput{
-		CustomerRelationshipID: customerRelationshipID,
-		Data: dcldomain.CustomerAccountDataInput{
-			Name: "禁止自归属账户", CustomerTypeID: bobdomain.CustomerTypeEndUserID,
-			PricingPolicy: dcldomain.CustomerPricingPolicy{
-				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00",
-				ThirdPartyIntermediaryFixedUnitCost: "0.00", ThirdPartyIntermediaryVariableUnitCost: "0.00",
-				CostItems: []dcldomain.CustomerPricingCostItem{},
-			},
-			CreditLimits: []dcldomain.CustomerCreditLimit{},
-			PrimarySalesAttribution: dcldomain.CustomerSalesAttributionInput{
-				Type: dcldomain.CustomerSalesAttributionChannelPartner, SubjectObjectID: approvedSalesPartner.ObjectID,
-			},
-		},
-	}, trustedIntegrationActor(t, "customer-channel-self-attribution")); err == nil {
-		t.Fatal("customer account accepted its own Party sales relationship attribution")
 	}
 	salesReference := ReferenceInput{ObjectID: approvedSalesPartner.ObjectID, ApprovalEntryID: approvedSalesPartner.Approval.ApprovalEntryID}
 	contractStatus, contractSnapshot, err := service.intermediarySalesContract(t.Context(), dbsqlc.New(pool),

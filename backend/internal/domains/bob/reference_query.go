@@ -15,6 +15,7 @@ type ReferenceQueryInput struct {
 
 type ReferenceCandidate struct {
 	ObjectID           string                  `json:"objectId"`
+	CustomerID         string                  `json:"customerId,omitempty"`
 	ApprovalEntryID    string                  `json:"approvalEntryId"`
 	Code               string                  `json:"code"`
 	Name               string                  `json:"name"`
@@ -46,6 +47,20 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		for _, row := range rows {
 			result = append(result, ReferenceCandidate{
 				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: deref(row.Code), Name: row.Name,
+			})
+		}
+		return result, nil
+	}
+	if input.Entity == EntityCustomerAccount {
+		rows, err := s.queries.ListBobEmbeddedCustomerAccountReferenceCandidates(ctx, input.Keyword)
+		if err != nil {
+			return nil, s.internal("query current customer account references", err)
+		}
+		result := make([]ReferenceCandidate, 0, len(rows))
+		for _, row := range rows {
+			result = append(result, ReferenceCandidate{
+				ObjectID: row.ObjectID, CustomerID: row.CustomerID, ApprovalEntryID: row.ApprovalEntryID,
+				Code: row.Code, Name: row.Name,
 			})
 		}
 		return result, nil

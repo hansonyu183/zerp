@@ -20,45 +20,8 @@ const (
 	EntitySalesPartner    = "sales-partner"
 	EntitySupplier        = "supplier"
 	EntityCustomer        = "customer"
-	EntityCustomerAccount = "customer-account"
 	EntityAccMapping      = "acc-mapping"
 )
-
-// Customer is the DCL declaration for the immutable Party-to-operating-
-// entity customer relationship.  Its commercial accounts are independent
-// Customer Account approval subjects.
-type CustomerCreateInput struct {
-	PartyID           string                     `json:"partyId,omitempty"`
-	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
-	OperatingEntityID string                     `json:"operatingEntityId"`
-	// DefaultAccount is required because Customer creation atomically establishes
-	// the initial commercial account as its own DCL approval subject.
-	DefaultAccount CustomerAccountDataInput `json:"defaultAccount"`
-}
-type CustomerSaveInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Enabled          bool   `json:"enabled"`
-}
-type CustomerVersionInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-type CustomerReviewInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Reason           string `json:"reason"`
-}
-type CustomerDeleteInput = CustomerVersionInput
-type CustomerMutation struct {
-	ObjectID string               `json:"objectId"`
-	PartyID  string               `json:"partyId"`
-	Enabled  bool                 `json:"enabled"`
-	Approval approval.VersionMeta `json:"approval"`
-}
 
 // Relationship declarations own mutable commercial data. The Party and
 // operating-entity pair is reserved once in BOB and cannot change on save.

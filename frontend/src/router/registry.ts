@@ -183,13 +183,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/dcl/customer/Customer.vue'),
   }),
   registerPage('dcl', {
-    entity: 'customer-account',
-    entityTitle: '客户结算子账户变更',
-    icon: 'mdi-account-cash-outline',
-    order: 49,
-    component: () => import('@/pages/dcl/customer-account/CustomerAccount.vue'),
-  }),
-  registerPage('dcl', {
     entity: 'supplier',
     entityTitle: '供应商变更',
     icon: 'mdi-truck-delivery-outline',
@@ -266,13 +259,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-account-box-multiple-outline',
     order: 5,
     component: () => import('@/pages/bob/party/Party.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'customer-account',
-    entityTitle: '客户结算子账户',
-    icon: 'mdi-account-cash-outline',
-    order: 11,
-    component: () => import('@/pages/bob/customer-account/CustomerAccount.vue'),
   }),
   registerPage('bob', {
     entity: 'customer',

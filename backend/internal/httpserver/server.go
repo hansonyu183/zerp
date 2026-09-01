@@ -56,8 +56,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	dclProductService := dcldomain.NewProductService(db, bobService, authorizer, eventBus)
 	dclEmployeeService := dcldomain.NewEmployeeService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
 	dclSupplierService := dcldomain.NewSupplierService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
-	dclCustomerAccountService := dcldomain.NewCustomerAccountService(db, bobService, authorizer, eventBus)
-	dclCustomerService := dcldomain.NewCustomerService(db, bobService, dclPartyService, partyCurrentReader, dclCustomerAccountService, authorizer, eventBus)
+	dclCustomerService := dcldomain.NewCustomerService(db, bobService, authorizer, eventBus)
 	dclRelationshipService := dcldomain.NewRelationshipService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
 	dclCustomerAttachmentService, err := dcldomain.NewCustomerAttachmentService(db, dcldomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
@@ -99,7 +98,6 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		dcldomain.NewEmployeeHandler(dclEmployeeService, authorizer, logger).Register(router)
 		dcldomain.NewSupplierHandler(dclSupplierService, authorizer, logger).Register(router)
 		dcldomain.NewCustomerHandler(dclCustomerService, dclCustomerAttachmentService, authorizer, logger).Register(router)
-		dcldomain.NewCustomerAccountHandler(dclCustomerAccountService, authorizer, logger).Register(router)
 		dcldomain.NewRelationshipHandler(dclRelationshipService, authorizer, logger).Register(router)
 		dcldomain.NewAccMappingHandler(dclAccMappingService, authorizer, logger).Register(router)
 		dcldomain.NewRptDefinitionHandler(dclRptDefinitionService, authorizer, logger).Register(router)

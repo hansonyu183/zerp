@@ -3,21 +3,17 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
-import type { DclCustomerVersionView } from './DclCustomerVersionView';
-import type { PartyKind } from './PartyKind';
+import type { DclCustomerVersionSummary } from './DclCustomerVersionSummary';
 export type DclCustomerListItem = {
   objectId: string;
   entity: 'customer';
   code: string;
-  partyId: string;
-  partyKind: PartyKind;
-  partyDisplayName: string;
-  operatingEntityId: string;
-  operatingEntityCode: string;
-  operatingEntityName: string;
+  displayName: string;
+  defaultOperatingEntityCode: string;
+  defaultOperatingEntityName: string;
   enabled: boolean;
   availableApprovalActions: Array<ApprovalLifecycleAction>;
-  latestApproved: DclCustomerVersionView | null;
-  openVersion: DclCustomerVersionView | null;
+  latestApproved: DclCustomerVersionSummary | null;
+  openVersion: DclCustomerVersionSummary | null;
   updatedAt: string;
 };

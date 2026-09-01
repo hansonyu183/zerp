@@ -160,7 +160,12 @@ export function useProcessInstanceViewModel() {
 
   async function loadPartyOptions(keywordValue: string): Promise<void> {
     const entities = (['customer-account', 'supplier'] as const).filter(
-      (entity) => session.can(`/bob/${entity}/query`),
+      (entity) =>
+        session.can(
+          entity === 'customer-account'
+            ? '/bob/reference/query'
+            : `/bob/${entity}/query`,
+        ),
     )
     if (entities.length === 0) {
       partyOptions.value = []

@@ -23,6 +23,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     returnReason: '',
     returnKind: '',
     customer: null,
+    operatingEntity: null,
     supplier: null,
     counterpartyType:
       config.partyMode === 'counterparty'
@@ -43,6 +44,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     fundAccount: null,
     sourceName: '',
     amount: '',
+    accountAllocations: [],
     ...emptyServiceDetails(),
     parentDocumentId: '',
     parentDocumentNo: '',
@@ -200,6 +202,7 @@ export function formFromDocument(
     returnReason: data.returnReason ?? '',
     returnKind: data.returnKind ?? '',
     customer: formReference(data.customer),
+    operatingEntity: formReference(data.operatingEntity),
     supplier: formReference(data.supplier),
     counterpartyType: formCounterpartyType(data.counterparty),
     counterparty: formReference(data.counterparty),
@@ -239,6 +242,11 @@ export function formFromDocument(
     fundAccount: formReference(data.fundAccount),
     sourceName: data.sourceName ?? '',
     amount: document.amount,
+    accountAllocations: (data.accountAllocations ?? []).map((line) => ({
+      key: crypto.randomUUID(),
+      account: formReference(line.account),
+      amount: line.amount,
+    })),
     ...serviceDetailsFromDocument(data),
     parentDocumentId: document.parentDocumentId ?? '',
     parentDocumentNo: document.parentDocumentNo ?? '',

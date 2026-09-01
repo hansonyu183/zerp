@@ -67,7 +67,6 @@ var entities = [...]string{
 
 var publicEntities = [...]string{
 	EntityCustomer,
-	EntityCustomerAccount,
 	EntitySupplier,
 	EntityOtherUnit,
 	EntityEmployee,
@@ -488,6 +487,7 @@ type Page[T any] struct {
 
 type EffectiveReference struct {
 	ObjectID        string     `json:"objectId"`
+	CustomerID      string     `json:"customerId,omitempty"`
 	Entity          string     `json:"entity"`
 	Code            string     `json:"code"`
 	ApprovalEntryID string     `json:"approvalEntryId"`

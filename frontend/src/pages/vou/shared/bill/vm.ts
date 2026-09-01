@@ -98,13 +98,13 @@ export interface BillListItem {
 type VouQueryRequest = ApiPostRequest<'vou/bill-receipt/query'>
 type VouGetRequest = ApiPostRequest<'vou/bill-receipt/get'>
 type VouReverseRequest = ApiPostRequest<'vou/bill-receipt/unapprove'>
-type BobQueryRequest = ApiPostRequest<'bob/customer-account/query'>
+type BobQueryRequest = ApiPostRequest<'bob/fund-account/query'>
 type AvailableBillQueryRequest = ApiPostRequest<'vou/bill-payment/bill-source'>
 
 const requiredCreateReferencePermissions: Readonly<
   Record<BillVoucherConfig['mode'], readonly string[]>
 > = {
-  receipt: ['/bob/customer-account/query', '/bob/employee/query'],
+  receipt: ['/bob/reference/query', '/bob/employee/query'],
   payment: ['/bob/supplier/query'],
   issue: ['/bob/supplier/query'],
   discount: ['/bob/other-unit/query'],

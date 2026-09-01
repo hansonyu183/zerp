@@ -34,8 +34,6 @@ const projections = [
   'DclSupplierView',
   'DclCustomerListItem',
   'DclCustomerView',
-  'DclCustomerAccountListItem',
-  'DclCustomerAccountView',
   'DclOtherUnitListItem',
   'DclOtherUnitView',
   'DclSalesPartnerListItem',

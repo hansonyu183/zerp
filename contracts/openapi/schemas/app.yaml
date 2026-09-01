@@ -1163,7 +1163,6 @@
           'product',
           'employee',
           'customer',
-          'customer-account',
           'supplier',
           'other-unit',
           'sales-partner',

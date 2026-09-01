@@ -66,11 +66,6 @@ UPDATE dcl_parties
 SET merged_into_party_id=sqlc.arg(target_party_id),merged_at=now()
 WHERE id=sqlc.arg(source_party_id) AND merged_into_party_id IS NULL;
 
--- name: MoveCustomerRelationshipParty :execrows
-UPDATE dcl_customer_relationships SET party_id=sqlc.arg(target_party_id)
-WHERE object_id=sqlc.arg(source_object_id) AND party_id=sqlc.arg(source_party_id)
-  AND merged_into_object_id IS NULL;
-
 -- name: MoveSupplierRelationshipParty :execrows
 UPDATE dcl_supplier_relationships SET party_id=sqlc.arg(target_party_id)
 WHERE object_id=sqlc.arg(source_object_id) AND party_id=sqlc.arg(source_party_id)
@@ -90,16 +85,6 @@ WHERE object_id=sqlc.arg(source_object_id) AND party_id=sqlc.arg(source_party_id
 UPDATE dcl_sales_relationships SET party_id=sqlc.arg(target_party_id)
 WHERE object_id=sqlc.arg(source_object_id) AND party_id=sqlc.arg(source_party_id)
   AND merged_into_object_id IS NULL;
-
--- name: MarkCustomerRelationshipMerged :execrows
-UPDATE dcl_customer_relationships SET merged_into_object_id=sqlc.arg(target_object_id),merged_at=now()
-WHERE object_id=sqlc.arg(source_object_id) AND party_id=sqlc.arg(source_party_id)
-  AND merged_into_object_id IS NULL;
-
--- name: MoveCustomerAccountsToRetainedRelationship :execrows
-UPDATE dcl_customer_accounts
-SET customer_relationship_id=sqlc.arg(target_relationship_id)
-WHERE customer_relationship_id=sqlc.arg(source_relationship_id);
 
 -- name: MarkSupplierRelationshipMerged :execrows
 UPDATE dcl_supplier_relationships SET merged_into_object_id=sqlc.arg(target_object_id),merged_at=now()

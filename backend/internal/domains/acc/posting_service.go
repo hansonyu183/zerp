@@ -104,6 +104,11 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, source 
 	if err != nil {
 		return err
 	}
+	if event.Entity == voudomain.EntitySalesReceipt {
+		if err = s.enrichSalesReceiptPostingSnapshot(ctx, tx, businessDate, snapshot); err != nil {
+			return postingDeliveryError(err)
+		}
+	}
 	q := s.queries.WithTx(tx)
 	books, err := q.ListAccountingPostingBooks(ctx, pgtype.Date{Time: businessDate, Valid: true})
 	if err != nil {
@@ -116,6 +121,38 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, source 
 		if err = s.postSnapshotToBook(ctx, tx, q, book.ID, book.ControlBook, event, businessDate, snapshot); err != nil {
 			return postingDeliveryError(err)
 		}
+	}
+	return nil
+}
+
+// enrichSalesReceiptPostingSnapshot derives the accounting split at approval
+// time from the control book. The same transaction holds the balance lock until
+// the VOU approval event and all automatic postings commit.
+func (s *Service) enrichSalesReceiptPostingSnapshot(ctx context.Context, tx pgx.Tx, businessDate time.Time, snapshot postingSnapshot) error {
+	allocations := snapshot.collections["accountAllocations"]
+	if len(allocations) == 0 {
+		return domainError(ErrorConflict, "sales receipt account allocations are missing", nil)
+	}
+	currency := strings.ToUpper(strings.TrimSpace(snapshot.header["currency"]))
+	for _, allocation := range allocations {
+		accountID := strings.TrimSpace(allocation["account.objectId"])
+		amount, err := fixeddecimal.ParsePositive(allocation["amount"], 2, false)
+		if err != nil || accountID == "" {
+			return domainError(ErrorConflict, "sales receipt account allocation is invalid", err)
+		}
+		receivable, err := s.PartyBalance(ctx, tx, voudomain.PartyBalanceQuery{
+			CounterpartyDimension: DimensionCustomerAccount,
+			CounterpartyObjectID:  accountID,
+			Currency:              currency,
+			SettlementPurpose:     SettlementPurposeReceivable,
+			AsOfDate:              businessDate,
+		})
+		if err != nil {
+			return domainError(ErrorConflict, "customer account receivable balance is unavailable", err)
+		}
+		applied := min(max(receivable, int64(0)), amount)
+		allocation["receivableApplied"] = fixeddecimal.Format(applied, 2, false)
+		allocation["advanceReceipt"] = fixeddecimal.Format(amount-applied, 2, false)
 	}
 	return nil
 }

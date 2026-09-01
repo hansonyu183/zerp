@@ -47,20 +47,11 @@ func (s *Service) EnsureCustomerUnapproveAllowed(ctx context.Context, tx pgx.Tx,
 	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
 
-// EnsureCustomerAccountUnapproveAllowed rejects removal of an approved
-// account snapshot while a formal document still refers to that exact entry.
-func (s *Service) EnsureCustomerAccountUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
-	if tx == nil || !validID(entryID) {
-		return domainError(ErrorValidation, "invalid Customer Account unapprove request", nil, nil)
-	}
-	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
-}
-
 // ResolveCustomerAccountReferences resolves the exact commercial snapshots a
 // DCL account must own. It is a BOB integration primitive, not an account
 // declaration API: callers persist the returned immutable facts in DCL.
-func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerPartyID, settlementID, paymentID, attributionType, attributionID string) (EffectiveReference, EffectiveReference, EffectiveReference, error) {
-	if tx == nil || !validID(customerPartyID) || !validID(attributionID) {
+func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerIdentifiers map[string]string, settlementID, paymentID, attributionType, attributionID string) (EffectiveReference, EffectiveReference, EffectiveReference, error) {
+	if tx == nil || !validID(attributionID) {
 		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
 	}
 	var settlement, payment EffectiveReference
@@ -90,7 +81,7 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
 	}
 	if entity == EntitySalesPartner {
-		if err = s.ensureDifferentCustomerSalesParty(ctx, s.queries.WithTx(tx), customerPartyID, attributionID); err != nil {
+		if err = s.ensureDifferentCustomerSalesIdentity(ctx, s.queries.WithTx(tx), customerIdentifiers, attributionID); err != nil {
 			return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
 		}
 		required := SalesCapabilityExternalPartTime
@@ -106,8 +97,8 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 
 // ValidateCustomerAccountReferences proves a stored declaration still names
 // exact approved snapshots before it can be submitted or approved.
-func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerPartyID, _, _, _, _, attributionType, attributionID, attributionEntryID string) error {
-	if tx == nil || !validID(customerPartyID) || !validID(attributionID) || !validID(attributionEntryID) {
+func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerIdentifiers map[string]string, attributionType, attributionID, attributionEntryID string) error {
+	if tx == nil || !validID(attributionID) || !validID(attributionEntryID) {
 		return domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
 	}
 	entity := EntitySalesPartner
@@ -119,7 +110,7 @@ func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.
 		return err
 	}
 	if entity == EntitySalesPartner {
-		if err = s.ensureDifferentCustomerSalesParty(ctx, s.queries.WithTx(tx), customerPartyID, attributionID); err != nil {
+		if err = s.ensureDifferentCustomerSalesIdentity(ctx, s.queries.WithTx(tx), customerIdentifiers, attributionID); err != nil {
 			return err
 		}
 		required := SalesCapabilityExternalPartTime
@@ -133,7 +124,7 @@ func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.
 	return nil
 }
 
-func (s *Service) ensureDifferentCustomerSalesParty(ctx context.Context, q *dbsqlc.Queries, customerPartyID, salesPartnerID string) error {
+func (s *Service) ensureDifferentCustomerSalesIdentity(ctx context.Context, q *dbsqlc.Queries, customerIdentifiers map[string]string, salesPartnerID string) error {
 	relationship, err := q.GetBobSalesPartnerRelationship(ctx, salesPartnerID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domainError(ErrorConflict, "sales-partner relationship is unavailable", nil, nil)
@@ -141,8 +132,15 @@ func (s *Service) ensureDifferentCustomerSalesParty(ctx context.Context, q *dbsq
 	if err != nil {
 		return s.internal("get sales-partner relationship", err)
 	}
-	if relationship.PartyID == customerPartyID {
-		return domainError(ErrorConflict, "customer cannot attribute sales to its own Party", nil, nil)
+	identifiers, err := partyIdentifiers(ctx, q, relationship.PartyID)
+	if err != nil {
+		return s.internal("get sales-partner identifiers", err)
+	}
+	for _, identifier := range identifiers {
+		customerValue := customerIdentifiers[identifier.Type]
+		if customerValue != "" && normalizePartyIdentifier(customerValue) == normalizePartyIdentifier(identifier.Value) {
+			return domainError(ErrorConflict, "customer cannot attribute sales to the same business identity", nil, nil)
+		}
 	}
 	return nil
 }

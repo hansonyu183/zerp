@@ -5,9 +5,9 @@
 export type BobCustomerListItem = {
   objectId: string;
   code: string;
-  partyDisplayName: string;
-  operatingEntityCode: string;
-  operatingEntityName: string;
+  displayName: string;
+  defaultOperatingEntityCode: string;
+  defaultOperatingEntityName: string;
   enabled: boolean;
   sourceApprovalEntryId: string;
   sourceVersionNo: number;

@@ -48,16 +48,6 @@ func (s *serviceStub) CustomerCurrentGet(_ context.Context, _ string) (CustomerC
 	return CustomerCurrentView{}, nil
 }
 
-func (s *serviceStub) CustomerAccountCurrentQuery(_ context.Context, input CustomerAccountCurrentQueryInput) (Page[CustomerAccountCurrentListItem], error) {
-	s.record("query", EntityCustomerAccount)
-	return Page[CustomerAccountCurrentListItem]{Items: []CustomerAccountCurrentListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
-}
-
-func (s *serviceStub) CustomerAccountCurrentGet(_ context.Context, _ string) (CustomerAccountCurrentView, error) {
-	s.record("get", EntityCustomerAccount)
-	return CustomerAccountCurrentView{}, nil
-}
-
 func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQueryInput) ([]ReferenceCandidate, error) {
 	s.record("query", "reference")
 	return []ReferenceCandidate{}, nil
@@ -88,7 +78,7 @@ func newBOBTestRouter(service applicationService, authorizer authorization.Autho
 func TestHandlerRegistersReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
-	expectedEntities := []string{"customer", "customer-account"}
+	expectedEntities := []string{"customer"}
 	expectedActions := []string{"query", "get"}
 	wanted := make(map[string]bool, len(expectedEntities)*len(expectedActions))
 	for _, entity := range expectedEntities {
@@ -171,8 +161,8 @@ func TestHandlerRegistersReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 		if strings.HasPrefix(route.Path, "/bob/customer/") && route.Path != "/bob/customer/query" && route.Path != "/bob/customer/get" {
 			t.Fatalf("legacy Customer write route remains registered: %s", route.Path)
 		}
-		if strings.HasPrefix(route.Path, "/bob/customer-account/") && route.Path != "/bob/customer-account/query" && route.Path != "/bob/customer-account/get" {
-			t.Fatalf("legacy Customer Account write route remains registered: %s", route.Path)
+		if strings.HasPrefix(route.Path, "/bob/customer-account/") {
+			t.Fatalf("independent Customer Account route remains registered: %s", route.Path)
 		}
 	}
 }

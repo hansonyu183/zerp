@@ -49,7 +49,7 @@ var mappingEntityHeaderFields = map[string][]string{
 	"order-production":       {"finishedWarehouse.objectId", "materialWarehouse.objectId"},
 	"self-production":        {"finishedWarehouse.objectId", "materialWarehouse.objectId"},
 	"inventory-count":        {"warehouse.objectId"},
-	"sales-receipt":          {"counterparty.objectId", "dueDate", "fundAccount.objectId", "handler.objectId"},
+	"sales-receipt":          {"customer.objectId", "operatingEntity.objectId", "fundAccount.objectId", "handler.objectId"},
 	"purchase-refund":        {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
 	"other-receipt":          {"counterparty.objectId", "fundAccount.objectId", "handler.objectId", "otherCategory"},
 	"sales-refund":           {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
@@ -72,6 +72,7 @@ var mappingEntityHeaderFields = map[string][]string{
 }
 
 var mappingCollectionFields = map[string][]string{
+	"accountAllocations":               {"lineId", "account.objectId", "account.approvalEntryId", "amount", "receivableApplied", "advanceReceipt"},
 	"intermediarySalesPartnerPayables": {"lineId", "payee.objectId", "category", "amount"},
 	"assetAcquisitionLines":            {"lineId", "assetName", "originalValue", "category.objectId", "department.objectId", "custodian.objectId"},
 	"assetLiquidationLines":            {"lineId", "assetId", "salvageIncome", "disposalExpense"},
@@ -88,7 +89,8 @@ var mappingCollectionFields = map[string][]string{
 }
 
 var mappingEntityCollections = map[string][]string{
-	"sale-pricing": {"priceLines"}, "purchase-inquiry": {"priceLines"},
+	"sales-receipt": {"accountAllocations"},
+	"sale-pricing":  {"priceLines"}, "purchase-inquiry": {"priceLines"},
 	"sale-order": {"productLines"}, "purchase-order": {"productLines"}, "purchase-inbound": {"productLines"},
 	"sale-outbound": {"productLines"}, "sale-delivery": {"productLines"},
 	"sale-signoff": {"signoffLines"}, "sale-return": {"lines"},

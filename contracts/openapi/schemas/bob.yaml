@@ -367,59 +367,7 @@
                 {
                   'keyword': { 'type': 'string', 'maxLength': 200 },
                   'enabled': { 'type': 'boolean' },
-                  'operatingEntityId': { 'type': 'string' },
-                  'partyId': { 'type': 'string' },
-                },
-            },
-          'sort':
-            {
-              'type': 'array',
-              'maxItems': 1,
-              'items':
-                {
-                  'type': 'object',
-                  'required': ['field', 'order'],
-                  'additionalProperties': false,
-                  'properties':
-                    {
-                      'field': { 'type': 'string', 'enum': ['code'] },
-                      'order': { 'type': 'string', 'enum': ['asc'] },
-                    },
-                },
-            },
-        },
-    },
-  'BobCustomerAccountQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-          'filters':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'keyword': { 'type': 'string', 'maxLength': 200 },
-                  'enabled': { 'type': 'boolean' },
-                  'customerType': { 'type': 'string' },
-                  'customerRelationshipId': { 'type': 'string' },
-                  'operatingEntityId': { 'type': 'string' },
-                  'salesAttributionType':
-                    {
-                      'type': 'string',
-                      'enum':
-                        [
-                          'INTERNAL_EMPLOYEE',
-                          'EXTERNAL_PART_TIME',
-                          'CHANNEL_PARTNER',
-                        ],
-                    },
-                  'salesAttributionSubjectId': { 'type': 'string' },
+                  'defaultOperatingEntityId': { 'type': 'string' },
                 },
             },
           'sort':
@@ -447,16 +395,10 @@
         [
           'objectId',
           'code',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityApprovalEntryId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'enabled',
           'sourceApprovalEntryId',
           'sourceVersionNo',
+          'data',
+          'attachments',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -464,17 +406,15 @@
         {
           'objectId': { 'type': 'string' },
           'code': { 'type': 'string' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': '#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityApprovalEntryId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
           'sourceVersionNo':
             { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'data': { '$ref': './dcl.yaml#/DclCustomerData' },
+          'attachments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/BobCustomerAttachmentView' },
+            },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -516,42 +456,6 @@
           'createdBy': { 'type': 'string' },
         },
     },
-  'BobCustomerAccountCurrentView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'customerRelationshipId',
-          'customerRelationshipCode',
-          'enabled',
-          'sourceApprovalEntryId',
-          'sourceVersionNo',
-          'data',
-          'attachments',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'customerRelationshipId': { 'type': 'string' },
-          'customerRelationshipCode': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
-          'sourceApprovalEntryId': { 'type': 'string' },
-          'sourceVersionNo':
-            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
-          'data': { '$ref': './dcl.yaml#/DclCustomerAccountData' },
-          'attachments':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/BobCustomerAttachmentView' },
-            },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
   'BobCustomerListItem':
     {
       'type': 'object',
@@ -559,9 +463,9 @@
         [
           'objectId',
           'code',
-          'partyDisplayName',
-          'operatingEntityCode',
-          'operatingEntityName',
+          'displayName',
+          'defaultOperatingEntityCode',
+          'defaultOperatingEntityName',
           'enabled',
           'sourceApprovalEntryId',
           'sourceVersionNo',
@@ -572,43 +476,9 @@
         {
           'objectId': { 'type': 'string' },
           'code': { 'type': 'string' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
-          'sourceApprovalEntryId': { 'type': 'string' },
-          'sourceVersionNo':
-            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'BobCustomerAccountListItem':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'customerRelationshipId',
-          'customerRelationshipCode',
-          'name',
-          'customerTypeId',
-          'operatingEntityCode',
-          'enabled',
-          'sourceApprovalEntryId',
-          'sourceVersionNo',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'customerRelationshipId': { 'type': 'string' },
-          'customerRelationshipCode': { 'type': 'string' },
-          'name': { 'type': 'string' },
-          'customerTypeId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'defaultOperatingEntityCode': { 'type': 'string' },
+          'defaultOperatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
           'sourceVersionNo':
@@ -647,37 +517,6 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'BobCustomerAccountQueryResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'required': ['items', 'total', 'page', 'pageSize'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'items':
-                    {
-                      'type': 'array',
-                      'items': { '$ref': '#/BobCustomerAccountListItem' },
-                    },
-                  'total': { 'type': 'integer', 'format': 'int64' },
-                  'page': { 'type': 'integer' },
-                  'pageSize': { 'type': 'integer' },
-                },
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
   'BobCustomerGetResponse':
     {
       'type': 'object',
@@ -692,25 +531,6 @@
             {
               'type': 'object',
               'allOf': [{ '$ref': '#/BobCustomerCurrentView' }],
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'BobCustomerAccountGetResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/BobCustomerAccountCurrentView' }],
               'nullable': true,
             },
           'requestId': { 'type': 'string' },
@@ -800,6 +620,7 @@
       'properties':
         {
           'objectId': { 'type': 'string' },
+          'customerId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },

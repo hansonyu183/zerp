@@ -30,6 +30,74 @@ func (q *Queries) CopyDCLAccMappingVersion(ctx context.Context, arg CopyDCLAccMa
 	return result.RowsAffected(), nil
 }
 
+const copyDCLCustomerVersionAccountCreditLimits = `-- name: CopyDCLCustomerVersionAccountCreditLimits :exec
+INSERT INTO dcl_customer_version_account_credit_limits(customer_approval_entry_id,account_id,currency,amount_cents)
+SELECT $1,source.account_id,source.currency,source.amount_cents
+FROM dcl_customer_version_account_credit_limits source
+WHERE source.customer_approval_entry_id=$2
+`
+
+type CopyDCLCustomerVersionAccountCreditLimitsParams struct {
+	NewCustomerApprovalEntryID    string `db:"new_customer_approval_entry_id" json:"new_customer_approval_entry_id"`
+	SourceCustomerApprovalEntryID string `db:"source_customer_approval_entry_id" json:"source_customer_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLCustomerVersionAccountCreditLimits(ctx context.Context, arg CopyDCLCustomerVersionAccountCreditLimitsParams) error {
+	_, err := q.db.Exec(ctx, copyDCLCustomerVersionAccountCreditLimits, arg.NewCustomerApprovalEntryID, arg.SourceCustomerApprovalEntryID)
+	return err
+}
+
+const copyDCLCustomerVersionAccounts = `-- name: CopyDCLCustomerVersionAccounts :exec
+INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default)
+SELECT $1,source.account_id,source.data,source.enabled,source.is_default
+FROM dcl_customer_version_accounts source
+WHERE source.customer_approval_entry_id=$2
+`
+
+type CopyDCLCustomerVersionAccountsParams struct {
+	NewCustomerApprovalEntryID    string `db:"new_customer_approval_entry_id" json:"new_customer_approval_entry_id"`
+	SourceCustomerApprovalEntryID string `db:"source_customer_approval_entry_id" json:"source_customer_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLCustomerVersionAccounts(ctx context.Context, arg CopyDCLCustomerVersionAccountsParams) error {
+	_, err := q.db.Exec(ctx, copyDCLCustomerVersionAccounts, arg.NewCustomerApprovalEntryID, arg.SourceCustomerApprovalEntryID)
+	return err
+}
+
+const copyDCLCustomerVersionAggregate = `-- name: CopyDCLCustomerVersionAggregate :exec
+INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled)
+SELECT $1,source.data,source.enabled
+FROM dcl_customer_versions source
+WHERE source.approval_entry_id=$2
+`
+
+type CopyDCLCustomerVersionAggregateParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLCustomerVersionAggregate(ctx context.Context, arg CopyDCLCustomerVersionAggregateParams) error {
+	_, err := q.db.Exec(ctx, copyDCLCustomerVersionAggregate, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	return err
+}
+
+const copyDCLCustomerVersionIdentifiers = `-- name: CopyDCLCustomerVersionIdentifiers :exec
+INSERT INTO dcl_customer_version_identifiers(customer_approval_entry_id,identifier_type,value,normalized_value)
+SELECT $1,source.identifier_type,source.value,source.normalized_value
+FROM dcl_customer_version_identifiers source
+WHERE source.customer_approval_entry_id=$2
+`
+
+type CopyDCLCustomerVersionIdentifiersParams struct {
+	NewCustomerApprovalEntryID    string `db:"new_customer_approval_entry_id" json:"new_customer_approval_entry_id"`
+	SourceCustomerApprovalEntryID string `db:"source_customer_approval_entry_id" json:"source_customer_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLCustomerVersionIdentifiers(ctx context.Context, arg CopyDCLCustomerVersionIdentifiersParams) error {
+	_, err := q.db.Exec(ctx, copyDCLCustomerVersionIdentifiers, arg.NewCustomerApprovalEntryID, arg.SourceCustomerApprovalEntryID)
+	return err
+}
+
 const copyDCLEmployeeVersion = `-- name: CopyDCLEmployeeVersion :execrows
 INSERT INTO dcl_employee_versions(
   approval_entry_id,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
@@ -280,6 +348,46 @@ func (q *Queries) CountDCLAccMappings(ctx context.Context, arg CountDCLAccMappin
 	return count, err
 }
 
+const countDCLCustomerAggregates = `-- name: CountDCLCustomerAggregates :one
+SELECT count(*)
+FROM dcl_subjects subject
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(open_entry.id,approved_entry.id)
+WHERE subject.entity='customer'
+  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.data->>'displayName' ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR display.enabled=($2::integer=1))
+  AND ($3::text='' OR display.data->>'defaultOperatingEntityId'=$3::text)
+  AND (cardinality($4::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($4::text[]))
+`
+
+type CountDCLCustomerAggregatesParams struct {
+	Keyword                  string   `db:"keyword" json:"keyword"`
+	EnabledFilter            int32    `db:"enabled_filter" json:"enabled_filter"`
+	DefaultOperatingEntityID string   `db:"default_operating_entity_id" json:"default_operating_entity_id"`
+	StatusFilter             []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountDCLCustomerAggregates(ctx context.Context, arg CountDCLCustomerAggregatesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLCustomerAggregates,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.DefaultOperatingEntityID,
+		arg.StatusFilter,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countDCLCustomerApprovalEvents = `-- name: CountDCLCustomerApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=$1
 `
@@ -294,14 +402,6 @@ func (q *Queries) CountDCLCustomerApprovalEvents(ctx context.Context, objectID s
 const countDCLCustomers = `-- name: CountDCLCustomers :one
 SELECT count(*)
 FROM dcl_subjects subject
-JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
-JOIN LATERAL (
-  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
-  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
-  WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id
-    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
-) party ON true
 LEFT JOIN LATERAL (
   SELECT id,status,updated_at FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
@@ -314,9 +414,9 @@ LEFT JOIN LATERAL (
 ) approved ON true
 JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity='customer'
-  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
-  AND ($2::text='' OR relationship.operating_entity_id=$2)
-  AND ($3::text='' OR relationship.party_id=$3)
+  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.data->>'displayName' ILIKE '%'||$1::text||'%')
+  AND ($2::text='' OR display.data->'defaultOperatingEntity'->>'sourceObjectId'=$2)
+  AND ($3::text='' OR true)
   AND ($4::integer=-1 OR display.enabled=($4::integer=1))
   AND (cardinality($5::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($5::text[]))
 `
@@ -329,9 +429,7 @@ type CountDCLCustomersParams struct {
 	StatusFilter      []string `db:"status_filter" json:"status_filter"`
 }
 
-// Customer is the DCL-owned declaration for the immutable Party x operating
-// entity relationship. DCL owns the stable relationship and typed versions
-// used for candidate/list/read hydration.
+// Compatibility query names now read the single Customer aggregate.
 func (q *Queries) CountDCLCustomers(ctx context.Context, arg CountDCLCustomersParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countDCLCustomers,
 		arg.Keyword,
@@ -1378,27 +1476,80 @@ func (q *Queries) DeleteDCLAccMappingVersion(ctx context.Context, approvalEntryI
 }
 
 const deleteDCLCustomerAccountRoot = `-- name: DeleteDCLCustomerAccountRoot :execrows
-DELETE FROM dcl_customer_accounts WHERE object_id=$1
+DELETE FROM dcl_customer_account_roots
+WHERE account_id=$1 AND customer_id=$2 AND ever_approved=false
 `
 
-func (q *Queries) DeleteDCLCustomerAccountRoot(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLCustomerAccountRoot, objectID)
+type DeleteDCLCustomerAccountRootParams struct {
+	AccountID  string `db:"account_id" json:"account_id"`
+	CustomerID string `db:"customer_id" json:"customer_id"`
+}
+
+func (q *Queries) DeleteDCLCustomerAccountRoot(ctx context.Context, arg DeleteDCLCustomerAccountRootParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLCustomerAccountRoot, arg.AccountID, arg.CustomerID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const deleteDCLCustomerRelationship = `-- name: DeleteDCLCustomerRelationship :execrows
-DELETE FROM dcl_customer_relationships WHERE object_id=$1 AND merged_into_object_id IS NULL
+const deleteDCLCustomerIdentifierClaimsForEntry = `-- name: DeleteDCLCustomerIdentifierClaimsForEntry :exec
+DELETE FROM dcl_customer_identifier_claims
+WHERE approved_approval_entry_id=$1 OR open_approval_entry_id=$1
 `
 
-func (q *Queries) DeleteDCLCustomerRelationship(ctx context.Context, objectID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLCustomerRelationship, objectID)
+func (q *Queries) DeleteDCLCustomerIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
+	_, err := q.db.Exec(ctx, deleteDCLCustomerIdentifierClaimsForEntry, approvalEntryID)
+	return err
+}
+
+const deleteDCLCustomerVersionAccountCreditLimits = `-- name: DeleteDCLCustomerVersionAccountCreditLimits :exec
+DELETE FROM dcl_customer_version_account_credit_limits
+WHERE customer_approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLCustomerVersionAccountCreditLimits(ctx context.Context, customerApprovalEntryID string) error {
+	_, err := q.db.Exec(ctx, deleteDCLCustomerVersionAccountCreditLimits, customerApprovalEntryID)
+	return err
+}
+
+const deleteDCLCustomerVersionAccounts = `-- name: DeleteDCLCustomerVersionAccounts :exec
+DELETE FROM dcl_customer_version_accounts
+WHERE customer_approval_entry_id=$1
+  AND NOT (account_id=ANY($2::text[]))
+`
+
+type DeleteDCLCustomerVersionAccountsParams struct {
+	CustomerApprovalEntryID string   `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	AccountIds              []string `db:"account_ids" json:"account_ids"`
+}
+
+func (q *Queries) DeleteDCLCustomerVersionAccounts(ctx context.Context, arg DeleteDCLCustomerVersionAccountsParams) error {
+	_, err := q.db.Exec(ctx, deleteDCLCustomerVersionAccounts, arg.CustomerApprovalEntryID, arg.AccountIds)
+	return err
+}
+
+const deleteDCLCustomerVersionAggregate = `-- name: DeleteDCLCustomerVersionAggregate :execrows
+DELETE FROM dcl_customer_versions
+WHERE approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLCustomerVersionAggregate(ctx context.Context, approvalEntryID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLCustomerVersionAggregate, approvalEntryID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteDCLCustomerVersionIdentifiers = `-- name: DeleteDCLCustomerVersionIdentifiers :exec
+DELETE FROM dcl_customer_version_identifiers
+WHERE customer_approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLCustomerVersionIdentifiers(ctx context.Context, customerApprovalEntryID string) error {
+	_, err := q.db.Exec(ctx, deleteDCLCustomerVersionIdentifiers, customerApprovalEntryID)
+	return err
 }
 
 const deleteDCLEmployeeRelationship = `-- name: DeleteDCLEmployeeRelationship :execrows
@@ -1754,39 +1905,36 @@ func (q *Queries) GetDCLAccMappingVersion(ctx context.Context, approvalEntryID s
 	return i, err
 }
 
-const getDCLCustomerAccountRoot = `-- name: GetDCLCustomerAccountRoot :one
-SELECT object_id, object_entity, customer_relationship_id FROM dcl_customer_accounts WHERE object_id=$1 FOR UPDATE
+const getDCLCustomerAccountCodeMax = `-- name: GetDCLCustomerAccountCodeMax :one
+SELECT COALESCE(max(CAST(substring(code FROM '[0-9]+$') AS bigint)),0)::bigint AS code_max
+FROM dcl_customer_account_roots
+WHERE customer_id=$1
 `
 
-func (q *Queries) GetDCLCustomerAccountRoot(ctx context.Context, objectID string) (DclCustomerAccount, error) {
-	row := q.db.QueryRow(ctx, getDCLCustomerAccountRoot, objectID)
-	var i DclCustomerAccount
-	err := row.Scan(&i.ObjectID, &i.ObjectEntity, &i.CustomerRelationshipID)
-	return i, err
+func (q *Queries) GetDCLCustomerAccountCodeMax(ctx context.Context, customerID string) (int64, error) {
+	row := q.db.QueryRow(ctx, getDCLCustomerAccountCodeMax, customerID)
+	var code_max int64
+	err := row.Scan(&code_max)
+	return code_max, err
 }
 
 const getDCLCustomerIdentity = `-- name: GetDCLCustomerIdentity :one
 SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
-       relationship.party_id,party.kind AS party_kind,party.display_name,relationship.operating_entity_id
+       ''::text AS party_id,''::text AS party_kind,version.data->>'displayName' AS display_name,
+       version.data->'defaultOperatingEntity'->>'sourceObjectId' AS operating_entity_id
 FROM dcl_subjects subject
-JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
-JOIN LATERAL (
-  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
-  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
-  WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id
-    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
-) party ON true
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING','APPROVED') ORDER BY (status IN ('DRAFT','PENDING')) DESC,version_no DESC LIMIT 1) entry ON true
+JOIN dcl_customer_versions version ON version.approval_entry_id=entry.id
 WHERE subject.id=$1 AND subject.entity='customer'
 `
 
 type GetDCLCustomerIdentityRow struct {
-	ObjectID          string `db:"object_id" json:"object_id"`
-	Code              string `db:"code" json:"code"`
-	PartyID           string `db:"party_id" json:"party_id"`
-	PartyKind         string `db:"party_kind" json:"party_kind"`
-	DisplayName       string `db:"display_name" json:"display_name"`
-	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
+	ObjectID          string      `db:"object_id" json:"object_id"`
+	Code              string      `db:"code" json:"code"`
+	PartyID           string      `db:"party_id" json:"party_id"`
+	PartyKind         string      `db:"party_kind" json:"party_kind"`
+	DisplayName       interface{} `db:"display_name" json:"display_name"`
+	OperatingEntityID interface{} `db:"operating_entity_id" json:"operating_entity_id"`
 }
 
 func (q *Queries) GetDCLCustomerIdentity(ctx context.Context, objectID string) (GetDCLCustomerIdentityRow, error) {
@@ -1803,22 +1951,16 @@ func (q *Queries) GetDCLCustomerIdentity(ctx context.Context, objectID string) (
 	return i, err
 }
 
-const getDCLCustomerRelationship = `-- name: GetDCLCustomerRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_customer_relationships WHERE object_id=$1 FOR UPDATE
+const getDCLCustomerVersionAggregate = `-- name: GetDCLCustomerVersionAggregate :one
+SELECT approval_entry_id,data,enabled
+FROM dcl_customer_versions
+WHERE approval_entry_id=$1
 `
 
-func (q *Queries) GetDCLCustomerRelationship(ctx context.Context, objectID string) (DclCustomerRelationship, error) {
-	row := q.db.QueryRow(ctx, getDCLCustomerRelationship, objectID)
-	var i DclCustomerRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
+func (q *Queries) GetDCLCustomerVersionAggregate(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error) {
+	row := q.db.QueryRow(ctx, getDCLCustomerVersionAggregate, approvalEntryID)
+	var i DclCustomerVersion
+	err := row.Scan(&i.ApprovalEntryID, &i.Data, &i.Enabled)
 	return i, err
 }
 
@@ -2569,31 +2711,106 @@ func (q *Queries) InsertDCLAccMappingVersion(ctx context.Context, arg InsertDCLA
 }
 
 const insertDCLCustomerAccountRoot = `-- name: InsertDCLCustomerAccountRoot :exec
-INSERT INTO dcl_customer_accounts(object_id,customer_relationship_id) VALUES($1,$2)
+INSERT INTO dcl_customer_account_roots(account_id,customer_id,code)
+VALUES($1,$2,$3)
 `
 
 type InsertDCLCustomerAccountRootParams struct {
-	ObjectID               string `db:"object_id" json:"object_id"`
-	CustomerRelationshipID string `db:"customer_relationship_id" json:"customer_relationship_id"`
+	AccountID  string `db:"account_id" json:"account_id"`
+	CustomerID string `db:"customer_id" json:"customer_id"`
+	Code       string `db:"code" json:"code"`
 }
 
 func (q *Queries) InsertDCLCustomerAccountRoot(ctx context.Context, arg InsertDCLCustomerAccountRootParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerAccountRoot, arg.ObjectID, arg.CustomerRelationshipID)
+	_, err := q.db.Exec(ctx, insertDCLCustomerAccountRoot, arg.AccountID, arg.CustomerID, arg.Code)
 	return err
 }
 
-const insertDCLCustomerRelationship = `-- name: InsertDCLCustomerRelationship :exec
-INSERT INTO dcl_customer_relationships(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)
+const insertDCLCustomerVersionAccount = `-- name: InsertDCLCustomerVersionAccount :exec
+INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default)
+VALUES($1,$2,$3,$4,$5)
+ON CONFLICT(customer_approval_entry_id,account_id) DO UPDATE SET
+  data=EXCLUDED.data,enabled=EXCLUDED.enabled,is_default=EXCLUDED.is_default
 `
 
-type InsertDCLCustomerRelationshipParams struct {
-	ObjectID          string `db:"object_id" json:"object_id"`
-	PartyID           string `db:"party_id" json:"party_id"`
-	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
+type InsertDCLCustomerVersionAccountParams struct {
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	AccountID               string `db:"account_id" json:"account_id"`
+	Data                    []byte `db:"data" json:"data"`
+	Enabled                 bool   `db:"enabled" json:"enabled"`
+	IsDefault               bool   `db:"is_default" json:"is_default"`
 }
 
-func (q *Queries) InsertDCLCustomerRelationship(ctx context.Context, arg InsertDCLCustomerRelationshipParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerRelationship, arg.ObjectID, arg.PartyID, arg.OperatingEntityID)
+func (q *Queries) InsertDCLCustomerVersionAccount(ctx context.Context, arg InsertDCLCustomerVersionAccountParams) error {
+	_, err := q.db.Exec(ctx, insertDCLCustomerVersionAccount,
+		arg.CustomerApprovalEntryID,
+		arg.AccountID,
+		arg.Data,
+		arg.Enabled,
+		arg.IsDefault,
+	)
+	return err
+}
+
+const insertDCLCustomerVersionAccountCreditLimit = `-- name: InsertDCLCustomerVersionAccountCreditLimit :exec
+INSERT INTO dcl_customer_version_account_credit_limits(customer_approval_entry_id,account_id,currency,amount_cents)
+VALUES($1,$2,$3,$4)
+`
+
+type InsertDCLCustomerVersionAccountCreditLimitParams struct {
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	AccountID               string `db:"account_id" json:"account_id"`
+	Currency                string `db:"currency" json:"currency"`
+	AmountCents             int64  `db:"amount_cents" json:"amount_cents"`
+}
+
+func (q *Queries) InsertDCLCustomerVersionAccountCreditLimit(ctx context.Context, arg InsertDCLCustomerVersionAccountCreditLimitParams) error {
+	_, err := q.db.Exec(ctx, insertDCLCustomerVersionAccountCreditLimit,
+		arg.CustomerApprovalEntryID,
+		arg.AccountID,
+		arg.Currency,
+		arg.AmountCents,
+	)
+	return err
+}
+
+const insertDCLCustomerVersionAggregate = `-- name: InsertDCLCustomerVersionAggregate :exec
+INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled)
+VALUES($1,$2,$3)
+`
+
+type InsertDCLCustomerVersionAggregateParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	Data            []byte `db:"data" json:"data"`
+	Enabled         bool   `db:"enabled" json:"enabled"`
+}
+
+// Customer is the sole approval aggregate.  Its JSON snapshot owns identity,
+// default operating entity, and every account line; roots are only stable IDs.
+func (q *Queries) InsertDCLCustomerVersionAggregate(ctx context.Context, arg InsertDCLCustomerVersionAggregateParams) error {
+	_, err := q.db.Exec(ctx, insertDCLCustomerVersionAggregate, arg.ApprovalEntryID, arg.Data, arg.Enabled)
+	return err
+}
+
+const insertDCLCustomerVersionIdentifier = `-- name: InsertDCLCustomerVersionIdentifier :exec
+INSERT INTO dcl_customer_version_identifiers(customer_approval_entry_id,identifier_type,value,normalized_value)
+VALUES($1,$2,$3,$4)
+`
+
+type InsertDCLCustomerVersionIdentifierParams struct {
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	IdentifierType          string `db:"identifier_type" json:"identifier_type"`
+	Value                   string `db:"value" json:"value"`
+	NormalizedValue         string `db:"normalized_value" json:"normalized_value"`
+}
+
+func (q *Queries) InsertDCLCustomerVersionIdentifier(ctx context.Context, arg InsertDCLCustomerVersionIdentifierParams) error {
+	_, err := q.db.Exec(ctx, insertDCLCustomerVersionIdentifier,
+		arg.CustomerApprovalEntryID,
+		arg.IdentifierType,
+		arg.Value,
+		arg.NormalizedValue,
+	)
 	return err
 }
 
@@ -3299,6 +3516,141 @@ func (q *Queries) ListDCLAccMappings(ctx context.Context, arg ListDCLAccMappings
 	return items, nil
 }
 
+const listDCLCustomerAccountRoots = `-- name: ListDCLCustomerAccountRoots :many
+SELECT account_id,customer_id,code,ever_approved,first_approved_customer_entry_id
+FROM dcl_customer_account_roots
+WHERE customer_id=$1
+ORDER BY code,account_id
+`
+
+type ListDCLCustomerAccountRootsRow struct {
+	AccountID                    string  `db:"account_id" json:"account_id"`
+	CustomerID                   string  `db:"customer_id" json:"customer_id"`
+	Code                         string  `db:"code" json:"code"`
+	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
+	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
+}
+
+func (q *Queries) ListDCLCustomerAccountRoots(ctx context.Context, customerID string) ([]ListDCLCustomerAccountRootsRow, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerAccountRoots, customerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLCustomerAccountRootsRow{}
+	for rows.Next() {
+		var i ListDCLCustomerAccountRootsRow
+		if err := rows.Scan(
+			&i.AccountID,
+			&i.CustomerID,
+			&i.Code,
+			&i.EverApproved,
+			&i.FirstApprovedCustomerEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLCustomerAggregates = `-- name: ListDCLCustomerAggregates :many
+SELECT subject.id AS object_id,subject.entity,subject.code,
+       COALESCE(approved_entry.id,'')::text AS latest_approved_entry_id,
+       COALESCE(approved_entry.status,'')::text AS latest_approved_status,
+       COALESCE(approved_entry.version_no,0)::integer AS latest_approved_version_no,
+       COALESCE(open_entry.id,'')::text AS open_entry_id,
+       COALESCE(open_entry.status,'')::text AS open_status,
+       COALESCE(open_entry.version_no,0)::integer AS open_version_no,
+       display.data,display.enabled,COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
+FROM dcl_subjects subject
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no,updated_at FROM approval_entries
+  WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved_entry ON true
+JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(open_entry.id,approved_entry.id)
+WHERE subject.entity='customer'
+  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.data->>'displayName' ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR display.enabled=($2::integer=1))
+  AND ($3::text='' OR display.data->>'defaultOperatingEntityId'=$3::text)
+  AND (cardinality($4::text[])=0 OR COALESCE(open_entry.status,approved_entry.status)=ANY($4::text[]))
+ORDER BY subject.code
+LIMIT $6 OFFSET $5
+`
+
+type ListDCLCustomerAggregatesParams struct {
+	Keyword                  string   `db:"keyword" json:"keyword"`
+	EnabledFilter            int32    `db:"enabled_filter" json:"enabled_filter"`
+	DefaultOperatingEntityID string   `db:"default_operating_entity_id" json:"default_operating_entity_id"`
+	StatusFilter             []string `db:"status_filter" json:"status_filter"`
+	RowOffset                int32    `db:"row_offset" json:"row_offset"`
+	RowLimit                 int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLCustomerAggregatesRow struct {
+	ObjectID                string             `db:"object_id" json:"object_id"`
+	Entity                  string             `db:"entity" json:"entity"`
+	Code                    *string            `db:"code" json:"code"`
+	LatestApprovedEntryID   string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
+	LatestApprovedStatus    string             `db:"latest_approved_status" json:"latest_approved_status"`
+	LatestApprovedVersionNo int32              `db:"latest_approved_version_no" json:"latest_approved_version_no"`
+	OpenEntryID             string             `db:"open_entry_id" json:"open_entry_id"`
+	OpenStatus              string             `db:"open_status" json:"open_status"`
+	OpenVersionNo           int32              `db:"open_version_no" json:"open_version_no"`
+	Data                    []byte             `db:"data" json:"data"`
+	Enabled                 bool               `db:"enabled" json:"enabled"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListDCLCustomerAggregates(ctx context.Context, arg ListDCLCustomerAggregatesParams) ([]ListDCLCustomerAggregatesRow, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerAggregates,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.DefaultOperatingEntityID,
+		arg.StatusFilter,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLCustomerAggregatesRow{}
+	for rows.Next() {
+		var i ListDCLCustomerAggregatesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Entity,
+			&i.Code,
+			&i.LatestApprovedEntryID,
+			&i.LatestApprovedStatus,
+			&i.LatestApprovedVersionNo,
+			&i.OpenEntryID,
+			&i.OpenStatus,
+			&i.OpenVersionNo,
+			&i.Data,
+			&i.Enabled,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDCLCustomerApprovalEvents = `-- name: ListDCLCustomerApprovalEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
 FROM approval_events WHERE domain='dcl' AND entity='customer' AND subject_id=$1
@@ -3347,21 +3699,130 @@ func (q *Queries) ListDCLCustomerApprovalEvents(ctx context.Context, arg ListDCL
 	return items, nil
 }
 
+const listDCLCustomerVersionAccountCreditLimits = `-- name: ListDCLCustomerVersionAccountCreditLimits :many
+SELECT customer_approval_entry_id,account_id,currency,amount_cents
+FROM dcl_customer_version_account_credit_limits
+WHERE customer_approval_entry_id=$1
+ORDER BY account_id,currency
+`
+
+func (q *Queries) ListDCLCustomerVersionAccountCreditLimits(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionAccountCreditLimit, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerVersionAccountCreditLimits, customerApprovalEntryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DclCustomerVersionAccountCreditLimit{}
+	for rows.Next() {
+		var i DclCustomerVersionAccountCreditLimit
+		if err := rows.Scan(
+			&i.CustomerApprovalEntryID,
+			&i.AccountID,
+			&i.Currency,
+			&i.AmountCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLCustomerVersionAccounts = `-- name: ListDCLCustomerVersionAccounts :many
+SELECT line.customer_approval_entry_id,line.account_id,root.customer_id,root.code,line.data,line.enabled,line.is_default,
+       root.ever_approved,root.first_approved_customer_entry_id
+FROM dcl_customer_version_accounts line
+JOIN dcl_customer_account_roots root ON root.account_id=line.account_id
+WHERE line.customer_approval_entry_id=$1
+ORDER BY root.code,root.account_id
+`
+
+type ListDCLCustomerVersionAccountsRow struct {
+	CustomerApprovalEntryID      string  `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	AccountID                    string  `db:"account_id" json:"account_id"`
+	CustomerID                   string  `db:"customer_id" json:"customer_id"`
+	Code                         string  `db:"code" json:"code"`
+	Data                         []byte  `db:"data" json:"data"`
+	Enabled                      bool    `db:"enabled" json:"enabled"`
+	IsDefault                    bool    `db:"is_default" json:"is_default"`
+	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
+	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
+}
+
+func (q *Queries) ListDCLCustomerVersionAccounts(ctx context.Context, customerApprovalEntryID string) ([]ListDCLCustomerVersionAccountsRow, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerVersionAccounts, customerApprovalEntryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLCustomerVersionAccountsRow{}
+	for rows.Next() {
+		var i ListDCLCustomerVersionAccountsRow
+		if err := rows.Scan(
+			&i.CustomerApprovalEntryID,
+			&i.AccountID,
+			&i.CustomerID,
+			&i.Code,
+			&i.Data,
+			&i.Enabled,
+			&i.IsDefault,
+			&i.EverApproved,
+			&i.FirstApprovedCustomerEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLCustomerVersionIdentifiers = `-- name: ListDCLCustomerVersionIdentifiers :many
+SELECT customer_approval_entry_id,identifier_type,value,normalized_value
+FROM dcl_customer_version_identifiers
+WHERE customer_approval_entry_id=$1
+ORDER BY identifier_type,normalized_value
+`
+
+func (q *Queries) ListDCLCustomerVersionIdentifiers(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionIdentifier, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerVersionIdentifiers, customerApprovalEntryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DclCustomerVersionIdentifier{}
+	for rows.Next() {
+		var i DclCustomerVersionIdentifier
+		if err := rows.Scan(
+			&i.CustomerApprovalEntryID,
+			&i.IdentifierType,
+			&i.Value,
+			&i.NormalizedValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDCLCustomers = `-- name: ListDCLCustomers :many
 SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
-       relationship.party_id,party.kind AS party_kind,party.display_name,
-       relationship.operating_entity_id,display.operating_entity_code,display.operating_entity_name,
+       ''::text AS party_id,''::text AS party_kind,display.data->>'displayName' AS display_name,
+       display.data->'defaultOperatingEntity'->>'sourceObjectId' AS operating_entity_id,
+       display.data->'defaultOperatingEntity'->>'code' AS operating_entity_code,
+       display.data->'defaultOperatingEntity'->>'name' AS operating_entity_name,
        display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
        COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
-JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id AND relationship.merged_into_object_id IS NULL
-JOIN LATERAL (
-  SELECT payload.kind,payload.display_name FROM approval_entries party_entry
-  JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id
-  WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=relationship.party_id
-    AND party_entry.status IN ('DRAFT','PENDING','APPROVED')
-  ORDER BY (party_entry.status IN ('DRAFT','PENDING')) DESC,party_entry.version_no DESC LIMIT 1
-) party ON true
 LEFT JOIN LATERAL (
   SELECT id,status,updated_at FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
@@ -3374,9 +3835,9 @@ LEFT JOIN LATERAL (
 ) approved ON true
 JOIN dcl_customer_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
 WHERE subject.entity='customer'
-  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR party.display_name ILIKE '%'||$1::text||'%')
-  AND ($2::text='' OR relationship.operating_entity_id=$2)
-  AND ($3::text='' OR relationship.party_id=$3)
+  AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.data->>'displayName' ILIKE '%'||$1::text||'%')
+  AND ($2::text='' OR display.data->'defaultOperatingEntity'->>'sourceObjectId'=$2)
+  AND ($3::text='' OR true)
   AND ($4::integer=-1 OR display.enabled=($4::integer=1))
   AND (cardinality($5::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($5::text[]))
 ORDER BY subject.code ASC,subject.id ASC
@@ -3398,10 +3859,10 @@ type ListDCLCustomersRow struct {
 	Code                  string             `db:"code" json:"code"`
 	PartyID               string             `db:"party_id" json:"party_id"`
 	PartyKind             string             `db:"party_kind" json:"party_kind"`
-	DisplayName           string             `db:"display_name" json:"display_name"`
-	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
+	DisplayName           interface{}        `db:"display_name" json:"display_name"`
+	OperatingEntityID     interface{}        `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode   interface{}        `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName   interface{}        `db:"operating_entity_name" json:"operating_entity_name"`
 	Enabled               bool               `db:"enabled" json:"enabled"`
 	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	LatestApprovedEntryID string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
@@ -5068,6 +5529,75 @@ func (q *Queries) ListDclWflProcessDefinitions(ctx context.Context, arg ListDclW
 	return items, nil
 }
 
+const lockDCLCustomerAccountRoot = `-- name: LockDCLCustomerAccountRoot :one
+SELECT account_id,customer_id,code,ever_approved,first_approved_customer_entry_id
+FROM dcl_customer_account_roots
+WHERE account_id=$1
+FOR UPDATE
+`
+
+type LockDCLCustomerAccountRootRow struct {
+	AccountID                    string  `db:"account_id" json:"account_id"`
+	CustomerID                   string  `db:"customer_id" json:"customer_id"`
+	Code                         string  `db:"code" json:"code"`
+	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
+	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
+}
+
+func (q *Queries) LockDCLCustomerAccountRoot(ctx context.Context, accountID string) (LockDCLCustomerAccountRootRow, error) {
+	row := q.db.QueryRow(ctx, lockDCLCustomerAccountRoot, accountID)
+	var i LockDCLCustomerAccountRootRow
+	err := row.Scan(
+		&i.AccountID,
+		&i.CustomerID,
+		&i.Code,
+		&i.EverApproved,
+		&i.FirstApprovedCustomerEntryID,
+	)
+	return i, err
+}
+
+const lockDCLCustomerIdentifierClaim = `-- name: LockDCLCustomerIdentifierClaim :one
+SELECT identifier_type,normalized_value,approved_customer_id,approved_approval_entry_id,open_customer_id,open_approval_entry_id
+FROM dcl_customer_identifier_claims
+WHERE identifier_type=$1 AND normalized_value=$2
+FOR UPDATE
+`
+
+type LockDCLCustomerIdentifierClaimParams struct {
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+func (q *Queries) LockDCLCustomerIdentifierClaim(ctx context.Context, arg LockDCLCustomerIdentifierClaimParams) (DclCustomerIdentifierClaim, error) {
+	row := q.db.QueryRow(ctx, lockDCLCustomerIdentifierClaim, arg.IdentifierType, arg.NormalizedValue)
+	var i DclCustomerIdentifierClaim
+	err := row.Scan(
+		&i.IdentifierType,
+		&i.NormalizedValue,
+		&i.ApprovedCustomerID,
+		&i.ApprovedApprovalEntryID,
+		&i.OpenCustomerID,
+		&i.OpenApprovalEntryID,
+	)
+	return i, err
+}
+
+const lockDCLCustomerIdentifierClaimKey = `-- name: LockDCLCustomerIdentifierClaimKey :exec
+SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text))
+`
+
+type LockDCLCustomerIdentifierClaimKeyParams struct {
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+// Serialize absent and existing claims alike before inspection/upsert.
+func (q *Queries) LockDCLCustomerIdentifierClaimKey(ctx context.Context, arg LockDCLCustomerIdentifierClaimKeyParams) error {
+	_, err := q.db.Exec(ctx, lockDCLCustomerIdentifierClaimKey, arg.IdentifierType, arg.NormalizedValue)
+	return err
+}
+
 const lockDCLFundAccountIdentifierClaims = `-- name: LockDCLFundAccountIdentifierClaims :exec
 SELECT pg_advisory_xact_lock(74155003)
 `
@@ -5118,6 +5648,26 @@ SELECT pg_advisory_xact_lock(74155002)
 func (q *Queries) LockDCLVehicleIdentifierClaims(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, lockDCLVehicleIdentifierClaims)
 	return err
+}
+
+const markDCLCustomerAccountRootApproved = `-- name: MarkDCLCustomerAccountRootApproved :execrows
+UPDATE dcl_customer_account_roots
+SET ever_approved=true,first_approved_customer_entry_id=COALESCE(first_approved_customer_entry_id,$1)
+WHERE account_id=$2 AND customer_id=$3
+`
+
+type MarkDCLCustomerAccountRootApprovedParams struct {
+	CustomerApprovalEntryID *string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	AccountID               string  `db:"account_id" json:"account_id"`
+	CustomerID              string  `db:"customer_id" json:"customer_id"`
+}
+
+func (q *Queries) MarkDCLCustomerAccountRootApproved(ctx context.Context, arg MarkDCLCustomerAccountRootApprovedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markDCLCustomerAccountRootApproved, arg.CustomerApprovalEntryID, arg.AccountID, arg.CustomerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const nextDCLSubjectCode = `-- name: NextDCLSubjectCode :one
@@ -5214,6 +5764,26 @@ type UpdateDCLAccMappingVersionParams struct {
 
 func (q *Queries) UpdateDCLAccMappingVersion(ctx context.Context, arg UpdateDCLAccMappingVersionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateDCLAccMappingVersion, arg.DefaultResult, arg.Definition, arg.ApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateDCLCustomerVersionAggregate = `-- name: UpdateDCLCustomerVersionAggregate :execrows
+UPDATE dcl_customer_versions
+SET data=$1,enabled=$2
+WHERE approval_entry_id=$3
+`
+
+type UpdateDCLCustomerVersionAggregateParams struct {
+	Data            []byte `db:"data" json:"data"`
+	Enabled         bool   `db:"enabled" json:"enabled"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) UpdateDCLCustomerVersionAggregate(ctx context.Context, arg UpdateDCLCustomerVersionAggregateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateDCLCustomerVersionAggregate, arg.Data, arg.Enabled, arg.ApprovalEntryID)
 	if err != nil {
 		return 0, err
 	}
@@ -5609,4 +6179,35 @@ func (q *Queries) UpdateDCLWarehouseVersion(ctx context.Context, arg UpdateDCLWa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertDCLCustomerIdentifierClaim = `-- name: UpsertDCLCustomerIdentifierClaim :exec
+INSERT INTO dcl_customer_identifier_claims(identifier_type,normalized_value,approved_customer_id,approved_approval_entry_id,open_customer_id,open_approval_entry_id)
+VALUES($1,$2,$3,$4,$5,$6)
+ON CONFLICT(identifier_type,normalized_value) DO UPDATE SET
+  approved_customer_id=EXCLUDED.approved_customer_id,
+  approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,
+  open_customer_id=EXCLUDED.open_customer_id,
+  open_approval_entry_id=EXCLUDED.open_approval_entry_id
+`
+
+type UpsertDCLCustomerIdentifierClaimParams struct {
+	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
+	ApprovedCustomerID      *string `db:"approved_customer_id" json:"approved_customer_id"`
+	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenCustomerID          *string `db:"open_customer_id" json:"open_customer_id"`
+	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
+func (q *Queries) UpsertDCLCustomerIdentifierClaim(ctx context.Context, arg UpsertDCLCustomerIdentifierClaimParams) error {
+	_, err := q.db.Exec(ctx, upsertDCLCustomerIdentifierClaim,
+		arg.IdentifierType,
+		arg.NormalizedValue,
+		arg.ApprovedCustomerID,
+		arg.ApprovedApprovalEntryID,
+		arg.OpenCustomerID,
+		arg.OpenApprovalEntryID,
+	)
+	return err
 }

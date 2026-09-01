@@ -25,12 +25,14 @@ interface Envelope<T> {
 function vouFixture(workerState: WflWorkerState) {
   return {
     customer: workerState.fixtures.customer,
+    customerAggregate: workerState.fixtures.customerAggregate,
     supplier: workerState.fixtures.supplier,
     employee: workerState.fixtures.employee,
     warehouse: workerState.fixtures.warehouse,
     product: workerState.fixtures.solventProduct,
     vehicle: workerState.fixtures.vehicle,
     fundAccount: workerState.fixtures.fundAccount,
+    operatingEntity: workerState.fixtures.operatingEntity,
     purchaseProcessCode: workerState.fixtures.purchaseProcessCode,
     salesProcessCode: workerState.fixtures.salesProcessCode,
     currency: 'CNY',
@@ -335,10 +337,21 @@ test(
       0,
     )
 
-    await selectReference(page, '客户', fixture.customer, workspace)
+    await selectReference(page, '客户', fixture.customerAggregate, workspace)
+    await selectReference(
+      page,
+      '实际经营主体',
+      fixture.operatingEntity,
+      workspace,
+    )
     await selectReference(page, '经办人', fixture.employee, workspace)
     await selectReference(page, '资金账户', fixture.fundAccount, workspace)
     await page.getByLabel('金额').fill('100.00')
+    await workspace
+      .getByRole('button', { name: '添加分摊', exact: true })
+      .click()
+    await selectReference(page, '客户核算账户', fixture.customer, workspace)
+    await workspace.getByLabel('分摊金额').fill('100.00')
     const createResponse = page.waitForResponse((response) =>
       response.url().endsWith('/vou/sales-receipt/create'),
     )

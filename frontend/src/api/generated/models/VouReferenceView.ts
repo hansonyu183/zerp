@@ -9,6 +9,10 @@ export type VouReferenceView = {
   entity: string;
   code: string;
   name: string;
+  /**
+   * 客户核算账户所属 Customer 根对象 ID；仅 customer-account 引用返回。
+   */
+  customerId?: string;
   unit?: string;
   currency?: string;
   plateNumber?: string;

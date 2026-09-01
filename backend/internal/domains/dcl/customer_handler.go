@@ -37,8 +37,8 @@ type customerAttachmentApplicationService interface {
 	OpenDownload(context.Context, string) (CustomerAttachmentDownloadFile, error)
 }
 
-// CustomerHandler exposes only DCL relationship declaration routes. Account
-// approvals are a separate handler and subject under /dcl/customer-account.
+// CustomerHandler exposes the complete Customer aggregate. Accounts are child
+// lines and never own routes or approval actions.
 type CustomerHandler struct {
 	service     customerApplicationService
 	attachments customerAttachmentApplicationService

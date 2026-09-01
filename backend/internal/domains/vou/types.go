@@ -243,6 +243,14 @@ type ExpenseLineInput struct {
 	Remark      string `json:"remark,omitempty"`
 }
 
+// SalesReceiptAccountAllocationInput assigns part of one bank receipt to a
+// Customer Accounting Account. The account's approval entry is the owning
+// Customer Version snapshot, never an independently approved account version.
+type SalesReceiptAccountAllocationInput struct {
+	Account ReferenceInput `json:"account"`
+	Amount  string         `json:"amount"`
+}
+
 // BillLineInput is shared by all bill operations. Only bill-receipt is public
 // in the first slice; CHANGE lines reserve a source bill for later operations.
 type BillLineInput struct {
@@ -340,51 +348,53 @@ type ServiceAcceptanceInput struct {
 }
 
 type DraftInput struct {
-	BusinessDate            string                        `json:"businessDate"`
-	Currency                string                        `json:"currency"`
-	Remark                  string                        `json:"remark,omitempty"`
-	ReturnReason            string                        `json:"returnReason,omitempty"`
-	SourceDocumentID        string                        `json:"-"`
-	Customer                *ReferenceInput               `json:"customer,omitempty"`
-	Supplier                *ReferenceInput               `json:"supplier,omitempty"`
-	CounterpartyType        string                        `json:"counterpartyType,omitempty"`
-	OtherCategory           string                        `json:"otherCategory,omitempty"`
-	Counterparty            *ReferenceInput               `json:"counterparty,omitempty"`
-	Employee                *ReferenceInput               `json:"employee,omitempty"`
-	Salesperson             *ReferenceInput               `json:"salesperson,omitempty"`
-	Purchaser               *ReferenceInput               `json:"purchaser,omitempty"`
-	Handler                 *ReferenceInput               `json:"handler,omitempty"`
-	Warehouse               *ReferenceInput               `json:"warehouse,omitempty"`
-	MaterialWarehouse       *ReferenceInput               `json:"materialWarehouse,omitempty"`
-	FinishedWarehouse       *ReferenceInput               `json:"finishedWarehouse,omitempty"`
-	Carrier                 *ReferenceInput               `json:"carrier,omitempty"`
-	Vehicle                 *ReferenceInput               `json:"vehicle,omitempty"`
-	FundAccount             *ReferenceInput               `json:"fundAccount,omitempty"`
-	SettlementMethod        *AuxiliaryReferenceInput      `json:"settlementMethod,omitempty"`
-	SourceName              string                        `json:"sourceName,omitempty"`
-	Amount                  string                        `json:"amount,omitempty"`
-	ProductLines            []ProductLineInput            `json:"productLines,omitempty"`
-	PriceLines              []PriceLineInput              `json:"priceLines,omitempty"`
-	ExpenseLines            []ExpenseLineInput            `json:"expenseLines,omitempty"`
-	SourceLines             []SourceQuantityLineInput     `json:"sourceLines,omitempty"`
-	SignoffLines            []SaleSignoffLineInput        `json:"signoffLines,omitempty"`
-	ReturnLines             []ReturnLineInput             `json:"returnLines,omitempty"`
-	ProductionLines         []ProductionOutputInput       `json:"productionLines,omitempty"`
-	InventoryCountLines     []InventoryCountLineInput     `json:"inventoryCountLines,omitempty"`
-	AssetAcquisitionLines   []AssetAcquisitionLineInput   `json:"assetAcquisitionLines,omitempty"`
-	AssetSaleLines          []AssetSaleLineInput          `json:"assetSaleLines,omitempty"`
-	AssetLiquidationLines   []AssetLiquidationLineInput   `json:"assetLiquidationLines,omitempty"`
-	BillLines               []BillLineInput               `json:"billLines,omitempty"`
-	BillCashLines           []BillCashLineInput           `json:"billCashLines,omitempty"`
-	InternalCostRateBps     int32                         `json:"internalCostRateBps,omitempty"`
-	MaturityType            string                        `json:"maturityType,omitempty"`
-	InterestMode            string                        `json:"interestMode,omitempty"`
-	InterestParty           *ReferenceInput               `json:"interestParty,omitempty"`
-	WithRecourse            bool                          `json:"withRecourse,omitempty"`
-	SpecialApproval         bool                          `json:"specialApproval,omitempty"`
-	IntermediaryCalculation *IntermediaryCalculationInput `json:"intermediaryCalculation,omitempty"`
-	ServiceContract         *ServiceContractInput         `json:"serviceContract,omitempty"`
-	ServiceAcceptance       *ServiceAcceptanceInput       `json:"serviceAcceptance,omitempty"`
+	BusinessDate            string                               `json:"businessDate"`
+	Currency                string                               `json:"currency"`
+	Remark                  string                               `json:"remark,omitempty"`
+	ReturnReason            string                               `json:"returnReason,omitempty"`
+	SourceDocumentID        string                               `json:"-"`
+	Customer                *ReferenceInput                      `json:"customer,omitempty"`
+	OperatingEntity         *ReferenceInput                      `json:"operatingEntity,omitempty"`
+	Supplier                *ReferenceInput                      `json:"supplier,omitempty"`
+	CounterpartyType        string                               `json:"counterpartyType,omitempty"`
+	OtherCategory           string                               `json:"otherCategory,omitempty"`
+	Counterparty            *ReferenceInput                      `json:"counterparty,omitempty"`
+	Employee                *ReferenceInput                      `json:"employee,omitempty"`
+	Salesperson             *ReferenceInput                      `json:"salesperson,omitempty"`
+	Purchaser               *ReferenceInput                      `json:"purchaser,omitempty"`
+	Handler                 *ReferenceInput                      `json:"handler,omitempty"`
+	Warehouse               *ReferenceInput                      `json:"warehouse,omitempty"`
+	MaterialWarehouse       *ReferenceInput                      `json:"materialWarehouse,omitempty"`
+	FinishedWarehouse       *ReferenceInput                      `json:"finishedWarehouse,omitempty"`
+	Carrier                 *ReferenceInput                      `json:"carrier,omitempty"`
+	Vehicle                 *ReferenceInput                      `json:"vehicle,omitempty"`
+	FundAccount             *ReferenceInput                      `json:"fundAccount,omitempty"`
+	SettlementMethod        *AuxiliaryReferenceInput             `json:"settlementMethod,omitempty"`
+	SourceName              string                               `json:"sourceName,omitempty"`
+	Amount                  string                               `json:"amount,omitempty"`
+	AccountAllocations      []SalesReceiptAccountAllocationInput `json:"accountAllocations,omitempty"`
+	ProductLines            []ProductLineInput                   `json:"productLines,omitempty"`
+	PriceLines              []PriceLineInput                     `json:"priceLines,omitempty"`
+	ExpenseLines            []ExpenseLineInput                   `json:"expenseLines,omitempty"`
+	SourceLines             []SourceQuantityLineInput            `json:"sourceLines,omitempty"`
+	SignoffLines            []SaleSignoffLineInput               `json:"signoffLines,omitempty"`
+	ReturnLines             []ReturnLineInput                    `json:"returnLines,omitempty"`
+	ProductionLines         []ProductionOutputInput              `json:"productionLines,omitempty"`
+	InventoryCountLines     []InventoryCountLineInput            `json:"inventoryCountLines,omitempty"`
+	AssetAcquisitionLines   []AssetAcquisitionLineInput          `json:"assetAcquisitionLines,omitempty"`
+	AssetSaleLines          []AssetSaleLineInput                 `json:"assetSaleLines,omitempty"`
+	AssetLiquidationLines   []AssetLiquidationLineInput          `json:"assetLiquidationLines,omitempty"`
+	BillLines               []BillLineInput                      `json:"billLines,omitempty"`
+	BillCashLines           []BillCashLineInput                  `json:"billCashLines,omitempty"`
+	InternalCostRateBps     int32                                `json:"internalCostRateBps,omitempty"`
+	MaturityType            string                               `json:"maturityType,omitempty"`
+	InterestMode            string                               `json:"interestMode,omitempty"`
+	InterestParty           *ReferenceInput                      `json:"interestParty,omitempty"`
+	WithRecourse            bool                                 `json:"withRecourse,omitempty"`
+	SpecialApproval         bool                                 `json:"specialApproval,omitempty"`
+	IntermediaryCalculation *IntermediaryCalculationInput        `json:"intermediaryCalculation,omitempty"`
+	ServiceContract         *ServiceContractInput                `json:"serviceContract,omitempty"`
+	ServiceAcceptance       *ServiceAcceptanceInput              `json:"serviceAcceptance,omitempty"`
 }
 
 type IntermediaryReference struct {
@@ -616,6 +626,7 @@ type ReferenceView struct {
 	Entity              string                            `json:"entity"`
 	Code                string                            `json:"code"`
 	Name                string                            `json:"name"`
+	CustomerID          string                            `json:"customerId,omitempty"`
 	Unit                string                            `json:"unit,omitempty"`
 	Currency            string                            `json:"currency,omitempty"`
 	PlateNumber         string                            `json:"plateNumber,omitempty"`
@@ -626,6 +637,11 @@ type ReferenceView struct {
 	DefaultInputUnitID  string                            `json:"defaultInputUnitId,omitempty"`
 	PricingUnitID       string                            `json:"pricingUnitId,omitempty"`
 	UnitConversions     []bobdomain.ProductUnitConversion `json:"unitConversions,omitempty"`
+}
+
+type SalesReceiptAccountAllocationView struct {
+	Account ReferenceView `json:"account"`
+	Amount  string        `json:"amount"`
 }
 
 type AuxiliaryReferenceView struct {
@@ -950,70 +966,72 @@ type AttachmentView struct {
 }
 
 type DocumentDataView struct {
-	BusinessDate              string                        `json:"businessDate"`
-	DueDate                   string                        `json:"dueDate,omitempty"`
-	Currency                  string                        `json:"currency"`
-	Remark                    string                        `json:"remark,omitempty"`
-	ReturnReason              string                        `json:"returnReason,omitempty"`
-	ReturnKind                string                        `json:"returnKind,omitempty"`
-	Customer                  *ReferenceView                `json:"customer,omitempty"`
-	Supplier                  *ReferenceView                `json:"supplier,omitempty"`
-	Counterparty              *ReferenceView                `json:"counterparty,omitempty"`
-	OtherCategory             string                        `json:"otherCategory,omitempty"`
-	Employee                  *ReferenceView                `json:"employee,omitempty"`
-	Salesperson               *ReferenceView                `json:"salesperson,omitempty"`
-	Purchaser                 *ReferenceView                `json:"purchaser,omitempty"`
-	Handler                   *ReferenceView                `json:"handler,omitempty"`
-	Warehouse                 *ReferenceView                `json:"warehouse,omitempty"`
-	MaterialWarehouse         *ReferenceView                `json:"materialWarehouse,omitempty"`
-	FinishedWarehouse         *ReferenceView                `json:"finishedWarehouse,omitempty"`
-	FundAccount               *ReferenceView                `json:"fundAccount,omitempty"`
-	ContactName               string                        `json:"contactName,omitempty"`
-	ContactPhone              string                        `json:"contactPhone,omitempty"`
-	DeliveryAddress           string                        `json:"deliveryAddress,omitempty"`
-	SettlementMethod          *SettlementMethodSnapshotView `json:"settlementMethod,omitempty"`
-	CustomerSettlementMethod  *SettlementMethodSnapshotView `json:"customerSettlementMethod,omitempty"`
-	SupplierSettlementMethod  *SettlementMethodSnapshotView `json:"supplierSettlementMethod,omitempty"`
-	SourceName                string                        `json:"sourceName,omitempty"`
-	ProductLines              []ProductLineView             `json:"productLines,omitempty"`
-	PriceLines                []PriceLineView               `json:"priceLines,omitempty"`
-	ExpenseLines              []ExpenseLineView             `json:"expenseLines,omitempty"`
-	OutboundDate              string                        `json:"outboundDate,omitempty"`
-	SignoffDate               string                        `json:"signoffDate,omitempty"`
-	InboundDate               string                        `json:"inboundDate,omitempty"`
-	CarrierType               string                        `json:"carrierType,omitempty"`
-	CarrierOperatingEntity    *ReferenceView                `json:"carrierOperatingEntity,omitempty"`
-	Carrier                   *ReferenceView                `json:"carrier,omitempty"`
-	Vehicle                   *ReferenceView                `json:"vehicle,omitempty"`
-	VehicleBulkLiquidCapable  bool                          `json:"vehicleBulkLiquidCapable,omitempty"`
-	DifferenceReason          string                        `json:"differenceReason,omitempty"`
-	SignoffLines              []SaleSignoffLineView         `json:"signoffLines,omitempty"`
-	FulfillmentStatus         string                        `json:"fulfillmentStatus,omitempty"`
-	SignedBaseQuantity        string                        `json:"signedBaseQuantity,omitempty"`
-	InTransitBaseQuantity     string                        `json:"inTransitBaseQuantity,omitempty"`
-	RemainingBaseQuantity     string                        `json:"remainingBaseQuantity,omitempty"`
-	Lines                     []ManagedLineView             `json:"lines,omitempty"`
-	ProductionLines           []ProductionOutputLineView    `json:"productionLines,omitempty"`
-	InventoryCountLines       []InventoryCountLineView      `json:"inventoryCountLines,omitempty"`
-	ExpectedSolventContainers int64                         `json:"expectedSolventContainers,omitempty"`
-	ExpectedResinContainers   int64                         `json:"expectedResinContainers,omitempty"`
-	ReturnedSolventContainers int64                         `json:"returnedSolventContainers,omitempty"`
-	ReturnedResinContainers   int64                         `json:"returnedResinContainers,omitempty"`
-	ContainerDifferenceReason string                        `json:"containerDifferenceReason,omitempty"`
-	AssetAcquisitionLines     []AssetAcquisitionLineView    `json:"assetAcquisitionLines,omitempty"`
-	AssetSaleLines            []AssetSaleLineView           `json:"assetSaleLines,omitempty"`
-	AssetLiquidationLines     []AssetLiquidationLineView    `json:"assetLiquidationLines,omitempty"`
-	BillLines                 []BillLineView                `json:"billLines,omitempty"`
-	BillCashLines             []BillCashLineView            `json:"billCashLines,omitempty"`
-	InternalCostRateBps       int32                         `json:"internalCostRateBps,omitempty"`
-	MaturityType              string                        `json:"maturityType,omitempty"`
-	InterestMode              string                        `json:"interestMode,omitempty"`
-	InterestParty             *ReferenceView                `json:"interestParty,omitempty"`
-	WithRecourse              bool                          `json:"withRecourse,omitempty"`
-	SpecialApproval           bool                          `json:"specialApproval,omitempty"`
-	IntermediaryCalculation   *IntermediaryCalculationInput `json:"intermediaryCalculation,omitempty"`
-	ServiceContract           *ServiceContractView          `json:"serviceContract,omitempty"`
-	ServiceAcceptance         *ServiceAcceptanceView        `json:"serviceAcceptance,omitempty"`
+	BusinessDate              string                              `json:"businessDate"`
+	DueDate                   string                              `json:"dueDate,omitempty"`
+	Currency                  string                              `json:"currency"`
+	Remark                    string                              `json:"remark,omitempty"`
+	ReturnReason              string                              `json:"returnReason,omitempty"`
+	ReturnKind                string                              `json:"returnKind,omitempty"`
+	Customer                  *ReferenceView                      `json:"customer,omitempty"`
+	OperatingEntity           *ReferenceView                      `json:"operatingEntity,omitempty"`
+	AccountAllocations        []SalesReceiptAccountAllocationView `json:"accountAllocations,omitempty"`
+	Supplier                  *ReferenceView                      `json:"supplier,omitempty"`
+	Counterparty              *ReferenceView                      `json:"counterparty,omitempty"`
+	OtherCategory             string                              `json:"otherCategory,omitempty"`
+	Employee                  *ReferenceView                      `json:"employee,omitempty"`
+	Salesperson               *ReferenceView                      `json:"salesperson,omitempty"`
+	Purchaser                 *ReferenceView                      `json:"purchaser,omitempty"`
+	Handler                   *ReferenceView                      `json:"handler,omitempty"`
+	Warehouse                 *ReferenceView                      `json:"warehouse,omitempty"`
+	MaterialWarehouse         *ReferenceView                      `json:"materialWarehouse,omitempty"`
+	FinishedWarehouse         *ReferenceView                      `json:"finishedWarehouse,omitempty"`
+	FundAccount               *ReferenceView                      `json:"fundAccount,omitempty"`
+	ContactName               string                              `json:"contactName,omitempty"`
+	ContactPhone              string                              `json:"contactPhone,omitempty"`
+	DeliveryAddress           string                              `json:"deliveryAddress,omitempty"`
+	SettlementMethod          *SettlementMethodSnapshotView       `json:"settlementMethod,omitempty"`
+	CustomerSettlementMethod  *SettlementMethodSnapshotView       `json:"customerSettlementMethod,omitempty"`
+	SupplierSettlementMethod  *SettlementMethodSnapshotView       `json:"supplierSettlementMethod,omitempty"`
+	SourceName                string                              `json:"sourceName,omitempty"`
+	ProductLines              []ProductLineView                   `json:"productLines,omitempty"`
+	PriceLines                []PriceLineView                     `json:"priceLines,omitempty"`
+	ExpenseLines              []ExpenseLineView                   `json:"expenseLines,omitempty"`
+	OutboundDate              string                              `json:"outboundDate,omitempty"`
+	SignoffDate               string                              `json:"signoffDate,omitempty"`
+	InboundDate               string                              `json:"inboundDate,omitempty"`
+	CarrierType               string                              `json:"carrierType,omitempty"`
+	CarrierOperatingEntity    *ReferenceView                      `json:"carrierOperatingEntity,omitempty"`
+	Carrier                   *ReferenceView                      `json:"carrier,omitempty"`
+	Vehicle                   *ReferenceView                      `json:"vehicle,omitempty"`
+	VehicleBulkLiquidCapable  bool                                `json:"vehicleBulkLiquidCapable,omitempty"`
+	DifferenceReason          string                              `json:"differenceReason,omitempty"`
+	SignoffLines              []SaleSignoffLineView               `json:"signoffLines,omitempty"`
+	FulfillmentStatus         string                              `json:"fulfillmentStatus,omitempty"`
+	SignedBaseQuantity        string                              `json:"signedBaseQuantity,omitempty"`
+	InTransitBaseQuantity     string                              `json:"inTransitBaseQuantity,omitempty"`
+	RemainingBaseQuantity     string                              `json:"remainingBaseQuantity,omitempty"`
+	Lines                     []ManagedLineView                   `json:"lines,omitempty"`
+	ProductionLines           []ProductionOutputLineView          `json:"productionLines,omitempty"`
+	InventoryCountLines       []InventoryCountLineView            `json:"inventoryCountLines,omitempty"`
+	ExpectedSolventContainers int64                               `json:"expectedSolventContainers,omitempty"`
+	ExpectedResinContainers   int64                               `json:"expectedResinContainers,omitempty"`
+	ReturnedSolventContainers int64                               `json:"returnedSolventContainers,omitempty"`
+	ReturnedResinContainers   int64                               `json:"returnedResinContainers,omitempty"`
+	ContainerDifferenceReason string                              `json:"containerDifferenceReason,omitempty"`
+	AssetAcquisitionLines     []AssetAcquisitionLineView          `json:"assetAcquisitionLines,omitempty"`
+	AssetSaleLines            []AssetSaleLineView                 `json:"assetSaleLines,omitempty"`
+	AssetLiquidationLines     []AssetLiquidationLineView          `json:"assetLiquidationLines,omitempty"`
+	BillLines                 []BillLineView                      `json:"billLines,omitempty"`
+	BillCashLines             []BillCashLineView                  `json:"billCashLines,omitempty"`
+	InternalCostRateBps       int32                               `json:"internalCostRateBps,omitempty"`
+	MaturityType              string                              `json:"maturityType,omitempty"`
+	InterestMode              string                              `json:"interestMode,omitempty"`
+	InterestParty             *ReferenceView                      `json:"interestParty,omitempty"`
+	WithRecourse              bool                                `json:"withRecourse,omitempty"`
+	SpecialApproval           bool                                `json:"specialApproval,omitempty"`
+	IntermediaryCalculation   *IntermediaryCalculationInput       `json:"intermediaryCalculation,omitempty"`
+	ServiceContract           *ServiceContractView                `json:"serviceContract,omitempty"`
+	ServiceAcceptance         *ServiceAcceptanceView              `json:"serviceAcceptance,omitempty"`
 }
 
 type ServiceContractView struct {

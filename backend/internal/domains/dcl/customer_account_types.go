@@ -6,10 +6,9 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 	"unicode"
+	"unicode/utf8"
 
-	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 )
 
@@ -75,9 +74,12 @@ type CustomerSalesAttributionSnapshot struct {
 	SubjectName            string `json:"subjectName"`
 }
 
-// CustomerAccountDataInput deliberately contains no operating entity: the
-// stable Customer relationship is the only source for that boundary.
+// CustomerAccountDataInput is a value inside CustomerDataInput, never an
+// independently approved object.
 type CustomerAccountDataInput struct {
+	AccountID                  string                        `json:"accountId,omitempty"`
+	Enabled                    bool                          `json:"enabled"`
+	IsDefault                  bool                          `json:"isDefault"`
 	Name                       string                        `json:"name"`
 	ShortName                  string                        `json:"shortName,omitempty"`
 	CustomerTypeID             string                        `json:"customerTypeId"`
@@ -98,106 +100,12 @@ type CustomerAccountDataInput struct {
 }
 type CustomerAccountData struct {
 	CustomerAccountDataInput
-	OperatingEntityID       string                           `json:"operatingEntityId"`
-	OperatingEntity         *CustomerSnapshot                `json:"operatingEntity"`
-	CustomerType            *CustomerAuxiliarySnapshot       `json:"customerType"`
+	Code                    string                           `json:"code"`
+	Attachments             []CustomerAttachmentView         `json:"attachments"`
+	CustomerType            CustomerAuxiliarySnapshot        `json:"customerType"`
 	SettlementMethod        *CustomerAuxiliarySnapshot       `json:"settlementMethod,omitempty"`
 	PaymentMethod           *CustomerAuxiliarySnapshot       `json:"paymentMethod,omitempty"`
 	PrimarySalesAttribution CustomerSalesAttributionSnapshot `json:"primarySalesAttribution"`
-}
-type CustomerAccountCreateInput struct {
-	CustomerRelationshipID string                   `json:"customerRelationshipId"`
-	Data                   CustomerAccountDataInput `json:"data"`
-}
-type CustomerAccountSaveInput struct {
-	ObjectID         string                   `json:"objectId"`
-	ApprovalEntryID  string                   `json:"approvalEntryId"`
-	ApprovalRevision int64                    `json:"approvalRevision"`
-	Enabled          bool                     `json:"enabled"`
-	Data             CustomerAccountDataInput `json:"data"`
-}
-type CustomerAccountVersionInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-
-// CustomerAccountDeleteInput identifies the draft declaration to delete. An
-// account that has reached approval is never deleted through this operation.
-type CustomerAccountDeleteInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-type CustomerAccountReviewInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Reason           string `json:"reason"`
-}
-type CustomerAccountGetInput struct {
-	ObjectID        string `json:"objectId"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
-}
-type CustomerAccountHistoryInput struct {
-	ObjectID string `json:"objectId"`
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
-}
-type CustomerAccountQueryFilters struct {
-	Keyword                   string            `json:"keyword,omitempty"`
-	Status                    []approval.Status `json:"status,omitempty"`
-	Enabled                   *bool             `json:"enabled,omitempty"`
-	CustomerType              string            `json:"customerType,omitempty"`
-	CustomerRelationshipID    string            `json:"customerRelationshipId,omitempty"`
-	OperatingEntityID         string            `json:"operatingEntityId,omitempty"`
-	SalesAttributionType      string            `json:"salesAttributionType,omitempty"`
-	SalesAttributionSubjectID string            `json:"salesAttributionSubjectId,omitempty"`
-}
-type CustomerAccountSortItem struct {
-	Field string `json:"field"`
-	Order string `json:"order"`
-}
-type CustomerAccountQueryInput struct {
-	Page     int                         `json:"page"`
-	PageSize int                         `json:"pageSize"`
-	Filters  CustomerAccountQueryFilters `json:"filters"`
-	Sort     []CustomerAccountSortItem   `json:"sort"`
-}
-type CustomerAccountMutation struct {
-	ObjectID               string               `json:"objectId"`
-	CustomerRelationshipID string               `json:"customerRelationshipId"`
-	Enabled                bool                 `json:"enabled"`
-	Approval               approval.VersionMeta `json:"approval"`
-}
-type CustomerAccountVersionView struct {
-	Approval    approval.VersionMeta     `json:"approval"`
-	Enabled     bool                     `json:"enabled"`
-	Data        CustomerAccountData      `json:"data"`
-	Attachments []CustomerAttachmentView `json:"attachments"`
-}
-type CustomerAccountView struct {
-	ObjectID                 string                     `json:"objectId"`
-	Entity                   string                     `json:"entity"`
-	Code                     string                     `json:"code"`
-	CustomerRelationshipID   string                     `json:"customerRelationshipId"`
-	Enabled                  bool                       `json:"enabled"`
-	Approval                 approval.VersionMeta       `json:"approval"`
-	Data                     CustomerAccountData        `json:"data"`
-	Attachments              []CustomerAttachmentView   `json:"attachments"`
-	UpdatedAt                time.Time                  `json:"updatedAt"`
-	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
-}
-type CustomerAccountQueryItem struct {
-	ObjectID                 string                      `json:"objectId"`
-	Entity                   string                      `json:"entity"`
-	Code                     string                      `json:"code"`
-	CustomerRelationshipID   string                      `json:"customerRelationshipId"`
-	Enabled                  bool                        `json:"enabled"`
-	LatestApproved           *CustomerAccountVersionView `json:"latestApproved"`
-	OpenVersion              *CustomerAccountVersionView `json:"openVersion"`
-	UpdatedAt                time.Time                   `json:"updatedAt"`
-	AvailableApprovalActions []approval.LifecycleAction  `json:"availableApprovalActions"`
 }
 
 func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDataInput, error) {
@@ -207,7 +115,7 @@ func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDa
 	in.DefaultTransportMethodCode, in.DefaultTransportMethodName = strings.TrimSpace(in.DefaultTransportMethodCode), strings.TrimSpace(in.DefaultTransportMethodName)
 	in.InternalReminder, in.DefaultSalesOrderRemark = strings.TrimSpace(in.InternalReminder), strings.TrimSpace(in.DefaultSalesOrderRemark)
 	in.PrimarySalesAttribution.Type, in.PrimarySalesAttribution.SubjectObjectID = strings.TrimSpace(in.PrimarySalesAttribution.Type), strings.TrimSpace(in.PrimarySalesAttribution.SubjectObjectID)
-	if in.Name == "" || len(in.Name) > 200 || !validID(in.CustomerTypeID) || !validID(in.PrimarySalesAttribution.SubjectObjectID) || !slices.Contains([]string{CustomerSalesAttributionInternalEmployee, CustomerSalesAttributionExternalPartTime, CustomerSalesAttributionChannelPartner}, in.PrimarySalesAttribution.Type) || (in.SettlementMethodID != "" && !validID(in.SettlementMethodID)) || (in.PaymentMethodID != "" && !validID(in.PaymentMethodID)) {
+	if in.Name == "" || utf8.RuneCountInString(in.Name) > 200 || utf8.RuneCountInString(in.DefaultTransportMethodCode) > 32 || utf8.RuneCountInString(in.DefaultTransportMethodName) > 100 || utf8.RuneCountInString(in.InternalReminder) > 1000 || utf8.RuneCountInString(in.DefaultSalesOrderRemark) > 1000 || !validID(in.CustomerTypeID) || !validID(in.PrimarySalesAttribution.SubjectObjectID) || !slices.Contains([]string{CustomerSalesAttributionInternalEmployee, CustomerSalesAttributionExternalPartTime, CustomerSalesAttributionChannelPartner}, in.PrimarySalesAttribution.Type) || (in.SettlementMethodID != "" && !validID(in.SettlementMethodID)) || (in.PaymentMethodID != "" && !validID(in.PaymentMethodID)) {
 		return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer account data", nil, nil)
 	}
 	var err error
@@ -224,7 +132,7 @@ func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDa
 		l := &in.CreditLimits[i]
 		l.Currency = strings.ToUpper(strings.TrimSpace(l.Currency))
 		l.Amount, err = normalizeCustomerMoney(l.Amount, true)
-		if err != nil || l.Currency != "CNY" {
+		if err != nil || len(l.Currency) != 3 || !isUpperASCIICurrency(l.Currency) {
 			return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer credit limit", nil, err)
 		}
 		if _, ok := seen[l.Currency]; ok {
@@ -235,7 +143,19 @@ func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDa
 	if in.CreditLimits == nil {
 		in.CreditLimits = []CustomerCreditLimit{}
 	}
+	if len(in.CreditLimits) > 50 {
+		return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "too many customer credit limits", nil, nil)
+	}
 	return in, nil
+}
+
+func isUpperASCIICurrency(value string) bool {
+	for _, c := range value {
+		if c < 'A' || c > 'Z' {
+			return false
+		}
+	}
+	return true
 }
 func normalizeCustomerMoney(value string, allowZero bool) (string, error) {
 	if strings.TrimSpace(value) == "" && allowZero {
@@ -265,6 +185,9 @@ func normalizeCustomerPricingPolicy(p CustomerPricingPolicy) (CustomerPricingPol
 	for i := range p.CostItems {
 		item := &p.CostItems[i]
 		item.Name = strings.TrimSpace(item.Name)
+		if utf8.RuneCountInString(item.Name) > 100 {
+			return CustomerPricingPolicy{}, errors.New("cost item name is too long")
+		}
 		key := strings.ToLower(strings.Map(func(r rune) rune {
 			if unicode.IsSpace(r) {
 				return -1

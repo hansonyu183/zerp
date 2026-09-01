@@ -191,11 +191,11 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 	if err := s.seedBusiness(ctx, &result.Business); err != nil {
 		return result, fmt.Errorf("seed business data: %w", err)
 	}
-	if err := s.seedVouchers(ctx, &result.Vouchers); err != nil {
-		return result, fmt.Errorf("seed voucher data: %w", err)
-	}
 	if err := s.seedAccounting(ctx, &result.Accounting); err != nil {
 		return result, fmt.Errorf("seed accounting data: %w", err)
+	}
+	if err := s.seedVouchers(ctx, &result.Vouchers); err != nil {
+		return result, fmt.Errorf("seed voucher data: %w", err)
 	}
 	if err := s.seedExtendedVouchers(ctx, &result.Vouchers); err != nil {
 		return result, fmt.Errorf("seed extended voucher data: %w", err)

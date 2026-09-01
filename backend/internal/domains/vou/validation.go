@@ -81,12 +81,18 @@ type fixedInventoryCountLine struct {
 	Remark          *string
 }
 
+type fixedSalesReceiptAccountAllocation struct {
+	Account ReferenceInput
+	Amount  int64
+}
+
 type validatedDraft struct {
 	BusinessDate                                            time.Time
 	DueDate                                                 *time.Time
 	Currency                                                string
 	Remark                                                  *string
 	Customer, Supplier, Counterparty, Employee, FundAccount *ReferenceInput
+	OperatingEntity                                         *ReferenceInput
 	Salesperson, Purchaser, Handler, Warehouse              *ReferenceInput
 	CounterpartyType                                        string
 	OtherCategory                                           string
@@ -95,6 +101,7 @@ type validatedDraft struct {
 	PriceLines                                              []fixedPriceLine
 	ExpenseLines                                            []fixedExpenseLine
 	InventoryCountLines                                     []fixedInventoryCountLine
+	AccountAllocations                                      []fixedSalesReceiptAccountAllocation
 	BillLines                                               []fixedBillLine
 	BillCashLines                                           []fixedBillCashLine
 	InternalCostRateBps                                     int32
@@ -211,7 +218,8 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 	result := validatedDraft{
 		BusinessDate: businessDate, Currency: currency, Remark: remark,
 		Customer: input.Customer, Supplier: input.Supplier, Counterparty: input.Counterparty,
-		Employee: input.Employee, FundAccount: input.FundAccount,
+		OperatingEntity: input.OperatingEntity,
+		Employee:        input.Employee, FundAccount: input.FundAccount,
 		Salesperson: input.Salesperson, Purchaser: input.Purchaser,
 		Handler: input.Handler, Warehouse: input.Warehouse,
 		SettlementMethod: input.SettlementMethod,
@@ -243,6 +251,9 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 	}
 	if entity == EntityServiceAcceptance {
 		return validateServiceAcceptanceDraft(input, result)
+	}
+	if entity == EntitySalesReceipt {
+		return validateSalesReceiptDraft(input, result)
 	}
 
 	switch entity {
@@ -309,7 +320,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, domainError(ErrorValidation, "fields do not match entity", nil, nil)
 		}
 		result.InventoryCountLines, err = validateInventoryCountLines(input.InventoryCountLines)
-	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt,
+	case EntityPurchaseRefund, EntityOtherReceipt,
 		EntitySalesRefund, EntityPurchasePayment, EntityOtherPayment, EntityEmployeeLoan, EntityEmployeeRepayment:
 		if err = requireOnlyDraftRefs(input, false, false, true, false, false, false, true, false, true, false); err != nil {
 			return validatedDraft{}, err
@@ -386,6 +397,74 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		return validatedDraft{}, domainError(ErrorValidation, "invalid document amount or lines", nil, err)
 	}
 	return result, nil
+}
+
+func validateSalesReceiptDraft(input DraftInput, result validatedDraft) (validatedDraft, error) {
+	if input.Supplier != nil || input.Counterparty != nil || strings.TrimSpace(input.CounterpartyType) != "" ||
+		input.Employee != nil || input.Salesperson != nil || input.Purchaser != nil || input.Warehouse != nil ||
+		input.MaterialWarehouse != nil || input.FinishedWarehouse != nil || input.Carrier != nil || input.Vehicle != nil ||
+		input.SettlementMethod != nil || strings.TrimSpace(input.SourceName) != "" || strings.TrimSpace(input.OtherCategory) != "" ||
+		strings.TrimSpace(input.SourceDocumentID) != "" || len(input.ProductLines) != 0 || len(input.PriceLines) != 0 ||
+		len(input.ExpenseLines) != 0 || len(input.SourceLines) != 0 || len(input.SignoffLines) != 0 ||
+		len(input.ReturnLines) != 0 || len(input.ProductionLines) != 0 || len(input.InventoryCountLines) != 0 ||
+		len(input.AssetAcquisitionLines) != 0 || len(input.AssetSaleLines) != 0 || len(input.AssetLiquidationLines) != 0 ||
+		len(input.BillLines) != 0 || len(input.BillCashLines) != 0 || input.InterestParty != nil ||
+		input.IntermediaryCalculation != nil || input.ServiceContract != nil || input.ServiceAcceptance != nil {
+		return validatedDraft{}, domainError(ErrorValidation, "fields do not match sales receipt", nil, nil)
+	}
+	if err := validateReference(input.Customer, "customer", true); err != nil {
+		return validatedDraft{}, err
+	}
+	if err := validateReference(input.OperatingEntity, "operatingEntity", true); err != nil {
+		return validatedDraft{}, err
+	}
+	if err := validateReference(input.FundAccount, "fundAccount", true); err != nil {
+		return validatedDraft{}, err
+	}
+	if err := validateReference(input.Handler, "handler", true); err != nil {
+		return validatedDraft{}, err
+	}
+	total, err := moneyCents(input.Amount)
+	if err != nil {
+		return validatedDraft{}, domainError(ErrorValidation, "invalid document amount or lines", nil, err)
+	}
+	allocations, err := validateSalesReceiptAccountAllocations(input.AccountAllocations, total)
+	if err != nil {
+		return validatedDraft{}, err
+	}
+	result.TotalAmount = total
+	result.AccountAllocations = allocations
+	return result, nil
+}
+
+func validateSalesReceiptAccountAllocations(
+	input []SalesReceiptAccountAllocationInput, total int64,
+) ([]fixedSalesReceiptAccountAllocation, error) {
+	if len(input) < 1 || len(input) > 200 {
+		return nil, domainError(ErrorValidation, "accountAllocations must contain 1 to 200 items", nil, nil)
+	}
+	seen := make(map[string]struct{}, len(input))
+	allocations := make([]fixedSalesReceiptAccountAllocation, 0, len(input))
+	var sum int64
+	for _, line := range input {
+		if err := validateReference(&line.Account, "account allocation", true); err != nil {
+			return nil, err
+		}
+		if _, exists := seen[line.Account.ObjectID]; exists {
+			return nil, domainError(ErrorValidation, "duplicate sales receipt account allocation", nil, nil)
+		}
+		amount, err := moneyCents(line.Amount)
+		if err != nil || sum > math.MaxInt64-amount {
+			return nil, domainError(ErrorValidation, "invalid sales receipt account allocation amount", nil, err)
+		}
+		seen[line.Account.ObjectID] = struct{}{}
+		sum += amount
+		allocations = append(allocations, fixedSalesReceiptAccountAllocation{Account: line.Account, Amount: amount})
+	}
+	if sum != total {
+		return nil, domainError(ErrorValidation, "sales receipt account allocations must equal amount", nil, nil)
+	}
+	return allocations, nil
 }
 
 func requireOnlyDraftRefs(

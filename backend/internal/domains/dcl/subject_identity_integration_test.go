@@ -26,7 +26,6 @@ func TestDclSubjectCodeInvariantsIntegration(t *testing.T) {
 		{entity: EntityProduct, validCode: "PRD-0001", invalidCode: "PRD-001"},
 		{entity: EntityEmployee, validCode: "EMP-0001", invalidCode: "CUS-0001"},
 		{entity: EntityCustomer, validCode: "CUS-0001", invalidCode: "ACC-0001"},
-		{entity: EntityCustomerAccount, validCode: "ACC-0001", invalidCode: "CUS-0001"},
 		{entity: EntitySupplier, validCode: "SUP-0001", invalidCode: "OTU-0001"},
 		{entity: EntityOtherUnit, validCode: "OTU-0001", invalidCode: "SUP-0001"},
 		{entity: EntitySalesPartner, validCode: "SLP-0001", invalidCode: "EMP-0001"},

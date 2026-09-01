@@ -18,11 +18,10 @@ func TestSynchronizeMenuRoutesInitializesCatalogAndIsIdempotent(t *testing.T) {
 	if err != nil || !menuContainsRoute(initialized.BusinessMenu, "app/menu") {
 		t.Fatalf("initialized menu = %+v, %v", initialized, err)
 	}
-	// The original functional-test baseline had 95 runtime routes because
-	// employee-category was missing. Restoring that AUX route makes the
-	// authoritative runtime surface 96 routes, including eight RPT instances.
-	if got := menuRouteTotal(initialized.BusinessMenu); got != 96 {
-		t.Fatalf("runtime menu route count = %d, want 96", got)
+	// The authoritative runtime surface has 94 routes after the independent
+	// DCL and BOB customer-account pages were retired, including eight RPT instances.
+	if got := menuRouteTotal(initialized.BusinessMenu); got != 94 {
+		t.Fatalf("runtime menu route count = %d, want 94", got)
 	}
 	if err = service.SynchronizeMenuRoutes(t.Context()); err != nil {
 		t.Fatalf("idempotent menu route synchronization: %v", err)

@@ -2,6 +2,7 @@ package productionseed
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -154,12 +155,26 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 		if err != nil {
 			return voudomain.ReferenceInput{}, fmt.Errorf("find BOB demo object %s: %w", code, err)
 		}
-		if entity == bobdomain.EntityCustomerAccount {
-			view, currentErr := s.bob.CustomerAccountCurrentGet(ctx, objectID)
+		if entity == bobdomain.EntityCustomer {
+			view, currentErr := s.bob.CustomerCurrentGet(ctx, objectID)
 			if currentErr != nil {
 				return voudomain.ReferenceInput{}, fmt.Errorf("get BOB demo object %s: %w", code, currentErr)
 			}
-			return voudomain.ReferenceInput{ObjectID: view.ObjectID, ApprovalEntryID: view.SourceApprovalEntryID}, nil
+			var data struct {
+				Accounts []struct {
+					AccountID string `json:"accountId"`
+					IsDefault bool   `json:"isDefault"`
+				} `json:"accounts"`
+			}
+			if err := json.Unmarshal(view.Data, &data); err != nil {
+				return voudomain.ReferenceInput{}, fmt.Errorf("decode BOB customer %s: %w", code, err)
+			}
+			for _, account := range data.Accounts {
+				if account.IsDefault && account.AccountID != "" {
+					return voudomain.ReferenceInput{ObjectID: account.AccountID, ApprovalEntryID: view.SourceApprovalEntryID}, nil
+				}
+			}
+			return voudomain.ReferenceInput{}, fmt.Errorf("BOB customer %s has no default account", code)
 		}
 		view, err := s.bob.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
 		if err != nil {
@@ -179,7 +194,7 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 		entity string
 		code   string
 	}{
-		{&refs.customer, bobdomain.EntityCustomerAccount, "DEMO-CUST-001"},
+		{&refs.customer, bobdomain.EntityCustomer, "DEMO-CUST-001"},
 		{&refs.supplier, bobdomain.EntitySupplier, "DEMO-SUP-003"},
 		{&refs.employee, bobdomain.EntityEmployee, "DEMO-EMP-001"},
 		{&refs.warehouse, bobdomain.EntityWarehouse, "DEMO-WH-001"},

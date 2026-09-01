@@ -111,27 +111,11 @@ interface VoucherView extends VoucherMutation {
   }
 }
 
-interface QueryPage<T> {
-  items: T[]
-  total: number
-}
-
-interface DclCustomerAccountListItem {
-  objectId: string
-  code: string
-  openVersion: {
-    approval: {
-      approvalEntryId: string
-      revision: number
-      status: string
-    }
-  } | null
-}
-
 interface ReferenceMutation {
   objectId: string
   approvalEntryId: string
   code?: string
+  customerId?: string
 }
 
 interface WflDefinition {
@@ -264,7 +248,6 @@ async function approveDcl(
     | 'vehicle'
     | 'employee'
     | 'customer'
-    | 'customer-account'
     | 'other-unit'
     | 'sales-partner',
   mutation: Mutation,
@@ -519,7 +502,11 @@ async function referenceByCode(
   entity: string,
   code: string,
 ): Promise<ReferenceMutation> {
-  if (['warehouse', 'vehicle', 'fund-account'].includes(entity)) {
+  if (
+    ['warehouse', 'vehicle', 'fund-account', 'operating-entity'].includes(
+      entity,
+    )
+  ) {
     const page = await api.ok<{
       items: Array<{
         objectId: string
@@ -552,21 +539,19 @@ async function referenceByCode(
   return candidate!
 }
 
-async function defaultCustomerAccount(
+async function defaultCustomerAccountReference(
   api: Api,
-  customerRelationshipId: string,
-): Promise<DclCustomerAccountListItem> {
-  const page = await api.ok<QueryPage<DclCustomerAccountListItem>>(
-    'dcl/customer-account/query',
-    {
-      page: 1,
-      pageSize: 20,
-      filters: { customerRelationshipId },
-      sort: [{ field: 'code', order: 'asc' }],
-    },
+  customerId: string,
+  keyword: string,
+): Promise<ReferenceMutation> {
+  const candidates = await api.ok<ReferenceMutation[]>('bob/reference/query', {
+    entity: 'customer-account',
+    keyword,
+  })
+  const account = candidates.find(
+    (candidate) => candidate.customerId === customerId,
   )
-  const account = page.items[0]
-  if (!account) throw new Error('客户创建未生成默认结算子账户。')
+  if (!account) throw new Error('客户批准后未生成可引用的默认核算账户。')
   return account
 }
 
@@ -575,7 +560,11 @@ async function createAttributedCustomer(
   reviewer: Api,
   facts: Awaited<ReturnType<typeof createApprovedSharedRelationships>>,
   suffix: string,
-): Promise<ReferenceMutation> {
+): Promise<{
+  customer: ReferenceMutation
+  account: ReferenceMutation
+}> {
+  const name = `E2E 渠道客户 ${suffix}`
   const paymentMethod = await operator.ok<AuxMutation>(
     'aux/payment-method/create',
     {
@@ -587,62 +576,58 @@ async function createAttributedCustomer(
     },
   )
   const created = await operator.ok<Mutation>('dcl/customer/create', {
-    newParty: {
+    data: {
       kind: 'ORGANIZATION',
-      legalName: `E2E 渠道客户 ${suffix}`,
+      legalName: name,
+      displayName: name,
       strongIdentifiers: [],
-    },
-    operatingEntityId: facts.operatingEntityId,
-    defaultAccount: {
-      name: `E2E 渠道客户 ${suffix}`,
-      customerTypeId: '01JAVX00000000000000000005',
-      settlementMethodId: facts.settlementMethodId,
-      paymentMethodId: paymentMethod.objectId,
-      defaultTransportMethodCode: 'SELF_PICKUP',
-      defaultTransportMethodName: '客户自提',
-      transportSurcharge: '0.00',
-      pricingPolicy: {
-        defaultPremiumUnitPrice: '0.00',
-        defaultDiscountUnitPrice: '0.00',
-        costItems: [],
-        thirdPartyIntermediaryFixedUnitCost: '0.00',
-        thirdPartyIntermediaryVariableUnitCost: '0.00',
-      },
-      creditLimits: [],
-      primarySalesAttribution: {
-        type: 'CHANNEL_PARTNER',
-        subjectObjectId: facts.salesPartner.objectId,
-      },
+      remittanceProfiles: [],
+      defaultOperatingEntityId: facts.operatingEntityId,
+      enabled: true,
+      accounts: [
+        {
+          enabled: true,
+          isDefault: true,
+          name,
+          customerTypeId: '01JAVX00000000000000000005',
+          settlementMethodId: facts.settlementMethodId,
+          paymentMethodId: paymentMethod.objectId,
+          defaultTransportMethodCode: 'SELF_PICKUP',
+          defaultTransportMethodName: '客户自提',
+          transportSurcharge: '0.00',
+          pricingPolicy: {
+            defaultPremiumUnitPrice: '0.00',
+            defaultDiscountUnitPrice: '0.00',
+            costItems: [],
+            thirdPartyIntermediaryFixedUnitCost: '0.00',
+            thirdPartyIntermediaryVariableUnitCost: '0.00',
+          },
+          creditLimits: [],
+          primarySalesAttribution: {
+            type: 'CHANNEL_PARTNER',
+            subjectObjectId: facts.salesPartner.objectId,
+          },
+        },
+      ],
     },
   })
-  await approveRelationshipParty(operator, reviewer, 'customer', created)
   const approvedCustomer = await approveDcl(
     operator,
     reviewer,
     'customer',
     created,
   )
-  const account = await defaultCustomerAccount(
+  const account = await defaultCustomerAccountReference(
     operator,
     approvedCustomer.objectId,
+    name,
   )
-  if (!account.openVersion) {
-    throw new Error('客户创建未返回待批准的默认账户版本。')
-  }
-  const submitted = await operator.ok<Mutation>('dcl/customer-account/submit', {
-    objectId: account.objectId,
-    approvalEntryId: account.openVersion.approval.approvalEntryId,
-    approvalRevision: account.openVersion.approval.revision,
-  })
-  const approved = await reviewer.ok<Mutation>('dcl/customer-account/approve', {
-    objectId: submitted.objectId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
   return {
-    objectId: approved.objectId,
-    approvalEntryId: approved.approval.approvalEntryId,
-    code: account.code,
+    customer: {
+      objectId: approvedCustomer.objectId,
+      approvalEntryId: approvedCustomer.approval.approvalEntryId,
+    },
+    account,
   }
 }
 
@@ -747,7 +732,10 @@ async function createCollectedSale(
   operator: Api,
   reviewer: Api,
   workerState: WflWorkerState,
-  customer: ReferenceMutation,
+  customer: {
+    customer: ReferenceMutation
+    account: ReferenceMutation
+  },
   suffix: string,
 ): Promise<{
   deliveryDocumentId: string
@@ -785,11 +773,16 @@ async function createCollectedSale(
     'fund-account',
     workerState.fixtures.fundAccount,
   )
+  const operatingEntity = await referenceByCode(
+    operator,
+    'operating-entity',
+    workerState.fixtures.operatingEntity,
+  )
   const order = await operator.ok<VoucherMutation>('vou/sale-order/create', {
     data: {
       businessDate,
       currency: 'CNY',
-      customer: reference(customer),
+      customer: reference(customer.account),
       salesperson: reference(employee),
       warehouse: reference(warehouse),
       productLines: [
@@ -809,7 +802,7 @@ async function createCollectedSale(
 outbound = node(key="outbound", name="渠道销售出库", entity="sale-outbound")
 delivery = node(key="delivery", name="渠道销售送货", entity="sale-delivery")
 signoff = node(key="signoff", name="渠道销售签收", entity="sale-signoff")
-workflow(code="${processCode}", name="${processCode}", root=order, when=lambda source: source["data"]["customer"]["objectId"] == "${customer.objectId}", edges=[
+workflow(code="${processCode}", name="${processCode}", root=order, when=lambda source: source["data"]["customer"]["objectId"] == "${customer.account.objectId}", edges=[
   edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial=lambda source: {
     "warehouseObjectId": "${warehouse.objectId}",
     "businessDate": source["data"]["businessDate"],
@@ -872,11 +865,17 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
       data: {
         businessDate,
         currency: 'CNY',
-        counterpartyType: 'customer-account',
-        counterparty: reference(customer),
+        customer: reference(customer.customer),
+        operatingEntity: reference(operatingEntity),
         fundAccount: reference(fundAccount),
         handler: reference(employee),
         amount: '100.00',
+        accountAllocations: [
+          {
+            account: reference(customer.account),
+            amount: '100.00',
+          },
+        ],
       },
     },
   )
@@ -948,63 +947,52 @@ async function createEmployeeAttributedCustomer(
     },
   )
   const created = await operator.ok<Mutation>('dcl/customer/create', {
-    newParty: {
+    data: {
       kind: 'ORGANIZATION',
       legalName: name,
+      displayName: name,
       strongIdentifiers: [],
-    },
-    operatingEntityId,
-    defaultAccount: {
-      name,
-      customerTypeId: '01JAVX00000000000000000005',
-      settlementMethodId,
-      paymentMethodId: paymentMethod.objectId,
-      defaultTransportMethodCode: 'SELF_PICKUP',
-      defaultTransportMethodName: '客户自提',
-      transportSurcharge: '0.00',
-      pricingPolicy: {
-        defaultPremiumUnitPrice: '0.00',
-        defaultDiscountUnitPrice: '0.00',
-        costItems: [],
-        thirdPartyIntermediaryFixedUnitCost: '0.00',
-        thirdPartyIntermediaryVariableUnitCost: '0.00',
-      },
-      creditLimits: [],
-      primarySalesAttribution: {
-        type: 'INTERNAL_EMPLOYEE',
-        subjectObjectId: employeeObjectId,
-      },
+      remittanceProfiles: [],
+      defaultOperatingEntityId: operatingEntityId,
+      enabled: true,
+      accounts: [
+        {
+          enabled: true,
+          isDefault: true,
+          name,
+          customerTypeId: '01JAVX00000000000000000005',
+          settlementMethodId,
+          paymentMethodId: paymentMethod.objectId,
+          defaultTransportMethodCode: 'SELF_PICKUP',
+          defaultTransportMethodName: '客户自提',
+          transportSurcharge: '0.00',
+          pricingPolicy: {
+            defaultPremiumUnitPrice: '0.00',
+            defaultDiscountUnitPrice: '0.00',
+            costItems: [],
+            thirdPartyIntermediaryFixedUnitCost: '0.00',
+            thirdPartyIntermediaryVariableUnitCost: '0.00',
+          },
+          creditLimits: [],
+          primarySalesAttribution: {
+            type: 'INTERNAL_EMPLOYEE',
+            subjectObjectId: employeeObjectId,
+          },
+        },
+      ],
     },
   })
-  await approveRelationshipParty(operator, reviewer, 'customer', created)
   const approvedCustomer = await approveDcl(
     operator,
     reviewer,
     'customer',
     created,
   )
-  const account = await defaultCustomerAccount(
+  return defaultCustomerAccountReference(
     operator,
     approvedCustomer.objectId,
+    name,
   )
-  if (!account.openVersion) {
-    throw new Error('客户创建未返回待批准的默认账户版本。')
-  }
-  const submitted = await operator.ok<Mutation>('dcl/customer-account/submit', {
-    objectId: account.objectId,
-    approvalEntryId: account.openVersion.approval.approvalEntryId,
-    approvalRevision: account.openVersion.approval.revision,
-  })
-  const approved = await reviewer.ok<Mutation>('dcl/customer-account/approve', {
-    objectId: submitted.objectId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
-  return {
-    objectId: approved.objectId,
-    approvalEntryId: approved.approval.approvalEntryId,
-    code: account.code,
-  }
 }
 
 async function createSaleOrderDraft(
@@ -1415,7 +1403,7 @@ test(
       }
       const firstEntityDraft = await createSaleOrderDraft(
         session.api,
-        customer,
+        customer.account,
         sharedWarehouse,
         product,
         sale.businessDate,
@@ -1488,7 +1476,7 @@ test(
           data: {
             businessDate: sale.businessDate,
             currency: 'CNY',
-            customer: reference(customer),
+            customer: reference(customer.account),
             salesperson: reference(salesperson),
             warehouse: reference(sharedWarehouse),
             productLines: [
@@ -1893,31 +1881,45 @@ test(
       ).json()) as Envelope<unknown>
       expect(String(rejectedEnvelope.code)).not.toBe('0')
 
-      // The rule is enforced by the real DCL Customer command, not client-side filtering.
+      // The rule is enforced by the real DCL Customer aggregate command, not
+      // client-side filtering. Customer and Sales Partner remain separate
+      // archives; matching typed identifiers only block self-attribution.
       const selfAttribution = await session.api.post('dcl/customer/create', {
-        partyId: facts.party.partyId,
-        operatingEntityId: facts.operatingEntityId,
-        defaultAccount: {
-          name: `E2E 自归属客户 ${suffix}`,
-          customerTypeId: '01JAVX00000000000000000005',
-          pricingPolicy: {
-            defaultPremiumUnitPrice: '0.00',
-            defaultDiscountUnitPrice: '0.00',
-            costItems: [],
-            thirdPartyIntermediaryFixedUnitCost: '0.00',
-            thirdPartyIntermediaryVariableUnitCost: '0.00',
-          },
-          creditLimits: [],
-          primarySalesAttribution: {
-            type: 'CHANNEL_PARTNER',
-            subjectObjectId: facts.salesPartner.objectId,
-          },
+        data: {
+          kind: 'ORGANIZATION',
+          legalName: `E2E 自归属客户 ${suffix}`,
+          strongIdentifiers: [
+            {
+              type: 'UNIFIED_SOCIAL_CREDIT_CODE',
+              value: `91310000${suffix}`,
+            },
+          ],
+          remittanceProfiles: [],
+          defaultOperatingEntityId: facts.operatingEntityId,
+          enabled: true,
+          accounts: [
+            {
+              enabled: true,
+              isDefault: true,
+              name: `E2E 自归属客户 ${suffix}`,
+              customerTypeId: '01JAVX00000000000000000005',
+              pricingPolicy: {
+                defaultPremiumUnitPrice: '0.00',
+                defaultDiscountUnitPrice: '0.00',
+                costItems: [],
+                thirdPartyIntermediaryFixedUnitCost: '0.00',
+                thirdPartyIntermediaryVariableUnitCost: '0.00',
+              },
+              creditLimits: [],
+              primarySalesAttribution: {
+                type: 'CHANNEL_PARTNER',
+                subjectObjectId: facts.salesPartner.objectId,
+              },
+            },
+          ],
         },
       })
       expect(String(selfAttribution.code)).not.toBe('0')
-      expect(selfAttribution.message).toBe(
-        'customer cannot attribute sales to its own Party',
-      )
 
       // A duplicate target creates a service-relationship conflict; the source
       // sales relationship moves while its approved contract keeps the same ID.

@@ -1,5 +1,3 @@
-import type { components } from '@/api/generated/schema'
-
 export type CustomerSalesAttributionType =
   'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
 export type CustomerCostCalculationBasis = 'UNIT_PRICE' | 'ORDER_AMOUNT'
@@ -12,6 +10,9 @@ export interface CustomerPricingCostItemForm {
 }
 
 export interface CustomerAccountForm {
+  accountId?: string
+  enabled: boolean
+  isDefault: boolean
   name: string
   shortName: string
   customerTypeId: string
@@ -31,7 +32,10 @@ export interface CustomerAccountForm {
     thirdPartyIntermediaryFixedUnitCost: string
     thirdPartyIntermediaryVariableUnitCost: string
   }
-  creditLimitAmount: string
+  creditLimits: Array<{
+    currency: string
+    amount: string
+  }>
   primarySalesAttribution: {
     type: CustomerSalesAttributionType
     subjectObjectId: string
@@ -39,13 +43,6 @@ export interface CustomerAccountForm {
   internalReminder: string
   defaultSalesOrderRemark: string
 }
-
-export type DclCustomerAccountListItem =
-  components['schemas']['DclCustomerAccountListItem']
-export type DclCustomerAccountView =
-  components['schemas']['DclCustomerAccountView']
-export type DclCustomerAttachmentView =
-  components['schemas']['DclCustomerAttachmentView']
 
 export const salesAttributionLabels: Readonly<
   Record<CustomerSalesAttributionType, string>

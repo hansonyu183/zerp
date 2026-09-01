@@ -29,7 +29,6 @@ func TestTypedRelationshipDraftIdentityDeletionDoesNotReuseCodeIntegration(t *te
 		entity string
 		prefix string
 	}{
-		{EntityCustomer, "CUS"},
 		{EntitySupplier, "SUP"},
 		{EntityOtherUnit, "OTU"},
 		{EntitySalesPartner, "SLP"},
@@ -79,30 +78,6 @@ func TestTypedRelationshipDraftIdentityDeletionDoesNotReuseCodeIntegration(t *te
 		}
 	})
 
-	t.Run(EntityCustomerAccount, func(t *testing.T) {
-		tx := beginIdentityTestTx(t, pool)
-		customer, err := reserveRelationshipIdentity(t.Context(), tx, EntityCustomer, "CUS", partyID, operatingID, actorID)
-		if err != nil {
-			t.Fatalf("reserve account owner: %v", err)
-		}
-		first, err := reserveCustomerAccountIdentity(t.Context(), tx, customer.ObjectID, actorID)
-		if err != nil {
-			t.Fatalf("reserve first account identity: %v", err)
-		}
-		deleted, deleteErr := dbsqlc.New(tx).DeleteDCLCustomerAccountRoot(t.Context(), first.ObjectID)
-		assertDeletedIdentityRoot(t, tx, EntityCustomerAccount, first.ObjectID, deleted, deleteErr)
-		second, err := reserveCustomerAccountIdentity(t.Context(), tx, customer.ObjectID, actorID)
-		if err != nil {
-			t.Fatalf("reserve replacement account identity: %v", err)
-		}
-		if second.Code == first.Code {
-			t.Fatalf("deleted draft code was reused: %s", first.Code)
-		}
-		if err = tx.Commit(t.Context()); err != nil {
-			t.Fatalf("commit account identity replacement: %v", err)
-		}
-	})
-
 	t.Run("merged-party-guard", func(t *testing.T) {
 		targetPartyID := ulid.Make().String()
 		if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'party',NULL,$2)`, targetPartyID, actorID); err != nil {
@@ -124,8 +99,6 @@ func TestTypedRelationshipDraftIdentityDeletionDoesNotReuseCodeIntegration(t *te
 func deleteRelationshipIdentityRoot(t *testing.T, q *dbsqlc.Queries, entity, objectID string) (int64, error) {
 	t.Helper()
 	switch entity {
-	case EntityCustomer:
-		return q.DeleteDCLCustomerRelationship(t.Context(), objectID)
 	case EntitySupplier:
 		return q.DeleteDCLSupplierRelationship(t.Context(), objectID)
 	case EntityOtherUnit:

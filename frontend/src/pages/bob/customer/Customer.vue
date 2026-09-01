@@ -14,11 +14,11 @@ const { rememberTrigger, setDrawerContent } = useDetailDrawerFocus(
 )
 const columns: readonly BusinessObjectColumn<BobCustomerListItem>[] = [
   { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
-  { key: 'party', label: '主体', value: (row) => row.partyDisplayName },
+  { key: 'name', label: '名称', value: (row) => row.displayName },
   {
     key: 'operatingEntity',
     label: '经营主体',
-    value: (row) => `${row.operatingEntityCode} · ${row.operatingEntityName}`,
+    value: (row) => `${row.defaultOperatingEntityCode} · ${row.defaultOperatingEntityName}`,
   },
   {
     key: 'enabled',
@@ -100,17 +100,18 @@ function openDetail(objectId: string): void {
         <v-list density="compact">
           <v-list-item title="编码" :subtitle="vm.currentView.code" />
           <v-list-item
-            title="主体"
-            :subtitle="vm.currentView.partyDisplayName"
+            title="名称"
+            :subtitle="vm.currentView.data.displayName"
           />
           <v-list-item
             title="经营主体"
-            :subtitle="`${vm.currentView.operatingEntityCode} · ${vm.currentView.operatingEntityName}`"
+            :subtitle="`${vm.currentView.data.defaultOperatingEntity.code} · ${vm.currentView.data.defaultOperatingEntity.name}`"
           />
           <v-list-item
             title="状态"
-            :subtitle="vm.currentView.enabled ? '启用' : '禁用'"
+            :subtitle="vm.currentView.data.enabled ? '启用' : '禁用'"
           />
+          <v-list-item title="结算账户数" :subtitle="String(vm.currentView.data.accounts.length)" />
         </v-list>
         <v-card-actions
           ><v-spacer /><v-btn

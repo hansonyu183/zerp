@@ -50,8 +50,6 @@ func reserveRelationshipIdentity(ctx context.Context, tx pgx.Tx, entity, prefix,
 		return bobdomain.RelationshipIdentity{}, err
 	}
 	switch entity {
-	case EntityCustomer:
-		err = q.InsertDCLCustomerRelationship(ctx, dbsqlc.InsertDCLCustomerRelationshipParams{ObjectID: subject.ObjectID, PartyID: partyID, OperatingEntityID: operatingEntityID})
 	case EntitySupplier:
 		err = q.InsertDCLSupplierRelationship(ctx, dbsqlc.InsertDCLSupplierRelationshipParams{ObjectID: subject.ObjectID, PartyID: partyID, OperatingEntityID: operatingEntityID})
 	case EntityOtherUnit:
@@ -109,9 +107,6 @@ func lockRelationshipIdentity(ctx context.Context, tx pgx.Tx, entity, objectID s
 	var partyID, operatingEntityID string
 	var merged bool
 	switch entity {
-	case EntityCustomer:
-		row, getErr := q.GetDCLCustomerRelationship(ctx, objectID)
-		err, partyID, operatingEntityID, merged = getErr, row.PartyID, row.OperatingEntityID, row.MergedIntoObjectID != nil
 	case EntitySupplier:
 		row, getErr := q.GetDCLSupplierRelationship(ctx, objectID)
 		err, partyID, operatingEntityID, merged = getErr, row.PartyID, row.OperatingEntityID, row.MergedIntoObjectID != nil
@@ -182,30 +177,4 @@ func lockEmployeeIdentity(ctx context.Context, tx pgx.Tx, objectID string) (bobd
 		return bobdomain.EmployeeIdentity{}, newError(ErrorConflict, "relationship_merged", "Employee relationship has been merged", nil, nil)
 	}
 	return bobdomain.EmployeeIdentity{ObjectID: subject.ObjectID, Code: subject.Code, PartyID: row.PartyID, OperatingEntityID: row.OperatingEntityID}, nil
-}
-
-func reserveCustomerAccountIdentity(ctx context.Context, tx pgx.Tx, relationshipID, actorID string) (bobdomain.RelationshipIdentity, error) {
-	if _, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, relationshipID); err != nil {
-		return bobdomain.RelationshipIdentity{}, err
-	}
-	subject, err := reserveSubject(ctx, tx, EntityCustomerAccount, "ACC", actorID)
-	if err != nil {
-		return bobdomain.RelationshipIdentity{}, err
-	}
-	if err = dbsqlc.New(tx).InsertDCLCustomerAccountRoot(ctx, dbsqlc.InsertDCLCustomerAccountRootParams{ObjectID: subject.ObjectID, CustomerRelationshipID: relationshipID}); err != nil {
-		return bobdomain.RelationshipIdentity{}, err
-	}
-	return bobdomain.RelationshipIdentity{ObjectID: subject.ObjectID, Code: subject.Code}, nil
-}
-
-func lockCustomerAccountIdentity(ctx context.Context, tx pgx.Tx, objectID string) (bobdomain.RelationshipIdentity, string, error) {
-	subject, err := lockSubject(ctx, tx, EntityCustomerAccount, objectID)
-	if err != nil {
-		return bobdomain.RelationshipIdentity{}, "", err
-	}
-	row, err := dbsqlc.New(tx).GetDCLCustomerAccountRoot(ctx, objectID)
-	if err != nil {
-		return bobdomain.RelationshipIdentity{}, "", err
-	}
-	return bobdomain.RelationshipIdentity{ObjectID: subject.ObjectID, Code: subject.Code}, row.CustomerRelationshipID, nil
 }

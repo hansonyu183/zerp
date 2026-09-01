@@ -51,7 +51,6 @@ func TestWorkbenchIncludesDCLDeclarationLifecycles(t *testing.T) {
 		"/dcl/other-unit/query", "/dcl/other-unit/submit",
 		"/dcl/sales-partner/query", "/dcl/sales-partner/submit",
 		"/dcl/customer/query", "/dcl/customer/submit",
-		"/dcl/customer-account/query", "/dcl/customer-account/submit",
 		"/dcl/acc-mapping/query", "/dcl/acc-mapping/submit",
 		"/dcl/rpt-definition/query", "/dcl/rpt-definition/submit",
 		"/dcl/wfl-process-definition/query", "/dcl/wfl-process-definition/submit",
@@ -59,7 +58,7 @@ func TestWorkbenchIncludesDCLDeclarationLifecycles(t *testing.T) {
 	entities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "submit")
 	})
-	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account", "acc-mapping", "rpt-definition", "wfl-process-definition"}) {
+	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner", "customer", "acc-mapping", "rpt-definition", "wfl-process-definition"}) {
 		t.Fatalf("DCL submit entities = %v", entities)
 	}
 	legacyScope := newWorkbenchPermissionScope([]string{"/bob/party/query", "/bob/party/submit"})

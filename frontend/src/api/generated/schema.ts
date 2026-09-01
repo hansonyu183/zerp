@@ -886,102 +886,6 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
     };
   };
-  "/dcl/customer-account/query": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclCustomerAccountQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclCustomerAccountQueryResponse } } };
-    };
-  };
-  "/dcl/customer-account/get": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclCustomerAccountViewResponse } } };
-    };
-  };
-  "/dcl/customer-account/create": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclCustomerAccountCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
-    };
-  };
-  "/dcl/customer-account/save": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclCustomerAccountSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
-    };
-  };
-  "/dcl/customer-account/submit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
-    };
-  };
-  "/dcl/customer-account/unsubmit": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
-    };
-  };
-  "/dcl/customer-account/reject": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
-    };
-  };
-  "/dcl/customer-account/approve": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
-    };
-  };
-  "/dcl/customer-account/unapprove": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
-    };
-  };
-  "/dcl/customer-account/delete": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
-    };
-  };
-  "/dcl/customer-account/versions": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclCustomerAccountVersionPageResponse } } };
-    };
-  };
-  "/dcl/customer-account/audit-history": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
-    };
-  };
   "/dcl/customer/attachment-initiate": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1942,22 +1846,6 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.BobCustomerGetResponse } } };
     };
   };
-  "/bob/customer-account/query": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobCustomerAccountQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobCustomerAccountQueryResponse } } };
-    };
-  };
-  "/bob/customer-account/get": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobGetRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobCustomerAccountGetResponse } } };
-    };
-  };
   "/bob/supplier/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -2640,37 +2528,33 @@ export interface components {
       "DclOtherUnitVersionPage": Models.DclOtherUnitVersionPage;
       "DclOtherUnitVersionPageResponse": Models.DclOtherUnitVersionPageResponse;
       "DclCustomerQueryRequest": Models.DclCustomerQueryRequest;
-      "DclCustomerAttachmentView": Models.DclCustomerAttachmentView;
-      "DclCustomerVersionView": Models.DclCustomerVersionView;
+      "DclCustomerVersionSummary": Models.DclCustomerVersionSummary;
       "DclCustomerListItem": Models.DclCustomerListItem;
       "DclCustomerQueryPage": Models.DclCustomerQueryPage;
       "DclCustomerQueryResponse": Models.DclCustomerQueryResponse;
-      "DclCustomerView": Models.DclCustomerView;
-      "DclCustomerViewResponse": Models.DclCustomerViewResponse;
+      "BusinessIdentityKind": Models.BusinessIdentityKind;
+      "BusinessIdentifierType": Models.BusinessIdentifierType;
+      "BusinessIdentifier": Models.BusinessIdentifier;
+      "DclCustomerRemittanceProfile": Models.DclCustomerRemittanceProfile;
+      "DclCustomerSnapshot": Models.DclCustomerSnapshot;
+      "DclCustomerAuxiliarySnapshot": Models.DclCustomerAuxiliarySnapshot;
       "DclCustomerPricingCostItem": Models.DclCustomerPricingCostItem;
       "DclCustomerPricingPolicy": Models.DclCustomerPricingPolicy;
       "DclCustomerCreditLimit": Models.DclCustomerCreditLimit;
+      "DclCustomerSalesAttributionSnapshot": Models.DclCustomerSalesAttributionSnapshot;
+      "DclCustomerAttachmentView": Models.DclCustomerAttachmentView;
+      "DclCustomerAccountData": Models.DclCustomerAccountData;
+      "DclCustomerData": Models.DclCustomerData;
+      "DclCustomerView": Models.DclCustomerView;
+      "DclCustomerViewResponse": Models.DclCustomerViewResponse;
       "DclCustomerSalesAttributionInput": Models.DclCustomerSalesAttributionInput;
       "DclCustomerAccountInput": Models.DclCustomerAccountInput;
+      "DclCustomerInput": Models.DclCustomerInput;
       "DclCustomerCreateRequest": Models.DclCustomerCreateRequest;
       "DclCustomerSaveRequest": Models.DclCustomerSaveRequest;
+      "DclCustomerVersionView": Models.DclCustomerVersionView;
       "DclCustomerVersionPage": Models.DclCustomerVersionPage;
       "DclCustomerVersionPageResponse": Models.DclCustomerVersionPageResponse;
-      "DclCustomerAccountQueryRequest": Models.DclCustomerAccountQueryRequest;
-      "DclCustomerAuxiliarySnapshot": Models.DclCustomerAuxiliarySnapshot;
-      "DclCustomerSnapshot": Models.DclCustomerSnapshot;
-      "DclCustomerSalesAttributionSnapshot": Models.DclCustomerSalesAttributionSnapshot;
-      "DclCustomerAccountData": Models.DclCustomerAccountData;
-      "DclCustomerAccountVersionView": Models.DclCustomerAccountVersionView;
-      "DclCustomerAccountListItem": Models.DclCustomerAccountListItem;
-      "DclCustomerAccountQueryPage": Models.DclCustomerAccountQueryPage;
-      "DclCustomerAccountQueryResponse": Models.DclCustomerAccountQueryResponse;
-      "DclCustomerAccountView": Models.DclCustomerAccountView;
-      "DclCustomerAccountViewResponse": Models.DclCustomerAccountViewResponse;
-      "DclCustomerAccountCreateRequest": Models.DclCustomerAccountCreateRequest;
-      "DclCustomerAccountSaveRequest": Models.DclCustomerAccountSaveRequest;
-      "DclCustomerAccountVersionPage": Models.DclCustomerAccountVersionPage;
-      "DclCustomerAccountVersionPageResponse": Models.DclCustomerAccountVersionPageResponse;
       "DclCustomerAttachmentScope": Models.DclCustomerAttachmentScope;
       "DclCustomerAttachmentInitiateRequest": Models.DclCustomerAttachmentInitiateRequest;
       "DclCustomerAttachmentInitiateResult": Models.DclCustomerAttachmentInitiateResult;
@@ -2899,14 +2783,9 @@ export interface components {
       "BobCustomerQueryRequest": Models.BobCustomerQueryRequest;
       "BobCustomerListItem": Models.BobCustomerListItem;
       "BobCustomerQueryResponse": Models.BobCustomerQueryResponse;
+      "BobCustomerAttachmentView": Models.BobCustomerAttachmentView;
       "BobCustomerCurrentView": Models.BobCustomerCurrentView;
       "BobCustomerGetResponse": Models.BobCustomerGetResponse;
-      "BobCustomerAccountQueryRequest": Models.BobCustomerAccountQueryRequest;
-      "BobCustomerAccountListItem": Models.BobCustomerAccountListItem;
-      "BobCustomerAccountQueryResponse": Models.BobCustomerAccountQueryResponse;
-      "BobCustomerAttachmentView": Models.BobCustomerAttachmentView;
-      "BobCustomerAccountCurrentView": Models.BobCustomerAccountCurrentView;
-      "BobCustomerAccountGetResponse": Models.BobCustomerAccountGetResponse;
       "BobReferenceQueryRequest": Models.BobReferenceQueryRequest;
       "ReferenceCandidate": Models.ReferenceCandidate;
       "ReferenceQueryResponse": Models.ReferenceQueryResponse;
@@ -2924,6 +2803,7 @@ export interface components {
       "BusinessEnvelope": Models.BusinessEnvelope;
       "VouUnitSnapshotView": Models.VouUnitSnapshotView;
       "VouReferenceView": Models.VouReferenceView;
+      "VouSalesReceiptAccountAllocationView": Models.VouSalesReceiptAccountAllocationView;
       "VouQuantitySnapshotView": Models.VouQuantitySnapshotView;
       "VouFormulaView": Models.VouFormulaView;
       "VouProductLineView": Models.VouProductLineView;

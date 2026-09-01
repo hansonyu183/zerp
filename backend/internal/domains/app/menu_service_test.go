@@ -44,7 +44,6 @@ func TestDCLMenuDisplayNameKeepsOnlyObjectName(t *testing.T) {
 		{"party", "查询主体声明", "主体"},
 		{"operating-entity", "查询经营主体申报", "经营主体"},
 		{"employee", "查询员工声明", "人员"},
-		{"customer-account", "查询客户账户声明", "客户结算子账户"},
 		{"wfl-process-definition", "查询流程定义声明", "流程定义"},
 	}
 	for _, tc := range cases {

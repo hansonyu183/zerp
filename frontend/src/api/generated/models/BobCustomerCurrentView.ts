@@ -2,19 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { PartyKind } from './PartyKind';
+import type { BobCustomerAttachmentView } from './BobCustomerAttachmentView';
+import type { DclCustomerData } from './DclCustomerData';
 export type BobCustomerCurrentView = {
   objectId: string;
   code: string;
-  partyId: string;
-  partyKind: PartyKind;
-  partyDisplayName: string;
-  operatingEntityId: string;
-  operatingEntityApprovalEntryId: string;
-  operatingEntityCode: string;
-  operatingEntityName: string;
-  enabled: boolean;
   sourceApprovalEntryId: string;
   sourceVersionNo: number;
+  data: DclCustomerData;
+  attachments: Array<BobCustomerAttachmentView>;
   updatedAt: string;
 };

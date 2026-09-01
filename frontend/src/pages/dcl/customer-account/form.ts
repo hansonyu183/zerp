@@ -4,6 +4,8 @@ const decimalPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/
 
 export function createCustomerAccountForm(): CustomerAccountForm {
   return {
+    enabled: true,
+    isDefault: true,
     name: '',
     shortName: '',
     customerTypeId: '01JAVX00000000000000000005',
@@ -23,7 +25,7 @@ export function createCustomerAccountForm(): CustomerAccountForm {
       thirdPartyIntermediaryFixedUnitCost: '0.00',
       thirdPartyIntermediaryVariableUnitCost: '0.00',
     },
-    creditLimitAmount: '',
+    creditLimits: [],
     primarySalesAttribution: {
       type: 'INTERNAL_EMPLOYEE',
       subjectObjectId: '',
@@ -67,8 +69,15 @@ export function customerAccountFormErrors(form: CustomerAccountForm): string[] {
     if (!decimalPattern.test(value.trim()))
       errors.push(`${label}必须是非负且最多两位小数的金额。`)
   }
-  if (form.creditLimitAmount && !decimalPattern.test(form.creditLimitAmount))
-    errors.push('信用额度必须是非负且最多两位小数的金额。')
+  const currencies = new Set<string>()
+  for (const limit of form.creditLimits) {
+    const currency = limit.currency.trim().toUpperCase()
+    if (!/^[A-Z]{3}$/.test(currency)) errors.push('信用额度币种必须是三个大写字母。')
+    else if (currencies.has(currency)) errors.push(`信用额度币种“${currency}”重复。`)
+    currencies.add(currency)
+    if (!decimalPattern.test(limit.amount.trim()))
+      errors.push(`${currency || '未指定币种'}信用额度必须是非负且最多两位小数的金额。`)
+  }
   const names = new Set<string>()
   for (const item of sortedCostItems(form.pricingPolicy.costItems)) {
     if (!item.name) errors.push('请填写成本名称。')

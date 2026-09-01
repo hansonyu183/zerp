@@ -14,7 +14,6 @@ export type DclDeclarationEntity =
   | 'product'
   | 'employee'
   | 'customer'
-  | 'customer-account'
   | 'supplier'
   | 'other-unit'
   | 'sales-partner'
@@ -96,7 +95,6 @@ export function isDclDeclarationEntity(
     entity === 'product' ||
     entity === 'employee' ||
     entity === 'customer' ||
-    entity === 'customer-account' ||
     entity === 'supplier' ||
     entity === 'other-unit' ||
     entity === 'sales-partner' ||

@@ -15,12 +15,14 @@ import (
 
 type resolvedDraft struct {
 	Customer, Supplier, Counterparty, Employee, FundAccount, InterestParty *bobdomain.EffectiveReference
+	OperatingEntity                                                        *bobdomain.EffectiveReference
 	Salesperson, Purchaser, Handler, Warehouse                             *bobdomain.EffectiveReference
 	CustomerSettlement, SupplierSettlement                                 *bobdomain.EffectiveReference
 	Settlement                                                             *bobdomain.EffectiveReference
 	Products                                                               []bobdomain.EffectiveReference
 	FormulaMaterials                                                       [][]bobdomain.EffectiveReference
 	BillFunds                                                              []bobdomain.EffectiveReference
+	AccountAllocations                                                     []bobdomain.EffectiveReference
 }
 
 func (s *Service) loadPreservedReferences(
@@ -51,11 +53,15 @@ func (s *Service) loadPreservedReferences(
 		Customer: fromView(data.Customer), Supplier: fromView(data.Supplier), Counterparty: fromView(data.Counterparty),
 		Employee: fromView(data.Employee), Salesperson: fromView(data.Salesperson), Purchaser: fromView(data.Purchaser),
 		Handler: fromView(data.Handler), Warehouse: fromView(data.Warehouse), FundAccount: fromView(data.FundAccount),
-		InterestParty: fromView(data.InterestParty), Settlement: fromSettlement(data.SettlementMethod),
+		OperatingEntity: fromView(data.OperatingEntity),
+		InterestParty:   fromView(data.InterestParty), Settlement: fromSettlement(data.SettlementMethod),
 		CustomerSettlement: fromSettlement(data.CustomerSettlementMethod), SupplierSettlement: fromSettlement(data.SupplierSettlementMethod),
 	}
 	for _, line := range data.BillCashLines {
 		result.BillFunds = append(result.BillFunds, *fromView(&line.FundAccount))
+	}
+	for _, line := range data.AccountAllocations {
+		result.AccountAllocations = append(result.AccountAllocations, *fromView(&line.Account))
 	}
 	return result, nil
 }
@@ -69,7 +75,7 @@ func (s *Service) resolveDraft(
 	allowPersonnelDefaults bool,
 ) (resolvedDraft, error) {
 	var result resolvedDraft
-	if err := s.resolveDraftParties(ctx, tx, draft, preserved, allowPersonnelDefaults, &result); err != nil {
+	if err := s.resolveDraftParties(ctx, tx, entity, draft, preserved, allowPersonnelDefaults, &result); err != nil {
 		return result, err
 	}
 	if err := s.resolveDraftPersonnel(
@@ -79,6 +85,11 @@ func (s *Service) resolveDraft(
 	}
 	if err := s.resolveDraftAccounts(ctx, tx, draft, preserved, allowPersonnelDefaults, &result); err != nil {
 		return result, err
+	}
+	if entity == EntitySalesReceipt {
+		if err := s.resolveSalesReceiptAllocations(ctx, tx, draft, preserved, allowPersonnelDefaults, &result); err != nil {
+			return result, err
+		}
 	}
 	if err := s.resolveDraftSettlements(ctx, tx, entity, preserved, &result); err != nil {
 		return result, err
@@ -690,7 +701,30 @@ func (s *Service) validateStoredAttributes(
 			return s.internal("read purchase inbound lines", lineErr)
 		}
 		missing = detail.WarehouseObjectID == "" || len(lines) == 0
-	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt:
+		document, err := q.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: documentID, Entity: entity})
+		if err != nil {
+			return s.internal("read sales receipt document", err)
+		}
+		detail, err := q.GetVouSalesReceiptDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read sales receipt attributes", err)
+		}
+		allocations, err := q.ListVouSalesReceiptAccountAllocations(ctx, documentID)
+		if err != nil {
+			return s.internal("read sales receipt allocations", err)
+		}
+		var total int64
+		for _, allocation := range allocations {
+			if allocation.AmountCents <= 0 || total > math.MaxInt64-allocation.AmountCents {
+				return domainError(ErrorConflict, "sales receipt allocation snapshot is invalid", nil, nil)
+			}
+			total += allocation.AmountCents
+		}
+		missing = detail.CustomerObjectID == "" || detail.CustomerApprovalEntryID == "" ||
+			detail.OperatingEntityObjectID == "" || detail.OperatingEntityApprovalEntryID == "" ||
+			detail.HandlerObjectID == nil || len(allocations) == 0 || total != document.VouDocument.TotalAmountCents
+	case EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, documentID)
 		if err != nil {
 			return s.internal("read receipt attributes", err)

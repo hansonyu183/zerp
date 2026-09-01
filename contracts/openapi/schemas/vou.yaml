@@ -1389,6 +1389,43 @@
                           'approvalEntryId': { 'type': 'string' },
                         },
                     },
+                  'operatingEntity':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'approvalEntryId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
+                        },
+                    },
+                  'accountAllocations':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'items':
+                        {
+                          'type': 'object',
+                          'required': ['account', 'amount'],
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'account':
+                                {
+                                  'type': 'object',
+                                  'required': ['objectId', 'approvalEntryId'],
+                                  'additionalProperties': false,
+                                  'properties':
+                                    {
+                                      'objectId': { 'type': 'string' },
+                                      'approvalEntryId': { 'type': 'string' },
+                                    },
+                                },
+                              'amount': { 'type': 'string' },
+                            },
+                        },
+                    },
                   'supplier':
                     {
                       'type': 'object',
@@ -1790,6 +1827,43 @@
                         {
                           'objectId': { 'type': 'string' },
                           'approvalEntryId': { 'type': 'string' },
+                        },
+                    },
+                  'operatingEntity':
+                    {
+                      'type': 'object',
+                      'required': ['objectId', 'approvalEntryId'],
+                      'additionalProperties': false,
+                      'properties':
+                        {
+                          'objectId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
+                        },
+                    },
+                  'accountAllocations':
+                    {
+                      'type': 'array',
+                      'minItems': 1,
+                      'items':
+                        {
+                          'type': 'object',
+                          'required': ['account', 'amount'],
+                          'additionalProperties': false,
+                          'properties':
+                            {
+                              'account':
+                                {
+                                  'type': 'object',
+                                  'required': ['objectId', 'approvalEntryId'],
+                                  'additionalProperties': false,
+                                  'properties':
+                                    {
+                                      'objectId': { 'type': 'string' },
+                                      'approvalEntryId': { 'type': 'string' },
+                                    },
+                                },
+                              'amount': { 'type': 'string' },
+                            },
                         },
                     },
                   'supplier':
@@ -2590,6 +2664,11 @@
           'entity': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
+          'customerId':
+            {
+              'type': 'string',
+              'description': '客户核算账户所属 Customer 根对象 ID；仅 customer-account 引用返回。',
+            },
           'unit': { 'type': 'string' },
           'currency': { 'type': 'string' },
           'plateNumber': { 'type': 'string' },
@@ -3039,6 +3118,12 @@
           'returnKind': { 'type': 'string', 'enum': ['REFUSAL', 'AFTER_SALE'] },
           'specialApproval': { 'type': 'boolean' },
           'customer': { '$ref': '#/VouReferenceView' },
+          'operatingEntity': { '$ref': '#/VouReferenceView' },
+          'accountAllocations':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouSalesReceiptAccountAllocationView' },
+            },
           'supplier': { '$ref': '#/VouReferenceView' },
           'counterparty': { '$ref': '#/VouReferenceView' },
           'employee': { '$ref': '#/VouReferenceView' },
@@ -3119,6 +3204,17 @@
           'returnedSolventContainers': { 'type': 'integer', 'format': 'int64' },
           'returnedResinContainers': { 'type': 'integer', 'format': 'int64' },
           'containerDifferenceReason': { 'type': 'string' },
+        },
+    },
+  'VouSalesReceiptAccountAllocationView':
+    {
+      'type': 'object',
+      'required': ['account', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'account': { '$ref': '#/VouReferenceView' },
+          'amount': { 'type': 'string' },
         },
     },
   'VouDocumentView':

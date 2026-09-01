@@ -235,7 +235,33 @@ func (s *Service) loadData(
 			data.InventoryCountLines = append(data.InventoryCountLines, item)
 		}
 		return data, nil
-	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt:
+		detail, err := q.GetVouSalesReceiptDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.Customer = reference(detail.CustomerObjectID, detail.CustomerApprovalEntryID, bobdomain.EntityCustomer,
+			detail.CustomerCode, detail.CustomerName, "", "", "")
+		data.OperatingEntity = reference(detail.OperatingEntityObjectID, detail.OperatingEntityApprovalEntryID, bobdomain.EntityOperatingEntity,
+			detail.OperatingEntityCode, detail.OperatingEntityName, "", "", "")
+		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
+			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
+		data.Handler = optionalReference(detail.HandlerObjectID, detail.HandlerApprovalEntryID, "employee", detail.HandlerCode, detail.HandlerName)
+		allocations, err := q.ListVouSalesReceiptAccountAllocations(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.AccountAllocations = make([]SalesReceiptAccountAllocationView, 0, len(allocations))
+		for _, allocation := range allocations {
+			account := reference(allocation.AccountObjectID, allocation.AccountApprovalEntryID, bobdomain.EntityCustomerAccount,
+				allocation.AccountCode, allocation.AccountName, "", "", "")
+			account.CustomerID = detail.CustomerObjectID
+			data.AccountAllocations = append(data.AccountAllocations, SalesReceiptAccountAllocationView{
+				Account: *account,
+				Amount:  formatMoney(allocation.AmountCents),
+			})
+		}
+	case EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, document.ID)
 		if err != nil {
 			return data, err

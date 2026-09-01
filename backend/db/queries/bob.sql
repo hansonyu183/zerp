@@ -118,14 +118,6 @@ WHERE subject.entity='operating-entity' AND snapshot.enabled
 ORDER BY subject.code
 LIMIT 200;
 
--- name: ListBobCustomerAccountObjects :many
-SELECT subject.id,subject.entity,subject.code,0::bigint AS revision,true AS enabled,
-       subject.created_at,subject.created_by,subject.created_at AS updated_at,subject.created_by AS updated_by
-FROM dcl_customer_accounts account
-JOIN dcl_subjects subject ON subject.id=account.object_id AND subject.entity='customer-account'
-WHERE account.customer_relationship_id=sqlc.arg(customer_relationship_id)
-ORDER BY subject.code;
-
 -- name: GetDCLSupplierOpenEntry :one
 SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at,
        submitted_by, submitted_at, approved_by, approved_at
@@ -142,45 +134,38 @@ JOIN dcl_supplier_versions p ON p.approval_entry_id=e.id WHERE p.default_purchas
 -- Typed lifecycle blockers read only the latest approved DCL snapshots. Open
 -- candidates and historical snapshots must never create a blocker.
 -- name: ListCustomerSalesReferencesForEmployee :many
-SELECT subject.id AS object_id,subject.entity,'customer-sales'::text AS role
-FROM dcl_subjects subject
-JOIN dcl_customer_accounts account ON account.object_id=subject.id
+SELECT root.customer_id AS object_id,'customer'::text AS entity,'customer-sales'::text AS role
+FROM dcl_customer_account_roots root
 JOIN LATERAL (
-  SELECT id FROM approval_entries
-  WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED'
+  SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_account_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE subject.entity='customer-account' AND snapshot.enabled
-  AND snapshot.primary_sales_subject_id=sqlc.narg(source_object_id)
-  AND snapshot.primary_sales_attribution_type='INTERNAL_EMPLOYEE';
+JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+WHERE line.enabled AND line.data->'primarySalesAttribution'->>'subjectObjectId'=sqlc.narg(source_object_id)::text
+  AND line.data->'primarySalesAttribution'->>'type'='INTERNAL_EMPLOYEE';
 -- name: ListCustomerSalesReferencesForSalesPartner :many
-SELECT subject.id AS object_id,subject.entity,
-       CASE snapshot.primary_sales_attribution_type
+SELECT root.customer_id AS object_id,'customer'::text AS entity,
+       CASE line.data->'primarySalesAttribution'->>'type'
          WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales' ELSE 'customer-channel-sales' END::text AS role
-FROM dcl_subjects subject
-JOIN dcl_customer_accounts account ON account.object_id=subject.id
+FROM dcl_customer_account_roots root
 JOIN LATERAL (
-  SELECT id FROM approval_entries
-  WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED'
+  SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_account_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE subject.entity='customer-account' AND snapshot.enabled
-  AND snapshot.primary_sales_subject_id=sqlc.narg(source_object_id)
-  AND snapshot.primary_sales_attribution_type IN ('EXTERNAL_PART_TIME','CHANNEL_PARTNER');
+JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+WHERE line.enabled AND line.data->'primarySalesAttribution'->>'subjectObjectId'=sqlc.narg(source_object_id)::text
+  AND line.data->'primarySalesAttribution'->>'type' IN ('EXTERNAL_PART_TIME','CHANNEL_PARTNER');
 -- name: ListCustomerOperatingReferences :many
 SELECT subject.id AS object_id,subject.entity,'customer-operating'::text AS role
 FROM dcl_subjects subject
-JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id
 JOIN LATERAL (
   SELECT id FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
 JOIN dcl_customer_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE subject.entity='customer' AND snapshot.enabled AND relationship.merged_into_object_id IS NULL
-  AND relationship.operating_entity_id=sqlc.narg(source_object_id);
+WHERE subject.entity='customer' AND snapshot.enabled
+  AND snapshot.data->'defaultOperatingEntity'->>'sourceObjectId'=sqlc.narg(source_object_id)::text;
 -- name: ListWarehouseManagerReferencesForEmployee :many
 SELECT subject.id AS object_id,subject.entity,'warehouse-manager'::text AS role FROM dcl_subjects subject
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
@@ -236,82 +221,37 @@ SELECT subject.id AS object_id,subject.entity,'formula-material'::text AS role F
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_product_formula_lines p ON p.product_approval_entry_id=e.id WHERE p.material_object_id=sqlc.arg(source_object_id);
 
--- #287 DCL Customer relationship declaration payload.
+-- Customer owns one full aggregate snapshot per approval entry.
 -- name: InsertDCLCustomerVersion :exec
-INSERT INTO dcl_customer_versions(approval_entry_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled)
-VALUES(sqlc.arg(approval_entry_id),sqlc.arg(operating_entity_approval_entry_id),sqlc.arg(operating_entity_code),sqlc.arg(operating_entity_name),sqlc.arg(enabled));
+INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled)
+VALUES(sqlc.arg(approval_entry_id),sqlc.arg(data),sqlc.arg(enabled));
 -- name: GetDCLCustomerVersion :one
 SELECT * FROM dcl_customer_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: UpdateDCLCustomerVersion :execrows
-UPDATE dcl_customer_versions SET enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+UPDATE dcl_customer_versions SET data=sqlc.arg(data),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: CopyDCLCustomerVersion :execrows
-INSERT INTO dcl_customer_versions(approval_entry_id,entity,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled)
-SELECT sqlc.arg(new_approval_entry_id),source.entity,source.operating_entity_approval_entry_id,source.operating_entity_code,source.operating_entity_name,source.enabled
+INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled)
+SELECT sqlc.arg(new_approval_entry_id),source.data,source.enabled
 FROM dcl_customer_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- name: DeleteDCLCustomerVersion :execrows
 DELETE FROM dcl_customer_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
--- #287 Customer Account is a distinct DCL Approval subject. DCL owns
--- the immutable account-to-customer binding; BOB reads latest APPROVED data.
--- name: InsertDCLCustomerAccountVersion :exec
-INSERT INTO dcl_customer_account_versions(approval_entry_id,name,customer_type,customer_type_code,customer_type_name,short_name,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_due_days,settlement_month_offset,settlement_cutoff_day,settlement_sales_surcharge_cents,payment_method_id,payment_method_code,payment_method_name,payment_sales_surcharge_cents,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,operating_entity_tax_number,operating_entity_address,operating_entity_phone,default_transport_method_code,default_transport_method_name,transport_surcharge_cents,pricing_policy,primary_sales_attribution_type,primary_sales_subject_id,primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name,internal_reminder,default_sales_order_remark,enabled)
-VALUES(sqlc.arg(approval_entry_id),sqlc.arg(name),sqlc.arg(customer_type),sqlc.arg(customer_type_code),sqlc.arg(customer_type_name),sqlc.narg(short_name),sqlc.narg(contact_name),sqlc.narg(contact_phone),sqlc.narg(email),sqlc.narg(address),sqlc.narg(settlement_method_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.arg(settlement_due_days),sqlc.arg(settlement_month_offset),sqlc.arg(settlement_cutoff_day),sqlc.arg(settlement_sales_surcharge_cents),sqlc.narg(payment_method_id),sqlc.narg(payment_method_code),sqlc.narg(payment_method_name),sqlc.arg(payment_sales_surcharge_cents),sqlc.arg(operating_entity_id),sqlc.arg(operating_entity_approval_entry_id),sqlc.arg(operating_entity_code),sqlc.arg(operating_entity_name),sqlc.narg(operating_entity_tax_number),sqlc.narg(operating_entity_address),sqlc.narg(operating_entity_phone),sqlc.narg(default_transport_method_code),sqlc.narg(default_transport_method_name),sqlc.arg(transport_surcharge_cents),sqlc.arg(pricing_policy),sqlc.narg(primary_sales_attribution_type),sqlc.narg(primary_sales_subject_id),sqlc.narg(primary_sales_subject_approval_entry_id),sqlc.narg(primary_sales_subject_code),sqlc.narg(primary_sales_subject_name),sqlc.narg(internal_reminder),sqlc.narg(default_sales_order_remark),sqlc.arg(enabled));
-
--- name: GetDCLCustomerAccountVersion :one
-SELECT * FROM dcl_customer_account_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
--- name: CopyDCLCustomerAccountVersion :execrows
-INSERT INTO dcl_customer_account_versions(approval_entry_id,entity,name,customer_type,customer_type_code,customer_type_name,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_due_days,settlement_month_offset,settlement_cutoff_day,settlement_sales_surcharge_cents,payment_method_id,payment_method_code,payment_method_name,payment_sales_surcharge_cents,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,operating_entity_tax_number,operating_entity_address,operating_entity_phone,default_transport_method_code,default_transport_method_name,transport_surcharge_cents,pricing_policy,primary_sales_attribution_type,primary_sales_subject_id,primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name,internal_reminder,default_sales_order_remark,enabled)
-SELECT sqlc.arg(new_approval_entry_id),source.entity,source.name,source.customer_type,source.customer_type_code,source.customer_type_name,source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_due_days,source.settlement_month_offset,source.settlement_cutoff_day,source.settlement_sales_surcharge_cents,source.payment_method_id,source.payment_method_code,source.payment_method_name,source.payment_sales_surcharge_cents,source.operating_entity_id,source.operating_entity_approval_entry_id,source.operating_entity_code,source.operating_entity_name,source.operating_entity_tax_number,source.operating_entity_address,source.operating_entity_phone,source.default_transport_method_code,source.default_transport_method_name,source.transport_surcharge_cents,source.pricing_policy,source.primary_sales_attribution_type,source.primary_sales_subject_id,source.primary_sales_subject_approval_entry_id,source.primary_sales_subject_code,source.primary_sales_subject_name,source.internal_reminder,source.default_sales_order_remark,source.enabled FROM dcl_customer_account_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
--- name: UpdateDCLCustomerAccountVersion :execrows
-UPDATE dcl_customer_account_versions SET name=sqlc.arg(name),customer_type=sqlc.arg(customer_type),customer_type_code=sqlc.arg(customer_type_code),customer_type_name=sqlc.arg(customer_type_name),short_name=sqlc.narg(short_name),contact_name=sqlc.narg(contact_name),contact_phone=sqlc.narg(contact_phone),email=sqlc.narg(email),address=sqlc.narg(address),settlement_method_id=sqlc.narg(settlement_method_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),settlement_term_code=sqlc.narg(settlement_term_code),settlement_rule_type=sqlc.narg(settlement_rule_type),settlement_due_days=sqlc.arg(settlement_due_days),settlement_month_offset=sqlc.arg(settlement_month_offset),settlement_cutoff_day=sqlc.arg(settlement_cutoff_day),settlement_sales_surcharge_cents=sqlc.arg(settlement_sales_surcharge_cents),payment_method_id=sqlc.narg(payment_method_id),payment_method_code=sqlc.narg(payment_method_code),payment_method_name=sqlc.narg(payment_method_name),payment_sales_surcharge_cents=sqlc.arg(payment_sales_surcharge_cents),operating_entity_id=sqlc.arg(operating_entity_id),operating_entity_approval_entry_id=sqlc.arg(operating_entity_approval_entry_id),operating_entity_code=sqlc.arg(operating_entity_code),operating_entity_name=sqlc.arg(operating_entity_name),operating_entity_tax_number=sqlc.narg(operating_entity_tax_number),operating_entity_address=sqlc.narg(operating_entity_address),operating_entity_phone=sqlc.narg(operating_entity_phone),default_transport_method_code=sqlc.narg(default_transport_method_code),default_transport_method_name=sqlc.narg(default_transport_method_name),transport_surcharge_cents=sqlc.arg(transport_surcharge_cents),pricing_policy=sqlc.arg(pricing_policy),primary_sales_attribution_type=sqlc.narg(primary_sales_attribution_type),primary_sales_subject_id=sqlc.narg(primary_sales_subject_id),primary_sales_subject_approval_entry_id=sqlc.narg(primary_sales_subject_approval_entry_id),primary_sales_subject_code=sqlc.narg(primary_sales_subject_code),primary_sales_subject_name=sqlc.narg(primary_sales_subject_name),internal_reminder=sqlc.narg(internal_reminder),default_sales_order_remark=sqlc.narg(default_sales_order_remark),enabled=sqlc.arg(enabled) WHERE approval_entry_id=sqlc.arg(approval_entry_id);
--- name: DeleteDCLCustomerAccountVersion :execrows
-DELETE FROM dcl_customer_account_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
--- name: ListDCLCustomerAccountCreditLimits :many
-SELECT * FROM dcl_customer_account_credit_limits WHERE approval_entry_id=sqlc.arg(approval_entry_id) ORDER BY currency;
--- name: InsertDCLCustomerAccountCreditLimit :exec
-INSERT INTO dcl_customer_account_credit_limits(approval_entry_id,currency,amount_cents) VALUES(sqlc.arg(approval_entry_id),sqlc.arg(currency),sqlc.arg(amount_cents));
--- name: DeleteDCLCustomerAccountCreditLimits :exec
-DELETE FROM dcl_customer_account_credit_limits WHERE approval_entry_id=sqlc.arg(approval_entry_id);
--- name: CopyDCLCustomerAccountCreditLimits :exec
-INSERT INTO dcl_customer_account_credit_limits(approval_entry_id,currency,amount_cents) SELECT sqlc.arg(new_approval_entry_id),source.currency,source.amount_cents FROM dcl_customer_account_credit_limits source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
--- name: GetDCLCustomerAccountIdentity :one
-SELECT account.customer_relationship_id FROM dcl_customer_accounts account JOIN dcl_subjects subject ON subject.id=account.object_id AND subject.entity='customer-account' WHERE account.object_id=sqlc.arg(object_id);
--- name: CountDCLCustomerAccounts :one
-SELECT count(*) FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)  WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
--- name: ListDCLCustomerAccounts :many
-SELECT subject.id AS object_id,subject.code,account.customer_relationship_id,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id  LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='customer-account' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(customer_relationship_id)::text='' OR account.customer_relationship_id=sqlc.arg(customer_relationship_id)) AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)) AND (sqlc.arg(customer_type)::text='' OR display.customer_type=sqlc.arg(customer_type)) AND (sqlc.arg(sales_attribution_type)::text='' OR display.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)) AND (sqlc.arg(sales_attribution_subject_id)::text='' OR display.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[])) ORDER BY subject.code LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
--- name: CountDCLCustomerAccountApprovalEvents :one
-SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer-account' AND subject_id=sqlc.arg(object_id);
--- name: ListDCLCustomerAccountApprovalEvents :many
-SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='customer-account' AND subject_id=sqlc.arg(object_id) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 -- name: ListDCLCustomerAttachments :many
-SELECT relation.file_id,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.status,file.stored_at,relation.category_object_id,relation.category_code,relation.category_name,relation.created_at,relation.created_by FROM dcl_customer_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=sqlc.arg(approval_entry_id) ORDER BY relation.created_at,relation.file_id;
--- name: ListDCLCustomerAccountAttachments :many
-SELECT relation.file_id,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.status,file.stored_at,relation.category_object_id,relation.category_code,relation.category_name,relation.created_at,relation.created_by FROM dcl_customer_account_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=sqlc.arg(approval_entry_id) ORDER BY relation.created_at,relation.file_id;
--- name: CopyDCLCustomerAccountAttachments :exec
-INSERT INTO dcl_customer_account_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_at,created_by) SELECT sqlc.arg(new_approval_entry_id),source.file_id,source.category_object_id,source.category_code,source.category_name,source.created_at,source.created_by FROM dcl_customer_account_attachments source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
+SELECT relation.account_id,relation.file_id,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.status,file.stored_at,relation.category_object_id,relation.category_code,relation.category_name,relation.created_at,relation.created_by FROM dcl_customer_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=sqlc.arg(approval_entry_id) ORDER BY relation.account_id NULLS FIRST,relation.created_at,relation.file_id;
+-- name: CopyDCLCustomerAttachments :exec
+INSERT INTO dcl_customer_attachments(approval_entry_id,account_id,file_id,category_object_id,category_code,category_name,created_at,created_by) SELECT sqlc.arg(new_approval_entry_id),source.account_id,source.file_id,source.category_object_id,source.category_code,source.category_name,source.created_at,source.created_by FROM dcl_customer_attachments source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- name: LockDCLCustomerAttachmentOwner :one
 SELECT * FROM approval_entries WHERE id=sqlc.arg(approval_entry_id) AND domain='dcl' AND entity='customer' FOR UPDATE;
--- name: LockDCLCustomerAccountAttachmentOwner :one
-SELECT * FROM approval_entries WHERE id=sqlc.arg(approval_entry_id) AND domain='dcl' AND entity='customer-account' FOR UPDATE;
 -- name: CountDCLCustomerAttachments :one
 SELECT count(*) FROM dcl_customer_attachments WHERE approval_entry_id=sqlc.arg(approval_entry_id);
--- name: CountDCLCustomerAccountAttachments :one
-SELECT count(*) FROM dcl_customer_account_attachments WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 -- name: InsertDCLCustomerAttachment :exec
-INSERT INTO dcl_customer_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_by) VALUES(sqlc.arg(approval_entry_id),sqlc.arg(file_id),sqlc.arg(category_object_id),sqlc.arg(category_code),sqlc.arg(category_name),sqlc.arg(actor_id));
--- name: InsertDCLCustomerAccountAttachment :exec
-INSERT INTO dcl_customer_account_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_by) VALUES(sqlc.arg(approval_entry_id),sqlc.arg(file_id),sqlc.arg(category_object_id),sqlc.arg(category_code),sqlc.arg(category_name),sqlc.arg(actor_id));
+INSERT INTO dcl_customer_attachments(approval_entry_id,account_id,file_id,category_object_id,category_code,category_name,created_by) VALUES(sqlc.arg(approval_entry_id),sqlc.narg(account_id),sqlc.arg(file_id),sqlc.arg(category_object_id),sqlc.arg(category_code),sqlc.arg(category_name),sqlc.arg(actor_id));
 -- name: DeleteDCLCustomerAttachment :execrows
 DELETE FROM dcl_customer_attachments WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND file_id=sqlc.arg(file_id);
--- name: DeleteDCLCustomerAccountAttachment :execrows
-DELETE FROM dcl_customer_account_attachments WHERE approval_entry_id=sqlc.arg(approval_entry_id) AND file_id=sqlc.arg(file_id);
 -- name: GetReadyDCLCustomerAttachment :one
 SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size FROM dcl_customer_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=sqlc.arg(approval_entry_id) AND file.id=sqlc.arg(file_id) AND file.status='READY';
--- name: GetReadyDCLCustomerAccountAttachment :one
-SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size FROM dcl_customer_account_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=sqlc.arg(approval_entry_id) AND file.id=sqlc.arg(file_id) AND file.status='READY';
 -- name: LockPendingDCLCustomerUpload :one
-SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.upload_expires_at,entry.status AS owner_status FROM dcl_customer_files file JOIN (SELECT approval_entry_id,file_id FROM dcl_customer_attachments UNION ALL SELECT approval_entry_id,file_id FROM dcl_customer_account_attachments) relation ON relation.file_id=file.id JOIN approval_entries entry ON entry.id=relation.approval_entry_id WHERE file.upload_token_hash=sqlc.arg(token_hash) AND file.status='PENDING' AND file.upload_expires_at>now() FOR UPDATE OF file;
+SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.upload_expires_at,entry.status AS owner_status FROM dcl_customer_files file JOIN dcl_customer_attachments relation ON relation.file_id=file.id JOIN approval_entries entry ON entry.id=relation.approval_entry_id WHERE file.upload_token_hash=sqlc.arg(token_hash) AND file.status='PENDING' AND file.upload_expires_at>now() FOR UPDATE OF file;
 -- name: ListAllDCLCustomerStorageKeys :many
 SELECT storage_key FROM dcl_customer_files ORDER BY storage_key;
 -- name: ResolveCustomerDocumentCategory :one
@@ -354,8 +294,6 @@ INSERT INTO dcl_product_versions(approval_entry_id,entity,name,category_id,categ
 SELECT sqlc.arg(new_approval_entry_id),entity,name,category_id,category_code,category_name,category_entity,specification,model,barcode,remark,pricing_unit_id,returnable,default_packaging_spec_micros,product_type_id,product_type_code,product_type_name,behavior_profile,default_input_unit_id,enabled FROM dcl_product_versions source WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 -- BOB validates business rules through DCL-owned typed relationship identities.
 -- DCL is their only writer.
--- name: GetBobCustomerRelationship :one
-SELECT * FROM dcl_customer_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobSupplierRelationship :one
 SELECT * FROM dcl_supplier_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobOtherUnitRelationship :one
@@ -364,8 +302,6 @@ SELECT * FROM dcl_service_relationships WHERE object_id=sqlc.arg(object_id);
 SELECT * FROM dcl_employment_relationships WHERE object_id=sqlc.arg(object_id);
 -- name: GetBobSalesPartnerRelationship :one
 SELECT * FROM dcl_sales_relationships WHERE object_id=sqlc.arg(object_id);
--- name: GetBobCustomerAccountRelationship :one
-SELECT * FROM dcl_customer_accounts WHERE object_id=sqlc.arg(object_id);
 
 -- DCL Product snapshots are keyed by their DCL Approval entry; DCL owns every
 -- mutation and BOB reads the selected approved snapshot.

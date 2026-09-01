@@ -40,7 +40,7 @@ export async function queryOperatingEntityReferences(
   })
   return data.items.map((item) => ({
     value: item.objectId,
-    title: `${item.code} · ${item.data.name ?? ''}`,
+    title: `${item.code} · ${item.data.name}`,
   }))
 }
 
@@ -58,7 +58,7 @@ export async function queryCustomerRelationshipReferences(
   })
   return data.items.map((item) => ({
     value: item.objectId,
-    title: `${item.code} · ${item.partyDisplayName}`,
+    title: `${item.code} · ${item.displayName}`,
   }))
 }
 

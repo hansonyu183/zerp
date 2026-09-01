@@ -182,7 +182,6 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		dcldomain.NewEmployeeHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewSupplierHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewCustomerHandler(nil, nil, nil, testLogger()).Register(router)
-		dcldomain.NewCustomerAccountHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewRelationshipHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewAccMappingHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewRptDefinitionHandler(nil, nil, testLogger()).Register(router)
@@ -230,6 +229,25 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 				t.Errorf("OpenAPI operation %s is not registered by Gin", key)
 			}
 		}
+	}
+}
+
+func TestCustomerAccountRoutesAreNotRegistered(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		dcldomain.NewCustomerHandler(nil, nil, nil, testLogger()).Register(router)
+		bobdomain.NewHandler(nil, nil, testLogger()).Register(router)
+	})
+	hasCustomerRoute := false
+	for _, route := range router.Routes() {
+		if strings.Contains(route.Path, "customer-account") {
+			t.Fatalf("retired Customer Account route remains registered: %s", route.Path)
+		}
+		if route.Path == "/dcl/customer/create" {
+			hasCustomerRoute = true
+		}
+	}
+	if !hasCustomerRoute {
+		t.Fatal("Customer aggregate routes are not registered")
 	}
 }
 

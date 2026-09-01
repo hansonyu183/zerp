@@ -82,8 +82,8 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	var partyID, operatingEntityID string
 	if err = pool.QueryRow(t.Context(), `
 		SELECT relationship.party_id,relationship.operating_entity_id
-		FROM dcl_customer_relationships relationship
-		JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity='customer'
+		FROM dcl_supplier_relationships relationship
+		JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity='supplier'
 		ORDER BY subject.created_at LIMIT 1
 	`).Scan(&partyID, &operatingEntityID); err != nil {
 		t.Fatalf("load seeded party identity: %v", err)
@@ -168,12 +168,12 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 
 	allEntities := []string{
-		bob.EntityCustomer, bob.EntityCustomerAccount, bob.EntitySupplier, bob.EntityOtherUnit,
+		bob.EntityCustomer, bob.EntitySupplier, bob.EntityOtherUnit,
 		bob.EntityEmployee, bob.EntitySalesPartner, bob.EntityProduct, bob.EntityWarehouse,
 		bob.EntityVehicle, bob.EntityFundAccount, bob.EntityOperatingEntity,
 	}
 	payloadTables := map[string]string{
-		bob.EntityCustomer: "dcl_customer_versions", bob.EntityCustomerAccount: "dcl_customer_account_versions",
+		bob.EntityCustomer: "dcl_customer_versions",
 		bob.EntitySupplier: "dcl_supplier_versions", bob.EntityOtherUnit: "dcl_other_unit_versions",
 		bob.EntityEmployee: "dcl_employee_versions", bob.EntitySalesPartner: "dcl_sales_partner_versions",
 		bob.EntityProduct: "dcl_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",

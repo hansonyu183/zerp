@@ -350,7 +350,6 @@ verify_issue_315_cutover() {
 		  AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='"'"'vou_purchase_order_details'"'"'::regclass AND tgname='"'"'vou_purchase_order_non_draft_immutable'"'"' AND NOT tgisinternal)
 		  AND position('"'"'CASH_ON_DELIVERY'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'vou_sale_order_details'"'"'::regclass AND conname='"'"'vou_sale_order_settlement_ck'"'"'))) > 0
 		  AND position('"'"'FIXED_DAY'"'"' IN pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid='"'"'vou_sale_order_details'"'"'::regclass AND conname='"'"'vou_sale_order_settlement_ck'"'"'))) = 0
-		  AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='"'"'dcl_customer_account_versions'"'"'::regclass AND conname='"'"'dcl_customer_account_settlement_ck'"'"')
 		  THEN '"'"'ok'"'"' ELSE '"'"'failed'"'"' END" | grep -Fx ok'
 }
 

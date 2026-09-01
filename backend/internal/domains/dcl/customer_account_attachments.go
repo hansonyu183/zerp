@@ -24,11 +24,7 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-const (
-	CustomerAttachmentScopeCustomer = "CUSTOMER"
-	CustomerAttachmentScopeAccount  = "CUSTOMER_ACCOUNT"
-	maxDCLCustomerAttachments       = 10
-)
+const maxDCLCustomerAttachments = 10
 
 type CustomerAttachmentOptions struct {
 	Root        string
@@ -36,8 +32,8 @@ type CustomerAttachmentOptions struct {
 	DownloadTTL time.Duration
 }
 type CustomerAttachmentInitiateInput struct {
-	Scope                string `json:"scope"`
 	OwnerApprovalEntryID string `json:"ownerApprovalEntryId"`
+	AccountID            string `json:"accountId,omitempty"`
 	ApprovalRevision     int64  `json:"approvalRevision"`
 	CategoryObjectID     string `json:"categoryObjectId"`
 	FileName             string `json:"fileName"`
@@ -46,13 +42,13 @@ type CustomerAttachmentInitiateInput struct {
 	SHA256               string `json:"sha256"`
 }
 type CustomerAttachmentDownloadInput struct {
-	Scope                string `json:"scope"`
 	OwnerApprovalEntryID string `json:"ownerApprovalEntryId"`
+	AccountID            string `json:"accountId,omitempty"`
 	FileID               string `json:"fileId"`
 }
 type CustomerAttachmentRemoveInput struct {
-	Scope                string `json:"scope"`
 	OwnerApprovalEntryID string `json:"ownerApprovalEntryId"`
+	AccountID            string `json:"accountId,omitempty"`
 	ApprovalRevision     int64  `json:"approvalRevision"`
 	FileID               string `json:"fileId"`
 }
@@ -81,7 +77,6 @@ type CustomerAttachmentService struct {
 	storage                *attachmentstore.Store
 	uploadTTL, downloadTTL time.Duration
 	customer               *approval.Coordinator[dclapproval.CustomerPayload]
-	account                *approval.Coordinator[dclapproval.CustomerAccountPayload]
 }
 
 func NewCustomerAttachmentService(pool *pgxpool.Pool, options CustomerAttachmentOptions, authorizer approval.Authorizer, bus *txevent.Bus) (*CustomerAttachmentService, error) {
@@ -102,11 +97,7 @@ func NewCustomerAttachmentService(pool *pgxpool.Pool, options CustomerAttachment
 	if err != nil {
 		return nil, err
 	}
-	account, err := approval.NewCoordinator("dcl", EntityCustomerAccount, authorizer, bus, dclapproval.CustomerAccountTopic)
-	if err != nil {
-		return nil, err
-	}
-	return &CustomerAttachmentService{pool: pool, queries: dbsqlc.New(pool), storage: storage, uploadTTL: options.UploadTTL, downloadTTL: options.DownloadTTL, customer: customer, account: account}, nil
+	return &CustomerAttachmentService{pool: pool, queries: dbsqlc.New(pool), storage: storage, uploadTTL: options.UploadTTL, downloadTTL: options.DownloadTTL, customer: customer}, nil
 }
 func customerAttachmentToken() (string, string, error) {
 	raw := make([]byte, 32)
@@ -120,7 +111,7 @@ func customerAttachmentToken() (string, string, error) {
 func validateDCLCustomerAttachment(in CustomerAttachmentInitiateInput) (string, error) {
 	name := strings.TrimSpace(in.FileName)
 	validType := in.ContentType == "application/pdf" || in.ContentType == "image/jpeg" || in.ContentType == "image/png"
-	if (in.Scope != CustomerAttachmentScopeCustomer && in.Scope != CustomerAttachmentScopeAccount) || !validID(in.OwnerApprovalEntryID) || in.ApprovalRevision < 1 || !validID(in.CategoryObjectID) || name == "" || len(name) > 255 || filepath.Base(name) != name || strings.ContainsAny(name, "/\\") || !validType || in.Size < 1 || in.Size > attachmentstore.MaxFileBytes || len(in.SHA256) != 64 || in.SHA256 != strings.ToLower(in.SHA256) {
+	if !validID(in.OwnerApprovalEntryID) || (in.AccountID != "" && !validID(in.AccountID)) || in.ApprovalRevision < 1 || !validID(in.CategoryObjectID) || name == "" || len(name) > 255 || filepath.Base(name) != name || strings.ContainsAny(name, "/\\") || !validType || in.Size < 1 || in.Size > attachmentstore.MaxFileBytes || len(in.SHA256) != 64 || in.SHA256 != strings.ToLower(in.SHA256) {
 		return "", newError(ErrorValidation, "validation_failed", "invalid customer attachment", nil, nil)
 	}
 	if _, err := hex.DecodeString(in.SHA256); err != nil {
@@ -128,22 +119,13 @@ func validateDCLCustomerAttachment(in CustomerAttachmentInitiateInput) (string, 
 	}
 	return name, nil
 }
-func (s *CustomerAttachmentService) lockDraft(ctx context.Context, q *dbsqlc.Queries, scope, entryID string, revision int64, enforceLimit bool) (dbsqlc.ApprovalEntry, error) {
+func (s *CustomerAttachmentService) lockDraft(ctx context.Context, q *dbsqlc.Queries, entryID string, revision int64, enforceLimit bool) (dbsqlc.ApprovalEntry, error) {
 	var e dbsqlc.ApprovalEntry
 	var err error
 	var count int64
-	if scope == CustomerAttachmentScopeCustomer {
-		e, err = q.LockDCLCustomerAttachmentOwner(ctx, entryID)
-		if err == nil {
-			count, err = q.CountDCLCustomerAttachments(ctx, entryID)
-		}
-	} else if scope == CustomerAttachmentScopeAccount {
-		e, err = q.LockDCLCustomerAccountAttachmentOwner(ctx, entryID)
-		if err == nil {
-			count, err = q.CountDCLCustomerAccountAttachments(ctx, entryID)
-		}
-	} else {
-		return e, newError(ErrorValidation, "validation_failed", "invalid customer attachment", nil, nil)
+	e, err = q.LockDCLCustomerAttachmentOwner(ctx, entryID)
+	if err == nil {
+		count, err = q.CountDCLCustomerAttachments(ctx, entryID)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return e, newError(ErrorValidation, "validation_failed", "customer attachment owner not found", nil, err)
@@ -159,33 +141,18 @@ func (s *CustomerAttachmentService) lockDraft(ctx context.Context, q *dbsqlc.Que
 	}
 	return e, nil
 }
-func (s *CustomerAttachmentService) touchDraft(ctx context.Context, tx pgx.Tx, scope string, e dbsqlc.ApprovalEntry, actor approval.Actor) (approval.Entry, error) {
+func (s *CustomerAttachmentService) touchDraft(ctx context.Context, tx pgx.Tx, e dbsqlc.ApprovalEntry, actor approval.Actor) (approval.Entry, error) {
 	entry := approvalEntry(e)
 	q := s.queries.WithTx(tx)
-	if scope == CustomerAttachmentScopeCustomer {
-		identity, err := lockSubject(ctx, tx, EntityCustomer, entry.SubjectID)
-		if err != nil {
-			return approval.Entry{}, translateError(err)
-		}
-		relationship, err := q.GetDCLCustomerRelationship(ctx, entry.SubjectID)
-		if err != nil {
-			return approval.Entry{}, translateError(err)
-		}
-		stored, err := q.GetDCLCustomerVersion(ctx, entry.ID)
-		if err != nil {
-			return approval.Entry{}, translateError(err)
-		}
-		return s.customer.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, dclapproval.CustomerPayload{SubjectID: entry.SubjectID, Code: identity.Code, PartyID: relationship.PartyID, Enabled: stored.Enabled})
-	}
-	identity, relationshipID, err := lockCustomerAccountIdentity(ctx, tx, entry.SubjectID)
+	identity, err := lockSubject(ctx, tx, EntityCustomer, entry.SubjectID)
 	if err != nil {
 		return approval.Entry{}, translateError(err)
 	}
-	stored, err := q.GetDCLCustomerAccountVersion(ctx, entry.ID)
+	stored, err := q.GetDCLCustomerVersionAggregate(ctx, entry.ID)
 	if err != nil {
 		return approval.Entry{}, translateError(err)
 	}
-	return s.account.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, dclapproval.CustomerAccountPayload{SubjectID: entry.SubjectID, Code: identity.Code, CustomerRelationshipID: relationshipID, Name: stored.Name, Enabled: stored.Enabled})
+	return s.customer.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, dclapproval.CustomerPayload{SubjectID: entry.SubjectID, Code: identity.Code, Enabled: stored.Enabled})
 }
 func (s *CustomerAttachmentService) Initiate(ctx context.Context, in CustomerAttachmentInitiateInput, actor approval.Actor) (CustomerAttachmentInitiateResult, error) {
 	name, err := validateDCLCustomerAttachment(in)
@@ -206,8 +173,11 @@ func (s *CustomerAttachmentService) Initiate(ctx context.Context, in CustomerAtt
 	}
 	defer tx.Rollback(ctx)
 	q := s.queries.WithTx(tx)
-	owner, err := s.lockDraft(ctx, q, in.Scope, in.OwnerApprovalEntryID, in.ApprovalRevision, true)
+	owner, err := s.lockDraft(ctx, q, in.OwnerApprovalEntryID, in.ApprovalRevision, true)
 	if err != nil {
+		return CustomerAttachmentInitiateResult{}, err
+	}
+	if err = ensureCustomerAttachmentAccount(ctx, q, owner.ID, in.AccountID); err != nil {
 		return CustomerAttachmentInitiateResult{}, err
 	}
 	category, err := q.ResolveCustomerDocumentCategory(ctx, in.CategoryObjectID)
@@ -218,15 +188,11 @@ func (s *CustomerAttachmentService) Initiate(ctx context.Context, in CustomerAtt
 	if err = q.InsertCustomerFile(ctx, dbsqlc.InsertCustomerFileParams{ID: fileID, StorageKey: "customer/" + fileID, OriginalName: name, ContentType: in.ContentType, DeclaredSize: in.Size, Sha256Hex: in.SHA256, UploadTokenHash: hash, UploadExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true}, ActorID: actor.ID()}); err != nil {
 		return CustomerAttachmentInitiateResult{}, translateError(err)
 	}
-	if in.Scope == CustomerAttachmentScopeCustomer {
-		err = q.InsertDCLCustomerAttachment(ctx, dbsqlc.InsertDCLCustomerAttachmentParams{ApprovalEntryID: owner.ID, FileID: fileID, CategoryObjectID: category.ObjectID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
-	} else {
-		err = q.InsertDCLCustomerAccountAttachment(ctx, dbsqlc.InsertDCLCustomerAccountAttachmentParams{ApprovalEntryID: owner.ID, FileID: fileID, CategoryObjectID: category.ObjectID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
-	}
+	err = q.InsertDCLCustomerAttachment(ctx, dbsqlc.InsertDCLCustomerAttachmentParams{ApprovalEntryID: owner.ID, AccountID: nilIfEmpty(in.AccountID), FileID: fileID, CategoryObjectID: category.ObjectID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
 	if err != nil {
 		return CustomerAttachmentInitiateResult{}, translateError(err)
 	}
-	e, err := s.touchDraft(ctx, tx, in.Scope, owner, actor)
+	e, err := s.touchDraft(ctx, tx, owner, actor)
 	if err != nil {
 		return CustomerAttachmentInitiateResult{}, translateError(err)
 	}
@@ -276,15 +242,13 @@ func tokenHash(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 func (s *CustomerAttachmentService) CreateDownload(ctx context.Context, in CustomerAttachmentDownloadInput, actorID string) (CustomerAttachmentDownloadResult, error) {
-	if (in.Scope != CustomerAttachmentScopeCustomer && in.Scope != CustomerAttachmentScopeAccount) || !validID(in.OwnerApprovalEntryID) || !validID(in.FileID) || !validID(actorID) {
+	if !validID(in.OwnerApprovalEntryID) || (in.AccountID != "" && !validID(in.AccountID)) || !validID(in.FileID) || !validID(actorID) {
 		return CustomerAttachmentDownloadResult{}, newError(ErrorValidation, "validation_failed", "invalid customer attachment", nil, nil)
 	}
-	var err error
-	if in.Scope == CustomerAttachmentScopeCustomer {
-		_, err = s.queries.GetReadyDCLCustomerAttachment(ctx, dbsqlc.GetReadyDCLCustomerAttachmentParams{ApprovalEntryID: in.OwnerApprovalEntryID, FileID: in.FileID})
-	} else {
-		_, err = s.queries.GetReadyDCLCustomerAccountAttachment(ctx, dbsqlc.GetReadyDCLCustomerAccountAttachmentParams{ApprovalEntryID: in.OwnerApprovalEntryID, FileID: in.FileID})
+	if err := ensureCustomerAttachmentFileAccount(ctx, s.queries, in.OwnerApprovalEntryID, in.AccountID, in.FileID); err != nil {
+		return CustomerAttachmentDownloadResult{}, err
 	}
+	_, err := s.queries.GetReadyDCLCustomerAttachment(ctx, dbsqlc.GetReadyDCLCustomerAttachmentParams{ApprovalEntryID: in.OwnerApprovalEntryID, FileID: in.FileID})
 	if err != nil {
 		return CustomerAttachmentDownloadResult{}, newError(ErrorValidation, "validation_failed", "customer attachment not found", nil, err)
 	}
@@ -322,7 +286,7 @@ func (s *CustomerAttachmentService) OpenDownload(ctx context.Context, token stri
 	return CustomerAttachmentDownloadFile{Reader: reader, FileName: row.OriginalName, ContentType: row.ContentType, Size: row.DeclaredSize}, nil
 }
 func (s *CustomerAttachmentService) Remove(ctx context.Context, in CustomerAttachmentRemoveInput, actor approval.Actor) (CustomerAttachmentMutationResult, error) {
-	if (in.Scope != CustomerAttachmentScopeCustomer && in.Scope != CustomerAttachmentScopeAccount) || !validID(in.OwnerApprovalEntryID) || !validID(in.FileID) || in.ApprovalRevision < 1 || !validActor(actor) {
+	if !validID(in.OwnerApprovalEntryID) || (in.AccountID != "" && !validID(in.AccountID)) || !validID(in.FileID) || in.ApprovalRevision < 1 || !validActor(actor) {
 		return CustomerAttachmentMutationResult{}, newError(ErrorValidation, "validation_failed", "invalid customer attachment", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -331,23 +295,22 @@ func (s *CustomerAttachmentService) Remove(ctx context.Context, in CustomerAttac
 	}
 	defer tx.Rollback(ctx)
 	q := s.queries.WithTx(tx)
-	owner, err := s.lockDraft(ctx, q, in.Scope, in.OwnerApprovalEntryID, in.ApprovalRevision, false)
+	owner, err := s.lockDraft(ctx, q, in.OwnerApprovalEntryID, in.ApprovalRevision, false)
 	if err != nil {
 		return CustomerAttachmentMutationResult{}, err
 	}
-	var n int64
-	if in.Scope == CustomerAttachmentScopeCustomer {
-		n, err = q.DeleteDCLCustomerAttachment(ctx, dbsqlc.DeleteDCLCustomerAttachmentParams{ApprovalEntryID: owner.ID, FileID: in.FileID})
-	} else {
-		n, err = q.DeleteDCLCustomerAccountAttachment(ctx, dbsqlc.DeleteDCLCustomerAccountAttachmentParams{ApprovalEntryID: owner.ID, FileID: in.FileID})
+	if err = ensureCustomerAttachmentFileAccount(ctx, q, owner.ID, in.AccountID, in.FileID); err != nil {
+		return CustomerAttachmentMutationResult{}, err
 	}
+	var n int64
+	n, err = q.DeleteDCLCustomerAttachment(ctx, dbsqlc.DeleteDCLCustomerAttachmentParams{ApprovalEntryID: owner.ID, FileID: in.FileID})
 	if err != nil {
 		return CustomerAttachmentMutationResult{}, translateError(err)
 	}
 	if n != 1 {
 		return CustomerAttachmentMutationResult{}, newError(ErrorValidation, "validation_failed", "customer attachment not found", nil, nil)
 	}
-	e, err := s.touchDraft(ctx, tx, in.Scope, owner, actor)
+	e, err := s.touchDraft(ctx, tx, owner, actor)
 	if err != nil {
 		return CustomerAttachmentMutationResult{}, translateError(err)
 	}
@@ -355,6 +318,35 @@ func (s *CustomerAttachmentService) Remove(ctx context.Context, in CustomerAttac
 		return CustomerAttachmentMutationResult{}, translateError(err)
 	}
 	return CustomerAttachmentMutationResult{ApprovalRevision: e.Revision}, nil
+}
+
+func ensureCustomerAttachmentAccount(ctx context.Context, q *dbsqlc.Queries, entryID, accountID string) error {
+	if accountID == "" {
+		return nil
+	}
+	accounts, err := q.ListDCLCustomerVersionAccounts(ctx, entryID)
+	if err != nil {
+		return translateError(err)
+	}
+	for _, account := range accounts {
+		if account.AccountID == accountID {
+			return nil
+		}
+	}
+	return newError(ErrorValidation, "validation_failed", "customer attachment account not found in revision", nil, nil)
+}
+
+func ensureCustomerAttachmentFileAccount(ctx context.Context, q *dbsqlc.Queries, entryID, accountID, fileID string) error {
+	attachments, err := ListCustomerAttachments(ctx, q, entryID)
+	if err != nil {
+		return err
+	}
+	for _, attachment := range attachments {
+		if attachment.FileID == fileID && attachment.AccountID == accountID {
+			return nil
+		}
+	}
+	return newError(ErrorValidation, "validation_failed", "customer attachment not found", nil, nil)
 }
 
 // CleanupOrphanFiles removes storage bytes that no longer have DCL metadata.
@@ -375,11 +367,11 @@ func (s *CustomerAttachmentService) CleanupOrphanFiles(ctx context.Context) (int
 	return removed, nil
 }
 
-// CustomerAttachmentView is shared by Customer relationship and Customer
-// Account declarations. Attachments are version-owned, immutable after a
-// draft leaves DRAFT, and copied with a candidate version.
+// CustomerAttachmentView belongs to one Customer approval revision and may
+// optionally be scoped to one account line in that revision.
 type CustomerAttachmentView struct {
 	FileID           string     `json:"fileId"`
+	AccountID        string     `json:"accountId,omitempty"`
 	FileName         string     `json:"fileName"`
 	ContentType      string     `json:"contentType"`
 	Size             int64      `json:"size"`
@@ -400,23 +392,12 @@ func ListCustomerAttachments(ctx context.Context, q *dbsqlc.Queries, approvalEnt
 	}
 	items := make([]CustomerAttachmentView, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, customerAttachmentView(row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
+		items = append(items, customerAttachmentView(stringValue(row.AccountID), row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
 	}
 	return items, nil
 }
-func ListCustomerAccountAttachments(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) ([]CustomerAttachmentView, error) {
-	rows, err := q.ListDCLCustomerAccountAttachments(ctx, approvalEntryID)
-	if err != nil {
-		return nil, translateError(err)
-	}
-	items := make([]CustomerAttachmentView, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, customerAttachmentView(row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
-	}
-	return items, nil
-}
-func customerAttachmentView(fileID, fileName, contentType string, size int64, sha, status string, storedAt pgtype.Timestamptz, categoryID, categoryCode, categoryName string, createdAt time.Time, createdBy string) CustomerAttachmentView {
-	v := CustomerAttachmentView{FileID: fileID, FileName: fileName, ContentType: contentType, Size: size, SHA256: sha, Status: status, CategoryObjectID: categoryID, CategoryCode: categoryCode, CategoryName: categoryName, CreatedAt: createdAt, CreatedBy: createdBy}
+func customerAttachmentView(accountID, fileID, fileName, contentType string, size int64, sha, status string, storedAt pgtype.Timestamptz, categoryID, categoryCode, categoryName string, createdAt time.Time, createdBy string) CustomerAttachmentView {
+	v := CustomerAttachmentView{AccountID: accountID, FileID: fileID, FileName: fileName, ContentType: contentType, Size: size, SHA256: sha, Status: status, CategoryObjectID: categoryID, CategoryCode: categoryCode, CategoryName: categoryName, CreatedAt: createdAt, CreatedBy: createdBy}
 	if storedAt.Valid {
 		value := storedAt.Time
 		v.StoredAt = &value

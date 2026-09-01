@@ -2,14 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { DclCustomerAccountInput } from './DclCustomerAccountInput';
-import type { PartyIdentityData } from './PartyIdentityData';
-export type DclCustomerCreateRequest = ({
-  partyId: string;
-  operatingEntityId: string;
-  defaultAccount: DclCustomerAccountInput;
-} | {
-  newParty: PartyIdentityData;
-  operatingEntityId: string;
-  defaultAccount: DclCustomerAccountInput;
-});
+import type { DclCustomerInput } from './DclCustomerInput';
+export type DclCustomerCreateRequest = {
+  data: DclCustomerInput;
+};

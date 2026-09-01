@@ -74,6 +74,9 @@ interface AccountingMappingView {
 interface BobMutation {
   objectId: string
   partyId?: string
+  customerObjectId?: string
+  customerCode?: string
+  customerLookup?: string
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -90,17 +93,6 @@ interface DclPartyView {
   }
 }
 
-interface DclCustomerAccountListItem {
-  objectId: string
-  code: string
-  openVersion: {
-    approval: {
-      approvalEntryId: string
-      revision: number
-    }
-  } | null
-}
-
 interface AuxQueryItem {
   objectId: string
   data: { termCode?: string }
@@ -108,6 +100,9 @@ interface AuxQueryItem {
 
 interface BobReferenceQueryItem {
   objectId: string
+  customerId?: string
+  approvalEntryId?: string
+  code?: string
 }
 
 const accMappingEntities = new Set([
@@ -195,6 +190,7 @@ export interface E2ECredentials {
 
 export interface WflFixtures {
   customer: string
+  customerAggregate: string
   supplier: string
   employee: string
   solventProduct: string
@@ -209,6 +205,7 @@ export interface WflFixtures {
   supplierObjectId: string
   warehouseObjectId: string
   operatingEntityId: string
+  operatingEntity: string
 }
 
 export interface WflWorkerState {
@@ -363,8 +360,6 @@ const bobReviewerActions = new Set([
   '/dcl/wfl-process-definition/approve',
   '/bob/customer/query',
   '/bob/customer/get',
-  '/bob/customer-account/query',
-  '/bob/customer-account/get',
   ...[
     'party',
     'employee',
@@ -372,7 +367,6 @@ const bobReviewerActions = new Set([
     'other-unit',
     'sales-partner',
     'customer',
-    'customer-account',
   ].flatMap((entity) => [
     `/dcl/${entity}/query`,
     `/dcl/${entity}/get`,
@@ -595,7 +589,9 @@ async function fixedSettlementMethod(
   return { objectId: item.objectId }
 }
 
-async function fixedOperatingEntity(operator: RealApi): Promise<string> {
+async function fixedOperatingEntity(
+  operator: RealApi,
+): Promise<{ objectId: string; code: string }> {
   const page = await operator.post<Page<BobReferenceQueryItem>>(
     'bob/operating-entity/query',
     {
@@ -608,8 +604,8 @@ async function fixedOperatingEntity(operator: RealApi): Promise<string> {
     },
   )
   const item = page.items[0]
-  if (!item) throw new Error('WFL 预置未找到演示经营主体。')
-  return item.objectId
+  if (!item?.code) throw new Error('WFL 预置未找到演示经营主体。')
+  return { objectId: item.objectId, code: item.code }
 }
 
 async function createPaymentMethod(
@@ -635,36 +631,41 @@ async function createEffectiveCustomer(
   paymentMethodId: string,
 ): Promise<BobMutation> {
   const created = await operator.post<BobMutation>('dcl/customer/create', {
-    newParty: {
+    data: {
       kind: 'ORGANIZATION',
       legalName: name,
+      displayName: name,
       strongIdentifiers: [],
-    },
-    operatingEntityId,
-    defaultAccount: {
-      name,
-      customerTypeId: '01JAVX00000000000000000005',
-      settlementMethodId,
-      paymentMethodId,
-      defaultTransportMethodCode: 'SELF_PICKUP',
-      defaultTransportMethodName: '客户自提',
-      transportSurcharge: '0.00',
-      pricingPolicy: {
-        defaultPremiumUnitPrice: '0.00',
-        defaultDiscountUnitPrice: '0.00',
-        costItems: [],
-        thirdPartyIntermediaryFixedUnitCost: '0.00',
-        thirdPartyIntermediaryVariableUnitCost: '0.00',
-      },
-      creditLimits: [],
-      primarySalesAttribution: {
-        type: 'INTERNAL_EMPLOYEE',
-        subjectObjectId: employeeObjectId,
-      },
+      remittanceProfiles: [],
+      defaultOperatingEntityId: operatingEntityId,
+      enabled: true,
+      accounts: [
+        {
+          enabled: true,
+          isDefault: true,
+          name,
+          customerTypeId: '01JAVX00000000000000000005',
+          settlementMethodId,
+          paymentMethodId,
+          defaultTransportMethodCode: 'SELF_PICKUP',
+          defaultTransportMethodName: '客户自提',
+          transportSurcharge: '0.00',
+          pricingPolicy: {
+            defaultPremiumUnitPrice: '0.00',
+            defaultDiscountUnitPrice: '0.00',
+            costItems: [],
+            thirdPartyIntermediaryFixedUnitCost: '0.00',
+            thirdPartyIntermediaryVariableUnitCost: '0.00',
+          },
+          creditLimits: [],
+          primarySalesAttribution: {
+            type: 'INTERNAL_EMPLOYEE',
+            subjectObjectId: employeeObjectId,
+          },
+        },
+      ],
     },
   })
-  if (!created.partyId) throw new Error('客户预置未返回 Party ID。')
-  await approveRelationshipParty(operator, reviewer, created.partyId)
   const submittedCustomer = await operator.post<BobMutation>(
     'dcl/customer/submit',
     {
@@ -681,37 +682,35 @@ async function createEffectiveCustomer(
       approvalRevision: submittedCustomer.approval.revision,
     },
   )
-  const accounts = await operator.post<Page<DclCustomerAccountListItem>>(
-    'dcl/customer-account/query',
+  const customerView = await operator.post<{ code: string }>(
+    'dcl/customer/get',
     {
-      page: 1,
-      pageSize: 20,
-      filters: { customerRelationshipId: approvedCustomer.objectId },
-      sort: [{ field: 'code', order: 'asc' }],
+      objectId: approvedCustomer.objectId,
+      approvalEntryId: approvedCustomer.approval.approvalEntryId,
     },
   )
-  const account = accounts.items[0]
-  if (!account) throw new Error('客户创建未生成默认结算子账户。')
-  if (!account.openVersion) {
-    throw new Error('客户创建未返回待批准的默认账户版本。')
+  const candidates = await operator.post<BobReferenceQueryItem[]>(
+    'bob/reference/query',
+    { entity: 'customer-account', keyword: name },
+  )
+  const account = candidates.find(
+    (candidate) => candidate.customerId === approvedCustomer.objectId,
+  )
+  if (!account?.approvalEntryId || !account.code) {
+    throw new Error('客户批准后未生成可引用的默认结算账户。')
   }
-  const submitted = await operator.post<BobMutation>(
-    'dcl/customer-account/submit',
-    {
-      objectId: account.objectId,
-      approvalEntryId: account.openVersion.approval.approvalEntryId,
-      approvalRevision: account.openVersion.approval.revision,
+  return {
+    objectId: account.objectId,
+    enabled: true,
+    approval: {
+      approvalEntryId: account.approvalEntryId,
+      revision: approvedCustomer.approval.revision,
     },
-  )
-  const approved = await reviewer.post<BobMutation>(
-    'dcl/customer-account/approve',
-    {
-      objectId: submitted.objectId,
-      approvalEntryId: submitted.approval.approvalEntryId,
-      approvalRevision: submitted.approval.revision,
-    },
-  )
-  return { ...approved, code: account.code }
+    code: account.code,
+    customerObjectId: approvedCustomer.objectId,
+    customerCode: customerView.code,
+    customerLookup: name,
+  }
 }
 
 function workflowScript(options: {
@@ -1173,7 +1172,7 @@ async function ensureAccountingControlBook(
       templates: [
         {
           templateId: 'e2e-sales-receipt',
-          collection: null,
+          collection: 'accountAllocations',
           lines: [
             {
               subjectSource: 'FIXED',
@@ -1190,9 +1189,20 @@ async function ensureAccountingControlBook(
               subjectSource: 'FIXED',
               subjectValue: subjectIdByCode.get('1122'),
               direction: 'CREDIT',
-              amountField: 'amount',
+              amountField: 'receivableApplied',
               currencyField: 'currency',
-              dimensions: { CUSTOMER_ACCOUNT: 'counterparty.objectId' },
+              dimensions: { CUSTOMER_ACCOUNT: 'account.objectId' },
+              quantityField: null,
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+            {
+              subjectSource: 'FIXED',
+              subjectValue: subjectIdByCode.get('2203'),
+              direction: 'CREDIT',
+              amountField: 'advanceReceipt',
+              currencyField: 'currency',
+              dimensions: { CUSTOMER_ACCOUNT: 'account.objectId' },
               quantityField: null,
               costCounterpartSubjectId: null,
               costCounterpartDimensions: {},
@@ -1395,7 +1405,8 @@ export async function createWflWorkerState(options: {
     contexts.push(reviewerSession.context)
 
     const settlement = await fixedSettlementMethod(operatorSession.api)
-    const operatingEntityId = await fixedOperatingEntity(operatorSession.api)
+    const operatingEntity = await fixedOperatingEntity(operatorSession.api)
+    const operatingEntityId = operatingEntity.objectId
     const employee = await createEffectiveEmployment(
       operatorSession.api,
       reviewerSession.api,
@@ -1426,6 +1437,13 @@ export async function createWflWorkerState(options: {
       settlement.objectId,
       paymentMethodId,
     )
+    if (
+      !customer.customerObjectId ||
+      !customer.customerCode ||
+      !customer.customerLookup
+    ) {
+      throw new Error('WFL 预置客户聚合引用不完整。')
+    }
     const supplier = await createEffectiveSupplier(
       operatorSession.api,
       reviewerSession.api,
@@ -1616,7 +1634,8 @@ export async function createWflWorkerState(options: {
         password: reviewerPassword,
       },
       fixtures: {
-        customer: customer.code,
+        customer: customer.customerLookup,
+        customerAggregate: customer.customerCode,
         supplier: supplier.code,
         employee: employee.code,
         solventProduct: solventProduct.code,
@@ -1631,6 +1650,7 @@ export async function createWflWorkerState(options: {
         supplierObjectId: supplier.objectId,
         warehouseObjectId: warehouse.objectId,
         operatingEntityId,
+        operatingEntity: operatingEntity.code,
       },
       storageState: await operatorSession.context.storageState(),
       grantWorkflowPermissions: (processCodes) =>

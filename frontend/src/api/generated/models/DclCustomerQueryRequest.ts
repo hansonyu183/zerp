@@ -10,8 +10,7 @@ export type DclCustomerQueryRequest = {
     keyword?: string;
     status?: Array<ApprovalStatus>;
     enabled?: boolean;
-    operatingEntityId?: string;
-    partyId?: string;
+    defaultOperatingEntityId?: string;
   };
   sort?: Array<{
     field: 'code';

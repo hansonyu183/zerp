@@ -6,7 +6,7 @@
 -- be explicit; names are never used as migration input.
 BEGIN;
 
-LOCK TABLE dcl_customer_account_versions, dcl_supplier_versions, dcl_other_unit_versions,
+LOCK TABLE dcl_supplier_versions, dcl_other_unit_versions,
     vou_sale_order_details, vou_purchase_order_details, vou_documents, approval_entries IN ACCESS EXCLUSIVE MODE;
 
 CREATE FUNCTION pg_temp.issue_315_relation_term(rule_type text, month_offset integer, day_offset integer)
@@ -21,21 +21,6 @@ RETURNS text LANGUAGE sql IMMUTABLE AS $$
         WHEN rule_type='MONTH_END' AND month_offset=1 AND day_offset=0 THEN 'MONTHLY_30'
         WHEN rule_type='MONTH_END' AND month_offset=2 AND day_offset=0 THEN 'MONTHLY_60'
         WHEN rule_type='MONTH_END' AND month_offset=3 AND day_offset=0 THEN 'MONTHLY_90'
-    END
-$$;
-
-CREATE FUNCTION pg_temp.issue_315_customer_term(rule_type text, month_offset integer, due_days integer)
-RETURNS text LANGUAGE sql IMMUTABLE AS $$
-    SELECT CASE
-        WHEN rule_type IN ('RELATIVE_DAYS','DUE_DAYS') AND month_offset=0 AND due_days=3 THEN 'ARRIVAL_3'
-        WHEN rule_type IN ('RELATIVE_DAYS','DUE_DAYS') AND month_offset=0 AND due_days=5 THEN 'ARRIVAL_5'
-        WHEN rule_type IN ('RELATIVE_DAYS','DUE_DAYS') AND month_offset=0 AND due_days=7 THEN 'ARRIVAL_7'
-        WHEN rule_type IN ('RELATIVE_DAYS','DUE_DAYS') AND month_offset=0 AND due_days=15 THEN 'ARRIVAL_15'
-        WHEN rule_type IN ('RELATIVE_DAYS','DUE_DAYS') AND month_offset=0 AND due_days=30 THEN 'ARRIVAL_30'
-        WHEN rule_type='MONTH_END' AND month_offset=0 AND due_days=0 THEN 'MONTHLY_CURRENT'
-        WHEN rule_type='MONTH_END' AND month_offset=1 AND due_days=0 THEN 'MONTHLY_30'
-        WHEN rule_type='MONTH_END' AND month_offset=2 AND due_days=0 THEN 'MONTHLY_60'
-        WHEN rule_type='MONTH_END' AND month_offset=3 AND due_days=0 THEN 'MONTHLY_90'
     END
 $$;
 
@@ -82,22 +67,6 @@ BEGIN
     ) THEN RAISE EXCEPTION 'issue-315 preflight: supplier settlement snapshots are ambiguous or invalid'; END IF;
 
     IF EXISTS (
-        SELECT 1 FROM dcl_customer_account_versions
-        WHERE (settlement_method_id IS NULL) <> (settlement_method_code IS NULL)
-           OR (settlement_method_id IS NULL) <> (settlement_method_name IS NULL)
-           OR (settlement_method_id IS NULL) <> (settlement_term_code IS NULL)
-           OR (settlement_method_id IS NULL) <> (settlement_rule_type IS NULL)
-           OR (settlement_method_id IS NULL AND (settlement_due_days<>0 OR settlement_month_offset<>0 OR settlement_cutoff_day<>0 OR settlement_sales_surcharge_cents<>0))
-           OR (settlement_method_id IS NOT NULL AND (
-                (NULLIF(settlement_term_code,'') IS NULL AND (pg_temp.issue_315_customer_term(settlement_rule_type,settlement_month_offset,settlement_due_days) IS NULL OR settlement_cutoff_day<>0)) OR
-                (NULLIF(settlement_term_code,'') IS NOT NULL AND NOT (
-                    (settlement_term_code IN ('PREPAID','CASH_ON_DELIVERY') AND settlement_rule_type IN ('RELATIVE_DAYS','DUE_DAYS') AND settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0)
-                    OR (settlement_term_code=pg_temp.issue_315_customer_term(settlement_rule_type,settlement_month_offset,settlement_due_days) AND settlement_cutoff_day=0)
-                ))
-           ))
-    ) THEN RAISE EXCEPTION 'issue-315 preflight: customer-account settlement snapshots are ambiguous or invalid'; END IF;
-
-    IF EXISTS (
         SELECT 1 FROM vou_sale_order_details
         WHERE settlement_method_object_id IS NULL OR settlement_method_code IS NULL OR settlement_method_name IS NULL
            OR (NULLIF(settlement_term_code,'') IS NULL AND pg_temp.issue_315_order_term(settlement_rule_type,settlement_month_offset,settlement_day_offset,settlement_due_days) IS NULL)
@@ -124,8 +93,6 @@ UPDATE dcl_other_unit_versions SET settlement_term_code=pg_temp.issue_315_relati
  WHERE settlement_method_id IS NOT NULL AND NULLIF(settlement_term_code,'') IS NULL;
 UPDATE dcl_supplier_versions SET settlement_term_code=pg_temp.issue_315_relation_term(settlement_rule_type,settlement_month_offset,settlement_day_offset)
  WHERE settlement_method_id IS NOT NULL AND NULLIF(settlement_term_code,'') IS NULL;
-UPDATE dcl_customer_account_versions SET settlement_term_code=pg_temp.issue_315_customer_term(settlement_rule_type,settlement_month_offset,settlement_due_days)
- WHERE settlement_method_id IS NOT NULL AND NULLIF(settlement_term_code,'') IS NULL;
 UPDATE vou_sale_order_details SET settlement_term_code=pg_temp.issue_315_order_term(settlement_rule_type,settlement_month_offset,settlement_day_offset,settlement_due_days)
  WHERE NULLIF(settlement_term_code,'') IS NULL;
 UPDATE vou_purchase_order_details SET settlement_term_code=pg_temp.issue_315_order_term(settlement_rule_type,settlement_month_offset,settlement_day_offset,settlement_due_days)
@@ -133,13 +100,11 @@ UPDATE vou_purchase_order_details SET settlement_term_code=pg_temp.issue_315_ord
 
 UPDATE dcl_other_unit_versions SET settlement_rule_type='RELATIVE_DAYS' WHERE settlement_rule_type='DUE_DAYS';
 UPDATE dcl_supplier_versions SET settlement_rule_type='RELATIVE_DAYS' WHERE settlement_rule_type='DUE_DAYS';
-UPDATE dcl_customer_account_versions SET settlement_rule_type='RELATIVE_DAYS' WHERE settlement_rule_type='DUE_DAYS';
 UPDATE vou_sale_order_details SET settlement_rule_type='RELATIVE_DAYS' WHERE settlement_rule_type='DUE_DAYS';
 UPDATE vou_purchase_order_details SET settlement_rule_type='RELATIVE_DAYS' WHERE settlement_rule_type='DUE_DAYS';
 
 ALTER TABLE dcl_other_unit_versions DROP CONSTRAINT IF EXISTS dcl_other_unit_settlement_ck;
 ALTER TABLE dcl_supplier_versions DROP CONSTRAINT IF EXISTS dcl_supplier_settlement_snapshot_ck;
-ALTER TABLE dcl_customer_account_versions DROP CONSTRAINT IF EXISTS dcl_customer_account_settlement_ck;
 ALTER TABLE dcl_other_unit_versions ADD CONSTRAINT dcl_other_unit_settlement_ck CHECK (
   (settlement_method_id IS NULL)=(settlement_method_code IS NULL) AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
   AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL) AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
@@ -176,25 +141,6 @@ ALTER TABLE dcl_supplier_versions ADD CONSTRAINT dcl_supplier_settlement_snapsho
     WHEN 'MONTHLY_90' THEN settlement_rule_type='MONTH_END' AND settlement_month_offset=3 AND settlement_day_of_month=0 AND settlement_day_offset=0
     ELSE false END)
 );
-ALTER TABLE dcl_customer_account_versions ADD CONSTRAINT dcl_customer_account_settlement_ck CHECK (
-  (settlement_method_id IS NULL)=(settlement_method_code IS NULL) AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
-  AND (settlement_method_id IS NULL)=(settlement_term_code IS NULL) AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
-  AND (settlement_method_id IS NOT NULL OR (settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0 AND settlement_sales_surcharge_cents=0))
-  AND (settlement_method_id IS NULL OR CASE settlement_term_code
-    WHEN 'PREPAID' THEN settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0
-    WHEN 'CASH_ON_DELIVERY' THEN settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0
-    WHEN 'ARRIVAL_3' THEN settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=3 AND settlement_month_offset=0 AND settlement_cutoff_day=0
-    WHEN 'ARRIVAL_5' THEN settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=5 AND settlement_month_offset=0 AND settlement_cutoff_day=0
-    WHEN 'ARRIVAL_7' THEN settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=7 AND settlement_month_offset=0 AND settlement_cutoff_day=0
-    WHEN 'ARRIVAL_15' THEN settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=15 AND settlement_month_offset=0 AND settlement_cutoff_day=0
-    WHEN 'ARRIVAL_30' THEN settlement_rule_type='RELATIVE_DAYS' AND settlement_due_days=30 AND settlement_month_offset=0 AND settlement_cutoff_day=0
-    WHEN 'MONTHLY_CURRENT' THEN settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=0 AND settlement_cutoff_day=0
-    WHEN 'MONTHLY_30' THEN settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=1 AND settlement_cutoff_day=0
-    WHEN 'MONTHLY_60' THEN settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=2 AND settlement_cutoff_day=0
-    WHEN 'MONTHLY_90' THEN settlement_rule_type='MONTH_END' AND settlement_due_days=0 AND settlement_month_offset=3 AND settlement_cutoff_day=0
-    ELSE false END)
-);
-
 ALTER TABLE vou_sale_order_details DROP CONSTRAINT IF EXISTS vou_sale_order_settlement_ck;
 ALTER TABLE vou_purchase_order_details DROP CONSTRAINT IF EXISTS vou_purchase_order_settlement_ck;
 ALTER TABLE vou_sale_order_details ALTER COLUMN settlement_term_code DROP DEFAULT;

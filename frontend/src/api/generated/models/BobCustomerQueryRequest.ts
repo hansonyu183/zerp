@@ -8,8 +8,7 @@ export type BobCustomerQueryRequest = {
   filters?: {
     keyword?: string;
     enabled?: boolean;
-    operatingEntityId?: string;
-    partyId?: string;
+    defaultOperatingEntityId?: string;
   };
   sort?: Array<{
     field: 'code';

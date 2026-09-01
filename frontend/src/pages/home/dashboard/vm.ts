@@ -1,10 +1,7 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import type { components } from '@/api/generated/schema'
 import { apiClient } from '@/api/client'
-import {
-  isDclDeclarationEntity,
-  type DclDeclarationWireAction,
-} from '@/pages/dcl/shared/declaration'
+import { isDclDeclarationEntity } from '@/pages/dcl/shared/declaration'
 import { runDclOperatingEntityAction } from '@/pages/dcl/operating-entity/data'
 import { runDclWarehouseAction } from '@/pages/dcl/warehouse/data'
 import { runDclVehicleAction } from '@/pages/dcl/vehicle/data'
@@ -66,56 +63,6 @@ export function workbenchItemQuery(
     }
   }
   return { objectId: item.objectId, mode }
-}
-
-type DclCustomerEntity = 'customer' | 'customer-account'
-type DclCustomerActionRequest = {
-  objectId: string
-  approvalEntryId: string
-  approvalRevision: number
-}
-
-async function runDclCustomerAction(
-  entity: DclCustomerEntity,
-  action: DclDeclarationWireAction,
-  request: DclCustomerActionRequest,
-  reason: string,
-): Promise<void> {
-  if (entity === 'customer') {
-    if (action === 'submit')
-      await apiClient.postContract('dcl/customer/submit', request)
-    else if (action === 'unsubmit')
-      await apiClient.postContract('dcl/customer/unsubmit', request)
-    else if (action === 'approve')
-      await apiClient.postContract('dcl/customer/approve', request)
-    else if (action === 'reject')
-      await apiClient.postContract('dcl/customer/reject', {
-        ...request,
-        reason,
-      })
-    else
-      await apiClient.postContract('dcl/customer/unapprove', {
-        ...request,
-        reason,
-      })
-    return
-  }
-  if (action === 'submit')
-    await apiClient.postContract('dcl/customer-account/submit', request)
-  else if (action === 'unsubmit')
-    await apiClient.postContract('dcl/customer-account/unsubmit', request)
-  else if (action === 'approve')
-    await apiClient.postContract('dcl/customer-account/approve', request)
-  else if (action === 'reject')
-    await apiClient.postContract('dcl/customer-account/reject', {
-      ...request,
-      reason,
-    })
-  else
-    await apiClient.postContract('dcl/customer-account/unapprove', {
-      ...request,
-      reason,
-    })
 }
 
 interface WorkbenchListState {
@@ -315,16 +262,10 @@ export function useDashboardViewModel() {
           await runDclEmployeeAction(action, request, comment.trim())
         } else if (item.entity === 'supplier') {
           await runDclSupplierAction(action, request, comment.trim())
-        } else if (
-          item.entity === 'customer' ||
-          item.entity === 'customer-account'
-        ) {
-          await runDclCustomerAction(
-            item.entity,
-            action,
-            request,
-            comment.trim(),
-          )
+        } else if (item.entity === 'customer') {
+          if (action === 'reject' || action === 'unapprove')
+            await apiClient.postContract(`dcl/customer/${action}`, { ...request, reason: comment.trim() })
+          else await apiClient.postContract(`dcl/customer/${action}`, request)
         } else if (
           item.entity === 'other-unit' ||
           item.entity === 'sales-partner'

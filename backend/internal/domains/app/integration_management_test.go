@@ -237,7 +237,7 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	}
 	currentEntities := []string{
 		"operating-entity", "warehouse", "vehicle", "fund-account", "party", "product",
-		"customer", "customer-account", "supplier", "other-unit", "employee", "sales-partner",
+		"customer", "supplier", "other-unit", "employee", "sales-partner",
 	}
 	for _, entity := range currentEntities {
 		for _, action := range []string{"query", "get"} {
@@ -246,7 +246,7 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	}
 	declarationEntities := []string{
 		"operating-entity", "warehouse", "vehicle", "fund-account", "product",
-		"employee", "other-unit", "sales-partner", "supplier", "customer", "customer-account",
+		"employee", "other-unit", "sales-partner", "supplier", "customer",
 	}
 	for _, entity := range declarationEntities {
 		for _, action := range []string{

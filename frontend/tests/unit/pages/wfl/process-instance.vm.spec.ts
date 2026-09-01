@@ -196,7 +196,7 @@ describe('process instance view model', () => {
       ],
     } as never)
     const { vm, wrapper } = await mountViewModel()
-    useSessionStore().permissions.push('/bob/customer-account/query')
+    useSessionStore().permissions.push('/bob/reference/query')
     vm.selectedParty.value = selectedParty
     const selectedPartyReference = vm.selectedParty.value
 

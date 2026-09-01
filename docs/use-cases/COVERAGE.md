@@ -6,10 +6,10 @@
 
 统计口径：页面入口只统计静态注册页面，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。
 
-- 页面入口：91
-- 已覆盖入口：46
-- 已登记用例：45
-- 缺少用例：45
+- 页面入口：89
+- 已覆盖入口：45
+- 已登记用例：44
+- 缺少用例：44
 - 孤儿用例：0
 
 ## APP
@@ -27,23 +27,22 @@
 
 ## DCL
 
-| 页面               | 路由                          | 来源                                                | 状态                                      |
-| ------------------ | ----------------------------- | --------------------------------------------------- | ----------------------------------------- |
-| 主体变更           | `/dcl/party`                  | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/party.md)                  |
-| 经营主体变更       | `/dcl/operating-entity`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md)       |
-| 仓库变更           | `/dcl/warehouse`              | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)              |
-| 车辆变更           | `/dcl/vehicle`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)                |
-| 资金账户变更       | `/dcl/fund-account`           | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)           |
-| 人员变更           | `/dcl/employee`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/employee.md)               |
-| 其他单位变更       | `/dcl/other-unit`             | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/other-unit.md)             |
-| 销售合作方变更     | `/dcl/sales-partner`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/sales-partner.md)          |
-| 客户变更           | `/dcl/customer`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer.md)               |
-| 客户结算子账户变更 | `/dcl/customer-account`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer-account.md)       |
-| 供应商变更         | `/dcl/supplier`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/supplier.md)               |
-| 产品变更           | `/dcl/product`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)                |
-| 会计映射变更       | `/dcl/acc-mapping`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/acc-mapping.md)            |
-| 报表定义变更       | `/dcl/rpt-definition`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/rpt-definition.md)         |
-| 流程定义变更       | `/dcl/wfl-process-definition` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/wfl-process-definition.md) |
+| 页面           | 路由                          | 来源                                                | 状态                                      |
+| -------------- | ----------------------------- | --------------------------------------------------- | ----------------------------------------- |
+| 主体变更       | `/dcl/party`                  | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/party.md)                  |
+| 经营主体变更   | `/dcl/operating-entity`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md)       |
+| 仓库变更       | `/dcl/warehouse`              | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)              |
+| 车辆变更       | `/dcl/vehicle`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/vehicle.md)                |
+| 资金账户变更   | `/dcl/fund-account`           | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/fund-account.md)           |
+| 人员变更       | `/dcl/employee`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/employee.md)               |
+| 其他单位变更   | `/dcl/other-unit`             | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/other-unit.md)             |
+| 销售合作方变更 | `/dcl/sales-partner`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/sales-partner.md)          |
+| 客户变更       | `/dcl/customer`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/customer.md)               |
+| 供应商变更     | `/dcl/supplier`               | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/supplier.md)               |
+| 产品变更       | `/dcl/product`                | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/product.md)                |
+| 会计映射变更   | `/dcl/acc-mapping`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/acc-mapping.md)            |
+| 报表定义变更   | `/dcl/rpt-definition`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/rpt-definition.md)         |
+| 流程定义变更   | `/dcl/wfl-process-definition` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/wfl-process-definition.md) |
 
 ## ACC
 
@@ -60,7 +59,6 @@
 | 页面                     | 路由                    | 来源                                                | 状态                                |
 | ------------------------ | ----------------------- | --------------------------------------------------- | ----------------------------------- |
 | 主体                     | `/bob/party`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/party.md)            |
-| 客户结算子账户           | `/bob/customer-account` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer-account.md) |
 | 客户                     | `/bob/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer.md)         |
 | 供应商                   | `/bob/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/supplier.md)         |
 | 其他单位                 | `/bob/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/other-unit.md)       |
@@ -114,7 +112,7 @@
 | 采购订单     | `/vou/purchase-order`           | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
 | 采购入库     | `/vou/purchase-inbound`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
 | 采购退货     | `/vou/purchase-return`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
-| 销售收款     | `/vou/sales-receipt`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售收款     | `/vou/sales-receipt`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](vou/sales-receipt.md)      |
 | 采购退款     | `/vou/purchase-refund`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
 | 其他往来收款 | `/vou/other-receipt`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
 | 销售退款     | `/vou/sales-refund`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |

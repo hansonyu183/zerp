@@ -424,11 +424,9 @@ func TestSaleOrderRequiresConfiguredCustomerSettlementTermIntegration(t *testing
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	if _, err := pool.Exec(t.Context(), `UPDATE dcl_customer_account_versions SET
-		settlement_method_id=NULL,settlement_method_code=NULL,settlement_method_name=NULL,
-		settlement_term_code=NULL,settlement_rule_type=NULL,settlement_due_days=0,
-		settlement_month_offset=0,settlement_cutoff_day=0,settlement_sales_surcharge_cents=0
-		WHERE approval_entry_id=$1`, refs.customer.ApprovalEntryID); err != nil {
+	if _, err := pool.Exec(t.Context(), `UPDATE dcl_customer_version_accounts
+		SET data=data-'settlementMethodId'-'settlementMethod'
+		WHERE customer_approval_entry_id=$1 AND account_id=$2`, refs.customer.ApprovalEntryID, refs.customer.ObjectID); err != nil {
 		t.Fatalf("remove customer settlement snapshot: %v", err)
 	}
 	service := newIntegrationService(t, pool)
@@ -457,10 +455,8 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	orderLineID := orderView.Data.ProductLines[0].LineID
 
 	var orderOperatingEntityID string
-	if err := pool.QueryRow(t.Context(), `SELECT relationship.operating_entity_id
-		FROM dcl_customer_accounts account
-		JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
-		WHERE account.object_id=$1`, refs.customer.ObjectID).Scan(&orderOperatingEntityID); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT data->'defaultOperatingEntity'->>'sourceObjectId'
+		FROM dcl_customer_versions WHERE approval_entry_id=$1`, refs.customer.ApprovalEntryID).Scan(&orderOperatingEntityID); err != nil {
 		t.Fatalf("read sale order operating entity: %v", err)
 	}
 	internalVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{

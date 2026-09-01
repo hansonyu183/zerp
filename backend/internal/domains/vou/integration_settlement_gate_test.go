@@ -36,7 +36,7 @@ func createSettlementCustomer(
 	return createApprovedCustomer(t, pool, bobdomain.CreateDetailInput{
 		Name: name, SettlementMethodID: settlement.ObjectID,
 		SalespersonEmployeeID: employee.ObjectID,
-	})
+	}).Account
 }
 
 func createCheckedSettlementSale(

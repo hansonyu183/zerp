@@ -847,7 +847,7 @@ describe('bill voucher view model behavior', () => {
     session.$patch({
       permissions: [
         '/vou/bill-receipt/create',
-        '/bob/customer-account/query',
+        '/bob/reference/query',
         '/bob/employee/query',
       ],
     })
@@ -931,7 +931,7 @@ describe('bill voucher view model behavior', () => {
     session.$patch({
       permissions: [
         '/vou/bill-receipt/create',
-        '/bob/customer-account/query',
+        '/bob/reference/query',
         '/bob/employee/query',
       ],
     })
@@ -1196,7 +1196,7 @@ describe('bill voucher view model behavior', () => {
     const cases = [
       {
         entity: 'bill-receipt' as const,
-        permissions: ['/bob/customer-account/query', '/bob/employee/query'],
+        permissions: ['/bob/reference/query', '/bob/employee/query'],
       },
       {
         entity: 'bill-payment' as const,

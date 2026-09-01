@@ -195,14 +195,6 @@ func (s *PartyMergeEngine) PartyMergeConfirm(
 				mergedRelationship = targetRelationshipByObject[conflict.TargetObjectID]
 				mergedPartyID = preflight.TargetPartyID
 			}
-			if mergedRelationship.relationshipType == EntityCustomer {
-				rows, moveErr := qtx.MoveCustomerAccountsToRetainedRelationship(ctx, dbsqlc.MoveCustomerAccountsToRetainedRelationshipParams{
-					TargetRelationshipID: retainedObjectID, SourceRelationshipID: mergedRelationship.objectID,
-				})
-				if moveErr != nil || rows < 1 {
-					return bobdomain.PartyMergeResult{}, s.writeError("move customer accounts to retained relationship", moveErr)
-				}
-			}
 			if err = markMergedPartyRelationship(ctx, qtx, mergedRelationship, mergedPartyID, retainedObjectID); err != nil {
 				return bobdomain.PartyMergeResult{}, err
 			}
@@ -453,8 +445,6 @@ func movePartyRelationship(ctx context.Context, q *dbsqlc.Queries, relationship 
 	var rows int64
 	var err error
 	switch relationship.relationshipType {
-	case EntityCustomer:
-		rows, err = q.MoveCustomerRelationshipParty(ctx, dbsqlc.MoveCustomerRelationshipPartyParams{TargetPartyID: targetPartyID, SourceObjectID: relationship.objectID, SourcePartyID: sourcePartyID})
 	case EntitySupplier:
 		rows, err = q.MoveSupplierRelationshipParty(ctx, dbsqlc.MoveSupplierRelationshipPartyParams{TargetPartyID: targetPartyID, SourceObjectID: relationship.objectID, SourcePartyID: sourcePartyID})
 	case EntityEmployee:
@@ -477,8 +467,6 @@ func markMergedPartyRelationship(ctx context.Context, q *dbsqlc.Queries, relatio
 	var err error
 	target := &targetObjectID
 	switch relationship.relationshipType {
-	case EntityCustomer:
-		rows, err = q.MarkCustomerRelationshipMerged(ctx, dbsqlc.MarkCustomerRelationshipMergedParams{TargetObjectID: target, SourceObjectID: relationship.objectID, SourcePartyID: sourcePartyID})
 	case EntitySupplier:
 		rows, err = q.MarkSupplierRelationshipMerged(ctx, dbsqlc.MarkSupplierRelationshipMergedParams{TargetObjectID: target, SourceObjectID: relationship.objectID, SourcePartyID: sourcePartyID})
 	case EntityEmployee:

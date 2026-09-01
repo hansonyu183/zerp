@@ -169,6 +169,9 @@ func (s *Service) ValidateHistoricalReference(ctx context.Context, tx pgx.Tx, en
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid BOB reference", nil, nil)
 	}
 	q := s.queries.WithTx(tx)
+	if entity == EntityCustomer {
+		return s.validateCustomerSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	if entity == EntityOperatingEntity {
 		return s.validateOperatingEntitySnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
@@ -207,6 +210,9 @@ func (s *Service) ResolveCurrentReference(ctx context.Context, tx pgx.Tx, entity
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid BOB reference", nil, nil)
 	}
 	q := s.queries.WithTx(tx)
+	if entity == EntityCustomer {
+		return s.resolveCustomerCurrentReference(ctx, q, objectID)
+	}
 	if entity == EntityOperatingEntity {
 		return s.resolveOperatingEntityCurrentReference(ctx, q, objectID)
 	}

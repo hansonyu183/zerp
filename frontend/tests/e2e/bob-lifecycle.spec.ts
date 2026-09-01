@@ -248,19 +248,18 @@ test(
 )
 
 test(
-  'BOB 客户与客户结算子账户只读取当前有效资料',
+  'BOB 客户聚合只读取当前有效资料',
   { tag: '@mobile' },
   async ({ page, workerState }) => {
     await signIn(page, workerState.operator)
     const legacyLifecycleRequests: string[] = []
     page.on('request', (request) => {
       const pathname = new URL(request.url()).pathname
-      if (/^\/bob\/customer(?:-account)?\/(?!query$|get$)/.test(pathname)) {
+      if (/^\/bob\/customer\/(?!query$|get$)/.test(pathname)) {
         legacyLifecycleRequests.push(pathname)
       }
     })
     await openBobCurrentPage(page, '/bob/customer')
-    await openBobCurrentPage(page, '/bob/customer-account')
     expect(legacyLifecycleRequests).toEqual([])
   },
 )

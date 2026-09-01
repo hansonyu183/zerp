@@ -2,8 +2,8 @@ package dcl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"slices"
 	"strings"
 	"time"
 
@@ -16,74 +16,58 @@ type CustomerGetInput struct {
 	ObjectID        string `json:"objectId"`
 	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
 }
-
 type CustomerQueryFilters struct {
-	Keyword           string            `json:"keyword,omitempty"`
-	Status            []approval.Status `json:"status,omitempty"`
-	Enabled           *bool             `json:"enabled,omitempty"`
-	OperatingEntityID string            `json:"operatingEntityId,omitempty"`
-	PartyID           string            `json:"partyId,omitempty"`
+	Keyword                  string            `json:"keyword,omitempty"`
+	Status                   []approval.Status `json:"status,omitempty"`
+	Enabled                  *bool             `json:"enabled,omitempty"`
+	DefaultOperatingEntityID string            `json:"defaultOperatingEntityId,omitempty"`
 }
-
 type CustomerQueryInput struct {
 	Page     int                       `json:"page"`
 	PageSize int                       `json:"pageSize"`
 	Filters  CustomerQueryFilters      `json:"filters"`
 	Sort     []OperatingEntitySortItem `json:"sort"`
 }
-
 type CustomerHistoryInput struct {
 	ObjectID string `json:"objectId"`
 	Page     int    `json:"page"`
 	PageSize int    `json:"pageSize"`
 }
-
 type CustomerView struct {
-	ObjectID                       string                     `json:"objectId"`
-	Entity                         string                     `json:"entity"`
-	Code                           string                     `json:"code"`
-	PartyID                        string                     `json:"partyId"`
-	PartyKind                      string                     `json:"partyKind"`
-	PartyDisplayName               string                     `json:"partyDisplayName"`
-	OperatingEntityID              string                     `json:"operatingEntityId"`
-	OperatingEntityApprovalEntryID string                     `json:"operatingEntityApprovalEntryId"`
-	OperatingEntityCode            string                     `json:"operatingEntityCode"`
-	OperatingEntityName            string                     `json:"operatingEntityName"`
-	Enabled                        bool                       `json:"enabled"`
-	Approval                       approval.VersionMeta       `json:"approval"`
-	Attachments                    []CustomerAttachmentView   `json:"attachments"`
-	UpdatedAt                      time.Time                  `json:"updatedAt"`
-	AvailableApprovalActions       []approval.LifecycleAction `json:"availableApprovalActions"`
-}
-
-type CustomerVersionView struct {
-	Approval    approval.VersionMeta     `json:"approval"`
-	Enabled     bool                     `json:"enabled"`
-	Attachments []CustomerAttachmentView `json:"attachments"`
-}
-
-type CustomerQueryItem struct {
 	ObjectID                 string                     `json:"objectId"`
 	Entity                   string                     `json:"entity"`
 	Code                     string                     `json:"code"`
-	PartyID                  string                     `json:"partyId"`
-	PartyKind                string                     `json:"partyKind"`
-	PartyDisplayName         string                     `json:"partyDisplayName"`
-	OperatingEntityID        string                     `json:"operatingEntityId"`
-	OperatingEntityCode      string                     `json:"operatingEntityCode"`
-	OperatingEntityName      string                     `json:"operatingEntityName"`
-	Enabled                  bool                       `json:"enabled"`
-	LatestApproved           *CustomerVersionView       `json:"latestApproved"`
-	OpenVersion              *CustomerVersionView       `json:"openVersion"`
-	UpdatedAt                time.Time                  `json:"updatedAt"`
+	Approval                 approval.VersionMeta       `json:"approval"`
 	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
+	Data                     CustomerData               `json:"data"`
+	Attachments              []CustomerAttachmentView   `json:"attachments"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+}
+type CustomerVersionView struct {
+	Approval    approval.VersionMeta     `json:"approval"`
+	Data        CustomerData             `json:"data"`
+	Attachments []CustomerAttachmentView `json:"attachments"`
+}
+type CustomerVersionSummary struct {
+	Approval    approval.VersionMeta `json:"approval"`
+	DisplayName string               `json:"displayName"`
+	Enabled     bool                 `json:"enabled"`
+}
+type CustomerQueryItem struct {
+	ObjectID                   string                     `json:"objectId"`
+	Entity                     string                     `json:"entity"`
+	Code                       string                     `json:"code"`
+	DisplayName                string                     `json:"displayName"`
+	DefaultOperatingEntityCode string                     `json:"defaultOperatingEntityCode"`
+	LatestApproved             *CustomerVersionSummary    `json:"latestApproved,omitempty"`
+	OpenVersion                *CustomerVersionSummary    `json:"openVersion,omitempty"`
+	UpdatedAt                  time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions   []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
 func (s *CustomerService) Query(ctx context.Context, in CustomerQueryInput, actor approval.Actor) (Page[CustomerQueryItem], error) {
 	offset, ok := dclPageOffset(in.Page, in.PageSize)
-	if !ok || in.PageSize != 20 || !validActor(actor) || len(in.Sort) > 1 ||
-		(in.Filters.OperatingEntityID != "" && !validID(in.Filters.OperatingEntityID)) ||
-		(in.Filters.PartyID != "" && !validID(in.Filters.PartyID)) {
+	if !ok || in.PageSize != 20 || !validActor(actor) || len(in.Sort) > 1 || (in.Filters.DefaultOperatingEntityID != "" && !validID(in.Filters.DefaultOperatingEntityID)) {
 		return Page[CustomerQueryItem]{}, newError(ErrorValidation, "validation_failed", "invalid customer query", nil, nil)
 	}
 	if len(in.Sort) == 1 && (in.Sort[0].Field != "code" || strings.ToLower(in.Sort[0].Order) != "asc") {
@@ -94,7 +78,7 @@ func (s *CustomerService) Query(ctx context.Context, in CustomerQueryInput, acto
 	}
 	statuses := make([]string, 0, len(in.Filters.Status))
 	for _, status := range in.Filters.Status {
-		if !slices.Contains([]approval.Status{approval.StatusDraft, approval.StatusPending, approval.StatusApproved}, status) || slices.Contains(statuses, string(status)) {
+		if status != approval.StatusDraft && status != approval.StatusPending && status != approval.StatusApproved {
 			return Page[CustomerQueryItem]{}, newError(ErrorValidation, "validation_failed", "invalid customer status", nil, nil)
 		}
 		statuses = append(statuses, string(status))
@@ -107,49 +91,40 @@ func (s *CustomerService) Query(ctx context.Context, in CustomerQueryInput, acto
 			enabled = 0
 		}
 	}
-	p := dbsqlc.ListDCLCustomersParams{
-		Keyword: strings.TrimSpace(in.Filters.Keyword), EnabledFilter: enabled,
-		OperatingEntityID: strings.TrimSpace(in.Filters.OperatingEntityID), PartyID: strings.TrimSpace(in.Filters.PartyID),
-		StatusFilter: statuses, RowOffset: offset, RowLimit: int32(in.PageSize),
-	}
-	rows, err := s.queries.ListDCLCustomers(ctx, p)
+	p := dbsqlc.ListDCLCustomerAggregatesParams{Keyword: strings.TrimSpace(in.Filters.Keyword), EnabledFilter: enabled, DefaultOperatingEntityID: strings.TrimSpace(in.Filters.DefaultOperatingEntityID), StatusFilter: statuses, RowOffset: offset, RowLimit: int32(in.PageSize)}
+	rows, err := s.queries.ListDCLCustomerAggregates(ctx, p)
 	if err != nil {
 		return Page[CustomerQueryItem]{}, translateError(err)
 	}
-	total, err := s.queries.CountDCLCustomers(ctx, dbsqlc.CountDCLCustomersParams{
-		Keyword: p.Keyword, EnabledFilter: p.EnabledFilter, OperatingEntityID: p.OperatingEntityID, PartyID: p.PartyID, StatusFilter: p.StatusFilter,
-	})
+	total, err := s.queries.CountDCLCustomerAggregates(ctx, dbsqlc.CountDCLCustomerAggregatesParams{Keyword: p.Keyword, EnabledFilter: p.EnabledFilter, DefaultOperatingEntityID: p.DefaultOperatingEntityID, StatusFilter: p.StatusFilter})
 	if err != nil {
 		return Page[CustomerQueryItem]{}, translateError(err)
 	}
 	items := make([]CustomerQueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := CustomerQueryItem{
-			ObjectID: row.ObjectID, Entity: EntityCustomer, Code: row.Code,
-			PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName,
-			OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode,
-			OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time,
+		var data CustomerData
+		if err = json.Unmarshal(row.Data, &data); err != nil {
+			return Page[CustomerQueryItem]{}, translateError(err)
 		}
+		item := CustomerQueryItem{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: stringValue(row.Code), DisplayName: data.DisplayName, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, UpdatedAt: row.UpdatedAt.Time}
 		if row.LatestApprovedEntryID != "" {
-			version, e := s.customerVersion(ctx, s.queries, row.LatestApprovedEntryID, row.ObjectID)
-			if e != nil {
-				return Page[CustomerQueryItem]{}, e
-			}
-			item.LatestApproved = &version
+			v := CustomerVersionSummary{Approval: approval.VersionMeta{ApprovalEntryID: row.LatestApprovedEntryID, Status: approval.Status(row.LatestApprovedStatus), VersionNo: row.LatestApprovedVersionNo}, DisplayName: data.DisplayName, Enabled: data.Enabled}
+			item.LatestApproved = &v
 		}
 		if row.OpenEntryID != "" {
-			version, e := s.customerVersion(ctx, s.queries, row.OpenEntryID, row.ObjectID)
+			v := CustomerVersionSummary{Approval: approval.VersionMeta{ApprovalEntryID: row.OpenEntryID, Status: approval.Status(row.OpenStatus), VersionNo: row.OpenVersionNo}, DisplayName: data.DisplayName, Enabled: data.Enabled}
+			item.OpenVersion = &v
+		}
+		entryID := row.OpenEntryID
+		if entryID == "" {
+			entryID = row.LatestApprovedEntryID
+		}
+		if entryID != "" {
+			entry, e := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityCustomer})
 			if e != nil {
-				return Page[CustomerQueryItem]{}, e
+				return Page[CustomerQueryItem]{}, translateError(e)
 			}
-			item.OpenVersion = &version
-		}
-		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntityCustomer, row.OpenEntryID, row.LatestApprovedEntryID)
-		if entryErr != nil {
-			return Page[CustomerQueryItem]{}, entryErr
-		}
-		if ok {
-			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+			item.AvailableApprovalActions = s.coordinator.LifecycleActions(approvalEntry(entry), actor)
 		}
 		items = append(items, item)
 	}
@@ -164,19 +139,19 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 	if err != nil {
 		return CustomerView{}, translateError(err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
+	defer tx.Rollback(ctx)
 	q := s.queries.WithTx(tx)
 	entryID := in.ApprovalEntryID
 	var entry approval.Entry
 	if entryID == "" {
 		entry, err = s.coordinator.GetOpenVersion(ctx, tx, in.ObjectID, actor)
 		if approval.IsKey(err, "approval_version_not_found") {
-			row, lookup := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: in.ObjectID})
-			if lookup == nil {
+			row, e := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: in.ObjectID})
+			if e != nil {
+				err = e
+			} else {
 				entryID = row.ID
 				entry, err = s.coordinator.Get(ctx, tx, entryID, actor)
-			} else {
-				err = lookup
 			}
 		} else if err == nil {
 			entryID = entry.ID
@@ -185,38 +160,24 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 		entry, err = s.coordinator.Get(ctx, tx, entryID, actor)
 	}
 	if err != nil || entry.SubjectID != in.ObjectID {
-		if err == nil {
-			err = newError(ErrorValidation, "validation_failed", "customer declaration not found", nil, nil)
-		}
 		return CustomerView{}, translateError(err)
 	}
-	identity, err := lockRelationshipIdentity(ctx, tx, EntityCustomer, in.ObjectID)
+	data, err := s.loadCustomerData(ctx, q, entryID)
 	if err != nil {
-		return CustomerView{}, translateError(err)
+		return CustomerView{}, err
 	}
-	party, err := s.partyReader.ResolveForRelationship(ctx, tx, identity.PartyID)
+	attachments, err := customerLevelAttachments(ctx, q, entryID)
 	if err != nil {
-		return CustomerView{}, translateError(err)
+		return CustomerView{}, err
 	}
-	stored, err := q.GetDCLCustomerVersion(ctx, entryID)
-	if err != nil {
-		return CustomerView{}, translateError(err)
-	}
-	attachments, err := ListCustomerAttachments(ctx, q, entryID)
+	id, err := lockSubject(ctx, tx, EntityCustomer, in.ObjectID)
 	if err != nil {
 		return CustomerView{}, translateError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return CustomerView{}, translateError(err)
 	}
-	return CustomerView{
-		ObjectID: identity.ObjectID, Entity: EntityCustomer, Code: identity.Code,
-		PartyID: identity.PartyID, PartyKind: party.Kind, PartyDisplayName: party.DisplayName,
-		OperatingEntityID: identity.OperatingEntityID, OperatingEntityApprovalEntryID: stored.OperatingEntityApprovalEntryID,
-		OperatingEntityCode: stored.OperatingEntityCode, OperatingEntityName: stored.OperatingEntityName,
-		Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Attachments: attachments, UpdatedAt: entry.UpdatedAt,
-		AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor),
-	}, nil
+	return CustomerView{ObjectID: id.ObjectID, Entity: EntityCustomer, Code: id.Code, Approval: approval.VersionMetaFromEntry(entry), AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor), Data: data, Attachments: attachments, UpdatedAt: entry.UpdatedAt}, nil
 }
 
 func (s *CustomerService) Versions(ctx context.Context, in CustomerHistoryInput, actor approval.Actor) (Page[CustomerVersionView], error) {
@@ -227,23 +188,25 @@ func (s *CustomerService) Versions(ctx context.Context, in CustomerHistoryInput,
 	if err != nil {
 		return Page[CustomerVersionView]{}, translateError(err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
+	defer tx.Rollback(ctx)
 	entries, err := s.coordinator.ListVersions(ctx, tx, in.ObjectID, actor)
 	if err != nil {
 		return Page[CustomerVersionView]{}, translateError(err)
 	}
-	start := (in.Page - 1) * in.PageSize
-	if start > len(entries) {
-		start = len(entries)
-	}
+	start := min((in.Page-1)*in.PageSize, len(entries))
 	end := min(start+in.PageSize, len(entries))
+	q := s.queries.WithTx(tx)
 	items := make([]CustomerVersionView, 0, end-start)
 	for _, entry := range entries[start:end] {
-		view, e := s.customerVersion(ctx, s.queries.WithTx(tx), entry.ID, in.ObjectID)
+		data, e := s.loadCustomerData(ctx, q, entry.ID)
 		if e != nil {
 			return Page[CustomerVersionView]{}, e
 		}
-		items = append(items, view)
+		attachments, e := customerLevelAttachments(ctx, q, entry.ID)
+		if e != nil {
+			return Page[CustomerVersionView]{}, e
+		}
+		items = append(items, CustomerVersionView{Approval: approval.VersionMetaFromEntry(entry), Data: data, Attachments: attachments})
 	}
 	return Page[CustomerVersionView]{Items: items, Total: int64(len(entries)), Page: in.Page, PageSize: in.PageSize}, nil
 }
@@ -275,23 +238,4 @@ func (s *CustomerService) AuditHistory(ctx context.Context, in CustomerHistoryIn
 		items = append(items, approvalEventView(row))
 	}
 	return Page[approval.EventView]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
-}
-
-func (s *CustomerService) customerVersion(ctx context.Context, q *dbsqlc.Queries, entryID, objectID string) (CustomerVersionView, error) {
-	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityCustomer})
-	if err != nil {
-		return CustomerVersionView{}, translateError(err)
-	}
-	if entry.SubjectID != objectID {
-		return CustomerVersionView{}, newError(ErrorValidation, "validation_failed", "customer version does not belong to subject", nil, nil)
-	}
-	stored, err := q.GetDCLCustomerVersion(ctx, entryID)
-	if err != nil {
-		return CustomerVersionView{}, translateError(err)
-	}
-	attachments, err := ListCustomerAttachments(ctx, q, entryID)
-	if err != nil {
-		return CustomerVersionView{}, translateError(err)
-	}
-	return CustomerVersionView{Approval: approval.VersionMetaFromEntry(approvalEntry(entry)), Enabled: stored.Enabled, Attachments: attachments}, nil
 }

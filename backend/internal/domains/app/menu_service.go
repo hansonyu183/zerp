@@ -697,9 +697,6 @@ func menuRouteDisplayName(domain, entity, description string) string {
 	if entity == "employee" {
 		return "人员"
 	}
-	if entity == "customer-account" {
-		return "客户结算子账户"
-	}
 	return title
 }
 

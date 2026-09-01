@@ -304,26 +304,6 @@ func (q *Queries) LockPartyMergePreflight(ctx context.Context, id string) (DclPa
 	return i, err
 }
 
-const markCustomerRelationshipMerged = `-- name: MarkCustomerRelationshipMerged :execrows
-UPDATE dcl_customer_relationships SET merged_into_object_id=$1,merged_at=now()
-WHERE object_id=$2 AND party_id=$3
-  AND merged_into_object_id IS NULL
-`
-
-type MarkCustomerRelationshipMergedParams struct {
-	TargetObjectID *string `db:"target_object_id" json:"target_object_id"`
-	SourceObjectID string  `db:"source_object_id" json:"source_object_id"`
-	SourcePartyID  string  `db:"source_party_id" json:"source_party_id"`
-}
-
-func (q *Queries) MarkCustomerRelationshipMerged(ctx context.Context, arg MarkCustomerRelationshipMergedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markCustomerRelationshipMerged, arg.TargetObjectID, arg.SourceObjectID, arg.SourcePartyID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const markEmploymentRelationshipMerged = `-- name: MarkEmploymentRelationshipMerged :execrows
 UPDATE dcl_employment_relationships SET merged_into_object_id=$1,merged_at=now()
 WHERE object_id=$2 AND party_id=$3
@@ -417,45 +397,6 @@ type MarkSupplierRelationshipMergedParams struct {
 
 func (q *Queries) MarkSupplierRelationshipMerged(ctx context.Context, arg MarkSupplierRelationshipMergedParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markSupplierRelationshipMerged, arg.TargetObjectID, arg.SourceObjectID, arg.SourcePartyID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const moveCustomerAccountsToRetainedRelationship = `-- name: MoveCustomerAccountsToRetainedRelationship :execrows
-UPDATE dcl_customer_accounts
-SET customer_relationship_id=$1
-WHERE customer_relationship_id=$2
-`
-
-type MoveCustomerAccountsToRetainedRelationshipParams struct {
-	TargetRelationshipID string `db:"target_relationship_id" json:"target_relationship_id"`
-	SourceRelationshipID string `db:"source_relationship_id" json:"source_relationship_id"`
-}
-
-func (q *Queries) MoveCustomerAccountsToRetainedRelationship(ctx context.Context, arg MoveCustomerAccountsToRetainedRelationshipParams) (int64, error) {
-	result, err := q.db.Exec(ctx, moveCustomerAccountsToRetainedRelationship, arg.TargetRelationshipID, arg.SourceRelationshipID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const moveCustomerRelationshipParty = `-- name: MoveCustomerRelationshipParty :execrows
-UPDATE dcl_customer_relationships SET party_id=$1
-WHERE object_id=$2 AND party_id=$3
-  AND merged_into_object_id IS NULL
-`
-
-type MoveCustomerRelationshipPartyParams struct {
-	TargetPartyID  string `db:"target_party_id" json:"target_party_id"`
-	SourceObjectID string `db:"source_object_id" json:"source_object_id"`
-	SourcePartyID  string `db:"source_party_id" json:"source_party_id"`
-}
-
-func (q *Queries) MoveCustomerRelationshipParty(ctx context.Context, arg MoveCustomerRelationshipPartyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, moveCustomerRelationshipParty, arg.TargetPartyID, arg.SourceObjectID, arg.SourcePartyID)
 	if err != nil {
 		return 0, err
 	}

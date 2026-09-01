@@ -62,6 +62,18 @@ ORDER BY version_no DESC
 LIMIT 1
 FOR UPDATE;
 
+-- name: GetLatestApprovedVersionExcluding :one
+SELECT *
+FROM approval_entries
+WHERE domain = sqlc.arg(domain)
+  AND entity = sqlc.arg(entity)
+  AND subject_id = sqlc.arg(subject_id)
+  AND id <> sqlc.arg(excluded_approval_entry_id)
+  AND version_no IS NOT NULL
+  AND status = 'APPROVED'
+ORDER BY version_no DESC
+LIMIT 1;
+
 -- name: GetOpenApprovalVersion :one
 SELECT *
 FROM approval_entries

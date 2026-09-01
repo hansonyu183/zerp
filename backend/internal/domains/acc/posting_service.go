@@ -28,18 +28,20 @@ type postingSnapshot struct {
 }
 
 type automaticPostingLine struct {
-	subjectID, currency, sourceLineID string
-	debitMinor, creditMinor           int64
-	quantityMicros                    *int64
-	quantityDeltaMicros               int64
-	productID, productApprovalEntryID string
-	productCode, productName          string
-	warehouseID                       string
-	dimensionsJSON                    []byte
-	costCounterpartSubjectID          *string
-	costCounterpartDimensionsJSON     []byte
-	originSourceDocumentID            *string
-	originSourceLineID                *string
+	subjectID, currency, sourceLineID      string
+	debitMinor, creditMinor                int64
+	quantityMicros                         *int64
+	quantityDeltaMicros                    int64
+	productID, productApprovalEntryID      string
+	productCode, productName               string
+	warehouseID                            string
+	dimensionsJSON                         []byte
+	dimensionReferencesJSON                []byte
+	costCounterpartSubjectID               *string
+	costCounterpartDimensionsJSON          []byte
+	costCounterpartDimensionReferencesJSON []byte
+	originSourceDocumentID                 *string
+	originSourceLineID                     *string
 }
 
 type vouApprovalDelivery struct {
@@ -104,18 +106,55 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, source 
 	if err != nil {
 		return err
 	}
+	if event.Entity == voudomain.EntitySalesReceipt {
+		if err = s.enrichSalesReceiptPostingSnapshot(ctx, tx, businessDate, snapshot); err != nil {
+			return postingDeliveryError(err)
+		}
+	}
 	q := s.queries.WithTx(tx)
 	books, err := q.ListAccountingPostingBooks(ctx, pgtype.Date{Time: businessDate, Valid: true})
 	if err != nil {
 		return databaseError("list accounting posting books", err)
 	}
-	if err = s.applyGlobalRegisters(ctx, q, event, books, snapshot); err != nil {
+	if err = s.applyGlobalRegisters(ctx, tx, q, event, books, snapshot); err != nil {
 		return postingDeliveryError(err)
 	}
 	for _, book := range books {
 		if err = s.postSnapshotToBook(ctx, tx, q, book.ID, book.ControlBook, event, businessDate, snapshot); err != nil {
 			return postingDeliveryError(err)
 		}
+	}
+	return nil
+}
+
+// enrichSalesReceiptPostingSnapshot derives the accounting split at approval
+// time from the control book. The same transaction holds the balance lock until
+// the VOU approval event and all automatic postings commit.
+func (s *Service) enrichSalesReceiptPostingSnapshot(ctx context.Context, tx pgx.Tx, businessDate time.Time, snapshot postingSnapshot) error {
+	allocations := snapshot.collections["accountAllocations"]
+	if len(allocations) == 0 {
+		return domainError(ErrorConflict, "sales receipt account allocations are missing", nil)
+	}
+	currency := strings.ToUpper(strings.TrimSpace(snapshot.header["currency"]))
+	for _, allocation := range allocations {
+		accountID := strings.TrimSpace(allocation["account.objectId"])
+		amount, err := fixeddecimal.ParsePositive(allocation["amount"], 2, false)
+		if err != nil || accountID == "" {
+			return domainError(ErrorConflict, "sales receipt account allocation is invalid", err)
+		}
+		receivable, err := s.PartyBalance(ctx, tx, voudomain.PartyBalanceQuery{
+			CounterpartyDimension: DimensionCustomerAccount,
+			CounterpartyObjectID:  accountID,
+			Currency:              currency,
+			SettlementPurpose:     SettlementPurposeReceivable,
+			AsOfDate:              businessDate,
+		})
+		if err != nil {
+			return domainError(ErrorConflict, "customer account receivable balance is unavailable", err)
+		}
+		applied := min(max(receivable, int64(0)), amount)
+		allocation["receivableApplied"] = fixeddecimal.Format(applied, 2, false)
+		allocation["advanceReceipt"] = fixeddecimal.Format(amount-applied, 2, false)
 	}
 	return nil
 }
@@ -166,7 +205,7 @@ func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Q
 	if !ok {
 		return domainError(ErrorConflict, "posting template not found", nil)
 	}
-	lines, err := s.renderPostingTemplate(ctx, q, bookID, template, snapshot, event.DocumentID)
+	lines, err := s.renderPostingTemplate(ctx, tx, q, bookID, template, snapshot, event.DocumentID)
 	if err != nil {
 		return err
 	}
@@ -200,7 +239,7 @@ func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Q
 		if err = q.InsertAccountingVoucherLine(ctx, dbsqlc.InsertAccountingVoucherLineParams{
 			ID: lineID, BookID: bookID, VoucherID: voucherID, SubjectID: line.subjectID,
 			Currency: line.currency, DebitMinor: line.debitMinor, CreditMinor: line.creditMinor,
-			QuantityMicros: line.quantityMicros, Dimensions: line.dimensionsJSON,
+			QuantityMicros: line.quantityMicros, Dimensions: line.dimensionsJSON, DimensionReferences: line.dimensionReferencesJSON,
 			SourceLineID: line.sourceLineID, LineOrder: int32(index),
 		}); err != nil {
 			return databaseError("create automatic accounting voucher line", err)
@@ -213,7 +252,8 @@ func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Q
 				ProductCode:            line.productCode, ProductName: line.productName,
 				BusinessDate: pgtype.Date{Time: businessDate, Valid: true}, QuantityDeltaMicros: line.quantityDeltaMicros, SourceLineID: line.sourceLineID,
 				CostCounterpartSubjectID: line.costCounterpartSubjectID, CostCounterpartDimensions: line.costCounterpartDimensionsJSON,
-				OriginSourceDocumentID: line.originSourceDocumentID, OriginSourceLineID: line.originSourceLineID,
+				CostCounterpartDimensionReferences: line.costCounterpartDimensionReferencesJSON,
+				OriginSourceDocumentID:             line.originSourceDocumentID, OriginSourceLineID: line.originSourceLineID,
 			}); err != nil {
 				return databaseError("create accounting inventory entry", err)
 			}
@@ -336,7 +376,7 @@ func findPostingTemplate(templates []PostingTemplate, id string) (PostingTemplat
 	return PostingTemplate{}, false
 }
 
-func (s *Service) renderPostingTemplate(ctx context.Context, q *dbsqlc.Queries, bookID string, template PostingTemplate, snapshot postingSnapshot, documentID string) ([]automaticPostingLine, error) {
+func (s *Service) renderPostingTemplate(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID string, template PostingTemplate, snapshot postingSnapshot, documentID string) ([]automaticPostingLine, error) {
 	items := []map[string]string{nil}
 	if template.Collection != nil {
 		items = snapshot.collections[*template.Collection]
@@ -344,7 +384,7 @@ func (s *Service) renderPostingTemplate(ctx context.Context, q *dbsqlc.Queries, 
 	result := make([]automaticPostingLine, 0, len(items)*len(template.Lines))
 	for itemIndex, item := range items {
 		for _, lineTemplate := range template.Lines {
-			line, include, err := s.renderPostingLine(ctx, q, bookID, lineTemplate, snapshot.header, item, documentID, itemIndex)
+			line, include, err := s.renderPostingLine(ctx, tx, q, bookID, lineTemplate, snapshot.header, item, documentID, itemIndex)
 			if err != nil {
 				return nil, err
 			}
@@ -365,7 +405,53 @@ func mappingValue(header, item map[string]string, field string) string {
 	return header[field]
 }
 
-func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, bookID string, template PostingLineTemplate, header, item map[string]string, documentID string, itemIndex int) (automaticPostingLine, bool, error) {
+func (s *Service) automaticDimensionReferences(
+	ctx context.Context,
+	tx pgx.Tx,
+	required []string,
+	mappings map[string]string,
+	header, item map[string]string,
+) ([]byte, error) {
+	references := make(map[string]BusinessArchiveDimensionReference)
+	for _, dimension := range required {
+		entity, typed := businessArchiveDimensionEntities[dimension]
+		if !typed {
+			continue
+		}
+		objectField := mappings[dimension]
+		prefix := strings.TrimSuffix(objectField, ".objectId")
+		if prefix == objectField || prefix == "" {
+			return nil, domainError(ErrorValidation, "typed accounting dimension mapping must use a reference objectId", nil)
+		}
+		objectID := strings.TrimSpace(mappingValue(header, item, objectField))
+		approvalEntryID := strings.TrimSpace(mappingValue(header, item, prefix+".approvalEntryId"))
+		code := strings.TrimSpace(mappingValue(header, item, prefix+".code"))
+		name := strings.TrimSpace(mappingValue(header, item, prefix+".name"))
+		if !validID(objectID) || !validID(approvalEntryID) || code == "" || name == "" {
+			return nil, domainError(ErrorValidation, "typed accounting dimension snapshot is incomplete", nil)
+		}
+		historical, err := s.references.ValidateHistoricalReference(ctx, tx, entity, objectID, approvalEntryID)
+		if err != nil || historical.ObjectID != objectID || historical.ApprovalEntryID != approvalEntryID ||
+			historical.Code != code || historical.Data.Name != name {
+			return nil, domainError(ErrorConflict, "typed accounting dimension snapshot is invalid", err)
+		}
+		customerID := strings.TrimSpace(mappingValue(header, item, prefix+".customerId"))
+		if entity == "customer-account" && (customerID == "" || customerID != historical.CustomerID) {
+			return nil, domainError(ErrorConflict, "customer account dimension does not belong to the stored customer snapshot", nil)
+		}
+		references[dimension] = BusinessArchiveDimensionReference{
+			Entity: entity, ObjectID: objectID, CustomerID: historical.CustomerID,
+			ApprovalEntryID: approvalEntryID, Code: code, Name: name,
+		}
+	}
+	encoded, err := json.Marshal(references)
+	if err != nil {
+		return nil, domainError(ErrorInternal, "encode mapped accounting dimension references", err)
+	}
+	return encoded, nil
+}
+
+func (s *Service) renderPostingLine(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID string, template PostingLineTemplate, header, item map[string]string, documentID string, itemIndex int) (automaticPostingLine, bool, error) {
 	amount, err := fixeddecimal.ParsePositive(mappingValue(header, item, template.AmountField), 2, true)
 	if err != nil {
 		return automaticPostingLine{}, false, domainError(ErrorValidation, "invalid mapped accounting amount", err)
@@ -394,6 +480,10 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 	if err != nil {
 		return automaticPostingLine{}, false, domainError(ErrorInternal, "encode mapped accounting dimensions", err)
 	}
+	dimensionReferencesJSON, err := s.automaticDimensionReferences(ctx, tx, subject.RequiredDimensions, template.Dimensions, header, item)
+	if err != nil {
+		return automaticPostingLine{}, false, err
+	}
 	var quantityMicros *int64
 	if template.QuantityField != nil {
 		quantity, parseErr := fixeddecimal.ParsePositive(mappingValue(header, item, *template.QuantityField), 6, false)
@@ -414,7 +504,7 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 			sourceLineID = documentID + ":" + strconv.Itoa(itemIndex)
 		}
 	}
-	line := automaticPostingLine{subjectID: subject.ID, currency: currency, sourceLineID: sourceLineID, quantityMicros: quantityMicros, dimensionsJSON: dimensionsJSON}
+	line := automaticPostingLine{subjectID: subject.ID, currency: currency, sourceLineID: sourceLineID, quantityMicros: quantityMicros, dimensionsJSON: dimensionsJSON, dimensionReferencesJSON: dimensionReferencesJSON}
 	if quantityMicros != nil {
 		line.productID, line.warehouseID = dimensions[DimensionProduct], dimensions[DimensionWarehouse]
 		productField := template.Dimensions[DimensionProduct]
@@ -433,6 +523,7 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 			line.quantityDeltaMicros = -line.quantityDeltaMicros
 		}
 		line.costCounterpartDimensionsJSON = []byte(`{}`)
+		line.costCounterpartDimensionReferencesJSON = []byte(`{}`)
 		if template.CostCounterpartSubjectID != nil {
 			counterpart := *template.CostCounterpartSubjectID
 			line.costCounterpartSubjectID = &counterpart
@@ -451,6 +542,10 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 			line.costCounterpartDimensionsJSON, err = json.Marshal(costDimensions)
 			if err != nil {
 				return automaticPostingLine{}, false, domainError(ErrorInternal, "encode cost counterpart dimensions", err)
+			}
+			line.costCounterpartDimensionReferencesJSON, err = s.automaticDimensionReferences(ctx, tx, counterpartSubject.RequiredDimensions, template.CostCounterpartDimensions, header, item)
+			if err != nil {
+				return automaticPostingLine{}, false, err
 			}
 		}
 		originDocumentID := strings.TrimSpace(mappingValue(header, item, "sourceDocumentId"))

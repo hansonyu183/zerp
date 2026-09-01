@@ -30,6 +30,17 @@ export type VouSaveRequest = {
       objectId: string;
       approvalEntryId: string;
     };
+    operatingEntity?: {
+      objectId: string;
+      approvalEntryId: string;
+    };
+    accountAllocations?: Array<{
+      account: {
+        objectId: string;
+        approvalEntryId: string;
+      };
+      amount: string;
+    }>;
     supplier?: {
       objectId: string;
       approvalEntryId: string;

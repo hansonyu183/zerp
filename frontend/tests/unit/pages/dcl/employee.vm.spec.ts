@@ -3,118 +3,48 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
 import { useDclEmployeeViewModel } from '@/pages/dcl/employee/vm'
 import { useSessionStore } from '@/stores/session'
-
 vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn() } }))
-const mockedPost = vi.mocked(apiClient.postContract)
+const post = vi.mocked(apiClient.postContract)
+describe('DCL employee view model', () => { beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() }); it('creates a typed employee identity without Party lookup', async () => { useSessionStore().permissions = ['/dcl/employee/create', '/bob/operating-entity/query', '/aux/employee-category/query', '/aux/department/query', '/aux/position/query']; post.mockResolvedValue({ data: { items: [] } } as never); const vm = useDclEmployeeViewModel(); vm.openCreate(); await expect(vm.save({ ...vm.editorModel.value, kind: 'PERSON', legalName: '张三', displayName: '张三', strongIdentifiers: [{ type: 'PERSON_ID', value: '3101' }], currentOperatingEntityId: 'OPE-1' })).resolves.toBe(true); expect(post).toHaveBeenCalledWith('dcl/employee/create', { data: expect.objectContaining({ kind: 'PERSON', legalName: '张三', currentOperatingEntityId: 'OPE-1', strongIdentifiers: [{ type: 'PERSON_ID', value: '3101' }] }) }); expect(post.mock.calls.map(([path]) => path)).not.toContain('bob/party/query') }) })
 
-const approval = {
-  approvalEntryId: 'EMP-V1',
-  versionNo: 1,
-  status: 'DRAFT' as const,
-  revision: 2,
-  createdBy: 'USER-1',
-  createdAt: '2026-08-28T00:00:00Z',
-  updatedBy: 'USER-1',
-  updatedAt: '2026-08-28T00:00:00Z',
-  submittedBy: null,
-  submittedAt: null,
-  approvedBy: null,
-  approvedAt: null,
-}
-
-describe('DCL employee view model', () => {
+describe('DCL employee strong identifiers', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('creates an employee declaration with an existing Party and all selected references', async () => {
-    useSessionStore().permissions = [
-      '/dcl/employee/create',
-      '/bob/operating-entity/query',
-      '/bob/party/query',
-      '/aux/employee-category/query',
-      '/aux/department/query',
-      '/aux/position/query',
-    ]
-    mockedPost.mockResolvedValue({ data: { items: [] } })
+  const view = {
+    objectId: 'EMP-1', entity: 'employee', code: 'EMP-001', updatedAt: '2026-09-01T00:00:00Z', availableApprovalActions: [],
+    approval: { approvalEntryId: 'APR-EMP-1', revision: 3, status: 'APPROVED', versionNo: 1 },
+    data: { kind: 'PERSON', legalName: '张三', strongIdentifiers: [{ type: 'PERSON_ID', value: '3101' }, { type: 'TAX_NUMBER', value: 'TAX-1' }], enabled: true, currentOperatingEntityId: 'OPE-1', currentOperatingEntity: { sourceObjectId: 'OPE-1', code: 'OPE-001', name: '经营主体甲' } },
+  } as never
+  const row = { objectId: 'EMP-1', code: 'EMP-001', availableApprovalActions: [], latestApproved: { approval: view.approval, data: view.data }, openVersion: null } as never
+
+  function mockRequests() {
+    post.mockImplementation(async (path) => ({
+      data: path === 'dcl/employee/get' ? view : { items: [], total: 0, page: 1, pageSize: 20 },
+    }) as never)
+  }
+
+  it('round-trips every strong identifier when editing and saving', async () => {
+    useSessionStore().permissions = ['/dcl/employee/get', '/dcl/employee/save', '/bob/operating-entity/query', '/aux/employee-category/query', '/aux/department/query', '/aux/position/query']
+    mockRequests()
     const vm = useDclEmployeeViewModel()
 
-    vm.openCreate()
-    await expect(
-      vm.save({
-        ...vm.editorModel.value,
-        partyMode: 'EXISTING',
-        partyId: 'PARTY-1',
-        operatingEntityId: 'OPE-1',
-        employeeCategoryId: 'CAT-1',
-        departmentId: 'DEP-1',
-        positionId: 'POS-1',
-        phone: '13800138000',
-        email: 'employee@example.com',
-        hireDate: '2026-08-01',
-        remark: '首版',
-      }),
-    ).resolves.toBe(true)
+    await vm.openEdit(row)
 
-    expect(mockedPost).toHaveBeenCalledWith('dcl/employee/create', {
-      partyId: 'PARTY-1',
-      operatingEntityId: 'OPE-1',
-      data: {
-        employeeCategoryId: 'CAT-1',
-        departmentId: 'DEP-1',
-        positionId: 'POS-1',
-        phone: '13800138000',
-        email: 'employee@example.com',
-        hireDate: '2026-08-01',
-        remark: '首版',
-      },
-    })
+    expect(vm.editorModel.value.strongIdentifiers).toEqual(view.data.strongIdentifiers)
+    await expect(vm.save(vm.editorModel.value)).resolves.toBe(true)
+    expect(post).toHaveBeenCalledWith('dcl/employee/save', expect.objectContaining({ data: expect.objectContaining({ strongIdentifiers: view.data.strongIdentifiers }) }))
   })
 
-  it('uses DCL approval actions and creates enabled candidates through save', async () => {
-    useSessionStore().permissions = [
-      '/dcl/employee/query',
-      '/dcl/employee/submit',
-      '/dcl/employee/get',
-      '/dcl/employee/save',
-    ]
-    const row = {
-      objectId: 'EMP-1',
-      entity: 'employee' as const,
-      code: 'EMP-0001',
-      partyId: 'PARTY-1',
-      partyKind: 'PERSON' as const,
-      partyDisplayName: '张三',
-      operatingEntityId: 'OPE-1',
-      operatingEntityCode: 'OPE-0001',
-      operatingEntityName: '华东主体',
-      enabled: true,
-      availableApprovalActions: ['submit'],
-      latestApproved: null,
-      openVersion: { approval, enabled: true, data: {} },
-      updatedAt: '2026-08-28T00:00:00Z',
-    }
-    mockedPost
-      .mockResolvedValueOnce({
-        data: { items: [row], total: 1, page: 1, pageSize: 20 },
-      })
-      .mockResolvedValueOnce({ data: {} })
-      .mockResolvedValueOnce({
-        data: { items: [], total: 0, page: 1, pageSize: 20 },
-      })
+  it('round-trips every strong identifier when disabling', async () => {
+    useSessionStore().permissions = ['/dcl/employee/get', '/dcl/employee/save']
+    mockRequests()
     const vm = useDclEmployeeViewModel()
 
-    await vm.query()
-    await expect(vm.submitObject(row)).resolves.toBe(true)
+    await expect(vm.changeEnabled(row)).resolves.toBe(true)
 
-    expect(mockedPost).toHaveBeenNthCalledWith(2, 'dcl/employee/submit', {
-      objectId: 'EMP-1',
-      approvalEntryId: 'EMP-V1',
-      approvalRevision: 2,
-    })
-    expect(mockedPost.mock.calls.map(([path]) => String(path))).not.toContain(
-      ['bob', 'employee', 'submit'].join('/'),
-    )
+    expect(post).toHaveBeenCalledWith('dcl/employee/save', expect.objectContaining({ data: expect.objectContaining({ enabled: false, strongIdentifiers: view.data.strongIdentifiers }) }))
   })
 })

@@ -152,7 +152,7 @@ export function validateSalesChainDraft(
     value.vehicle?.carrierAffiliation?.type === 'EXTERNAL' &&
     (!value.carrier ||
       value.carrier.objectId !==
-        value.vehicle.carrierAffiliation.serviceRelationshipObjectId)
+        value.vehicle.carrierAffiliation.otherUnitObjectId)
   ) {
     return '请选择与配送车辆一致的外部承运方。'
   }

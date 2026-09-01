@@ -10,6 +10,7 @@ export type BobQueryRequest = {
     enabled?: boolean;
     categoryId?: string;
     defaultPurchaserEmployeeId?: string;
+    operatingEntityId?: string;
     productTypeId?: string;
   };
   sort?: Array<{

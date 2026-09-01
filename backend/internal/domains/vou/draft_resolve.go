@@ -115,13 +115,18 @@ func (s *Service) resolveSelectedAuxiliaryReference(
 func (s *Service) resolveDraftParties(
 	ctx context.Context,
 	tx pgx.Tx,
+	entity string,
 	draft validatedDraft,
 	preserved resolvedDraft,
 	newDocument bool,
 	result *resolvedDraft,
 ) error {
 	var err error
-	if result.Customer, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityCustomerAccount, draft.Customer, preserved.Customer, newDocument); err != nil {
+	customerEntity := bobdomain.EntityCustomerAccount
+	if entity == EntitySalesReceipt {
+		customerEntity = bobdomain.EntityCustomer
+	}
+	if result.Customer, err = s.resolveSelectedReference(ctx, tx, customerEntity, draft.Customer, preserved.Customer, newDocument); err != nil {
 		return err
 	}
 	if result.Supplier, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntitySupplier, draft.Supplier, preserved.Supplier, newDocument); err != nil {
@@ -136,8 +141,48 @@ func (s *Service) resolveDraftParties(
 	if result.InterestParty, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityOtherUnit, draft.InterestParty, preserved.InterestParty, newDocument); err != nil {
 		return err
 	}
+	if result.OperatingEntity, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityOperatingEntity, draft.OperatingEntity, preserved.OperatingEntity, newDocument); err != nil {
+		return err
+	}
 	if result.Settlement, err = s.resolveSelectedAuxiliaryReference(ctx, tx, auxdomain.EntitySettlementMethod, draft.SettlementMethod, preserved.Settlement, newDocument); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (s *Service) resolveSalesReceiptAllocations(
+	ctx context.Context,
+	tx pgx.Tx,
+	draft validatedDraft,
+	preserved resolvedDraft,
+	newDocument bool,
+	result *resolvedDraft,
+) error {
+	if result.Customer == nil || result.OperatingEntity == nil || result.FundAccount == nil {
+		return domainError(ErrorConflict, "sales receipt references are incomplete", nil, nil)
+	}
+	if result.FundAccount.Data.OperatingEntityID != result.OperatingEntity.ObjectID ||
+		(result.FundAccount.Data.OperatingEntityApprovalEntryID != "" &&
+			result.FundAccount.Data.OperatingEntityApprovalEntryID != result.OperatingEntity.ApprovalEntryID) {
+		return domainError(ErrorConflict, "fund account operating entity does not match sales receipt", nil, nil)
+	}
+	for _, allocation := range draft.AccountAllocations {
+		var saved *bobdomain.EffectiveReference
+		for index := range preserved.AccountAllocations {
+			candidate := &preserved.AccountAllocations[index]
+			if candidate.ObjectID == allocation.Account.ObjectID && candidate.ApprovalEntryID == allocation.Account.ApprovalEntryID {
+				saved = candidate
+				break
+			}
+		}
+		account, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityCustomerAccount, &allocation.Account, saved, newDocument)
+		if err != nil {
+			return err
+		}
+		if account.CustomerID != result.Customer.ObjectID || account.ApprovalEntryID != result.Customer.ApprovalEntryID {
+			return domainError(ErrorConflict, "sales receipt account does not belong to customer approval entry", nil, nil)
+		}
+		result.AccountAllocations = append(result.AccountAllocations, *account)
 	}
 	return nil
 }
@@ -187,16 +232,19 @@ func (s *Service) resolveCustomerSalesperson(
 	tx pgx.Tx,
 	customer bobdomain.EffectiveReference,
 ) (*bobdomain.EffectiveReference, error) {
-	attribution, err := s.queries.WithTx(tx).GetVouSalesAttributionSnapshot(ctx, customer.ApprovalEntryID)
+	attribution, err := s.queries.WithTx(tx).GetVouSalesAttributionSnapshot(ctx, dbsqlc.GetVouSalesAttributionSnapshotParams{
+		CustomerApprovalEntryID: customer.ApprovalEntryID,
+		AccountObjectID:         customer.ObjectID,
+	})
 	if err != nil {
 		return nil, s.internal("read customer sales attribution snapshot", err)
 	}
-	if deref(attribution.PrimarySalesAttributionType) != bobdomain.SalesAttributionInternalEmployee {
+	if attribution.PrimarySalesAttributionType != bobdomain.SalesAttributionInternalEmployee {
 		return nil, domainError(ErrorConflict, "salesperson is required", nil, nil)
 	}
 	return s.resolveReference(ctx, tx, bobdomain.EntityEmployee, &ReferenceInput{
-		ObjectID:        deref(attribution.PrimarySalesSubjectID),
-		ApprovalEntryID: deref(attribution.PrimarySalesSubjectApprovalEntryID),
+		ObjectID:        attribution.PrimarySalesSubjectID,
+		ApprovalEntryID: attribution.PrimarySalesSubjectApprovalEntryID,
 	})
 }
 

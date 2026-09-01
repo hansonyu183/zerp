@@ -21,6 +21,62 @@ type accountingProductSnapshot struct {
 	ObjectID, ApprovalEntryID, Code, Name string
 }
 
+type accountingCustomerAccountSnapshot struct {
+	CustomerID, ObjectID, ApprovalEntryID, Code, Name string
+}
+
+func createAccountingCustomerAccountSnapshot(t *testing.T, pool *pgxpool.Pool, name string) accountingCustomerAccountSnapshot {
+	t.Helper()
+	customerID, accountID, entryID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
+	code := fmt.Sprintf("ACC-%04d", atomic.AddUint32(&accountingProductCodeSequence, 1))
+	customerData := map[string]any{
+		"kind": "ORGANIZATION", "legalName": name, "displayName": name,
+		"strongIdentifiers": []any{}, "remittanceProfiles": []any{},
+		"defaultOperatingEntityId": ulid.Make().String(),
+		"defaultOperatingEntity":   map[string]any{"sourceObjectId": ulid.Make().String(), "approvalEntryId": ulid.Make().String(), "code": "OPE-0001", "name": "经营主体"},
+		"enabled":                  true, "accounts": []any{},
+	}
+	accountData := map[string]any{
+		"accountId": accountID, "enabled": true, "isDefault": true, "name": name,
+		"customerTypeId": ulid.Make().String(), "transportSurcharge": "0.00",
+		"pricingPolicy": map[string]any{"costItems": []any{}}, "creditLimits": []any{},
+		"primarySalesAttribution": map[string]any{}, "code": code, "attachments": []any{},
+		"customerType": map[string]any{"objectId": ulid.Make().String(), "code": "DIT-0001", "name": "客户"},
+	}
+	encodedCustomer, err := json.Marshal(customerData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedAccount, err := json.Marshal(accountData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(t.Context()) //nolint:errcheck
+	statements := []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'customer',$2,$3)`, []any{customerID, "CUS-" + code[4:], adminID}},
+		{`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl','customer',$2,1,'APPROVED',1,$3,now(),$3,now(),$3,now(),$4,now())`, []any{entryID, customerID, adminID, operatorID}},
+		{`INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled) VALUES($1,$2,TRUE)`, []any{entryID, encodedCustomer}},
+		{`INSERT INTO dcl_customer_account_roots(account_id,customer_id,code,ever_approved,first_approved_customer_entry_id) VALUES($1,$2,$3,TRUE,$4)`, []any{accountID, customerID, code, entryID}},
+		{`INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default) VALUES($1,$2,$3,TRUE,TRUE)`, []any{entryID, accountID, encodedAccount}},
+	}
+	for _, statement := range statements {
+		if _, err = tx.Exec(t.Context(), statement.sql, statement.args...); err != nil {
+			t.Fatalf("create accounting customer account snapshot: %v", err)
+		}
+	}
+	if err = tx.Commit(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	return accountingCustomerAccountSnapshot{CustomerID: customerID, ObjectID: accountID, ApprovalEntryID: entryID, Code: code, Name: name}
+}
+
 type dclMappingFixtureInput struct {
 	BookID, VouEntity, DefaultResult string
 	Definition                       MappingDefinition

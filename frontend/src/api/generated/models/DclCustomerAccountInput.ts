@@ -6,6 +6,9 @@ import type { DclCustomerCreditLimit } from './DclCustomerCreditLimit';
 import type { DclCustomerPricingPolicy } from './DclCustomerPricingPolicy';
 import type { DclCustomerSalesAttributionInput } from './DclCustomerSalesAttributionInput';
 export type DclCustomerAccountInput = {
+  accountId?: string | null;
+  enabled: boolean;
+  isDefault: boolean;
   name: string;
   shortName?: string | null;
   customerTypeId: string;

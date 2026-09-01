@@ -24,6 +24,8 @@ type normalizedOpeningLine struct {
 	quantityMicros          *int64
 	dimensions              map[string]string
 	dimensionsJSON          []byte
+	dimensionReferences     map[string]BusinessArchiveDimensionReference
+	dimensionReferencesJSON []byte
 }
 
 func (s *Service) GetOpening(ctx context.Context, bookID string, actor approval.Actor) (OpeningView, error) {
@@ -65,11 +67,15 @@ func (s *Service) loadOpening(ctx context.Context, q *dbsqlc.Queries, raw interf
 		if err := json.Unmarshal(line.Dimensions, &dimensions); err != nil {
 			return OpeningView{}, domainError(ErrorInternal, "invalid stored accounting opening dimensions", err)
 		}
+		dimensionReferences := map[string]BusinessArchiveDimensionReference{}
+		if err := json.Unmarshal(line.DimensionReferences, &dimensionReferences); err != nil {
+			return OpeningView{}, domainError(ErrorInternal, "invalid stored accounting opening dimension references", err)
+		}
 		view := OpeningLineView{
 			ID: line.ID, SubjectID: line.SubjectID, Currency: line.Currency,
 			DebitAmount:  fixeddecimal.Format(line.DebitMinor, 2, false),
 			CreditAmount: fixeddecimal.Format(line.CreditMinor, 2, false),
-			Dimensions:   dimensions,
+			Dimensions:   dimensions, DimensionReferences: dimensionReferences,
 		}
 		if line.QuantityMicros != nil {
 			quantity := fixeddecimal.Format(*line.QuantityMicros, 6, true)
@@ -96,7 +102,7 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 	if err = s.requireApprovalAccess(ctx, qtx, input.BookID, actor, true); err != nil {
 		return OpeningView{}, err
 	}
-	lines, err := normalizeOpeningLines(ctx, qtx, input.BookID, input.Lines)
+	lines, err := s.normalizeOpeningLines(ctx, tx, qtx, input.BookID, input.Lines)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -134,7 +140,8 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 		if err = qtx.InsertAccountingOpeningLine(ctx, dbsqlc.InsertAccountingOpeningLineParams{
 			ID: line.id, BookID: input.BookID, SubjectID: line.subjectID, Currency: line.currency,
 			DebitMinor: line.debitMinor, CreditMinor: line.creditMinor,
-			QuantityMicros: line.quantityMicros, Dimensions: line.dimensionsJSON, LineOrder: int32(index),
+			QuantityMicros: line.quantityMicros, Dimensions: line.dimensionsJSON,
+			DimensionReferences: line.dimensionReferencesJSON, LineOrder: int32(index),
 		}); err != nil {
 			return OpeningView{}, databaseError("accounting opening line cannot be saved", err)
 		}
@@ -162,7 +169,7 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 	return result, nil
 }
 
-func normalizeOpeningLines(ctx context.Context, q *dbsqlc.Queries, bookID string, inputs []OpeningLineInput) ([]normalizedOpeningLine, error) {
+func (s *Service) normalizeOpeningLines(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID string, inputs []OpeningLineInput) ([]normalizedOpeningLine, error) {
 	result := make([]normalizedOpeningLine, 0, len(inputs))
 	identities := make(map[string]struct{}, len(inputs))
 	for _, input := range inputs {
@@ -189,6 +196,10 @@ func normalizeOpeningLines(ctx context.Context, q *dbsqlc.Queries, bookID string
 		if err != nil {
 			return nil, err
 		}
+		dimensionReferences, err := s.normalizeBusinessArchiveDimensionReferences(ctx, tx, subject.RequiredDimensions, dimensions, input.DimensionReferences)
+		if err != nil {
+			return nil, err
+		}
 		var quantityMicros *int64
 		if subject.InventoryQuantity {
 			if input.Quantity == nil || creditMinor != 0 {
@@ -211,11 +222,61 @@ func normalizeOpeningLines(ctx context.Context, q *dbsqlc.Queries, bookID string
 		if err != nil {
 			return nil, domainError(ErrorInternal, "encode accounting opening dimensions", err)
 		}
+		dimensionReferencesJSON, err := json.Marshal(dimensionReferences)
+		if err != nil {
+			return nil, domainError(ErrorInternal, "encode accounting opening dimension references", err)
+		}
 		result = append(result, normalizedOpeningLine{
 			id: ulid.Make().String(), subjectID: subject.ID, currency: currency,
 			debitMinor: debitMinor, creditMinor: creditMinor, quantityMicros: quantityMicros,
 			dimensions: dimensions, dimensionsJSON: dimensionsJSON,
+			dimensionReferences: dimensionReferences, dimensionReferencesJSON: dimensionReferencesJSON,
 		})
+	}
+	return result, nil
+}
+
+var businessArchiveDimensionEntities = map[string]string{
+	DimensionCustomerAccount: "customer-account",
+	DimensionSupplier:        "supplier",
+	DimensionOtherUnit:       "other-unit",
+	DimensionEmployee:        "employee",
+	DimensionSalesPartner:    "sales-partner",
+}
+
+func (s *Service) normalizeBusinessArchiveDimensionReferences(
+	ctx context.Context,
+	tx pgx.Tx,
+	required []string,
+	dimensions map[string]string,
+	supplied map[string]BusinessArchiveDimensionReference,
+) (map[string]BusinessArchiveDimensionReference, error) {
+	result := make(map[string]BusinessArchiveDimensionReference)
+	requiredReferences := 0
+	for _, dimension := range required {
+		entity, typed := businessArchiveDimensionEntities[dimension]
+		if !typed {
+			continue
+		}
+		requiredReferences++
+		input, ok := supplied[dimension]
+		if !ok || input.Entity != entity || input.ObjectID != dimensions[dimension] || !validID(input.ApprovalEntryID) {
+			return nil, domainError(ErrorValidation, "typed accounting dimension reference is incomplete", nil)
+		}
+		current, err := s.references.ResolveCurrentReference(ctx, tx, entity, input.ObjectID)
+		if err != nil || current.ApprovalEntryID != input.ApprovalEntryID {
+			return nil, domainError(ErrorConflict, "typed accounting dimension reference is not current", err)
+		}
+		if entity == "customer-account" && (current.CustomerID == "" || (input.CustomerID != "" && input.CustomerID != current.CustomerID)) {
+			return nil, domainError(ErrorConflict, "customer account dimension does not belong to the selected customer version", nil)
+		}
+		result[dimension] = BusinessArchiveDimensionReference{
+			Entity: entity, ObjectID: current.ObjectID, CustomerID: current.CustomerID,
+			ApprovalEntryID: current.ApprovalEntryID, Code: current.Code, Name: current.Data.Name,
+		}
+	}
+	if len(supplied) != requiredReferences {
+		return nil, domainError(ErrorValidation, "typed accounting dimension references must match the subject", nil)
 	}
 	return result, nil
 }
@@ -321,10 +382,15 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 		if err = json.Unmarshal(line.Dimensions, &dimensions); err != nil {
 			return OpeningView{}, domainError(ErrorInternal, "invalid stored accounting opening dimensions", err)
 		}
+		dimensionReferences := map[string]BusinessArchiveDimensionReference{}
+		if err = json.Unmarshal(line.DimensionReferences, &dimensionReferences); err != nil {
+			return OpeningView{}, domainError(ErrorInternal, "invalid stored accounting opening dimension references", err)
+		}
 		input := OpeningLineInput{
 			SubjectID: line.SubjectID, Currency: line.Currency,
 			DebitAmount:  fixeddecimal.Format(line.DebitMinor, 2, false),
 			CreditAmount: fixeddecimal.Format(line.CreditMinor, 2, false), Dimensions: dimensions,
+			DimensionReferences: dimensionReferences,
 		}
 		if line.QuantityMicros != nil {
 			quantity := fixeddecimal.Format(*line.QuantityMicros, 6, true)
@@ -332,7 +398,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 		}
 		inputs = append(inputs, input)
 	}
-	lines, err := normalizeOpeningLines(ctx, qtx, bookID, inputs)
+	lines, err := s.normalizeOpeningLines(ctx, tx, qtx, bookID, inputs)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -354,7 +420,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 		if err = qtx.InsertAccountingVoucherLine(ctx, dbsqlc.InsertAccountingVoucherLineParams{
 			ID: lineID, BookID: bookID, VoucherID: voucherID, SubjectID: line.subjectID,
 			Currency: line.currency, DebitMinor: line.debitMinor, CreditMinor: line.creditMinor,
-			QuantityMicros: line.quantityMicros, Dimensions: line.dimensionsJSON,
+			QuantityMicros: line.quantityMicros, Dimensions: line.dimensionsJSON, DimensionReferences: line.dimensionReferencesJSON,
 			SourceLineID: line.id, LineOrder: int32(index),
 		}); err != nil {
 			return OpeningView{}, databaseError("create accounting opening voucher line", err)
@@ -370,7 +436,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 				ProductApprovalEntryID: product.ProductApprovalEntryID,
 				ProductCode:            *product.ProductCode, ProductName: product.ProductName,
 				BusinessDate: pgtype.Date{Time: startDate, Valid: true}, QuantityDeltaMicros: *line.quantityMicros, SourceLineID: line.id,
-				CostCounterpartDimensions: []byte(`{}`),
+				CostCounterpartDimensions: []byte(`{}`), CostCounterpartDimensionReferences: []byte(`{}`),
 			}); err != nil {
 				return OpeningView{}, databaseError("create opening inventory entry", err)
 			}

@@ -7,6 +7,5 @@ export type DclOtherUnitSaveRequest = {
   objectId: string;
   approvalEntryId: string;
   approvalRevision: number;
-  enabled: boolean;
   data: DclOtherUnitInput;
 };

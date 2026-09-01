@@ -265,21 +265,36 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in Reference
 		if len(rows) > 0 {
 			appendRows(values, rows[0].Total)
 		}
-	case ReferenceTypeOtherParty:
-		rows, e := s.queries.RptListBillOriginPartyReferences(ctx, db.RptListBillOriginPartyReferencesParams{SelectedID: selected, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+	case ReferenceTypeCounterparty:
+		rows, e := s.queries.RptListBillOriginCounterpartyReferences(ctx, db.RptListBillOriginCounterpartyReferencesParams{SelectedID: selected, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
 		if e != nil {
 			return Page{}, internal("query report reference", e)
 		}
-		values := make([]ReferenceItem, len(rows))
+		values := make([]CounterpartyReference, len(rows))
 		for i, r := range rows {
-			values[i] = ReferenceItem{ID: value(r.ID), Code: r.Code, Name: r.Name}
+			values[i] = CounterpartyReference{Entity: value(r.Entity), ObjectID: value(r.ObjectID), ApprovalEntryID: value(r.ApprovalEntryID), Code: value(r.Code), Name: value(r.Name)}
 		}
+		var counterpartyTotal int64
 		if len(rows) > 0 {
-			appendRows(values, rows[0].Total)
+			counterpartyTotal = rows[0].Total
 		}
+		return Page{Items: values, Total: counterpartyTotal, Page: page, PageSize: size}, nil
+	case ReferenceTypeCustomerAccount:
+		rows, e := s.queries.RptListCustomerAccountReferences(ctx, db.RptListCustomerAccountReferencesParams{SelectedID: selected, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+		if e != nil {
+			return Page{}, internal("query report reference", e)
+		}
+		values := make([]CustomerAccountReference, len(rows))
+		for i, r := range rows {
+			values[i] = CustomerAccountReference{ID: r.ID, Code: r.Code, Name: r.Name, CustomerCode: value(r.CustomerCode), CustomerName: r.CustomerName}
+		}
+		var customerAccountTotal int64
+		if len(rows) > 0 {
+			customerAccountTotal = rows[0].Total
+		}
+		return Page{Items: values, Total: customerAccountTotal, Page: page, PageSize: size}, nil
 	default:
 		entity := map[ReferenceType]string{
-			ReferenceTypeCustomerAccount:        "customer-account",
 			ReferenceTypeSupplierRelationship:   "supplier",
 			ReferenceTypeServiceRelationship:    "other-unit",
 			ReferenceTypeEmploymentRelationship: "employee",

@@ -342,7 +342,7 @@ function summaryValues(row: T): string[] {
                 {{ row.businessDate }}
               </td>
               <td class="voucher-list__column--fluid" data-label="往来方">
-                {{ row.partyName || '—' }}
+                {{ row.counterpartyName || '—' }}
               </td>
               <td class="voucher-list__column--compact" data-label="状态">
                 <slot name="cell-status" :row="row">

@@ -13,6 +13,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -66,8 +67,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
-	partyDeclarations := dcldomain.NewPartyService(pool, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
-	relationships := dcldomain.NewRelationshipService(pool, service, partyDeclarations, bob.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(service), authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") || strings.Contains(label, "reject") {
@@ -79,47 +79,38 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		}
 		return result
 	}
-	var partyID, operatingEntityID string
+	var operatingEntityID string
 	if err = pool.QueryRow(t.Context(), `
-		SELECT relationship.party_id,relationship.operating_entity_id
-		FROM dcl_customer_relationships relationship
-		JOIN dcl_subjects subject ON subject.id=relationship.object_id AND subject.entity='customer'
-		ORDER BY subject.created_at LIMIT 1
-	`).Scan(&partyID, &operatingEntityID); err != nil {
-		t.Fatalf("load seeded party identity: %v", err)
+		SELECT object.id
+		FROM dcl_subjects object
+		WHERE object.entity = 'operating-entity'
+		ORDER BY object.created_at
+		LIMIT 1
+	`).Scan(&operatingEntityID); err != nil {
+		t.Fatalf("load operating entity identity: %v", err)
 	}
-	party, err := partyDeclarations.Get(t.Context(), dcldomain.PartyGetInput{PartyID: partyID}, bob.PartyRelationshipVisibility{}, actor("sales-partner-party-get"))
-	if err != nil {
-		t.Fatalf("get seeded Party declaration: %v", err)
-	}
-	if party.Approval.Status == approval.StatusDraft {
-		pending, submitErr := partyDeclarations.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: partyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor("sales-partner-party-submit"))
-		if submitErr != nil {
-			t.Fatalf("submit seeded Party declaration: %v", submitErr)
-		}
-		party.Approval = pending.Approval
-	}
-	if party.Approval.Status == approval.StatusPending {
-		if _, err = partyDeclarations.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: partyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor("sales-partner-party-approve")); err != nil {
-			t.Fatalf("approve seeded Party declaration: %v", err)
-		}
-	}
-	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
-		PartyID:           partyID,
-		OperatingEntityID: operatingEntityID,
-		Data:              dcldomain.SalesPartnerData{Capabilities: []string{bob.SalesCapabilityChannelPartner}},
+	salesPartner, err := typedArchives.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
+		Data: dcldomain.SalesPartnerData{
+			Kind:                     "ORGANIZATION",
+			LegalName:                "销售合作方",
+			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
+			Enabled:                  true,
+			OperatingEntityIDs:       []string{operatingEntityID},
+			DefaultOperatingEntityID: operatingEntityID,
+			Capabilities:             []string{bob.SalesCapabilityChannelPartner},
+		},
 	}, actor("sales-partner-create"))
 	if err != nil {
 		t.Fatalf("create sales partner: %v", err)
 	}
-	submittedPartner, err := relationships.SubmitSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
+	submittedPartner, err := typedArchives.SubmitSalesPartner(t.Context(), dcldomain.TypedArchiveVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID,
 		ApprovalRevision: salesPartner.Approval.Revision,
 	}, actor("sales-partner-submit"))
 	if err != nil {
 		t.Fatalf("submit sales partner: %v", err)
 	}
-	if _, err = relationships.ApproveSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
+	if _, err = typedArchives.ApproveSalesPartner(t.Context(), dcldomain.TypedArchiveVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID,
 		ApprovalRevision: submittedPartner.Approval.Revision,
 	}, actor("sales-partner-approve")); err != nil {
@@ -168,12 +159,12 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 
 	allEntities := []string{
-		bob.EntityCustomer, bob.EntityCustomerAccount, bob.EntitySupplier, bob.EntityOtherUnit,
+		bob.EntityCustomer, bob.EntitySupplier, bob.EntityOtherUnit,
 		bob.EntityEmployee, bob.EntitySalesPartner, bob.EntityProduct, bob.EntityWarehouse,
 		bob.EntityVehicle, bob.EntityFundAccount, bob.EntityOperatingEntity,
 	}
 	payloadTables := map[string]string{
-		bob.EntityCustomer: "dcl_customer_versions", bob.EntityCustomerAccount: "dcl_customer_account_versions",
+		bob.EntityCustomer: "dcl_customer_versions",
 		bob.EntitySupplier: "dcl_supplier_versions", bob.EntityOtherUnit: "dcl_other_unit_versions",
 		bob.EntityEmployee: "dcl_employee_versions", bob.EntitySalesPartner: "dcl_sales_partner_versions",
 		bob.EntityProduct: "dcl_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",

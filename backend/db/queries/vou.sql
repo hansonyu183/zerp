@@ -137,11 +137,11 @@ VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(asset_name)
 SELECT * FROM vou_asset_acquisition_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
 
 -- name: InsertVouAssetSaleDetail :exec
-INSERT INTO vou_asset_sale_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name)
-VALUES(sqlc.arg(document_id),'asset-sale',sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),sqlc.arg(counterparty_approval_entry_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name));
+INSERT INTO vou_asset_sale_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_customer_id,counterparty_approval_entry_id,counterparty_code,counterparty_name)
+VALUES(sqlc.arg(document_id),'asset-sale',sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),sqlc.narg(counterparty_customer_id),sqlc.arg(counterparty_approval_entry_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name));
 
 -- name: UpdateVouAssetSaleDetail :execrows
-UPDATE vou_asset_sale_details SET counterparty_entity=sqlc.arg(counterparty_entity),counterparty_object_id=sqlc.arg(counterparty_object_id),counterparty_approval_entry_id=sqlc.arg(counterparty_approval_entry_id),counterparty_code=sqlc.arg(counterparty_code),counterparty_name=sqlc.arg(counterparty_name)
+UPDATE vou_asset_sale_details SET counterparty_entity=sqlc.arg(counterparty_entity),counterparty_object_id=sqlc.arg(counterparty_object_id),counterparty_customer_id=sqlc.narg(counterparty_customer_id),counterparty_approval_entry_id=sqlc.arg(counterparty_approval_entry_id),counterparty_code=sqlc.arg(counterparty_code),counterparty_name=sqlc.arg(counterparty_name)
 WHERE document_id=sqlc.arg(document_id);
 
 -- name: GetVouAssetSaleDetail :one
@@ -352,24 +352,24 @@ WHERE d.entity = sqlc.arg(entity)
   AND (sqlc.narg(date_from)::date IS NULL OR d.business_date >= sqlc.narg(date_from)::date)
   AND (sqlc.narg(date_to)::date IS NULL OR d.business_date <= sqlc.narg(date_to)::date)
   AND (
-      sqlc.arg(party_object_id)::text = ''
-      OR EXISTS (SELECT 1 FROM vou_sale_order_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_purchase_inquiry_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_sale_return_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id AND x.employee_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_employee_loan_writeoff_details x WHERE x.document_id = d.id AND x.employee_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_asset_acquisition_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
-      OR EXISTS (SELECT 1 FROM vou_bill_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(party_object_id))
+      sqlc.arg(counterparty_object_id)::text = ''
+      OR EXISTS (SELECT 1 FROM vou_sale_order_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_purchase_inquiry_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_sale_delivery_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_sale_return_details x WHERE x.document_id = d.id AND x.customer_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_receipt_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_payment_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_expense_payment_details x WHERE x.document_id = d.id AND x.employee_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_employee_loan_writeoff_details x WHERE x.document_id = d.id AND x.employee_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_other_income_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_asset_acquisition_details x WHERE x.document_id = d.id AND x.supplier_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_asset_sale_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(counterparty_object_id))
+      OR EXISTS (SELECT 1 FROM vou_bill_details x WHERE x.document_id = d.id AND x.counterparty_object_id = sqlc.arg(counterparty_object_id))
   )
   AND (
       sqlc.arg(keyword)::text = ''
@@ -415,7 +415,7 @@ SELECT d.*, approval.status, approval.revision, approval.updated_at, approval.su
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, elw.employee_name, oi.counterparty_name,
-                aa.supplier_name, asl.counterparty_name, bd.counterparty_name, oi.source_name, '') AS party_name
+                aa.supplier_name, asl.counterparty_name, bd.counterparty_name, oi.source_name, '') AS counterparty_name
 FROM vou_documents d
 JOIN approval_entries approval ON approval.id=d.approval_entry_id
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
@@ -442,23 +442,23 @@ WHERE d.entity = sqlc.arg(entity)
   AND (sqlc.narg(date_from)::date IS NULL OR d.business_date >= sqlc.narg(date_from)::date)
   AND (sqlc.narg(date_to)::date IS NULL OR d.business_date <= sqlc.narg(date_to)::date)
   AND (
-      sqlc.arg(party_object_id)::text = ''
-      OR so.customer_object_id = sqlc.arg(party_object_id)
-      OR sob.customer_object_id = sqlc.arg(party_object_id)
-      OR sd.customer_object_id = sqlc.arg(party_object_id)
-      OR ss.customer_object_id = sqlc.arg(party_object_id)
-      OR sr.customer_object_id = sqlc.arg(party_object_id)
-      OR po.supplier_object_id = sqlc.arg(party_object_id)
-      OR pi.supplier_object_id = sqlc.arg(party_object_id)
-      OR pr.supplier_object_id = sqlc.arg(party_object_id)
-      OR r.counterparty_object_id = sqlc.arg(party_object_id)
-      OR p.counterparty_object_id = sqlc.arg(party_object_id)
-      OR ep.employee_object_id = sqlc.arg(party_object_id)
-      OR elw.employee_object_id = sqlc.arg(party_object_id)
-      OR oi.counterparty_object_id = sqlc.arg(party_object_id)
-      OR aa.supplier_object_id = sqlc.arg(party_object_id)
-      OR asl.counterparty_object_id = sqlc.arg(party_object_id)
-      OR bd.counterparty_object_id = sqlc.arg(party_object_id)
+      sqlc.arg(counterparty_object_id)::text = ''
+      OR so.customer_object_id = sqlc.arg(counterparty_object_id)
+      OR sob.customer_object_id = sqlc.arg(counterparty_object_id)
+      OR sd.customer_object_id = sqlc.arg(counterparty_object_id)
+      OR ss.customer_object_id = sqlc.arg(counterparty_object_id)
+      OR sr.customer_object_id = sqlc.arg(counterparty_object_id)
+      OR po.supplier_object_id = sqlc.arg(counterparty_object_id)
+      OR pi.supplier_object_id = sqlc.arg(counterparty_object_id)
+      OR pr.supplier_object_id = sqlc.arg(counterparty_object_id)
+      OR r.counterparty_object_id = sqlc.arg(counterparty_object_id)
+      OR p.counterparty_object_id = sqlc.arg(counterparty_object_id)
+      OR ep.employee_object_id = sqlc.arg(counterparty_object_id)
+      OR elw.employee_object_id = sqlc.arg(counterparty_object_id)
+      OR oi.counterparty_object_id = sqlc.arg(counterparty_object_id)
+      OR aa.supplier_object_id = sqlc.arg(counterparty_object_id)
+      OR asl.counterparty_object_id = sqlc.arg(counterparty_object_id)
+      OR bd.counterparty_object_id = sqlc.arg(counterparty_object_id)
   )
   AND (
       sqlc.arg(keyword)::text = ''
@@ -496,7 +496,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: InsertVouSaleOrderDetail :exec
 INSERT INTO vou_sale_order_details (
-    document_id, customer_object_id, customer_approval_entry_id, customer_code, customer_name,
+    document_id, customer_object_id, customer_id, customer_approval_entry_id, customer_code, customer_name,
     salesperson_object_id, salesperson_approval_entry_id, salesperson_code, salesperson_name,
     sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_approval_entry_id,
     sales_attribution_subject_code, sales_attribution_subject_name,
@@ -508,7 +508,7 @@ INSERT INTO vou_sale_order_details (
     settlement_default_sales_surcharge_cents, settlement_term_code,
     settlement_description, special_approval
 ) VALUES (
-    sqlc.arg(document_id), sqlc.arg(customer_object_id), sqlc.arg(customer_approval_entry_id),
+    sqlc.arg(document_id), sqlc.arg(customer_object_id), sqlc.arg(customer_id), sqlc.arg(customer_approval_entry_id),
     sqlc.arg(customer_code), sqlc.arg(customer_name),
     sqlc.arg(salesperson_object_id), sqlc.arg(salesperson_approval_entry_id),
     sqlc.arg(salesperson_code), sqlc.arg(salesperson_name),
@@ -528,7 +528,7 @@ INSERT INTO vou_sale_order_details (
 
 -- name: UpdateVouSaleOrderDetail :execrows
 UPDATE vou_sale_order_details
-SET customer_object_id = sqlc.arg(customer_object_id), customer_approval_entry_id = sqlc.arg(customer_approval_entry_id),
+SET customer_object_id = sqlc.arg(customer_object_id), customer_id = sqlc.arg(customer_id), customer_approval_entry_id = sqlc.arg(customer_approval_entry_id),
     customer_code = sqlc.arg(customer_code), customer_name = sqlc.arg(customer_name),
     salesperson_object_id = sqlc.arg(salesperson_object_id),
     salesperson_approval_entry_id = sqlc.arg(salesperson_approval_entry_id),
@@ -662,13 +662,13 @@ ORDER BY line_no;
 
 -- name: InsertVouReceiptDetail :exec
 INSERT INTO vou_receipt_details (
-    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id,
+    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_customer_id, counterparty_approval_entry_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id,
     fund_account_code, fund_account_name, other_category,
     handler_object_id, handler_approval_entry_id, handler_code, handler_name
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(entity),
-    sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
+    sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id), sqlc.narg(counterparty_customer_id),
     sqlc.arg(counterparty_approval_entry_id), sqlc.arg(counterparty_code), sqlc.arg(counterparty_name),
     sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_approval_entry_id),
     sqlc.arg(fund_account_code), sqlc.arg(fund_account_name), sqlc.narg(other_category),
@@ -679,6 +679,7 @@ INSERT INTO vou_receipt_details (
 -- name: UpdateVouReceiptDetail :execrows
 UPDATE vou_receipt_details
 SET counterparty_entity = sqlc.arg(counterparty_entity), counterparty_object_id = sqlc.arg(counterparty_object_id),
+    counterparty_customer_id = sqlc.narg(counterparty_customer_id),
     counterparty_approval_entry_id = sqlc.arg(counterparty_approval_entry_id), counterparty_code = sqlc.arg(counterparty_code),
     counterparty_name = sqlc.arg(counterparty_name), fund_account_object_id = sqlc.arg(fund_account_object_id),
     fund_account_approval_entry_id = sqlc.arg(fund_account_approval_entry_id), fund_account_code = sqlc.arg(fund_account_code),
@@ -688,17 +689,82 @@ SET counterparty_entity = sqlc.arg(counterparty_entity), counterparty_object_id 
 WHERE document_id = sqlc.arg(document_id);
 
 -- name: GetVouReceiptDetail :one
-SELECT * FROM vou_receipt_details WHERE document_id = sqlc.arg(document_id);
+SELECT document_id,entity,
+       COALESCE(counterparty_entity,'') AS counterparty_entity,
+       COALESCE(counterparty_object_id,'') AS counterparty_object_id,
+       COALESCE(counterparty_customer_id,'') AS counterparty_customer_id,
+       COALESCE(counterparty_approval_entry_id,'') AS counterparty_approval_entry_id,
+       COALESCE(counterparty_code,'') AS counterparty_code,
+       COALESCE(counterparty_name,'') AS counterparty_name,
+       fund_account_object_id,fund_account_approval_entry_id,fund_account_code,fund_account_name,
+       handler_object_id,handler_approval_entry_id,handler_code,handler_name,other_category
+FROM vou_receipt_details WHERE document_id = sqlc.arg(document_id) AND entity <> 'sales-receipt';
+
+-- name: InsertVouSalesReceiptDetail :exec
+INSERT INTO vou_receipt_details (
+    document_id,entity,
+    customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+    operating_entity_object_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,
+    fund_account_object_id,fund_account_approval_entry_id,fund_account_code,fund_account_name,
+    handler_object_id,handler_approval_entry_id,handler_code,handler_name
+) VALUES (
+    sqlc.arg(document_id),'sales-receipt',
+    sqlc.arg(customer_object_id),sqlc.arg(customer_approval_entry_id),sqlc.arg(customer_code),sqlc.arg(customer_name),
+    sqlc.arg(operating_entity_object_id),sqlc.arg(operating_entity_approval_entry_id),sqlc.arg(operating_entity_code),sqlc.arg(operating_entity_name),
+    sqlc.arg(fund_account_object_id),sqlc.arg(fund_account_approval_entry_id),sqlc.arg(fund_account_code),sqlc.arg(fund_account_name),
+    sqlc.arg(handler_object_id),sqlc.arg(handler_approval_entry_id),sqlc.arg(handler_code),sqlc.arg(handler_name)
+);
+
+-- name: UpdateVouSalesReceiptDetail :execrows
+UPDATE vou_receipt_details SET
+    customer_object_id=sqlc.arg(customer_object_id),customer_approval_entry_id=sqlc.arg(customer_approval_entry_id),
+    customer_code=sqlc.arg(customer_code),customer_name=sqlc.arg(customer_name),
+    operating_entity_object_id=sqlc.arg(operating_entity_object_id),operating_entity_approval_entry_id=sqlc.arg(operating_entity_approval_entry_id),
+    operating_entity_code=sqlc.arg(operating_entity_code),operating_entity_name=sqlc.arg(operating_entity_name),
+    fund_account_object_id=sqlc.arg(fund_account_object_id),fund_account_approval_entry_id=sqlc.arg(fund_account_approval_entry_id),
+    fund_account_code=sqlc.arg(fund_account_code),fund_account_name=sqlc.arg(fund_account_name),
+    handler_object_id=sqlc.arg(handler_object_id),handler_approval_entry_id=sqlc.arg(handler_approval_entry_id),
+    handler_code=sqlc.arg(handler_code),handler_name=sqlc.arg(handler_name)
+WHERE document_id=sqlc.arg(document_id) AND entity='sales-receipt';
+
+-- name: GetVouSalesReceiptDetail :one
+SELECT document_id,
+       COALESCE(customer_object_id,'') AS customer_object_id,
+       COALESCE(customer_approval_entry_id,'') AS customer_approval_entry_id,
+       COALESCE(customer_code,'') AS customer_code,COALESCE(customer_name,'') AS customer_name,
+       COALESCE(operating_entity_object_id,'') AS operating_entity_object_id,
+       COALESCE(operating_entity_approval_entry_id,'') AS operating_entity_approval_entry_id,
+       COALESCE(operating_entity_code,'') AS operating_entity_code,COALESCE(operating_entity_name,'') AS operating_entity_name,
+       fund_account_object_id,fund_account_approval_entry_id,fund_account_code,fund_account_name,
+       handler_object_id,handler_approval_entry_id,handler_code,handler_name
+FROM vou_receipt_details WHERE document_id=sqlc.arg(document_id) AND entity='sales-receipt';
+
+-- name: DeleteVouSalesReceiptAccountAllocations :exec
+DELETE FROM vou_sales_receipt_account_allocations WHERE document_id=sqlc.arg(document_id);
+
+-- name: InsertVouSalesReceiptAccountAllocation :exec
+INSERT INTO vou_sales_receipt_account_allocations(
+    document_id,line_no,customer_object_id,customer_approval_entry_id,
+    account_object_id,account_approval_entry_id,account_code,account_name,amount_cents
+) VALUES (
+    sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(customer_object_id),sqlc.arg(customer_approval_entry_id),
+    sqlc.arg(account_object_id),sqlc.arg(account_approval_entry_id),sqlc.arg(account_code),sqlc.arg(account_name),sqlc.arg(amount_cents)
+);
+
+-- name: ListVouSalesReceiptAccountAllocations :many
+SELECT document_id,line_no,customer_object_id,customer_approval_entry_id,
+       account_object_id,account_approval_entry_id,account_code,account_name,amount_cents
+FROM vou_sales_receipt_account_allocations WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
 
 -- name: InsertVouPaymentDetail :exec
 INSERT INTO vou_payment_details (
-    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id,
+    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_customer_id, counterparty_approval_entry_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id,
     fund_account_code, fund_account_name, other_category,
     handler_object_id, handler_approval_entry_id, handler_code, handler_name
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(entity),
-    sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id),
+    sqlc.arg(counterparty_entity), sqlc.arg(counterparty_object_id), sqlc.narg(counterparty_customer_id),
     sqlc.arg(counterparty_approval_entry_id), sqlc.arg(counterparty_code), sqlc.arg(counterparty_name),
     sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_approval_entry_id),
     sqlc.arg(fund_account_code), sqlc.arg(fund_account_name), sqlc.narg(other_category),
@@ -709,6 +775,7 @@ INSERT INTO vou_payment_details (
 -- name: UpdateVouPaymentDetail :execrows
 UPDATE vou_payment_details
 SET counterparty_entity = sqlc.arg(counterparty_entity), counterparty_object_id = sqlc.arg(counterparty_object_id),
+    counterparty_customer_id = sqlc.narg(counterparty_customer_id),
     counterparty_approval_entry_id = sqlc.arg(counterparty_approval_entry_id), counterparty_code = sqlc.arg(counterparty_code),
     counterparty_name = sqlc.arg(counterparty_name), fund_account_object_id = sqlc.arg(fund_account_object_id),
     fund_account_approval_entry_id = sqlc.arg(fund_account_approval_entry_id), fund_account_code = sqlc.arg(fund_account_code),
@@ -780,13 +847,13 @@ SELECT * FROM vou_employee_loan_writeoff_details WHERE document_id=sqlc.arg(docu
 
 -- name: InsertVouOtherIncomeDetail :exec
 INSERT INTO vou_other_income_details (
-    document_id, source_name, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id,
+    document_id, source_name, counterparty_entity, counterparty_object_id, counterparty_customer_id, counterparty_approval_entry_id,
     counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id,
     fund_account_code, fund_account_name,
     handler_object_id, handler_approval_entry_id, handler_code, handler_name
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(source_name), sqlc.narg(counterparty_entity),
-    sqlc.narg(counterparty_object_id), sqlc.narg(counterparty_approval_entry_id),
+    sqlc.narg(counterparty_object_id), sqlc.narg(counterparty_customer_id), sqlc.narg(counterparty_approval_entry_id),
     sqlc.narg(counterparty_code), sqlc.narg(counterparty_name),
     sqlc.arg(fund_account_object_id), sqlc.arg(fund_account_approval_entry_id),
     sqlc.arg(fund_account_code), sqlc.arg(fund_account_name),
@@ -798,6 +865,7 @@ INSERT INTO vou_other_income_details (
 UPDATE vou_other_income_details
 SET source_name = sqlc.arg(source_name), counterparty_entity = sqlc.narg(counterparty_entity),
     counterparty_object_id = sqlc.narg(counterparty_object_id),
+    counterparty_customer_id = sqlc.narg(counterparty_customer_id),
     counterparty_approval_entry_id = sqlc.narg(counterparty_approval_entry_id),
     counterparty_code = sqlc.narg(counterparty_code), counterparty_name = sqlc.narg(counterparty_name),
     fund_account_object_id = sqlc.arg(fund_account_object_id),
@@ -1044,8 +1112,8 @@ FOR UPDATE;
 SELECT storage_key FROM vou_files;
 
 -- name: InsertVouBillDetail :exec
-INSERT INTO vou_bill_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,handler_object_id,handler_approval_entry_id,handler_code,handler_name,internal_cost_rate_bps,maturity_type,interest_mode,interest_party_entity,interest_party_object_id,interest_party_approval_entry_id,interest_party_code,interest_party_name,with_recourse)
-VALUES(sqlc.arg(document_id),sqlc.arg(entity),sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),sqlc.arg(counterparty_approval_entry_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name),sqlc.narg(handler_object_id),sqlc.narg(handler_approval_entry_id),sqlc.narg(handler_code),sqlc.narg(handler_name),sqlc.arg(internal_cost_rate_bps),sqlc.arg(maturity_type),sqlc.arg(interest_mode),sqlc.narg(interest_party_entity),sqlc.narg(interest_party_object_id),sqlc.narg(interest_party_approval_entry_id),sqlc.narg(interest_party_code),sqlc.narg(interest_party_name),sqlc.arg(with_recourse));
+INSERT INTO vou_bill_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_customer_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,handler_object_id,handler_approval_entry_id,handler_code,handler_name,internal_cost_rate_bps,maturity_type,interest_mode,interest_party_entity,interest_party_object_id,interest_party_approval_entry_id,interest_party_code,interest_party_name,with_recourse)
+VALUES(sqlc.arg(document_id),sqlc.arg(entity),sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),sqlc.narg(counterparty_customer_id),sqlc.arg(counterparty_approval_entry_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name),sqlc.narg(handler_object_id),sqlc.narg(handler_approval_entry_id),sqlc.narg(handler_code),sqlc.narg(handler_name),sqlc.arg(internal_cost_rate_bps),sqlc.arg(maturity_type),sqlc.arg(interest_mode),sqlc.narg(interest_party_entity),sqlc.narg(interest_party_object_id),sqlc.narg(interest_party_approval_entry_id),sqlc.narg(interest_party_code),sqlc.narg(interest_party_name),sqlc.arg(with_recourse));
 -- name: GetVouBillDetail :one
 SELECT * FROM vou_bill_details WHERE document_id=sqlc.arg(document_id);
 -- name: DeleteVouBillDetails :exec
@@ -1132,7 +1200,7 @@ SELECT EXISTS(
 -- name: LockVouSaleDeliveryCarrierSnapshot :one
 SELECT source_outbound_id,carrier_type,
        carrier_operating_entity_object_id,carrier_operating_entity_approval_entry_id,
-       carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,
+       carrier_other_unit_object_id,carrier_other_unit_approval_entry_id,
        vehicle_object_id,vehicle_approval_entry_id
 FROM vou_sale_delivery_details
 WHERE document_id=sqlc.arg(document_id)
@@ -1141,37 +1209,37 @@ FOR UPDATE;
 -- name: LockVouSaleOutboundSource :one
 SELECT document.document_no,approval.status,document.business_date,
        COALESCE(document.currency,'') AS currency,document.total_amount_cents,
-       outbound.customer_object_id,outbound.customer_approval_entry_id,
+       outbound.customer_object_id,outbound.customer_id,outbound.customer_approval_entry_id,
        outbound.customer_code,outbound.customer_name,
        outbound.warehouse_object_id,outbound.warehouse_approval_entry_id,
        outbound.warehouse_code,outbound.warehouse_name,
-       relationship.operating_entity_id
+       COALESCE(customer.data->'defaultOperatingEntity'->>'sourceObjectId','')::text AS operating_entity_id
 FROM vou_documents AS document
 JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_sale_outbound_details AS outbound ON outbound.document_id=document.id
-JOIN dcl_customer_accounts AS account ON account.object_id=outbound.customer_object_id
-JOIN dcl_customer_relationships AS relationship ON relationship.object_id=account.customer_relationship_id
+JOIN dcl_customer_version_accounts AS account ON account.customer_approval_entry_id=outbound.customer_approval_entry_id AND account.account_id=outbound.customer_object_id
+JOIN dcl_customer_versions AS customer ON customer.approval_entry_id=outbound.customer_approval_entry_id
 WHERE document.id=sqlc.arg(document_id) AND document.entity='sale-outbound'
 FOR UPDATE OF document,approval,outbound;
 
 -- name: InsertVouSaleDeliveryDetail :exec
 INSERT INTO vou_sale_delivery_details(
-    document_id,source_outbound_id,customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+    document_id,source_outbound_id,customer_object_id,customer_id,customer_approval_entry_id,customer_code,customer_name,
     carrier_type,
     carrier_operating_entity_object_id,carrier_operating_entity_approval_entry_id,
     carrier_operating_entity_code,carrier_operating_entity_name,
-    carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,
-    carrier_service_relationship_code,carrier_service_relationship_name,
+    carrier_other_unit_object_id,carrier_other_unit_approval_entry_id,
+    carrier_other_unit_code,carrier_other_unit_name,
     vehicle_object_id,vehicle_approval_entry_id,vehicle_code,vehicle_name,
     vehicle_plate_number,vehicle_bulk_liquid_capable
 ) VALUES(
-    sqlc.arg(document_id),sqlc.arg(source_outbound_id),sqlc.arg(customer_object_id),
+    sqlc.arg(document_id),sqlc.arg(source_outbound_id),sqlc.arg(customer_object_id),sqlc.arg(customer_id),
     sqlc.arg(customer_approval_entry_id),sqlc.arg(customer_code),sqlc.arg(customer_name),
     sqlc.arg(carrier_type),sqlc.narg(carrier_operating_entity_object_id),
     sqlc.narg(carrier_operating_entity_approval_entry_id),sqlc.narg(carrier_operating_entity_code),
-    sqlc.narg(carrier_operating_entity_name),sqlc.narg(carrier_service_relationship_object_id),
-    sqlc.narg(carrier_service_relationship_approval_entry_id),sqlc.narg(carrier_service_relationship_code),
-    sqlc.narg(carrier_service_relationship_name),sqlc.arg(vehicle_object_id),
+    sqlc.narg(carrier_operating_entity_name),sqlc.narg(carrier_other_unit_object_id),
+    sqlc.narg(carrier_other_unit_approval_entry_id),sqlc.narg(carrier_other_unit_code),
+    sqlc.narg(carrier_other_unit_name),sqlc.arg(vehicle_object_id),
     sqlc.arg(vehicle_approval_entry_id),sqlc.arg(vehicle_code),sqlc.arg(vehicle_name),
     sqlc.arg(vehicle_plate_number),sqlc.arg(vehicle_bulk_liquid_capable)
 );
@@ -1183,10 +1251,10 @@ UPDATE vou_sale_delivery_details SET
     carrier_operating_entity_approval_entry_id=sqlc.narg(carrier_operating_entity_approval_entry_id),
     carrier_operating_entity_code=sqlc.narg(carrier_operating_entity_code),
     carrier_operating_entity_name=sqlc.narg(carrier_operating_entity_name),
-    carrier_service_relationship_object_id=sqlc.narg(carrier_service_relationship_object_id),
-    carrier_service_relationship_approval_entry_id=sqlc.narg(carrier_service_relationship_approval_entry_id),
-    carrier_service_relationship_code=sqlc.narg(carrier_service_relationship_code),
-    carrier_service_relationship_name=sqlc.narg(carrier_service_relationship_name),
+    carrier_other_unit_object_id=sqlc.narg(carrier_other_unit_object_id),
+    carrier_other_unit_approval_entry_id=sqlc.narg(carrier_other_unit_approval_entry_id),
+    carrier_other_unit_code=sqlc.narg(carrier_other_unit_code),
+    carrier_other_unit_name=sqlc.narg(carrier_other_unit_name),
     vehicle_object_id=sqlc.arg(vehicle_object_id),vehicle_approval_entry_id=sqlc.arg(vehicle_approval_entry_id),
     vehicle_code=sqlc.arg(vehicle_code),vehicle_name=sqlc.arg(vehicle_name),
     vehicle_plate_number=sqlc.arg(vehicle_plate_number),
@@ -1195,16 +1263,16 @@ WHERE document_id=sqlc.arg(document_id);
 
 -- name: GetVouSaleDeliveryView :one
 SELECT delivery.source_outbound_id,source.document_no AS source_document_no,
-       delivery.customer_object_id,delivery.customer_approval_entry_id,
+       delivery.customer_object_id,delivery.customer_id,delivery.customer_approval_entry_id,
        delivery.customer_code,delivery.customer_name,delivery.carrier_type,
        COALESCE(delivery.carrier_operating_entity_object_id,'') AS carrier_operating_entity_object_id,
        COALESCE(delivery.carrier_operating_entity_approval_entry_id,'') AS carrier_operating_entity_approval_entry_id,
        COALESCE(delivery.carrier_operating_entity_code,'') AS carrier_operating_entity_code,
        COALESCE(delivery.carrier_operating_entity_name,'') AS carrier_operating_entity_name,
-       COALESCE(delivery.carrier_service_relationship_object_id,'') AS carrier_service_relationship_object_id,
-       COALESCE(delivery.carrier_service_relationship_approval_entry_id,'') AS carrier_service_relationship_approval_entry_id,
-       COALESCE(delivery.carrier_service_relationship_code,'') AS carrier_service_relationship_code,
-       COALESCE(delivery.carrier_service_relationship_name,'') AS carrier_service_relationship_name,
+       COALESCE(delivery.carrier_other_unit_object_id,'') AS carrier_other_unit_object_id,
+       COALESCE(delivery.carrier_other_unit_approval_entry_id,'') AS carrier_other_unit_approval_entry_id,
+       COALESCE(delivery.carrier_other_unit_code,'') AS carrier_other_unit_code,
+       COALESCE(delivery.carrier_other_unit_name,'') AS carrier_other_unit_name,
        COALESCE(delivery.vehicle_object_id,'') AS vehicle_object_id,
        COALESCE(delivery.vehicle_approval_entry_id,'') AS vehicle_approval_entry_id,
        COALESCE(delivery.vehicle_code,'') AS vehicle_code,
@@ -1238,7 +1306,7 @@ WHERE source_signoff_id=sqlc.arg(source_signoff_id) AND return_kind='REFUSAL';
 
 -- name: LockVouRefusalReturnSource :one
 SELECT detail.source_order_id,document.business_date,approval.status,document.currency,
-       detail.customer_object_id,detail.customer_approval_entry_id,detail.customer_code,detail.customer_name,
+       detail.customer_object_id,detail.customer_id,detail.customer_approval_entry_id,detail.customer_code,detail.customer_name,
        detail.warehouse_object_id,detail.warehouse_approval_entry_id,detail.warehouse_code,detail.warehouse_name
 FROM vou_sale_signoff_details detail
 JOIN vou_documents document ON document.id=detail.document_id
@@ -1256,11 +1324,11 @@ ORDER BY line_no;
 -- name: InsertVouSaleReturnDetail :exec
 INSERT INTO vou_sale_return_details(
     document_id,source_order_id,source_signoff_id,return_kind,return_reason,
-    customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+    customer_object_id,customer_id,customer_approval_entry_id,customer_code,customer_name,
     warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name
 ) VALUES(
     sqlc.arg(document_id),sqlc.arg(source_order_id),sqlc.narg(source_signoff_id),
-    sqlc.arg(return_kind),sqlc.arg(return_reason),sqlc.arg(customer_object_id),
+    sqlc.arg(return_kind),sqlc.arg(return_reason),sqlc.arg(customer_object_id),sqlc.arg(customer_id),
     sqlc.arg(customer_approval_entry_id),sqlc.arg(customer_code),sqlc.arg(customer_name),
     sqlc.arg(warehouse_object_id),sqlc.arg(warehouse_approval_entry_id),sqlc.arg(warehouse_code),
     sqlc.arg(warehouse_name)
@@ -1333,9 +1401,13 @@ FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.doc
 WHERE document.id=sqlc.arg(order_id);
 
 -- name: GetVouSalesAttributionSnapshot :one
-SELECT primary_sales_attribution_type,primary_sales_subject_id,
-       primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name
-FROM dcl_customer_account_versions
-JOIN approval_entries entry ON entry.id=dcl_customer_account_versions.approval_entry_id
-WHERE dcl_customer_account_versions.approval_entry_id=sqlc.arg(customer_approval_entry_id)
-  AND entry.domain='dcl' AND entry.entity='customer-account' AND entry.status='APPROVED';
+SELECT COALESCE(line.data->'primarySalesAttribution'->>'type','')::text AS primary_sales_attribution_type,
+       COALESCE(line.data->'primarySalesAttribution'->>'subjectObjectId','')::text AS primary_sales_subject_id,
+       COALESCE(line.data->'primarySalesAttribution'->>'subjectApprovalEntryId','')::text AS primary_sales_subject_approval_entry_id,
+       COALESCE(line.data->'primarySalesAttribution'->>'subjectCode','')::text AS primary_sales_subject_code,
+       COALESCE(line.data->'primarySalesAttribution'->>'subjectName','')::text AS primary_sales_subject_name
+FROM dcl_customer_version_accounts line
+JOIN approval_entries entry ON entry.id=line.customer_approval_entry_id
+WHERE line.customer_approval_entry_id=sqlc.arg(customer_approval_entry_id)
+  AND line.account_id=sqlc.arg(account_object_id)
+  AND entry.domain='dcl' AND entry.entity='customer' AND entry.status='APPROVED';

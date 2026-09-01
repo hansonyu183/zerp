@@ -7,5 +7,5 @@ export type WflInstanceQueryRequest = {
   pageSize: number;
   keyword?: string;
   definitionId?: string;
-  partyObjectId?: string;
+  counterpartyObjectId?: string;
 };

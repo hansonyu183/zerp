@@ -3,9 +3,8 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
-import type { DclSalesPartnerInput } from './DclSalesPartnerInput';
+import type { DclSalesPartnerData } from './DclSalesPartnerData';
 export type DclSalesPartnerVersionView = {
   approval: ApprovalVersionMeta;
-  enabled: boolean;
-  data: DclSalesPartnerInput;
+  data: DclSalesPartnerData;
 };

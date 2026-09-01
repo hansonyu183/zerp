@@ -1,4 +1,4 @@
 <script setup lang="ts">
-import Relationship from '../relationship/Relationship.vue'
+import TypedBusinessArchive from '../shared/typed-business-archive/TypedBusinessArchive.vue'
 </script>
-<template><Relationship entity="other-unit" /></template>
+<template><TypedBusinessArchive entity="other-unit" /></template>

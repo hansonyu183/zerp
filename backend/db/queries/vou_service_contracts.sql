@@ -1,14 +1,14 @@
 -- name: InsertVouServiceContractDetail :exec
 INSERT INTO vou_service_contract_details(
  document_id,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,
- party_id,party_name,operating_entity_object_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,
+ operating_entity_object_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,
  handler_object_id,handler_approval_entry_id,handler_code,handler_name,
  settlement_method_object_id,settlement_method_code,settlement_method_name,
  settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,
  capabilities,applicable_from,applicable_to,contract_terms
 ) VALUES (
  sqlc.arg(document_id),sqlc.arg(counterparty_entity),sqlc.arg(counterparty_object_id),sqlc.arg(counterparty_approval_entry_id),sqlc.arg(counterparty_code),sqlc.arg(counterparty_name),
- sqlc.arg(party_id),sqlc.arg(party_name),sqlc.arg(operating_entity_object_id),sqlc.arg(operating_entity_approval_entry_id),sqlc.arg(operating_entity_code),sqlc.arg(operating_entity_name),
+ sqlc.arg(operating_entity_object_id),sqlc.arg(operating_entity_approval_entry_id),sqlc.arg(operating_entity_code),sqlc.arg(operating_entity_name),
  sqlc.arg(handler_object_id),sqlc.arg(handler_approval_entry_id),sqlc.arg(handler_code),sqlc.arg(handler_name),
  sqlc.narg(settlement_method_object_id),sqlc.narg(settlement_method_code),sqlc.narg(settlement_method_name),
  sqlc.narg(settlement_term_code),sqlc.narg(settlement_rule_type),sqlc.narg(settlement_month_offset),sqlc.narg(settlement_day_of_month),sqlc.narg(settlement_day_offset),
@@ -18,7 +18,6 @@ INSERT INTO vou_service_contract_details(
 -- name: ResolveVouContractCounterparty :one
 SELECT object.id AS counterparty_object_id,object.entity AS counterparty_entity,
        version.id AS counterparty_approval_entry_id,object.code AS counterparty_code,
-       party.id AS party_id,party_current.display_name AS party_name,
        operating.id AS operating_entity_object_id,operating_entry.id AS operating_entity_approval_entry_id,
        operating.code AS operating_entity_code,operating_detail.legal_name AS operating_entity_name,
        COALESCE(sales.capabilities,ARRAY[]::varchar(32)[]) AS capabilities,
@@ -32,24 +31,22 @@ JOIN LATERAL (
   WHERE domain='dcl' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) version ON true
-LEFT JOIN dcl_service_relationships service_rel ON service_rel.object_id=object.id AND object.entity='other-unit'
 LEFT JOIN dcl_other_unit_versions service_detail ON service_detail.approval_entry_id=version.id AND object.entity='other-unit'
-LEFT JOIN dcl_sales_relationships sales_rel ON sales_rel.object_id=object.id AND object.entity='sales-partner'
 LEFT JOIN dcl_sales_partner_versions sales ON sales.approval_entry_id=version.id AND object.entity='sales-partner'
-JOIN dcl_parties party ON party.id=COALESCE(service_rel.party_id,sales_rel.party_id)
-JOIN LATERAL (SELECT payload.display_name FROM approval_entries party_entry JOIN dcl_party_versions payload ON payload.approval_entry_id=party_entry.id WHERE party_entry.domain='dcl' AND party_entry.entity='party' AND party_entry.subject_id=party.id AND party_entry.status='APPROVED' ORDER BY party_entry.version_no DESC LIMIT 1) party_current ON true
-JOIN dcl_subjects operating ON operating.id=COALESCE(service_rel.operating_entity_id,sales_rel.operating_entity_id) AND operating.entity='operating-entity'
+JOIN dcl_subjects operating ON operating.id=COALESCE(service_detail.default_operating_entity_id,sales.default_operating_entity_id) AND operating.entity='operating-entity'
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) operating_entry ON true
-JOIN dcl_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id AND operating_detail.enabled
+JOIN dcl_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id
+  AND operating_entry.id=COALESCE(service_detail.default_operating_entity_approval_entry_id,sales.default_operating_entity_approval_entry_id)
+  AND operating_detail.enabled
 WHERE object.id=sqlc.arg(counterparty_object_id) AND object.entity=sqlc.arg(counterparty_entity)
   AND object.entity IN ('other-unit','sales-partner')
   AND COALESCE(service_detail.enabled,sales.enabled)
-FOR SHARE OF object,party,operating;
+FOR SHARE OF object,operating;
 
 -- name: UpdateVouServiceContractDetail :execrows
 UPDATE vou_service_contract_details SET
  counterparty_entity=sqlc.arg(counterparty_entity),counterparty_object_id=sqlc.arg(counterparty_object_id),counterparty_approval_entry_id=sqlc.arg(counterparty_approval_entry_id),counterparty_code=sqlc.arg(counterparty_code),counterparty_name=sqlc.arg(counterparty_name),
- party_id=sqlc.arg(party_id),party_name=sqlc.arg(party_name),operating_entity_object_id=sqlc.arg(operating_entity_object_id),operating_entity_approval_entry_id=sqlc.arg(operating_entity_approval_entry_id),operating_entity_code=sqlc.arg(operating_entity_code),operating_entity_name=sqlc.arg(operating_entity_name),
+ operating_entity_object_id=sqlc.arg(operating_entity_object_id),operating_entity_approval_entry_id=sqlc.arg(operating_entity_approval_entry_id),operating_entity_code=sqlc.arg(operating_entity_code),operating_entity_name=sqlc.arg(operating_entity_name),
  handler_object_id=sqlc.arg(handler_object_id),handler_approval_entry_id=sqlc.arg(handler_approval_entry_id),handler_code=sqlc.arg(handler_code),handler_name=sqlc.arg(handler_name),
 	settlement_method_object_id=sqlc.narg(settlement_method_object_id),settlement_method_code=sqlc.narg(settlement_method_code),settlement_method_name=sqlc.narg(settlement_method_name),
  settlement_term_code=sqlc.narg(settlement_term_code),settlement_rule_type=sqlc.narg(settlement_rule_type),settlement_month_offset=sqlc.narg(settlement_month_offset),settlement_day_of_month=sqlc.narg(settlement_day_of_month),settlement_day_offset=sqlc.narg(settlement_day_offset),

@@ -7,14 +7,16 @@ import (
 )
 
 type ReferenceQueryInput struct {
-	Entity          string `json:"entity"`
-	Keyword         string `json:"keyword"`
-	SourceObjectID  string `json:"sourceObjectId"`
-	BehaviorProfile string `json:"behaviorProfile"`
+	Entity            string `json:"entity"`
+	Keyword           string `json:"keyword"`
+	SourceObjectID    string `json:"sourceObjectId"`
+	BehaviorProfile   string `json:"behaviorProfile"`
+	OperatingEntityID string `json:"operatingEntityId"`
 }
 
 type ReferenceCandidate struct {
 	ObjectID           string                  `json:"objectId"`
+	CustomerID         string                  `json:"customerId,omitempty"`
 	ApprovalEntryID    string                  `json:"approvalEntryId"`
 	Code               string                  `json:"code"`
 	Name               string                  `json:"name"`
@@ -31,6 +33,9 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 	}
 	if input.SourceObjectID != "" && !validID(input.SourceObjectID) {
 		return nil, domainError(ErrorValidation, "invalid BOB reference source", nil, nil)
+	}
+	if input.OperatingEntityID != "" && !validID(input.OperatingEntityID) {
+		return nil, domainError(ErrorValidation, "invalid BOB reference operating entity", nil, nil)
 	}
 	if input.BehaviorProfile != "" && (input.Entity != EntityProduct || !validProductBehavior(input.BehaviorProfile)) {
 		return nil, domainError(ErrorValidation, "invalid product behavior profile", nil, nil)
@@ -50,8 +55,20 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		}
 		return result, nil
 	}
-	var rows []dbsqlc.QueryBobReferenceCandidatesRow
-	var err error
+	if input.Entity == EntityCustomerAccount {
+		rows, err := s.queries.ListBobEmbeddedCustomerAccountReferenceCandidates(ctx, input.Keyword)
+		if err != nil {
+			return nil, s.internal("query current customer account references", err)
+		}
+		result := make([]ReferenceCandidate, 0, len(rows))
+		for _, row := range rows {
+			result = append(result, ReferenceCandidate{
+				ObjectID: row.ObjectID, CustomerID: row.CustomerID, ApprovalEntryID: row.ApprovalEntryID,
+				Code: row.Code, Name: row.Name,
+			})
+		}
+		return result, nil
+	}
 	if input.Entity == EntityProduct {
 		productRows, err := s.queries.QueryBobProductReferenceCandidates(ctx, dbsqlc.QueryBobProductReferenceCandidatesParams{Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, BehaviorProfile: input.BehaviorProfile})
 		if err != nil {
@@ -67,23 +84,22 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 			result = append(result, candidate)
 		}
 		return result, nil
-	} else {
-		rows, err = s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, BehaviorProfile: input.BehaviorProfile})
-	}
-	if err != nil {
-		return nil, s.internal("query BOB reference candidates", err)
-	}
-	result := make([]ReferenceCandidate, 0, len(rows))
-	for _, row := range rows {
-		candidate := ReferenceCandidate{ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: row.Code, Name: row.Name,
-			BehaviorProfile: row.BehaviorProfile, DefaultInputUnitID: row.DefaultInputUnitID, PricingUnitID: row.PricingUnitID}
-		if input.Entity == EntityProduct {
-			candidate.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, candidate.ApprovalEntryID)
-			if err != nil {
-				return nil, s.internal("read product reference unit conversions", err)
-			}
+	} else if input.Entity == EntitySupplier || input.Entity == EntityEmployee || input.Entity == EntityOtherUnit || input.Entity == EntitySalesPartner {
+		typedRows, queryErr := s.queries.QueryBobTypedReferenceCandidates(ctx, dbsqlc.QueryBobTypedReferenceCandidatesParams{
+			Entity: input.Entity, SourceObjectID: input.SourceObjectID, Keyword: input.Keyword,
+			BehaviorProfile: input.BehaviorProfile, OperatingEntityID: input.OperatingEntityID,
+		})
+		if queryErr != nil {
+			return nil, s.internal("query typed BOB reference candidates", queryErr)
 		}
-		result = append(result, candidate)
+		result := make([]ReferenceCandidate, 0, len(typedRows))
+		for _, row := range typedRows {
+			result = append(result, ReferenceCandidate{
+				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID,
+				Code: row.Code, Name: row.Name,
+			})
+		}
+		return result, nil
 	}
-	return result, nil
+	return nil, domainError(ErrorValidation, "invalid BOB reference entity", nil, nil)
 }

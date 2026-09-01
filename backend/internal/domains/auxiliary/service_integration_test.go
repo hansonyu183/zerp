@@ -98,15 +98,27 @@ func TestDirectDeleteBlockerAndDisabledHistoryIntegration(t *testing.T) {
 		t.Fatalf("disabled historical read: %+v %v", historical, err)
 	}
 
-	entryID, subjectID := ulid.Make().String(), ulid.Make().String()
+	operatingID, operatingEntryID := ulid.Make().String(), ulid.Make().String()
+	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'operating-entity','OPE-9001',$2)`, operatingID, actor.ID()); err != nil {
+		t.Fatalf("insert DCL operating subject: %v", err)
+	}
 	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries
 		(id,domain,entity,subject_id,version_no,status,created_by,created_at,updated_by,updated_at)
-		VALUES($1,'dcl','employee',$2,1,'DRAFT',$3,now(),$3,now())`, entryID, subjectID, actor.ID()); err != nil {
+		VALUES($1,'dcl','operating-entity',$2,1,'DRAFT',$3,now(),$3,now())`, operatingEntryID, operatingID, actor.ID()); err != nil {
+		t.Fatalf("insert DCL operating approval entry: %v", err)
+	}
+	employeeID, entryID := ulid.Make().String(), ulid.Make().String()
+	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'employee','EMP-9001',$2)`, employeeID, actor.ID()); err != nil {
+		t.Fatalf("insert DCL employee subject: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries
+		(id,domain,entity,subject_id,version_no,status,created_by,created_at,updated_by,updated_at)
+		VALUES($1,'dcl','employee',$2,1,'DRAFT',$3,now(),$3,now())`, entryID, employeeID, actor.ID()); err != nil {
 		t.Fatalf("insert DCL approval entry: %v", err)
 	}
 	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_employee_versions
-		(approval_entry_id,department_id,department_code,department_name,enabled)
-		VALUES($1,$2,$3,$4,true)`, entryID, created.ObjectID, historical.Code, stringValue(historical.Data["name"])); err != nil {
+		(approval_entry_id,kind,legal_name,display_name,department_id,department_code,department_name,current_operating_entity_id,current_operating_entity_approval_entry_id,current_operating_entity_code,current_operating_entity_name,enabled)
+		VALUES($1,'PERSON','辅助引用员工','辅助引用员工',$2,$3,$4,$5,$6,'OPE-9001','辅助引用经营主体',true)`, entryID, created.ObjectID, historical.Code, stringValue(historical.Data["name"]), operatingID, operatingEntryID); err != nil {
 		t.Fatalf("insert historical DCL snapshot: %v", err)
 	}
 
@@ -126,6 +138,12 @@ func TestDirectDeleteBlockerAndDisabledHistoryIntegration(t *testing.T) {
 	}
 	if _, err = pool.Exec(t.Context(), `DELETE FROM approval_entries WHERE id=$1`, entryID); err != nil {
 		t.Fatalf("delete DCL approval entry: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `DELETE FROM approval_entries WHERE id=$1`, operatingEntryID); err != nil {
+		t.Fatalf("delete DCL operating approval entry: %v", err)
+	}
+	if _, err = pool.Exec(t.Context(), `DELETE FROM dcl_subjects WHERE id IN ($1,$2)`, employeeID, operatingID); err != nil {
+		t.Fatalf("delete DCL typed archive subjects: %v", err)
 	}
 	if err = s.Delete(t.Context(), EntityDepartment, DeleteInput{ObjectID: created.ObjectID, ObjectRevision: disabled.ObjectRevision}, actor); err != nil {
 		t.Fatalf("delete after blocker removal: %v", err)

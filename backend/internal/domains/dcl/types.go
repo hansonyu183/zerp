@@ -14,105 +14,118 @@ const (
 	EntityVehicle         = "vehicle"
 	EntityFundAccount     = "fund-account"
 	EntityProduct         = "product"
-	EntityParty           = "party"
 	EntityEmployee        = "employee"
 	EntityOtherUnit       = "other-unit"
 	EntitySalesPartner    = "sales-partner"
 	EntitySupplier        = "supplier"
 	EntityCustomer        = "customer"
-	EntityCustomerAccount = "customer-account"
 	EntityAccMapping      = "acc-mapping"
 )
 
-// Customer is the DCL declaration for the immutable Party-to-operating-
-// entity customer relationship.  Its commercial accounts are independent
-// Customer Account approval subjects.
-type CustomerCreateInput struct {
-	PartyID           string                     `json:"partyId,omitempty"`
-	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
-	OperatingEntityID string                     `json:"operatingEntityId"`
-	// DefaultAccount is required because Customer creation atomically establishes
-	// the initial commercial account as its own DCL approval subject.
-	DefaultAccount CustomerAccountDataInput `json:"defaultAccount"`
-}
-type CustomerSaveInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Enabled          bool   `json:"enabled"`
-}
-type CustomerVersionInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-type CustomerReviewInput struct {
-	ObjectID         string `json:"objectId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Reason           string `json:"reason"`
-}
-type CustomerDeleteInput = CustomerVersionInput
-type CustomerMutation struct {
-	ObjectID string               `json:"objectId"`
-	PartyID  string               `json:"partyId"`
-	Enabled  bool                 `json:"enabled"`
-	Approval approval.VersionMeta `json:"approval"`
+// BusinessArchiveSnapshot is the immutable approved operating-entity fact held
+// by Other Unit and Sales Partner versions.
+type BusinessArchiveSnapshot struct {
+	SourceObjectID  string `json:"sourceObjectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }
 
-// Relationship declarations own mutable commercial data. The Party and
-// operating-entity pair is reserved once in BOB and cannot change on save.
 type OtherUnitData struct {
-	ContactName           string `json:"contactName,omitempty"`
-	ContactPhone          string `json:"contactPhone,omitempty"`
-	Email                 string `json:"email,omitempty"`
-	Address               string `json:"address,omitempty"`
-	SettlementMethodID    string `json:"settlementMethodId,omitempty"`
-	SettlementMethodCode  string `json:"settlementMethodCode,omitempty"`
-	SettlementMethodName  string `json:"settlementMethodName,omitempty"`
-	SettlementTermCode    string `json:"settlementTermCode,omitempty"`
-	SettlementRuleType    string `json:"settlementRuleType,omitempty"`
-	SettlementMonthOffset int32  `json:"settlementMonthOffset,omitempty"`
-	SettlementDayOfMonth  int32  `json:"settlementDayOfMonth,omitempty"`
-	SettlementDayOffset   int32  `json:"settlementDayOffset,omitempty"`
-	Remark                string `json:"remark,omitempty"`
+	Kind                     string                    `json:"kind"`
+	LegalName                string                    `json:"legalName"`
+	DisplayName              string                    `json:"displayName,omitempty"`
+	TaxNumber                string                    `json:"taxNumber,omitempty"`
+	StrongIdentifiers        []BusinessIdentifierInput `json:"strongIdentifiers"`
+	Enabled                  bool                      `json:"enabled"`
+	OperatingEntityIDs       []string                  `json:"operatingEntityIds"`
+	OperatingEntities        []BusinessArchiveSnapshot `json:"operatingEntities"`
+	DefaultOperatingEntity   BusinessArchiveSnapshot   `json:"defaultOperatingEntity"`
+	DefaultOperatingEntityID string                    `json:"defaultOperatingEntityId"`
+	ContactName              string                    `json:"contactName,omitempty"`
+	ContactPhone             string                    `json:"contactPhone,omitempty"`
+	Email                    string                    `json:"email,omitempty"`
+	Address                  string                    `json:"address,omitempty"`
+	SettlementMethodID       string                    `json:"settlementMethodId,omitempty"`
+	SettlementMethodCode     string                    `json:"settlementMethodCode,omitempty"`
+	SettlementMethodName     string                    `json:"settlementMethodName,omitempty"`
+	SettlementTermCode       string                    `json:"settlementTermCode,omitempty"`
+	SettlementRuleType       string                    `json:"settlementRuleType,omitempty"`
+	SettlementMonthOffset    int32                     `json:"settlementMonthOffset,omitempty"`
+	SettlementDayOfMonth     int32                     `json:"settlementDayOfMonth,omitempty"`
+	SettlementDayOffset      int32                     `json:"settlementDayOffset,omitempty"`
+	Remark                   string                    `json:"remark,omitempty"`
 }
 type SalesPartnerData struct {
-	Capabilities []string `json:"capabilities"`
-	ContactName  string   `json:"contactName,omitempty"`
-	ContactPhone string   `json:"contactPhone,omitempty"`
-	Email        string   `json:"email,omitempty"`
-	Address      string   `json:"address,omitempty"`
-	Remark       string   `json:"remark,omitempty"`
+	Kind                     string                    `json:"kind"`
+	LegalName                string                    `json:"legalName"`
+	DisplayName              string                    `json:"displayName,omitempty"`
+	TaxNumber                string                    `json:"taxNumber,omitempty"`
+	StrongIdentifiers        []BusinessIdentifierInput `json:"strongIdentifiers"`
+	Enabled                  bool                      `json:"enabled"`
+	OperatingEntityIDs       []string                  `json:"operatingEntityIds"`
+	OperatingEntities        []BusinessArchiveSnapshot `json:"operatingEntities"`
+	DefaultOperatingEntity   BusinessArchiveSnapshot   `json:"defaultOperatingEntity"`
+	DefaultOperatingEntityID string                    `json:"defaultOperatingEntityId"`
+	Capabilities             []string                  `json:"capabilities"`
+	ContactName              string                    `json:"contactName,omitempty"`
+	ContactPhone             string                    `json:"contactPhone,omitempty"`
+	Email                    string                    `json:"email,omitempty"`
+	Address                  string                    `json:"address,omitempty"`
+	Remark                   string                    `json:"remark,omitempty"`
 }
 
-// SupplierData is the DCL-owned mutable supplier declaration. Party identity
-// and the operating entity are immutable BOB relationship facts.
+// SupplierInput is the mutable Supplier declaration. Supplier owns its legal
+// identity owned by the typed archive.
+type SupplierInput struct {
+	Kind                            string                    `json:"kind"`
+	LegalName                       string                    `json:"legalName"`
+	DisplayName                     string                    `json:"displayName,omitempty"`
+	TaxNumber                       string                    `json:"taxNumber,omitempty"`
+	StrongIdentifiers               []BusinessIdentifierInput `json:"strongIdentifiers"`
+	Enabled                         bool                      `json:"enabled"`
+	OperatingEntityIDs              []string                  `json:"operatingEntityIds"`
+	DefaultOperatingEntityID        string                    `json:"defaultOperatingEntityId"`
+	ShortName                       string                    `json:"shortName,omitempty"`
+	ContactName                     string                    `json:"contactName,omitempty"`
+	ContactPhone                    string                    `json:"contactPhone,omitempty"`
+	Email                           string                    `json:"email,omitempty"`
+	Address                         string                    `json:"address,omitempty"`
+	Remark                          string                    `json:"remark,omitempty"`
+	SettlementMethodID              string                    `json:"settlementMethodId,omitempty"`
+	SettlementMethodCode            string                    `json:"-"`
+	SettlementMethodName            string                    `json:"-"`
+	SettlementTermCode              string                    `json:"-"`
+	SettlementRuleType              string                    `json:"-"`
+	SettlementMonthOffset           int32                     `json:"-"`
+	SettlementDayOfMonth            int32                     `json:"-"`
+	SettlementDayOffset             int32                     `json:"-"`
+	DefaultPurchaserEmployeeID      string                    `json:"defaultPurchaserEmployeeId,omitempty"`
+	DefaultPurchaserApprovalEntryID string                    `json:"-"`
+	DefaultPurchaserCode            string                    `json:"-"`
+	DefaultPurchaserName            string                    `json:"-"`
+}
 type SupplierData struct {
-	ShortName        string                            `json:"shortName,omitempty"`
-	TaxNumber        string                            `json:"taxNumber,omitempty"`
-	ContactName      string                            `json:"contactName,omitempty"`
-	ContactPhone     string                            `json:"contactPhone,omitempty"`
-	Email            string                            `json:"email,omitempty"`
-	Address          string                            `json:"address,omitempty"`
-	Remark           string                            `json:"remark,omitempty"`
-	SettlementMethod *SupplierSettlementMethodSnapshot `json:"settlementMethod,omitempty"`
-	DefaultPurchaser *SupplierEmployeeSnapshot         `json:"defaultPurchaser,omitempty"`
-
-	// Stable selection IDs are the input surface; nested fields are the exact
-	// snapshots returned after resolution.
-	SettlementMethodID              string `json:"settlementMethodId,omitempty"`
-	SettlementMethodCode            string `json:"-"`
-	SettlementMethodName            string `json:"-"`
-	SettlementTermCode              string `json:"-"`
-	SettlementRuleType              string `json:"-"`
-	SettlementMonthOffset           int32  `json:"-"`
-	SettlementDayOfMonth            int32  `json:"-"`
-	SettlementDayOffset             int32  `json:"-"`
-	DefaultPurchaserEmployeeID      string `json:"defaultPurchaserEmployeeId,omitempty"`
-	DefaultPurchaserApprovalEntryID string `json:"-"`
-	DefaultPurchaserCode            string `json:"-"`
-	DefaultPurchaserName            string `json:"-"`
+	SupplierInput
+	OperatingEntities               []SupplierOperatingEntitySnapshot `json:"operatingEntities"`
+	SettlementMethod                *SupplierSettlementMethodSnapshot `json:"settlementMethod"`
+	DefaultPurchaser                *SupplierEmployeeSnapshot         `json:"defaultPurchaser"`
+	SettlementMethodCode            string                            `json:"-"`
+	SettlementMethodName            string                            `json:"-"`
+	SettlementTermCode              string                            `json:"-"`
+	SettlementRuleType              string                            `json:"-"`
+	SettlementMonthOffset           int32                             `json:"-"`
+	SettlementDayOfMonth            int32                             `json:"-"`
+	SettlementDayOffset             int32                             `json:"-"`
+	DefaultPurchaserApprovalEntryID string                            `json:"-"`
+	DefaultPurchaserCode            string                            `json:"-"`
+	DefaultPurchaserName            string                            `json:"-"`
+}
+type SupplierOperatingEntitySnapshot struct {
+	SourceObjectID  string `json:"sourceObjectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }
 type SupplierSettlementMethodSnapshot struct {
 	SourceObjectID string `json:"sourceObjectId"`
@@ -131,17 +144,13 @@ type SupplierEmployeeSnapshot struct {
 	Name            string `json:"name"`
 }
 type SupplierCreateInput struct {
-	PartyID           string                     `json:"partyId,omitempty"`
-	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
-	OperatingEntityID string                     `json:"operatingEntityId"`
-	Data              SupplierData               `json:"data"`
+	Data SupplierInput `json:"data"`
 }
 type SupplierSaveInput struct {
-	ObjectID         string       `json:"objectId"`
-	ApprovalEntryID  string       `json:"approvalEntryId"`
-	ApprovalRevision int64        `json:"approvalRevision"`
-	Enabled          bool         `json:"enabled"`
-	Data             SupplierData `json:"data"`
+	ObjectID         string        `json:"objectId"`
+	ApprovalEntryID  string        `json:"approvalEntryId"`
+	ApprovalRevision int64         `json:"approvalRevision"`
+	Data             SupplierInput `json:"data"`
 }
 type SupplierVersionInput struct {
 	ObjectID         string `json:"objectId"`
@@ -160,10 +169,10 @@ type SupplierGetInput struct {
 	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
 }
 type SupplierQueryFilters struct {
-	Keyword           string            `json:"keyword,omitempty"`
-	Status            []approval.Status `json:"status,omitempty"`
-	Enabled           *bool             `json:"enabled,omitempty"`
-	OperatingEntityID string            `json:"operatingEntityId,omitempty"`
+	Keyword                    string            `json:"keyword,omitempty"`
+	Status                     []approval.Status `json:"status,omitempty"`
+	Enabled                    *bool             `json:"enabled,omitempty"`
+	DefaultPurchaserEmployeeID string            `json:"defaultPurchaserEmployeeId,omitempty"`
 }
 type SupplierQueryInput struct {
 	Page     int                       `json:"page"`
@@ -175,199 +184,190 @@ type SupplierHistoryInput = OperatingEntityHistoryInput
 type SupplierMutation struct {
 	ObjectID string               `json:"objectId"`
 	Enabled  bool                 `json:"enabled"`
-	PartyID  string               `json:"partyId"`
 	Approval approval.VersionMeta `json:"approval"`
 }
 type SupplierView struct {
-	RelationshipIdentityView
-	OperatingEntityApprovalEntryID string                     `json:"operatingEntityApprovalEntryId"`
-	OperatingEntityCode            string                     `json:"operatingEntityCode"`
-	OperatingEntityName            string                     `json:"operatingEntityName"`
-	Data                           SupplierData               `json:"data"`
-	UpdatedAt                      time.Time                  `json:"updatedAt"`
-	AvailableApprovalActions       []approval.LifecycleAction `json:"availableApprovalActions"`
-}
-type SupplierVersionView struct {
-	Approval approval.VersionMeta `json:"approval"`
-	Enabled  bool                 `json:"enabled"`
-	Data     SupplierData         `json:"data"`
-}
-type SupplierQueryItem struct {
-	RelationshipIdentityView
-	OperatingEntityCode      string                     `json:"operatingEntityCode"`
-	OperatingEntityName      string                     `json:"operatingEntityName"`
-	LatestApproved           *SupplierVersionView       `json:"latestApproved,omitempty"`
-	OpenVersion              *SupplierVersionView       `json:"openVersion,omitempty"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     SupplierData               `json:"data"`
 	UpdatedAt                time.Time                  `json:"updatedAt"`
 	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
+type SupplierVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Data     SupplierData         `json:"data"`
+}
+type SupplierQueryItem struct {
+	ObjectID                 string                          `json:"objectId"`
+	Entity                   string                          `json:"entity"`
+	Code                     string                          `json:"code"`
+	DisplayName              string                          `json:"displayName"`
+	DefaultOperatingEntity   SupplierOperatingEntitySnapshot `json:"defaultOperatingEntity"`
+	LatestApproved           *SupplierVersionView            `json:"latestApproved"`
+	OpenVersion              *SupplierVersionView            `json:"openVersion"`
+	UpdatedAt                time.Time                       `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction      `json:"availableApprovalActions"`
+}
 type OtherUnitCreateInput struct {
-	PartyID           string                     `json:"partyId,omitempty"`
-	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
-	OperatingEntityID string                     `json:"operatingEntityId"`
-	Data              OtherUnitData              `json:"data"`
+	Data OtherUnitData `json:"data"`
 }
 type SalesPartnerCreateInput struct {
-	PartyID           string                     `json:"partyId,omitempty"`
-	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
-	OperatingEntityID string                     `json:"operatingEntityId"`
-	Data              SalesPartnerData           `json:"data"`
+	Data SalesPartnerData `json:"data"`
 }
 type OtherUnitSaveInput struct {
 	ObjectID         string        `json:"objectId"`
 	ApprovalEntryID  string        `json:"approvalEntryId"`
 	ApprovalRevision int64         `json:"approvalRevision"`
-	Enabled          bool          `json:"enabled"`
 	Data             OtherUnitData `json:"data"`
 }
 type SalesPartnerSaveInput struct {
 	ObjectID         string           `json:"objectId"`
 	ApprovalEntryID  string           `json:"approvalEntryId"`
 	ApprovalRevision int64            `json:"approvalRevision"`
-	Enabled          bool             `json:"enabled"`
 	Data             SalesPartnerData `json:"data"`
 }
-type RelationshipVersionInput struct {
+type TypedArchiveVersionInput struct {
 	ObjectID         string `json:"objectId"`
 	ApprovalEntryID  string `json:"approvalEntryId"`
 	ApprovalRevision int64  `json:"approvalRevision"`
 }
-type RelationshipReviewInput struct {
+type TypedArchiveReviewInput struct {
 	ObjectID         string `json:"objectId"`
 	ApprovalEntryID  string `json:"approvalEntryId"`
 	ApprovalRevision int64  `json:"approvalRevision"`
 	Reason           string `json:"reason"`
 }
-type RelationshipMutation struct {
+type TypedArchiveMutation struct {
 	ObjectID string               `json:"objectId"`
 	Enabled  bool                 `json:"enabled"`
-	PartyID  string               `json:"partyId"`
 	Approval approval.VersionMeta `json:"approval"`
 }
-type RelationshipGetInput struct {
+type TypedArchiveGetInput struct {
 	ObjectID        string `json:"objectId"`
 	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
 }
-type RelationshipQueryInput struct {
+type TypedArchiveQueryInput struct {
 	Page     int                      `json:"page"`
 	PageSize int                      `json:"pageSize"`
-	Filters  RelationshipQueryFilters `json:"filters"`
+	Filters  TypedArchiveQueryFilters `json:"filters"`
 }
-type RelationshipQueryFilters struct {
+type TypedArchiveQueryFilters struct {
 	Keyword           string            `json:"keyword,omitempty"`
 	Status            []approval.Status `json:"status,omitempty"`
 	Enabled           *bool             `json:"enabled,omitempty"`
 	OperatingEntityID string            `json:"operatingEntityId,omitempty"`
 }
-type RelationshipHistoryInput struct {
+type TypedArchiveHistoryInput struct {
 	ObjectID string `json:"objectId"`
 	Page     int    `json:"page"`
 	PageSize int    `json:"pageSize"`
 }
-type RelationshipIdentityView struct {
-	ObjectID            string               `json:"objectId"`
-	Entity              string               `json:"entity"`
-	Code                string               `json:"code"`
-	PartyID             string               `json:"partyId"`
-	PartyKind           string               `json:"partyKind"`
-	PartyDisplayName    string               `json:"partyDisplayName"`
-	OperatingEntityID   string               `json:"operatingEntityId"`
-	OperatingEntityCode string               `json:"operatingEntityCode"`
-	OperatingEntityName string               `json:"operatingEntityName"`
-	Enabled             bool                 `json:"enabled"`
-	Approval            approval.VersionMeta `json:"approval"`
-	UpdatedAt           time.Time            `json:"updatedAt"`
-}
 type OtherUnitView struct {
-	RelationshipIdentityView
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Approval                 approval.VersionMeta       `json:"approval"`
 	Data                     OtherUnitData              `json:"data"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
 	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type SalesPartnerView struct {
-	RelationshipIdentityView
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Approval                 approval.VersionMeta       `json:"approval"`
 	Data                     SalesPartnerData           `json:"data"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
 	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type OtherUnitVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
-	Enabled  bool                 `json:"enabled"`
 	Data     OtherUnitData        `json:"data"`
 }
 type SalesPartnerVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
-	Enabled  bool                 `json:"enabled"`
 	Data     SalesPartnerData     `json:"data"`
 }
 type OtherUnitQueryItem struct {
 	ObjectID                 string                     `json:"objectId"`
 	Entity                   string                     `json:"entity"`
 	Code                     string                     `json:"code"`
-	PartyID                  string                     `json:"partyId"`
-	PartyKind                string                     `json:"partyKind"`
-	PartyDisplayName         string                     `json:"partyDisplayName"`
-	OperatingEntityID        string                     `json:"operatingEntityId"`
-	OperatingEntityCode      string                     `json:"operatingEntityCode"`
-	OperatingEntityName      string                     `json:"operatingEntityName"`
-	Enabled                  bool                       `json:"enabled"`
+	DisplayName              string                     `json:"displayName"`
+	DefaultOperatingEntity   BusinessArchiveSnapshot    `json:"defaultOperatingEntity"`
 	LatestApproved           *OtherUnitVersionView      `json:"latestApproved,omitempty"`
 	OpenVersion              *OtherUnitVersionView      `json:"openVersion,omitempty"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
 	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type SalesPartnerQueryItem struct {
 	ObjectID                 string                     `json:"objectId"`
 	Entity                   string                     `json:"entity"`
 	Code                     string                     `json:"code"`
-	PartyID                  string                     `json:"partyId"`
-	PartyKind                string                     `json:"partyKind"`
-	PartyDisplayName         string                     `json:"partyDisplayName"`
-	OperatingEntityID        string                     `json:"operatingEntityId"`
-	OperatingEntityCode      string                     `json:"operatingEntityCode"`
-	OperatingEntityName      string                     `json:"operatingEntityName"`
-	Enabled                  bool                       `json:"enabled"`
+	DisplayName              string                     `json:"displayName"`
+	DefaultOperatingEntity   BusinessArchiveSnapshot    `json:"defaultOperatingEntity"`
 	LatestApproved           *SalesPartnerVersionView   `json:"latestApproved,omitempty"`
 	OpenVersion              *SalesPartnerVersionView   `json:"openVersion,omitempty"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
 	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 
-// EmployeeInput contains only Employee-owned mutable attributes. Party identity
-// and the immutable Party x operating-entity relationship are separate roots.
 type EmployeeInput struct {
-	EmployeeCategoryID string `json:"employeeCategoryId,omitempty"`
-	DepartmentID       string `json:"departmentId,omitempty"`
-	PositionID         string `json:"positionId,omitempty"`
-	Phone              string `json:"phone,omitempty"`
-	Email              string `json:"email,omitempty"`
-	HireDate           string `json:"hireDate,omitempty"`
-	Remark             string `json:"remark,omitempty"`
+	Kind                     string                    `json:"kind"`
+	LegalName                string                    `json:"legalName"`
+	DisplayName              string                    `json:"displayName,omitempty"`
+	TaxNumber                string                    `json:"taxNumber,omitempty"`
+	StrongIdentifiers        []BusinessIdentifierInput `json:"strongIdentifiers"`
+	Enabled                  bool                      `json:"enabled"`
+	CurrentOperatingEntityID string                    `json:"currentOperatingEntityId"`
+	EmployeeCategoryID       string                    `json:"employeeCategoryId,omitempty"`
+	DepartmentID             string                    `json:"departmentId,omitempty"`
+	PositionID               string                    `json:"positionId,omitempty"`
+	Phone                    string                    `json:"phone,omitempty"`
+	Email                    string                    `json:"email,omitempty"`
+	HireDate                 string                    `json:"hireDate,omitempty"`
+	Remark                   string                    `json:"remark,omitempty"`
 }
 
 type EmployeeData struct {
-	EmployeeCategoryID   string `json:"employeeCategoryId,omitempty"`
-	EmployeeCategoryCode string `json:"employeeCategoryCode,omitempty"`
-	EmployeeCategoryName string `json:"employeeCategoryName,omitempty"`
-	DepartmentID         string `json:"departmentId,omitempty"`
-	DepartmentCode       string `json:"departmentCode,omitempty"`
-	DepartmentName       string `json:"departmentName,omitempty"`
-	PositionID           string `json:"positionId,omitempty"`
-	PositionCode         string `json:"positionCode,omitempty"`
-	PositionName         string `json:"positionName,omitempty"`
-	Phone                string `json:"phone,omitempty"`
-	Email                string `json:"email,omitempty"`
-	HireDate             string `json:"hireDate,omitempty"`
-	Remark               string `json:"remark,omitempty"`
+	Kind                     string                          `json:"kind"`
+	LegalName                string                          `json:"legalName"`
+	DisplayName              string                          `json:"displayName"`
+	TaxNumber                string                          `json:"taxNumber,omitempty"`
+	StrongIdentifiers        []BusinessIdentifierInput       `json:"strongIdentifiers"`
+	Enabled                  bool                            `json:"enabled"`
+	CurrentOperatingEntityID string                          `json:"currentOperatingEntityId"`
+	CurrentOperatingEntity   EmployeeOperatingEntitySnapshot `json:"currentOperatingEntity"`
+	EmployeeCategoryID       string                          `json:"employeeCategoryId,omitempty"`
+	EmployeeCategoryCode     string                          `json:"employeeCategoryCode,omitempty"`
+	EmployeeCategoryName     string                          `json:"employeeCategoryName,omitempty"`
+	DepartmentID             string                          `json:"departmentId,omitempty"`
+	DepartmentCode           string                          `json:"departmentCode,omitempty"`
+	DepartmentName           string                          `json:"departmentName,omitempty"`
+	PositionID               string                          `json:"positionId,omitempty"`
+	PositionCode             string                          `json:"positionCode,omitempty"`
+	PositionName             string                          `json:"positionName,omitempty"`
+	Phone                    string                          `json:"phone,omitempty"`
+	Email                    string                          `json:"email,omitempty"`
+	HireDate                 string                          `json:"hireDate,omitempty"`
+	Remark                   string                          `json:"remark,omitempty"`
+}
+
+type EmployeeOperatingEntitySnapshot struct {
+	SourceObjectID  string `json:"sourceObjectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }
 
 type EmployeeCreateInput struct {
-	PartyID           string                     `json:"partyId,omitempty"`
-	NewParty          *bobdomain.PartyCreateData `json:"newParty,omitempty"`
-	OperatingEntityID string                     `json:"operatingEntityId"`
-	Data              EmployeeInput              `json:"data"`
+	Data EmployeeInput `json:"data"`
 }
 type EmployeeSaveInput struct {
 	ObjectID         string        `json:"objectId"`
 	ApprovalEntryID  string        `json:"approvalEntryId"`
 	ApprovalRevision int64         `json:"approvalRevision"`
-	Enabled          bool          `json:"enabled"`
 	Data             EmployeeInput `json:"data"`
 }
 type EmployeeVersionInput struct {
@@ -408,95 +408,28 @@ type EmployeeMutation struct {
 	Approval approval.VersionMeta `json:"approval"`
 }
 type EmployeeView struct {
-	ObjectID                       string                     `json:"objectId"`
-	Entity                         string                     `json:"entity"`
-	Code                           string                     `json:"code"`
-	PartyID                        string                     `json:"partyId"`
-	PartyKind                      string                     `json:"partyKind"`
-	PartyDisplayName               string                     `json:"partyDisplayName"`
-	OperatingEntityID              string                     `json:"operatingEntityId"`
-	OperatingEntityApprovalEntryID string                     `json:"operatingEntityApprovalEntryId"`
-	OperatingEntityCode            string                     `json:"operatingEntityCode"`
-	OperatingEntityName            string                     `json:"operatingEntityName"`
-	Enabled                        bool                       `json:"enabled"`
-	Approval                       approval.VersionMeta       `json:"approval"`
-	Data                           EmployeeData               `json:"data"`
-	UpdatedAt                      time.Time                  `json:"updatedAt"`
-	AvailableApprovalActions       []approval.LifecycleAction `json:"availableApprovalActions"`
+	ObjectID                 string                     `json:"objectId"`
+	Entity                   string                     `json:"entity"`
+	Code                     string                     `json:"code"`
+	Approval                 approval.VersionMeta       `json:"approval"`
+	Data                     EmployeeData               `json:"data"`
+	UpdatedAt                time.Time                  `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
 }
 type EmployeeVersionView struct {
 	Approval approval.VersionMeta `json:"approval"`
 	Data     EmployeeData         `json:"data"`
-	Enabled  bool                 `json:"enabled"`
 }
 type EmployeeQueryItem struct {
-	ObjectID                 string                     `json:"objectId"`
-	Entity                   string                     `json:"entity"`
-	Code                     string                     `json:"code"`
-	PartyID                  string                     `json:"partyId"`
-	PartyKind                string                     `json:"partyKind"`
-	PartyDisplayName         string                     `json:"partyDisplayName"`
-	OperatingEntityID        string                     `json:"operatingEntityId"`
-	OperatingEntityCode      string                     `json:"operatingEntityCode"`
-	OperatingEntityName      string                     `json:"operatingEntityName"`
-	Enabled                  bool                       `json:"enabled"`
-	LatestApproved           *EmployeeVersionView       `json:"latestApproved"`
-	OpenVersion              *EmployeeVersionView       `json:"openVersion"`
-	UpdatedAt                time.Time                  `json:"updatedAt"`
-	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
-}
-
-type PartyData = bobdomain.PartyCreateData
-type PartyMutation struct {
-	PartyID  string               `json:"partyId"`
-	Approval approval.VersionMeta `json:"approval"`
-}
-type PartySaveInput struct {
-	PartyID          string    `json:"partyId"`
-	ApprovalEntryID  string    `json:"approvalEntryId"`
-	ApprovalRevision int64     `json:"approvalRevision"`
-	Data             PartyData `json:"data"`
-}
-type PartyGetInput struct {
-	PartyID         string `json:"partyId"`
-	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
-}
-type PartyHistoryInput struct {
-	PartyID  string `json:"partyId"`
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
-}
-type PartyVersionView struct {
-	Approval approval.VersionMeta `json:"approval"`
-	Data     PartyData            `json:"data"`
-}
-type PartyView struct {
-	PartyID                  string                            `json:"partyId"`
-	Entity                   string                            `json:"entity"`
-	Approval                 approval.VersionMeta              `json:"approval"`
-	Data                     PartyData                         `json:"data"`
-	ImpactRelationships      []bobdomain.PartyRelationshipCard `json:"impactRelationships"`
-	UpdatedAt                time.Time                         `json:"updatedAt"`
-	AvailableApprovalActions []approval.LifecycleAction        `json:"availableApprovalActions"`
-}
-type PartyListItem struct {
-	PartyID                  string                     `json:"partyId"`
-	Entity                   string                     `json:"entity"`
-	LatestApproved           *PartyVersionView          `json:"latestApproved"`
-	OpenVersion              *PartyVersionView          `json:"openVersion"`
-	UpdatedAt                time.Time                  `json:"updatedAt"`
-	AvailableApprovalActions []approval.LifecycleAction `json:"availableApprovalActions"`
-}
-type PartyVersionInput struct {
-	PartyID          string `json:"partyId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-}
-type PartyReviewInput struct {
-	PartyID          string `json:"partyId"`
-	ApprovalEntryID  string `json:"approvalEntryId"`
-	ApprovalRevision int64  `json:"approvalRevision"`
-	Reason           string `json:"reason"`
+	ObjectID                 string                          `json:"objectId"`
+	Entity                   string                          `json:"entity"`
+	Code                     string                          `json:"code"`
+	DisplayName              string                          `json:"displayName"`
+	CurrentOperatingEntity   EmployeeOperatingEntitySnapshot `json:"currentOperatingEntity"`
+	LatestApproved           *EmployeeVersionView            `json:"latestApproved"`
+	OpenVersion              *EmployeeVersionView            `json:"openVersion"`
+	UpdatedAt                time.Time                       `json:"updatedAt"`
+	AvailableApprovalActions []approval.LifecycleAction      `json:"availableApprovalActions"`
 }
 
 // ProductInput is the complete, mutable product declaration. Snapshot fields

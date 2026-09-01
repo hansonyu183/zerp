@@ -422,22 +422,16 @@ async function readSaleOrderSnapshot(
   return productSnapshotFromDocument(envelope.data)
 }
 
-async function verifyBobProductCurrentReadOnly(
+async function verifyDclProductApproved(
   page: Page,
   name: string,
 ): Promise<void> {
-  await page.goto('/bob/product')
-  await page
-    .getByRole('textbox', { name: '产品（当前有效资料）关键字' })
-    .fill(name)
+  await page.goto('/dcl/product')
+  await page.getByRole('textbox', { name: '产品变更关键字' }).fill(name)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const row = productRow(page, name)
   await expect(row).toHaveCount(1)
-  await expect(
-    page.getByRole('button', { name: '新增', exact: true }),
-  ).toHaveCount(0)
-  await expect(row.getByText('提交', { exact: true })).toHaveCount(0)
-  await expect(row.getByText('批准', { exact: true })).toHaveCount(0)
+  await expect(row).toContainText('已批准')
 }
 
 test('当前产品类型驱动三类产品、固定配方及候选换版', async ({
@@ -498,7 +492,7 @@ test('当前产品类型驱动三类产品、固定配方及候选换版', async
 
   await signOut(page)
   await signIn(page, workerState.operator)
-  await verifyBobProductCurrentReadOnly(page, rawProduct)
+  await verifyDclProductApproved(page, rawProduct)
   const editor = await openProductCreate(page)
   await editor.getByLabel('产品名称', { exact: true }).fill(finishedProduct)
   await selectReference(page, editor, '产品类型', finishedType)

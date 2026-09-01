@@ -73,6 +73,9 @@ export function buildVoucherDraftPayload(
   if (config.partyMode === 'customer' || config.partyMode === 'dual') {
     payload.customer = inputReference(value.customer)
   }
+  if (config.usesOperatingEntity) {
+    payload.operatingEntity = inputReference(value.operatingEntity)
+  }
   if (config.partyMode === 'supplier' || config.partyMode === 'dual') {
     payload.supplier = inputReference(value.supplier)
   }
@@ -157,6 +160,12 @@ export function buildVoucherDraftPayload(
   }
   if (config.directAmount && config.entity !== 'service-acceptance') {
     payload.amount = value.amount.trim()
+  }
+  if (config.usesAccountAllocations) {
+    payload.accountAllocations = value.accountAllocations.map((line) => ({
+      account: inputReference(line.account)!,
+      amount: line.amount.trim(),
+    }))
   }
   if (config.lineKind === 'product') {
     payload.productLines = value.productLines.map((line) => ({

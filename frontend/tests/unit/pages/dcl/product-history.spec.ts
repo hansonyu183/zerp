@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
 import { dclProductHistoryPort } from '@/pages/dcl/product/data'
 import { useDclDeclarationHistory } from '@/pages/dcl/shared/declaration'
-import type { BobListItem } from '@/pages/bob/shared/types'
+import type { BobListItem } from '@/pages/dcl/shared/bob-types'
 
 vi.mock('@/api/client', () => ({
   apiClient: {

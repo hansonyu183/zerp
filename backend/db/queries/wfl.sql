@@ -58,18 +58,19 @@ SELECT count(*)
 FROM wfl_definition_instances instance
 WHERE instance.root_deleted_at IS NULL
   AND (sqlc.arg(definition_id)::text = '' OR instance.definition_id=sqlc.arg(definition_id)::text)
-  AND (sqlc.arg(party_object_id)::text = '' OR instance.party_object_id=sqlc.arg(party_object_id)::text)
+  AND (sqlc.arg(counterparty_object_id)::text = '' OR instance.counterparty_object_id=sqlc.arg(counterparty_object_id)::text)
   AND (sqlc.arg(keyword)::text = '' OR instance.root_document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'
        OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'));
 
 -- name: ListDefinitionInstances :many
 SELECT instance.id process_id,instance.definition_id,instance.definition_approval_entry_id,instance.definition_code,instance.definition_name,
        instance.revision,COALESCE(instance.root_document_id,'') root_document_id,instance.root_document_no,
-       instance.root_entity,COALESCE(instance.party_code,'') party_code,COALESCE(instance.party_name,'') party_name,instance.updated_at
+       instance.root_entity,instance.counterparty_entity,instance.counterparty_object_id,instance.counterparty_approval_entry_id,
+       instance.counterparty_code,instance.counterparty_name,instance.updated_at
 FROM wfl_definition_instances instance
 WHERE instance.root_deleted_at IS NULL
   AND (sqlc.arg(definition_id)::text = '' OR instance.definition_id=sqlc.arg(definition_id)::text)
-  AND (sqlc.arg(party_object_id)::text = '' OR instance.party_object_id=sqlc.arg(party_object_id)::text)
+  AND (sqlc.arg(counterparty_object_id)::text = '' OR instance.counterparty_object_id=sqlc.arg(counterparty_object_id)::text)
   AND (sqlc.arg(keyword)::text = '' OR instance.root_document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'
        OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'))
 ORDER BY instance.updated_at DESC,instance.id DESC
@@ -78,7 +79,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 -- name: GetDefinitionInstance :one
 SELECT id process_id,definition_id,definition_code,definition_name,revision,
        COALESCE(root_document_id,'') root_document_id,root_document_no,root_entity,
-       COALESCE(party_code,'') party_code,COALESCE(party_name,'') party_name,
+       counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,
        definition_approval_entry_id,updated_at
 FROM wfl_definition_instances WHERE id=$1;
 
@@ -275,8 +276,8 @@ SELECT EXISTS(
 );
 
 -- name: CreateWorkflowDefinitionInstance :exec
-INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,party_object_id,party_code,party_name,definition_approval_entry_id,created_by,updated_by)
-VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(root_document_id),sqlc.arg(root_document_no),sqlc.arg(root_entity),sqlc.arg(definition_code),sqlc.arg(definition_name),sqlc.narg(party_object_id),sqlc.narg(party_code),sqlc.narg(party_name),sqlc.arg(definition_approval_entry_id),sqlc.arg(actor_id),sqlc.arg(actor_id));
+INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,definition_approval_entry_id,created_by,updated_by)
+VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(root_document_id),sqlc.arg(root_document_no),sqlc.arg(root_entity),sqlc.arg(definition_code),sqlc.arg(definition_name),sqlc.narg(counterparty_entity),sqlc.narg(counterparty_object_id),sqlc.narg(counterparty_approval_entry_id),sqlc.narg(counterparty_code),sqlc.narg(counterparty_name),sqlc.arg(definition_approval_entry_id),sqlc.arg(actor_id),sqlc.arg(actor_id));
 
 -- name: CreateWorkflowRootNodeInstance :exec
 INSERT INTO wfl_node_instances(id,process_id,node_key,node_name,document_id,document_no,document_entity,trigger_event)

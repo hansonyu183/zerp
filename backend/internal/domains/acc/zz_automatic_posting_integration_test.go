@@ -15,6 +15,7 @@ import (
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -98,29 +99,16 @@ func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service,
 func createApprovedAccountingEmployee(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, bus *txevent.Bus, operatingEntityID, name, requestPrefix string) voudomain.ReferenceInput {
 	t.Helper()
 	authorizer := authorization.Func(nil)
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	employees := dcldomain.NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	employees := dcldomain.NewEmployeeService(pool, business, authorizer, bus)
 	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: name},
-		OperatingEntityID: operatingEntityID,
+		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: name, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true, CurrentOperatingEntityID: operatingEntityID},
 	}, trustedAccountingActor(t, requestPrefix+"-create"))
 	if err != nil {
 		t.Fatalf("create employee declaration: %v", err)
 	}
-	employeeView, err := employees.Get(t.Context(), dcldomain.EmployeeGetInput{ObjectID: created.ObjectID}, trustedAccountingActor(t, requestPrefix+"-get"))
+	_, err = employees.Get(t.Context(), dcldomain.EmployeeGetInput{ObjectID: created.ObjectID}, trustedAccountingActor(t, requestPrefix+"-get"))
 	if err != nil {
 		t.Fatalf("get employee declaration: %v", err)
-	}
-	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: employeeView.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedAccountingActor(t, requestPrefix+"-party-get"))
-	if err != nil {
-		t.Fatalf("get employee party: %v", err)
-	}
-	partyPending, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedAccountingActor(t, requestPrefix+"-party-submit"))
-	if err != nil {
-		t.Fatalf("submit employee party: %v", err)
-	}
-	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: partyPending.PartyID, ApprovalEntryID: partyPending.Approval.ApprovalEntryID, ApprovalRevision: partyPending.Approval.Revision}, trustedAccountingActor(t, requestPrefix+"-party-approve")); err != nil {
-		t.Fatalf("approve employee party: %v", err)
 	}
 	pending, err := employees.Submit(t.Context(), dcldomain.EmployeeVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedAccountingActor(t, requestPrefix+"-submit"))
 	if err != nil {
@@ -352,7 +340,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 }
 
-func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivableIntegration(t *testing.T) {
+func TestZZServiceAcceptanceApprovalPostsOtherUnitPayableAndReceivableIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
 	accounting := defaultIntegrationACCService(pool)
@@ -378,14 +366,14 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	}
 	receivable, err := accounting.CreateSubject(t.Context(), CreateSubjectInput{
 		BookID: book.ID, Code: "122102", Name: "服务往来应收", BalanceDirection: BalanceDirectionDebit,
-		Enabled: true, RequiredDimensions: []string{DimensionServiceRelationship}, SettlementPurpose: SettlementPurposeOther,
+		Enabled: true, RequiredDimensions: []string{DimensionOtherUnit}, SettlementPurpose: SettlementPurposeOther,
 	}, adminID)
 	if err != nil {
 		t.Fatalf("create service receivable subject: %v", err)
 	}
 	payable, err := accounting.CreateSubject(t.Context(), CreateSubjectInput{
 		BookID: book.ID, Code: "224102", Name: "服务往来应付", BalanceDirection: BalanceDirectionCredit,
-		Enabled: true, RequiredDimensions: []string{DimensionServiceRelationship}, SettlementPurpose: SettlementPurposeOther,
+		Enabled: true, RequiredDimensions: []string{DimensionOtherUnit}, SettlementPurpose: SettlementPurposeOther,
 	}, adminID)
 	if err != nil {
 		t.Fatalf("create service payable subject: %v", err)
@@ -402,10 +390,10 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 			Templates: []PostingTemplate{
 				{ID: payableTemplateID, Lines: []PostingLineTemplate{
 					{SubjectSource: "FIXED", SubjectValue: expense.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
-					{SubjectSource: "FIXED", SubjectValue: payable.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionServiceRelationship: "counterparty.objectId"}},
+					{SubjectSource: "FIXED", SubjectValue: payable.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionOtherUnit: "counterparty.objectId"}},
 				}},
 				{ID: receivableTemplateID, Lines: []PostingLineTemplate{
-					{SubjectSource: "FIXED", SubjectValue: receivable.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionServiceRelationship: "counterparty.objectId"}},
+					{SubjectSource: "FIXED", SubjectValue: receivable.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionOtherUnit: "counterparty.objectId"}},
 					{SubjectSource: "FIXED", SubjectValue: income.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 				}},
 			},
@@ -430,8 +418,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	}
 	auxiliary := auxdomain.NewService(pool)
 	business := newAccountingIntegrationBOBService(pool, bus)
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
-	relationships := dcldomain.NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(business), authorization.Func(nil), bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "服务验收经营主体"})
 	employee := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "服务验收经办人", "service-acceptance-employee")
 	var settlementID string
@@ -442,38 +429,28 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	`, bobdomain.SettlementTermMonthly30).Scan(&settlementID); err != nil {
 		t.Fatalf("load monthly settlement method: %v", err)
 	}
-	serviceRelationship, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "服务验收往来单位"},
-		OperatingEntityID: operating.ObjectID,
-		Data:              dcldomain.OtherUnitData{SettlementMethodID: settlementID},
+	otherUnit, err := typedArchives.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
+		Data: dcldomain.OtherUnitData{
+			Kind:                     "ORGANIZATION",
+			LegalName:                "服务验收往来单位",
+			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
+			Enabled:                  true,
+			OperatingEntityIDs:       []string{operating.ObjectID},
+			DefaultOperatingEntityID: operating.ObjectID,
+			SettlementMethodID:       settlementID,
+		},
 	}, trustedAccountingActor(t, "service-acceptance-other-unit-create"))
 	if err != nil {
 		t.Fatalf("create service relationship: %v", err)
 	}
-	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: serviceRelationship.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedAccountingActor(t, "service-acceptance-other-unit-party-get"))
-	if err != nil {
-		t.Fatalf("get service relationship Party: %v", err)
-	}
-	if party.Approval.Status == approval.StatusDraft {
-		pending, submitErr := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedAccountingActor(t, "service-acceptance-other-unit-party-submit"))
-		if submitErr != nil {
-			t.Fatalf("submit service relationship Party: %v", submitErr)
-		}
-		party.Approval = pending.Approval
-	}
-	if party.Approval.Status == approval.StatusPending {
-		if _, approveErr := parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, trustedAccountingActor(t, "service-acceptance-other-unit-party-approve")); approveErr != nil {
-			t.Fatalf("approve service relationship Party: %v", approveErr)
-		}
-	}
-	submittedRelationship, err := relationships.SubmitOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{
-		ObjectID: serviceRelationship.ObjectID, ApprovalEntryID: serviceRelationship.Approval.ApprovalEntryID, ApprovalRevision: serviceRelationship.Approval.Revision,
+	submittedOtherUnit, err := typedArchives.SubmitOtherUnit(t.Context(), dcldomain.TypedArchiveVersionInput{
+		ObjectID: otherUnit.ObjectID, ApprovalEntryID: otherUnit.Approval.ApprovalEntryID, ApprovalRevision: otherUnit.Approval.Revision,
 	}, trustedAccountingActor(t, "service-acceptance-other-unit-submit"))
 	if err != nil {
 		t.Fatalf("submit service relationship: %v", err)
 	}
-	approvedRelationship, err := relationships.ApproveOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{
-		ObjectID: serviceRelationship.ObjectID, ApprovalEntryID: serviceRelationship.Approval.ApprovalEntryID, ApprovalRevision: submittedRelationship.Approval.Revision,
+	approvedOtherUnit, err := typedArchives.ApproveOtherUnit(t.Context(), dcldomain.TypedArchiveVersionInput{
+		ObjectID: otherUnit.ObjectID, ApprovalEntryID: otherUnit.Approval.ApprovalEntryID, ApprovalRevision: submittedOtherUnit.Approval.Revision,
 	}, trustedAccountingActor(t, "service-acceptance-other-unit-approve"))
 	if err != nil {
 		t.Fatalf("approve service relationship: %v", err)
@@ -483,7 +460,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		t.Fatalf("new VOU service: %v", err)
 	}
 	handler := &employee
-	counterparty := &voudomain.ReferenceInput{ObjectID: approvedRelationship.ObjectID, ApprovalEntryID: approvedRelationship.Approval.ApprovalEntryID}
+	counterparty := &voudomain.ReferenceInput{ObjectID: approvedOtherUnit.ObjectID, ApprovalEntryID: approvedOtherUnit.Approval.ApprovalEntryID}
 	contract, err := vouchers.Create(t.Context(), voudomain.EntityServiceContract, voudomain.CreateInput{Data: voudomain.DraftInput{
 		BusinessDate: "2026-07-01", Currency: "CNY", CounterpartyType: bobdomain.EntityOtherUnit,
 		Counterparty: counterparty, Handler: handler,
@@ -547,15 +524,14 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		if dimensionSubjectID == "" {
 			return
 		}
-		var relationshipID string
-		var legacyPartyDimension bool
+		var otherUnitID string
 		if err = pool.QueryRow(t.Context(), `
-			SELECT line.dimensions->>$3, line.dimensions ? 'PARTY'
+			SELECT line.dimensions->>$3
 			FROM acc_voucher_lines line
 			JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
 			WHERE voucher.book_id=$1 AND voucher.source_id=$2 AND line.subject_id=$4
-		`, book.ID, acceptance.DocumentID, DimensionServiceRelationship, dimensionSubjectID).Scan(&relationshipID, &legacyPartyDimension); err != nil || relationshipID != approvedRelationship.ObjectID || legacyPartyDimension {
-			t.Fatalf("service relationship dimensions = relationship:%q legacyParty:%t want:%q err=%v", relationshipID, legacyPartyDimension, approvedRelationship.ObjectID, err)
+		`, book.ID, acceptance.DocumentID, DimensionOtherUnit, dimensionSubjectID).Scan(&otherUnitID); err != nil || otherUnitID != approvedOtherUnit.ObjectID {
+			t.Fatalf("service relationship dimensions = relationship:%q want:%q err=%v", otherUnitID, approvedOtherUnit.ObjectID, err)
 		}
 	}
 

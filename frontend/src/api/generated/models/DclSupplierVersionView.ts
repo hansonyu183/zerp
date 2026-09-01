@@ -7,5 +7,4 @@ import type { DclSupplierData } from './DclSupplierData';
 export type DclSupplierVersionView = {
   approval: ApprovalVersionMeta;
   data: DclSupplierData;
-  enabled: boolean;
 };

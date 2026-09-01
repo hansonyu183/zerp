@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '@/api/client'
+import type { WflInstanceListItem } from '@/api/generated'
 import { getErrorMessage } from '@/api/types'
 import type { VoucherReference } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
@@ -14,19 +15,7 @@ export interface DocumentNodeReference {
   documentStatus: string
 }
 
-export interface InstanceListItem {
-  processId: string
-  definitionId: string
-  definitionCode: string
-  definitionName: string
-  revision: number
-  rootDocumentId: string
-  rootDocumentNo: string
-  rootEntity: string
-  partyCode: string
-  partyName: string
-  updatedAt: string
-}
+export type InstanceListItem = WflInstanceListItem
 
 export interface NodeInstance extends DocumentNodeReference {
   parentNodeInstanceId?: string
@@ -74,10 +63,10 @@ export function useProcessInstanceViewModel() {
   const selected = ref<InstanceView | null>(null)
   const history = ref<AuditEvent[]>([])
   const keyword = ref('')
-  const selectedParty = ref<VoucherReference | null>(null)
-  const partyOptions = ref<VoucherReference[]>([])
-  const partyLoading = ref(false)
-  const partyError = ref<string | null>(null)
+  const selectedCounterparty = ref<VoucherReference | null>(null)
+  const counterpartyOptions = ref<VoucherReference[]>([])
+  const counterpartyLoading = ref(false)
+  const counterpartyError = ref<string | null>(null)
   const page = ref(1)
   const pageSize = ref(20)
   const total = ref(0)
@@ -88,8 +77,9 @@ export function useProcessInstanceViewModel() {
   const selectedTarget = ref<AvailableTarget | null>(null)
   const requestKey = ref('')
   const creatingChild = ref(false)
-  let partySearchTimer: ReturnType<typeof setTimeout> | null = null
-  let partySearchSequence = 0
+  let counterpartySearchTimer: ReturnType<typeof setTimeout> | null = null
+  let counterpartySearchSequence = 0
+  let disposed = false
   const can = (action: string) =>
     Boolean(processName.value) &&
     session.can(`/wfl/${processName.value}/${action}`)
@@ -134,8 +124,8 @@ export function useProcessInstanceViewModel() {
           page: page.value,
           pageSize: pageSize.value,
           ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
-          ...(selectedParty.value
-            ? { partyObjectId: selectedParty.value.objectId }
+          ...(selectedCounterparty.value
+            ? { counterpartyObjectId: selectedCounterparty.value.objectId }
             : {}),
         },
       )
@@ -150,26 +140,38 @@ export function useProcessInstanceViewModel() {
     }
   }
 
-  function searchParty(keywordValue: string): void {
-    if (partySearchTimer) clearTimeout(partySearchTimer)
-    partySearchTimer = setTimeout(
-      () => void loadPartyOptions(keywordValue),
+  function searchCounterparty(keywordValue: string): void {
+    if (counterpartySearchTimer) clearTimeout(counterpartySearchTimer)
+    counterpartySearchTimer = setTimeout(
+      () => void loadCounterpartyOptions(keywordValue),
       250,
     )
   }
 
-  async function loadPartyOptions(keywordValue: string): Promise<void> {
-    const entities = (['customer-account', 'supplier'] as const).filter(
-      (entity) => session.can(`/bob/${entity}/query`),
+  async function loadCounterpartyOptions(keywordValue: string): Promise<void> {
+    if (disposed) return
+    const entities = (
+      [
+        ['customer-account', '/bob/customer/query'],
+        ['supplier', '/bob/supplier/query'],
+        ['employee', '/bob/employee/query'],
+      ] as const
     )
+      .filter(
+        ([, permission]) =>
+          session.can('/bob/reference/query') && session.can(permission),
+      )
+      .map(([entity]) => entity)
     if (entities.length === 0) {
-      partyOptions.value = []
-      partyError.value = '缺少客户或供应商查询权限。'
+      counterpartyOptions.value = []
+      counterpartyError.value = session.can('/bob/reference/query')
+        ? '缺少客户、供应商或员工查询权限。'
+        : '缺少相对方引用查询权限。'
       return
     }
-    const sequence = ++partySearchSequence
-    partyLoading.value = true
-    partyError.value = null
+    const sequence = ++counterpartySearchSequence
+    counterpartyLoading.value = true
+    counterpartyError.value = null
     try {
       const pages = await Promise.all(
         entities.map(async (entity) => {
@@ -191,7 +193,7 @@ export function useProcessInstanceViewModel() {
               name: item.name,
             }))
           }
-          if (entity === 'supplier') {
+          if (entity === 'supplier' || entity === 'employee') {
             const { data } = await apiClient.postContract(
               'bob/reference/query',
               {
@@ -210,30 +212,32 @@ export function useProcessInstanceViewModel() {
           return []
         }),
       )
-      if (sequence === partySearchSequence) {
+      if (!disposed && sequence === counterpartySearchSequence) {
         const options = pages.flat()
-        const selectedPartyOption = selectedParty.value
-        partyOptions.value = selectedPartyOption
+        const selectedCounterpartyOption = selectedCounterparty.value
+        counterpartyOptions.value = selectedCounterpartyOption
           ? [
-              selectedPartyOption,
+              selectedCounterpartyOption,
               ...options.filter(
-                (option) => option.objectId !== selectedPartyOption.objectId,
+                (option) =>
+                  option.objectId !== selectedCounterpartyOption.objectId,
               ),
             ]
           : options
       }
     } catch (error) {
-      if (sequence === partySearchSequence) {
-        partyError.value = getErrorMessage(error)
+      if (!disposed && sequence === counterpartySearchSequence) {
+        counterpartyError.value = getErrorMessage(error)
       }
     } finally {
-      if (sequence === partySearchSequence) partyLoading.value = false
+      if (!disposed && sequence === counterpartySearchSequence)
+        counterpartyLoading.value = false
     }
   }
 
   async function resetFilters(): Promise<void> {
     keyword.value = ''
-    selectedParty.value = null
+    selectedCounterparty.value = null
     await query({ resetPage: true })
   }
 
@@ -338,7 +342,9 @@ export function useProcessInstanceViewModel() {
   })
   onMounted(() => void query())
   onBeforeUnmount(() => {
-    if (partySearchTimer) clearTimeout(partySearchTimer)
+    if (counterpartySearchTimer) clearTimeout(counterpartySearchTimer)
+    disposed = true
+    counterpartySearchSequence += 1
   })
 
   return {
@@ -347,10 +353,10 @@ export function useProcessInstanceViewModel() {
     selected,
     history,
     keyword,
-    selectedParty,
-    partyOptions,
-    partyLoading,
-    partyError,
+    selectedCounterparty,
+    counterpartyOptions,
+    counterpartyLoading,
+    counterpartyError,
     page,
     pageSize,
     total,
@@ -368,7 +374,7 @@ export function useProcessInstanceViewModel() {
     can,
     query,
     resetFilters,
-    searchParty,
+    searchCounterparty,
     open,
     openRoot,
     changePage,

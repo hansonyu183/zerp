@@ -1,7 +1,8 @@
 ---
 id: ADR-0030
 date: 2026-08-23
-status: accepted
+status: superseded
+superseded_by: ADR-0049
 supersedes: ADR-0001
 ---
 

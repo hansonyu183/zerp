@@ -12,20 +12,6 @@ export type CustomerAccountReferenceKey =
   | 'paymentMethodId'
   | 'primarySalesAttributionSubjectObjectId'
 
-export async function queryPartyReferences(
-  keyword: string,
-): Promise<CustomerReferenceOption[]> {
-  const { data } = await apiClient.postContract('bob/party/query', {
-    page: 1,
-    pageSize: 20,
-    filters: keyword ? { keyword } : {},
-  })
-  return data.items.map((item) => ({
-    value: item.partyId,
-    title: `${item.partyId} · ${item.displayName}`,
-  }))
-}
-
 export async function queryOperatingEntityReferences(
   keyword: string,
 ): Promise<CustomerReferenceOption[]> {
@@ -40,25 +26,7 @@ export async function queryOperatingEntityReferences(
   })
   return data.items.map((item) => ({
     value: item.objectId,
-    title: `${item.code} · ${item.data.name ?? ''}`,
-  }))
-}
-
-export async function queryCustomerRelationshipReferences(
-  keyword: string,
-): Promise<CustomerReferenceOption[]> {
-  const { data } = await apiClient.postContract('bob/customer/query', {
-    page: 1,
-    pageSize: 20,
-    filters: {
-      enabled: true,
-      ...(keyword ? { keyword } : {}),
-    },
-    sort: [{ field: 'code', order: 'asc' }],
-  })
-  return data.items.map((item) => ({
-    value: item.objectId,
-    title: `${item.code} · ${item.partyDisplayName}`,
+    title: `${item.code} · ${item.data.name}`,
   }))
 }
 

@@ -18,7 +18,7 @@ type inventoryCostEntry struct {
 	quantity                                                                                                 int64
 	directValue                                                                                              int64
 	businessDate                                                                                             time.Time
-	dimensions, counterpartDimensions                                                                        []byte
+	dimensions, dimensionReferences, counterpartDimensions, counterpartDimensionReferences                   []byte
 	counterpartSubjectID                                                                                     *string
 	originDocumentID, originLineID                                                                           *string
 }
@@ -49,9 +49,9 @@ func settleInventoryCosts(ctx context.Context, q *dbsqlc.Queries, bookID string,
 			quantity: row.QuantityDeltaMicros, businessDate: row.BusinessDate.Time,
 			currency: row.Currency, directValue: row.DirectValue, sourceEntity: row.SourceEntity,
 			sourceDocumentID: row.SourceID, sourceLineID: row.SourceLineID,
-			dimensions: row.Dimensions, counterpartSubjectID: row.CostCounterpartSubjectID,
-			counterpartDimensions: row.CostCounterpartDimensions,
-			originDocumentID:      row.OriginSourceDocumentID, originLineID: row.OriginSourceLineID,
+			dimensions: row.Dimensions, dimensionReferences: row.DimensionReferences, counterpartSubjectID: row.CostCounterpartSubjectID,
+			counterpartDimensions: row.CostCounterpartDimensions, counterpartDimensionReferences: row.CostCounterpartDimensionReferences,
+			originDocumentID: row.OriginSourceDocumentID, originLineID: row.OriginSourceLineID,
 		})
 	}
 
@@ -223,10 +223,11 @@ func persistInventoryCosts(ctx context.Context, q *dbsqlc.Queries, bookID string
 		for _, result := range derived {
 			inventoryDebit := result.entry.quantity > 0
 			for _, line := range []struct {
-				subjectID  string
-				dimensions []byte
-				debit      bool
-			}{{result.entry.subjectID, result.entry.dimensions, inventoryDebit}, {*result.entry.counterpartSubjectID, result.entry.counterpartDimensions, !inventoryDebit}} {
+				subjectID           string
+				dimensions          []byte
+				dimensionReferences []byte
+				debit               bool
+			}{{result.entry.subjectID, result.entry.dimensions, result.entry.dimensionReferences, inventoryDebit}, {*result.entry.counterpartSubjectID, result.entry.counterpartDimensions, result.entry.counterpartDimensionReferences, !inventoryDebit}} {
 				debit, credit := int64(0), int64(0)
 				if line.debit {
 					debit = result.cost
@@ -239,9 +240,12 @@ func persistInventoryCosts(ctx context.Context, q *dbsqlc.Queries, bookID string
 				if !json.Valid(line.dimensions) {
 					return domainError(ErrorInternal, "invalid stored cost dimensions", nil)
 				}
+				if !json.Valid(line.dimensionReferences) {
+					return domainError(ErrorInternal, "invalid stored cost dimension references", nil)
+				}
 				if err := q.InsertAccountingVoucherLine(ctx, dbsqlc.InsertAccountingVoucherLineParams{
 					ID: ulid.Make().String(), BookID: bookID, VoucherID: id, SubjectID: line.subjectID,
-					Currency: "CNY", DebitMinor: debit, CreditMinor: credit, Dimensions: line.dimensions,
+					Currency: "CNY", DebitMinor: debit, CreditMinor: credit, Dimensions: line.dimensions, DimensionReferences: line.dimensionReferences,
 					SourceLineID: result.entry.id, LineOrder: int32(lineOrder),
 				}); err != nil {
 					return databaseError("create system cost voucher line", err)

@@ -1,6 +1,6 @@
 import type { components } from '@/api/generated/schema'
 import type { BusinessObjectColumn } from '@/components/business-object'
-import type { BobEntityConfig, BobForm } from '@/pages/bob/shared/types'
+import type { BobEntityConfig, BobForm } from '@/pages/dcl/shared/bob-types'
 
 export type DclProductData = components['schemas']['DclProductData']
 export type DclProductInput = components['schemas']['DclProductInput']
@@ -13,9 +13,10 @@ type DclProductListVersion = {
 export type DclProductConfig = Omit<BobEntityConfig, 'columns'> & {
   columns: readonly BusinessObjectColumn<DclProductListItem>[]
 }
-export type DclProductVersionView = components['schemas']['ApprovalVersionMeta'] & {
-  summary: DclProductData
-}
+export type DclProductVersionView =
+  components['schemas']['ApprovalVersionMeta'] & {
+    summary: DclProductData
+  }
 export type DclProductListItem = Omit<
   components['schemas']['DclProductListItem'],
   'latestApproved' | 'openVersion'

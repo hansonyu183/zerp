@@ -33,14 +33,6 @@ func TestSalesPartnerCapabilitiesAreClosedAndRequiredForSubmission(t *testing.T)
 	}
 }
 
-func TestPartyQueryRequiresFixedPageSize(t *testing.T) {
-	t.Parallel()
-	service := &Service{}
-	if _, err := service.PartyQuery(t.Context(), QueryInput{Page: 1, PageSize: 10}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("PartyQuery pageSize=10 error = %v, want validation", err)
-	}
-}
-
 func TestExactAuxiliarySnapshotsDoNotRequireCurrentSource(t *testing.T) {
 	t.Parallel()
 	service := &Service{}
@@ -66,23 +58,6 @@ func TestExactAuxiliarySnapshotsDoNotRequireCurrentSource(t *testing.T) {
 	}, true)
 	if err != nil || vehicle.VehicleTypeName != "厢式货车" {
 		t.Fatalf("exact vehicle type snapshot = %+v, err = %v", vehicle, err)
-	}
-}
-
-func TestPartyTaxNumberHasSinglePublicSource(t *testing.T) {
-	t.Parallel()
-	_, _, err := validatePartyData(PartyCreateData{
-		Kind: PartyKindOrganization, LegalName: "测试机构",
-		StrongIdentifiers: []PartyIdentifierInput{{Type: PartyIdentifierTaxNumber, Value: "91330001"}},
-	})
-	if !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("strongIdentifiers TAX_NUMBER error = %v, want validation", err)
-	}
-	_, identifiers, err := validatePartyData(PartyCreateData{
-		Kind: PartyKindOrganization, LegalName: "测试机构", TaxNumber: " 9133-0001 ",
-	})
-	if err != nil || len(identifiers) != 1 || identifiers[0].Type != PartyIdentifierTaxNumber {
-		t.Fatalf("taxNumber identifiers = %+v, error = %v", identifiers, err)
 	}
 }
 
@@ -114,7 +89,7 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 		{EntityWarehouse, CreateDetailInput{Code: "wh01", Name: "主仓"}},
 		{EntityVehicle, CreateDetailInput{
 			Code: "veh01", Name: "配送车", PlateNumber: " 沪a12345 ",
-			VehicleType: " 厢式货车 ", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platformObjectID},
+			VehicleType: " 厢式货车 ", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: platformObjectID},
 		}},
 		{EntityFundAccount, CreateDetailInput{Code: "cash01", Name: "Cash", Currency: "cny", OperatingEntityID: "01J00000000000000000000030"}},
 	}
@@ -269,14 +244,14 @@ func TestValidateDetailRejectsCrossEntityFields(t *testing.T) {
 		{"warehouse currency", EntityWarehouse, DetailInput{Name: "Warehouse", Currency: "CNY"}},
 		{"supplier vehicle field", EntitySupplier, DetailInput{Name: "Supplier", PlateNumber: "沪A12345"}},
 		{"vehicle missing plate", EntityVehicle, DetailInput{
-			Name: "Vehicle", VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: "01J00000000000000000000020"},
+			Name: "Vehicle", VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: "01J00000000000000000000020"},
 		}},
 		{"vehicle malformed platform", EntityVehicle, DetailInput{
-			Name: "Vehicle", PlateNumber: "沪A12345", VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: "bad"},
+			Name: "Vehicle", PlateNumber: "沪A12345", VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: "bad"},
 		}},
 		{"vehicle currency", EntityVehicle, DetailInput{
 			Name: "Vehicle", PlateNumber: "沪A12345", VehicleType: "Truck",
-			CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: "01J00000000000000000000020"}, Currency: "CNY",
+			CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: "01J00000000000000000000020"}, Currency: "CNY",
 		}},
 		{"fund account missing currency", EntityFundAccount, DetailInput{Name: "Cash"}},
 		{"fund account malformed currency", EntityFundAccount, DetailInput{Name: "Cash", Currency: "CN"}},
@@ -299,9 +274,9 @@ func TestVehicleCarrierAffiliationIsClosedAndExclusive(t *testing.T) {
 		wantError   bool
 	}{
 		{"internal", &CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: validID}, false},
-		{"external", &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: validID}, false},
+		{"external", &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: validID}, false},
 		{"missing", nil, true},
-		{"mixed", &CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: validID, ServiceRelationshipObjectID: validID}, true},
+		{"mixed", &CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: validID, OtherUnitObjectID: validID}, true},
 		{"unknown", &CarrierAffiliation{Type: "UNKNOWN", OperatingEntityID: validID}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -377,13 +352,13 @@ func TestValidateDetailCountsUnicodeCharacters(t *testing.T) {
 	}
 	if _, err := validateDetail(EntityVehicle, DetailInput{
 		Name: "车辆", PlateNumber: strings.Repeat("车", 32), VehicleType: strings.Repeat("型", 64),
-		CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: "01J00000000000000000000020"},
+		CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: "01J00000000000000000000020"},
 	}); err != nil {
 		t.Fatalf("vehicle Unicode boundary rejected: %v", err)
 	}
 	if _, err := validateDetail(EntityVehicle, DetailInput{
 		Name: "车辆", PlateNumber: strings.Repeat("车", 33), VehicleType: "货车",
-		CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: "01J00000000000000000000020"},
+		CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: "01J00000000000000000000020"},
 	}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("33-character plate error = %v", err)
 	}
@@ -416,7 +391,7 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 
 	vehicle, _, err := validateCreate(EntityVehicle, CreateDetailInput{
 		Code: "vehicle-1", Name: "车辆", PlateNumber: " 沪a12345 ", VehicleType: " 厢式货车 ",
-		CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: "01J00000000000000000000020"},
+		CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: "01J00000000000000000000020"},
 		VIN:                " lsvaa4187n2000001 ",
 		LoadCapacityKG:     "018000.5",
 	})
@@ -455,11 +430,11 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 		}},
 		{"invalid vin", EntityVehicle, CreateDetailInput{
 			Code: "VEHICLE-2", Name: "车辆", PlateNumber: "沪A12346", VehicleType: "货车",
-			CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: "01J00000000000000000000020"}, VIN: "LSVAA4187N200000I",
+			CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: "01J00000000000000000000020"}, VIN: "LSVAA4187N200000I",
 		}},
 		{"invalid load capacity", EntityVehicle, CreateDetailInput{
 			Code: "VEHICLE-3", Name: "车辆", PlateNumber: "沪A12347", VehicleType: "货车",
-			CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: "01J00000000000000000000020"}, LoadCapacityKG: "0",
+			CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: "01J00000000000000000000020"}, LoadCapacityKG: "0",
 		}},
 		{"long short name", EntityCustomer, CreateDetailInput{
 			Code: "CUSTOMER-3", Name: "客户", ShortName: strings.Repeat("简", 101),

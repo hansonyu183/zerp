@@ -283,7 +283,7 @@ func normalizeDetail(input *DetailView) {
 	if input.CarrierAffiliation != nil {
 		input.CarrierAffiliation.Type = strings.ToUpper(strings.TrimSpace(input.CarrierAffiliation.Type))
 		input.CarrierAffiliation.OperatingEntityID = strings.TrimSpace(input.CarrierAffiliation.OperatingEntityID)
-		input.CarrierAffiliation.ServiceRelationshipObjectID = strings.TrimSpace(input.CarrierAffiliation.ServiceRelationshipObjectID)
+		input.CarrierAffiliation.OtherUnitObjectID = strings.TrimSpace(input.CarrierAffiliation.OtherUnitObjectID)
 	}
 }
 
@@ -293,9 +293,9 @@ func validCarrierAffiliation(value *CarrierAffiliation) bool {
 	}
 	switch value.Type {
 	case "INTERNAL":
-		return validID(value.OperatingEntityID) && value.ServiceRelationshipObjectID == ""
+		return validID(value.OperatingEntityID) && value.OtherUnitObjectID == ""
 	case "EXTERNAL":
-		return validID(value.ServiceRelationshipObjectID) && value.OperatingEntityID == ""
+		return validID(value.OtherUnitObjectID) && value.OperatingEntityID == ""
 	default:
 		return false
 	}
@@ -305,7 +305,7 @@ func carrierAffiliationField(value *CarrierAffiliation) string {
 	if value == nil {
 		return ""
 	}
-	return value.Type + value.OperatingEntityID + value.ServiceRelationshipObjectID
+	return value.Type + value.OperatingEntityID + value.OtherUnitObjectID
 }
 
 func normalizeQuantitySnapshot(quantity *QuantitySnapshot) {
@@ -698,17 +698,16 @@ func normalizeLoadCapacity(value string) string {
 
 func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, error) {
 	input.Keyword = strings.TrimSpace(input.Keyword)
-	input.PartyKind = strings.ToUpper(strings.TrimSpace(input.PartyKind))
 	input.ProductTypeID = strings.TrimSpace(input.ProductTypeID)
 	input.CategoryID = strings.TrimSpace(input.CategoryID)
 	input.DefaultPurchaserEmployeeID = strings.TrimSpace(input.DefaultPurchaserEmployeeID)
+	input.OperatingEntityID = strings.TrimSpace(input.OperatingEntityID)
 	if utf8.RuneCountInString(input.Keyword) > 128 ||
-		(input.PartyKind != "" && input.PartyKind != PartyKindPerson && input.PartyKind != PartyKindOrganization) ||
 		(input.ProductTypeID != "" && !validID(input.ProductTypeID)) {
 		return QueryFilters{}, domainError(ErrorValidation, "invalid query filters", nil, nil)
 	}
 	for _, id := range []string{
-		input.CategoryID, input.DefaultPurchaserEmployeeID, input.ProductTypeID,
+		input.CategoryID, input.DefaultPurchaserEmployeeID, input.OperatingEntityID, input.ProductTypeID,
 	} {
 		if id != "" && !validID(id) {
 			return QueryFilters{}, domainError(ErrorValidation, "invalid query reference filter", nil, nil)
@@ -720,11 +719,11 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 			accepted[field] = true
 		}
 		values := map[string]bool{
-			"kind":       input.PartyKind != "" || input.provided["kind"],
-			"merged":     input.Merged != nil || input.provided["merged"],
 			"categoryId": input.CategoryID != "" || input.provided["categoryId"],
 			"defaultPurchaserEmployeeId": input.DefaultPurchaserEmployeeID != "" ||
 				input.provided["defaultPurchaserEmployeeId"],
+			"operatingEntityId": input.OperatingEntityID != "" ||
+				input.provided["operatingEntityId"],
 			"productTypeId": input.ProductTypeID != "" || input.provided["productTypeId"],
 		}
 		for field, present := range values {
@@ -736,13 +735,13 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	}
 	var unexpected bool
 	switch entity {
-	case "party":
-		unexpected = hasUnexpected("kind")
 	case EntityProduct:
 		unexpected = hasUnexpected("categoryId", "productTypeId")
 	case EntitySupplier:
-		unexpected = hasUnexpected("defaultPurchaserEmployeeId")
-	case EntityEmployee, EntityOtherUnit, EntitySalesPartner, EntityOperatingEntity, EntityWarehouse, EntityVehicle, EntityFundAccount:
+		unexpected = hasUnexpected("defaultPurchaserEmployeeId", "operatingEntityId")
+	case EntityOtherUnit, EntitySalesPartner:
+		unexpected = hasUnexpected("operatingEntityId")
+	case EntityEmployee, EntityOperatingEntity, EntityWarehouse, EntityVehicle, EntityFundAccount:
 		unexpected = hasUnexpected()
 	default:
 		unexpected = true

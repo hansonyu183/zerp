@@ -7,6 +7,5 @@ export type DclSalesPartnerSaveRequest = {
   objectId: string;
   approvalEntryId: string;
   approvalRevision: number;
-  enabled: boolean;
   data: DclSalesPartnerInput;
 };

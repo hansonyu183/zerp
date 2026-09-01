@@ -198,12 +198,12 @@ type WorkbenchItem struct {
 	BookID          string `json:"bookId,omitempty"`
 	VouEntity       string `json:"vouEntity,omitempty"`
 
-	DocumentID   string  `json:"documentId,omitempty"`
-	DocumentNo   string  `json:"documentNo,omitempty"`
-	BusinessDate string  `json:"businessDate,omitempty"`
-	PartyName    *string `json:"partyName,omitempty"`
-	Currency     *string `json:"currency,omitempty"`
-	Amount       string  `json:"amount,omitempty"`
+	DocumentID       string  `json:"documentId,omitempty"`
+	DocumentNo       string  `json:"documentNo,omitempty"`
+	BusinessDate     string  `json:"businessDate,omitempty"`
+	CounterpartyName *string `json:"counterpartyName,omitempty"`
+	Currency         *string `json:"currency,omitempty"`
+	Amount           string  `json:"amount,omitempty"`
 
 	Revision int64 `json:"revision"`
 }

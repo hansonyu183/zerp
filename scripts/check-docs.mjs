@@ -977,6 +977,8 @@ for (const domain of [...registeredDomains, ...contractDomains].sort()) {
   }
 }
 
+const internalReadDomains = new Set(['bob'])
+
 for (const domain of [...documentedDomains].sort()) {
   if (platformCapabilityDomains.has(domain)) {
     if (registeredDomains.has(domain)) {
@@ -984,6 +986,15 @@ for (const domain of [...documentedDomains].sort()) {
     }
     if (contractDomains.has(domain)) {
       failures.push(`平台能力领域 ${domain} 不应暴露独立 OpenAPI 路径`)
+    }
+    continue
+  }
+  if (internalReadDomains.has(domain)) {
+    if (registeredDomains.has(domain)) {
+      failures.push(`内部读取领域 ${domain} 不应注册独立前端领域`)
+    }
+    if (!contractDomains.has(domain)) {
+      failures.push(`领域文档 ${domain} 缺少 OpenAPI 路径`)
     }
     continue
   }
@@ -1000,23 +1011,7 @@ const vouSchemaSource = fs.readFileSync(
   'utf8',
 )
 
-const bobSchemaSource = fs.readFileSync(
-  path.join(root, 'contracts', 'openapi', 'schemas', 'bob.yaml'),
-  'utf8',
-)
-const bobReadableEntities = extractSchemaEnum(
-  bobSchemaSource,
-  'BobReadableEntity',
-  'contracts/openapi/schemas/bob.yaml',
-)
-const explicitBobQueryEntities = [
-  ...openapiSource.matchAll(/^\s+'\/bob\/([a-z][a-z0-9-]*)\/query':/gmu),
-]
-  .map((match) => match[1])
-  .filter((entity) => openapiSource.includes(`'/bob/${entity}/get':`))
-compareSets('frontend BOB 页面注册', registeredEntities('bob'), [
-  ...new Set([...bobReadableEntities, ...explicitBobQueryEntities]),
-])
+compareSets('frontend BOB 页面注册', registeredEntities('bob'), [])
 
 const auxSchemaSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'schemas', 'aux.yaml'),

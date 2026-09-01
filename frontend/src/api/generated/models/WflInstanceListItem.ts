@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { WflCounterpartyReference } from './WflCounterpartyReference';
 export type WflInstanceListItem = {
   processId: string;
   definitionId: string;
@@ -12,7 +13,6 @@ export type WflInstanceListItem = {
   rootDocumentId: string;
   rootDocumentNo: string;
   rootEntity: string;
-  partyCode: string;
-  partyName: string;
+  counterparty?: WflCounterpartyReference;
   updatedAt: string;
 };

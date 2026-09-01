@@ -7,6 +7,5 @@ export type DclEmployeeSaveRequest = {
   objectId: string;
   approvalEntryId: string;
   approvalRevision: number;
-  enabled: boolean;
   data: DclEmployeeInput;
 };

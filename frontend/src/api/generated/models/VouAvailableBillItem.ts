@@ -20,7 +20,7 @@ export type VouAvailableBillItem = {
   interestDays: number;
   interestAmount: string;
   customerCostAmount: string;
-  originatingParty: VouBillReferenceView;
+  originatingCounterparty: VouBillReferenceView;
   sourceEntity: string;
   sourceDocumentNo: string;
 };

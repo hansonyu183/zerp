@@ -19,7 +19,7 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 		statusCounts[item.status]++
 	}
 	expectedEntityCounts := map[string]int{
-		bob.EntityCustomerAccount:       2,
+		bob.EntityCustomer:              2,
 		bob.EntitySupplier:              2,
 		bob.EntityOtherUnit:             1,
 		bob.EntityEmployee:              2,
@@ -121,10 +121,10 @@ func TestDetailInputOnlySetsFieldsAllowedForEntity(t *testing.T) {
 		Name: "演示资料", Description: "说明", Remark: "备注",
 		DepartmentID: "department", SettlementMethodID: "settlement",
 	}
-	customer := detailInput(bob.EntityCustomerAccount, input)
-	if !customer.SettlementMethodID.Set || !customer.Remark.Set ||
-		customer.DepartmentID.Set || customer.Description.Set {
-		t.Fatalf("customer detail input over-posted fields: %+v", customer)
+	supplier := detailInput(bob.EntitySupplier, input)
+	if !supplier.SettlementMethodID.Set || !supplier.Remark.Set ||
+		supplier.DepartmentID.Set || supplier.Description.Set {
+		t.Fatalf("supplier detail input over-posted fields: %+v", supplier)
 	}
 	settlement := detailInput(auxdomain.EntitySettlementMethod, input)
 	if !settlement.Description.Set || settlement.Remark.Set ||
@@ -170,14 +170,6 @@ func (s *fakeStore) Create(_ context.Context, entity string, input seedCreateInp
 	s.nextID++
 	objectID := fmt.Sprintf("object-%d", s.nextID)
 	approvalEntryID := fmt.Sprintf("approval-%d", s.nextID)
-	customerType := deref(input.Data.CustomerType)
-	if entity == bob.EntityCustomerAccount && customerType == "" {
-		customerType = bob.CustomerTypeEndUser
-	}
-	monthlyClosingDay := input.Data.MonthlyClosingDay
-	if entity == bob.EntityCustomerAccount && monthlyClosingDay == 0 {
-		monthlyClosingDay = 31
-	}
 	view := seedObjectView{
 		ObjectID:         objectID,
 		Entity:           entity,
@@ -195,7 +187,7 @@ func (s *fakeStore) Create(_ context.Context, entity string, input seedCreateInp
 			Name:                       input.Data.Name,
 			Unit:                       input.Data.Unit,
 			Currency:                   input.Data.Currency,
-			CustomerType:               customerType,
+			CustomerType:               deref(input.Data.CustomerType),
 			PlateNumber:                input.Data.PlateNumber,
 			VehicleType:                input.Data.VehicleType,
 			CarrierAffiliation:         input.Data.CarrierAffiliation,
@@ -227,7 +219,7 @@ func (s *fakeStore) Create(_ context.Context, entity string, input seedCreateInp
 			OperatingEntityID:          input.Data.OperatingEntityID,
 			ParentID:                   input.Data.ParentID,
 			SettlementMethodID:         input.Data.SettlementMethodID,
-			MonthlyClosingDay:          monthlyClosingDay,
+			MonthlyClosingDay:          input.Data.MonthlyClosingDay,
 			SalespersonEmployeeID:      input.Data.SalespersonEmployeeID,
 			DefaultPurchaserEmployeeID: input.Data.DefaultPurchaserEmployeeID,
 			RuleType:                   input.Data.RuleType,

@@ -46,7 +46,7 @@ const documentItem: WorkbenchItem = {
   revision: 2,
   documentNo: 'SO-0001',
   businessDate: '2026-08-01',
-  partyName: '测试客户',
+  counterpartyName: '测试客户',
   currency: 'CNY',
   amount: '100.00',
 }
@@ -61,9 +61,7 @@ function createTestRouter() {
     routes: [
       { path: '/home/dashboard', component: Dashboard },
       { path: '/dcl/customer', component: { template: '<div />' } },
-      { path: '/dcl/customer-account', component: { template: '<div />' } },
       { path: '/bob/customer', component: { template: '<div />' } },
-      { path: '/bob/customer-account', component: { template: '<div />' } },
     ],
   })
 }
@@ -74,24 +72,13 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
-  it('routes Party workbench items to DCL declarations', () => {
-    const party = { ...objectItem, entity: 'party' } as WorkbenchItem
-    expect(workbenchItemPath(party)).toBe('/dcl/party')
-  })
-
   it('routes Supplier workbench items to DCL declarations', () => {
     const supplier = { ...objectItem, entity: 'supplier' } as WorkbenchItem
     expect(workbenchItemPath(supplier)).toBe('/dcl/supplier')
   })
 
-  it('routes Customer and Customer Account workbench items to their DCL declarations', () => {
+  it('routes Customer workbench items to its DCL declaration', () => {
     expect(workbenchItemPath(objectItem)).toBe('/dcl/customer')
-    expect(
-      workbenchItemPath({
-        ...objectItem,
-        entity: 'customer-account',
-      } as WorkbenchItem),
-    ).toBe('/dcl/customer-account')
   })
 
   it('routes DCL relationship workbench items to declarations', () => {
@@ -190,8 +177,6 @@ describe('Dashboard workbench', () => {
     session.permissions = [
       '/dcl/customer/query',
       '/dcl/customer/submit',
-      '/dcl/customer-account/query',
-      '/dcl/customer-account/submit',
       '/dcl/supplier/query',
       '/dcl/supplier/unsubmit',
       '/vou/sale-order/query',
@@ -365,9 +350,8 @@ describe('Dashboard workbench', () => {
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
     ).toEqual([
-      { title: '客户', value: 'customer' },
-      { title: '客户结算子账户', value: 'customer-account' },
-      { title: '供应商', value: 'supplier' },
+      { title: '客户变更', value: 'customer' },
+      { title: '供应商变更', value: 'supplier' },
     ])
   })
 
@@ -670,27 +654,6 @@ describe('Dashboard workbench', () => {
       approvalRevision: 5,
     })
     expect(vm.states.BOB.rows).toEqual([])
-  })
-
-  it('客户结算子账户待办使用独立的 DCL 生命周期路径', async () => {
-    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
-    const vm = useDashboardViewModel()
-    const account = {
-      ...objectItem,
-      entity: 'customer-account',
-    } as WorkbenchItem
-
-    await expect(vm.runAction(account, 'submit')).resolves.toBe(true)
-
-    expect(mockedPost).toHaveBeenNthCalledWith(
-      1,
-      'dcl/customer-account/submit',
-      {
-        objectId: 'object-1',
-        approvalEntryId: 'version-1',
-        approvalRevision: 5,
-      },
-    )
   })
 
   it('DCL 申报待办深链和生命周期动作固定进入 DCL', async () => {

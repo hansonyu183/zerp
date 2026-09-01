@@ -118,6 +118,40 @@ export function validateVoucherDraft(
     return '请选择有效的签收明细并填写退货数量。'
   }
   if (config.usesFundAccount && !value.fundAccount) return '请选择资金账户。'
+  if (config.usesOperatingEntity && !value.operatingEntity)
+    return '请选择实际经营主体。'
+  if (config.usesAccountAllocations) {
+    if (
+      value.accountAllocations.length < 1 ||
+      value.accountAllocations.length > 200
+    ) {
+      return '收款分摊必须包含 1 到 200 个客户核算账户。'
+    }
+    const seen = new Set<string>()
+    const amounts: string[] = []
+    for (const [index, line] of value.accountAllocations.entries()) {
+      if (!line.account || !isMoney(line.amount)) {
+        return `第 ${index + 1} 行 · 核算账户和分摊金额必须有效。`
+      }
+      if (
+        value.customer &&
+        line.account.customerId !== value.customer.objectId
+      ) {
+        return `第 ${index + 1} 行 · 核算账户不属于所选客户。`
+      }
+      if (seen.has(line.account.objectId)) {
+        return `第 ${index + 1} 行 · 客户核算账户不能重复。`
+      }
+      seen.add(line.account.objectId)
+      amounts.push(line.amount)
+    }
+    if (
+      value.amount.trim() !== '' &&
+      sumMoney(amounts) !== value.amount.trim()
+    ) {
+      return '收款分摊合计必须等于来款总额。'
+    }
+  }
   if (config.usesHandler && !value.handler) return '请选择经办人。'
   if (
     config.usesSourceName &&

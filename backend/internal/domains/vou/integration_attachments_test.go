@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
-	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 )
 
 func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
@@ -22,11 +21,7 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
-	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
-		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
-		Handler: &refs.employee, Amount: "10.00",
-	}}, integrationApprovalActor(t, integrationActorOne, "attachment-create"))
+	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: salesReceiptDraft(refs, "10.00")}, integrationApprovalActor(t, integrationActorOne, "attachment-create"))
 	if err != nil {
 		t.Fatalf("create receipt: %v", err)
 	}

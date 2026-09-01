@@ -28,7 +28,7 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 ### 2.4 票据
 
-票据报表合并全局票据身份及状态与所选账簿的资产或负债方向和会计金额。全局身份和状态不因账簿查询而复制；账簿金额仍按所选账簿独立展示。
+票据报表合并全局票据身份及状态与所选账簿的资产或负债方向和会计金额。来源相对方筛选以稳定 `counterpartyObjectId` 进行；候选和历史事实始终保留 `entity`、stable object ID、精确 `approvalEntryId`、编码和名称快照，不以 Party 或当前档案重解释。全局身份和状态不因账簿查询而复制；账簿金额仍按所选账簿独立展示。
 
 ### 2.5 空桶
 
@@ -47,6 +47,8 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 ## 4. 查询 SQL 安全与版本契约
 
 每个版本 payload 包含单条只读 SQL、类型化绑定参数和显式结果列契约。SQL 只允许一条 `SELECT` 或 `WITH ... SELECT`，由数据库只读角色在只读事务执行；禁止字符串拼接、多语句、写入、DDL、可写函数和绕过只读角色的路径。参数类型为 `TEXT`、`INTEGER`、`DECIMAL`、`BOOLEAN`、`DATE`、`DATE_RANGE`、`ENUM` 与受控 `REFERENCE`；受控引用只开放会计账簿、会计科目、客户、供应商、其他单位、员工、部门、产品、仓库、资金账户、资产、票据和票据已记录的原始往来方，执行时只绑定稳定 ID。票据原始往来方候选读取票据事实中的历史快照，不以当前主数据覆盖历史名称。
+
+`CUSTOMER_ACCOUNT` 候选只读取 Customer 最新 `APPROVED` 且启用的内嵌账户快照；每项返回账户 stable ID、账户 code/name 和所属 Customer code/display name。账户 code 只在 Customer 内唯一，界面必须同时展示 Customer code 与账户 code。
 
 结果列必须声明 SQL alias、显示名、顺序、数据类型、宽度、默认可见性和格式。批准时实际返回列必须与契约完全一致；页面和导出只按该 entry 的列契约展示，不能自行猜测字段含义。查询每页最多 100 条，导出最多 100,000 条；两者都有只读事务、超时和资源限制。预置 SQL 依赖的科目编码变更时，同次变更必须提供并批准兼容新版本或明确停用受影响定义；不保留兼容视图、别名或第二套口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
 

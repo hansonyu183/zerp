@@ -2,7 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type DclEmployeeData = {
+import type { DclBusinessArchiveSnapshot } from './DclBusinessArchiveSnapshot';
+import type { DclEmployeeInput } from './DclEmployeeInput';
+export type DclEmployeeData = (DclEmployeeInput & {
+  currentOperatingEntity: DclBusinessArchiveSnapshot;
   employeeCategoryId?: string | null;
   employeeCategoryCode?: string | null;
   employeeCategoryName?: string | null;
@@ -16,4 +19,4 @@ export type DclEmployeeData = {
   email?: string | null;
   hireDate?: string | null;
   remark?: string | null;
-};
+});

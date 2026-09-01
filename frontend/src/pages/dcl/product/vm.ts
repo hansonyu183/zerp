@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import type { BusinessObjectSort } from '@/components/business-object'
 import { getErrorMessage } from '@/api/types'
-import { useBobReferences } from '@/pages/bob/shared/references'
+import { useBobReferences } from '@/pages/dcl/shared/bob-references'
 import { useSessionStore } from '@/stores/session'
 import {
   dclDeclarationLifecycleSuccessLabel,

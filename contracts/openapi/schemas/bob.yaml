@@ -21,16 +21,7 @@
     {
       'type': 'string',
       'enum':
-        [
-          'employee',
-          'other-unit',
-          'sales-partner',
-          'product',
-          'warehouse',
-          'vehicle',
-          'fund-account',
-          'operating-entity',
-        ],
+        ['product', 'warehouse', 'vehicle', 'fund-account', 'operating-entity'],
       'description': 'BOB 提供当前有效的只读业务资料；稳定 subject、强类型关系 identity、候选与审批生命周期均由 DCL 持有。',
     },
   'BobQueryRequest':
@@ -52,6 +43,7 @@
                   'enabled': { 'type': 'boolean' },
                   'categoryId': { 'type': 'string' },
                   'defaultPurchaserEmployeeId': { 'type': 'string' },
+                  'operatingEntityId': { 'type': 'string' },
                   'productTypeId': { 'type': 'string' },
                 },
             },
@@ -103,12 +95,12 @@
   'VehicleExternalCarrierAffiliation':
     {
       'type': 'object',
-      'required': ['type', 'serviceRelationshipObjectId'],
+      'required': ['type', 'otherUnitObjectId'],
       'additionalProperties': false,
       'properties':
         {
           'type': { 'type': 'string', 'enum': ['EXTERNAL'] },
-          'serviceRelationshipObjectId': { 'type': 'string' },
+          'otherUnitObjectId': { 'type': 'string' },
         },
     },
   'BobListItem':
@@ -136,7 +128,6 @@
           'sourceVersionNo':
             { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'data': { '$ref': '#/BobDetailView' },
-          'relationship': { '$ref': '#/BobRelationshipIdentityView' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -367,59 +358,7 @@
                 {
                   'keyword': { 'type': 'string', 'maxLength': 200 },
                   'enabled': { 'type': 'boolean' },
-                  'operatingEntityId': { 'type': 'string' },
-                  'partyId': { 'type': 'string' },
-                },
-            },
-          'sort':
-            {
-              'type': 'array',
-              'maxItems': 1,
-              'items':
-                {
-                  'type': 'object',
-                  'required': ['field', 'order'],
-                  'additionalProperties': false,
-                  'properties':
-                    {
-                      'field': { 'type': 'string', 'enum': ['code'] },
-                      'order': { 'type': 'string', 'enum': ['asc'] },
-                    },
-                },
-            },
-        },
-    },
-  'BobCustomerAccountQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-          'filters':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'keyword': { 'type': 'string', 'maxLength': 200 },
-                  'enabled': { 'type': 'boolean' },
-                  'customerType': { 'type': 'string' },
-                  'customerRelationshipId': { 'type': 'string' },
-                  'operatingEntityId': { 'type': 'string' },
-                  'salesAttributionType':
-                    {
-                      'type': 'string',
-                      'enum':
-                        [
-                          'INTERNAL_EMPLOYEE',
-                          'EXTERNAL_PART_TIME',
-                          'CHANNEL_PARTNER',
-                        ],
-                    },
-                  'salesAttributionSubjectId': { 'type': 'string' },
+                  'defaultOperatingEntityId': { 'type': 'string' },
                 },
             },
           'sort':
@@ -447,16 +386,10 @@
         [
           'objectId',
           'code',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityApprovalEntryId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'enabled',
           'sourceApprovalEntryId',
           'sourceVersionNo',
+          'data',
+          'attachments',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -464,17 +397,15 @@
         {
           'objectId': { 'type': 'string' },
           'code': { 'type': 'string' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': '#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityApprovalEntryId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
           'sourceVersionNo':
             { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'data': { '$ref': './dcl.yaml#/DclCustomerData' },
+          'attachments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/BobCustomerAttachmentView' },
+            },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -516,42 +447,6 @@
           'createdBy': { 'type': 'string' },
         },
     },
-  'BobCustomerAccountCurrentView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'customerRelationshipId',
-          'customerRelationshipCode',
-          'enabled',
-          'sourceApprovalEntryId',
-          'sourceVersionNo',
-          'data',
-          'attachments',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'customerRelationshipId': { 'type': 'string' },
-          'customerRelationshipCode': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
-          'sourceApprovalEntryId': { 'type': 'string' },
-          'sourceVersionNo':
-            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
-          'data': { '$ref': './dcl.yaml#/DclCustomerAccountData' },
-          'attachments':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/BobCustomerAttachmentView' },
-            },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
   'BobCustomerListItem':
     {
       'type': 'object',
@@ -559,9 +454,9 @@
         [
           'objectId',
           'code',
-          'partyDisplayName',
-          'operatingEntityCode',
-          'operatingEntityName',
+          'displayName',
+          'defaultOperatingEntityCode',
+          'defaultOperatingEntityName',
           'enabled',
           'sourceApprovalEntryId',
           'sourceVersionNo',
@@ -572,43 +467,9 @@
         {
           'objectId': { 'type': 'string' },
           'code': { 'type': 'string' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
-          'sourceApprovalEntryId': { 'type': 'string' },
-          'sourceVersionNo':
-            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'BobCustomerAccountListItem':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'code',
-          'customerRelationshipId',
-          'customerRelationshipCode',
-          'name',
-          'customerTypeId',
-          'operatingEntityCode',
-          'enabled',
-          'sourceApprovalEntryId',
-          'sourceVersionNo',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'customerRelationshipId': { 'type': 'string' },
-          'customerRelationshipCode': { 'type': 'string' },
-          'name': { 'type': 'string' },
-          'customerTypeId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'defaultOperatingEntityCode': { 'type': 'string' },
+          'defaultOperatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'sourceApprovalEntryId': { 'type': 'string' },
           'sourceVersionNo':
@@ -647,37 +508,6 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'BobCustomerAccountQueryResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'required': ['items', 'total', 'page', 'pageSize'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'items':
-                    {
-                      'type': 'array',
-                      'items': { '$ref': '#/BobCustomerAccountListItem' },
-                    },
-                  'total': { 'type': 'integer', 'format': 'int64' },
-                  'page': { 'type': 'integer' },
-                  'pageSize': { 'type': 'integer' },
-                },
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
   'BobCustomerGetResponse':
     {
       'type': 'object',
@@ -692,25 +522,6 @@
             {
               'type': 'object',
               'allOf': [{ '$ref': '#/BobCustomerCurrentView' }],
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'BobCustomerAccountGetResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/BobCustomerAccountCurrentView' }],
               'nullable': true,
             },
           'requestId': { 'type': 'string' },
@@ -756,6 +567,422 @@
           'name': { 'type': 'string' },
         },
     },
+  'BobEmployeeCurrentView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'data': { '$ref': './dcl.yaml#/DclEmployeeData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobEmployeeListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'legalName',
+          'currentOperatingEntity',
+          'enabled',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'legalName': { 'type': 'string' },
+          'displayName': { 'type': 'string', 'nullable': true },
+          'currentOperatingEntity':
+            { '$ref': './dcl.yaml#/DclBusinessArchiveSnapshot' },
+          'enabled': { 'type': 'boolean' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobEmployeeQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/BobEmployeeListItem' },
+                    },
+                  'total': { 'type': 'integer', 'format': 'int64' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobEmployeeGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobEmployeeCurrentView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobSupplierCurrentView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'data': { '$ref': './dcl.yaml#/DclSupplierData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobSupplierListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'legalName',
+          'defaultOperatingEntity',
+          'enabled',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'legalName': { 'type': 'string' },
+          'displayName': { 'type': 'string', 'nullable': true },
+          'defaultOperatingEntity':
+            { '$ref': './dcl.yaml#/DclBusinessArchiveSnapshot' },
+          'enabled': { 'type': 'boolean' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobSupplierQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/BobSupplierListItem' },
+                    },
+                  'total': { 'type': 'integer', 'format': 'int64' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobSupplierGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobSupplierCurrentView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobOtherUnitCurrentView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'data': { '$ref': './dcl.yaml#/DclOtherUnitData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobOtherUnitListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'legalName',
+          'defaultOperatingEntity',
+          'enabled',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'legalName': { 'type': 'string' },
+          'displayName': { 'type': 'string', 'nullable': true },
+          'defaultOperatingEntity':
+            { '$ref': './dcl.yaml#/DclBusinessArchiveSnapshot' },
+          'enabled': { 'type': 'boolean' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobOtherUnitQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/BobOtherUnitListItem' },
+                    },
+                  'total': { 'type': 'integer', 'format': 'int64' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobOtherUnitGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobOtherUnitCurrentView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobSalesPartnerCurrentView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'data': { '$ref': './dcl.yaml#/DclSalesPartnerData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobSalesPartnerListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'legalName',
+          'defaultOperatingEntity',
+          'enabled',
+          'sourceApprovalEntryId',
+          'sourceVersionNo',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'legalName': { 'type': 'string' },
+          'displayName': { 'type': 'string', 'nullable': true },
+          'defaultOperatingEntity':
+            { '$ref': './dcl.yaml#/DclBusinessArchiveSnapshot' },
+          'enabled': { 'type': 'boolean' },
+          'sourceApprovalEntryId': { 'type': 'string' },
+          'sourceVersionNo':
+            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'BobSalesPartnerQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/BobSalesPartnerListItem' },
+                    },
+                  'total': { 'type': 'integer', 'format': 'int64' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobSalesPartnerGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobSalesPartnerCurrentView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'BobReferenceQueryRequest':
     {
       'type': 'object',
@@ -778,6 +1005,7 @@
                 ],
             },
           'keyword': { 'type': 'string', 'maxLength': 100 },
+          'operatingEntityId': { 'type': 'string', 'maxLength': 26 },
           'sourceObjectId': { 'type': 'string', 'maxLength': 26 },
           'behaviorProfile':
             {
@@ -800,6 +1028,7 @@
       'properties':
         {
           'objectId': { 'type': 'string' },
+          'customerId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
@@ -838,216 +1067,6 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'PartyKind': { 'type': 'string', 'enum': ['PERSON', 'ORGANIZATION'] },
-  'PartyIdentifierType':
-    { 'type': 'string', 'enum': ['PERSON_ID', 'UNIFIED_SOCIAL_CREDIT_CODE'] },
-  'PartyIdentifier':
-    {
-      'type': 'object',
-      'required': ['type', 'value'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'type': { '$ref': '#/PartyIdentifierType' },
-          'value': { 'type': 'string', 'minLength': 1, 'maxLength': 100 },
-        },
-    },
-  'PartyIdentityData':
-    {
-      'type': 'object',
-      'required': ['kind', 'legalName', 'strongIdentifiers'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'kind': { '$ref': '#/PartyKind' },
-          'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
-          'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            { 'type': 'array', 'items': { '$ref': '#/PartyIdentifier' } },
-          'phone': { 'type': 'string', 'maxLength': 32 },
-          'email': { 'type': 'string', 'maxLength': 254 },
-          'address': { 'type': 'string', 'maxLength': 500 },
-        },
-    },
-  'PartyQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-          'filters':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'keyword': { 'type': 'string', 'maxLength': 200 },
-                  'kind': { '$ref': '#/PartyKind' },
-                },
-            },
-        },
-    },
-  'PartyGetRequest':
-    {
-      'type': 'object',
-      'required': ['partyId'],
-      'additionalProperties': false,
-      'properties': { 'partyId': { 'type': 'string' } },
-    },
-  'PartyRelationshipCard':
-    {
-      'type': 'object',
-      'required':
-        [
-          'objectId',
-          'entity',
-          'code',
-          'sourceApprovalEntryId',
-          'sourceVersionNo',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'enabled',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'entity':
-            {
-              'type': 'string',
-              'enum':
-                [
-                  'customer',
-                  'supplier',
-                  'employee',
-                  'other-unit',
-                  'sales-partner',
-                ],
-            },
-          'code': { 'type': 'string' },
-          'sourceApprovalEntryId': { 'type': 'string' },
-          'sourceVersionNo':
-            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
-        },
-    },
-  'PartyView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'partyId',
-          'kind',
-          'legalName',
-          'displayName',
-          'sourceApprovalEntryId',
-          'sourceVersionNo',
-          'strongIdentifiers',
-          'relationships',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'partyId': { 'type': 'string' },
-          'kind': { '$ref': '#/PartyKind' },
-          'legalName': { 'type': 'string' },
-          'displayName': { 'type': 'string' },
-          'sourceApprovalEntryId': { 'type': 'string' },
-          'sourceVersionNo':
-            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
-          'taxNumber': { 'type': 'string' },
-          'strongIdentifiers':
-            { 'type': 'array', 'items': { '$ref': '#/PartyIdentifier' } },
-          'phone': { 'type': 'string' },
-          'email': { 'type': 'string' },
-          'address': { 'type': 'string' },
-          'relationships':
-            { 'type': 'array', 'items': { '$ref': '#/PartyRelationshipCard' } },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'PartyListItem':
-    {
-      'type': 'object',
-      'required':
-        [
-          'partyId',
-          'kind',
-          'legalName',
-          'displayName',
-          'sourceApprovalEntryId',
-          'sourceVersionNo',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'partyId': { 'type': 'string' },
-          'kind': { '$ref': '#/PartyKind' },
-          'legalName': { 'type': 'string' },
-          'displayName': { 'type': 'string' },
-          'sourceApprovalEntryId': { 'type': 'string' },
-          'sourceVersionNo':
-            { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'PartyGetResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/PartyView' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'PartyQueryResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'required': ['items', 'total', 'page', 'pageSize'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'items':
-                    { 'type': 'array', 'items': { '$ref': '#/PartyListItem' } },
-                  'total': { 'type': 'integer', 'format': 'int64' },
-                  'page': { 'type': 'integer' },
-                  'pageSize': { 'type': 'integer' },
-                },
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
   'SalesPartnerCapability':
     { 'type': 'string', 'enum': ['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'] },
   'BobDetailView':
@@ -1077,29 +1096,6 @@
               },
           },
         ],
-    },
-  'BobRelationshipIdentityView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'partyId': { 'type': 'string' },
-          'partyKind': { 'type': 'string' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-        },
     },
   'BobObjectView':
     {
@@ -1131,7 +1127,6 @@
             { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
           'data': { '$ref': '#/BobDetailView' },
-          'relationship': { '$ref': '#/BobRelationshipIdentityView' },
         },
     },
   'BobObjectResponse':

@@ -18,12 +18,12 @@ import {
 import { dclProductFormFromView } from './data'
 import type { DclProductViewModel } from './vm'
 import { dclProductActiveVersion, type DclProductListItem } from './types'
-import ProductUnitConversionsEditor from '@/pages/bob/product/ProductUnitConversionsEditor.vue'
-import ProductFormulaEditorDialog from '@/pages/bob/product/ProductFormulaEditorDialog.vue'
+import ProductUnitConversionsEditor from '@/pages/dcl/product/ProductUnitConversionsEditor.vue'
+import ProductFormulaEditorDialog from '@/pages/dcl/product/ProductFormulaEditorDialog.vue'
 import {
   productFormulaFromPayload,
   type ProductFormulaDraft,
-} from '@/pages/bob/product/product-formula-data'
+} from '@/pages/dcl/product/product-formula-data'
 
 type ProductUnitConversionDraft = {
   unit: {

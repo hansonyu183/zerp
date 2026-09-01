@@ -92,6 +92,7 @@ func (s *Service) loadData(
 			return data, err
 		}
 		data.Customer = reference(detail.CustomerObjectID, detail.CustomerApprovalEntryID, bobdomain.EntityCustomerAccount, detail.CustomerCode, detail.CustomerName, "", "", "")
+		data.Customer.CustomerID = detail.CustomerID
 		data.Salesperson = optionalReference(
 			detail.SalespersonObjectID, detail.SalespersonApprovalEntryID, "employee",
 			detail.SalespersonCode, detail.SalespersonName,
@@ -235,13 +236,40 @@ func (s *Service) loadData(
 			data.InventoryCountLines = append(data.InventoryCountLines, item)
 		}
 		return data, nil
-	case EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
+	case EntitySalesReceipt:
+		detail, err := q.GetVouSalesReceiptDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.Customer = reference(detail.CustomerObjectID, detail.CustomerApprovalEntryID, bobdomain.EntityCustomer,
+			detail.CustomerCode, detail.CustomerName, "", "", "")
+		data.OperatingEntity = reference(detail.OperatingEntityObjectID, detail.OperatingEntityApprovalEntryID, bobdomain.EntityOperatingEntity,
+			detail.OperatingEntityCode, detail.OperatingEntityName, "", "", "")
+		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
+			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
+		data.Handler = optionalReference(detail.HandlerObjectID, detail.HandlerApprovalEntryID, "employee", detail.HandlerCode, detail.HandlerName)
+		allocations, err := q.ListVouSalesReceiptAccountAllocations(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.AccountAllocations = make([]SalesReceiptAccountAllocationView, 0, len(allocations))
+		for _, allocation := range allocations {
+			account := reference(allocation.AccountObjectID, allocation.AccountApprovalEntryID, bobdomain.EntityCustomerAccount,
+				allocation.AccountCode, allocation.AccountName, "", "", "")
+			account.CustomerID = detail.CustomerObjectID
+			data.AccountAllocations = append(data.AccountAllocations, SalesReceiptAccountAllocationView{
+				Account: *account,
+				Amount:  formatMoney(allocation.AmountCents),
+			})
+		}
+	case EntityPurchaseRefund, EntityOtherReceipt, EntityEmployeeRepayment:
 		detail, err := q.GetVouReceiptDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
 		}
 		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity,
 			detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
+		data.Counterparty.CustomerID = detail.CounterpartyCustomerID
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
@@ -256,6 +284,7 @@ func (s *Service) loadData(
 		}
 		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity,
 			detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
+		data.Counterparty.CustomerID = deref(detail.CounterpartyCustomerID)
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
@@ -317,6 +346,7 @@ func (s *Service) loadData(
 		if detail.CounterpartyObjectID != nil {
 			data.Counterparty = reference(deref(detail.CounterpartyObjectID), deref(detail.CounterpartyApprovalEntryID),
 				deref(detail.CounterpartyEntity), deref(detail.CounterpartyCode), deref(detail.CounterpartyName), "", "", "")
+			data.Counterparty.CustomerID = deref(detail.CounterpartyCustomerID)
 		}
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")

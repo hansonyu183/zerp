@@ -17,13 +17,13 @@ func (s *Service) loadSalesChainData(
 		var customer ReferenceView
 		var warehouse ReferenceView
 		err := s.pool.QueryRow(ctx, `SELECT x.source_order_id,p.document_no,
-			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
+			x.customer_object_id,x.customer_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
 			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_approval_entry_id,''),
 			COALESCE(x.warehouse_code,''),COALESCE(x.warehouse_name,'')
 			FROM vou_sale_outbound_details x JOIN vou_documents p ON p.id=x.source_order_id
 			WHERE x.document_id=$1`, document.ID).Scan(
 			&sourceID, &sourceNo,
-			&customer.ObjectID, &customer.ApprovalEntryID, &customer.Code, &customer.Name,
+			&customer.ObjectID, &customer.CustomerID, &customer.ApprovalEntryID, &customer.Code, &customer.Name,
 			&warehouse.ObjectID, &warehouse.ApprovalEntryID, &warehouse.Code, &warehouse.Name)
 		if err != nil {
 			return data, err
@@ -71,12 +71,13 @@ func (s *Service) loadSalesChainData(
 		var vehicle ReferenceView
 		customer.ObjectID, customer.ApprovalEntryID, customer.Code, customer.Name =
 			row.CustomerObjectID, row.CustomerApprovalEntryID, row.CustomerCode, row.CustomerName
+		customer.CustomerID = row.CustomerID
 		operatingEntity.ObjectID, operatingEntity.ApprovalEntryID =
 			row.CarrierOperatingEntityObjectID, row.CarrierOperatingEntityApprovalEntryID
 		operatingEntity.Code, operatingEntity.Name = row.CarrierOperatingEntityCode, row.CarrierOperatingEntityName
 		carrier.ObjectID, carrier.ApprovalEntryID =
-			row.CarrierServiceRelationshipObjectID, row.CarrierServiceRelationshipApprovalEntryID
-		carrier.Code, carrier.Name = row.CarrierServiceRelationshipCode, row.CarrierServiceRelationshipName
+			row.CarrierOtherUnitObjectID, row.CarrierOtherUnitApprovalEntryID
+		carrier.Code, carrier.Name = row.CarrierOtherUnitCode, row.CarrierOtherUnitName
 		vehicle.ObjectID, vehicle.ApprovalEntryID, vehicle.Code, vehicle.Name, vehicle.PlateNumber =
 			row.VehicleObjectID, row.VehicleApprovalEntryID, row.VehicleCode, row.VehicleName, row.VehiclePlateNumber
 		customer.Entity, operatingEntity.Entity, carrier.Entity, vehicle.Entity =
@@ -117,12 +118,12 @@ func (s *Service) loadSalesChainData(
 		var customer ReferenceView
 		var warehouse ReferenceView
 		err := s.pool.QueryRow(ctx, `SELECT x.source_delivery_id,p.document_no,
-			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
+			x.customer_object_id,x.customer_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
 			x.warehouse_object_id,x.warehouse_approval_entry_id,x.warehouse_code,x.warehouse_name
 			FROM vou_sale_signoff_details x JOIN vou_documents p ON p.id=x.source_delivery_id
 			WHERE x.document_id=$1`, document.ID).Scan(
 			&sourceID, &sourceNo,
-			&customer.ObjectID, &customer.ApprovalEntryID, &customer.Code, &customer.Name,
+			&customer.ObjectID, &customer.CustomerID, &customer.ApprovalEntryID, &customer.Code, &customer.Name,
 			&warehouse.ObjectID, &warehouse.ApprovalEntryID, &warehouse.Code, &warehouse.Name)
 		if err != nil {
 			return data, err

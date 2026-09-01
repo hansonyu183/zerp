@@ -5,10 +5,12 @@
 import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { DclOtherUnitData } from './DclOtherUnitData';
-import type { DclRelationshipListIdentity } from './DclRelationshipListIdentity';
-export type DclOtherUnitView = (DclRelationshipListIdentity & {
+export type DclOtherUnitView = {
+  objectId: string;
+  entity: 'other-unit';
+  code: string;
   approval: ApprovalVersionMeta;
   availableApprovalActions: Array<ApprovalLifecycleAction>;
   data: DclOtherUnitData;
   updatedAt: string;
-});
+};

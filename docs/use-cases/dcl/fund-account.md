@@ -6,7 +6,7 @@
 
 1. 页面入口为 `/dcl/fund-account`；它是资金账户唯一维护入口。工作台、审批待办和审批记录中的资金账户深链都进入该页面。
 2. 列表调用 `POST /dcl/fund-account/query`，展示最新已批准版本和唯一开放候选。新建、保存、启停、提交、撤回、驳回、批准、反批准、删除、版本及审计分别检查精确 `/dcl/fund-account/*` 权限。
-3. 页面不调用 BOB 写路径；`/bob/fund-account` 仅显示当前正式档案。
+3. 页面不调用 BOB 写路径；`/bob/fund-account/query|get|reference` 仅供内部当前正式资料读取，不存在独立 BOB 页面。
 
 ## 2. 新建、编辑与启停申请
 
@@ -24,7 +24,7 @@
 
 ## 4. 验收场景
 
-1. 全部资金账户生命周期请求均发送到 `/dcl/fund-account/*`，BOB 当前入口没有任何写或审批动作。
+1. 全部资金账户页面和生命周期请求均发送到 `/dcl/fund-account/*`；BOB 只保留内部读取接口，没有页面、写或审批入口。
 2. V1/V2 批准和反批准后，BOB typed query 不经额外写入即可显示、切换、回落或隐藏；失败时 DCL snapshot、Approval 与账号占用全部回滚。
 3. 经营主体来源漂移、账号并发唯一、回落冲突及 VOU blocker 由真实 PostgreSQL 测试覆盖。
 4. 历史 VOU 在资金账户后续改版、改币种或改所属主体后，仍保留原 stable ID、Approval Entry ID 与快照；ACC 仍通过不可变 VOU `source_id` 追溯该版本。

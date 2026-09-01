@@ -14,6 +14,7 @@ import type { VouProductionOutputView } from './VouProductionOutputView';
 import type { VouProductLineView } from './VouProductLineView';
 import type { VouReferenceView } from './VouReferenceView';
 import type { VouSaleSignoffLineView } from './VouSaleSignoffLineView';
+import type { VouSalesReceiptAccountAllocationView } from './VouSalesReceiptAccountAllocationView';
 import type { VouServiceAcceptanceView } from './VouServiceAcceptanceView';
 import type { VouServiceContractView } from './VouServiceContractView';
 import type { VouSettlementMethodSnapshotView } from './VouSettlementMethodSnapshotView';
@@ -29,6 +30,8 @@ export type VouDocumentDataView = {
   returnKind?: 'REFUSAL' | 'AFTER_SALE';
   specialApproval?: boolean;
   customer?: VouReferenceView;
+  operatingEntity?: VouReferenceView;
+  accountAllocations?: Array<VouSalesReceiptAccountAllocationView>;
   supplier?: VouReferenceView;
   counterparty?: VouReferenceView;
   employee?: VouReferenceView;

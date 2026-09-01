@@ -65,19 +65,19 @@ SELECT count(*)
 FROM wfl_definition_instances instance
 WHERE instance.root_deleted_at IS NULL
   AND ($1::text = '' OR instance.definition_id=$1::text)
-  AND ($2::text = '' OR instance.party_object_id=$2::text)
+  AND ($2::text = '' OR instance.counterparty_object_id=$2::text)
   AND ($3::text = '' OR instance.root_document_no ILIKE '%' || $3::text || '%'
        OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || $3::text || '%'))
 `
 
 type CountDefinitionInstancesParams struct {
-	DefinitionID  string `db:"definition_id" json:"definition_id"`
-	PartyObjectID string `db:"party_object_id" json:"party_object_id"`
-	Keyword       string `db:"keyword" json:"keyword"`
+	DefinitionID         string `db:"definition_id" json:"definition_id"`
+	CounterpartyObjectID string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	Keyword              string `db:"keyword" json:"keyword"`
 }
 
 func (q *Queries) CountDefinitionInstances(ctx context.Context, arg CountDefinitionInstancesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDefinitionInstances, arg.DefinitionID, arg.PartyObjectID, arg.Keyword)
+	row := q.db.QueryRow(ctx, countDefinitionInstances, arg.DefinitionID, arg.CounterpartyObjectID, arg.Keyword)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -187,23 +187,25 @@ func (q *Queries) CreateWorkflowCreateChildRequest(ctx context.Context, arg Crea
 }
 
 const createWorkflowDefinitionInstance = `-- name: CreateWorkflowDefinitionInstance :exec
-INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,party_object_id,party_code,party_name,definition_approval_entry_id,created_by,updated_by)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
+INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,definition_approval_entry_id,created_by,updated_by)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)
 `
 
 type CreateWorkflowDefinitionInstanceParams struct {
-	ID                        string  `db:"id" json:"id"`
-	DefinitionID              string  `db:"definition_id" json:"definition_id"`
-	RootDocumentID            *string `db:"root_document_id" json:"root_document_id"`
-	RootDocumentNo            string  `db:"root_document_no" json:"root_document_no"`
-	RootEntity                string  `db:"root_entity" json:"root_entity"`
-	DefinitionCode            string  `db:"definition_code" json:"definition_code"`
-	DefinitionName            string  `db:"definition_name" json:"definition_name"`
-	PartyObjectID             *string `db:"party_object_id" json:"party_object_id"`
-	PartyCode                 *string `db:"party_code" json:"party_code"`
-	PartyName                 *string `db:"party_name" json:"party_name"`
-	DefinitionApprovalEntryID string  `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
-	ActorID                   string  `db:"actor_id" json:"actor_id"`
+	ID                          string  `db:"id" json:"id"`
+	DefinitionID                string  `db:"definition_id" json:"definition_id"`
+	RootDocumentID              *string `db:"root_document_id" json:"root_document_id"`
+	RootDocumentNo              string  `db:"root_document_no" json:"root_document_no"`
+	RootEntity                  string  `db:"root_entity" json:"root_entity"`
+	DefinitionCode              string  `db:"definition_code" json:"definition_code"`
+	DefinitionName              string  `db:"definition_name" json:"definition_name"`
+	CounterpartyEntity          *string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        *string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID *string `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            *string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            *string `db:"counterparty_name" json:"counterparty_name"`
+	DefinitionApprovalEntryID   string  `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
+	ActorID                     string  `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) CreateWorkflowDefinitionInstance(ctx context.Context, arg CreateWorkflowDefinitionInstanceParams) error {
@@ -215,9 +217,11 @@ func (q *Queries) CreateWorkflowDefinitionInstance(ctx context.Context, arg Crea
 		arg.RootEntity,
 		arg.DefinitionCode,
 		arg.DefinitionName,
-		arg.PartyObjectID,
-		arg.PartyCode,
-		arg.PartyName,
+		arg.CounterpartyEntity,
+		arg.CounterpartyObjectID,
+		arg.CounterpartyApprovalEntryID,
+		arg.CounterpartyCode,
+		arg.CounterpartyName,
 		arg.DefinitionApprovalEntryID,
 		arg.ActorID,
 	)
@@ -314,24 +318,27 @@ func (q *Queries) GetCurrentWorkflowDefinitionIdentity(ctx context.Context, defi
 const getDefinitionInstance = `-- name: GetDefinitionInstance :one
 SELECT id process_id,definition_id,definition_code,definition_name,revision,
        COALESCE(root_document_id,'') root_document_id,root_document_no,root_entity,
-       COALESCE(party_code,'') party_code,COALESCE(party_name,'') party_name,
+       counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,
        definition_approval_entry_id,updated_at
 FROM wfl_definition_instances WHERE id=$1
 `
 
 type GetDefinitionInstanceRow struct {
-	ProcessID                 string             `db:"process_id" json:"process_id"`
-	DefinitionID              string             `db:"definition_id" json:"definition_id"`
-	DefinitionCode            string             `db:"definition_code" json:"definition_code"`
-	DefinitionName            string             `db:"definition_name" json:"definition_name"`
-	Revision                  int64              `db:"revision" json:"revision"`
-	RootDocumentID            string             `db:"root_document_id" json:"root_document_id"`
-	RootDocumentNo            string             `db:"root_document_no" json:"root_document_no"`
-	RootEntity                string             `db:"root_entity" json:"root_entity"`
-	PartyCode                 string             `db:"party_code" json:"party_code"`
-	PartyName                 string             `db:"party_name" json:"party_name"`
-	DefinitionApprovalEntryID string             `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
-	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ProcessID                   string             `db:"process_id" json:"process_id"`
+	DefinitionID                string             `db:"definition_id" json:"definition_id"`
+	DefinitionCode              string             `db:"definition_code" json:"definition_code"`
+	DefinitionName              string             `db:"definition_name" json:"definition_name"`
+	Revision                    int64              `db:"revision" json:"revision"`
+	RootDocumentID              string             `db:"root_document_id" json:"root_document_id"`
+	RootDocumentNo              string             `db:"root_document_no" json:"root_document_no"`
+	RootEntity                  string             `db:"root_entity" json:"root_entity"`
+	CounterpartyEntity          *string            `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        *string            `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID *string            `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            *string            `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            *string            `db:"counterparty_name" json:"counterparty_name"`
+	DefinitionApprovalEntryID   string             `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
+	UpdatedAt                   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error) {
@@ -346,8 +353,11 @@ func (q *Queries) GetDefinitionInstance(ctx context.Context, id string) (GetDefi
 		&i.RootDocumentID,
 		&i.RootDocumentNo,
 		&i.RootEntity,
-		&i.PartyCode,
-		&i.PartyName,
+		&i.CounterpartyEntity,
+		&i.CounterpartyObjectID,
+		&i.CounterpartyApprovalEntryID,
+		&i.CounterpartyCode,
+		&i.CounterpartyName,
 		&i.DefinitionApprovalEntryID,
 		&i.UpdatedAt,
 	)
@@ -634,11 +644,12 @@ func (q *Queries) ListCurrentWorkflowDefinitions(ctx context.Context, arg ListCu
 const listDefinitionInstances = `-- name: ListDefinitionInstances :many
 SELECT instance.id process_id,instance.definition_id,instance.definition_approval_entry_id,instance.definition_code,instance.definition_name,
        instance.revision,COALESCE(instance.root_document_id,'') root_document_id,instance.root_document_no,
-       instance.root_entity,COALESCE(instance.party_code,'') party_code,COALESCE(instance.party_name,'') party_name,instance.updated_at
+       instance.root_entity,instance.counterparty_entity,instance.counterparty_object_id,instance.counterparty_approval_entry_id,
+       instance.counterparty_code,instance.counterparty_name,instance.updated_at
 FROM wfl_definition_instances instance
 WHERE instance.root_deleted_at IS NULL
   AND ($1::text = '' OR instance.definition_id=$1::text)
-  AND ($2::text = '' OR instance.party_object_id=$2::text)
+  AND ($2::text = '' OR instance.counterparty_object_id=$2::text)
   AND ($3::text = '' OR instance.root_document_no ILIKE '%' || $3::text || '%'
        OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || $3::text || '%'))
 ORDER BY instance.updated_at DESC,instance.id DESC
@@ -646,32 +657,35 @@ LIMIT $5 OFFSET $4
 `
 
 type ListDefinitionInstancesParams struct {
-	DefinitionID  string `db:"definition_id" json:"definition_id"`
-	PartyObjectID string `db:"party_object_id" json:"party_object_id"`
-	Keyword       string `db:"keyword" json:"keyword"`
-	PageOffset    int32  `db:"page_offset" json:"page_offset"`
-	PageSize      int32  `db:"page_size" json:"page_size"`
+	DefinitionID         string `db:"definition_id" json:"definition_id"`
+	CounterpartyObjectID string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	Keyword              string `db:"keyword" json:"keyword"`
+	PageOffset           int32  `db:"page_offset" json:"page_offset"`
+	PageSize             int32  `db:"page_size" json:"page_size"`
 }
 
 type ListDefinitionInstancesRow struct {
-	ProcessID                 string             `db:"process_id" json:"process_id"`
-	DefinitionID              string             `db:"definition_id" json:"definition_id"`
-	DefinitionApprovalEntryID string             `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
-	DefinitionCode            string             `db:"definition_code" json:"definition_code"`
-	DefinitionName            string             `db:"definition_name" json:"definition_name"`
-	Revision                  int64              `db:"revision" json:"revision"`
-	RootDocumentID            string             `db:"root_document_id" json:"root_document_id"`
-	RootDocumentNo            string             `db:"root_document_no" json:"root_document_no"`
-	RootEntity                string             `db:"root_entity" json:"root_entity"`
-	PartyCode                 string             `db:"party_code" json:"party_code"`
-	PartyName                 string             `db:"party_name" json:"party_name"`
-	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ProcessID                   string             `db:"process_id" json:"process_id"`
+	DefinitionID                string             `db:"definition_id" json:"definition_id"`
+	DefinitionApprovalEntryID   string             `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
+	DefinitionCode              string             `db:"definition_code" json:"definition_code"`
+	DefinitionName              string             `db:"definition_name" json:"definition_name"`
+	Revision                    int64              `db:"revision" json:"revision"`
+	RootDocumentID              string             `db:"root_document_id" json:"root_document_id"`
+	RootDocumentNo              string             `db:"root_document_no" json:"root_document_no"`
+	RootEntity                  string             `db:"root_entity" json:"root_entity"`
+	CounterpartyEntity          *string            `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        *string            `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID *string            `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            *string            `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            *string            `db:"counterparty_name" json:"counterparty_name"`
+	UpdatedAt                   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) ListDefinitionInstances(ctx context.Context, arg ListDefinitionInstancesParams) ([]ListDefinitionInstancesRow, error) {
 	rows, err := q.db.Query(ctx, listDefinitionInstances,
 		arg.DefinitionID,
-		arg.PartyObjectID,
+		arg.CounterpartyObjectID,
 		arg.Keyword,
 		arg.PageOffset,
 		arg.PageSize,
@@ -693,8 +707,11 @@ func (q *Queries) ListDefinitionInstances(ctx context.Context, arg ListDefinitio
 			&i.RootDocumentID,
 			&i.RootDocumentNo,
 			&i.RootEntity,
-			&i.PartyCode,
-			&i.PartyName,
+			&i.CounterpartyEntity,
+			&i.CounterpartyObjectID,
+			&i.CounterpartyApprovalEntryID,
+			&i.CounterpartyCode,
+			&i.CounterpartyName,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err

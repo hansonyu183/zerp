@@ -6,7 +6,7 @@
 
 1. 页面入口为 `/dcl/product`，是产品新建、编辑、启停、提交、撤回、驳回、批准、反批准、删除、版本和审计的唯一维护入口；工作台、审批待办和审批记录中的产品深链进入本页。
 2. 列表调用 `POST /dcl/product/query`，每个 stable product 显示一行并区分 latest approved 与 open candidate。查看、编辑或历史详情必须调用 `get` 或 `versions`，不得用列表行拼装完整 snapshot。
-3. 每个动作检查精确 `/dcl/product/*` 权限。页面不调用 BOB 写路径；`/bob/product` 仅显示当前正式档案。
+3. 每个动作检查精确 `/dcl/product/*` 权限。页面不调用 BOB 写路径；`/bob/product/query|get|reference` 仅供内部当前正式资料读取，不存在独立 BOB 页面。
 
 ## 2. 新建、保存与产品类型切换
 
@@ -37,7 +37,7 @@
 
 ## 6. 验收场景
 
-1. 全部产品维护与生命周期请求只发送到 `/dcl/product/*`，BOB 当前页面没有任何写、启停或审批动作。
+1. 全部产品页面、维护与生命周期请求只发送到 `/dcl/product/*`；BOB 只保留内部读取接口，没有页面、写、启停或审批入口。
 2. 真实 PostgreSQL 覆盖完整 snapshot、V1/V2 highest-approved 读取与回落、AUX/原料精确来源、条码占用、正式引用 blocker、并发 candidate 和事务回滚。
 3. 真实全栈流程覆盖三类产品、固定配方、候选换版和独立 BOB 只读资料；待办深链进入 DCL。
 4. 产品换版后，既有 VOU、库存、生产与 ACC 仍保留原 stable ID、Approval Entry、数量与名称等不可变快照。

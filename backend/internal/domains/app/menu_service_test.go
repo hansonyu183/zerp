@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
@@ -12,39 +13,59 @@ func testMenuCatalog() []registeredMenuRoute {
 		{RouteKey: "app/menu", RoutePath: "/app/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business"},
 		{RouteKey: "dcl/operating-entity", RoutePath: "/dcl/operating-entity", DisplayName: "经营主体", PermissionCode: "/dcl/operating-entity/query", PermissionRoot: "/dcl/operating-entity/"},
 		{RouteKey: "dcl/warehouse", RoutePath: "/dcl/warehouse", DisplayName: "仓库", PermissionCode: "/dcl/warehouse/query", PermissionRoot: "/dcl/warehouse/"},
-		{RouteKey: "dcl/party", RoutePath: "/dcl/party", DisplayName: "主体", PermissionCode: "/dcl/party/query", PermissionRoot: "/dcl/party/"},
 		{RouteKey: "bob/customer", RoutePath: "/bob/customer", DisplayName: "客户", PermissionCode: "/bob/customer/query", PermissionRoot: "/bob/customer/"},
 		{RouteKey: "bob/warehouse", RoutePath: "/bob/warehouse", DisplayName: "仓库", PermissionCode: "/bob/warehouse/query", PermissionRoot: "/bob/warehouse/"},
 	}
 }
 
-func TestDefaultMenuKeepsDCLDeclarationSeparateFromBOBCurrentData(t *testing.T) {
-	menu := buildDefaultMenu(testMenuCatalog())
-	if !menuRouteUnderGroup(menu, "dcl/operating-entity", "档案变更") {
-		t.Fatalf("DCL operating entity is not under its own declaration group: %+v", menu.Items)
+func TestMenuKeepsBOBCurrentReadsOutOfPrimaryNavigation(t *testing.T) {
+	catalog := testMenuCatalog()
+	data := menuData(MenuModeDefault, 1, buildInitialBusinessMenu(catalog), catalog, Principal{
+		Permissions: []string{"/dcl/operating-entity/query", "/dcl/warehouse/query", "/bob/customer/query", "/bob/warehouse/query"},
+	})
+	for name, menu := range map[string]MenuTree{
+		"default":    data.DefaultMenu,
+		"business":   data.BusinessMenu,
+		"navigation": data.Navigation,
+	} {
+		if !unitMenuContainsRoute(menu, "dcl/operating-entity") || !unitMenuContainsRoute(menu, "dcl/warehouse") {
+			t.Fatalf("%s menu lost DCL archive entries: %+v", name, menu.Items)
+		}
+		if unitMenuContainsRoute(menu, "bob/customer") || unitMenuContainsRoute(menu, "bob/warehouse") || unitMenuHasGroupName(menu, "业务对象") {
+			t.Fatalf("%s menu exposed duplicate BOB navigation: %+v", name, menu.Items)
+		}
 	}
-	if !menuRouteUnderGroup(menu, "dcl/warehouse", "档案变更") {
-		t.Fatalf("DCL warehouse is not under its own declaration group: %+v", menu.Items)
+	for _, route := range data.AvailableRoutes {
+		if strings.HasPrefix(route.RouteKey, "bob/") {
+			t.Fatalf("BOB current-read API leaked into UI routes: %+v", route)
+		}
 	}
-	if !menuRouteUnderGroup(menu, "dcl/party", "档案变更") {
-		t.Fatalf("DCL Party is not under its own declaration group: %+v", menu.Items)
+}
+
+func unitMenuContainsRoute(tree MenuTree, key string) bool {
+	for _, item := range tree.Items {
+		if item.RouteKey != nil && *item.RouteKey == key {
+			return true
+		}
 	}
-	if !menuRouteUnderGroup(menu, "bob/customer", "业务对象") {
-		t.Fatalf("BOB current data left the business-object group: %+v", menu.Items)
+	return false
+}
+
+func unitMenuHasGroupName(tree MenuTree, name string) bool {
+	for _, item := range tree.Items {
+		if item.Type == MenuItemGroup && item.DisplayName == name {
+			return true
+		}
 	}
-	if !menuRouteUnderGroup(menu, "bob/warehouse", "业务对象") {
-		t.Fatalf("BOB warehouse current data left the business-object group: %+v", menu.Items)
-	}
+	return false
 }
 
 func TestDCLMenuDisplayNameKeepsOnlyObjectName(t *testing.T) {
 	cases := []struct {
 		entity, description, want string
 	}{
-		{"party", "查询主体声明", "主体"},
 		{"operating-entity", "查询经营主体申报", "经营主体"},
 		{"employee", "查询员工声明", "人员"},
-		{"customer-account", "查询客户账户声明", "客户结算子账户"},
 		{"wfl-process-definition", "查询流程定义声明", "流程定义"},
 	}
 	for _, tc := range cases {
@@ -80,7 +101,7 @@ func TestAppendUnclassifiedRoutesAddsEachMissingRouteOnce(t *testing.T) {
 			counts[*item.RouteKey]++
 		}
 	}
-	if counts["bob/customer"] != 1 || !menuRouteUnderGroup(result, "bob/customer", "其他/待归类") {
+	if counts["dcl/operating-entity"] != 1 || !menuRouteUnderGroup(result, "dcl/operating-entity", "其他/待归类") || counts["bob/customer"] != 0 {
 		t.Fatalf("missing route synchronization = %+v", result.Items)
 	}
 }
@@ -94,7 +115,7 @@ func TestValidateBusinessMenuRequiresUniqueRoutesAndSafeEntries(t *testing.T) {
 
 	duplicate := append([]SaveMenuItemInput(nil), items...)
 	for _, item := range items {
-		if item.RouteKey != nil && *item.RouteKey == "bob/customer" {
+		if item.RouteKey != nil && *item.RouteKey == "dcl/operating-entity" {
 			item.ID = "duplicate-customer"
 			duplicate = append(duplicate, item)
 			break
@@ -135,7 +156,7 @@ func TestWorkbenchIsTheUniqueDirectMenuEntry(t *testing.T) {
 func TestFilterMenuForPrincipalPlacesWorkbenchFirstRegardlessOfOrder(t *testing.T) {
 	groupID := "group"
 	workbenchKey, workbenchPath := "home/dashboard", "/home/dashboard"
-	customerKey, customerPath, customerPermission := "bob/customer", "/bob/customer", "/bob/customer/query"
+	customerKey, customerPath, customerPermission := "dcl/customer", "/dcl/customer", "/dcl/customer/query"
 	tree := MenuTree{Items: []MenuItemView{
 		{ID: groupID, Type: MenuItemGroup, Level: 1, DisplayName: "销售", Enabled: true, Order: 1},
 		{ID: "customer", ParentID: &groupID, Type: MenuItemRoute, Level: 2, DisplayName: "客户", Enabled: true, Order: 1, RouteKey: &customerKey, RoutePath: &customerPath, PermissionCode: &customerPermission},
@@ -152,13 +173,13 @@ func TestFilterMenuForPrincipalPlacesWorkbenchFirstRegardlessOfOrder(t *testing.
 }
 
 func TestFilterMenuForPrincipalRequiresEnabledParentAndPermission(t *testing.T) {
-	parent, key, path, permission := "group", "bob/customer", "/bob/customer", "/bob/customer/query"
-	catalog := []registeredMenuRoute{{RouteKey: key, RoutePath: path, PermissionCode: permission, PermissionRoot: "/bob/customer/"}}
+	parent, key, path, permission := "group", "dcl/customer", "/dcl/customer", "/dcl/customer/query"
+	catalog := []registeredMenuRoute{{RouteKey: key, RoutePath: path, PermissionCode: permission, PermissionRoot: "/dcl/customer/"}}
 	tree := MenuTree{Items: []MenuItemView{
 		{ID: parent, Type: MenuItemGroup, Level: 1, DisplayName: "客户", Enabled: false},
 		{ID: "route", ParentID: &parent, Type: MenuItemRoute, Level: 2, DisplayName: "客户", Enabled: true, RouteKey: &key, RoutePath: &path, PermissionCode: &permission},
 	}}
-	principal := Principal{Permissions: []string{"/bob/customer/query"}}
+	principal := Principal{Permissions: []string{"/dcl/customer/query"}}
 	if result := filterMenuForPrincipal(tree, catalog, principal); len(result.Items) != 0 {
 		t.Fatalf("disabled parent returned navigation: %+v", result.Items)
 	}

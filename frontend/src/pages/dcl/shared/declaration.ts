@@ -6,7 +6,6 @@ import {
 } from '@/shared/approval'
 
 export type DclDeclarationEntity =
-  | 'party'
   | 'operating-entity'
   | 'warehouse'
   | 'vehicle'
@@ -14,7 +13,6 @@ export type DclDeclarationEntity =
   | 'product'
   | 'employee'
   | 'customer'
-  | 'customer-account'
   | 'supplier'
   | 'other-unit'
   | 'sales-partner'
@@ -88,7 +86,6 @@ export function isDclDeclarationEntity(
   entity: string,
 ): entity is DclDeclarationEntity {
   return (
-    entity === 'party' ||
     entity === 'operating-entity' ||
     entity === 'warehouse' ||
     entity === 'vehicle' ||
@@ -96,7 +93,6 @@ export function isDclDeclarationEntity(
     entity === 'product' ||
     entity === 'employee' ||
     entity === 'customer' ||
-    entity === 'customer-account' ||
     entity === 'supplier' ||
     entity === 'other-unit' ||
     entity === 'sales-partner' ||

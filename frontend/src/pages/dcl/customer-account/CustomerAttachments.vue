@@ -9,11 +9,15 @@ import {
   initiateCustomerAttachment,
   removeCustomerAttachment,
 } from './attachments'
-import type { DclCustomerAttachmentView } from './types'
+import type { components } from '@/api/generated/schema'
+
+type DclCustomerAttachmentView =
+  components['schemas']['DclCustomerAttachmentView']
 
 const props = defineProps<{
   scope: 'CUSTOMER' | 'CUSTOMER_ACCOUNT'
   ownerApprovalEntryId: string
+  accountId?: string
   approvalRevision: number
   attachments: readonly DclCustomerAttachmentView[]
   editable: boolean
@@ -56,6 +60,7 @@ async function upload(value: File | File[] | null): Promise<void> {
     const { data } = await initiateCustomerAttachment({
       scope: props.scope,
       ownerApprovalEntryId: props.ownerApprovalEntryId,
+      ...(props.scope === 'CUSTOMER_ACCOUNT' ? { accountId: props.accountId } : {}),
       approvalRevision: props.approvalRevision,
       categoryObjectId: categoryObjectId.value.trim(),
       fileName: file.name,
@@ -79,6 +84,7 @@ async function download(attachment: DclCustomerAttachmentView): Promise<void> {
     const { data } = await createCustomerAttachmentDownload({
       scope: props.scope,
       ownerApprovalEntryId: props.ownerApprovalEntryId,
+      ...(props.scope === 'CUSTOMER_ACCOUNT' ? { accountId: props.accountId } : {}),
       fileId: attachment.fileId,
     })
     downloadBlob(
@@ -99,6 +105,7 @@ async function remove(attachment: DclCustomerAttachmentView): Promise<void> {
     await removeCustomerAttachment({
       scope: props.scope,
       ownerApprovalEntryId: props.ownerApprovalEntryId,
+      ...(props.scope === 'CUSTOMER_ACCOUNT' ? { accountId: props.accountId } : {}),
       approvalRevision: props.approvalRevision,
       fileId: attachment.fileId,
     })

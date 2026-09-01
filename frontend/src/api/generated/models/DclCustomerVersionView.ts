@@ -4,8 +4,9 @@
 /* eslint-disable */
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { DclCustomerAttachmentView } from './DclCustomerAttachmentView';
+import type { DclCustomerData } from './DclCustomerData';
 export type DclCustomerVersionView = {
   approval: ApprovalVersionMeta;
-  enabled: boolean;
+  data: DclCustomerData;
   attachments: Array<DclCustomerAttachmentView>;
 };

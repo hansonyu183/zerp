@@ -1,4 +1,5 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
+import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { approvalActionPresentation } from '@/shared/approval'
@@ -7,6 +8,7 @@ import { queryAccountingSubjects, type AccountingSubject } from '../subject/api'
 import {
   openingApprovalAction,
   openingReasonAction,
+  queryOpeningBusinessArchiveReferences,
   queryAccountingOpening,
   saveAccountingOpening,
   type OpeningContract,
@@ -20,6 +22,20 @@ interface OpeningLineForm {
   creditAmount: string
   quantity: string
   dimensions: Record<string, string>
+  dimensionReferences: Record<string, BusinessArchiveDimensionReference>
+}
+
+type BusinessArchiveDimensionReference =
+  components['schemas']['BusinessArchiveDimensionReference']
+
+export const openingBusinessArchiveEntities: Readonly<
+  Record<string, BusinessArchiveDimensionReference['entity']>
+> = {
+  CUSTOMER_ACCOUNT: 'customer-account',
+  SUPPLIER: 'supplier',
+  OTHER_UNIT: 'other-unit',
+  EMPLOYEE: 'employee',
+  SALES_PARTNER: 'sales-partner',
 }
 
 interface OpeningAssetForm {
@@ -58,11 +74,11 @@ interface OpeningBillForm {
   interestAmount: string
   customerCostAmount: string
   valueAmount: string
-  partyEntity: string
-  partyObjectId: string
-  partyApprovalEntryId: string
-  partyCode: string
-  partyName: string
+  counterpartyEntity: string
+  counterpartyObjectId: string
+  counterpartyApprovalEntryId: string
+  counterpartyCode: string
+  counterpartyName: string
 }
 
 interface OpeningContainerForm {
@@ -74,10 +90,10 @@ interface OpeningContainerForm {
 
 export const openingDimensionLabels: Readonly<Record<string, string>> = {
   CUSTOMER_ACCOUNT: '客户结算账户',
-  SUPPLIER_RELATIONSHIP: '供应关系',
-  SERVICE_RELATIONSHIP: '服务关系',
-  EMPLOYMENT_RELATIONSHIP: '雇佣关系',
-  SALES_RELATIONSHIP: '销售合作关系',
+  SUPPLIER: '供应商',
+  OTHER_UNIT: '其他单位',
+  EMPLOYEE: '员工',
+  SALES_PARTNER: '销售合作方',
   DEPARTMENT: '部门',
   PRODUCT: '商品',
   WAREHOUSE: '仓库',
@@ -93,6 +109,9 @@ export function createAccountingOpeningViewModel() {
   const selectedBookId = ref('')
   const opening = ref<OpeningContract | null>(null)
   const lines = reactive<OpeningLineForm[]>([])
+  const dimensionReferenceOptions = reactive<
+    Record<string, BusinessArchiveDimensionReference[]>
+  >({})
   const assets = reactive<OpeningAssetForm[]>([])
   const bills = reactive<OpeningBillForm[]>([])
   const containers = reactive<OpeningContainerForm[]>([])
@@ -105,10 +124,16 @@ export function createAccountingOpeningViewModel() {
   let nextKey = 1
   let sequence = 0
   let active = true
+  const dimensionReferenceSequences = new Map<string, number>()
+  const dimensionReferenceControllers = new Map<string, AbortController>()
   if (getCurrentScope()) {
     onScopeDispose(() => {
       active = false
       sequence += 1
+      for (const controller of dimensionReferenceControllers.values()) {
+        controller.abort()
+      }
+      dimensionReferenceControllers.clear()
     })
   }
 
@@ -124,6 +149,8 @@ export function createAccountingOpeningViewModel() {
       canQuery.value &&
       canEdit.value &&
       session.can('/acc/opening/save') &&
+      (!requiresBusinessArchiveReferenceQuery.value ||
+        session.can('/bob/reference/query')) &&
       validationError.value === '',
   )
   const availableApprovalActions = computed(
@@ -137,7 +164,15 @@ export function createAccountingOpeningViewModel() {
   )
   const subjectOptions = computed(() =>
     subjects.value
-      .filter((subject) => subject.enabled && subject.leaf)
+      .filter(
+        (subject) =>
+          subject.enabled &&
+          subject.leaf &&
+          (session.can('/bob/reference/query') ||
+            !subject.requiredDimensions.some(
+              (dimension) => openingBusinessArchiveEntities[dimension],
+            )),
+      )
       .map((subject) => ({
         title: `${subject.code} · ${subject.name}`,
         value: subject.subjectId,
@@ -146,6 +181,15 @@ export function createAccountingOpeningViewModel() {
   const subjectById = computed(
     () =>
       new Map(subjects.value.map((subject) => [subject.subjectId, subject])),
+  )
+  const requiresBusinessArchiveReferenceQuery = computed(() =>
+    lines.some((line) =>
+      subjectById.value
+        .get(line.subjectId)
+        ?.requiredDimensions.some(
+          (dimension) => openingBusinessArchiveEntities[dimension],
+        ),
+    ),
   )
   const trialTotals = computed(() => {
     const totals = new Map<string, { debit: number; credit: number }>()
@@ -220,8 +264,8 @@ export function createAccountingOpeningViewModel() {
           !bill.drawer.trim() ||
           !bill.acceptor.trim() ||
           !bill.payee.trim() ||
-          !bill.partyObjectId.trim() ||
-          !bill.partyApprovalEntryId.trim())
+          !bill.counterpartyObjectId.trim() ||
+          !bill.counterpartyApprovalEntryId.trim())
       ) {
         return '新建期初票据必须填写完整票据事实。'
       }
@@ -308,6 +352,7 @@ export function createAccountingOpeningViewModel() {
         creditAmount: line.creditAmount,
         quantity: line.quantity ?? '',
         dimensions: { ...line.dimensions },
+        dimensionReferences: { ...line.dimensionReferences },
       })),
     )
     assets.splice(
@@ -352,11 +397,12 @@ export function createAccountingOpeningViewModel() {
         interestAmount: bill.interestAmount ?? '0',
         customerCostAmount: bill.customerCostAmount ?? '0',
         valueAmount: bill.valueAmount,
-        partyEntity: bill.originatingParty?.entity ?? '',
-        partyObjectId: bill.originatingParty?.objectId ?? '',
-        partyApprovalEntryId: bill.originatingParty?.approvalEntryId ?? '',
-        partyCode: bill.originatingParty?.code ?? '',
-        partyName: bill.originatingParty?.name ?? '',
+        counterpartyEntity: bill.originatingCounterparty?.entity ?? '',
+        counterpartyObjectId: bill.originatingCounterparty?.objectId ?? '',
+        counterpartyApprovalEntryId:
+          bill.originatingCounterparty?.approvalEntryId ?? '',
+        counterpartyCode: bill.originatingCounterparty?.code ?? '',
+        counterpartyName: bill.originatingCounterparty?.name ?? '',
       })),
     )
     containers.splice(
@@ -383,6 +429,7 @@ export function createAccountingOpeningViewModel() {
       creditAmount: '0.00',
       quantity: '',
       dimensions: {},
+      dimensionReferences: {},
     })
     dirty.value = true
   }
@@ -432,11 +479,11 @@ export function createAccountingOpeningViewModel() {
       interestAmount: '0.00',
       customerCostAmount: '0.00',
       valueAmount: '0.00',
-      partyEntity: '',
-      partyObjectId: '',
-      partyApprovalEntryId: '',
-      partyCode: '',
-      partyName: '',
+      counterpartyEntity: '',
+      counterpartyObjectId: '',
+      counterpartyApprovalEntryId: '',
+      counterpartyCode: '',
+      counterpartyName: '',
     })
     dirty.value = true
   }
@@ -469,11 +516,85 @@ export function createAccountingOpeningViewModel() {
     line.dimensions = Object.fromEntries(
       (subject?.requiredDimensions ?? []).map((dimension) => [dimension, '']),
     )
+    line.dimensionReferences = {}
     line.quantity = ''
     dirty.value = true
   }
 
   function markDirty(): void {
+    dirty.value = true
+  }
+
+  function dimensionReferenceKey(
+    line: OpeningLineForm,
+    dimension: string,
+  ): string {
+    return `${line.key}:${dimension}`
+  }
+
+  async function searchDimensionReferences(
+    line: OpeningLineForm,
+    dimension: string,
+    keyword: string,
+  ): Promise<void> {
+    const entity = openingBusinessArchiveEntities[dimension]
+    if (!entity || !session.can('/bob/reference/query')) return
+    const key = dimensionReferenceKey(line, dimension)
+    const requestSequence = (dimensionReferenceSequences.get(key) ?? 0) + 1
+    dimensionReferenceSequences.set(key, requestSequence)
+    dimensionReferenceControllers.get(key)?.abort()
+    const controller = new AbortController()
+    dimensionReferenceControllers.set(key, controller)
+    try {
+      const { data } = await queryOpeningBusinessArchiveReferences(
+        {
+          entity,
+          ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+        },
+        controller.signal,
+      )
+      if (!active || dimensionReferenceSequences.get(key) !== requestSequence)
+        return
+      const refreshed = data.map((item) => ({
+        entity,
+        objectId: item.objectId,
+        ...(item.customerId ? { customerId: item.customerId } : {}),
+        approvalEntryId: item.approvalEntryId,
+        code: item.code,
+        name: item.name,
+      }))
+      const selected = line.dimensionReferences[dimension]
+      dimensionReferenceOptions[key] =
+        selected &&
+        !refreshed.some((item) => item.objectId === selected.objectId)
+          ? [selected, ...refreshed]
+          : refreshed
+    } catch (error) {
+      if (
+        !controller.signal.aborted &&
+        active &&
+        dimensionReferenceSequences.get(key) === requestSequence
+      ) {
+        errorMessage.value = getErrorMessage(error)
+      }
+    } finally {
+      if (dimensionReferenceControllers.get(key) === controller) {
+        dimensionReferenceControllers.delete(key)
+      }
+    }
+  }
+
+  function selectDimensionReference(
+    line: OpeningLineForm,
+    dimension: string,
+    objectId: string | null,
+  ): void {
+    const reference = dimensionReferenceOptions[
+      dimensionReferenceKey(line, dimension)
+    ]?.find((item) => item.objectId === objectId)
+    line.dimensions[dimension] = objectId ?? ''
+    if (reference) line.dimensionReferences[dimension] = reference
+    else delete line.dimensionReferences[dimension]
     dirty.value = true
   }
 
@@ -500,6 +621,7 @@ export function createAccountingOpeningViewModel() {
               value.trim(),
             ]),
           ),
+          dimensionReferences: { ...line.dimensionReferences },
         })),
         assets: assets.map(
           ({ key: _key, createObject: _create, ...asset }) => ({
@@ -512,11 +634,11 @@ export function createAccountingOpeningViewModel() {
           ({
             key: _key,
             createObject: _create,
-            partyEntity,
-            partyObjectId,
-            partyApprovalEntryId,
-            partyCode,
-            partyName,
+            counterpartyEntity,
+            counterpartyObjectId,
+            counterpartyApprovalEntryId,
+            counterpartyCode,
+            counterpartyName,
             ...bill
           }) => ({
             ...bill,
@@ -524,12 +646,13 @@ export function createAccountingOpeningViewModel() {
             ...(bill.billId.trim() ? { billId: bill.billId.trim() } : {}),
             ...(_create
               ? {
-                  originatingParty: {
-                    entity: partyEntity.trim(),
-                    objectId: partyObjectId.trim(),
-                    approvalEntryId: partyApprovalEntryId.trim(),
-                    code: partyCode.trim(),
-                    name: partyName.trim(),
+                  originatingCounterparty: {
+                    entity:
+                      counterpartyEntity.trim() as BusinessArchiveDimensionReference['entity'],
+                    objectId: counterpartyObjectId.trim(),
+                    approvalEntryId: counterpartyApprovalEntryId.trim(),
+                    code: counterpartyCode.trim(),
+                    name: counterpartyName.trim(),
                   },
                 }
               : {}),
@@ -633,6 +756,7 @@ export function createAccountingOpeningViewModel() {
     bookOptions,
     subjectOptions,
     subjectById,
+    dimensionReferenceOptions,
     trialTotals,
     trialBalanced,
     validationError,
@@ -646,6 +770,9 @@ export function createAccountingOpeningViewModel() {
     addContainer,
     removeRegister,
     changeSubject,
+    dimensionReferenceKey,
+    searchDimensionReferences,
+    selectDimensionReference,
     markDirty,
     save,
     approvalAction,

@@ -28,7 +28,6 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
   approval_stale_revision: '当前版本已被其他操作修改，请刷新后重试。',
   bob_unapprove_blocked:
     '该主体仍被已批准的业务关系引用，不能撤销最后一个批准版本。',
-  party_merged: '该主体已被合并，不能继续操作。',
   vou_settlement_term_required: '订单必须具有明确账期，请先维护结算方式。',
   vehicle_identifier_conflict: '车牌号或 VIN 已被其他车辆占用，请修改后重试。',
   vehicle_type_reference_unavailable:

@@ -50,7 +50,7 @@ export interface BillLineDraft {
   drawer: string
   acceptor: string
   payee: string
-  originatingParty?: BillReference
+  originatingCounterparty?: BillReference
   annualRateBps: number
   interestDays?: number
   interestAmount?: string
@@ -93,18 +93,18 @@ export interface BillListItem {
   currency: string
   amount: string
   updatedAt: string
-  partyName?: string
+  counterpartyName?: string
 }
 type VouQueryRequest = ApiPostRequest<'vou/bill-receipt/query'>
 type VouGetRequest = ApiPostRequest<'vou/bill-receipt/get'>
 type VouReverseRequest = ApiPostRequest<'vou/bill-receipt/unapprove'>
-type BobQueryRequest = ApiPostRequest<'bob/customer-account/query'>
+type BobQueryRequest = ApiPostRequest<'bob/fund-account/query'>
 type AvailableBillQueryRequest = ApiPostRequest<'vou/bill-payment/bill-source'>
 
 const requiredCreateReferencePermissions: Readonly<
   Record<BillVoucherConfig['mode'], readonly string[]>
 > = {
-  receipt: ['/bob/customer-account/query', '/bob/employee/query'],
+  receipt: ['/bob/reference/query', '/bob/employee/query'],
   payment: ['/bob/supplier/query'],
   issue: ['/bob/supplier/query'],
   discount: ['/bob/other-unit/query'],
@@ -675,7 +675,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
             approvalEntryId: item.sourceApprovalEntryId,
             entity,
             code: item.code,
-            name: item.relationship?.partyDisplayName ?? '',
+            name: item.displayName ?? '',
           }))
       } catch {
         return []
@@ -747,7 +747,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         drawer: row.drawer,
         acceptor: row.acceptor,
         payee: row.payee,
-        originatingParty: row.originatingParty,
+        originatingCounterparty: row.originatingCounterparty,
         annualRateBps: row.annualRateBps ?? 0,
         interestDays: row.interestDays,
         interestAmount: row.interestAmount,

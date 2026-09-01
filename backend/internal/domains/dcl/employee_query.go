@@ -41,7 +41,11 @@ func (s *EmployeeService) Query(ctx context.Context, input EmployeeQueryInput, a
 			enabled = 0
 		}
 	}
-	params := dbsqlc.ListDCLEmployeesParams{Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabled, OperatingEntityID: strings.TrimSpace(input.Filters.OperatingEntityID), EmployeeCategoryID: strings.TrimSpace(input.Filters.EmployeeCategoryID), DepartmentID: strings.TrimSpace(input.Filters.DepartmentID), PositionID: strings.TrimSpace(input.Filters.PositionID), StatusFilter: statuses, SortField: field, SortOrder: order, RowOffset: offset, RowLimit: int32(input.PageSize)}
+	operatingEntityID := strings.TrimSpace(input.Filters.OperatingEntityID)
+	if operatingEntityID != "" && !validID(operatingEntityID) {
+		return Page[EmployeeQueryItem]{}, newError(ErrorValidation, "validation_failed", "invalid employee current operating entity filter", nil, nil)
+	}
+	params := dbsqlc.ListDCLEmployeesParams{Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabled, OperatingEntityID: operatingEntityID, EmployeeCategoryID: strings.TrimSpace(input.Filters.EmployeeCategoryID), DepartmentID: strings.TrimSpace(input.Filters.DepartmentID), PositionID: strings.TrimSpace(input.Filters.PositionID), StatusFilter: statuses, SortField: field, SortOrder: order, RowOffset: offset, RowLimit: int32(input.PageSize)}
 	rows, err := s.queries.ListDCLEmployees(ctx, params)
 	if err != nil {
 		return Page[EmployeeQueryItem]{}, translateError(err)
@@ -50,9 +54,13 @@ func (s *EmployeeService) Query(ctx context.Context, input EmployeeQueryInput, a
 	if err != nil {
 		return Page[EmployeeQueryItem]{}, translateError(err)
 	}
+	return s.employeeQueryPage(ctx, rows, total, input, actor)
+}
+
+func (s *EmployeeService) employeeQueryPage(ctx context.Context, rows []dbsqlc.ListDCLEmployeesRow, total int64, input EmployeeQueryInput, actor approval.Actor) (Page[EmployeeQueryItem], error) {
 	items := make([]EmployeeQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := EmployeeQueryItem{ObjectID: r.ObjectID, Entity: EntityEmployee, Code: r.Code, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: stringValue(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		item := EmployeeQueryItem{ObjectID: r.ObjectID, Entity: EntityEmployee, Code: r.Code, DisplayName: r.DisplayName, CurrentOperatingEntity: EmployeeOperatingEntitySnapshot{SourceObjectID: r.CurrentOperatingEntityID, ApprovalEntryID: r.CurrentOperatingEntityApprovalEntryID, Code: r.CurrentOperatingEntityCode, Name: r.CurrentOperatingEntityName}, UpdatedAt: r.UpdatedAt.Time}
 		if r.LatestApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.LatestApprovedEntryID, r.ObjectID)
 			if e != nil {
@@ -111,19 +119,15 @@ func (s *EmployeeService) Get(ctx context.Context, input EmployeeGetInput, actor
 		}
 		return EmployeeView{}, translateError(err)
 	}
-	identity, err := lockEmployeeIdentity(ctx, tx, input.ObjectID)
+	identity, err := lockSubject(ctx, tx, EntityEmployee, input.ObjectID)
 	if err != nil {
 		return EmployeeView{}, translateError(err)
 	}
-	stored, err := s.queries.WithTx(tx).GetDCLEmployeeVersion(ctx, id)
+	data, err := s.loadData(ctx, s.queries.WithTx(tx), id)
 	if err != nil {
-		return EmployeeView{}, translateError(err)
+		return EmployeeView{}, err
 	}
-	operating, err := s.rules.ResolveCurrentReference(ctx, tx, "operating-entity", identity.OperatingEntityID)
-	if err != nil {
-		return EmployeeView{}, translateError(err)
-	}
-	return EmployeeView{ObjectID: identity.ObjectID, Entity: EntityEmployee, Code: identity.Code, PartyID: stored.PartyID, PartyKind: stored.PartyKind, PartyDisplayName: stored.DisplayName, OperatingEntityID: stored.OperatingEntityID, OperatingEntityApprovalEntryID: operating.ApprovalEntryID, OperatingEntityCode: stringValue(stored.OperatingEntityCode), OperatingEntityName: stored.OperatingEntityName, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: employeeVersionData(stored), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
+	return EmployeeView{ObjectID: identity.ObjectID, Entity: EntityEmployee, Code: identity.Code, Approval: approval.VersionMetaFromEntry(entry), Data: data, UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
 }
 
 func (s *EmployeeService) Versions(ctx context.Context, input EmployeeHistoryInput, actor approval.Actor) (Page[EmployeeVersionView], error) {
@@ -196,9 +200,9 @@ func (s *EmployeeService) loadVersionViewFromEntry(ctx context.Context, q *dbsql
 	if e.SubjectID != objectID {
 		return EmployeeVersionView{}, newError(ErrorValidation, "validation_failed", "declaration version does not belong to subject", nil, nil)
 	}
-	r, err := q.GetDCLEmployeeVersion(ctx, e.ID)
+	data, err := s.loadData(ctx, q, e.ID)
 	if err != nil {
-		return EmployeeVersionView{}, translateError(err)
+		return EmployeeVersionView{}, err
 	}
-	return EmployeeVersionView{Approval: approval.VersionMetaFromEntry(e), Data: employeeVersionData(r), Enabled: r.Enabled}, nil
+	return EmployeeVersionView{Approval: approval.VersionMetaFromEntry(e), Data: data}, nil
 }

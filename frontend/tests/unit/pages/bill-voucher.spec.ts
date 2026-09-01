@@ -53,7 +53,7 @@ const availableBillPage = {
         drawer: 'D',
         acceptor: 'A',
         payee: 'P',
-        originatingParty: {
+        originatingCounterparty: {
           objectId: 'customer-1',
           approvalEntryId: 'customer-v1',
           entity: 'customer',
@@ -847,7 +847,7 @@ describe('bill voucher view model behavior', () => {
     session.$patch({
       permissions: [
         '/vou/bill-receipt/create',
-        '/bob/customer-account/query',
+        '/bob/reference/query',
         '/bob/employee/query',
       ],
     })
@@ -931,7 +931,7 @@ describe('bill voucher view model behavior', () => {
     session.$patch({
       permissions: [
         '/vou/bill-receipt/create',
-        '/bob/customer-account/query',
+        '/bob/reference/query',
         '/bob/employee/query',
       ],
     })
@@ -1196,7 +1196,7 @@ describe('bill voucher view model behavior', () => {
     const cases = [
       {
         entity: 'bill-receipt' as const,
-        permissions: ['/bob/customer-account/query', '/bob/employee/query'],
+        permissions: ['/bob/reference/query', '/bob/employee/query'],
       },
       {
         entity: 'bill-payment' as const,
@@ -1276,7 +1276,7 @@ describe('bill voucher view model behavior', () => {
       }),
       expect.anything(),
     )
-    expect(vm.heldBillOptions.value[0]?.originatingParty).toEqual({
+    expect(vm.heldBillOptions.value[0]?.originatingCounterparty).toEqual({
       objectId: 'customer-1',
       approvalEntryId: 'customer-v1',
       entity: 'customer',

@@ -18,6 +18,7 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
@@ -83,8 +84,7 @@ type Seeder struct {
 	fundAccounts      *dcldomain.FundAccountService
 	products          *dcldomain.ProductService
 	employees         *dcldomain.EmployeeService
-	relationships     *dcldomain.RelationshipService
-	parties           *dcldomain.PartyService
+	typedArchives     *dcldomain.TypedArchiveService
 	vouchers          *voudomain.Service
 	accounting        *accdomain.Service
 	accountMappings   *dcldomain.AccMappingService
@@ -140,15 +140,14 @@ func New(
 	events := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
 	business := bobdomain.NewService(pool, auxiliaryResolver)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, business, seedAuthorizer{}, events)
 	warehouses := dcldomain.NewWarehouseService(pool, business, seedAuthorizer{}, events)
 	vehicles := dcldomain.NewVehicleService(pool, business, seedAuthorizer{}, events)
 	fundAccounts := dcldomain.NewFundAccountService(pool, business, seedAuthorizer{}, events)
 	products := dcldomain.NewProductService(pool, business, seedAuthorizer{}, events)
-	employees := dcldomain.NewEmployeeService(pool, business, partyDeclarations, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
-	relationships := dcldomain.NewRelationshipService(pool, business, partyDeclarations, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
+	employees := dcldomain.NewEmployeeService(pool, business, seedAuthorizer{}, events)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(business), seedAuthorizer{}, events)
 	accounting := accdomain.NewService(pool, business, seedAuthorizer{}, events)
 	accountMappings := dcldomain.NewAccMappingService(pool, accounting, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(
@@ -173,7 +172,7 @@ func New(
 	}
 	return &Seeder{
 		pool: pool, queries: dbsqlc.New(pool), app: appdomain.NewService(pool, cfg, logger), accounts: accounts,
-		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, relationships: relationships, parties: partyDeclarations,
+		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, typedArchives: typedArchives,
 		vouchers: vouchers, accounting: accounting, accountMappings: accountMappings,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]seedBusinessView),
@@ -191,11 +190,11 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 	if err := s.seedBusiness(ctx, &result.Business); err != nil {
 		return result, fmt.Errorf("seed business data: %w", err)
 	}
-	if err := s.seedVouchers(ctx, &result.Vouchers); err != nil {
-		return result, fmt.Errorf("seed voucher data: %w", err)
-	}
 	if err := s.seedAccounting(ctx, &result.Accounting); err != nil {
 		return result, fmt.Errorf("seed accounting data: %w", err)
+	}
+	if err := s.seedVouchers(ctx, &result.Vouchers); err != nil {
+		return result, fmt.Errorf("seed voucher data: %w", err)
 	}
 	if err := s.seedExtendedVouchers(ctx, &result.Vouchers); err != nil {
 		return result, fmt.Errorf("seed extended voucher data: %w", err)

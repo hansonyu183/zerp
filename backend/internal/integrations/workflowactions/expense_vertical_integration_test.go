@@ -137,30 +137,17 @@ func createApprovedReimbursement(t *testing.T, service *voudomain.Service, emplo
 	return approved
 }
 
-func approveWorkflowEmployee(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, parties *dcldomain.PartyService, bus *txevent.Bus, operatingEntityID, name string) voudomain.ReferenceInput {
+func approveWorkflowEmployee(t *testing.T, pool *pgxpool.Pool, business *bobdomain.Service, bus *txevent.Bus, operatingEntityID, name string) voudomain.ReferenceInput {
 	t.Helper()
-	employees := dcldomain.NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
+	employees := dcldomain.NewEmployeeService(pool, business, authorization.Func(nil), bus)
 	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: name},
-		OperatingEntityID: operatingEntityID,
+		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: name, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true, CurrentOperatingEntityID: operatingEntityID},
 	}, workflowActor(t, "wfl-employee-create"))
 	if err != nil {
 		t.Fatalf("create employee declaration: %v", err)
 	}
-	employeeView, err := employees.Get(t.Context(), dcldomain.EmployeeGetInput{ObjectID: created.ObjectID}, workflowActor(t, "wfl-employee-get"))
-	if err != nil {
+	if _, err = employees.Get(t.Context(), dcldomain.EmployeeGetInput{ObjectID: created.ObjectID}, workflowActor(t, "wfl-employee-get")); err != nil {
 		t.Fatalf("get employee declaration: %v", err)
-	}
-	party, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: employeeView.PartyID}, bobdomain.PartyRelationshipVisibility{}, workflowActor(t, "wfl-employee-party-get"))
-	if err != nil {
-		t.Fatalf("get employee party: %v", err)
-	}
-	partyPending, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, workflowActor(t, "wfl-employee-party-submit"))
-	if err != nil {
-		t.Fatalf("submit employee party: %v", err)
-	}
-	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{PartyID: partyPending.PartyID, ApprovalEntryID: partyPending.Approval.ApprovalEntryID, ApprovalRevision: partyPending.Approval.Revision}, workflowActor(t, "wfl-employee-party-approve")); err != nil {
-		t.Fatalf("approve employee party: %v", err)
 	}
 	pending, err := employees.Submit(t.Context(), dcldomain.EmployeeVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, workflowActor(t, "wfl-employee-submit"))
 	if err != nil {
@@ -195,14 +182,12 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	submitterID := ulid.Make().String()
 	suffix := strings.ToLower(ulid.Make().String()[:10])
 	bus := txevent.NewBus()
-	authorizer := authorization.Func(nil)
 	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool))
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	operating := approveWorkflowReference(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "流程经营主体", TaxNumber: "TAX" + suffix,
 	}, submitterID, actorID)
-	employee := approveWorkflowEmployee(t, pool, bobService, parties, bus, operating.ObjectID, "流程员工")
+	employee := approveWorkflowEmployee(t, pool, bobService, bus, operating.ObjectID, "流程员工")
 	fund := approveWorkflowReference(t, bobService, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
 		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 	}, submitterID, actorID)

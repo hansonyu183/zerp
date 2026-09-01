@@ -85,6 +85,9 @@ function documentView(
       currency: form.currency,
       remark: form.remark,
       ...(form.customer ? { customer: form.customer } : {}),
+      ...(form.operatingEntity
+        ? { operatingEntity: form.operatingEntity }
+        : {}),
       ...(form.supplier ? { supplier: form.supplier } : {}),
       ...(form.counterparty ? { counterparty: form.counterparty } : {}),
       ...(form.employee ? { employee: form.employee } : {}),
@@ -99,6 +102,10 @@ function documentView(
         ? { finishedWarehouse: form.finishedWarehouse }
         : {}),
       ...(form.fundAccount ? { fundAccount: form.fundAccount } : {}),
+      accountAllocations: form.accountAllocations.map((line) => ({
+        account: line.account!,
+        amount: line.amount,
+      })),
       sourceName: form.sourceName,
       productLines: form.productLines.map((line, index) => ({
         lineId: `LINE-${index}`,
@@ -213,6 +220,21 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
   if (config.usesEmployee) form.employee = reference('employee')
   if (config.usesHandler) form.handler = reference('employee')
   if (config.usesFundAccount) form.fundAccount = reference('fund-account')
+  if (config.usesOperatingEntity) {
+    form.operatingEntity = reference('operating-entity')
+  }
+  if (config.usesAccountAllocations) {
+    form.accountAllocations = [
+      {
+        key: 'allocation-1',
+        account: {
+          ...reference('customer-account'),
+          customerId: form.customer?.objectId,
+        },
+        amount: '10.00',
+      },
+    ]
+  }
   if (config.usesSourceName) form.sourceName = '其他收入来源'
   if (config.directAmount) form.amount = '10.00'
   if (config.entity === 'intermediary-calculation') {
@@ -428,7 +450,7 @@ describe('shared VOU entity view model', () => {
       ...reference('vehicle'),
       carrierAffiliation: {
         type: 'EXTERNAL',
-        serviceRelationshipObjectId: form.carrier.objectId,
+        otherUnitObjectId: form.carrier.objectId,
       },
     }
 
@@ -988,7 +1010,7 @@ describe('shared VOU entity view model', () => {
     } as never)
     useSessionStore().permissions = [
       '/vou/sale-order/create',
-      '/bob/customer-account/query',
+      '/bob/reference/query',
     ]
 
     const vm = useVoucherEntityViewModel(config)
@@ -1098,7 +1120,7 @@ describe('shared VOU entity view model', () => {
     mockedPost.mockResolvedValue({ data: [] } as never)
     useSessionStore().permissions = [
       '/vou/sale-order/create',
-      '/bob/customer-account/query',
+      '/bob/reference/query',
     ]
 
     const vm = useVoucherEntityViewModel(config)
@@ -1118,27 +1140,43 @@ describe('shared VOU entity view model', () => {
 
   it('only exposes matching effective BOB object and version pairs', async () => {
     vi.useFakeTimers()
-    useSessionStore().permissions = ['/bob/customer-account/query']
+    useSessionStore().permissions = ['/bob/customer/query']
     const vm = useVoucherEntityViewModel(voucherEntityConfigs['sales-receipt'])
     mockedPost.mockResolvedValue({
-      data: [
-        {
-          objectId: 'VALID',
-          approvalEntryId: 'VER-1',
-          code: 'CUS-1',
-          name: '有效客户',
-        },
-      ],
+      data: {
+        items: [
+          {
+            objectId: 'VALID',
+            sourceApprovalEntryId: 'VER-1',
+            code: 'CUS-1',
+            displayName: '有效客户',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
     })
 
-    vm.searchReference('counterparty', 'CUS')
+    vm.searchReference('customer', 'CUS')
     await vi.advanceTimersByTimeAsync(250)
 
-    expect(vm.referenceOptions('counterparty')).toEqual([
+    expect(mockedPost).toHaveBeenCalledWith(
+      'bob/customer/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: { keyword: 'CUS' },
+        sort: [{ field: 'code', order: 'asc' }],
+      },
+      expect.any(Object),
+    )
+
+    expect(vm.referenceOptions('customer')).toEqual([
       {
         objectId: 'VALID',
         approvalEntryId: 'VER-1',
-        entity: 'customer-account',
+        entity: 'customer',
         code: 'CUS-1',
         name: '有效客户',
       },
@@ -1270,7 +1308,7 @@ describe('shared VOU entity view model', () => {
                 name: '匹配车辆',
                 carrierAffiliation: {
                   type: 'EXTERNAL',
-                  serviceRelationshipObjectId: 'CARRIER',
+                  otherUnitObjectId: 'CARRIER',
                 },
                 bulkLiquidCapable: true,
               },
@@ -1363,16 +1401,54 @@ describe('shared VOU entity view model', () => {
     })
   })
 
-  it('hydrates customer accounts as the customer form counterparty type', () => {
+  it('hydrates sales receipt customer, operating entity, and allocations', () => {
     const config = voucherEntityConfigs['sales-receipt']
     const currentForm = useVoucherEntityViewModel(config).form.value
     populate(config, currentForm)
-    currentForm.counterparty = reference('customer-account')
-
     expect(formFromDocument(documentView(config, currentForm))).toMatchObject({
-      counterpartyType: 'customer',
-      counterparty: { entity: 'customer-account' },
+      customer: { entity: 'customer' },
+      operatingEntity: { entity: 'operating-entity' },
+      accountAllocations: [
+        {
+          account: {
+            entity: 'customer-account',
+            customerId: 'customer-object',
+          },
+          amount: '10.00',
+        },
+      ],
     })
+  })
+
+  it('builds a sales receipt payload without a counterparty fallback', () => {
+    const config = voucherEntityConfigs['sales-receipt']
+    const form = useVoucherEntityViewModel(config).form.value
+    populate(config, form)
+
+    expect(
+      buildVoucherDraftPayload(config, form, false, new Set()),
+    ).toMatchObject({
+      customer: {
+        objectId: 'customer-object',
+        approvalEntryId: 'customer-version',
+      },
+      operatingEntity: {
+        objectId: 'operating-entity-object',
+        approvalEntryId: 'operating-entity-version',
+      },
+      accountAllocations: [
+        {
+          account: {
+            objectId: 'customer-account-object',
+            approvalEntryId: 'customer-account-version',
+          },
+          amount: '10.00',
+        },
+      ],
+    })
+    expect(
+      buildVoucherDraftPayload(config, form, false, new Set()),
+    ).not.toHaveProperty('counterparty')
   })
 
   it('rejects service acceptance payloads without a settlement direction', () => {

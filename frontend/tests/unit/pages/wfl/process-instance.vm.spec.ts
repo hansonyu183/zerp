@@ -23,14 +23,13 @@ const mockedPostContract = vi.mocked(apiClient.postContract)
 const item: InstanceListItem = {
   processId: '01J00000000000000000000001',
   definitionId: '01J00000000000000000000002',
+  approvalEntryId: '01J00000000000000000000009',
   definitionCode: 'expense-flow',
   definitionName: '费用流程',
   revision: 2,
   rootDocumentId: '01J00000000000000000000003',
   rootDocumentNo: 'ER-001',
   rootEntity: 'expense-reimbursement',
-  partyCode: '',
-  partyName: '',
   updatedAt: '2026-08-08T00:00:00Z',
 }
 const detail = (): InstanceView => ({
@@ -143,9 +142,34 @@ describe('process instance view model', () => {
     wrapper.unmount()
   })
 
-  it('retains the selected party when a later search excludes it', async () => {
+  it('filters by the selected typed counterparty object ID', async () => {
+    mockedPost.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+      requestId: '',
+    } as never)
+    const { vm, wrapper } = await mountViewModel()
+    vi.clearAllMocks()
+    vm.selectedCounterparty.value = {
+      entity: 'supplier',
+      objectId: '01J00000000000000000000010',
+      approvalEntryId: '01J00000000000000000000011',
+      code: 'SUP-0001',
+      name: '供应商甲',
+    }
+
+    await vm.query({ resetPage: true })
+
+    expect(mockedPost).toHaveBeenCalledWith('wfl/expense-flow/query', {
+      page: 1,
+      pageSize: 20,
+      counterpartyObjectId: '01J00000000000000000000010',
+    })
+    wrapper.unmount()
+  })
+
+  it('retains the selected counterparty when a later search excludes it', async () => {
     vi.useFakeTimers()
-    const selectedParty = {
+    const selectedCounterparty = {
       objectId: '01J00000000000000000000010',
       approvalEntryId: '01J00000000000000000000011',
       entity: 'customer-account' as const,
@@ -196,16 +220,19 @@ describe('process instance view model', () => {
       ],
     } as never)
     const { vm, wrapper } = await mountViewModel()
-    useSessionStore().permissions.push('/bob/customer-account/query')
-    vm.selectedParty.value = selectedParty
-    const selectedPartyReference = vm.selectedParty.value
+    useSessionStore().permissions.push(
+      '/bob/reference/query',
+      '/bob/customer/query',
+    )
+    vm.selectedCounterparty.value = selectedCounterparty
+    const selectedCounterpartyReference = vm.selectedCounterparty.value
 
-    vm.searchParty('搜索结果客户')
+    vm.searchCounterparty('搜索结果客户')
     await vi.advanceTimersByTimeAsync(250)
     await flushPromises()
 
-    expect(vm.partyOptions.value).toEqual([
-      selectedParty,
+    expect(vm.counterpartyOptions.value).toEqual([
+      selectedCounterparty,
       {
         objectId: '01J00000000000000000000012',
         approvalEntryId: '01J00000000000000000000013',
@@ -214,8 +241,144 @@ describe('process instance view model', () => {
         name: '搜索结果客户',
       },
     ])
-    expect(vm.partyOptions.value[0]).toBe(selectedPartyReference)
+    expect(vm.counterpartyOptions.value[0]).toBe(selectedCounterpartyReference)
     wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('queries employee counterparties only when both reference and entity permissions are granted', async () => {
+    vi.useFakeTimers()
+    const { vm, wrapper } = await mountViewModel()
+    useSessionStore().permissions.push(
+      '/bob/reference/query',
+      '/bob/employee/query',
+    )
+    mockedPost.mockImplementation(async (path, body) => {
+      if (path === 'bob/reference/query') {
+        expect(body).toEqual({ entity: 'employee', keyword: '报销' })
+        return {
+          data: [
+            {
+              objectId: '01J00000000000000000000020',
+              approvalEntryId: '01J00000000000000000000021',
+              code: 'EMP-0001',
+              name: '报销员工',
+            },
+          ],
+        } as never
+      }
+      throw new Error(`unexpected API path: ${path}`)
+    })
+
+    vm.searchCounterparty('报销')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+
+    expect(vm.counterpartyOptions.value).toEqual([
+      {
+        objectId: '01J00000000000000000000020',
+        approvalEntryId: '01J00000000000000000000021',
+        entity: 'employee',
+        code: 'EMP-0001',
+        name: '报销员工',
+      },
+    ])
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('does not issue a counterparty request when either required permission is absent', async () => {
+    vi.useFakeTimers()
+    const { vm, wrapper } = await mountViewModel()
+    useSessionStore().permissions.push('/bob/reference/query')
+
+    vm.searchCounterparty('报销')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+
+    expect(mockedPost).not.toHaveBeenCalledWith(
+      'bob/reference/query',
+      expect.anything(),
+    )
+    expect(vm.counterpartyError.value).toBe('缺少客户、供应商或员工查询权限。')
+
+    useSessionStore().permissions = ['/bob/employee/query']
+    vm.searchCounterparty('报销')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+
+    expect(mockedPost).not.toHaveBeenCalledWith(
+      'bob/reference/query',
+      expect.anything(),
+    )
+    expect(vm.counterpartyError.value).toBe('缺少相对方引用查询权限。')
+
+    useSessionStore().permissions.push('/bob/reference/query')
+    vm.searchCounterparty('报销')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+
+    expect(mockedPost).toHaveBeenCalledWith('bob/reference/query', {
+      entity: 'employee',
+      keyword: '报销',
+    })
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('does not update counterparty state after unmount while a search is in flight', async () => {
+    vi.useFakeTimers()
+    let resolve!: (value: unknown) => void
+    const pending = new Promise<unknown>((nextResolve) => {
+      resolve = nextResolve
+    })
+    const { vm, wrapper } = await mountViewModel()
+    useSessionStore().permissions.push(
+      '/bob/reference/query',
+      '/bob/employee/query',
+    )
+    vm.counterpartyOptions.value = [
+      {
+        objectId: '01J00000000000000000000030',
+        approvalEntryId: '01J00000000000000000000031',
+        entity: 'supplier',
+        code: 'SUP-0001',
+        name: '已有供应商',
+      },
+    ]
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'bob/reference/query') return pending as never
+      throw new Error(`unexpected API path: ${path}`)
+    })
+
+    vm.searchCounterparty('员工')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+    expect(vm.counterpartyLoading.value).toBe(true)
+
+    wrapper.unmount()
+    resolve({
+      data: [
+        {
+          objectId: '01J00000000000000000000032',
+          approvalEntryId: '01J00000000000000000000033',
+          code: 'EMP-0002',
+          name: '晚到员工',
+        },
+      ],
+    })
+    await flushPromises()
+
+    expect(vm.counterpartyOptions.value).toEqual([
+      {
+        objectId: '01J00000000000000000000030',
+        approvalEntryId: '01J00000000000000000000031',
+        entity: 'supplier',
+        code: 'SUP-0001',
+        name: '已有供应商',
+      },
+    ])
+    expect(vm.counterpartyLoading.value).toBe(true)
     vi.useRealTimers()
   })
 })

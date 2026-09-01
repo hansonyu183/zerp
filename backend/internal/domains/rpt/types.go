@@ -21,17 +21,17 @@ const (
 	ReferenceTypeAccountingBook         ReferenceType = "ACCOUNTING_BOOK"
 	ReferenceTypeAccountSubject         ReferenceType = "ACCOUNT_SUBJECT"
 	ReferenceTypeCustomerAccount        ReferenceType = "CUSTOMER_ACCOUNT"
-	ReferenceTypeSupplierRelationship   ReferenceType = "SUPPLIER_RELATIONSHIP"
-	ReferenceTypeServiceRelationship    ReferenceType = "SERVICE_RELATIONSHIP"
-	ReferenceTypeEmploymentRelationship ReferenceType = "EMPLOYMENT_RELATIONSHIP"
-	ReferenceTypeSalesRelationship      ReferenceType = "SALES_RELATIONSHIP"
+	ReferenceTypeSupplierRelationship   ReferenceType = "SUPPLIER"
+	ReferenceTypeServiceRelationship    ReferenceType = "OTHER_UNIT"
+	ReferenceTypeEmploymentRelationship ReferenceType = "EMPLOYEE"
+	ReferenceTypeSalesRelationship      ReferenceType = "SALES_PARTNER"
 	ReferenceTypeDepartment             ReferenceType = "DEPARTMENT"
 	ReferenceTypeProduct                ReferenceType = "PRODUCT"
 	ReferenceTypeWarehouse              ReferenceType = "WAREHOUSE"
 	ReferenceTypeFundAccount            ReferenceType = "FUND_ACCOUNT"
 	ReferenceTypeAsset                  ReferenceType = "ASSET"
 	ReferenceTypeBill                   ReferenceType = "BILL"
-	ReferenceTypeOtherParty             ReferenceType = "OTHER_PARTY"
+	ReferenceTypeCounterparty           ReferenceType = "COUNTERPARTY"
 )
 
 type ResultType string
@@ -122,4 +122,20 @@ type ReferenceItem struct {
 	ID   string `json:"id"`
 	Code string `json:"code"`
 	Name string `json:"name"`
+}
+
+type CustomerAccountReference struct {
+	ID           string `json:"id"`
+	Code         string `json:"code"`
+	Name         string `json:"name"`
+	CustomerCode string `json:"customerCode"`
+	CustomerName string `json:"customerName"`
+}
+
+type CounterpartyReference struct {
+	Entity          string `json:"entity"`
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }

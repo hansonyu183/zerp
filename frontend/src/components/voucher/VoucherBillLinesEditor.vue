@@ -143,9 +143,9 @@ function billTypeLabel(value: BillLineDraft['billType']): string {
   return formatBillType(value)
 }
 
-function originatingPartyLabel(line: BillLineDraft): string {
-  const party = line.originatingParty
-  return party ? `${party.code} · ${party.name}` : '—'
+function originatingCounterpartyLabel(line: BillLineDraft): string {
+  const counterparty = line.originatingCounterparty
+  return counterparty ? `${counterparty.code} · ${counterparty.name}` : '—'
 }
 
 const billTypes = billTypeOptions
@@ -587,7 +587,7 @@ const media = [
             <v-list-item
               v-for="line in selectableHeld"
               :key="line.billId"
-              :subtitle="`来源 ${originatingPartyLabel(line)} · 承兑 ${line.acceptor} · 到期 ${line.maturityDate}`"
+              :subtitle="`来源 ${originatingCounterpartyLabel(line)} · 承兑 ${line.acceptor} · 到期 ${line.maturityDate}`"
               :title="`${billTypeLabel(line.billType)} · ${line.billNo} · ${line.currency} ${line.faceAmount}`"
             >
               <template #prepend

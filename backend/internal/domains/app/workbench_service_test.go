@@ -45,13 +45,11 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 
 func TestWorkbenchIncludesDCLDeclarationLifecycles(t *testing.T) {
 	scope := newWorkbenchPermissionScope([]string{
-		"/dcl/party/query", "/dcl/party/submit", "/dcl/party/get", "/dcl/party/save",
 		"/dcl/employee/query", "/dcl/employee/submit",
 		"/dcl/supplier/query", "/dcl/supplier/submit",
 		"/dcl/other-unit/query", "/dcl/other-unit/submit",
 		"/dcl/sales-partner/query", "/dcl/sales-partner/submit",
 		"/dcl/customer/query", "/dcl/customer/submit",
-		"/dcl/customer-account/query", "/dcl/customer-account/submit",
 		"/dcl/acc-mapping/query", "/dcl/acc-mapping/submit",
 		"/dcl/rpt-definition/query", "/dcl/rpt-definition/submit",
 		"/dcl/wfl-process-definition/query", "/dcl/wfl-process-definition/submit",
@@ -59,14 +57,8 @@ func TestWorkbenchIncludesDCLDeclarationLifecycles(t *testing.T) {
 	entities := appendDCLWorkbenchEntities(scope, nil, func(domain, entity string) bool {
 		return scope.can(domain, entity, "submit")
 	})
-	if !reflect.DeepEqual(entities, []string{"party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account", "acc-mapping", "rpt-definition", "wfl-process-definition"}) {
+	if !reflect.DeepEqual(entities, []string{"employee", "supplier", "other-unit", "sales-partner", "customer", "acc-mapping", "rpt-definition", "wfl-process-definition"}) {
 		t.Fatalf("DCL submit entities = %v", entities)
-	}
-	legacyScope := newWorkbenchPermissionScope([]string{"/bob/party/query", "/bob/party/submit"})
-	if legacy := appendDCLWorkbenchEntities(legacyScope, nil, func(domain, entity string) bool {
-		return legacyScope.can(domain, entity, "submit")
-	}); len(legacy) != 0 {
-		t.Fatalf("legacy BOB lifecycle permissions leaked into workbench: %v", legacy)
 	}
 }
 
@@ -132,9 +124,9 @@ func TestFormatWorkbenchMoney(t *testing.T) {
 
 func TestWorkbenchDocumentItemSerializesEmptyRequiredStrings(t *testing.T) {
 	item := WorkbenchItem{
-		Category:  WorkbenchCategoryVou,
-		PartyName: requiredWorkbenchString(""),
-		Currency:  requiredWorkbenchString(""),
+		Category:         WorkbenchCategoryVou,
+		CounterpartyName: requiredWorkbenchString(""),
+		Currency:         requiredWorkbenchString(""),
 	}
 	payload, err := json.Marshal(item)
 	if err != nil {
@@ -144,7 +136,7 @@ func TestWorkbenchDocumentItemSerializesEmptyRequiredStrings(t *testing.T) {
 	if err := json.Unmarshal(payload, &fields); err != nil {
 		t.Fatal(err)
 	}
-	for _, field := range []string{"partyName", "currency"} {
+	for _, field := range []string{"counterpartyName", "currency"} {
 		value, exists := fields[field]
 		if !exists || value != "" {
 			t.Fatalf("%s = %#v, exists = %t", field, value, exists)
@@ -159,7 +151,7 @@ func TestWorkbenchDocumentItemSerializesEmptyRequiredStrings(t *testing.T) {
 	if err := json.Unmarshal(objectPayload, &fields); err != nil {
 		t.Fatal(err)
 	}
-	for _, field := range []string{"partyName", "currency"} {
+	for _, field := range []string{"counterpartyName", "currency"} {
 		if _, exists := fields[field]; exists {
 			t.Fatalf("BOB item unexpectedly contains %s", field)
 		}

@@ -3,19 +3,14 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
+import type { DclBusinessArchiveSnapshot } from './DclBusinessArchiveSnapshot';
 import type { DclEmployeeVersionView } from './DclEmployeeVersionView';
-import type { PartyKind } from './PartyKind';
 export type DclEmployeeListItem = {
   objectId: string;
   entity: 'employee';
   code: string;
-  partyId: string;
-  partyKind: PartyKind;
-  partyDisplayName: string;
-  operatingEntityId: string;
-  operatingEntityCode: string;
-  operatingEntityName: string;
-  enabled: boolean;
+  displayName: string;
+  currentOperatingEntity: DclBusinessArchiveSnapshot;
   availableApprovalActions: Array<ApprovalLifecycleAction>;
   latestApproved: DclEmployeeVersionView | null;
   openVersion: DclEmployeeVersionView | null;

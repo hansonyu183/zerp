@@ -43,7 +43,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     status: [],
     dateFrom: '',
     dateTo: '',
-    partyObjectId: '',
+    counterpartyObjectId: '',
   })
   const sort = ref<VoucherSort>({ field: 'documentNo', order: 'desc' })
   const selectedParty = ref<VoucherReference | null>(null)
@@ -206,7 +206,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
             ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
             ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
             ...(selectedParty.value
-              ? { partyObjectId: selectedParty.value.objectId }
+              ? { counterpartyObjectId: selectedParty.value.objectId }
               : {}),
           },
           sort: [{ ...sort.value }],
@@ -246,7 +246,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       status: [],
       dateFrom: '',
       dateTo: '',
-      partyObjectId: '',
+      counterpartyObjectId: '',
     })
     selectedParty.value = null
     sort.value = { field: 'documentNo', order: 'desc' }

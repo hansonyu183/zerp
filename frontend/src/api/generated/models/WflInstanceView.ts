@@ -3,6 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { WflAvailableChildTarget } from './WflAvailableChildTarget';
+import type { WflCounterpartyReference } from './WflCounterpartyReference';
 import type { WflNodeInstance } from './WflNodeInstance';
 export type WflInstanceView = {
   processId: string;
@@ -13,8 +14,7 @@ export type WflInstanceView = {
   rootDocumentId: string;
   rootDocumentNo: string;
   rootEntity: string;
-  partyCode: string;
-  partyName: string;
+  counterparty?: WflCounterpartyReference;
   updatedAt: string;
   approvalEntryId: string;
   nodes: Array<WflNodeInstance>;

@@ -20,7 +20,7 @@ interface ReferenceState {
   sequence: number
 }
 
-type ReferenceEntity = components['schemas']['BobEntity']
+type ReferenceEntity = components['schemas']['BobEntity'] | 'customer'
 type BobReadableEntity = components['schemas']['BobReadableEntity']
 
 function isBobReadableEntity(
@@ -61,7 +61,9 @@ export function useVoucherReferences(
     key: 'settlementMethod',
   ): readonly VoucherAuxiliaryReference[]
   function referenceOptions(key: string): readonly VoucherReference[]
-  function referenceOptions(key: string): readonly VoucherSelectableReference[] {
+  function referenceOptions(
+    key: string,
+  ): readonly VoucherSelectableReference[] {
     return referenceState(key).options
   }
 
@@ -77,7 +79,15 @@ export function useVoucherReferences(
     entities: ReferenceEntity[]
     filters?: Record<string, unknown>
   } {
-    if (key === 'customer') return { entities: ['customer-account'] }
+    if (key === 'customer') {
+      return {
+        entities: [
+          config.entity === 'sales-receipt' ? 'customer' : 'customer-account',
+        ],
+      }
+    }
+    if (key === 'operatingEntity') return { entities: ['operating-entity'] }
+    if (key === 'accountAllocation') return { entities: ['customer-account'] }
     if (key === 'supplier') {
       return { entities: ['supplier'] }
     }
@@ -209,7 +219,12 @@ export function useVoucherReferences(
     const state = referenceState(key)
     if (definition.entities.length === 0) return
     const missingPermission = definition.entities.find(
-      (entity) => !session.can(`/bob/${entity}/query`),
+      (entity) =>
+        !session.can(
+          entity === 'customer-account'
+            ? '/bob/reference/query'
+            : `/bob/${entity}/query`,
+        ),
     )
     if (missingPermission) {
       state.errorMessage = `缺少 ${missingPermission} 查询权限。`
@@ -225,6 +240,25 @@ export function useVoucherReferences(
     try {
       const pages = await Promise.all(
         definition.entities.map(async (entity) => {
+          if (entity === 'customer') {
+            const { data } = await apiClient.postContract(
+              'bob/customer/query',
+              {
+                page: 1,
+                pageSize: 20,
+                filters: keyword.trim() ? { keyword: keyword.trim() } : {},
+                sort: [{ field: 'code', order: 'asc' }],
+              },
+              { signal: controller.signal },
+            )
+            return (data.items ?? []).map((item): VoucherReference => ({
+              objectId: item.objectId,
+              approvalEntryId: item.sourceApprovalEntryId,
+              entity,
+              code: item.code,
+              name: item.displayName,
+            }))
+          }
           if (
             entity === 'customer-account' ||
             entity === 'employee' ||
@@ -237,11 +271,17 @@ export function useVoucherReferences(
               {
                 entity,
                 ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+                ...(['supplier', 'other-unit', 'sales-partner'].includes(
+                  entity,
+                ) && form.value.operatingEntity
+                  ? { operatingEntityId: form.value.operatingEntity.objectId }
+                  : {}),
               },
               { signal: controller.signal },
             )
             return data.map((item): VoucherReference => ({
               objectId: item.objectId,
+              ...(item.customerId ? { customerId: item.customerId } : {}),
               approvalEntryId: item.approvalEntryId,
               entity,
               code: item.code,
@@ -322,17 +362,19 @@ export function useVoucherReferences(
         }),
       )
       if (sequence !== state.sequence) return
-      const serviceRelationshipObjectId =
+      const otherUnitObjectId =
         key === 'carrier' &&
         form.value.vehicle?.carrierAffiliation?.type === 'EXTERNAL'
-          ? form.value.vehicle.carrierAffiliation.serviceRelationshipObjectId
+          ? form.value.vehicle.carrierAffiliation.otherUnitObjectId
           : undefined
+      const allocationCustomerID =
+        key === 'accountAllocation' ? form.value.customer?.objectId : undefined
       state.options = [...selectedReferences(), ...pages.flat()]
         .filter(
           (item) =>
             definition.entities.includes(item.entity as ReferenceEntity) &&
-            (!serviceRelationshipObjectId ||
-              item.objectId === serviceRelationshipObjectId),
+            (!otherUnitObjectId || item.objectId === otherUnitObjectId) &&
+            (!allocationCustomerID || item.customerId === allocationCustomerID),
         )
         .filter(
           (item, index, all) =>

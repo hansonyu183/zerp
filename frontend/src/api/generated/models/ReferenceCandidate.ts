@@ -5,6 +5,7 @@
 import type { BobProductUnitConversion } from './BobProductUnitConversion';
 export type ReferenceCandidate = {
   objectId: string;
+  customerId?: string;
   approvalEntryId: string;
   code: string;
   name: string;

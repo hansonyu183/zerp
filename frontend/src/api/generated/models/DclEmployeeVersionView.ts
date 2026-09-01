@@ -7,5 +7,4 @@ import type { DclEmployeeData } from './DclEmployeeData';
 export type DclEmployeeVersionView = {
   approval: ApprovalVersionMeta;
   data: DclEmployeeData;
-  enabled: boolean;
 };

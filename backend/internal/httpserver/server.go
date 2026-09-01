@@ -23,6 +23,7 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
 	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -46,19 +47,16 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	eventBus := txevent.NewBus()
 	auxService := auxdomain.NewService(db)
 	auxiliaryResolver := auxiliaryrefs.New(auxService)
-	partyCurrentReader := bobdomain.NewPartyCurrentReader(db)
-	dclPartyService := dcldomain.NewPartyService(db, partyCurrentReader, authorizer, eventBus)
 	bobService := bobdomain.NewService(db, auxiliaryResolver)
 	dclOperatingEntityService := dcldomain.NewOperatingEntityService(db, bobService, authorizer, eventBus)
 	dclWarehouseService := dcldomain.NewWarehouseService(db, bobService, authorizer, eventBus)
 	dclVehicleService := dcldomain.NewVehicleService(db, bobService, authorizer, eventBus)
 	dclFundAccountService := dcldomain.NewFundAccountService(db, bobService, authorizer, eventBus)
 	dclProductService := dcldomain.NewProductService(db, bobService, authorizer, eventBus)
-	dclEmployeeService := dcldomain.NewEmployeeService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
-	dclSupplierService := dcldomain.NewSupplierService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
-	dclCustomerAccountService := dcldomain.NewCustomerAccountService(db, bobService, authorizer, eventBus)
-	dclCustomerService := dcldomain.NewCustomerService(db, bobService, dclPartyService, partyCurrentReader, dclCustomerAccountService, authorizer, eventBus)
-	dclRelationshipService := dcldomain.NewRelationshipService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
+	dclEmployeeService := dcldomain.NewEmployeeService(db, bobService, authorizer, eventBus)
+	dclSupplierService := dcldomain.NewSupplierService(db, bobService, authorizer, eventBus)
+	dclCustomerService := dcldomain.NewCustomerService(db, bobService, authorizer, eventBus)
+	dclTypedArchiveService := dcldomain.NewTypedArchiveService(db, typedarchiverules.New(bobService), authorizer, eventBus)
 	dclCustomerAttachmentService, err := dcldomain.NewCustomerAttachmentService(db, dcldomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, authorizer, eventBus)
@@ -95,12 +93,10 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		dcldomain.NewVehicleHandler(dclVehicleService, authorizer, logger).Register(router)
 		dcldomain.NewFundAccountHandler(dclFundAccountService, authorizer, logger).Register(router)
 		dcldomain.NewProductHandler(dclProductService, authorizer, logger).Register(router)
-		dcldomain.NewPartyHandler(dclPartyService, authorizer, logger).Register(router)
 		dcldomain.NewEmployeeHandler(dclEmployeeService, authorizer, logger).Register(router)
 		dcldomain.NewSupplierHandler(dclSupplierService, authorizer, logger).Register(router)
 		dcldomain.NewCustomerHandler(dclCustomerService, dclCustomerAttachmentService, authorizer, logger).Register(router)
-		dcldomain.NewCustomerAccountHandler(dclCustomerAccountService, authorizer, logger).Register(router)
-		dcldomain.NewRelationshipHandler(dclRelationshipService, authorizer, logger).Register(router)
+		dcldomain.NewTypedArchiveHandler(dclTypedArchiveService, authorizer, logger).Register(router)
 		dcldomain.NewAccMappingHandler(dclAccMappingService, authorizer, logger).Register(router)
 		dcldomain.NewRptDefinitionHandler(dclRptDefinitionService, authorizer, logger).Register(router)
 		dcldomain.NewWflProcessDefinitionHandler(dclWflProcessDefinitionService, authorizer, logger).Register(router)

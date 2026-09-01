@@ -460,9 +460,9 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 			}
 		}
 	case EntityAssetSale:
-		params := dbsqlc.InsertVouAssetSaleDetailParams{DocumentID: documentID, CounterpartyEntity: draft.counterpartyType, CounterpartyObjectID: draft.counterparty.ObjectID, CounterpartyApprovalEntryID: draft.counterparty.ApprovalEntryID, CounterpartyCode: draft.counterparty.Code, CounterpartyName: draft.counterparty.Data.Name}
+		params := dbsqlc.InsertVouAssetSaleDetailParams{DocumentID: documentID, CounterpartyEntity: draft.counterpartyType, CounterpartyObjectID: draft.counterparty.ObjectID, CounterpartyCustomerID: optionalText(draft.counterparty.CustomerID), CounterpartyApprovalEntryID: draft.counterparty.ApprovalEntryID, CounterpartyCode: draft.counterparty.Code, CounterpartyName: draft.counterparty.Data.Name}
 		if update {
-			if err := oneRow(q.UpdateVouAssetSaleDetail(ctx, dbsqlc.UpdateVouAssetSaleDetailParams{CounterpartyEntity: params.CounterpartyEntity, CounterpartyObjectID: params.CounterpartyObjectID, CounterpartyApprovalEntryID: params.CounterpartyApprovalEntryID, CounterpartyCode: params.CounterpartyCode, CounterpartyName: params.CounterpartyName, DocumentID: documentID})); err != nil {
+			if err := oneRow(q.UpdateVouAssetSaleDetail(ctx, dbsqlc.UpdateVouAssetSaleDetailParams{CounterpartyEntity: params.CounterpartyEntity, CounterpartyObjectID: params.CounterpartyObjectID, CounterpartyCustomerID: params.CounterpartyCustomerID, CounterpartyApprovalEntryID: params.CounterpartyApprovalEntryID, CounterpartyCode: params.CounterpartyCode, CounterpartyName: params.CounterpartyName, DocumentID: documentID})); err != nil {
 				return err
 			}
 		} else if err := q.InsertVouAssetSaleDetail(ctx, params); err != nil {
@@ -520,6 +520,7 @@ func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document
 			return data, err
 		}
 		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity, detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
+		data.Counterparty.CustomerID = deref(detail.CounterpartyCustomerID)
 		rows, err := q.ListVouAssetSaleLines(ctx, document.ID)
 		if err != nil {
 			return data, err

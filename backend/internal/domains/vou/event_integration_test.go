@@ -12,7 +12,6 @@ import (
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
-	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -69,11 +68,7 @@ func createApprovedReceipt(t *testing.T, service *Service, refs integrationRefer
 
 func createSubmittedReceipt(t *testing.T, service *Service, refs integrationReferences) (MutationResult, MutationResult) {
 	t.Helper()
-	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY",
-		CounterpartyType: bobdomain.EntityCustomerAccount, Counterparty: &refs.customer,
-		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "100.00",
-	}}, integrationApprovalActor(t, integrationActorOne, "event-receipt-create"))
+	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: salesReceiptDraft(refs, "100.00")}, integrationApprovalActor(t, integrationActorOne, "event-receipt-create"))
 	if err != nil {
 		t.Fatalf("create receipt: %v", err)
 	}
@@ -149,7 +144,10 @@ func TestVOUApprovalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 			if event.Action != approval.ActionApproved || event.ToStatus == nil || *event.ToStatus != approval.StatusApproved ||
 				event.ToRevision == nil || event.Payload.DocumentID != event.Entry.SubjectID ||
 				event.Payload.Data.BusinessDate != "2026-07-24" || event.Payload.Data.FundAccount == nil ||
-				event.Payload.Data.Counterparty == nil || event.Payload.Amount != "100.00" {
+				event.Payload.Data.Customer == nil || event.Payload.Data.OperatingEntity == nil ||
+				len(event.Payload.Data.AccountAllocations) != 1 ||
+				event.Payload.Data.AccountAllocations[0].Account.CustomerID != refs.salesReceiptCustomer.ObjectID ||
+				event.Payload.Amount != "100.00" {
 				return errors.New("approved event does not carry the complete typed document snapshot")
 			}
 			var status string

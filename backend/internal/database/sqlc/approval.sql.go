@@ -262,6 +262,54 @@ func (q *Queries) GetLatestApprovedVersion(ctx context.Context, arg GetLatestApp
 	return i, err
 }
 
+const getLatestApprovedVersionExcluding = `-- name: GetLatestApprovedVersionExcluding :one
+SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
+FROM approval_entries
+WHERE domain = $1
+  AND entity = $2
+  AND subject_id = $3
+  AND id <> $4
+  AND version_no IS NOT NULL
+  AND status = 'APPROVED'
+ORDER BY version_no DESC
+LIMIT 1
+`
+
+type GetLatestApprovedVersionExcludingParams struct {
+	Domain                  string `db:"domain" json:"domain"`
+	Entity                  string `db:"entity" json:"entity"`
+	SubjectID               string `db:"subject_id" json:"subject_id"`
+	ExcludedApprovalEntryID string `db:"excluded_approval_entry_id" json:"excluded_approval_entry_id"`
+}
+
+func (q *Queries) GetLatestApprovedVersionExcluding(ctx context.Context, arg GetLatestApprovedVersionExcludingParams) (ApprovalEntry, error) {
+	row := q.db.QueryRow(ctx, getLatestApprovedVersionExcluding,
+		arg.Domain,
+		arg.Entity,
+		arg.SubjectID,
+		arg.ExcludedApprovalEntryID,
+	)
+	var i ApprovalEntry
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.Entity,
+		&i.SubjectID,
+		&i.VersionNo,
+		&i.Status,
+		&i.Revision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
 const getOpenApprovalVersion = `-- name: GetOpenApprovalVersion :one
 SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
 FROM approval_entries

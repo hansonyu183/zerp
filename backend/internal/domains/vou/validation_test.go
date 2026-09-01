@@ -49,10 +49,10 @@ func TestValidateDraftByEntity(t *testing.T) {
 	}
 }
 
-func TestCashEntitiesFixOrAcceptCounterpartyType(t *testing.T) {
+func TestCashEntitiesExceptSalesReceiptFixOrAcceptCounterpartyType(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct{ entity, want string }{
-		{EntitySalesReceipt, "customer-account"}, {EntityPurchaseRefund, "supplier"},
+		{EntityPurchaseRefund, "supplier"},
 		{EntitySalesRefund, "customer-account"}, {EntityPurchasePayment, "supplier"},
 		{EntityEmployeeLoan, "employee"}, {EntityEmployeeRepayment, "employee"},
 	} {
@@ -63,12 +63,6 @@ func TestCashEntitiesFixOrAcceptCounterpartyType(t *testing.T) {
 		if err != nil || draft.CounterpartyType != test.want {
 			t.Fatalf("%s type=%q err=%v", test.entity, draft.CounterpartyType, err)
 		}
-	}
-	if _, err := validateDraft(EntitySalesReceipt, DraftInput{
-		BusinessDate: "2026-08-03", Currency: "CNY", CounterpartyType: "supplier",
-		Counterparty: refInput(), FundAccount: refInput(), Handler: refInput(), Amount: "10.00",
-	}); err == nil {
-		t.Fatal("customer receipt accepted supplier counterparty type")
 	}
 	for _, entity := range []string{EntityOtherReceipt, EntityOtherPayment} {
 		for _, counterpartyType := range []string{"customer-account", "supplier", "other-unit", "employee", "sales-partner"} {
@@ -81,12 +75,6 @@ func TestCashEntitiesFixOrAcceptCounterpartyType(t *testing.T) {
 				t.Fatalf("%s type=%q category=%q err=%v", entity, draft.CounterpartyType, draft.OtherCategory, err)
 			}
 		}
-	}
-	if _, err := validateDraft(EntitySalesReceipt, DraftInput{
-		BusinessDate: "2026-08-03", Currency: "CNY", Counterparty: refInput(),
-		FundAccount: refInput(), Handler: refInput(), Amount: "10.00", OtherCategory: "UNSUPPORTED",
-	}); err == nil {
-		t.Fatal("trade receipt accepted an other transaction category")
 	}
 	if _, err := validateDraft(EntitySaleOrder, DraftInput{
 		BusinessDate: "2026-08-03", Currency: "CNY", OtherCategory: "UNSUPPORTED",

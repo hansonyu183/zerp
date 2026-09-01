@@ -14,9 +14,9 @@ import { useProcessInstanceViewModel, type InstanceListItem } from './vm'
 
 const vm = useProcessInstanceViewModel()
 
-function partyText(item: InstanceListItem): string {
-  if (!item.partyCode && !item.partyName) return '—'
-  return [item.partyCode, item.partyName].filter(Boolean).join(' · ')
+function counterpartyText(item: InstanceListItem): string {
+  if (!item.counterparty) return '—'
+  return [item.counterparty.code, item.counterparty.name].join(' · ')
 }
 </script>
 
@@ -34,13 +34,13 @@ function partyText(item: InstanceListItem): string {
     >
       <template #filters>
         <VoucherReferenceAutocomplete
-          :error-message="vm.partyError.value"
+          :error-message="vm.counterpartyError.value"
           label="往来单位"
-          :loading="vm.partyLoading.value"
-          :model-value="vm.selectedParty.value"
-          :options="vm.partyOptions.value"
-          @search="vm.searchParty"
-          @update:model-value="vm.selectedParty.value = $event"
+          :loading="vm.counterpartyLoading.value"
+          :model-value="vm.selectedCounterparty.value"
+          :options="vm.counterpartyOptions.value"
+          @search="vm.searchCounterparty"
+          @update:model-value="vm.selectedCounterparty.value = $event"
         />
       </template>
     </EntityListControls>
@@ -66,7 +66,7 @@ function partyText(item: InstanceListItem): string {
               ><small>{{ item.definitionCode }}</small>
             </td>
             <td>{{ item.rootDocumentNo }}</td>
-            <td>{{ partyText(item) }}</td>
+            <td>{{ counterpartyText(item) }}</td>
             <td>
               <ListRowActions
                 :actions="[
@@ -102,7 +102,7 @@ function partyText(item: InstanceListItem): string {
         >
           <span class="instance-card__title">{{ item.definitionName }}</span>
           <strong>{{ item.rootDocumentNo }}</strong>
-          <span>往来单位：{{ partyText(item) }}</span>
+          <span>往来单位：{{ counterpartyText(item) }}</span>
           <ListRowActions
             class="instance-card__actions"
             :actions="[

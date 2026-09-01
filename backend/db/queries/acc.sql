@@ -210,8 +210,8 @@ SELECT entry.id,entry.voucher_id,entry.subject_id,entry.product_id,entry.warehou
        entry.quantity_delta_micros,voucher.business_date,line.currency,
        (line.debit_minor-line.credit_minor)::bigint AS direct_value,
        COALESCE(voucher.source_entity,'') AS source_entity,voucher.source_id,
-       entry.source_line_id,line.dimensions,entry.cost_counterpart_subject_id,
-       entry.cost_counterpart_dimensions,entry.origin_source_document_id,
+       entry.source_line_id,line.dimensions,line.dimension_references,entry.cost_counterpart_subject_id,
+       entry.cost_counterpart_dimensions,entry.cost_counterpart_dimension_references,entry.origin_source_document_id,
        entry.origin_source_line_id
 FROM acc_inventory_entries entry
 JOIN acc_vouchers voucher ON voucher.book_id=entry.book_id AND voucher.id=entry.voucher_id
@@ -268,13 +268,14 @@ ORDER BY asset_no;
 -- name: CreateAccountingAssetBookValue :exec
 INSERT INTO acc_asset_book_values (
   book_id,asset_id,currency,original_minor,accumulated_depreciation_minor,
-  asset_subject_id,asset_dimensions,accumulated_subject_id,accumulated_dimensions,
-  expense_subject_id,expense_dimensions
+  asset_subject_id,asset_dimensions,asset_dimension_references,
+  accumulated_subject_id,accumulated_dimensions,accumulated_dimension_references,
+  expense_subject_id,expense_dimensions,expense_dimension_references
 ) VALUES (
   sqlc.arg(book_id),sqlc.arg(asset_id),sqlc.arg(currency),sqlc.arg(original_minor),
-  sqlc.arg(accumulated_minor),sqlc.arg(asset_subject_id),sqlc.arg(asset_dimensions),
-  sqlc.arg(accumulated_subject_id),sqlc.arg(accumulated_dimensions),
-  sqlc.arg(expense_subject_id),sqlc.arg(expense_dimensions)
+  sqlc.arg(accumulated_minor),sqlc.arg(asset_subject_id),sqlc.arg(asset_dimensions),sqlc.arg(asset_dimension_references),
+  sqlc.arg(accumulated_subject_id),sqlc.arg(accumulated_dimensions),sqlc.arg(accumulated_dimension_references),
+  sqlc.arg(expense_subject_id),sqlc.arg(expense_dimensions),sqlc.arg(expense_dimension_references)
 );
 
 -- name: DisposeAccountingAsset :execrows
@@ -286,17 +287,17 @@ WHERE id=sqlc.arg(asset_id) AND state='ACTIVE';
 INSERT INTO acc_bills (
   id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,
   issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,
-  interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,
+  interest_amount_minor,customer_cost_amount_minor,origin_counterparty_entity,
+  origin_counterparty_object_id,origin_counterparty_customer_id,origin_counterparty_approval_entry_id,origin_counterparty_code,origin_counterparty_name,
   state,source_document_id,source_line_id
 ) VALUES (
   sqlc.arg(id),sqlc.arg(bill_no),sqlc.arg(bill_type),sqlc.arg(position_type),
   sqlc.arg(currency),sqlc.arg(medium),sqlc.arg(face_amount_minor),sqlc.arg(issue_date),
   sqlc.arg(maturity_date),sqlc.arg(drawer),sqlc.arg(acceptor),sqlc.arg(payee),
   sqlc.arg(annual_rate_bps),sqlc.arg(interest_days),sqlc.arg(interest_amount_minor),
-  sqlc.arg(customer_cost_amount_minor),sqlc.narg(origin_party_entity),
-  sqlc.narg(origin_party_object_id),sqlc.narg(origin_party_approval_entry_id),
-  sqlc.narg(origin_party_code),sqlc.narg(origin_party_name),'AVAILABLE',
+  sqlc.arg(customer_cost_amount_minor),sqlc.narg(origin_counterparty_entity),
+  sqlc.narg(origin_counterparty_object_id),sqlc.narg(origin_counterparty_customer_id),sqlc.narg(origin_counterparty_approval_entry_id),
+  sqlc.narg(origin_counterparty_code),sqlc.narg(origin_counterparty_name),'AVAILABLE',
   sqlc.arg(source_document_id),sqlc.arg(source_line_id)
 );
 
@@ -371,16 +372,16 @@ INSERT INTO acc_opening_assets(
 INSERT INTO acc_opening_bills(
   book_id,line_order,bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
   face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
-  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,value_minor
+  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_counterparty_entity,
+  origin_counterparty_object_id,origin_counterparty_customer_id,origin_counterparty_approval_entry_id,origin_counterparty_code,origin_counterparty_name,value_minor
 ) VALUES (
   sqlc.arg(book_id),sqlc.arg(line_order),sqlc.arg(bill_id),sqlc.arg(create_object),
   sqlc.narg(bill_no),sqlc.narg(bill_type),sqlc.narg(position_type),sqlc.narg(medium),
   sqlc.arg(currency),sqlc.narg(face_amount_minor),sqlc.narg(issue_date),sqlc.narg(maturity_date),
   sqlc.narg(drawer),sqlc.narg(acceptor),sqlc.narg(payee),sqlc.narg(annual_rate_bps),
   sqlc.narg(interest_days),sqlc.narg(interest_amount_minor),sqlc.narg(customer_cost_amount_minor),
-  sqlc.narg(origin_party_entity),sqlc.narg(origin_party_object_id),sqlc.narg(origin_party_approval_entry_id),
-  sqlc.narg(origin_party_code),sqlc.narg(origin_party_name),sqlc.arg(value_minor)
+  sqlc.narg(origin_counterparty_entity),sqlc.narg(origin_counterparty_object_id),sqlc.narg(origin_counterparty_customer_id),sqlc.narg(origin_counterparty_approval_entry_id),
+  sqlc.narg(origin_counterparty_code),sqlc.narg(origin_counterparty_name),sqlc.arg(value_minor)
 );
 
 -- name: InsertAccountingOpeningContainer :exec
@@ -404,10 +405,11 @@ SELECT bill_id,create_object,COALESCE(bill_no,'') AS bill_no,COALESCE(bill_type,
   COALESCE(interest_days,0)::integer AS interest_days,
   COALESCE(interest_amount_minor,0)::bigint AS interest_amount_minor,
   COALESCE(customer_cost_amount_minor,0)::bigint AS customer_cost_amount_minor,
-  COALESCE(origin_party_entity,'') AS origin_party_entity,
-  COALESCE(origin_party_object_id,'') AS origin_party_object_id,
-  COALESCE(origin_party_approval_entry_id,'') AS origin_party_approval_entry_id,
-  COALESCE(origin_party_code,'') AS origin_party_code,COALESCE(origin_party_name,'') AS origin_party_name,
+  COALESCE(origin_counterparty_entity,'') AS origin_counterparty_entity,
+  COALESCE(origin_counterparty_object_id,'') AS origin_counterparty_object_id,
+  COALESCE(origin_counterparty_customer_id,'') AS origin_counterparty_customer_id,
+  COALESCE(origin_counterparty_approval_entry_id,'') AS origin_counterparty_approval_entry_id,
+  COALESCE(origin_counterparty_code,'') AS origin_counterparty_code,COALESCE(origin_counterparty_name,'') AS origin_counterparty_name,
   value_minor
 FROM acc_opening_bills WHERE book_id=sqlc.arg(book_id) ORDER BY line_order;
 
@@ -423,8 +425,8 @@ FROM acc_opening_assets WHERE book_id=sqlc.arg(book_id);
 -- name: ListAccountingOpeningBillsForApproval :many
 SELECT bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
   face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
-  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,value_minor
+  interest_days,interest_amount_minor,customer_cost_amount_minor,origin_counterparty_entity,
+  origin_counterparty_object_id,origin_counterparty_customer_id,origin_counterparty_approval_entry_id,origin_counterparty_code,origin_counterparty_name,value_minor
 FROM acc_opening_bills WHERE book_id=sqlc.arg(book_id);
 
 -- name: CreateAccountingOpeningContainerBalances :exec
@@ -464,8 +466,9 @@ DELETE FROM acc_bills WHERE source_document_id=sqlc.arg(book_id)
 SELECT value.asset_id,value.currency,value.original_minor,value.accumulated_depreciation_minor,
   asset.residual_rate_bps,asset.useful_life_months,asset.acquired_on,
   COALESCE(value.accumulated_subject_id,'')::text AS accumulated_subject_id,
-  value.accumulated_dimensions,COALESCE(value.expense_subject_id,'')::text AS expense_subject_id,
-  value.expense_dimensions
+  value.accumulated_dimensions,value.accumulated_dimension_references,
+  COALESCE(value.expense_subject_id,'')::text AS expense_subject_id,
+  value.expense_dimensions,value.expense_dimension_references
 FROM acc_asset_book_values value JOIN acc_assets asset ON asset.id=value.asset_id
 WHERE value.book_id=sqlc.arg(book_id) AND asset.acquired_on<sqlc.arg(period_month)
   AND (asset.disposed_on IS NULL OR asset.disposed_on>=sqlc.arg(period_month))
@@ -637,7 +640,7 @@ WHERE o.book_id = sqlc.arg(book_id);
 
 -- name: ListAccountingOpeningLines :many
 SELECT id, book_id, subject_id, currency, debit_minor, credit_minor,
-       quantity_micros, dimensions, line_order
+       quantity_micros, dimensions, dimension_references, line_order
 FROM acc_opening_lines
 WHERE book_id = sqlc.arg(book_id)
 ORDER BY line_order;
@@ -657,11 +660,11 @@ DELETE FROM acc_opening_lines WHERE book_id = sqlc.arg(book_id);
 -- name: InsertAccountingOpeningLine :exec
 INSERT INTO acc_opening_lines (
   id, book_id, subject_id, currency, debit_minor, credit_minor,
-  quantity_micros, dimensions, line_order
+  quantity_micros, dimensions, dimension_references, line_order
 ) VALUES (
   sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(subject_id), sqlc.arg(currency),
   sqlc.arg(debit_minor), sqlc.arg(credit_minor), sqlc.narg(quantity_micros),
-  sqlc.arg(dimensions), sqlc.arg(line_order)
+  sqlc.arg(dimensions), sqlc.arg(dimension_references), sqlc.arg(line_order)
 );
 
 -- name: CreateAccountingVoucher :exec
@@ -674,11 +677,11 @@ VALUES (
 -- name: InsertAccountingVoucherLine :exec
 INSERT INTO acc_voucher_lines (
   id, book_id, voucher_id, subject_id, currency, debit_minor, credit_minor,
-  quantity_micros, dimensions, source_line_id, line_order
+  quantity_micros, dimensions, dimension_references, source_line_id, line_order
 ) VALUES (
   sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(voucher_id), sqlc.arg(subject_id), sqlc.arg(currency),
   sqlc.arg(debit_minor), sqlc.arg(credit_minor), sqlc.narg(quantity_micros),
-  sqlc.arg(dimensions), sqlc.arg(source_line_id), sqlc.arg(line_order)
+  sqlc.arg(dimensions), sqlc.arg(dimension_references), sqlc.arg(source_line_id), sqlc.arg(line_order)
 );
 
 -- name: SetAccountingOpeningVoucher :exec
@@ -830,14 +833,14 @@ INSERT INTO acc_inventory_entries (
 	id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
 	product_approval_entry_id, product_code, product_name,
 	warehouse_id, business_date, quantity_delta_micros, source_line_id,
-  cost_counterpart_subject_id, cost_counterpart_dimensions,
+  cost_counterpart_subject_id, cost_counterpart_dimensions, cost_counterpart_dimension_references,
   origin_source_document_id, origin_source_line_id
 ) VALUES (
   sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(voucher_id), sqlc.arg(voucher_line_id),
 	sqlc.arg(subject_id), sqlc.arg(product_id), sqlc.arg(product_approval_entry_id),
 	sqlc.arg(product_code), sqlc.arg(product_name), sqlc.arg(warehouse_id),
   sqlc.arg(business_date), sqlc.arg(quantity_delta_micros), sqlc.arg(source_line_id),
-  sqlc.narg(cost_counterpart_subject_id), sqlc.arg(cost_counterpart_dimensions),
+  sqlc.narg(cost_counterpart_subject_id), sqlc.arg(cost_counterpart_dimensions), sqlc.arg(cost_counterpart_dimension_references),
   sqlc.narg(origin_source_document_id), sqlc.narg(origin_source_line_id)
 );
 

@@ -3,13 +3,6 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { DclEmployeeInput } from './DclEmployeeInput';
-import type { PartyIdentityData } from './PartyIdentityData';
-export type DclEmployeeCreateRequest = ({
-  partyId: string;
-  operatingEntityId: string;
+export type DclEmployeeCreateRequest = {
   data: DclEmployeeInput;
-} | {
-  newParty: PartyIdentityData;
-  operatingEntityId: string;
-  data: DclEmployeeInput;
-});
+};

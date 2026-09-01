@@ -2,4 +2,4 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WorkbenchObjectEntity = 'party' | 'operating-entity' | 'warehouse' | 'vehicle' | 'fund-account' | 'product' | 'employee' | 'customer' | 'customer-account' | 'supplier' | 'other-unit' | 'sales-partner' | 'acc-mapping' | 'rpt-definition' | 'wfl-process-definition';
+export type WorkbenchObjectEntity = 'operating-entity' | 'warehouse' | 'vehicle' | 'fund-account' | 'product' | 'employee' | 'customer' | 'supplier' | 'other-unit' | 'sales-partner' | 'acc-mapping' | 'rpt-definition' | 'wfl-process-definition';

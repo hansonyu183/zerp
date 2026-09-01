@@ -671,6 +671,59 @@ describe('RPT report center view model', () => {
     ).toEqual(resultColumns)
   })
 
+  it('uses the typed counterparty snapshot while preserving its stable object ID', () => {
+    expect(
+      parseReferenceItems({
+        items: [
+          {
+            entity: 'supplier',
+            objectId: '01JRPT00000000000000000001',
+            approvalEntryId: '01JRPT00000000000000000002',
+            code: 'SUP-0001',
+            name: '历史供应商',
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        value: '01JRPT00000000000000000001',
+        title: '供应商 · SUP-0001 · 历史供应商 · 01JRPT00000000000000000002',
+      },
+    ])
+  })
+
+  it('labels customer accounts with their Customer and account codes', () => {
+    expect(
+      parseReferenceItems({
+        items: [
+          {
+            id: '01JRPT00000000000000000001',
+            code: 'ACC-0001',
+            name: '核算账户',
+            customerCode: 'CUS-0001',
+            customerName: '客户甲',
+          },
+          {
+            id: '01JRPT00000000000000000002',
+            code: 'ACC-0001',
+            name: '核算账户',
+            customerCode: 'CUS-0002',
+            customerName: '客户乙',
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        value: '01JRPT00000000000000000001',
+        title: 'CUS-0001 · 客户甲 · ACC-0001 · 核算账户',
+      },
+      {
+        value: '01JRPT00000000000000000002',
+        title: 'CUS-0002 · 客户乙 · ACC-0001 · 核算账户',
+      },
+    ])
+  })
+
   it('rejects guessed legacy response shapes', () => {
     expect(() => parseQueryResult({ rows: [] })).toThrow('报表接口返回格式错误')
     expect(() => parseReferenceItems({ items: [{ value: 'id' }] })).toThrow(

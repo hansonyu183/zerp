@@ -92,7 +92,7 @@ func (s *Service) validateSettlementAmount(
 	dimension := "CUSTOMER_ACCOUNT"
 	prepaidPurpose, tradePurpose := "ADVANCE_RECEIPT", "RECEIVABLE"
 	if gate.CounterpartyEntity == "supplier" {
-		dimension, prepaidPurpose, tradePurpose = "SUPPLIER_RELATIONSHIP", "PREPAID", "PAYABLE"
+		dimension, prepaidPurpose, tradePurpose = "SUPPLIER", "PREPAID", "PAYABLE"
 	}
 	purpose := tradePurpose
 	if gate.TermCode == bobdomain.SettlementTermPrepaid {

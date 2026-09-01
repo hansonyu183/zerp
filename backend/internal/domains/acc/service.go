@@ -35,6 +35,7 @@ type Service struct {
 
 type historicalReferenceResolver interface {
 	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bob.EffectiveReference, error)
+	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bob.EffectiveReference, error)
 }
 
 func NewService(pool *pgxpool.Pool, references historicalReferenceResolver, authorizer authorization.Authorizer, bus *txevent.Bus) *Service {

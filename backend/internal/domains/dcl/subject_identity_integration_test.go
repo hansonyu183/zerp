@@ -26,7 +26,6 @@ func TestDclSubjectCodeInvariantsIntegration(t *testing.T) {
 		{entity: EntityProduct, validCode: "PRD-0001", invalidCode: "PRD-001"},
 		{entity: EntityEmployee, validCode: "EMP-0001", invalidCode: "CUS-0001"},
 		{entity: EntityCustomer, validCode: "CUS-0001", invalidCode: "ACC-0001"},
-		{entity: EntityCustomerAccount, validCode: "ACC-0001", invalidCode: "CUS-0001"},
 		{entity: EntitySupplier, validCode: "SUP-0001", invalidCode: "OTU-0001"},
 		{entity: EntityOtherUnit, validCode: "OTU-0001", invalidCode: "SUP-0001"},
 		{entity: EntitySalesPartner, validCode: "SLP-0001", invalidCode: "EMP-0001"},
@@ -66,7 +65,7 @@ func TestDclSubjectCodeInvariantsIntegration(t *testing.T) {
 		})
 	}
 
-	for _, entity := range []string{EntityParty, EntityAccMapping} {
+	for _, entity := range []string{EntityAccMapping} {
 		if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,$2,NULL,$3)`,
 			ulid.Make().String(), entity, "00000000000000000000000000"); err != nil {
 			t.Fatalf("uncoded entity %q rejected NULL code: %v", entity, err)
@@ -93,13 +92,13 @@ func TestWflRuntimeStateRejectsNonWorkflowSubjectIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 
-	partyID := ulid.Make().String()
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'party',NULL,$2)`,
-		partyID, "00000000000000000000000000"); err != nil {
+	nonWorkflowID := ulid.Make().String()
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'acc-mapping',NULL,$2)`,
+		nonWorkflowID, "00000000000000000000000000"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO wfl_definition_runtime_states(subject_id,updated_by) VALUES($1,$2)`,
-		partyID, "00000000000000000000000000"); err == nil {
+		nonWorkflowID, "00000000000000000000000000"); err == nil {
 		t.Fatal("WFL runtime state accepted a non-workflow DCL subject")
 	}
 }

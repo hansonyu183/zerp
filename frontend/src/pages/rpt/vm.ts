@@ -1,6 +1,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '@/api/client'
+import type {
+  RptCounterpartyReference,
+  RptCustomerAccountReference,
+} from '@/api/generated'
 import { getDiagnosticErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { downloadBlob } from '@/utils/download'
@@ -19,6 +23,15 @@ import {
 
 type ResultRow = Record<string, unknown>
 type ReferenceItem = { title: string; value: string }
+
+export const counterpartyArchiveTypeLabels = {
+  'customer-account': '客户结算账户',
+  supplier: '供应商',
+  'other-unit': '其他单位',
+  employee: '员工',
+  'sales-partner': '销售合作方',
+} as const satisfies Record<RptCounterpartyReference['entity'], string>
+
 export interface ReportDefinition {
   code: string
   name: string
@@ -90,11 +103,59 @@ export function parseReferenceItems(value: unknown): ReferenceItem[] {
   if (!Array.isArray(page.items)) throw contractError()
   return page.items.map((item) => {
     const source = object(item)
-    const id = string(source.id)
     const code = string(source.code)
     const name = string(source.name)
-    return { value: id, title: `${code} · ${name}` }
+    const counterparty = parseCounterpartyReference(source)
+    const customerAccount = parseCustomerAccountReference(source)
+    return {
+      value: counterparty?.objectId ?? string(source.id),
+      title: counterparty
+        ? `${counterpartyArchiveTypeLabels[counterparty.entity]} · ${counterparty.code} · ${counterparty.name} · ${counterparty.approvalEntryId}`
+        : customerAccount
+          ? `${customerAccount.customerCode} · ${customerAccount.customerName} · ${customerAccount.code} · ${customerAccount.name}`
+          : `${code} · ${name}`,
+    }
   })
+}
+
+function parseCustomerAccountReference(
+  value: Record<string, unknown>,
+): RptCustomerAccountReference | null {
+  if (
+    typeof value.customerCode !== 'string' ||
+    typeof value.customerName !== 'string'
+  ) {
+    return null
+  }
+  return {
+    id: string(value.id),
+    code: string(value.code),
+    name: string(value.name),
+    customerCode: value.customerCode,
+    customerName: value.customerName,
+  }
+}
+
+function parseCounterpartyReference(
+  value: Record<string, unknown>,
+): RptCounterpartyReference | null {
+  if (
+    typeof value.entity !== 'string' ||
+    typeof value.approvalEntryId !== 'string'
+  ) {
+    return null
+  }
+  const entity = value.entity
+  if (!Object.hasOwn(counterpartyArchiveTypeLabels, entity)) {
+    throw contractError()
+  }
+  return {
+    entity: entity as RptCounterpartyReference['entity'],
+    objectId: string(value.objectId),
+    approvalEntryId: string(value.approvalEntryId),
+    code: string(value.code),
+    name: string(value.name),
+  }
 }
 
 export function useReportViewModel() {

@@ -36,7 +36,7 @@ func TestServiceContractValidationAllowsRelationshipSettlementDefault(t *testing
 		ServiceContract: &ServiceContractInput{},
 	}, validatedDraft{CounterpartyType: "other-unit"})
 	if err != nil {
-		t.Fatalf("service contract with relationship settlement default rejected: %v", err)
+		t.Fatalf("service contract with typed archive settlement default rejected: %v", err)
 	}
 	if validated.ServiceContract == nil || validated.ServiceContract.Capabilities == nil || len(validated.ServiceContract.Capabilities) != 0 {
 		t.Fatalf("service contract capabilities = %#v, want persisted empty array", validated.ServiceContract)

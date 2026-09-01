@@ -50,6 +50,24 @@
     },
   'GenericObject':
     { 'type': 'object', 'additionalProperties': true, 'properties': {} },
+  'BusinessIdentityKind':
+    { 'type': 'string', 'enum': ['PERSON', 'ORGANIZATION'] },
+  'BusinessIdentifierType':
+    {
+      'type': 'string',
+      'enum': ['PERSON_ID', 'UNIFIED_SOCIAL_CREDIT_CODE', 'TAX_NUMBER'],
+    },
+  'BusinessIdentifier':
+    {
+      'type': 'object',
+      'required': ['type', 'value'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'type': { '$ref': '#/BusinessIdentifierType' },
+          'value': { 'type': 'string', 'minLength': 1, 'maxLength': 100 },
+        },
+    },
   'IdRequest':
     {
       'type': 'object',

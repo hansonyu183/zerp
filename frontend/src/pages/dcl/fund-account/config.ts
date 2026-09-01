@@ -1,6 +1,6 @@
 import type { BusinessObjectField } from '@/components/business-object'
 import type { ApprovalStatus } from '@/api/generated'
-import { maxLength, patternRule } from '@/pages/bob/shared/config-helpers'
+import { maxLength, patternRule } from '@/pages/dcl/shared/bob-config-helpers'
 import {
   approvalStatusOptions,
   approvalStatusPresentation,

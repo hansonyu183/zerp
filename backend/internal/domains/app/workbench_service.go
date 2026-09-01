@@ -140,7 +140,7 @@ func includesWorkbenchStage(selected []string, stage string) bool {
 }
 
 func appendDCLWorkbenchEntities(scope workbenchPermissionScope, entities []string, matches func(string, string) bool) []string {
-	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account", "product", "party", "employee", "supplier", "other-unit", "sales-partner", "customer", "customer-account", "acc-mapping", "rpt-definition", "wfl-process-definition"} {
+	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account", "product", "employee", "supplier", "other-unit", "sales-partner", "customer", "acc-mapping", "rpt-definition", "wfl-process-definition"} {
 		if scope.can("dcl", entity, "query") && matches("dcl", entity) {
 			entities = append(entities, entity)
 		}
@@ -287,7 +287,7 @@ func (s *Service) queryWorkbenchVou(
 			Category: WorkbenchCategoryVou, Entity: row.Entity, Status: row.Status,
 			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.UpdatedAt.Time,
 			DocumentID: row.DocumentID, Revision: row.Revision, DocumentNo: row.DocumentNo,
-			BusinessDate: row.BusinessDate, PartyName: requiredWorkbenchString(row.PartyName),
+			BusinessDate: row.BusinessDate, CounterpartyName: requiredWorkbenchString(row.CounterpartyName),
 			Currency: requiredWorkbenchString(row.Currency), Amount: formatWorkbenchMoney(row.TotalAmountCents),
 		})
 	}

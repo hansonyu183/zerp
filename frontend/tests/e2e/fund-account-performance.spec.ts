@@ -15,11 +15,11 @@ test('资金账户三次冷加载达到量化门槛', async ({
     const page = await context.newPage()
     const startedAt = performance.now()
     const query = page.waitForResponse((response) =>
-      response.url().endsWith('/bob/fund-account/query'),
+      response.url().endsWith('/dcl/fund-account/query'),
     )
-    await page.goto(`${appBaseUrl}/bob/fund-account`)
+    await page.goto(`${appBaseUrl}/dcl/fund-account`)
     expect((await query).ok()).toBe(true)
-    await expect(page.locator('.bob-entity-page')).toBeVisible()
+    await expect(page.locator('.dcl-fund-account-page')).toBeVisible()
     durations.push(Math.round(performance.now() - startedAt))
     await context.close()
   }

@@ -23,6 +23,7 @@ import {
   type VoucherLineKind,
   type VoucherListItem,
   type VoucherSelectableReference,
+  type VoucherReference,
   type VoucherSalesChainLineDraft,
 } from '@/components/voucher'
 import {
@@ -138,6 +139,27 @@ function updateReference(
 ): void {
   ;(vm.form as unknown as Record<string, unknown>)[key] = value
   vm.markReferenceChanged(key)
+}
+
+function addSalesReceiptAllocation(): void {
+  vm.form.accountAllocations.push({
+    key: crypto.randomUUID(),
+    account: null,
+    amount: '',
+  })
+}
+
+function removeSalesReceiptAllocation(index: number): void {
+  vm.form.accountAllocations.splice(index, 1)
+}
+
+function updateSalesReceiptAllocation(
+  index: number,
+  value: VoucherSelectableReference | null,
+): void {
+  const line = vm.form.accountAllocations[index]
+  if (!line) return
+  line.account = value as VoucherReference | null
 }
 
 function search(key: string, keyword: string): void {
@@ -450,8 +472,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     :items="
                       vm.config.entity === 'service-contract'
                         ? [
-                            { title: '服务关系', value: 'other-unit' },
-                            { title: '销售合作关系', value: 'sales-partner' },
+                            { title: '其他单位', value: 'other-unit' },
+                            { title: '销售合作方', value: 'sales-partner' },
                           ]
                         : vm.config.entity === 'asset-sale'
                           ? [
@@ -509,7 +531,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     "
                     :disabled="!vm.editing"
                     v-bind="referenceProps('settlementMethod')"
-                    hint="服务关系有有效默认值时可以留空自动带入"
+                    hint="其他单位有有效默认值时可以留空自动带入"
                     label="结算方式"
                     :model-value="vm.form.settlementMethod"
                     @search="search('settlementMethod', $event)"
@@ -646,6 +668,18 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     @update:model-value="updateReference('handler', $event)"
                   />
                   <VoucherReferenceAutocomplete
+                    v-if="vm.config.usesOperatingEntity"
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('operatingEntity')"
+                    label="实际经营主体"
+                    :model-value="vm.form.operatingEntity"
+                    required
+                    @search="search('operatingEntity', $event)"
+                    @update:model-value="
+                      updateReference('operatingEntity', $event)
+                    "
+                  />
+                  <VoucherReferenceAutocomplete
                     v-if="vm.config.usesFundAccount"
                     :disabled="!vm.editing"
                     v-bind="referenceProps('fundAccount')"
@@ -671,6 +705,56 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     label="金额"
                     variant="outlined"
                   />
+                  <div
+                    v-if="vm.config.usesAccountAllocations"
+                    class="voucher-form__wide"
+                  >
+                    <div class="d-flex align-center justify-space-between mb-3">
+                      <span class="text-subtitle-2">客户核算账户分摊</span>
+                      <v-btn
+                        :disabled="
+                          !vm.editing ||
+                          vm.form.accountAllocations.length >= 200
+                        "
+                        size="small"
+                        variant="tonal"
+                        @click="addSalesReceiptAllocation"
+                        >添加分摊</v-btn
+                      >
+                    </div>
+                    <div
+                      v-for="(line, index) in vm.form.accountAllocations"
+                      :key="line.key"
+                      class="d-flex ga-3 align-start mb-2"
+                    >
+                      <VoucherReferenceAutocomplete
+                        class="flex-grow-1"
+                        :disabled="!vm.editing || !vm.form.customer"
+                        v-bind="referenceProps('accountAllocation')"
+                        label="客户核算账户"
+                        :model-value="line.account"
+                        required
+                        @search="search('accountAllocation', $event)"
+                        @update:model-value="
+                          updateSalesReceiptAllocation(index, $event)
+                        "
+                      />
+                      <v-text-field
+                        v-model="line.amount"
+                        class="voucher-form__allocation-amount"
+                        :disabled="!vm.editing"
+                        inputmode="decimal"
+                        label="分摊金额"
+                        variant="outlined"
+                      />
+                      <v-btn
+                        :disabled="!vm.editing"
+                        icon="mdi-delete-outline"
+                        variant="text"
+                        @click="removeSalesReceiptAllocation(index)"
+                      />
+                    </div>
+                  </div>
                   <template v-if="vm.config.entity === 'service-contract'">
                     <v-select
                       v-if="vm.form.counterpartyType === 'sales-partner'"

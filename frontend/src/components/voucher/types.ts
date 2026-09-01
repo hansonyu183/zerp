@@ -20,13 +20,14 @@ export interface VoucherReferenceBase {
   carrierAffiliation?: {
     type: 'INTERNAL' | 'EXTERNAL'
     operatingEntityId?: string
-    serviceRelationshipObjectId?: string
+    otherUnitObjectId?: string
   }
   bulkLiquidCapable?: boolean
   behaviorProfile?: ProductBehaviorProfile
   defaultInputUnitId?: string
   pricingUnitId?: string
   unitConversions?: VoucherUnitConversion[]
+  customerId?: string
 }
 
 export interface VoucherReference
@@ -35,8 +36,7 @@ export interface VoucherReference
 export interface VoucherAuxiliaryReference extends VoucherReferenceBase {}
 
 export type VoucherSelectableReference =
-  | VoucherReference
-  | VoucherAuxiliaryReference
+  VoucherReference | VoucherAuxiliaryReference
 
 export type ProductBehaviorProfile =
   'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
@@ -173,6 +173,12 @@ export interface VoucherProductionOutputDraft {
   formulaError?: string
 }
 
+export interface VoucherSalesReceiptAccountAllocationDraft {
+  key: string
+  account: VoucherReference | null
+  amount: string
+}
+
 export interface VoucherDraftForm {
   businessDate: string
   currency: string
@@ -182,6 +188,7 @@ export interface VoucherDraftForm {
   returnReason: string
   returnKind: '' | 'REFUSAL' | 'AFTER_SALE'
   customer: VoucherReference | null
+  operatingEntity: VoucherReference | null
   supplier: VoucherReference | null
   counterpartyType:
     '' | 'customer' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner'
@@ -200,6 +207,7 @@ export interface VoucherDraftForm {
   fundAccount: VoucherReference | null
   sourceName: string
   amount: string
+  accountAllocations: VoucherSalesReceiptAccountAllocationDraft[]
   serviceContract: {
     capabilities: Array<'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'>
     applicableFrom: string
@@ -359,8 +367,6 @@ export interface VoucherDocumentData {
   intermediaryCalculation?: IntermediaryCalculationInput
   serviceContract?: {
     counterparty: VoucherReferenceView
-    partyId: string
-    partyName: string
     operatingEntity: VoucherReferenceView
     handler: VoucherReferenceView
     settlementMethod?: SettlementMethodSnapshot
@@ -591,7 +597,7 @@ export interface VoucherListRow {
   revision: number
   availableApprovalActions: components['schemas']['ApprovalLifecycleAction'][]
   businessDate: string
-  partyName?: string
+  counterpartyName?: string
   currency: string
   amount: string
   updatedAt: string
@@ -625,7 +631,7 @@ export interface VoucherQueryFilters {
   status: VoucherStatus[]
   dateFrom: string
   dateTo: string
-  partyObjectId: string
+  counterpartyObjectId: string
 }
 
 export interface VoucherSort {
@@ -662,6 +668,8 @@ export interface VoucherEntityConfig {
   usesFundAccount?: boolean
   usesHandler?: boolean
   usesEmployee?: boolean
+  usesOperatingEntity?: boolean
+  usesAccountAllocations?: boolean
   usesSourceName?: boolean
   directAmount?: boolean
   productionMode?: 'order' | 'self'

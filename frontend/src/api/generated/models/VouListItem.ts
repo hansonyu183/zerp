@@ -14,7 +14,7 @@ export type VouListItem = {
   status: ApprovalStatus;
   revision: number;
   businessDate: string;
-  partyName?: string;
+  counterpartyName?: string;
   currency: string;
   amount: string;
   updatedAt: string;

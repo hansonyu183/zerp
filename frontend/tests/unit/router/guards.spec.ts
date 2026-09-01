@@ -331,23 +331,23 @@ describe('session menu route synchronization', () => {
   it('导航隐藏授权页面时仍注册路由，并在权限撤销后移除', async () => {
     const router = createTestRouter()
     const session = createAuthenticatedSession()
-    session.permissions = ['/bob/customer/query']
+    session.permissions = ['/dcl/customer/query']
     applyNavigation(session, [])
     const stop = watchSessionMenuRoutes(router, session)
     router.beforeEach(createSessionNavigationGuard(router, session))
 
     expect(
       session.menus.some((domain) =>
-        domain.children.some((entity) => entity.routeKey === 'bob/customer'),
+        domain.children.some((entity) => entity.routeKey === 'dcl/customer'),
       ),
     ).toBe(false)
-    expect(router.hasRoute('page:bob/customer')).toBe(true)
+    expect(router.hasRoute('page:dcl/customer')).toBe(true)
 
-    await router.push('/bob/customer')
-    expect(router.currentRoute.value.name).toBe('page:bob/customer')
+    await router.push('/dcl/customer')
+    expect(router.currentRoute.value.name).toBe('page:dcl/customer')
 
     session.permissions = []
-    expect(router.hasRoute('page:bob/customer')).toBe(false)
+    expect(router.hasRoute('page:dcl/customer')).toBe(false)
 
     stop()
   })

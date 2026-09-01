@@ -144,18 +144,21 @@ describe('useSessionStore permissions', () => {
     expect(session.menus).toEqual([])
   })
 
-  it('服务端导航只控制菜单显示，授权页面路由仍由权限生成', () => {
+  it('BOB 权限只用于内部读取，不生成重复页面路由', () => {
     const session = useSessionStore()
-    session.permissions = ['/bob/customer/query']
+    session.permissions = ['/bob/customer/query', '/dcl/customer/query']
     session.applyMenuData(menuResponse().data)
 
     expect(session.menus).toEqual([])
     expect(session.routeMenus).toMatchObject([
       {
-        domain: 'bob',
+        domain: 'dcl',
         children: [{ entity: 'customer', actions: ['query'] }],
       },
     ])
+    expect(session.routeMenus.some((domain) => domain.domain === 'bob')).toBe(
+      false,
+    )
   })
 
   it('只用一次 session 返回的 API 权限生成动态流程菜单', async () => {
@@ -213,8 +216,14 @@ describe('useSessionStore permissions', () => {
       },
     ])
     expect(mockedApiClient.postContract).toHaveBeenCalledTimes(2)
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/user/session', {})
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/menu/get', {})
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'app/user/session',
+      {},
+    )
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'app/menu/get',
+      {},
+    )
   })
 
   it('支持强制恢复会话以处理 BFCache 恢复', async () => {
@@ -468,7 +477,10 @@ describe('useSessionStore account actions', () => {
       displayName: '管理员',
       avatarUrl: 'https://example.com/avatar.png',
     })
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/user/profile', {})
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'app/user/profile',
+      {},
+    )
   })
 
   it('保存名称和头像且不提交 revision', async () => {
@@ -488,10 +500,13 @@ describe('useSessionStore account actions', () => {
       avatarUrl: null,
     })
 
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/user/profile', {
-      displayName: '新名称',
-      avatarUrl: null,
-    })
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'app/user/profile',
+      {
+        displayName: '新名称',
+        avatarUrl: null,
+      },
+    )
     expect(session.user).toEqual({
       id: '1',
       username: 'admin',
@@ -555,10 +570,13 @@ describe('useSessionStore account actions', () => {
     expect(session.errorMessage).toBe(
       '输入内容不符合要求，请检查必填项、格式和取值范围。',
     )
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/user/profile', {
-      displayName: '新名称',
-      avatarUrl: 'https://example.com/avatar.png',
-    })
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'app/user/profile',
+      {
+        displayName: '新名称',
+        avatarUrl: 'https://example.com/avatar.png',
+      },
+    )
   })
 
   it('改密失败时保留当前会话并暴露错误', async () => {
@@ -603,5 +621,8 @@ it('受限会话不加载菜单并保留受限标记', async () => {
   expect(session.passwordChangeRequired).toBe(true)
   expect(session.passwordMinLength).toBe(10)
   expect(session.menus).toEqual([])
-  expect(mockedApiClient.postContract).not.toHaveBeenCalledWith('app/menu/get', {})
+  expect(mockedApiClient.postContract).not.toHaveBeenCalledWith(
+    'app/menu/get',
+    {},
+  )
 })

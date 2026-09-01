@@ -334,14 +334,14 @@ func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (
 	}
 	params := sqlc.CountDefinitionInstancesParams{
 		Keyword: strings.TrimSpace(input.Keyword), DefinitionID: input.DefinitionID,
-		PartyObjectID: strings.TrimSpace(input.PartyObjectID),
+		CounterpartyObjectID: strings.TrimSpace(input.CounterpartyObjectID),
 	}
 	total, err := s.queries.CountDefinitionInstances(ctx, params)
 	if err != nil {
 		return Page[InstanceListItem]{}, internal("count workflow instances", err)
 	}
 	rows, err := s.queries.ListDefinitionInstances(ctx, sqlc.ListDefinitionInstancesParams{
-		Keyword: params.Keyword, DefinitionID: params.DefinitionID, PartyObjectID: params.PartyObjectID,
+		Keyword: params.Keyword, DefinitionID: params.DefinitionID, CounterpartyObjectID: params.CounterpartyObjectID,
 		PageOffset: int32((input.Page - 1) * input.PageSize), PageSize: int32(input.PageSize),
 	})
 	if err != nil {
@@ -353,10 +353,19 @@ func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (
 			ProcessID: row.ProcessID, DefinitionID: row.DefinitionID, ApprovalEntryID: row.DefinitionApprovalEntryID, DefinitionCode: row.DefinitionCode,
 			DefinitionName: row.DefinitionName, Revision: row.Revision, RootDocumentID: row.RootDocumentID,
 			RootDocumentNo: row.RootDocumentNo, RootEntity: row.RootEntity,
-			PartyCode: row.PartyCode, PartyName: row.PartyName, UpdatedAt: row.UpdatedAt.Time,
+			Counterparty: counterpartyReference(row.CounterpartyEntity, row.CounterpartyObjectID, row.CounterpartyApprovalEntryID, row.CounterpartyCode, row.CounterpartyName), UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
 	return Page[InstanceListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
+}
+
+func counterpartyReference(entity, objectID, approvalEntryID, code, name *string) *CounterpartyReference {
+	if entity == nil {
+		return nil
+	}
+	return &CounterpartyReference{
+		Entity: *entity, ObjectID: *objectID, ApprovalEntryID: *approvalEntryID, Code: *code, Name: *name,
+	}
 }
 
 func (s *Service) InstanceQueryByDefinitionCode(ctx context.Context, code string, input InstanceQueryInput) (Page[InstanceListItem], error) {
@@ -382,8 +391,8 @@ func (s *Service) InstanceGet(ctx context.Context, input InstanceGetInput) (Inst
 	result := InstanceView{InstanceListItem: InstanceListItem{
 		ProcessID: row.ProcessID, DefinitionID: row.DefinitionID, ApprovalEntryID: row.DefinitionApprovalEntryID, DefinitionCode: row.DefinitionCode,
 		DefinitionName: row.DefinitionName, Revision: row.Revision, RootDocumentID: row.RootDocumentID,
-		RootDocumentNo: row.RootDocumentNo, RootEntity: row.RootEntity, PartyCode: row.PartyCode,
-		PartyName: row.PartyName, UpdatedAt: row.UpdatedAt.Time,
+		RootDocumentNo: row.RootDocumentNo, RootEntity: row.RootEntity,
+		Counterparty: counterpartyReference(row.CounterpartyEntity, row.CounterpartyObjectID, row.CounterpartyApprovalEntryID, row.CounterpartyCode, row.CounterpartyName), UpdatedAt: row.UpdatedAt.Time,
 	}, Nodes: []NodeInstanceView{}, AvailableTargets: []AvailableChildTarget{}}
 	rows, err := s.queries.ListWorkflowInstanceNodes(ctx, input.ProcessID)
 	if err != nil {

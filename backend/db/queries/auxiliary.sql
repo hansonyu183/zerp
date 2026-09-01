@@ -73,11 +73,9 @@ WITH requested AS (SELECT sqlc.arg(object_id)::text AS object_id), blockers(sour
   UNION ALL SELECT 'dcl_product_unit_conversions',count(*) FROM dcl_product_unit_conversions,requested WHERE unit_object_id=requested.object_id
   UNION ALL SELECT 'dcl_supplier_versions',count(*) FROM dcl_supplier_versions,requested WHERE settlement_method_id=requested.object_id
   UNION ALL SELECT 'dcl_other_unit_versions',count(*) FROM dcl_other_unit_versions,requested WHERE settlement_method_id=requested.object_id
-  UNION ALL SELECT 'dcl_customer_account_versions',count(*) FROM dcl_customer_account_versions,requested WHERE customer_type=requested.object_id OR settlement_method_id=requested.object_id OR payment_method_id=requested.object_id
   UNION ALL SELECT 'dcl_vehicle_versions',count(*) FROM dcl_vehicle_versions,requested WHERE vehicle_type_object_id=requested.object_id
   UNION ALL SELECT 'dcl_warehouse_versions',count(*) FROM dcl_warehouse_versions,requested WHERE category_id=requested.object_id
   UNION ALL SELECT 'dcl_customer_attachments',count(*) FROM dcl_customer_attachments,requested WHERE category_object_id=requested.object_id
-  UNION ALL SELECT 'dcl_customer_account_attachments',count(*) FROM dcl_customer_account_attachments,requested WHERE category_object_id=requested.object_id
   UNION ALL SELECT 'vou_asset_acquisition_lines',count(*) FROM vou_asset_acquisition_lines,requested WHERE category_object_id=requested.object_id OR department_object_id=requested.object_id
   UNION ALL SELECT 'vou_inventory_count_lines',count(*) FROM vou_inventory_count_lines,requested WHERE entered_unit_object_id=requested.object_id
   UNION ALL SELECT 'vou_price_lines',count(*) FROM vou_price_lines,requested WHERE product_type_object_id=requested.object_id

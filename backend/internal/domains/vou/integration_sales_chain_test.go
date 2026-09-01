@@ -137,7 +137,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 
 	deliveryOne, deliveryView := advanceWorkflowSalesDraft(t, pool, service, EntitySaleDelivery, func(tx pgx.Tx) (MutationResult, error) {
 		return service.CreateWorkflowSaleDelivery(t.Context(), tx, outboundOne.DocumentID, WorkflowSaleDeliveryInitial{
-			BusinessDate: "2026-07-26", CarrierServiceRelationshipObjectID: refs.carrier.ObjectID,
+			BusinessDate: "2026-07-26", CarrierOtherUnitObjectID: refs.carrier.ObjectID,
 			VehicleObjectID: refs.vehicle.ObjectID,
 		}, "workflow-delivery")
 	})
@@ -424,11 +424,9 @@ func TestSaleOrderRequiresConfiguredCustomerSettlementTermIntegration(t *testing
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	if _, err := pool.Exec(t.Context(), `UPDATE dcl_customer_account_versions SET
-		settlement_method_id=NULL,settlement_method_code=NULL,settlement_method_name=NULL,
-		settlement_term_code=NULL,settlement_rule_type=NULL,settlement_due_days=0,
-		settlement_month_offset=0,settlement_cutoff_day=0,settlement_sales_surcharge_cents=0
-		WHERE approval_entry_id=$1`, refs.customer.ApprovalEntryID); err != nil {
+	if _, err := pool.Exec(t.Context(), `UPDATE dcl_customer_version_accounts
+		SET data=data-'settlementMethodId'-'settlementMethod'
+		WHERE customer_approval_entry_id=$1 AND account_id=$2`, refs.customer.ApprovalEntryID, refs.customer.ObjectID); err != nil {
 		t.Fatalf("remove customer settlement snapshot: %v", err)
 	}
 	service := newIntegrationService(t, pool)
@@ -457,10 +455,8 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	orderLineID := orderView.Data.ProductLines[0].LineID
 
 	var orderOperatingEntityID string
-	if err := pool.QueryRow(t.Context(), `SELECT relationship.operating_entity_id
-		FROM dcl_customer_accounts account
-		JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
-		WHERE account.object_id=$1`, refs.customer.ObjectID).Scan(&orderOperatingEntityID); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT data->'defaultOperatingEntity'->>'sourceObjectId'
+		FROM dcl_customer_versions WHERE approval_entry_id=$1`, refs.customer.ApprovalEntryID).Scan(&orderOperatingEntityID); err != nil {
 		t.Fatalf("read sale order operating entity: %v", err)
 	}
 	internalVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
@@ -529,7 +525,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 		Name: "VOU 散装液体车辆", PlateNumber: "粤B" + newID()[20:], VehicleType: "DIT-0003",
 		BulkLiquidCapable: true,
 		CarrierAffiliation: &bobdomain.CarrierAffiliation{
-			Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID,
+			Type: "EXTERNAL", OtherUnitObjectID: refs.carrier.ObjectID,
 		},
 	})
 	_, bulkDeliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
@@ -550,7 +546,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 
 	recheckVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
 		Name: "VOU 审批复检车辆", PlateNumber: "粤R" + newID()[20:], VehicleType: "DIT-0003",
-		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID},
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: refs.carrier.ObjectID},
 	})
 	checkedDelivery, _ := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
@@ -565,7 +561,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 
 	checkVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
 		Name: "VOU 核对复检车辆", PlateNumber: "粤C" + newID()[20:], VehicleType: "DIT-0003",
-		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID},
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: refs.carrier.ObjectID},
 	})
 	draftDelivery, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,

@@ -1,7 +1,4 @@
-import type {
-  VoucherEntity,
-  VoucherEntityConfig,
-} from '@/components/voucher'
+import type { VoucherEntity, VoucherEntityConfig } from '@/components/voucher'
 
 export const voucherEntityConfigs: Readonly<
   Record<VoucherEntity, VoucherEntityConfig>
@@ -133,11 +130,12 @@ export const voucherEntityConfigs: Readonly<
     title: '销售收款',
     icon: 'mdi-cash-plus',
     order: 80,
-    partyMode: 'counterparty',
-    fixedCounterpartyType: 'customer',
+    partyMode: 'customer',
     lineKind: 'none',
     usesFundAccount: true,
     usesHandler: true,
+    usesOperatingEntity: true,
+    usesAccountAllocations: true,
     directAmount: true,
   },
   'purchase-refund': {

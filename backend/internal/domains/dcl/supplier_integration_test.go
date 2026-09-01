@@ -17,19 +17,16 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-// TestSupplierMayApproveWithoutSettlementButRequiresPurchaserIntegration covers
-// the public DCL seam: a default purchaser remains mandatory, while the whole
-// settlement snapshot may stay absent through approval.
-func TestSupplierMayApproveWithoutSettlementButRequiresPurchaserIntegration(t *testing.T) {
+// TestSupplierMayApproveWithoutSettlementOrPurchaserIntegration covers the
+// public DCL seam: both optional snapshots may remain absent through approval.
+func TestSupplierMayApproveWithoutSettlementOrPurchaserIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
-	employees := NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	suppliers := NewSupplierService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	suppliers := NewSupplierService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
 	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
@@ -38,46 +35,26 @@ func TestSupplierMayApproveWithoutSettlementButRequiresPurchaserIntegration(t *t
 		t.Fatalf("create owner: %v", err)
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), reviewer("owner-approve"))
-	categoryID := insertSupplierAux(t, pool, auxdomain.EntityEmployeeCategory, "CAT-0315", map[string]any{"name": "采购员工"}, creatorID)
-	departmentID := insertSupplierAux(t, pool, auxdomain.EntityDepartment, "DEP-0315", map[string]any{"name": "采购部"}, creatorID)
-	positionID := insertSupplierAux(t, pool, auxdomain.EntityPosition, "POS-0315", map[string]any{"name": "采购员"}, creatorID)
-	purchaser, err := employees.Create(t.Context(), EmployeeCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "无账期采购员", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierPersonID, Value: "110101199001013150"}}},
-		OperatingEntityID: owner.ObjectID,
-		Data:              EmployeeInput{EmployeeCategoryID: categoryID, DepartmentID: departmentID, PositionID: positionID, HireDate: "2026-08-01"},
-	}, creator("purchaser-create"))
-	if err != nil {
-		t.Fatal(err)
+	if _, err = suppliers.Create(t.Context(), SupplierCreateInput{Data: SupplierInput{
+		Kind: "ORGANIZATION", LegalName: "非法供应商标识", StrongIdentifiers: []BusinessIdentifierInput{{Type: "BANK_ACCOUNT", Value: "supplier-invalid"}},
+		Enabled: true, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID,
+	}}, creator("supplier-invalid-identifier")); err == nil {
+		t.Fatal("Supplier accepted an unsupported business identifier type")
+	} else {
+		assertDCLValidationFailure(t, err)
 	}
-	purchaserView, err := employees.Get(t.Context(), EmployeeGetInput{ObjectID: purchaser.ObjectID}, creator("purchaser-get"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	approveRelationshipParty(t, parties, purchaserView.PartyID, creator("purchaser-party-submit"), reviewer("purchaser-party-approve"))
-	purchaser = submitAndApproveEmployee(t, employees, purchaser, creator("purchaser-submit"), reviewer("purchaser-approve"))
-	draft, err := suppliers.Create(t.Context(), SupplierCreateInput{OperatingEntityID: owner.ObjectID, NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "供应商草稿", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108TESTSUP001"}}}}, creator("supplier-create"))
+	assertDCLSubjectCount(t, pool, EntitySupplier, 0)
+	draft, err := suppliers.Create(t.Context(), SupplierCreateInput{Data: SupplierInput{Kind: "ORGANIZATION", LegalName: "供应商草稿", StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91110108TESTSUP001"}}, Enabled: true, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID}}, creator("supplier-create"))
 	if err != nil {
 		t.Fatalf("create incomplete supplier draft: %v", err)
 	}
-	approveRelationshipParty(t, parties, draft.PartyID, creator("party-submit"), reviewer("party-approve"))
-	if _, err = suppliers.Submit(t.Context(), SupplierVersionInput{ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID, ApprovalRevision: draft.Approval.Revision}, creator("supplier-submit")); err == nil {
-		t.Fatal("submitted supplier without default purchaser snapshot")
-	}
-	draft, err = suppliers.Save(t.Context(), SupplierSaveInput{
-		ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID,
-		ApprovalRevision: draft.Approval.Revision, Enabled: true,
-		Data: SupplierData{DefaultPurchaserEmployeeID: purchaser.ObjectID},
-	}, creator("supplier-save-purchaser"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	approved := submitAndApproveSupplier(t, suppliers, draft, creator("supplier-submit-without-settlement"), reviewer("supplier-approve-without-settlement"))
+	approved := submitAndApproveSupplier(t, suppliers, draft, creator("supplier-submit-without-optional-snapshots"), reviewer("supplier-approve-without-optional-snapshots"))
 	view, err := business.Get(t.Context(), bobdomain.EntitySupplier, bobdomain.GetInput{ObjectID: approved.ObjectID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Data.SettlementMethodID != "" || view.Data.TermCode != "" || view.Data.RuleType != "" || view.Data.MonthOffset != 0 || view.Data.DayOffset != 0 || view.Data.DayOfMonth != nil {
-		t.Fatalf("absent Supplier settlement snapshot = %+v", view.Data)
+	if view.Data.SettlementMethodID != "" || view.Data.DefaultPurchaserEmployeeID != "" || view.Data.SettlementMethod != nil || view.Data.DefaultPurchaser != nil {
+		t.Fatalf("absent Supplier optional snapshots = %+v", view.Data)
 	}
 }
 
@@ -86,11 +63,10 @@ func TestSupplierLifecycleLatestApprovedReadAndPurchaseBlockerIntegration(t *tes
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
-	employees := NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	suppliers := NewSupplierService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	employees := NewEmployeeService(pool, business, authorizer, bus)
+	suppliers := NewSupplierService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(id string) approval.Actor { return dclActor(t, creatorID, id) }
 	reviewer := func(id string) approval.Actor { return dclActor(t, reviewerID, id) }
@@ -103,41 +79,24 @@ func TestSupplierLifecycleLatestApprovedReadAndPurchaseBlockerIntegration(t *tes
 	departmentID := insertSupplierAux(t, pool, auxdomain.EntityDepartment, "DEP-0001", map[string]any{"name": "采购部"}, creatorID)
 	positionID := insertSupplierAux(t, pool, auxdomain.EntityPosition, "POS-0001", map[string]any{"name": "采购员"}, creatorID)
 	settlementID := insertSupplierAux(t, pool, auxdomain.EntitySettlementMethod, "SET-0001", map[string]any{"name": "月结30天", "termCode": "MONTHLY_30", "ruleType": "MONTH_END", "monthOffset": 1, "dayOfMonth": 0, "dayOffset": 0}, creatorID)
-	purchaser, err := employees.Create(t.Context(), EmployeeCreateInput{NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "采购员甲", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierPersonID, Value: "110101199001010012"}}}, OperatingEntityID: owner.ObjectID, Data: EmployeeInput{EmployeeCategoryID: categoryID, DepartmentID: departmentID, PositionID: positionID, HireDate: "2026-08-01"}}, creator("purchaser-create"))
+	purchaser, err := employees.Create(t.Context(), EmployeeCreateInput{Data: employeeDeclarationInput("采购员甲", "110101199001010012", owner.ObjectID, true, categoryID, departmentID, positionID, "", "")}, creator("purchaser-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	purchaserDraft, err := employees.Get(t.Context(), EmployeeGetInput{ObjectID: purchaser.ObjectID}, creator("purchaser-get"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	approveRelationshipParty(t, parties, purchaserDraft.PartyID, creator("purchaser-party-submit"), reviewer("purchaser-party-approve"))
 	purchaser = submitAndApproveEmployee(t, employees, purchaser, creator("purchaser-submit"), reviewer("purchaser-approve"))
-	tx, err := pool.Begin(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	party, err := parties.CreateForRelationship(t.Context(), tx, bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "复用供应商主体", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108SUPLIFE001"}}}, creator("party-create"), true)
-	if err == nil {
-		err = tx.Commit(t.Context())
-	}
-	if err != nil {
-		t.Fatalf("create reusable party: %v", err)
-	}
-	approveRelationshipParty(t, parties, party.ID, creator("party-submit"), reviewer("party-approve"))
-	v1, err := suppliers.Create(t.Context(), SupplierCreateInput{PartyID: party.ID, OperatingEntityID: owner.ObjectID, Data: SupplierData{ShortName: "复用供应商", SettlementMethodID: settlementID, DefaultPurchaserEmployeeID: purchaser.ObjectID}}, creator("supplier-create"))
+	v1, err := suppliers.Create(t.Context(), SupplierCreateInput{Data: SupplierInput{Kind: "ORGANIZATION", LegalName: "复用供应商主体", DisplayName: "复用供应商", StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91110108SUPLIFE001"}}, Enabled: true, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID, ShortName: "复用供应商", SettlementMethodID: settlementID, DefaultPurchaserEmployeeID: purchaser.ObjectID}}, creator("supplier-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	v1 = submitAndApproveSupplier(t, suppliers, v1, creator("supplier-submit"), reviewer("supplier-approve"))
 	assertSupplierCurrent(t, business, v1.ObjectID, v1.Approval.ApprovalEntryID)
 	insertSupplierPurchaseReference(t, pool, v1, creatorID, reviewerID, "VOU-20260828-0001")
-	v2, err := suppliers.Save(t.Context(), SupplierSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Enabled: false, Data: SupplierData{ShortName: "候选二版", SettlementMethodID: settlementID, DefaultPurchaserEmployeeID: purchaser.ObjectID}}, creator("supplier-save"))
+	v2, err := suppliers.Save(t.Context(), SupplierSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Data: SupplierInput{Kind: "ORGANIZATION", LegalName: "复用供应商主体", DisplayName: "候选二版", StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91110108SUPLIFE001"}}, Enabled: false, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID, ShortName: "候选二版", SettlementMethodID: settlementID, DefaultPurchaserEmployeeID: purchaser.ObjectID}}, creator("supplier-save"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertSupplierCurrent(t, business, v1.ObjectID, v1.Approval.ApprovalEntryID)
-	if _, err = suppliers.Save(t.Context(), SupplierSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Enabled: false, Data: SupplierData{SettlementMethodID: settlementID, DefaultPurchaserEmployeeID: purchaser.ObjectID}}, creator("supplier-stale-save")); err == nil {
+	if _, err = suppliers.Save(t.Context(), SupplierSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Data: SupplierInput{Kind: "ORGANIZATION", LegalName: "复用供应商主体", StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91110108SUPLIFE001"}}, Enabled: false, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID, SettlementMethodID: settlementID, DefaultPurchaserEmployeeID: purchaser.ObjectID}}, creator("supplier-stale-save")); err == nil {
 		t.Fatal("stale supplier save succeeded")
 	}
 	v2 = submitAndApproveSupplier(t, suppliers, v2, creator("supplier-submit-v2"), reviewer("supplier-approve-v2"))

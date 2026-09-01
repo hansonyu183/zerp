@@ -4,7 +4,6 @@
 /* eslint-disable */
 import type { BobDetailView } from './BobDetailView';
 import type { BobEntity } from './BobEntity';
-import type { BobRelationshipIdentityView } from './BobRelationshipIdentityView';
 export type BobListItem = {
   objectId: string;
   entity: BobEntity;
@@ -13,6 +12,5 @@ export type BobListItem = {
   sourceApprovalEntryId: string;
   sourceVersionNo: number;
   data: BobDetailView;
-  relationship?: BobRelationshipIdentityView;
   updatedAt: string;
 };

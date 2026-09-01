@@ -37,55 +37,23 @@ func (q *Queries) ConsumeCustomerDownloadToken(ctx context.Context, tokenHash st
 	return i, err
 }
 
-const copyDCLCustomerAccountAttachments = `-- name: CopyDCLCustomerAccountAttachments :exec
-INSERT INTO dcl_customer_account_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_at,created_by) SELECT $1,source.file_id,source.category_object_id,source.category_code,source.category_name,source.created_at,source.created_by FROM dcl_customer_account_attachments source WHERE source.approval_entry_id=$2
+const copyDCLCustomerAttachments = `-- name: CopyDCLCustomerAttachments :exec
+INSERT INTO dcl_customer_attachments(approval_entry_id,account_id,file_id,category_object_id,category_code,category_name,created_at,created_by) SELECT $1,source.account_id,source.file_id,source.category_object_id,source.category_code,source.category_name,source.created_at,source.created_by FROM dcl_customer_attachments source WHERE source.approval_entry_id=$2
 `
 
-type CopyDCLCustomerAccountAttachmentsParams struct {
+type CopyDCLCustomerAttachmentsParams struct {
 	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
 	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
 }
 
-func (q *Queries) CopyDCLCustomerAccountAttachments(ctx context.Context, arg CopyDCLCustomerAccountAttachmentsParams) error {
-	_, err := q.db.Exec(ctx, copyDCLCustomerAccountAttachments, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+func (q *Queries) CopyDCLCustomerAttachments(ctx context.Context, arg CopyDCLCustomerAttachmentsParams) error {
+	_, err := q.db.Exec(ctx, copyDCLCustomerAttachments, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
 	return err
-}
-
-const copyDCLCustomerAccountCreditLimits = `-- name: CopyDCLCustomerAccountCreditLimits :exec
-INSERT INTO dcl_customer_account_credit_limits(approval_entry_id,currency,amount_cents) SELECT $1,source.currency,source.amount_cents FROM dcl_customer_account_credit_limits source WHERE source.approval_entry_id=$2
-`
-
-type CopyDCLCustomerAccountCreditLimitsParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLCustomerAccountCreditLimits(ctx context.Context, arg CopyDCLCustomerAccountCreditLimitsParams) error {
-	_, err := q.db.Exec(ctx, copyDCLCustomerAccountCreditLimits, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
-}
-
-const copyDCLCustomerAccountVersion = `-- name: CopyDCLCustomerAccountVersion :execrows
-INSERT INTO dcl_customer_account_versions(approval_entry_id,entity,name,customer_type,customer_type_code,customer_type_name,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_due_days,settlement_month_offset,settlement_cutoff_day,settlement_sales_surcharge_cents,payment_method_id,payment_method_code,payment_method_name,payment_sales_surcharge_cents,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,operating_entity_tax_number,operating_entity_address,operating_entity_phone,default_transport_method_code,default_transport_method_name,transport_surcharge_cents,pricing_policy,primary_sales_attribution_type,primary_sales_subject_id,primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name,internal_reminder,default_sales_order_remark,enabled)
-SELECT $1,source.entity,source.name,source.customer_type,source.customer_type_code,source.customer_type_name,source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_due_days,source.settlement_month_offset,source.settlement_cutoff_day,source.settlement_sales_surcharge_cents,source.payment_method_id,source.payment_method_code,source.payment_method_name,source.payment_sales_surcharge_cents,source.operating_entity_id,source.operating_entity_approval_entry_id,source.operating_entity_code,source.operating_entity_name,source.operating_entity_tax_number,source.operating_entity_address,source.operating_entity_phone,source.default_transport_method_code,source.default_transport_method_name,source.transport_surcharge_cents,source.pricing_policy,source.primary_sales_attribution_type,source.primary_sales_subject_id,source.primary_sales_subject_approval_entry_id,source.primary_sales_subject_code,source.primary_sales_subject_name,source.internal_reminder,source.default_sales_order_remark,source.enabled FROM dcl_customer_account_versions source WHERE source.approval_entry_id=$2
-`
-
-type CopyDCLCustomerAccountVersionParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLCustomerAccountVersion(ctx context.Context, arg CopyDCLCustomerAccountVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, copyDCLCustomerAccountVersion, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const copyDCLCustomerVersion = `-- name: CopyDCLCustomerVersion :execrows
-INSERT INTO dcl_customer_versions(approval_entry_id,entity,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled)
-SELECT $1,source.entity,source.operating_entity_approval_entry_id,source.operating_entity_code,source.operating_entity_name,source.enabled
+INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled)
+SELECT $1,source.data,source.enabled
 FROM dcl_customer_versions source WHERE source.approval_entry_id=$2
 `
 
@@ -212,59 +180,6 @@ func (q *Queries) CountBobWarehouses(ctx context.Context, arg CountBobWarehouses
 	return count, err
 }
 
-const countDCLCustomerAccountApprovalEvents = `-- name: CountDCLCustomerAccountApprovalEvents :one
-SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='customer-account' AND subject_id=$1
-`
-
-func (q *Queries) CountDCLCustomerAccountApprovalEvents(ctx context.Context, objectID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countDCLCustomerAccountApprovalEvents, objectID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countDCLCustomerAccountAttachments = `-- name: CountDCLCustomerAccountAttachments :one
-SELECT count(*) FROM dcl_customer_account_attachments WHERE approval_entry_id=$1
-`
-
-func (q *Queries) CountDCLCustomerAccountAttachments(ctx context.Context, approvalEntryID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countDCLCustomerAccountAttachments, approvalEntryID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countDCLCustomerAccounts = `-- name: CountDCLCustomerAccounts :one
-SELECT count(*) FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)  WHERE subject.entity='customer-account' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND ($3::text='' OR account.customer_relationship_id=$3) AND ($4::text='' OR relationship.operating_entity_id=$4) AND ($5::text='' OR display.customer_type=$5) AND ($6::text='' OR display.primary_sales_attribution_type=$6) AND ($7::text='' OR display.primary_sales_subject_id=$7) AND (cardinality($8::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($8::text[]))
-`
-
-type CountDCLCustomerAccountsParams struct {
-	Keyword                   string   `db:"keyword" json:"keyword"`
-	EnabledFilter             int32    `db:"enabled_filter" json:"enabled_filter"`
-	CustomerRelationshipID    string   `db:"customer_relationship_id" json:"customer_relationship_id"`
-	OperatingEntityID         string   `db:"operating_entity_id" json:"operating_entity_id"`
-	CustomerType              string   `db:"customer_type" json:"customer_type"`
-	SalesAttributionType      string   `db:"sales_attribution_type" json:"sales_attribution_type"`
-	SalesAttributionSubjectID string   `db:"sales_attribution_subject_id" json:"sales_attribution_subject_id"`
-	StatusFilter              []string `db:"status_filter" json:"status_filter"`
-}
-
-func (q *Queries) CountDCLCustomerAccounts(ctx context.Context, arg CountDCLCustomerAccountsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDCLCustomerAccounts,
-		arg.Keyword,
-		arg.EnabledFilter,
-		arg.CustomerRelationshipID,
-		arg.OperatingEntityID,
-		arg.CustomerType,
-		arg.SalesAttributionType,
-		arg.SalesAttributionSubjectID,
-		arg.StatusFilter,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countDCLCustomerAttachments = `-- name: CountDCLCustomerAttachments :one
 SELECT count(*) FROM dcl_customer_attachments WHERE approval_entry_id=$1
 `
@@ -274,44 +189,6 @@ func (q *Queries) CountDCLCustomerAttachments(ctx context.Context, approvalEntry
 	var count int64
 	err := row.Scan(&count)
 	return count, err
-}
-
-const deleteDCLCustomerAccountAttachment = `-- name: DeleteDCLCustomerAccountAttachment :execrows
-DELETE FROM dcl_customer_account_attachments WHERE approval_entry_id=$1 AND file_id=$2
-`
-
-type DeleteDCLCustomerAccountAttachmentParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	FileID          string `db:"file_id" json:"file_id"`
-}
-
-func (q *Queries) DeleteDCLCustomerAccountAttachment(ctx context.Context, arg DeleteDCLCustomerAccountAttachmentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLCustomerAccountAttachment, arg.ApprovalEntryID, arg.FileID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteDCLCustomerAccountCreditLimits = `-- name: DeleteDCLCustomerAccountCreditLimits :exec
-DELETE FROM dcl_customer_account_credit_limits WHERE approval_entry_id=$1
-`
-
-func (q *Queries) DeleteDCLCustomerAccountCreditLimits(ctx context.Context, approvalEntryID string) error {
-	_, err := q.db.Exec(ctx, deleteDCLCustomerAccountCreditLimits, approvalEntryID)
-	return err
-}
-
-const deleteDCLCustomerAccountVersion = `-- name: DeleteDCLCustomerAccountVersion :execrows
-DELETE FROM dcl_customer_account_versions WHERE approval_entry_id=$1
-`
-
-func (q *Queries) DeleteDCLCustomerAccountVersion(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLCustomerAccountVersion, approvalEntryID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const deleteDCLCustomerAttachment = `-- name: DeleteDCLCustomerAttachment :execrows
@@ -398,57 +275,6 @@ func (q *Queries) FindDCLSeedSubjectID(ctx context.Context, arg FindDCLSeedSubje
 	var subject_id string
 	err := row.Scan(&subject_id)
 	return subject_id, err
-}
-
-const getBobCustomerAccountRelationship = `-- name: GetBobCustomerAccountRelationship :one
-SELECT object_id, object_entity, customer_relationship_id FROM dcl_customer_accounts WHERE object_id=$1
-`
-
-func (q *Queries) GetBobCustomerAccountRelationship(ctx context.Context, objectID string) (DclCustomerAccount, error) {
-	row := q.db.QueryRow(ctx, getBobCustomerAccountRelationship, objectID)
-	var i DclCustomerAccount
-	err := row.Scan(&i.ObjectID, &i.ObjectEntity, &i.CustomerRelationshipID)
-	return i, err
-}
-
-const getBobCustomerRelationship = `-- name: GetBobCustomerRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_customer_relationships WHERE object_id=$1
-`
-
-// BOB validates business rules through DCL-owned typed relationship identities.
-// DCL is their only writer.
-func (q *Queries) GetBobCustomerRelationship(ctx context.Context, objectID string) (DclCustomerRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobCustomerRelationship, objectID)
-	var i DclCustomerRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
-}
-
-const getBobEmployeeRelationship = `-- name: GetBobEmployeeRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_employment_relationships WHERE object_id=$1
-`
-
-func (q *Queries) GetBobEmployeeRelationship(ctx context.Context, objectID string) (DclEmploymentRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobEmployeeRelationship, objectID)
-	var i DclEmploymentRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
 }
 
 const getBobFundAccountCurrent = `-- name: GetBobFundAccountCurrent :one
@@ -574,7 +400,7 @@ func (q *Queries) GetBobFundAccountCurrentReference(ctx context.Context, objectI
 }
 
 const getBobOpenVehiclePayload = `-- name: GetBobOpenVehiclePayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.name, payload.plate_number, payload.vehicle_type, payload.vehicle_type_object_id, payload.vehicle_type_name, payload.vehicle_type_entity, payload.vin, payload.engine_number, payload.load_capacity_kg, payload.remark, payload.carrier_affiliation_type, payload.carrier_operating_entity_id, payload.carrier_operating_entity_approval_entry_id, payload.carrier_operating_entity, payload.carrier_service_relationship_object_id, payload.carrier_service_relationship_approval_entry_id, payload.carrier_service_relationship_entity, payload.bulk_liquid_capable, payload.enabled FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=$1
+SELECT payload.approval_entry_id, payload.entity, payload.name, payload.plate_number, payload.vehicle_type, payload.vehicle_type_object_id, payload.vehicle_type_name, payload.vehicle_type_entity, payload.vin, payload.engine_number, payload.load_capacity_kg, payload.remark, payload.carrier_affiliation_type, payload.carrier_operating_entity_id, payload.carrier_operating_entity_approval_entry_id, payload.carrier_operating_entity, payload.carrier_other_unit_object_id, payload.carrier_other_unit_approval_entry_id, payload.carrier_other_unit_entity, payload.bulk_liquid_capable, payload.enabled FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=$1
 `
 
 func (q *Queries) GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error) {
@@ -597,9 +423,9 @@ func (q *Queries) GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID 
 		&i.CarrierOperatingEntityID,
 		&i.CarrierOperatingEntityApprovalEntryID,
 		&i.CarrierOperatingEntity,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
-		&i.CarrierServiceRelationshipEntity,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
+		&i.CarrierOtherUnitEntity,
 		&i.BulkLiquidCapable,
 		&i.Enabled,
 	)
@@ -731,25 +557,6 @@ func (q *Queries) GetBobOperatingEntityCurrentReference(ctx context.Context, obj
 	return i, err
 }
 
-const getBobOtherUnitRelationship = `-- name: GetBobOtherUnitRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_service_relationships WHERE object_id=$1
-`
-
-func (q *Queries) GetBobOtherUnitRelationship(ctx context.Context, objectID string) (DclServiceRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobOtherUnitRelationship, objectID)
-	var i DclServiceRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
-}
-
 const getBobProductCurrent = `-- name: GetBobProductCurrent :one
 SELECT subject.id AS object_id,subject.entity,subject.code,entry.id AS approval_entry_id
 FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='product' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
@@ -803,83 +610,45 @@ func (q *Queries) GetBobProductCurrentReference(ctx context.Context, objectID st
 	return i, err
 }
 
-const getBobSalesPartnerRelationship = `-- name: GetBobSalesPartnerRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_sales_relationships WHERE object_id=$1
-`
-
-func (q *Queries) GetBobSalesPartnerRelationship(ctx context.Context, objectID string) (DclSalesRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobSalesPartnerRelationship, objectID)
-	var i DclSalesRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
-}
-
-const getBobSupplierRelationship = `-- name: GetBobSupplierRelationship :one
-SELECT object_id, object_entity, party_id, operating_entity_id, operating_entity_entity, merged_into_object_id, merged_at FROM dcl_supplier_relationships WHERE object_id=$1
-`
-
-func (q *Queries) GetBobSupplierRelationship(ctx context.Context, objectID string) (DclSupplierRelationship, error) {
-	row := q.db.QueryRow(ctx, getBobSupplierRelationship, objectID)
-	var i DclSupplierRelationship
-	err := row.Scan(
-		&i.ObjectID,
-		&i.ObjectEntity,
-		&i.PartyID,
-		&i.OperatingEntityID,
-		&i.OperatingEntityEntity,
-		&i.MergedIntoObjectID,
-		&i.MergedAt,
-	)
-	return i, err
-}
-
 const getBobVehicleCurrent = `-- name: GetBobVehicleCurrent :one
-SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS source_approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle'
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS source_approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_other_unit_object_id,snapshot.carrier_other_unit_approval_entry_id,snapshot.bulk_liquid_capable,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle'
 `
 
 type GetBobVehicleCurrentRow struct {
-	ObjectID                                  string             `db:"object_id" json:"object_id"`
-	Entity                                    string             `db:"entity" json:"entity"`
-	Code                                      *string            `db:"code" json:"code"`
-	SourceApprovalEntryID                     string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	Name                                      string             `db:"name" json:"name"`
-	PlateNumber                               string             `db:"plate_number" json:"plate_number"`
-	VehicleType                               string             `db:"vehicle_type" json:"vehicle_type"`
-	VehicleTypeObjectID                       string             `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeName                           string             `db:"vehicle_type_name" json:"vehicle_type_name"`
-	Vin                                       *string            `db:"vin" json:"vin"`
-	EngineNumber                              *string            `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric     `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string            `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string             `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string            `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string            `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string            `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string            `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool               `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
-	Enabled                                   bool               `db:"enabled" json:"enabled"`
-	UpdatedAt                                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy                                 string             `db:"updated_by" json:"updated_by"`
-	Domain                                    string             `db:"domain" json:"domain"`
-	VersionNo                                 *int32             `db:"version_no" json:"version_no"`
-	Status                                    string             `db:"status" json:"status"`
-	ApprovalRevision                          int64              `db:"approval_revision" json:"approval_revision"`
-	CreatedBy                                 string             `db:"created_by" json:"created_by"`
-	CreatedAt                                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	ApprovalUpdatedBy                         string             `db:"approval_updated_by" json:"approval_updated_by"`
-	ApprovalUpdatedAt                         pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
-	SubmittedBy                               *string            `db:"submitted_by" json:"submitted_by"`
-	SubmittedAt                               pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	ApprovedBy                                *string            `db:"approved_by" json:"approved_by"`
-	ApprovedAt                                pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	ObjectID                              string             `db:"object_id" json:"object_id"`
+	Entity                                string             `db:"entity" json:"entity"`
+	Code                                  *string            `db:"code" json:"code"`
+	SourceApprovalEntryID                 string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Name                                  string             `db:"name" json:"name"`
+	PlateNumber                           string             `db:"plate_number" json:"plate_number"`
+	VehicleType                           string             `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                   string             `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeName                       string             `db:"vehicle_type_name" json:"vehicle_type_name"`
+	Vin                                   *string            `db:"vin" json:"vin"`
+	EngineNumber                          *string            `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                        pgtype.Numeric     `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                *string            `db:"remark" json:"remark"`
+	CarrierAffiliationType                string             `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID              *string            `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID *string            `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOtherUnitObjectID              *string            `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string            `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	BulkLiquidCapable                     bool               `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	Enabled                               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                             string             `db:"updated_by" json:"updated_by"`
+	Domain                                string             `db:"domain" json:"domain"`
+	VersionNo                             *int32             `db:"version_no" json:"version_no"`
+	Status                                string             `db:"status" json:"status"`
+	ApprovalRevision                      int64              `db:"approval_revision" json:"approval_revision"`
+	CreatedBy                             string             `db:"created_by" json:"created_by"`
+	CreatedAt                             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ApprovalUpdatedBy                     string             `db:"approval_updated_by" json:"approval_updated_by"`
+	ApprovalUpdatedAt                     pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	SubmittedBy                           *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt                           pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy                            *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt                            pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
 }
 
 func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (GetBobVehicleCurrentRow, error) {
@@ -902,8 +671,8 @@ func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (Ge
 		&i.CarrierAffiliationType,
 		&i.CarrierOperatingEntityID,
 		&i.CarrierOperatingEntityApprovalEntryID,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
 		&i.BulkLiquidCapable,
 		&i.Enabled,
 		&i.UpdatedAt,
@@ -925,30 +694,30 @@ func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (Ge
 }
 
 const getBobVehicleCurrentReference = `-- name: GetBobVehicleCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS approval_entry_id,entry.version_no,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable FROM dcl_subjects subject JOIN LATERAL (SELECT id,version_no FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle' AND snapshot.enabled
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS approval_entry_id,entry.version_no,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_other_unit_object_id,snapshot.carrier_other_unit_approval_entry_id,snapshot.bulk_liquid_capable FROM dcl_subjects subject JOIN LATERAL (SELECT id,version_no FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle' AND snapshot.enabled
 `
 
 type GetBobVehicleCurrentReferenceRow struct {
-	ObjectID                                  string         `db:"object_id" json:"object_id"`
-	Entity                                    string         `db:"entity" json:"entity"`
-	Code                                      *string        `db:"code" json:"code"`
-	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
-	VersionNo                                 *int32         `db:"version_no" json:"version_no"`
-	Name                                      string         `db:"name" json:"name"`
-	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
-	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
-	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
-	Vin                                       *string        `db:"vin" json:"vin"`
-	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string        `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	ObjectID                              string         `db:"object_id" json:"object_id"`
+	Entity                                string         `db:"entity" json:"entity"`
+	Code                                  *string        `db:"code" json:"code"`
+	ApprovalEntryID                       string         `db:"approval_entry_id" json:"approval_entry_id"`
+	VersionNo                             *int32         `db:"version_no" json:"version_no"`
+	Name                                  string         `db:"name" json:"name"`
+	PlateNumber                           string         `db:"plate_number" json:"plate_number"`
+	VehicleType                           string         `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                   string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeName                       string         `db:"vehicle_type_name" json:"vehicle_type_name"`
+	Vin                                   *string        `db:"vin" json:"vin"`
+	EngineNumber                          *string        `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                        pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                *string        `db:"remark" json:"remark"`
+	CarrierAffiliationType                string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID              *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOtherUnitObjectID              *string        `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string        `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	BulkLiquidCapable                     bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
 }
 
 func (q *Queries) GetBobVehicleCurrentReference(ctx context.Context, objectID string) (GetBobVehicleCurrentReferenceRow, error) {
@@ -972,8 +741,8 @@ func (q *Queries) GetBobVehicleCurrentReference(ctx context.Context, objectID st
 		&i.CarrierAffiliationType,
 		&i.CarrierOperatingEntityID,
 		&i.CarrierOperatingEntityApprovalEntryID,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
 		&i.BulkLiquidCapable,
 	)
 	return i, err
@@ -1088,89 +857,14 @@ func (q *Queries) GetBobWarehouseCurrentReference(ctx context.Context, objectID 
 	return i, err
 }
 
-const getDCLCustomerAccountIdentity = `-- name: GetDCLCustomerAccountIdentity :one
-SELECT account.customer_relationship_id FROM dcl_customer_accounts account JOIN dcl_subjects subject ON subject.id=account.object_id AND subject.entity='customer-account' WHERE account.object_id=$1
-`
-
-func (q *Queries) GetDCLCustomerAccountIdentity(ctx context.Context, objectID string) (string, error) {
-	row := q.db.QueryRow(ctx, getDCLCustomerAccountIdentity, objectID)
-	var customer_relationship_id string
-	err := row.Scan(&customer_relationship_id)
-	return customer_relationship_id, err
-}
-
-const getDCLCustomerAccountVersion = `-- name: GetDCLCustomerAccountVersion :one
-SELECT approval_entry_id, entity, name, customer_type, customer_type_code, customer_type_name, short_name, tax_number, contact_name, contact_phone, email, address, remark, settlement_method_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_due_days, settlement_month_offset, settlement_cutoff_day, settlement_sales_surcharge_cents, payment_method_id, payment_method_code, payment_method_name, payment_sales_surcharge_cents, operating_entity_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, operating_entity_tax_number, operating_entity_address, operating_entity_phone, default_transport_method_code, default_transport_method_name, transport_surcharge_cents, pricing_policy, primary_sales_attribution_type, primary_sales_subject_id, primary_sales_subject_approval_entry_id, primary_sales_subject_code, primary_sales_subject_name, internal_reminder, default_sales_order_remark, enabled FROM dcl_customer_account_versions WHERE approval_entry_id=$1
-`
-
-func (q *Queries) GetDCLCustomerAccountVersion(ctx context.Context, approvalEntryID string) (DclCustomerAccountVersion, error) {
-	row := q.db.QueryRow(ctx, getDCLCustomerAccountVersion, approvalEntryID)
-	var i DclCustomerAccountVersion
-	err := row.Scan(
-		&i.ApprovalEntryID,
-		&i.Entity,
-		&i.Name,
-		&i.CustomerType,
-		&i.CustomerTypeCode,
-		&i.CustomerTypeName,
-		&i.ShortName,
-		&i.TaxNumber,
-		&i.ContactName,
-		&i.ContactPhone,
-		&i.Email,
-		&i.Address,
-		&i.Remark,
-		&i.SettlementMethodID,
-		&i.SettlementMethodCode,
-		&i.SettlementMethodName,
-		&i.SettlementTermCode,
-		&i.SettlementRuleType,
-		&i.SettlementDueDays,
-		&i.SettlementMonthOffset,
-		&i.SettlementCutoffDay,
-		&i.SettlementSalesSurchargeCents,
-		&i.PaymentMethodID,
-		&i.PaymentMethodCode,
-		&i.PaymentMethodName,
-		&i.PaymentSalesSurchargeCents,
-		&i.OperatingEntityID,
-		&i.OperatingEntityApprovalEntryID,
-		&i.OperatingEntityCode,
-		&i.OperatingEntityName,
-		&i.OperatingEntityTaxNumber,
-		&i.OperatingEntityAddress,
-		&i.OperatingEntityPhone,
-		&i.DefaultTransportMethodCode,
-		&i.DefaultTransportMethodName,
-		&i.TransportSurchargeCents,
-		&i.PricingPolicy,
-		&i.PrimarySalesAttributionType,
-		&i.PrimarySalesSubjectID,
-		&i.PrimarySalesSubjectApprovalEntryID,
-		&i.PrimarySalesSubjectCode,
-		&i.PrimarySalesSubjectName,
-		&i.InternalReminder,
-		&i.DefaultSalesOrderRemark,
-		&i.Enabled,
-	)
-	return i, err
-}
-
 const getDCLCustomerVersion = `-- name: GetDCLCustomerVersion :one
-SELECT approval_entry_id, entity, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, enabled FROM dcl_customer_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, data, enabled FROM dcl_customer_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLCustomerVersion(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error) {
 	row := q.db.QueryRow(ctx, getDCLCustomerVersion, approvalEntryID)
 	var i DclCustomerVersion
-	err := row.Scan(
-		&i.ApprovalEntryID,
-		&i.Entity,
-		&i.OperatingEntityApprovalEntryID,
-		&i.OperatingEntityCode,
-		&i.OperatingEntityName,
-		&i.Enabled,
-	)
+	err := row.Scan(&i.ApprovalEntryID, &i.Data, &i.Enabled)
 	return i, err
 }
 
@@ -1178,8 +872,8 @@ const getDCLProductFormula = `-- name: GetDCLProductFormula :one
 SELECT product_approval_entry_id, output_base_quantity_micros, output_entered_quantity_micros, output_unit_object_id, output_unit_code, output_unit_name, output_unit_symbol, output_unit_quantity_scale FROM dcl_product_formulas WHERE product_approval_entry_id=$1
 `
 
-// DCL Product snapshots are keyed by their DCL Approval entry; DCL owns every
-// mutation and BOB reads the selected approved snapshot.
+// BOB validates business rules through DCL-owned typed archive identities.
+// DCL is their only writer.
 func (q *Queries) GetDCLProductFormula(ctx context.Context, productApprovalEntryID string) (DclProductFormula, error) {
 	row := q.db.QueryRow(ctx, getDCLProductFormula, productApprovalEntryID)
 	var i DclProductFormula
@@ -1257,36 +951,6 @@ func (q *Queries) GetDCLSupplierOpenEntry(ctx context.Context, objectID string) 
 		&i.SubmittedAt,
 		&i.ApprovedBy,
 		&i.ApprovedAt,
-	)
-	return i, err
-}
-
-const getReadyDCLCustomerAccountAttachment = `-- name: GetReadyDCLCustomerAccountAttachment :one
-SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size FROM dcl_customer_account_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=$1 AND file.id=$2 AND file.status='READY'
-`
-
-type GetReadyDCLCustomerAccountAttachmentParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	FileID          string `db:"file_id" json:"file_id"`
-}
-
-type GetReadyDCLCustomerAccountAttachmentRow struct {
-	ID           string `db:"id" json:"id"`
-	StorageKey   string `db:"storage_key" json:"storage_key"`
-	OriginalName string `db:"original_name" json:"original_name"`
-	ContentType  string `db:"content_type" json:"content_type"`
-	DeclaredSize int64  `db:"declared_size" json:"declared_size"`
-}
-
-func (q *Queries) GetReadyDCLCustomerAccountAttachment(ctx context.Context, arg GetReadyDCLCustomerAccountAttachmentParams) (GetReadyDCLCustomerAccountAttachmentRow, error) {
-	row := q.db.QueryRow(ctx, getReadyDCLCustomerAccountAttachment, arg.ApprovalEntryID, arg.FileID)
-	var i GetReadyDCLCustomerAccountAttachmentRow
-	err := row.Scan(
-		&i.ID,
-		&i.StorageKey,
-		&i.OriginalName,
-		&i.ContentType,
-		&i.DeclaredSize,
 	)
 	return i, err
 }
@@ -1390,162 +1054,24 @@ func (q *Queries) InsertCustomerFile(ctx context.Context, arg InsertCustomerFile
 	return err
 }
 
-const insertDCLCustomerAccountAttachment = `-- name: InsertDCLCustomerAccountAttachment :exec
-INSERT INTO dcl_customer_account_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,$5,$6)
-`
-
-type InsertDCLCustomerAccountAttachmentParams struct {
-	ApprovalEntryID  string `db:"approval_entry_id" json:"approval_entry_id"`
-	FileID           string `db:"file_id" json:"file_id"`
-	CategoryObjectID string `db:"category_object_id" json:"category_object_id"`
-	CategoryCode     string `db:"category_code" json:"category_code"`
-	CategoryName     string `db:"category_name" json:"category_name"`
-	ActorID          string `db:"actor_id" json:"actor_id"`
-}
-
-func (q *Queries) InsertDCLCustomerAccountAttachment(ctx context.Context, arg InsertDCLCustomerAccountAttachmentParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerAccountAttachment,
-		arg.ApprovalEntryID,
-		arg.FileID,
-		arg.CategoryObjectID,
-		arg.CategoryCode,
-		arg.CategoryName,
-		arg.ActorID,
-	)
-	return err
-}
-
-const insertDCLCustomerAccountCreditLimit = `-- name: InsertDCLCustomerAccountCreditLimit :exec
-INSERT INTO dcl_customer_account_credit_limits(approval_entry_id,currency,amount_cents) VALUES($1,$2,$3)
-`
-
-type InsertDCLCustomerAccountCreditLimitParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Currency        string `db:"currency" json:"currency"`
-	AmountCents     int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-func (q *Queries) InsertDCLCustomerAccountCreditLimit(ctx context.Context, arg InsertDCLCustomerAccountCreditLimitParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerAccountCreditLimit, arg.ApprovalEntryID, arg.Currency, arg.AmountCents)
-	return err
-}
-
-const insertDCLCustomerAccountVersion = `-- name: InsertDCLCustomerAccountVersion :exec
-INSERT INTO dcl_customer_account_versions(approval_entry_id,name,customer_type,customer_type_code,customer_type_name,short_name,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_due_days,settlement_month_offset,settlement_cutoff_day,settlement_sales_surcharge_cents,payment_method_id,payment_method_code,payment_method_name,payment_sales_surcharge_cents,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,operating_entity_tax_number,operating_entity_address,operating_entity_phone,default_transport_method_code,default_transport_method_name,transport_surcharge_cents,pricing_policy,primary_sales_attribution_type,primary_sales_subject_id,primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name,internal_reminder,default_sales_order_remark,enabled)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42)
-`
-
-type InsertDCLCustomerAccountVersionParams struct {
-	ApprovalEntryID                    string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Name                               string  `db:"name" json:"name"`
-	CustomerType                       string  `db:"customer_type" json:"customer_type"`
-	CustomerTypeCode                   string  `db:"customer_type_code" json:"customer_type_code"`
-	CustomerTypeName                   string  `db:"customer_type_name" json:"customer_type_name"`
-	ShortName                          *string `db:"short_name" json:"short_name"`
-	ContactName                        *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                       *string `db:"contact_phone" json:"contact_phone"`
-	Email                              *string `db:"email" json:"email"`
-	Address                            *string `db:"address" json:"address"`
-	SettlementMethodID                 *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodCode               *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName               *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode                 *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType                 *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementDueDays                  int32   `db:"settlement_due_days" json:"settlement_due_days"`
-	SettlementMonthOffset              int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementCutoffDay                int32   `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
-	SettlementSalesSurchargeCents      int64   `db:"settlement_sales_surcharge_cents" json:"settlement_sales_surcharge_cents"`
-	PaymentMethodID                    *string `db:"payment_method_id" json:"payment_method_id"`
-	PaymentMethodCode                  *string `db:"payment_method_code" json:"payment_method_code"`
-	PaymentMethodName                  *string `db:"payment_method_name" json:"payment_method_name"`
-	PaymentSalesSurchargeCents         int64   `db:"payment_sales_surcharge_cents" json:"payment_sales_surcharge_cents"`
-	OperatingEntityID                  string  `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityApprovalEntryID     string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode                string  `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName                string  `db:"operating_entity_name" json:"operating_entity_name"`
-	OperatingEntityTaxNumber           *string `db:"operating_entity_tax_number" json:"operating_entity_tax_number"`
-	OperatingEntityAddress             *string `db:"operating_entity_address" json:"operating_entity_address"`
-	OperatingEntityPhone               *string `db:"operating_entity_phone" json:"operating_entity_phone"`
-	DefaultTransportMethodCode         *string `db:"default_transport_method_code" json:"default_transport_method_code"`
-	DefaultTransportMethodName         *string `db:"default_transport_method_name" json:"default_transport_method_name"`
-	TransportSurchargeCents            int64   `db:"transport_surcharge_cents" json:"transport_surcharge_cents"`
-	PricingPolicy                      []byte  `db:"pricing_policy" json:"pricing_policy"`
-	PrimarySalesAttributionType        *string `db:"primary_sales_attribution_type" json:"primary_sales_attribution_type"`
-	PrimarySalesSubjectID              *string `db:"primary_sales_subject_id" json:"primary_sales_subject_id"`
-	PrimarySalesSubjectApprovalEntryID *string `db:"primary_sales_subject_approval_entry_id" json:"primary_sales_subject_approval_entry_id"`
-	PrimarySalesSubjectCode            *string `db:"primary_sales_subject_code" json:"primary_sales_subject_code"`
-	PrimarySalesSubjectName            *string `db:"primary_sales_subject_name" json:"primary_sales_subject_name"`
-	InternalReminder                   *string `db:"internal_reminder" json:"internal_reminder"`
-	DefaultSalesOrderRemark            *string `db:"default_sales_order_remark" json:"default_sales_order_remark"`
-	Enabled                            bool    `db:"enabled" json:"enabled"`
-}
-
-// #287 Customer Account is a distinct DCL Approval subject. DCL owns
-// the immutable account-to-customer binding; BOB reads latest APPROVED data.
-func (q *Queries) InsertDCLCustomerAccountVersion(ctx context.Context, arg InsertDCLCustomerAccountVersionParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerAccountVersion,
-		arg.ApprovalEntryID,
-		arg.Name,
-		arg.CustomerType,
-		arg.CustomerTypeCode,
-		arg.CustomerTypeName,
-		arg.ShortName,
-		arg.ContactName,
-		arg.ContactPhone,
-		arg.Email,
-		arg.Address,
-		arg.SettlementMethodID,
-		arg.SettlementMethodCode,
-		arg.SettlementMethodName,
-		arg.SettlementTermCode,
-		arg.SettlementRuleType,
-		arg.SettlementDueDays,
-		arg.SettlementMonthOffset,
-		arg.SettlementCutoffDay,
-		arg.SettlementSalesSurchargeCents,
-		arg.PaymentMethodID,
-		arg.PaymentMethodCode,
-		arg.PaymentMethodName,
-		arg.PaymentSalesSurchargeCents,
-		arg.OperatingEntityID,
-		arg.OperatingEntityApprovalEntryID,
-		arg.OperatingEntityCode,
-		arg.OperatingEntityName,
-		arg.OperatingEntityTaxNumber,
-		arg.OperatingEntityAddress,
-		arg.OperatingEntityPhone,
-		arg.DefaultTransportMethodCode,
-		arg.DefaultTransportMethodName,
-		arg.TransportSurchargeCents,
-		arg.PricingPolicy,
-		arg.PrimarySalesAttributionType,
-		arg.PrimarySalesSubjectID,
-		arg.PrimarySalesSubjectApprovalEntryID,
-		arg.PrimarySalesSubjectCode,
-		arg.PrimarySalesSubjectName,
-		arg.InternalReminder,
-		arg.DefaultSalesOrderRemark,
-		arg.Enabled,
-	)
-	return err
-}
-
 const insertDCLCustomerAttachment = `-- name: InsertDCLCustomerAttachment :exec
-INSERT INTO dcl_customer_attachments(approval_entry_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,$5,$6)
+INSERT INTO dcl_customer_attachments(approval_entry_id,account_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)
 `
 
 type InsertDCLCustomerAttachmentParams struct {
-	ApprovalEntryID  string `db:"approval_entry_id" json:"approval_entry_id"`
-	FileID           string `db:"file_id" json:"file_id"`
-	CategoryObjectID string `db:"category_object_id" json:"category_object_id"`
-	CategoryCode     string `db:"category_code" json:"category_code"`
-	CategoryName     string `db:"category_name" json:"category_name"`
-	ActorID          string `db:"actor_id" json:"actor_id"`
+	ApprovalEntryID  string  `db:"approval_entry_id" json:"approval_entry_id"`
+	AccountID        *string `db:"account_id" json:"account_id"`
+	FileID           string  `db:"file_id" json:"file_id"`
+	CategoryObjectID string  `db:"category_object_id" json:"category_object_id"`
+	CategoryCode     string  `db:"category_code" json:"category_code"`
+	CategoryName     string  `db:"category_name" json:"category_name"`
+	ActorID          string  `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) InsertDCLCustomerAttachment(ctx context.Context, arg InsertDCLCustomerAttachmentParams) error {
 	_, err := q.db.Exec(ctx, insertDCLCustomerAttachment,
 		arg.ApprovalEntryID,
+		arg.AccountID,
 		arg.FileID,
 		arg.CategoryObjectID,
 		arg.CategoryCode,
@@ -1556,27 +1082,19 @@ func (q *Queries) InsertDCLCustomerAttachment(ctx context.Context, arg InsertDCL
 }
 
 const insertDCLCustomerVersion = `-- name: InsertDCLCustomerVersion :exec
-INSERT INTO dcl_customer_versions(approval_entry_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled)
-VALUES($1,$2,$3,$4,$5)
+INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled)
+VALUES($1,$2,$3)
 `
 
 type InsertDCLCustomerVersionParams struct {
-	ApprovalEntryID                string `db:"approval_entry_id" json:"approval_entry_id"`
-	OperatingEntityApprovalEntryID string `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode            string `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName            string `db:"operating_entity_name" json:"operating_entity_name"`
-	Enabled                        bool   `db:"enabled" json:"enabled"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	Data            []byte `db:"data" json:"data"`
+	Enabled         bool   `db:"enabled" json:"enabled"`
 }
 
-// #287 DCL Customer relationship declaration payload.
+// Customer owns one full aggregate snapshot per approval entry.
 func (q *Queries) InsertDCLCustomerVersion(ctx context.Context, arg InsertDCLCustomerVersionParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerVersion,
-		arg.ApprovalEntryID,
-		arg.OperatingEntityApprovalEntryID,
-		arg.OperatingEntityCode,
-		arg.OperatingEntityName,
-		arg.Enabled,
-	)
+	_, err := q.db.Exec(ctx, insertDCLCustomerVersion, arg.ApprovalEntryID, arg.Data, arg.Enabled)
 	return err
 }
 
@@ -1709,57 +1227,6 @@ func (q *Queries) ListAllDCLCustomerStorageKeys(ctx context.Context) ([]string, 
 			return nil, err
 		}
 		items = append(items, storage_key)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBobCustomerAccountObjects = `-- name: ListBobCustomerAccountObjects :many
-SELECT subject.id,subject.entity,subject.code,0::bigint AS revision,true AS enabled,
-       subject.created_at,subject.created_by,subject.created_at AS updated_at,subject.created_by AS updated_by
-FROM dcl_customer_accounts account
-JOIN dcl_subjects subject ON subject.id=account.object_id AND subject.entity='customer-account'
-WHERE account.customer_relationship_id=$1
-ORDER BY subject.code
-`
-
-type ListBobCustomerAccountObjectsRow struct {
-	ID        string             `db:"id" json:"id"`
-	Entity    string             `db:"entity" json:"entity"`
-	Code      *string            `db:"code" json:"code"`
-	Revision  int64              `db:"revision" json:"revision"`
-	Enabled   bool               `db:"enabled" json:"enabled"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy string             `db:"created_by" json:"created_by"`
-	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy string             `db:"updated_by" json:"updated_by"`
-}
-
-func (q *Queries) ListBobCustomerAccountObjects(ctx context.Context, customerRelationshipID string) ([]ListBobCustomerAccountObjectsRow, error) {
-	rows, err := q.db.Query(ctx, listBobCustomerAccountObjects, customerRelationshipID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListBobCustomerAccountObjectsRow{}
-	for rows.Next() {
-		var i ListBobCustomerAccountObjectsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Entity,
-			&i.Code,
-			&i.Revision,
-			&i.Enabled,
-			&i.CreatedAt,
-			&i.CreatedBy,
-			&i.UpdatedAt,
-			&i.UpdatedBy,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2198,15 +1665,14 @@ func (q *Queries) ListBobWarehouses(ctx context.Context, arg ListBobWarehousesPa
 const listCustomerOperatingReferences = `-- name: ListCustomerOperatingReferences :many
 SELECT subject.id AS object_id,subject.entity,'customer-operating'::text AS role
 FROM dcl_subjects subject
-JOIN dcl_customer_relationships relationship ON relationship.object_id=subject.id
 JOIN LATERAL (
   SELECT id FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=subject.id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
 JOIN dcl_customer_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE subject.entity='customer' AND snapshot.enabled AND relationship.merged_into_object_id IS NULL
-  AND relationship.operating_entity_id=$1
+WHERE subject.entity='customer' AND snapshot.enabled
+  AND snapshot.data->'defaultOperatingEntity'->>'sourceObjectId'=$1::text
 `
 
 type ListCustomerOperatingReferencesRow struct {
@@ -2236,18 +1702,15 @@ func (q *Queries) ListCustomerOperatingReferences(ctx context.Context, sourceObj
 }
 
 const listCustomerSalesReferencesForEmployee = `-- name: ListCustomerSalesReferencesForEmployee :many
-SELECT subject.id AS object_id,subject.entity,'customer-sales'::text AS role
-FROM dcl_subjects subject
-JOIN dcl_customer_accounts account ON account.object_id=subject.id
+SELECT root.customer_id AS object_id,'customer'::text AS entity,'customer-sales'::text AS role
+FROM dcl_customer_account_roots root
 JOIN LATERAL (
-  SELECT id FROM approval_entries
-  WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED'
+  SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_account_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE subject.entity='customer-account' AND snapshot.enabled
-  AND snapshot.primary_sales_subject_id=$1
-  AND snapshot.primary_sales_attribution_type='INTERNAL_EMPLOYEE'
+JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+WHERE line.enabled AND line.data->'primarySalesAttribution'->>'subjectObjectId'=$1::text
+  AND line.data->'primarySalesAttribution'->>'type'='INTERNAL_EMPLOYEE'
 `
 
 type ListCustomerSalesReferencesForEmployeeRow struct {
@@ -2279,20 +1742,17 @@ func (q *Queries) ListCustomerSalesReferencesForEmployee(ctx context.Context, so
 }
 
 const listCustomerSalesReferencesForSalesPartner = `-- name: ListCustomerSalesReferencesForSalesPartner :many
-SELECT subject.id AS object_id,subject.entity,
-       CASE snapshot.primary_sales_attribution_type
+SELECT root.customer_id AS object_id,'customer'::text AS entity,
+       CASE line.data->'primarySalesAttribution'->>'type'
          WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales' ELSE 'customer-channel-sales' END::text AS role
-FROM dcl_subjects subject
-JOIN dcl_customer_accounts account ON account.object_id=subject.id
+FROM dcl_customer_account_roots root
 JOIN LATERAL (
-  SELECT id FROM approval_entries
-  WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED'
+  SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_account_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE subject.entity='customer-account' AND snapshot.enabled
-  AND snapshot.primary_sales_subject_id=$1
-  AND snapshot.primary_sales_attribution_type IN ('EXTERNAL_PART_TIME','CHANNEL_PARTNER')
+JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+WHERE line.enabled AND line.data->'primarySalesAttribution'->>'subjectObjectId'=$1::text
+  AND line.data->'primarySalesAttribution'->>'type' IN ('EXTERNAL_PART_TIME','CHANNEL_PARTNER')
 `
 
 type ListCustomerSalesReferencesForSalesPartnerRow struct {
@@ -2321,199 +1781,12 @@ func (q *Queries) ListCustomerSalesReferencesForSalesPartner(ctx context.Context
 	return items, nil
 }
 
-const listDCLCustomerAccountApprovalEvents = `-- name: ListDCLCustomerAccountApprovalEvents :many
-SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at FROM approval_events WHERE domain='dcl' AND entity='customer-account' AND subject_id=$1 ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
-`
-
-type ListDCLCustomerAccountApprovalEventsParams struct {
-	ObjectID  string `db:"object_id" json:"object_id"`
-	RowOffset int32  `db:"row_offset" json:"row_offset"`
-	RowLimit  int32  `db:"row_limit" json:"row_limit"`
-}
-
-func (q *Queries) ListDCLCustomerAccountApprovalEvents(ctx context.Context, arg ListDCLCustomerAccountApprovalEventsParams) ([]ApprovalEvent, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomerAccountApprovalEvents, arg.ObjectID, arg.RowOffset, arg.RowLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ApprovalEvent{}
-	for rows.Next() {
-		var i ApprovalEvent
-		if err := rows.Scan(
-			&i.ID,
-			&i.EntryID,
-			&i.Domain,
-			&i.Entity,
-			&i.SubjectID,
-			&i.VersionNo,
-			&i.Action,
-			&i.FromStatus,
-			&i.ToStatus,
-			&i.FromRevision,
-			&i.ToRevision,
-			&i.ActorID,
-			&i.Reason,
-			&i.RequestID,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLCustomerAccountAttachments = `-- name: ListDCLCustomerAccountAttachments :many
-SELECT relation.file_id,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.status,file.stored_at,relation.category_object_id,relation.category_code,relation.category_name,relation.created_at,relation.created_by FROM dcl_customer_account_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=$1 ORDER BY relation.created_at,relation.file_id
-`
-
-type ListDCLCustomerAccountAttachmentsRow struct {
-	FileID           string             `db:"file_id" json:"file_id"`
-	OriginalName     string             `db:"original_name" json:"original_name"`
-	ContentType      string             `db:"content_type" json:"content_type"`
-	DeclaredSize     int64              `db:"declared_size" json:"declared_size"`
-	Sha256Hex        string             `db:"sha256_hex" json:"sha256_hex"`
-	Status           string             `db:"status" json:"status"`
-	StoredAt         pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
-	CategoryObjectID string             `db:"category_object_id" json:"category_object_id"`
-	CategoryCode     string             `db:"category_code" json:"category_code"`
-	CategoryName     string             `db:"category_name" json:"category_name"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy        string             `db:"created_by" json:"created_by"`
-}
-
-func (q *Queries) ListDCLCustomerAccountAttachments(ctx context.Context, approvalEntryID string) ([]ListDCLCustomerAccountAttachmentsRow, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomerAccountAttachments, approvalEntryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListDCLCustomerAccountAttachmentsRow{}
-	for rows.Next() {
-		var i ListDCLCustomerAccountAttachmentsRow
-		if err := rows.Scan(
-			&i.FileID,
-			&i.OriginalName,
-			&i.ContentType,
-			&i.DeclaredSize,
-			&i.Sha256Hex,
-			&i.Status,
-			&i.StoredAt,
-			&i.CategoryObjectID,
-			&i.CategoryCode,
-			&i.CategoryName,
-			&i.CreatedAt,
-			&i.CreatedBy,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLCustomerAccountCreditLimits = `-- name: ListDCLCustomerAccountCreditLimits :many
-SELECT approval_entry_id, currency, amount_cents FROM dcl_customer_account_credit_limits WHERE approval_entry_id=$1 ORDER BY currency
-`
-
-func (q *Queries) ListDCLCustomerAccountCreditLimits(ctx context.Context, approvalEntryID string) ([]DclCustomerAccountCreditLimit, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomerAccountCreditLimits, approvalEntryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DclCustomerAccountCreditLimit{}
-	for rows.Next() {
-		var i DclCustomerAccountCreditLimit
-		if err := rows.Scan(&i.ApprovalEntryID, &i.Currency, &i.AmountCents); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLCustomerAccounts = `-- name: ListDCLCustomerAccounts :many
-SELECT subject.id AS object_id,subject.code,account.customer_relationship_id,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id FROM dcl_subjects subject JOIN dcl_customer_accounts account ON account.object_id=subject.id JOIN dcl_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id  LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity='customer-account' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true JOIN dcl_customer_account_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id) WHERE subject.entity='customer-account' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR display.enabled=($2::integer=1)) AND ($3::text='' OR account.customer_relationship_id=$3) AND ($4::text='' OR relationship.operating_entity_id=$4) AND ($5::text='' OR display.customer_type=$5) AND ($6::text='' OR display.primary_sales_attribution_type=$6) AND ($7::text='' OR display.primary_sales_subject_id=$7) AND (cardinality($8::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($8::text[])) ORDER BY subject.code LIMIT $10 OFFSET $9
-`
-
-type ListDCLCustomerAccountsParams struct {
-	Keyword                   string   `db:"keyword" json:"keyword"`
-	EnabledFilter             int32    `db:"enabled_filter" json:"enabled_filter"`
-	CustomerRelationshipID    string   `db:"customer_relationship_id" json:"customer_relationship_id"`
-	OperatingEntityID         string   `db:"operating_entity_id" json:"operating_entity_id"`
-	CustomerType              string   `db:"customer_type" json:"customer_type"`
-	SalesAttributionType      string   `db:"sales_attribution_type" json:"sales_attribution_type"`
-	SalesAttributionSubjectID string   `db:"sales_attribution_subject_id" json:"sales_attribution_subject_id"`
-	StatusFilter              []string `db:"status_filter" json:"status_filter"`
-	RowOffset                 int32    `db:"row_offset" json:"row_offset"`
-	RowLimit                  int32    `db:"row_limit" json:"row_limit"`
-}
-
-type ListDCLCustomerAccountsRow struct {
-	ObjectID               string             `db:"object_id" json:"object_id"`
-	Code                   *string            `db:"code" json:"code"`
-	CustomerRelationshipID string             `db:"customer_relationship_id" json:"customer_relationship_id"`
-	Enabled                bool               `db:"enabled" json:"enabled"`
-	UpdatedAt              pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	LatestApprovedEntryID  string             `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
-	OpenEntryID            string             `db:"open_entry_id" json:"open_entry_id"`
-}
-
-func (q *Queries) ListDCLCustomerAccounts(ctx context.Context, arg ListDCLCustomerAccountsParams) ([]ListDCLCustomerAccountsRow, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomerAccounts,
-		arg.Keyword,
-		arg.EnabledFilter,
-		arg.CustomerRelationshipID,
-		arg.OperatingEntityID,
-		arg.CustomerType,
-		arg.SalesAttributionType,
-		arg.SalesAttributionSubjectID,
-		arg.StatusFilter,
-		arg.RowOffset,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListDCLCustomerAccountsRow{}
-	for rows.Next() {
-		var i ListDCLCustomerAccountsRow
-		if err := rows.Scan(
-			&i.ObjectID,
-			&i.Code,
-			&i.CustomerRelationshipID,
-			&i.Enabled,
-			&i.UpdatedAt,
-			&i.LatestApprovedEntryID,
-			&i.OpenEntryID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDCLCustomerAttachments = `-- name: ListDCLCustomerAttachments :many
-SELECT relation.file_id,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.status,file.stored_at,relation.category_object_id,relation.category_code,relation.category_name,relation.created_at,relation.created_by FROM dcl_customer_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=$1 ORDER BY relation.created_at,relation.file_id
+SELECT relation.account_id,relation.file_id,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.status,file.stored_at,relation.category_object_id,relation.category_code,relation.category_name,relation.created_at,relation.created_by FROM dcl_customer_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=$1 ORDER BY relation.account_id NULLS FIRST,relation.created_at,relation.file_id
 `
 
 type ListDCLCustomerAttachmentsRow struct {
+	AccountID        *string            `db:"account_id" json:"account_id"`
 	FileID           string             `db:"file_id" json:"file_id"`
 	OriginalName     string             `db:"original_name" json:"original_name"`
 	ContentType      string             `db:"content_type" json:"content_type"`
@@ -2538,6 +1811,7 @@ func (q *Queries) ListDCLCustomerAttachments(ctx context.Context, approvalEntryI
 	for rows.Next() {
 		var i ListDCLCustomerAttachmentsRow
 		if err := rows.Scan(
+			&i.AccountID,
 			&i.FileID,
 			&i.OriginalName,
 			&i.ContentType,
@@ -3029,11 +2303,11 @@ func (q *Queries) ListVehicleCarrierOperatingReferences(ctx context.Context, sou
 }
 
 const listVehicleCarrierServiceReferences = `-- name: ListVehicleCarrierServiceReferences :many
-SELECT subject.id AS object_id,subject.entity,'vehicle-carrier-service'::text AS role
+SELECT subject.id AS object_id,subject.entity,'vehicle-carrier-other-unit'::text AS role
 FROM dcl_subjects subject
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE snapshot.carrier_service_relationship_object_id=$1
+WHERE snapshot.carrier_other_unit_object_id=$1
 `
 
 type ListVehicleCarrierServiceReferencesRow struct {
@@ -3248,33 +2522,6 @@ func (q *Queries) ListWarehouseManagerReferencesForEmployee(ctx context.Context,
 	return items, nil
 }
 
-const lockDCLCustomerAccountAttachmentOwner = `-- name: LockDCLCustomerAccountAttachmentOwner :one
-SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE id=$1 AND domain='dcl' AND entity='customer-account' FOR UPDATE
-`
-
-func (q *Queries) LockDCLCustomerAccountAttachmentOwner(ctx context.Context, approvalEntryID string) (ApprovalEntry, error) {
-	row := q.db.QueryRow(ctx, lockDCLCustomerAccountAttachmentOwner, approvalEntryID)
-	var i ApprovalEntry
-	err := row.Scan(
-		&i.ID,
-		&i.Domain,
-		&i.Entity,
-		&i.SubjectID,
-		&i.VersionNo,
-		&i.Status,
-		&i.Revision,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.UpdatedBy,
-		&i.UpdatedAt,
-		&i.SubmittedBy,
-		&i.SubmittedAt,
-		&i.ApprovedBy,
-		&i.ApprovedAt,
-	)
-	return i, err
-}
-
 const lockDCLCustomerAttachmentOwner = `-- name: LockDCLCustomerAttachmentOwner :one
 SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE id=$1 AND domain='dcl' AND entity='customer' FOR UPDATE
 `
@@ -3303,7 +2550,7 @@ func (q *Queries) LockDCLCustomerAttachmentOwner(ctx context.Context, approvalEn
 }
 
 const lockPendingDCLCustomerUpload = `-- name: LockPendingDCLCustomerUpload :one
-SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.upload_expires_at,entry.status AS owner_status FROM dcl_customer_files file JOIN (SELECT approval_entry_id,file_id FROM dcl_customer_attachments UNION ALL SELECT approval_entry_id,file_id FROM dcl_customer_account_attachments) relation ON relation.file_id=file.id JOIN approval_entries entry ON entry.id=relation.approval_entry_id WHERE file.upload_token_hash=$1 AND file.status='PENDING' AND file.upload_expires_at>now() FOR UPDATE OF file
+SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.upload_expires_at,entry.status AS owner_status FROM dcl_customer_files file JOIN dcl_customer_attachments relation ON relation.file_id=file.id JOIN approval_entries entry ON entry.id=relation.approval_entry_id WHERE file.upload_token_hash=$1 AND file.status='PENDING' AND file.upload_expires_at>now() FOR UPDATE OF file
 `
 
 type LockPendingDCLCustomerUploadRow struct {
@@ -3442,117 +2689,18 @@ func (q *Queries) ResolveCustomerDocumentCategory(ctx context.Context, objectID 
 	return i, err
 }
 
-const updateDCLCustomerAccountVersion = `-- name: UpdateDCLCustomerAccountVersion :execrows
-UPDATE dcl_customer_account_versions SET name=$1,customer_type=$2,customer_type_code=$3,customer_type_name=$4,short_name=$5,contact_name=$6,contact_phone=$7,email=$8,address=$9,settlement_method_id=$10,settlement_method_code=$11,settlement_method_name=$12,settlement_term_code=$13,settlement_rule_type=$14,settlement_due_days=$15,settlement_month_offset=$16,settlement_cutoff_day=$17,settlement_sales_surcharge_cents=$18,payment_method_id=$19,payment_method_code=$20,payment_method_name=$21,payment_sales_surcharge_cents=$22,operating_entity_id=$23,operating_entity_approval_entry_id=$24,operating_entity_code=$25,operating_entity_name=$26,operating_entity_tax_number=$27,operating_entity_address=$28,operating_entity_phone=$29,default_transport_method_code=$30,default_transport_method_name=$31,transport_surcharge_cents=$32,pricing_policy=$33,primary_sales_attribution_type=$34,primary_sales_subject_id=$35,primary_sales_subject_approval_entry_id=$36,primary_sales_subject_code=$37,primary_sales_subject_name=$38,internal_reminder=$39,default_sales_order_remark=$40,enabled=$41 WHERE approval_entry_id=$42
-`
-
-type UpdateDCLCustomerAccountVersionParams struct {
-	Name                               string  `db:"name" json:"name"`
-	CustomerType                       string  `db:"customer_type" json:"customer_type"`
-	CustomerTypeCode                   string  `db:"customer_type_code" json:"customer_type_code"`
-	CustomerTypeName                   string  `db:"customer_type_name" json:"customer_type_name"`
-	ShortName                          *string `db:"short_name" json:"short_name"`
-	ContactName                        *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                       *string `db:"contact_phone" json:"contact_phone"`
-	Email                              *string `db:"email" json:"email"`
-	Address                            *string `db:"address" json:"address"`
-	SettlementMethodID                 *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodCode               *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName               *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode                 *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType                 *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementDueDays                  int32   `db:"settlement_due_days" json:"settlement_due_days"`
-	SettlementMonthOffset              int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementCutoffDay                int32   `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
-	SettlementSalesSurchargeCents      int64   `db:"settlement_sales_surcharge_cents" json:"settlement_sales_surcharge_cents"`
-	PaymentMethodID                    *string `db:"payment_method_id" json:"payment_method_id"`
-	PaymentMethodCode                  *string `db:"payment_method_code" json:"payment_method_code"`
-	PaymentMethodName                  *string `db:"payment_method_name" json:"payment_method_name"`
-	PaymentSalesSurchargeCents         int64   `db:"payment_sales_surcharge_cents" json:"payment_sales_surcharge_cents"`
-	OperatingEntityID                  string  `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityApprovalEntryID     string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode                string  `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName                string  `db:"operating_entity_name" json:"operating_entity_name"`
-	OperatingEntityTaxNumber           *string `db:"operating_entity_tax_number" json:"operating_entity_tax_number"`
-	OperatingEntityAddress             *string `db:"operating_entity_address" json:"operating_entity_address"`
-	OperatingEntityPhone               *string `db:"operating_entity_phone" json:"operating_entity_phone"`
-	DefaultTransportMethodCode         *string `db:"default_transport_method_code" json:"default_transport_method_code"`
-	DefaultTransportMethodName         *string `db:"default_transport_method_name" json:"default_transport_method_name"`
-	TransportSurchargeCents            int64   `db:"transport_surcharge_cents" json:"transport_surcharge_cents"`
-	PricingPolicy                      []byte  `db:"pricing_policy" json:"pricing_policy"`
-	PrimarySalesAttributionType        *string `db:"primary_sales_attribution_type" json:"primary_sales_attribution_type"`
-	PrimarySalesSubjectID              *string `db:"primary_sales_subject_id" json:"primary_sales_subject_id"`
-	PrimarySalesSubjectApprovalEntryID *string `db:"primary_sales_subject_approval_entry_id" json:"primary_sales_subject_approval_entry_id"`
-	PrimarySalesSubjectCode            *string `db:"primary_sales_subject_code" json:"primary_sales_subject_code"`
-	PrimarySalesSubjectName            *string `db:"primary_sales_subject_name" json:"primary_sales_subject_name"`
-	InternalReminder                   *string `db:"internal_reminder" json:"internal_reminder"`
-	DefaultSalesOrderRemark            *string `db:"default_sales_order_remark" json:"default_sales_order_remark"`
-	Enabled                            bool    `db:"enabled" json:"enabled"`
-	ApprovalEntryID                    string  `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateDCLCustomerAccountVersion(ctx context.Context, arg UpdateDCLCustomerAccountVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateDCLCustomerAccountVersion,
-		arg.Name,
-		arg.CustomerType,
-		arg.CustomerTypeCode,
-		arg.CustomerTypeName,
-		arg.ShortName,
-		arg.ContactName,
-		arg.ContactPhone,
-		arg.Email,
-		arg.Address,
-		arg.SettlementMethodID,
-		arg.SettlementMethodCode,
-		arg.SettlementMethodName,
-		arg.SettlementTermCode,
-		arg.SettlementRuleType,
-		arg.SettlementDueDays,
-		arg.SettlementMonthOffset,
-		arg.SettlementCutoffDay,
-		arg.SettlementSalesSurchargeCents,
-		arg.PaymentMethodID,
-		arg.PaymentMethodCode,
-		arg.PaymentMethodName,
-		arg.PaymentSalesSurchargeCents,
-		arg.OperatingEntityID,
-		arg.OperatingEntityApprovalEntryID,
-		arg.OperatingEntityCode,
-		arg.OperatingEntityName,
-		arg.OperatingEntityTaxNumber,
-		arg.OperatingEntityAddress,
-		arg.OperatingEntityPhone,
-		arg.DefaultTransportMethodCode,
-		arg.DefaultTransportMethodName,
-		arg.TransportSurchargeCents,
-		arg.PricingPolicy,
-		arg.PrimarySalesAttributionType,
-		arg.PrimarySalesSubjectID,
-		arg.PrimarySalesSubjectApprovalEntryID,
-		arg.PrimarySalesSubjectCode,
-		arg.PrimarySalesSubjectName,
-		arg.InternalReminder,
-		arg.DefaultSalesOrderRemark,
-		arg.Enabled,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateDCLCustomerVersion = `-- name: UpdateDCLCustomerVersion :execrows
-UPDATE dcl_customer_versions SET enabled=$1 WHERE approval_entry_id=$2
+UPDATE dcl_customer_versions SET data=$1,enabled=$2 WHERE approval_entry_id=$3
 `
 
 type UpdateDCLCustomerVersionParams struct {
+	Data            []byte `db:"data" json:"data"`
 	Enabled         bool   `db:"enabled" json:"enabled"`
 	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
 }
 
 func (q *Queries) UpdateDCLCustomerVersion(ctx context.Context, arg UpdateDCLCustomerVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateDCLCustomerVersion, arg.Enabled, arg.ApprovalEntryID)
+	result, err := q.db.Exec(ctx, updateDCLCustomerVersion, arg.Data, arg.Enabled, arg.ApprovalEntryID)
 	if err != nil {
 		return 0, err
 	}

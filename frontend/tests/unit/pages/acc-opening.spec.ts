@@ -37,6 +37,13 @@ const subjects = [
     revision: 1,
   },
 ]
+const typedSubject = {
+  ...subjects[0]!,
+  subjectId: '01JACC00000000000000000012',
+  code: '1122',
+  name: '应收账款',
+  requiredDimensions: ['CUSTOMER_ACCOUNT'] as const,
+}
 function createDraftOpening() {
   return {
     bookId: book.bookId,
@@ -202,6 +209,119 @@ describe.sequential('ACC opening view model', () => {
           ],
         }),
       )
+    },
+  )
+
+  it.sequential(
+    'does not expose or save typed subjects without archive query permission',
+    async () => {
+      mockedPost
+        .mockResolvedValueOnce({ data: { items: [book], total: 1 } })
+        .mockResolvedValueOnce({ data: { items: [typedSubject], total: 1 } })
+        .mockResolvedValueOnce({ data: draft })
+      const vm = createAccountingOpeningViewModel()
+      await vm.initialize()
+      vm.addLine()
+      vm.changeSubject(vm.lines[0]!, typedSubject.subjectId)
+      vm.lines[0]!.debitAmount = '100.00'
+      vm.lines[0]!.dimensions.CUSTOMER_ACCOUNT = '01JACC00000000000000000013'
+      vm.lines[0]!.dimensionReferences.CUSTOMER_ACCOUNT = {
+        entity: 'customer-account',
+        objectId: '01JACC00000000000000000013',
+        customerId: '01JACC00000000000000000014',
+        approvalEntryId: '01JACC00000000000000000015',
+        code: 'ACC-001',
+        name: '客户账户',
+      }
+
+      expect(vm.subjectOptions).toEqual([])
+      expect(vm.canSave).toBe(false)
+
+      useSessionStore().permissions.push('/bob/reference/query')
+      expect(vm.subjectOptions).toHaveLength(1)
+      expect(vm.canSave).toBe(true)
+    },
+  )
+
+  it.sequential(
+    'ignores stale archive searches and preserves the selected snapshot',
+    async () => {
+      useSessionStore().permissions.push('/bob/reference/query')
+      mockedPost
+        .mockResolvedValueOnce({ data: { items: [book], total: 1 } })
+        .mockResolvedValueOnce({ data: { items: [typedSubject], total: 1 } })
+        .mockResolvedValueOnce({ data: draft })
+      const vm = createAccountingOpeningViewModel()
+      await vm.initialize()
+      vm.addLine()
+      const line = vm.lines[0]!
+      vm.changeSubject(line, typedSubject.subjectId)
+      const selected = {
+        entity: 'customer-account' as const,
+        objectId: '01JACC00000000000000000013',
+        customerId: '01JACC00000000000000000014',
+        approvalEntryId: '01JACC00000000000000000015',
+        code: 'ACC-001',
+        name: '已选账户',
+      }
+      line.dimensionReferences.CUSTOMER_ACCOUNT = selected
+
+      let resolveFirst!: (value: {
+        data: Array<Record<string, string>>
+      }) => void
+      let resolveSecond!: (value: {
+        data: Array<Record<string, string>>
+      }) => void
+      mockedPost
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFirst = resolve as typeof resolveFirst
+            }) as never,
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSecond = resolve as typeof resolveSecond
+            }) as never,
+        )
+
+      const first = vm.searchDimensionReferences(line, 'CUSTOMER_ACCOUNT', '旧')
+      const second = vm.searchDimensionReferences(
+        line,
+        'CUSTOMER_ACCOUNT',
+        '新',
+      )
+      resolveSecond({
+        data: [
+          {
+            objectId: '01JACC00000000000000000016',
+            customerId: '01JACC00000000000000000017',
+            approvalEntryId: '01JACC00000000000000000018',
+            code: 'ACC-002',
+            name: '新结果',
+          },
+        ],
+      })
+      await second
+      resolveFirst({
+        data: [
+          {
+            objectId: '01JACC00000000000000000019',
+            customerId: '01JACC00000000000000000020',
+            approvalEntryId: '01JACC00000000000000000021',
+            code: 'ACC-003',
+            name: '旧结果',
+          },
+        ],
+      })
+      await first
+
+      expect(
+        vm.dimensionReferenceOptions[
+          vm.dimensionReferenceKey(line, 'CUSTOMER_ACCOUNT')
+        ],
+      ).toEqual([selected, expect.objectContaining({ code: 'ACC-002' })])
     },
   )
 })

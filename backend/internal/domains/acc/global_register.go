@@ -14,7 +14,7 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-func (s *Service) applyGlobalRegisters(ctx context.Context, q *dbsqlc.Queries, event vouApprovalDelivery, books []dbsqlc.ListAccountingPostingBooksRow, snapshot postingSnapshot) error {
+func (s *Service) applyGlobalRegisters(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, event vouApprovalDelivery, books []dbsqlc.ListAccountingPostingBooksRow, snapshot postingSnapshot) error {
 	_, err := q.RegisterAccountingGlobalEvent(ctx, dbsqlc.RegisterAccountingGlobalEventParams{SourceEntity: event.Entity, SourceDocumentID: event.DocumentID, SourceRevision: event.Revision})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
@@ -24,7 +24,7 @@ func (s *Service) applyGlobalRegisters(ctx context.Context, q *dbsqlc.Queries, e
 	}
 	switch event.Entity {
 	case voudomain.EntityAssetAcquisition:
-		return registerAssetAcquisition(ctx, q, event, books, snapshot)
+		return s.registerAssetAcquisition(ctx, tx, q, event, books, snapshot)
 	case voudomain.EntityAssetSale, voudomain.EntityAssetLiquidation:
 		return registerAssetDisposal(ctx, q, event)
 	case voudomain.EntityBillReceipt, voudomain.EntityBillIssue:
@@ -38,7 +38,7 @@ func (s *Service) applyGlobalRegisters(ctx context.Context, q *dbsqlc.Queries, e
 	}
 }
 
-func registerAssetAcquisition(ctx context.Context, q *dbsqlc.Queries, event vouApprovalDelivery, books []dbsqlc.ListAccountingPostingBooksRow, snapshot postingSnapshot) error {
+func (s *Service) registerAssetAcquisition(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, event vouApprovalDelivery, books []dbsqlc.ListAccountingPostingBooksRow, snapshot postingSnapshot) error {
 	date, _ := time.Parse("2006-01-02", event.Snapshot.Data.BusinessDate)
 	for _, line := range event.Snapshot.Data.AssetAcquisitionLines {
 		original, err := fixeddecimal.ParsePositive(line.OriginalValue, 2, false)
@@ -73,23 +73,25 @@ func registerAssetAcquisition(ctx context.Context, q *dbsqlc.Queries, event vouA
 			fields := map[string]string{}
 			flattenSnapshotValue(fields, "", raw)
 			assetJSON, accumulatedJSON, expenseJSON := []byte(`{}`), []byte(`{}`), []byte(`{}`)
+			assetReferencesJSON, accumulatedReferencesJSON, expenseReferencesJSON := []byte(`{}`), []byte(`{}`), []byte(`{}`)
 			var assetSubjectID, accumulatedSubjectID, expenseSubjectID *string
 			if configuration != nil {
-				assetDimensions, renderErr := renderAssetDimensions(configuration.AssetDimensions, fields)
+				assetDimensions, assetReferences, renderErr := s.renderAssetDimensionSnapshot(ctx, tx, q, book.ID, configuration.AssetSubjectID, configuration.AssetDimensions, snapshot.header, fields)
 				if renderErr != nil || assetDimensions[DimensionAsset] != assetID {
 					return domainError(ErrorValidation, "asset subject dimensions must identify the acquired asset", renderErr)
 				}
-				accumulatedDimensions, renderErr := renderAssetDimensions(configuration.AccumulatedDepreciationDimensions, fields)
+				accumulatedDimensions, accumulatedReferences, renderErr := s.renderAssetDimensionSnapshot(ctx, tx, q, book.ID, configuration.AccumulatedDepreciationSubjectID, configuration.AccumulatedDepreciationDimensions, snapshot.header, fields)
 				if renderErr != nil || accumulatedDimensions[DimensionAsset] != assetID {
 					return domainError(ErrorValidation, "accumulated depreciation dimensions must identify the acquired asset", renderErr)
 				}
-				expenseDimensions, renderErr := renderAssetDimensions(configuration.DepreciationExpenseDimensions, fields)
+				expenseDimensions, expenseReferences, renderErr := s.renderAssetDimensionSnapshot(ctx, tx, q, book.ID, configuration.DepreciationExpenseSubjectID, configuration.DepreciationExpenseDimensions, snapshot.header, fields)
 				if renderErr != nil {
 					return renderErr
 				}
 				assetJSON, _ = json.Marshal(assetDimensions)
 				accumulatedJSON, _ = json.Marshal(accumulatedDimensions)
 				expenseJSON, _ = json.Marshal(expenseDimensions)
+				assetReferencesJSON, accumulatedReferencesJSON, expenseReferencesJSON = assetReferences, accumulatedReferences, expenseReferences
 				assetSubjectID = &configuration.AssetSubjectID
 				accumulatedSubjectID = &configuration.AccumulatedDepreciationSubjectID
 				expenseSubjectID = &configuration.DepreciationExpenseSubjectID
@@ -97,14 +99,31 @@ func registerAssetAcquisition(ctx context.Context, q *dbsqlc.Queries, event vouA
 			if err = q.CreateAccountingAssetBookValue(ctx, dbsqlc.CreateAccountingAssetBookValueParams{
 				BookID: book.ID, AssetID: assetID, Currency: event.Snapshot.Data.Currency, OriginalMinor: original,
 				AssetSubjectID: assetSubjectID, AssetDimensions: assetJSON,
-				AccumulatedSubjectID: accumulatedSubjectID, AccumulatedDimensions: accumulatedJSON,
-				ExpenseSubjectID: expenseSubjectID, ExpenseDimensions: expenseJSON,
+				AssetDimensionReferences: assetReferencesJSON,
+				AccumulatedSubjectID:     accumulatedSubjectID, AccumulatedDimensions: accumulatedJSON, AccumulatedDimensionReferences: accumulatedReferencesJSON,
+				ExpenseSubjectID: expenseSubjectID, ExpenseDimensions: expenseJSON, ExpenseDimensionReferences: expenseReferencesJSON,
 			}); err != nil {
 				return databaseError("create asset book value", err)
 			}
 		}
 	}
 	return nil
+}
+
+func (s *Service) renderAssetDimensionSnapshot(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID, subjectID string, mappings, header, fields map[string]string) (map[string]string, []byte, error) {
+	subject, err := loadSubject(ctx, q, bookID, subjectID)
+	if err != nil || !subject.Enabled || !subject.Leaf {
+		return nil, nil, domainError(ErrorValidation, "asset accounting subject is unavailable", err)
+	}
+	dimensions, err := renderAssetDimensions(mappings, fields)
+	if err != nil {
+		return nil, nil, err
+	}
+	references, err := s.automaticDimensionReferences(ctx, tx, subject.RequiredDimensions, mappings, header, fields)
+	if err != nil {
+		return nil, nil, err
+	}
+	return dimensions, references, nil
 }
 
 func loadAssetAccountingConfiguration(ctx context.Context, q *dbsqlc.Queries, bookID string, header map[string]string) (*AssetAccountingConfiguration, error) {
@@ -197,10 +216,13 @@ func registerBillChanges(ctx context.Context, q *dbsqlc.Queries, event vouApprov
 			maturityDate, _ := time.Parse("2006-01-02", line.MaturityDate)
 			interest, _ := fixeddecimal.ParsePositive(line.InterestAmount, 2, true)
 			customerCost, _ := fixeddecimal.ParsePositive(line.CustomerCostAmount, 2, true)
-			var originEntity, originID, originVersion, originCode, originName *string
+			var originEntity, originID, originCustomerID, originVersion, originCode, originName *string
 			if origin != nil {
 				originEntity, originID, originVersion = &origin.Entity, &origin.ObjectID, &origin.ApprovalEntryID
 				originCode, originName = &origin.Code, &origin.Name
+				if origin.CustomerID != "" {
+					originCustomerID = &origin.CustomerID
+				}
 			}
 			if err = q.CreateAccountingBill(ctx, dbsqlc.CreateAccountingBillParams{
 				ID: line.BillID, BillNo: line.BillNo, BillType: line.BillType, PositionType: line.PositionType,
@@ -209,8 +231,8 @@ func registerBillChanges(ctx context.Context, q *dbsqlc.Queries, event vouApprov
 				Drawer: line.Drawer, Acceptor: line.Acceptor, Payee: line.Payee,
 				AnnualRateBps: line.AnnualRateBps, InterestDays: line.InterestDays,
 				InterestAmountMinor: interest, CustomerCostAmountMinor: customerCost,
-				OriginPartyEntity: originEntity, OriginPartyObjectID: originID, OriginPartyApprovalEntryID: originVersion,
-				OriginPartyCode: originCode, OriginPartyName: originName,
+				OriginCounterpartyEntity: originEntity, OriginCounterpartyObjectID: originID, OriginCounterpartyCustomerID: originCustomerID, OriginCounterpartyApprovalEntryID: originVersion,
+				OriginCounterpartyCode: originCode, OriginCounterpartyName: originName,
 				SourceDocumentID: event.DocumentID, SourceLineID: line.LineID,
 			}); err != nil {
 				return databaseError("create global bill", err)

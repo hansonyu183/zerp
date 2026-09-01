@@ -28,11 +28,7 @@ func TestVOUCreateRejectsExhaustedDocumentNumberIntegration(t *testing.T) {
 	}
 
 	_, err := newIntegrationService(t, pool).Create(t.Context(), EntitySalesReceipt, CreateInput{
-		Data: DraftInput{
-			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
-			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
-			Handler: &refs.employee, Amount: "100.00",
-		},
+		Data: salesReceiptDraft(refs, "100.00"),
 	}, integrationApprovalActor(t, integrationActorOne, "document-number-exhausted"))
 	var domainErr *DomainError
 	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorConflict {
@@ -183,11 +179,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 			Warehouse: &refs.warehouse, ProductLines: productLine,
 		}},
-		{EntitySalesReceipt, DraftInput{
-			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
-			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
-			Handler: &refs.employee, Amount: "100.00",
-		}},
+		{EntitySalesReceipt, salesReceiptDraft(refs, "100.00")},
 		{EntityPurchasePayment, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "supplier",
 			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
@@ -327,11 +319,7 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
-	parent, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
-		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
-		Handler: &refs.employee, Amount: "100.00",
-	}}, integrationApprovalActor(t, integrationActorOne, "parent-create"))
+	parent, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: salesReceiptDraft(refs, "100.00")}, integrationApprovalActor(t, integrationActorOne, "parent-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,11 +370,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			result, err := service.Create(context.Background(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-				BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
-				Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
-				Handler: &refs.employee, Amount: "1.00",
-			}}, integrationApprovalActor(t, integrationActorOne, "concurrent-number"))
+			result, err := service.Create(context.Background(), EntitySalesReceipt, CreateInput{Data: salesReceiptDraft(refs, "1.00")}, integrationApprovalActor(t, integrationActorOne, "concurrent-number"))
 			if err != nil {
 				errorsChannel <- err
 				return

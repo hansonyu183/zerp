@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { OpeningPartyInput } from './OpeningPartyInput';
+import type { BusinessArchiveDimensionReference } from './BusinessArchiveDimensionReference';
 export type OpeningBillInput = {
   billId?: string;
   billNo?: string;
@@ -21,5 +21,5 @@ export type OpeningBillInput = {
   interestAmount?: string;
   customerCostAmount?: string;
   valueAmount: string;
-  originatingParty?: OpeningPartyInput;
+  originatingCounterparty?: BusinessArchiveDimensionReference;
 };

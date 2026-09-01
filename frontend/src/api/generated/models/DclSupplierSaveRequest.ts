@@ -7,6 +7,5 @@ export type DclSupplierSaveRequest = {
   objectId: string;
   approvalEntryId: string;
   approvalRevision: number;
-  enabled: boolean;
   data: DclSupplierInput;
 };

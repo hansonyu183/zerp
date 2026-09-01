@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"slices"
 	"strings"
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -20,8 +18,6 @@ const (
 	SalesAttributionDealer           = "CHANNEL_PARTNER"
 )
 
-// CustomerAttachmentView is the read DTO shared by BOB current-effective views.
-// Ownership and mutation live exclusively in DCL.
 type CustomerAttachmentView struct {
 	FileID           string     `json:"fileId"`
 	FileName         string     `json:"fileName"`
@@ -35,86 +31,6 @@ type CustomerAttachmentView struct {
 	CategoryName     string     `json:"categoryName"`
 	CreatedAt        time.Time  `json:"createdAt"`
 	CreatedBy        string     `json:"createdBy"`
-}
-
-// CustomerSnapshot and CustomerAccountData are read-only wire shapes shared
-// with the DCL customer-account declaration.  BOB hydrates them only from an
-// currently effective approved DCL data; it owns no customer payload or lifecycle.
-type CustomerSnapshot struct {
-	SourceObjectID        string `json:"sourceObjectId"`
-	ApprovalEntryID       string `json:"approvalEntryId"`
-	Code                  string `json:"code"`
-	Name                  string `json:"name"`
-	TermCode              string `json:"termCode,omitempty"`
-	RuleType              string `json:"ruleType,omitempty"`
-	DueDays               int32  `json:"dueDays,omitempty"`
-	MonthOffset           int32  `json:"monthOffset,omitempty"`
-	CutoffDay             int32  `json:"cutoffDay,omitempty"`
-	DefaultSalesSurcharge string `json:"defaultSalesSurcharge,omitempty"`
-	TaxNumber             string `json:"taxNumber,omitempty"`
-	Address               string `json:"address,omitempty"`
-	Phone                 string `json:"phone,omitempty"`
-}
-type CustomerAuxiliarySnapshot struct {
-	SourceObjectID        string `json:"sourceObjectId"`
-	Code                  string `json:"code"`
-	Name                  string `json:"name"`
-	TermCode              string `json:"termCode,omitempty"`
-	RuleType              string `json:"ruleType,omitempty"`
-	DueDays               int32  `json:"dueDays,omitempty"`
-	MonthOffset           int32  `json:"monthOffset,omitempty"`
-	CutoffDay             int32  `json:"cutoffDay,omitempty"`
-	DefaultSalesSurcharge string `json:"defaultSalesSurcharge,omitempty"`
-}
-
-type CustomerSalesAttributionInput struct {
-	Type            string `json:"type"`
-	SubjectObjectID string `json:"subjectObjectId"`
-}
-
-type CustomerSalesAttributionView struct {
-	CustomerSalesAttributionInput
-	SubjectApprovalEntryID string `json:"subjectApprovalEntryId"`
-	SubjectCode            string `json:"subjectCode"`
-	SubjectName            string `json:"subjectName"`
-}
-
-type CustomerCreditLimit struct {
-	Currency string `json:"currency"`
-	Amount   string `json:"amount"`
-}
-
-type CustomerAccountData struct {
-	Name                       string                        `json:"name"`
-	ShortName                  string                        `json:"shortName,omitempty"`
-	CustomerTypeID             string                        `json:"customerTypeId"`
-	ContactName                string                        `json:"contactName,omitempty"`
-	ContactPhone               string                        `json:"contactPhone,omitempty"`
-	Email                      string                        `json:"email,omitempty"`
-	Address                    string                        `json:"address,omitempty"`
-	OperatingEntityID          string                        `json:"operatingEntityId"`
-	SettlementMethodID         string                        `json:"settlementMethodId,omitempty"`
-	PaymentMethodID            string                        `json:"paymentMethodId,omitempty"`
-	DefaultTransportMethodCode string                        `json:"defaultTransportMethodCode,omitempty"`
-	DefaultTransportMethodName string                        `json:"defaultTransportMethodName,omitempty"`
-	TransportSurcharge         string                        `json:"transportSurcharge,omitempty"`
-	PricingPolicy              PricingPolicy                 `json:"pricingPolicy"`
-	CreditLimits               []CustomerCreditLimit         `json:"creditLimits"`
-	PrimarySalesAttribution    CustomerSalesAttributionInput `json:"primarySalesAttribution"`
-	InternalReminder           string                        `json:"internalReminder,omitempty"`
-	DefaultSalesOrderRemark    string                        `json:"defaultSalesOrderRemark,omitempty"`
-	OperatingEntity            *CustomerSnapshot             `json:"operatingEntity,omitempty"`
-	SettlementMethod           *CustomerAuxiliarySnapshot    `json:"settlementMethod,omitempty"`
-	PaymentMethod              *CustomerAuxiliarySnapshot    `json:"paymentMethod,omitempty"`
-	SalesAttribution           CustomerSalesAttributionView  `json:"-"`
-}
-
-func (data CustomerAccountData) MarshalJSON() ([]byte, error) {
-	type alias CustomerAccountData
-	return json.Marshal(struct {
-		alias
-		PrimarySalesAttribution CustomerSalesAttributionView `json:"primarySalesAttribution"`
-	}{alias: alias(data), PrimarySalesAttribution: data.SalesAttribution})
 }
 
 func nullableTime(value pgtype.Timestamptz) *time.Time {
@@ -134,9 +50,6 @@ func hasSalesCapability(values []string, expected string) bool {
 	return false
 }
 
-// CustomerCurrentQueryInput is deliberately separate from the generic BOB
-// query shape: Customer relationship and account declarations are DCL-owned,
-// and BOB exposes only their currently effective approved data.
 type CustomerCurrentQueryInput struct {
 	Page     int                         `json:"page"`
 	PageSize int                         `json:"pageSize"`
@@ -145,82 +58,31 @@ type CustomerCurrentQueryInput struct {
 }
 
 type CustomerCurrentQueryFilters struct {
-	Keyword           string `json:"keyword,omitempty"`
-	Enabled           *bool  `json:"enabled,omitempty"`
-	OperatingEntityID string `json:"operatingEntityId,omitempty"`
-	PartyID           string `json:"partyId,omitempty"`
-}
-
-type CustomerAccountCurrentQueryInput struct {
-	Page     int                                `json:"page"`
-	PageSize int                                `json:"pageSize"`
-	Filters  CustomerAccountCurrentQueryFilters `json:"filters"`
-	Sort     []SortItem                         `json:"sort"`
-}
-
-type CustomerAccountCurrentQueryFilters struct {
-	Keyword                   string `json:"keyword,omitempty"`
-	Enabled                   *bool  `json:"enabled,omitempty"`
-	CustomerType              string `json:"customerType,omitempty"`
-	CustomerRelationshipID    string `json:"customerRelationshipId,omitempty"`
-	OperatingEntityID         string `json:"operatingEntityId,omitempty"`
-	SalesAttributionType      string `json:"salesAttributionType,omitempty"`
-	SalesAttributionSubjectID string `json:"salesAttributionSubjectId,omitempty"`
+	Keyword                  string `json:"keyword,omitempty"`
+	Enabled                  *bool  `json:"enabled,omitempty"`
+	DefaultOperatingEntityID string `json:"defaultOperatingEntityId,omitempty"`
 }
 
 type CustomerCurrentListItem struct {
-	ObjectID              string    `json:"objectId"`
-	Code                  string    `json:"code"`
-	PartyDisplayName      string    `json:"partyDisplayName"`
-	OperatingEntityCode   string    `json:"operatingEntityCode"`
-	OperatingEntityName   string    `json:"operatingEntityName"`
-	Enabled               bool      `json:"enabled"`
-	SourceApprovalEntryID string    `json:"sourceApprovalEntryId"`
-	SourceVersionNo       int32     `json:"sourceVersionNo"`
-	UpdatedAt             time.Time `json:"updatedAt"`
+	ObjectID                   string    `json:"objectId"`
+	Code                       string    `json:"code"`
+	DisplayName                string    `json:"displayName"`
+	DefaultOperatingEntityCode string    `json:"defaultOperatingEntityCode"`
+	DefaultOperatingEntityName string    `json:"defaultOperatingEntityName"`
+	Enabled                    bool      `json:"enabled"`
+	SourceApprovalEntryID      string    `json:"sourceApprovalEntryId"`
+	SourceVersionNo            int32     `json:"sourceVersionNo"`
+	UpdatedAt                  time.Time `json:"updatedAt"`
 }
 
 type CustomerCurrentView struct {
-	ObjectID                       string    `json:"objectId"`
-	Code                           string    `json:"code"`
-	PartyID                        string    `json:"partyId"`
-	PartyKind                      string    `json:"partyKind"`
-	PartyDisplayName               string    `json:"partyDisplayName"`
-	OperatingEntityID              string    `json:"operatingEntityId"`
-	OperatingEntityApprovalEntryID string    `json:"operatingEntityApprovalEntryId"`
-	OperatingEntityCode            string    `json:"operatingEntityCode"`
-	OperatingEntityName            string    `json:"operatingEntityName"`
-	Enabled                        bool      `json:"enabled"`
-	SourceApprovalEntryID          string    `json:"sourceApprovalEntryId"`
-	SourceVersionNo                int32     `json:"sourceVersionNo"`
-	UpdatedAt                      time.Time `json:"updatedAt"`
-}
-
-type CustomerAccountCurrentListItem struct {
-	ObjectID                 string    `json:"objectId"`
-	Code                     string    `json:"code"`
-	CustomerRelationshipID   string    `json:"customerRelationshipId"`
-	CustomerRelationshipCode string    `json:"customerRelationshipCode"`
-	Name                     string    `json:"name"`
-	CustomerTypeID           string    `json:"customerTypeId"`
-	OperatingEntityCode      string    `json:"operatingEntityCode"`
-	Enabled                  bool      `json:"enabled"`
-	SourceApprovalEntryID    string    `json:"sourceApprovalEntryId"`
-	SourceVersionNo          int32     `json:"sourceVersionNo"`
-	UpdatedAt                time.Time `json:"updatedAt"`
-}
-
-type CustomerAccountCurrentView struct {
-	ObjectID                 string                   `json:"objectId"`
-	Code                     string                   `json:"code"`
-	CustomerRelationshipID   string                   `json:"customerRelationshipId"`
-	CustomerRelationshipCode string                   `json:"customerRelationshipCode"`
-	Enabled                  bool                     `json:"enabled"`
-	SourceApprovalEntryID    string                   `json:"sourceApprovalEntryId"`
-	SourceVersionNo          int32                    `json:"sourceVersionNo"`
-	Data                     CustomerAccountData      `json:"data"`
-	Attachments              []CustomerAttachmentView `json:"attachments"`
-	UpdatedAt                time.Time                `json:"updatedAt"`
+	ObjectID              string                   `json:"objectId"`
+	Code                  string                   `json:"code"`
+	SourceApprovalEntryID string                   `json:"sourceApprovalEntryId"`
+	SourceVersionNo       int32                    `json:"sourceVersionNo"`
+	Data                  json.RawMessage          `json:"data"`
+	Attachments           []CustomerAttachmentView `json:"attachments"`
+	UpdatedAt             time.Time                `json:"updatedAt"`
 }
 
 func currentPage(page, pageSize int, sort []SortItem) (int32, error) {
@@ -242,26 +104,65 @@ func currentEnabled(enabled *bool) int32 {
 
 func (s *Service) CustomerCurrentQuery(ctx context.Context, in CustomerCurrentQueryInput) (Page[CustomerCurrentListItem], error) {
 	offset, err := currentPage(in.Page, in.PageSize, in.Sort)
-	if err != nil || (in.Filters.OperatingEntityID != "" && !validID(in.Filters.OperatingEntityID)) || (in.Filters.PartyID != "" && !validID(in.Filters.PartyID)) {
-		if err != nil {
-			return Page[CustomerCurrentListItem]{}, err
-		}
+	if err != nil {
+		return Page[CustomerCurrentListItem]{}, err
+	}
+	operatingEntityID := strings.TrimSpace(in.Filters.DefaultOperatingEntityID)
+	if operatingEntityID != "" && !validID(operatingEntityID) {
 		return Page[CustomerCurrentListItem]{}, domainError(ErrorValidation, "invalid current customer filters", nil, nil)
 	}
-	p := dbsqlc.ListBobCustomerCurrentsParams{Keyword: strings.TrimSpace(in.Filters.Keyword), EnabledFilter: currentEnabled(in.Filters.Enabled), OperatingEntityID: strings.TrimSpace(in.Filters.OperatingEntityID), PartyID: strings.TrimSpace(in.Filters.PartyID), RowOffset: offset, RowLimit: 20}
-	total, err := s.queries.CountBobCustomerCurrents(ctx, dbsqlc.CountBobCustomerCurrentsParams{Keyword: p.Keyword, EnabledFilter: p.EnabledFilter, OperatingEntityID: p.OperatingEntityID, PartyID: p.PartyID})
+	keyword := strings.TrimSpace(in.Filters.Keyword)
+	filter := currentEnabled(in.Filters.Enabled)
+	total, err := s.queries.CountBobCustomerCurrents(ctx, dbsqlc.CountBobCustomerCurrentsParams{Keyword: keyword, EnabledFilter: filter, OperatingEntityID: operatingEntityID})
 	if err != nil {
 		return Page[CustomerCurrentListItem]{}, s.internal("count current customers", err)
 	}
-	rows, err := s.queries.ListBobCustomerCurrents(ctx, p)
+	rows, err := s.queries.ListBobCustomerCurrents(ctx, dbsqlc.ListBobCustomerCurrentsParams{Keyword: keyword, EnabledFilter: filter, OperatingEntityID: operatingEntityID, RowOffset: offset, RowLimit: 20})
 	if err != nil {
 		return Page[CustomerCurrentListItem]{}, s.internal("list current customers", err)
 	}
 	items := make([]CustomerCurrentListItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, CustomerCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, PartyDisplayName: row.DisplayName, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time})
+		items = append(items, CustomerCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, DisplayName: row.DisplayName, DefaultOperatingEntityCode: row.OperatingEntityCode, DefaultOperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[CustomerCurrentListItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
+}
+
+func attachmentView(row dbsqlc.ListDCLCustomerAttachmentsRow) CustomerAttachmentView {
+	return CustomerAttachmentView{FileID: row.FileID, FileName: row.OriginalName, ContentType: row.ContentType, Size: row.DeclaredSize, SHA256: row.Sha256Hex, Status: row.Status, StoredAt: nullableTime(row.StoredAt), CategoryObjectID: row.CategoryObjectID, CategoryCode: row.CategoryCode, CategoryName: row.CategoryName, CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy}
+}
+
+func hydrateCustomerDataAttachments(raw []byte, rows []dbsqlc.ListDCLCustomerAttachmentsRow) (json.RawMessage, []CustomerAttachmentView, error) {
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, nil, err
+	}
+	byAccount := make(map[string][]CustomerAttachmentView)
+	customerAttachments := make([]CustomerAttachmentView, 0)
+	for _, row := range rows {
+		view := attachmentView(row)
+		if row.AccountID == nil {
+			customerAttachments = append(customerAttachments, view)
+		} else {
+			byAccount[*row.AccountID] = append(byAccount[*row.AccountID], view)
+		}
+	}
+	if accounts, ok := data["accounts"].([]any); ok {
+		for _, item := range accounts {
+			account, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			accountID, _ := account["accountId"].(string)
+			attachments := byAccount[accountID]
+			if attachments == nil {
+				attachments = []CustomerAttachmentView{}
+			}
+			account["attachments"] = attachments
+		}
+	}
+	encoded, err := json.Marshal(data)
+	return encoded, customerAttachments, err
 }
 
 func (s *Service) CustomerCurrentGet(ctx context.Context, objectID string) (CustomerCurrentView, error) {
@@ -275,141 +176,110 @@ func (s *Service) CustomerCurrentGet(ctx context.Context, objectID string) (Cust
 	if err != nil {
 		return CustomerCurrentView{}, s.internal("get current customer", err)
 	}
-	return CustomerCurrentView{ObjectID: row.ObjectID, Code: row.Code, PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.DisplayName, OperatingEntityID: row.OperatingEntityID, OperatingEntityApprovalEntryID: row.OperatingEntityApprovalEntryID, OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time}, nil
+	attachmentRows, err := s.queries.ListDCLCustomerAttachments(ctx, row.SourceApprovalEntryID)
+	if err != nil {
+		return CustomerCurrentView{}, s.internal("list current customer attachments", err)
+	}
+	data, attachments, err := hydrateCustomerDataAttachments(row.Data, attachmentRows)
+	if err != nil {
+		return CustomerCurrentView{}, s.internal("hydrate current customer", err)
+	}
+	return CustomerCurrentView{ObjectID: row.ObjectID, Code: row.Code, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, Data: data, Attachments: attachments, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 
-func (s *Service) CustomerAccountCurrentQuery(ctx context.Context, in CustomerAccountCurrentQueryInput) (Page[CustomerAccountCurrentListItem], error) {
-	offset, err := currentPage(in.Page, in.PageSize, in.Sort)
-	if err != nil || (in.Filters.CustomerRelationshipID != "" && !validID(in.Filters.CustomerRelationshipID)) || (in.Filters.OperatingEntityID != "" && !validID(in.Filters.OperatingEntityID)) || (in.Filters.SalesAttributionSubjectID != "" && !validID(in.Filters.SalesAttributionSubjectID)) || (in.Filters.SalesAttributionType != "" && !slices.Contains([]string{SalesAttributionInternalEmployee, SalesAttributionExternalPartTime, SalesAttributionDealer}, in.Filters.SalesAttributionType)) {
-		if err != nil {
-			return Page[CustomerAccountCurrentListItem]{}, err
-		}
-		return Page[CustomerAccountCurrentListItem]{}, domainError(ErrorValidation, "invalid current customer account filters", nil, nil)
+func customerReferenceDetail(raw []byte) (DetailView, error) {
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return DetailView{}, err
 	}
-	p := dbsqlc.ListBobCustomerAccountCurrentsParams{Keyword: strings.TrimSpace(in.Filters.Keyword), EnabledFilter: currentEnabled(in.Filters.Enabled), CustomerRelationshipID: strings.TrimSpace(in.Filters.CustomerRelationshipID), OperatingEntityID: strings.TrimSpace(in.Filters.OperatingEntityID), CustomerType: strings.TrimSpace(in.Filters.CustomerType), SalesAttributionType: strings.TrimSpace(in.Filters.SalesAttributionType), SalesAttributionSubjectID: strings.TrimSpace(in.Filters.SalesAttributionSubjectID), RowOffset: offset, RowLimit: 20}
-	total, err := s.queries.CountBobCustomerAccountCurrents(ctx, dbsqlc.CountBobCustomerAccountCurrentsParams{Keyword: p.Keyword, EnabledFilter: p.EnabledFilter, CustomerRelationshipID: p.CustomerRelationshipID, OperatingEntityID: p.OperatingEntityID, CustomerType: p.CustomerType, SalesAttributionType: p.SalesAttributionType, SalesAttributionSubjectID: p.SalesAttributionSubjectID})
-	if err != nil {
-		return Page[CustomerAccountCurrentListItem]{}, s.internal("count current customer accounts", err)
+	name := mapString(data, "displayName")
+	if name == "" {
+		name = mapString(data, "legalName")
 	}
-	rows, err := s.queries.ListBobCustomerAccountCurrents(ctx, p)
-	if err != nil {
-		return Page[CustomerAccountCurrentListItem]{}, s.internal("list current customer accounts", err)
-	}
-	items := make([]CustomerAccountCurrentListItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, CustomerAccountCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, CustomerRelationshipID: row.CustomerRelationshipID, CustomerRelationshipCode: row.CustomerRelationshipCode, Name: row.Name, CustomerTypeID: row.CustomerType, OperatingEntityCode: row.OperatingEntityCode, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time})
-	}
-	return Page[CustomerAccountCurrentListItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
+	return DetailView{
+		Name: name, TaxNumber: mapString(data, "taxNumber"), Address: mapString(data, "address"), Phone: mapString(data, "phone"),
+	}, nil
 }
 
-func (s *Service) CustomerAccountCurrentGet(ctx context.Context, objectID string) (CustomerAccountCurrentView, error) {
-	if !validID(objectID) {
-		return CustomerAccountCurrentView{}, domainError(ErrorValidation, "invalid current customer account get", nil, nil)
-	}
-	current, err := s.queries.GetBobCustomerAccountCurrent(ctx, objectID)
+func (s *Service) resolveCustomerCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
+	row, err := q.GetBobCustomerCurrentReference(ctx, objectID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return CustomerAccountCurrentView{}, domainError(ErrorConflict, "customer account current effective data is unavailable", nil, nil)
+		return EffectiveReference{}, domainError(ErrorConflict, "customer current effective data is unavailable", nil, nil)
 	}
 	if err != nil {
-		return CustomerAccountCurrentView{}, s.internal("get current customer account", err)
+		return EffectiveReference{}, s.internal("get current customer reference", err)
 	}
-	payload, err := s.queries.GetDCLCustomerAccountVersion(ctx, current.SourceApprovalEntryID)
+	detail, err := customerReferenceDetail(row.Data)
 	if err != nil {
-		return CustomerAccountCurrentView{}, s.internal("get current customer account payload", err)
+		return EffectiveReference{}, s.internal("decode current customer reference", err)
 	}
-	data, err := bobCustomerAccountData(payload, s.queries, ctx)
-	if err != nil {
-		return CustomerAccountCurrentView{}, err
-	}
-	attachments, err := bobDCLCustomerAccountAttachments(ctx, s.queries, current.SourceApprovalEntryID)
-	if err != nil {
-		return CustomerAccountCurrentView{}, err
-	}
-	return CustomerAccountCurrentView{ObjectID: current.ObjectID, Code: current.Code, CustomerRelationshipID: current.CustomerRelationshipID, CustomerRelationshipCode: current.CustomerRelationshipCode, Enabled: current.Enabled, SourceApprovalEntryID: current.SourceApprovalEntryID, SourceVersionNo: current.SourceVersionNo, Data: data, Attachments: attachments, UpdatedAt: current.UpdatedAt.Time}, nil
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
 }
 
-func bobCustomerAccountData(row dbsqlc.DclCustomerAccountVersion, q *dbsqlc.Queries, ctx context.Context) (CustomerAccountData, error) {
-	var policy PricingPolicy
-	if err := json.Unmarshal(row.PricingPolicy, &policy); err != nil {
-		return CustomerAccountData{}, domainError(ErrorInternal, "invalid customer account pricing snapshot", nil, err)
+func (s *Service) validateCustomerSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, approvalEntryID string) (EffectiveReference, error) {
+	row, err := q.GetBobCustomerHistoricalReference(ctx, dbsqlc.GetBobCustomerHistoricalReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return EffectiveReference{}, domainError(ErrorConflict, "customer approval snapshot is unavailable", nil, nil)
 	}
-	credits, err := q.ListDCLCustomerAccountCreditLimits(ctx, row.ApprovalEntryID)
 	if err != nil {
-		return CustomerAccountData{}, err
+		return EffectiveReference{}, s.internal("get historical customer reference", err)
 	}
-	data := CustomerAccountData{Name: row.Name, ShortName: stringValue(row.ShortName), CustomerTypeID: row.CustomerType, ContactName: stringValue(row.ContactName), ContactPhone: stringValue(row.ContactPhone), Email: stringValue(row.Email), Address: stringValue(row.Address), OperatingEntityID: row.OperatingEntityID, SettlementMethodID: stringValue(row.SettlementMethodID), PaymentMethodID: stringValue(row.PaymentMethodID), DefaultTransportMethodCode: stringValue(row.DefaultTransportMethodCode), DefaultTransportMethodName: stringValue(row.DefaultTransportMethodName), TransportSurcharge: fixeddecimal.Format(row.TransportSurchargeCents, 2, false), PricingPolicy: policy, InternalReminder: stringValue(row.InternalReminder), DefaultSalesOrderRemark: stringValue(row.DefaultSalesOrderRemark), OperatingEntity: &CustomerSnapshot{SourceObjectID: row.OperatingEntityID, ApprovalEntryID: row.OperatingEntityApprovalEntryID, Code: row.OperatingEntityCode, Name: row.OperatingEntityName, TaxNumber: stringValue(row.OperatingEntityTaxNumber), Address: stringValue(row.OperatingEntityAddress), Phone: stringValue(row.OperatingEntityPhone)}, SalesAttribution: CustomerSalesAttributionView{CustomerSalesAttributionInput: CustomerSalesAttributionInput{Type: stringValue(row.PrimarySalesAttributionType), SubjectObjectID: stringValue(row.PrimarySalesSubjectID)}, SubjectApprovalEntryID: stringValue(row.PrimarySalesSubjectApprovalEntryID), SubjectCode: stringValue(row.PrimarySalesSubjectCode), SubjectName: stringValue(row.PrimarySalesSubjectName)}}
-	if data.SettlementMethodID != "" {
-		data.SettlementMethod = &CustomerAuxiliarySnapshot{SourceObjectID: data.SettlementMethodID, Code: stringValue(row.SettlementMethodCode), Name: stringValue(row.SettlementMethodName), TermCode: stringValue(row.SettlementTermCode), RuleType: stringValue(row.SettlementRuleType), DueDays: row.SettlementDueDays, MonthOffset: row.SettlementMonthOffset, CutoffDay: row.SettlementCutoffDay, DefaultSalesSurcharge: fixeddecimal.Format(row.SettlementSalesSurchargeCents, 2, false)}
+	detail, err := customerReferenceDetail(row.Data)
+	if err != nil {
+		return EffectiveReference{}, s.internal("decode historical customer reference", err)
 	}
-	if data.PaymentMethodID != "" {
-		data.PaymentMethod = &CustomerAuxiliarySnapshot{SourceObjectID: data.PaymentMethodID, Code: stringValue(row.PaymentMethodCode), Name: stringValue(row.PaymentMethodName), DefaultSalesSurcharge: fixeddecimal.Format(row.PaymentSalesSurchargeCents, 2, false)}
-	}
-	data.CreditLimits = make([]CustomerCreditLimit, 0, len(credits))
-	for _, credit := range credits {
-		data.CreditLimits = append(data.CreditLimits, CustomerCreditLimit{Currency: credit.Currency, Amount: fixeddecimal.Format(credit.AmountCents, 2, false)})
-	}
-	return data, nil
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
 }
 
-func bobDCLCustomerAccountAttachments(ctx context.Context, q *dbsqlc.Queries, entryID string) ([]CustomerAttachmentView, error) {
-	rows, err := q.ListDCLCustomerAccountAttachments(ctx, entryID)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]CustomerAttachmentView, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, CustomerAttachmentView{FileID: row.FileID, FileName: row.OriginalName, ContentType: row.ContentType, Size: row.DeclaredSize, SHA256: row.Sha256Hex, Status: row.Status, StoredAt: nullableTime(row.StoredAt), CategoryObjectID: row.CategoryObjectID, CategoryCode: row.CategoryCode, CategoryName: row.CategoryName, CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy})
-	}
-	return items, nil
+func nestedMap(value map[string]any, key string) map[string]any {
+	result, _ := value[key].(map[string]any)
+	return result
 }
 
-// resolveCustomerAccountCurrentReference is the sole path for new commercial
-// work. It reads the current effective BOB data and its exact approved DCL entry.
+func embeddedCustomerAccountDetail(accountData, customerData []byte) (DetailView, error) {
+	var account, customer map[string]any
+	if err := json.Unmarshal(accountData, &account); err != nil {
+		return DetailView{}, err
+	}
+	if err := json.Unmarshal(customerData, &customer); err != nil {
+		return DetailView{}, err
+	}
+	settlement := nestedMap(account, "settlementMethod")
+	operating := nestedMap(customer, "defaultOperatingEntity")
+	return DetailView{
+		Enabled: account["enabled"] == true, Name: mapString(account, "name"), ShortName: mapString(account, "shortName"),
+		CustomerType: mapString(account, "customerTypeId"), ContactName: mapString(account, "contactName"), ContactPhone: mapString(account, "contactPhone"), Email: mapString(account, "email"), Address: mapString(account, "address"),
+		OperatingEntityID: mapString(operating, "sourceObjectId"), OperatingEntityApprovalEntryID: mapString(operating, "approvalEntryId"), OperatingEntityCode: mapString(operating, "code"), OperatingEntityName: mapString(operating, "name"),
+		SettlementMethodID: mapString(account, "settlementMethodId"), SettlementMethodCode: mapString(settlement, "code"), SettlementMethodName: mapString(settlement, "name"), TermCode: mapString(settlement, "termCode"), RuleType: mapString(settlement, "ruleType"), DueDays: int32(mapInt(settlement, "dueDays")), MonthOffset: int32(mapInt(settlement, "monthOffset")), CutoffDay: int32(mapInt(settlement, "cutoffDay")), DefaultSalesSurcharge: mapString(settlement, "defaultSalesSurcharge"),
+	}, nil
+}
+
 func (s *Service) resolveCustomerAccountCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
-	row, err := q.GetBobCustomerAccountCurrentReference(ctx, objectID)
+	row, err := q.GetBobEmbeddedCustomerAccountCurrentReference(ctx, objectID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "customer account current effective data is unavailable", nil, nil)
 	}
 	if err != nil {
 		return EffectiveReference{}, s.internal("get current customer account reference", err)
 	}
-	return s.customerAccountEffectiveReference(ctx, q, row.ObjectID, row.Code, row.ApprovalEntryID, versionNumber(row.VersionNo))
+	detail, err := embeddedCustomerAccountDetail(row.Data, row.CustomerData)
+	if err != nil {
+		return EffectiveReference{}, s.internal("decode current customer account reference", err)
+	}
+	return EffectiveReference{ObjectID: row.ObjectID, CustomerID: row.CustomerID, Entity: EntityCustomerAccount, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
 }
 
-// validateCustomerAccountSnapshotReference intentionally does not require the
-// entry to remain current: executed sales documents retain the exact approved
-// customer-account declaration they recorded.
 func (s *Service) validateCustomerAccountSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, approvalEntryID string) (EffectiveReference, error) {
-	entry, err := s.requireHistoricalApprovalEntry(ctx, q, approvalEntryID, EntityCustomerAccount, objectID, "customer account approval snapshot is unavailable")
-	if err != nil {
-		return EffectiveReference{}, err
-	}
-	identity, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityCustomerAccount})
+	row, err := q.GetBobEmbeddedCustomerAccountHistoricalReference(ctx, dbsqlc.GetBobEmbeddedCustomerAccountHistoricalReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "customer account approval snapshot is unavailable", nil, nil)
 	}
 	if err != nil {
-		return EffectiveReference{}, s.internal("get customer account identity", err)
+		return EffectiveReference{}, s.internal("get historical customer account reference", err)
 	}
-	return s.customerAccountEffectiveReference(ctx, q, identity.ID, deref(identity.Code), approvalEntryID, versionNumber(entry.VersionNo))
-}
-
-func (s *Service) customerAccountEffectiveReference(ctx context.Context, q *dbsqlc.Queries, objectID, code, approvalEntryID string, versionNo int32) (EffectiveReference, error) {
-	payload, err := q.GetDCLCustomerAccountVersion(ctx, approvalEntryID)
+	detail, err := embeddedCustomerAccountDetail(row.Data, row.CustomerData)
 	if err != nil {
-		return EffectiveReference{}, s.internal("get customer account snapshot", err)
+		return EffectiveReference{}, s.internal("decode historical customer account reference", err)
 	}
-	data, err := bobCustomerAccountData(payload, q, ctx)
-	if err != nil {
-		return EffectiveReference{}, err
-	}
-	detail := DetailView{Name: data.Name, ShortName: data.ShortName, CustomerType: data.CustomerTypeID, ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, OperatingEntityID: data.OperatingEntityID}
-	if data.OperatingEntity != nil {
-		detail.OperatingEntityApprovalEntryID, detail.OperatingEntityCode, detail.OperatingEntityName = data.OperatingEntity.ApprovalEntryID, data.OperatingEntity.Code, data.OperatingEntity.Name
-	}
-	if data.SettlementMethod != nil {
-		detail.SettlementMethodID, detail.SettlementMethodCode, detail.SettlementMethodName = data.SettlementMethodID, data.SettlementMethod.Code, data.SettlementMethod.Name
-		detail.TermCode, detail.RuleType, detail.DueDays, detail.MonthOffset, detail.CutoffDay, detail.DefaultSalesSurcharge = data.SettlementMethod.TermCode, data.SettlementMethod.RuleType, data.SettlementMethod.DueDays, data.SettlementMethod.MonthOffset, data.SettlementMethod.CutoffDay, data.SettlementMethod.DefaultSalesSurcharge
-	}
-	return EffectiveReference{ObjectID: objectID, Entity: EntityCustomerAccount, Code: code, ApprovalEntryID: approvalEntryID, VersionNo: versionNo, Data: detail}, nil
+	return EffectiveReference{ObjectID: row.ObjectID, CustomerID: row.CustomerID, Entity: EntityCustomerAccount, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
 }

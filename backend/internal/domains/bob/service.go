@@ -20,13 +20,6 @@ type Service struct {
 	auxiliaryResolver AuxiliaryResolver
 }
 
-// PartyDeclarationCreator is implemented by DCL. Relationship creation owns
-// the surrounding transaction; DCL creates the stable root and V1 candidate
-// inside it without committing.
-type PartyDeclarationCreator interface {
-	CreateForRelationship(context.Context, pgx.Tx, PartyCreateData, approval.Actor, bool) (PartyRelationshipResolved, error)
-}
-
 type AuxiliaryResolver interface {
 	ResolveCurrentAuxiliaryReference(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
 	ResolveAuxiliaryCode(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
@@ -65,7 +58,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	}
 	if entity == EntityEmployee {
 		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
-			return s.queryEmploymentRelationships(ctx, q, input)
+			return s.queryEmployeesCurrent(ctx, q, input)
 		})
 	}
 	if entity == EntitySupplier {
@@ -78,7 +71,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	}
 	if entity == EntityOtherUnit || entity == EntitySalesPartner {
 		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
-			return s.queryRelationshipCurrent(ctx, q, entity, input)
+			return s.queryTypedArchiveCurrent(ctx, q, entity, input)
 		})
 	}
 	return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query entity", nil, nil)
@@ -169,6 +162,9 @@ func (s *Service) ValidateHistoricalReference(ctx context.Context, tx pgx.Tx, en
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid BOB reference", nil, nil)
 	}
 	q := s.queries.WithTx(tx)
+	if entity == EntityCustomer {
+		return s.validateCustomerSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	if entity == EntityOperatingEntity {
 		return s.validateOperatingEntitySnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
@@ -207,6 +203,9 @@ func (s *Service) ResolveCurrentReference(ctx context.Context, tx pgx.Tx, entity
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid BOB reference", nil, nil)
 	}
 	q := s.queries.WithTx(tx)
+	if entity == EntityCustomer {
+		return s.resolveCustomerCurrentReference(ctx, q, objectID)
+	}
 	if entity == EntityOperatingEntity {
 		return s.resolveOperatingEntityCurrentReference(ctx, q, objectID)
 	}
@@ -385,7 +384,7 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 			if err := resolveBob(EntityOperatingEntity, data.CarrierAffiliation.OperatingEntityID, &data.CarrierAffiliation.OperatingApprovalEntryID); err != nil {
 				return DetailView{}, err
 			}
-		} else if err := resolveBob(EntityOtherUnit, data.CarrierAffiliation.ServiceRelationshipObjectID, &data.CarrierAffiliation.ServiceApprovalEntryID); err != nil {
+		} else if err := resolveBob(EntityOtherUnit, data.CarrierAffiliation.OtherUnitObjectID, &data.CarrierAffiliation.OtherUnitApprovalEntryID); err != nil {
 			return DetailView{}, err
 		}
 	}

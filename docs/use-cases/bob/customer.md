@@ -3,27 +3,19 @@
 ## 页面范围
 
 - 路由：`/bob/customer`
-- 客户关系、子账户、版本和权限规则：[BOB 领域](../../domains/bob.md) 与 [DCL 领域](../../domains/dcl.md)
-- 订单、收款、开票和历史业务边界：[VOU 领域](../../domains/vou.md)
-- 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [BOB Schema](../../../contracts/openapi/schemas/bob.yaml)
+- 领域规则：[BOB 领域](../../domains/bob.md) 与 [DCL 客户申报](../../domains/dcl.md#361-客户与客户核算账户申报)
 
-本页面只读取当前有效的客户关系资料；候选、附件写入和所有生命周期动作固定进入 `/dcl/customer`，不保留 BOB 写入别名。
+页面只读取 Customer 的 current approved 完整档案，包括客户身份、税务、汇款识别、默认经营主体和当前版本内全部客户核算账户。账户不是独立 BOB 页面。
 
-## 当前查询与详情
+## 查询与详情
 
-1. 首次进入调用 BOB `query`；列表只展示可交易的当前有效关系资料、稳定编码、Party、经营主体、启停状态和当前来源 Approval Entry。
-2. 查看调用 BOB `get`，只展示 current 关系资料和到 `/bob/customer-account` 的 current 子账户导航；不得显示 `openVersion`、待审资料、草稿附件或生命周期控件。
-3. 页面可以按权限提供“进入申报”深链 `/dcl/customer`，但不在 BOB 内拼装、保存或提交任何 candidate。
-
-## 读取、异常与恢复
-
-1. 列表只使用当前有效资料的 `query`；查看均重新调用 `get`。候选、历史与附件下载均由对应 DCL 页面读取。
-2. 读取失败时展示后端业务消息和 `requestId`，保留筛选与页面位置并提供重试，不用列表行或本地默认值拼装详情。
-3. BOB 页面没有可保存输入；申报页返回 revision 冲突或来源失效时，显示后端 `errorKey` 并保留 DCL 表单输入。
+1. 列表调用 Customer `query`，详情重新调用 Customer `get`；不从列表行拼装详情。
+2. 详情按账户子表展示 code、名称、业务资料、启停状态和实时信用占用入口；全部账户共享同一个 `sourceApprovalEntryId`。
+3. 页面不展示 open candidate、审批控件或独立账户维护动作；具有 DCL 权限时只提供进入 `/dcl/customer` 的深链。
+4. 交易引用返回 `customerId + accountId + customerApprovalEntryId` 和必要快照；客户默认经营主体只用于预填，不过滤经营主体候选。
 
 ## 验收场景
 
-1. 列表遵守全站显式筛选、固定分页、稳定排序、窄屏布局和行操作规则；详情总是重新读取。
-2. BOB 查询和详情绝不加载或展示 DCL open candidate；有申报权限时仅提供正确 DCL 深链。
-3. 当前关系与当前账户的来源 Approval Entry 明确可读，交易引用只使用 current；历史交易跳转由 DCL 精确 entry 校验。
-4. BOB 不存在客户创建、保存、审批、附件写入或生命周期控件及网络调用。
+1. Customer candidate 待审时继续读取上一 approved 客户及其账户集合，批准后整体切换。
+2. BOB 不存在 Party、独立 Customer Account route、写请求、版本或审计弹窗。
+3. 读取失败保留筛选和位置并显示 `requestId`，不得回退列表数据或旧账户接口。

@@ -11,11 +11,11 @@
 ## 列表与详情
 
 1. 用户显式提交关键词、经营主体和 enabled 筛选；列表固定每页 20 条并按业务编码稳定排序。
-2. 当前有效资料展示 Party、经营主体、完整能力集、联系人、地址、备注、enabled 与来源 Approval Entry；能力始终映射为“外部兼职销售”或“渠道商”，不显示 wire value。
+2. 当前有效资料展示 Sales Partner 自有身份、适用及默认经营主体、完整能力集、联系人、地址、备注、enabled 与来源 Approval Entry。
 3. 不存在编辑按钮、写 API 调用或 `/bob/sales-partner/create` 路径。需维护时，具有 DCL 权限的用户由深链进入 `/dcl/sales-partner`；无权用户只看 current。
 
 ## 验收场景
 
 1. 列表、详情和 reference 只返回当前有效的只读资料，不泄漏草稿或历史 candidate。
 2. BOB 页面不渲染或调用任何写入、生命周期、versions、audit 或 DCL mutation。
-3. DCL 深链保留对象上下文；Party 身份、经营主体边界和销售合作快照均不能在 BOB 页面被改写。
+3. DCL 深链保留对象上下文；身份和销售合作资料不能在 BOB 页面改写。

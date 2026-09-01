@@ -10,12 +10,12 @@
 
 ## 列表与详情
 
-1. 用户显式提交编码、主体名称、状态或经营主体筛选；列表固定每页 20 条并按业务编码稳定排序。
-2. 打开详情时调用 `POST /bob/other-unit/get` 读取当前有效资料，展示 Party 名称、经营主体、联系人、可选结算默认快照、备注、enabled 与来源 Approval Entry。
+1. 用户显式提交编码、名称、状态或适用经营主体筛选；列表固定每页 20 条并按业务编码稳定排序。
+2. 打开详情时展示 Other Unit 自有身份、适用及默认经营主体、联系人、可选结算默认快照、备注、enabled 与来源 Approval Entry。
 3. 不存在编辑按钮、写 API 调用或 `/bob/other-unit/create` 路径。需维护时，具有 DCL 权限的用户由深链进入 `/dcl/other-unit`；无权用户只看 current。
 
 ## 验收场景
 
 1. 列表、详情和 reference 只返回当前有效的只读资料，不泄漏草稿或历史 candidate。
 2. BOB 页面不渲染或调用任何写入、生命周期、versions、audit 或 DCL mutation。
-3. DCL 深链保留对象上下文；经营主体、Party 身份和服务关系快照均不能在 BOB 页面被改写。
+3. DCL 深链保留对象上下文；身份和服务资料不能在 BOB 页面改写。

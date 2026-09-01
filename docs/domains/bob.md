@@ -2,7 +2,7 @@
 
 ## 1. 文档目的
 
-本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界，覆盖经营主体、仓库、车辆、资金账户、产品、员工、客户、客户结算子账户与供应商的当前有效只读业务资料。经营主体、仓库、车辆、资金账户、产品、Party、员工、客户、客户结算子账户与供应商申报由 DCL 管理；产品类型、人员类别、产品分类、部门、岗位、计量单位、字典、结算方式和收支类型由 AUX 领域管理。HTTP 路径和数据结构以根目录 OpenAPI 为准。
+本文定义 ZERP **BOB（Business Object）** 领域的业务模型、数据约束和事务边界，覆盖经营主体、仓库、车辆、资金账户、产品、员工、客户、供应商、其他单位与销售合作方的当前有效只读业务资料。上述版本化档案由 DCL 管理；客户核算账户是 Customer Version 子项，不是独立 BOB/DCL 对象。HTTP 路径和数据结构以根目录 OpenAPI 为准。
 
 BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达的 highest-approved typed query、引用和业务不变量；stable subject、business code、声明生命周期与 typed snapshot 由 DCL 拥有，版本头、状态和 revision 由中央 Approval 拥有。
 
@@ -13,7 +13,7 @@ BOB 使用固定领域标识 `bob`。本文只记录 OpenAPI 无法独立表达�
 BOB 负责：
 
 - 通过每个实体明确的 typed query 读取 DCL highest APPROVED 完整 snapshot；
-- 为个人、组织及客户、供应、雇佣、服务和销售合作等强类型业务关系定义业务规则；
+- 为客户、供应商、员工、其他单位和销售合作方等强类型业务档案定义业务规则；
 - 只允许新的业务引用当前启用资料，同时继续校验已有业务保存的精确 DCL Approval Entry；
 - 为其他领域提供 stable ID、当前来源和业务发生时所需的类型化快照。
 
@@ -26,59 +26,45 @@ BOB 不负责：
 - 替交易领域决定需要保存哪些业务快照；
 - 绕过 APP 领域执行身份认证和 API 权限判断。
 
-BOB 将现实中的业务参与者统一建模为主体。主体类型只分为 `PERSON`（个人）和 `ORGANIZATION`（组织）；当前不再细分企业、事业单位、政府机构、协会或律所等组织类别，除非未来出现明确的字段、流程或校验差异。主体保存名称、身份标识和联系资料等共享身份事实，任何业务关系都不得复制出另一份主体身份。
-
-客户、供应商、员工、其他单位和销售合作方不是互斥的主体类型，而是外部主体与一个我方经营主体之间的强类型关系。同一外部主体可以同时拥有客户关系、供应关系、雇佣关系、服务关系或销售合作关系；面对不同经营主体时分别建立关系，不跨法人共享合同、信用、结算或债权债务生命周期。各关系独立保存该业务专属资料和生命周期。关系使用封闭类型和各自的类型化明细；禁止使用无约束 JSONB、EAV 或管理员运行时自定义字段承载正式关系属性，也不提供要求所有调用方理解全部关系规则的万能关系接口。
+Customer、Supplier、Employee、Other Unit 和 Sales Partner 是相互独立的强类型业务档案。每类档案都直接保存自己的 `PERSON|ORGANIZATION` 法律身份、名称、税号、强标识、联系资料和业务专属资料；同一现实个人或组织具有多种身份时分别建档、分别审批，不共享或同步资料。
 
 全部业务对象的 stable subject、business code、声明创建、保存、启停候选、提交、撤回、驳回、批准、反批准、删除、版本与审计固定由 DCL 编排，不进入 BOB 写服务。BOB 只保留各实体 `query/get/reference`、业务校验与精确历史引用能力；批准或反批准不调用 BOB writer。新增实体字段或查询规则不得继续堆入一个要求理解全部 BOB 实体的万能查询或保存流程，也不得为了消除表面重复而把实体规则改造成运行时 metadata。
 
 BOB 列表只返回当前正式资料、stable ID、编码、`sourceApprovalEntryId`、`sourceVersionNo` 与实体所需最小字段，不返回 `latestApproved`、`openVersion`、Approval status 或候选摘要。`sourceApprovalEntryId` 与 `sourceVersionNo` 直接来自同一 highest APPROVED DCL Approval Entry，仅用于展示和来源追溯，不成为 BOB 版本权威。产品单位换算和配方、员工雇佣资料均从该 entry 对应的完整 DCL snapshot 读取，并使用固定次数的 typed 查询；详情同样不接受历史 entry 参数。
 
-同一外部主体、经营主体和关系类型只能存在一个稳定业务关系。重复合作、续约、重新雇佣、多个合同、多个客户结算子账户或多个业务有效期间都归入该稳定关系内部，不得通过新建同类关系制造无法区分的重复身份。
+个人证件号、统一社会信用代码和税号等强标识按“档案类型 + 标识类型 + 规范化值”唯一；跨档案类型不比较、不复用、不提示和不合并。名称、电话、邮箱和地址不是唯一键。误建档案没有合并动作；已有业务引用时只能建立下一候选停用，历史事实保持原稳定 ID、Approval Entry 和快照。
 
-主体保存法定名称、显示名称、身份标识、税号和通用联系资料等共享当前事实。关系保存业务编码、业务联系人和地址、结算、信用、价格、岗位等专属事实；业务字段不得为了查询方便反向复制到主体。服务关系不维护财税、法律、贴现、物流等服务范围，实际服务内容由合同和履约单据表达。交易发生时同时保存主体身份与所用关系的不可变快照，之后任何主体或关系修改都不追溯改写历史单据。
+BOB 只提供每种业务档案的 current `query|get|reference`。创建、编辑、启停、审批、版本和审计统一进入对应 DCL 页面。Party、Party 权限、Party 页面、关系卡片、关系 root、影响预览和合并均不存在。
 
-主体强标识按“标识类型 + 规范化值”唯一：个人证件号、组织统一社会信用代码或税号等非空强标识精确命中现有主体时，必须复用该主体并拒绝重复创建。没有强标识时允许创建；名称、电话、邮箱和地址只用于提示当前用户有权读取的疑似重复项，不作为唯一键、不阻断创建，也不触发自动合并。
+服务类业务档案的用户名称固定为“其他单位”，实体与路径使用 `other-unit`，维护路径为 `/dcl/other-unit`，`/bob/other-unit` 只提供 current 只读资料。
 
-保存主体共享资料候选前，调用方必须明确提示该修改批准后会影响主体之后在全部业务关系中的显示与引用。影响预览只列出当前用户有权查看的关系，不得返回隐藏关系的类型、数量或存在性；即使没有可展示关系，也要使用不泄露数量的通用影响提示。候选批准后新的当前事实用于之后的业务，历史交易快照不变。
+BOB 不建立独立服务项目主数据、服务目录或 `/bob/service` 页面。服务内容由 VOU 服务合同保存，实际履约和验收由对应单据保存。
 
-DCL 专属持有 Party stable subject、合并状态及各强类型关系 identity；共享身份的候选、版本、审批和审计同样由 DCL 承载。BOB 只提供从 latest approved typed snapshot 取得的当前有效只读业务资料。客户、供应、雇佣、服务和销售合作关系的候选、启停和审批分别由 DCL customer、supplier、employee、other-unit 与 sales-partner 承载。停用一条关系不得影响同一主体的其他关系。主体作为永久身份保留，业务退出完全由各关系停用表达；误建重复主体只通过主体合并处理。
+销售合作业务档案的用户名称固定为“销售合作方”，实体与路径使用 `sales-partner`。页面同时管理外部兼职销售和渠道商能力。
 
-主体动作与各关系动作分别授权。拥有客户、供应或其他关系权限，只允许读取页面和交易所需的最小主体资料，不自动获得主体编辑权限；名称、身份标识、税号和通用联系资料的修改必须单独具有主体权限。任何关系模块都不得通过保存关系明细顺带修改主体共享资料。
+供应商与其他单位不按 ACC 往来科目区分，而按履约流程区分：Supplier 参与采购订单和仓库收货，Other Unit 参与服务合同和履约验收。
 
-BOB 提供独立主体及各关系的当前有效资料查询页面。主体详情只返回当前用户有权读取的关系卡片并允许跳转；无权关系的类型、数量和存在性均不得进入响应。客户、客户结算子账户、供应、雇佣、服务和销售合作页面都只读；创建、候选和生命周期深链统一进入对应 DCL 页面，并分别校验主体读取或 DCL Party 创建权限、目标关系 DCL 创建权限及经营主体可引用性。共享身份维护和主体合并均进入 DCL Party 页面。
+外部兼职销售和渠道拓客使用 Sales Partner，不并入 Employee 或 Other Unit。草稿允许暂缺能力，提交和批准时必须在 `EXTERNAL_PART_TIME`、`CHANNEL_PARTNER` 中至少选择一种。客户核算账户的主要业务归属必须选择明确能力。Customer 与 Sales Partner 强标识相同时禁止自归属；缺少可比较强标识时不推测。
 
-服务关系的用户页面名称固定为“其他单位”，实体与路径使用 `other-unit`，维护路径为 `/dcl/other-unit`，`/bob/other-unit` 只提供当前有效的只读业务资料；领域内部继续使用“服务关系”描述其业务含义。
-
-BOB 不建立独立的服务项目主数据、服务目录或 `/bob/service` 页面。服务内容由 VOU 服务合同保存，实际履约和验收事实由对应履约验收单据保存；不得维护一份不被交易引用的服务对象，也不得把服务项目与“其他单位”服务关系混为一体。
-
-销售合作关系的用户页面名称固定为“销售合作方”，实体与路径使用 `sales-partner`，维护路径为 `/dcl/sales-partner`，`/bob/sales-partner` 只读 current。页面同时管理外部兼职销售和渠道商能力，不以其中任一种能力命名整个关系。
-
-主体页面不允许单独创建没有业务关系的主体。新主体只能与首条客户、供应、雇佣、服务或销售合作关系在同一事务创建；关系创建失败时主体也不得落库。从主体详情发起新增关系只适用于已经存在的主体。
-
-供应关系与其他单位服务关系不按 ACC 往来科目区分，而按履约流程区分：供应关系参与采购订单和仓库收货，其他单位服务关系参与服务合同和履约验收。两者即使最终进入相似的应付或其他往来科目，也保留各自的关系明细和流程状态。
-
-外部兼职销售和渠道拓客使用独立销售合作关系，不并入雇佣关系或其他单位服务关系。销售合作关系草稿允许暂不选择能力，提交和审核时必须在 `EXTERNAL_PART_TIME`、`CHANNEL_PARTNER` 中至少选择一种，也可以同时具备两种；任何有效关系都不得没有能力。两种能力都允许关联 `PERSON` 或 `ORGANIZATION` 主体，不按主体类型限制。为具体客户建立主要业务归属时必须明确选择其中一种能力，不能用一个未区分的销售合作类型混算收益。渠道商表示“为其他客户拓客并取得渠道差价”，不是购买商品形成的客户类型；购买商品形成客户关系，同一主体可以同时拥有客户关系和渠道商能力。
-
-客户关系直接作为付款识别和收款分摊根，并包含一个或多个客户结算子账户，不再建立“集团客户”中间层。每个客户结算子账户必须且只能属于一条客户关系，每条客户关系至少有一个子账户。普通客户创建时也形成只有一个子账户的关系，不维护另一套特例。主体保存共享身份事实，客户关系只保存客户业务资料。
+Customer 是付款识别、税务抬头和收款分摊根，并在同一版本中包含一个或多个客户核算账户。每个有效客户至少有一个有效账户和一个默认账户；账户没有独立审批、版本、页面或 current 对象。
 
 `operating-entity`（经营主体）表示我方实际承担合同销售方、开票方和收款方责任的法人公司，不是商品品牌、客户类型或报表标签。DCL 拥有它的 stable ID、business code、强类型快照和候选编排，中央 Approval 拥有版本与审批事实；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/bob/operating-entity` 是独立的当前正式档案只读入口，只使用 BOB `query/get`，不展示候选或生命周期控件；维护入口固定为 `/dcl/operating-entity`。完整规则见 [DCL 经营主体申报](dcl.md)。每个我方资金账户必须且只能属于一个当前可用经营主体，一个经营主体可以拥有多个资金账户。
 
 `warehouse`（仓库）的 stable ID、business code、完整候选快照、启停申请和审批同样由 DCL 拥有；BOB 直接读取 highest APPROVED typed snapshot 并提供交易引用。`/dcl/warehouse` 是唯一维护入口，`/bob/warehouse` 是只使用 `query/get` 的独立当前有效资料入口，不显示候选、审批、版本或写动作。仓库仍是全局共享的最小物理库存地点，不绑定经营主体；负责人、地址、联系人和备注保持强类型字段。完整生命周期、读取和事务规则见 [DCL 仓库申报](dcl.md#31-仓库申报)。
 
-主要业务归属、业务地址、结算时间、收款方式、运输政策、销售价格政策、信用额度、内部提醒、默认订单备注、应收、开票归属和业绩均属于客户结算子账户。客户关系本身已经绑定一个经营主体，不再把经营主体当作可跨关系切换的共享身份属性。主体通用联系资料属于主体；仅在客户业务中使用的联系人或地址属于客户关系或结算子账户。客户关系不提供供子账户继承或覆盖的默认业务规则；任何销售交易只解析一个子账户的 latest approved 版本，客户关系不合并子账户余额和信用额度。
+法定身份、税务、开票抬头、汇款识别、默认经营主体和身份税务附件属于 Customer。账户名称、联系人、业务地址、客户类型、结算、收款、运输、定价、信用额度、业务归属、内部提醒、默认订单备注和业务附件属于客户核算账户。客户不维护经营主体白名单；任一有效经营主体都可用于销售单据。账户业务参数跨经营主体共用一套默认值，不建立覆盖层；交易保存实际经营主体和采用值快照。
 
-客户结算子账户不维护客户—产品专属配置、客户包装偏好或默认配方对象，也不建立客户、产品、交付规格三维表。新销售订单的客户交付偏好和定制成品配方都由 VOU 从同一子账户、同一产品最近一张合格销售订单解析；订单调整不反写客户主数据。
+客户核算账户不维护客户—产品专属配置、客户包装偏好或默认配方对象。新销售订单的交付偏好和定制成品配方由 VOU 从同一账户、同一产品最近一张合格销售订单解析。
 
-主体税号允许通过完整 DCL Party candidate 新增、修改或清空，并由 Approval revision 保护 lifecycle 写入。变更不重分类历史：开票义务只由销售签收批准时保存的主体税号快照决定，历史签收和退货始终沿用原归属。主体 current 税号只影响之后批准的销售签收。
+客户税号通过完整 Customer candidate 新增、修改或清空。变更不重分类历史：开票义务只由销售签收批准时保存的 Customer Approval Entry 和税务快照决定，历史签收和退货沿用原事实。
 
 ### 2.1 业务字段
 
 BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业务数据。客户易变的定价策略是唯一例外：以本节严格定义、后端类型化校验的 `pricingPolicy` JSONB 值对象随客户版本保存；它不是任意扩展字段。完整 wire 字段以 [OpenAPI BOB Schema](../../contracts/openapi/schemas/bob.yaml) 为准。
 
-创建客户关系时必须引用一个当前启用且存在最新已批准版本的经营主体；该经营主体与外部主体共同确定关系边界，关系创建后不可改选。需要与另一经营主体开展销售时，必须在同一外部主体下另建客户关系。客户关系保存经营主体稳定引用，交易发生时再保存经营主体对象、版本、编码、名称、税号、地址和电话快照；经营主体后续换版或停用都不改写已有订单。
+客户保存一个当前启用经营主体作为新单据默认值，但不据此限制交易范围。每张销售单据必须明确选择当时有效的经营主体并保存其稳定对象、Approval Entry、编码、名称、税号、地址和电话快照；默认值及经营主体后续变化都不改写已有单据。
 
-客户类型和车辆类型都由 AUX 字典项提供。客户账户输入、持久化所有权和删除 blocker 使用字典项 stable ID，并冻结编码与名称快照；车辆申报解析所选编码后同样持久化字典项 stable ID 与快照。初始客户类型为 `01JAVX00000000000000000005` / `DIT-0001`（终端客户），初始车辆类型为 `01JAVX00000000000000000009` / `DIT-0003`（厢式货车）。原“经销商客户”不再作为客户类型；渠道能力由同一主体另行建立带 `CHANNEL_PARTNER` 能力的销售合作关系表达。供应关系不再维护 `supplierType`，物流服务使用服务关系表达。
+客户类型和车辆类型都由 AUX 字典项提供。客户核算账户冻结客户类型 stable ID、编码与名称快照；车辆同样冻结所选车辆类型快照。原“经销商客户”不再作为客户类型；渠道能力由独立 Sales Partner 档案表达。Supplier 不维护 `supplierType`，物流服务使用 Other Unit 表达。
 
 销售订单保存客户类型编码和名称快照，供居间、业绩及后续明确采用它的版本化脚本读取；当前自动定价算法不使用客户类型。实际公式及结果验证属于对应 VOU 脚本版本，字典项本身不保存价格、品牌、提成或业绩规则。
 
@@ -106,7 +92,7 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 
 客户和供应商都通过 `settlementMethodId` 选择当前启用的结算方式辅助对象。选择时必须把 AUX stable ID 以及交易使用的结算方式名称、术语和到期计算参数复制进引用方版本，形成不可变的类型化快照。已有历史版本和单据快照不会随来源变更被改写；客户和供应商 DCL candidate 配置了结算方式时，提交和审核只校验所存快照的内部完整与参数组合，不回查 AUX current。客户快照另保存销售加价，供应商采购不使用该销售加价。客户和供应商即使提交、审核或批准也可以不维护结算方式；缺失时整组快照为空且 offset 为 0，配置时则必须完整且内部一致。没有明确账期的正式客户或供应商不能用于创建销售订单或采购订单，由 VOU 返回固定 blocker。委托配制制造费等采购加价不属于供应商主数据，由对应专门采购单据维护并保存自身事实。交易单据的到期日和加价规则见 VOU 文档。
 
-服务关系可以通过 `settlementMethodId` 保存服务合同使用的可选结算默认快照；草稿、提交、审核和批准均不要求该默认值。新服务合同存在默认快照时带入并允许改选，不存在时由合同自行选择。服务关系不维护服务范围或默认内部经办员工；每份服务合同必须自行选择经办雇佣关系并保存快照，不能从服务关系读取或回退默认员工。
+Other Unit 可以通过 `settlementMethodId` 保存服务合同使用的可选结算默认快照。它不维护服务范围或默认内部经办员工；每份服务合同自行选择 Employee 并保存快照。
 
 仓库是全局共享的最小物理库存地点，不绑定经营主体，也不按经营主体拆分库存。任一经营主体的业务单据都可以引用同一当前启用且存在 latest approved 版本的仓库；地址和联系人只是仓库资料，不表示库存法律归属或经营主体边界。`managerEmployeeId` 在页面上称为“仓库负责人”，可选且只记录联系与责任，不授予或限制任何仓库操作权限；所有操作仍只使用 APP 精确权限。仓库不再划分库区、库位、储罐或其他库存子位置，所有库存单据、盘点和数量核算都直接使用产品与仓库组合，不增加经营主体子账或位置子账。
 
@@ -126,7 +112,7 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 
 第三方居间成本与客户优惠、客户默认溢价及销售人员收益分开。`pricingPolicy.thirdPartyIntermediaryFixedUnitCost` 与 `pricingPolicy.thirdPartyIntermediaryVariableUnitCost` 是独立持久化的顶层字段。两项都是非空、非负、两位小数的人民币单位值并默认 `0.00`，不组成复合对象、可以同时存在，也不进入普通 `costItems`；固定项按 kg 计算，浮动项如何从业务差价形成留到后续算法讨论。客户价格资料不要求绑定具名第三方收款对象。
 
-每个客户结算子账户同一时间只能维护一个 `primarySalesAttribution`。它由互斥的 `type` 和一个强类型关系引用组成：`INTERNAL_EMPLOYEE` 引用当前启用且存在 latest approved 版本的雇佣关系，`EXTERNAL_PART_TIME` 与 `CHANNEL_PARTNER` 引用具备对应能力的当前启用且存在 latest approved 版本的销售合作关系。建立或变更客户归属只校验关系、能力和 latest approved entry，不反向查询 VOU 合同；合同约束在收益事实批准时执行。客户关系版本保存归属关系 ID、`approvalEntryId`、类型，以及关联主体的编码和名称快照；不得引用裸主体或其他单位服务关系。`CHANNEL_PARTNER` 归属还必须拒绝来源销售合作关系与目标客户关系关联同一外部主体，防止给自身采购建立渠道差价。专职、兼职的固定按量和溢价收益以及渠道差价均在成交后从实际业务结果分配，不进入客户自动售价成本；自动售价中的第三方居间金额计入该主要业务归属名下，并继续按客户结算子账户分别统计和结算。
+每个客户核算账户同一时间只能维护一个 `primarySalesAttribution`。`INTERNAL_EMPLOYEE` 引用当前启用 Employee，`EXTERNAL_PART_TIME` 与 `CHANNEL_PARTNER` 引用具备对应能力的当前启用 Sales Partner；Employee 的任职经营主体不限制选择。Customer 与目标 Sales Partner 具有相同强标识时禁止自归属，缺少可比较标识时不推测。版本保存目标 stable ID、精确 Approval Entry、类型、编码和名称快照。
 
 客户版本保存默认运输政策：`defaultTransportMethodCode`、`defaultTransportMethodName` 和 `defaultTransportSurcharge`。运输方式和客户约定运输加价是两个独立事实；加价为非负、最多两位小数的元/kg 定点字符串。客户草稿可以暂缺，提交和审核时必须完整。新销售订单默认带入，允许按单修改，并保存最终运输方式和加价快照。
 
@@ -138,31 +124,31 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 
 客户自动定价中的全部单位价格、整单金额和第三方居间单位值统一保存两位小数。`pricingPolicy` 的四个顶层数值键均必填并默认 `0.00`，`costItems` 必填并默认空数组；任何键均不用 `null` 表示无值。
 
-`dcl_customer_account_versions.pricing_policy` 使用 `jsonb NOT NULL` 保存上述完整值对象，并以完整默认对象初始化。它只承载五类定价数据；结算、收款、运输快照、主要业务归属和其他客户字段继续使用类型化列。OpenAPI 使用封闭对象定义，后端解析成明确的领域结构并拒绝未知键、缺失键、`null`、非法金额、无效成本口径、金额字段组合、零金额成本和重复规范化名称；不得把原始 JSON 映射直接传入领域服务。数据库至少约束值为 JSON object，完整业务约束由同一后端校验器在创建、保存、提交和审核时重复执行。客户账户 DCL candidate 复制时在同一事务完整复制 `pricing_policy`；历史版本保留自己的不可变策略快照。
+Customer Version 的核算账户子项使用 `pricingPolicy` 保存上述完整封闭值对象。OpenAPI 和后端拒绝未知键、缺失键、`null`、非法金额、无效成本口径、金额字段组合、零金额成本和重复规范化名称；不得把原始 JSON 映射直接传入领域服务。Customer candidate 复制时完整复制全部账户策略，历史版本保留自己的不可变快照。
 
 当前 `pricingPolicy` 不保存 `schemaVersion`；客户版本本身已经提供历史边界，只有出现已确认的结构变化时才调整封闭契约并明确处理已有版本，不预设规则版本层。首版不为 `pricing_policy` 建 GIN 索引、表达式索引或金额生成列，客户 `query` 也不按定价策略筛选；完整策略只在 `get`、版本详情和实际消费方读取。出现真实筛选或统计需求前不得增加投机性索引。
 
 客户版本历史和候选对比必须先按封闭类型解析 `pricingPolicy`，再分别展示默认溢价、默认优惠、固定第三方居间、浮动第三方居间及按规范化名称匹配的具名成本新增、删除、口径变化和金额变化。页面和审计接口不得向业务用户返回原始 JSON 对比文本，也不得只显示“定价策略已修改”而隐藏具体变化。
 
-客户结算子账户版本以 `creditLimits` 保存按交易币种区分的信用额度，同一币种只能一条，金额为非负两位小数；不同币种的额度和占用不得直接相加或通过未定义汇率换算。子账户拥有额度政策，实时已占额度由 ACC 控制事实计算，不在客户版本缓存，客户关系不另设或汇总信用额度。销售订单超过对应币种额度时仍可保存，但批准必须同时具备普通批准权限、专门的超额批准权限并填写原因；批准结果保存订单额度、当时占用、超额金额、原因和操作者快照。
+客户核算账户以 `creditLimits` 保存按交易币种区分的信用额度，同一币种只能一条。实时占用由 ACC 按账户 stable ID 计算，Customer 不另设或汇总总额度。销售订单超过对应额度时的审批和快照规则不变。
 
-客户使用 `internalReminder` 保存只供内部查看的选客提示，使用 `defaultSalesOrderRemark` 保存新销售订单默认备注，两者均随客户版本保存且最多 1000 字。内部提醒只显示、不复制进单据；默认订单备注只在创建订单时复制，复制后允许编辑并属于订单历史。客户不再用含义宽泛的 `remark` 同时承担两种职责。
+客户核算账户使用 `internalReminder` 保存只供内部查看的选客提示，使用 `defaultSalesOrderRemark` 保存新销售订单默认备注；两者随 Customer Version 整体保存。内部提醒不复制进单据，默认订单备注只在创建订单时复制。
 
-应付款日期只按客户结算快照和实际业务日期计算。销售订单自行保存可编辑的打印数期，并从同一客户结算子账户的上一张合格订单取得默认值；上一单选择和无历史订单默认值属于单据域规则。资料摘要由实际客户附件事实生成，不维护可漂移的重复说明。
+应付款日期只按核算账户结算快照和实际业务日期计算。销售订单的打印数期从同一核算账户上一张合格订单取得默认值，保存后成为订单事实。
 
-主体和客户关系都可拥有附件：营业执照、税务资料等身份附件归主体；合同、价格、开票和交付约定等客户业务附件归客户关系或对应结算子账户。主体附件随 DCL Party 候选版本复制并进入同一 Approval 审计；关系及子账户附件随对应候选版本复制，只有候选 `DRAFT` 版本可以新增、移除或改类，`APPROVED` 和历史版本附件只读且不得被候选变化覆盖。每个附件最多 10 MiB。每个客户业务附件必须选择当前启用的 AUX“客户资料类别”字典项，并在关联上保存字典 stable ID、编码和名称快照；复制到候选版本的既有附件保留原类别快照，类别后续改名或停用不改写历史。没有附件或缺少某一类别不阻止保存、提交、审核或交易。
+客户身份及税务附件归 Customer，合同、价格和交付等业务附件归客户核算账户；两者都随同一个 Customer candidate 复制和审批。只有 `DRAFT` candidate 可以新增、移除或改类，已批准和历史版本只读。附件类别保存 AUX stable ID、编码和名称快照，来源后续变化不改写历史。
 
-服务相关附件分三层保存：营业执照、税务资料等身份文件归主体；只证明合作资格或关系约定、但不属于某份正式合同的资料归服务关系版本；正式合同、补充协议、履约证据和验收材料归对应 VOU 单据。服务关系候选版本复制关系附件，已批准和历史版本附件只读；任何一层都不得复制另两层附件形成第二份事实。
+服务相关附件分两层保存：Other Unit 的身份、税务及合作资格资料归其 DCL version；正式合同、补充协议、履约证据和验收材料归对应 VOU 单据。两层不得复制形成第二份事实。
 
 ### 2.2 客户与供应商结算方式快照
 
-结算方式辅助对象及 11 种固定规则由 [AUX 领域](aux.md#33-结算方式)维护。客户选择当前启用的 AUX 结算方式时，客户版本直接保存 `settlementMethodId`、`settlementMethodCode`、`settlementMethodName`、`settlementTermCode`、`settlementRuleType`、`settlementMonthOffset`、`settlementDayOfMonth`、`settlementDayOffset` 和 `settlementSalesSurcharge`，不保存 AUX Approval Entry。供应商保存相同的 stable ID、名称、术语和到期参数，但不保存或使用客户销售加价。
+结算方式辅助对象及固定规则由 [AUX 领域](aux.md#33-结算方式)维护。客户核算账户保存所选结算方式的 stable ID、名称、术语、到期参数和销售加价快照；Supplier 保存相同基础快照但不保存客户销售加价。
 
-上述字段作为一组由后端原子复制和校验的结算快照，客户端不能分别拼装或覆盖其中参数。没有配置结算方式时，客户结算子账户、供应关系或服务关系的 method/code/name/term/rule 全部为 `NULL`，offset 全部为 0；配置后 `termCode` 与 `ruleType` 必须非空并符合 AUX 固定组合。客户、供应或服务关系显式重新选择结算方式时才整体替换；AUX 来源后续改名、调价或停用均不追溯改变既有版本。引用方提交和审核只校验自身快照内部完整与参数组合，不运行时回查 AUX current；服务关系没有默认快照时不执行完整性校验。
+上述字段作为一组由后端原子复制和校验的结算快照，客户端不能分别拼装。没有配置时，客户核算账户、Supplier 或 Other Unit 的整组字段为空；显式重新选择时才整体替换。AUX 来源后续变化不追溯改变既有版本。
 
-客户的 `primarySalesAttribution` 必填并按本章 2.1 节引用当前启用且存在 latest approved 版本的雇佣关系或销售合作关系；创建时必须传入完整的类型、关系和 `approvalEntryId`，保存时省略表示保持，显式 `null` 或空字符串无效。供应关系 DCL candidate 使用 `defaultPurchaserEmployeeId` 引用任意当前启用且存在 latest approved 版本的雇佣关系且不附加岗位限制，并保存 stable ID、精确 Approval Entry、编码和名称 snapshot；草稿可以暂缺，提交和审核时必填。该字段只表示我方默认采购员，不表示供应方联系人。
+客户核算账户的 `primarySalesAttribution` 必填并引用当前 Employee 或 Sales Partner 精确版本。Supplier 的 `defaultPurchaserEmployeeId` 可引用任意当前启用 Employee，不附加任职经营主体或岗位限制，并保存精确快照。
 
-所有新增可选字段在 `save` 中采用补丁语义：省略字段保持当前值，显式传 `null` 或空字符串清空。客户 `pricingPolicy` 采用聚合补丁语义：省略表示保持整个当前策略，传入对象时必须提交完整合法策略并整组替换，不接受 `null`，不支持 JSON Path、Merge Patch 或成本行独立增删改。创建省略时使用完整默认策略。客户必填的 `primarySalesAttribution` 和供应商生效前必填的 `defaultPurchaserEmployeeId` 只能省略保持或显式替换为另一有效引用。`name`、`unit`、`currency` 和车辆原有基础字段保持既有完整保存契约；车辆承运归属必须提交完整封闭对象。调用方不得传入不属于路径实体的字段。
+Customer `save` 提交客户资料和全部核算账户的完整聚合快照，一次替换唯一 DRAFT candidate；不支持账户级保存、JSON Merge Patch 或成本行独立写接口。其他实体继续按各自明确契约保存，调用方不得传入不属于路径实体的字段。
 
 `code` 由服务端按对象实体分配，格式固定为 `PPP-NNNN`：`PPP` 是全局唯一的三位对象前缀，
 `NNNN` 是该实体永久递增且不复用的四位流水号。达到 `9999` 后拒绝继续创建。前缀固定为：
@@ -180,21 +166,21 @@ vehicle VEH                  fund-account FAC
 
 文本长度按 Unicode 字符数计算：简称和联系人上限 100，电话 32，邮箱 254，地址 500，规格、型号及银行字段 200，说明和备注 1000。`hireDate` 使用 `YYYY-MM-DD`。`vin` 可空，非空时为排除 I、O、Q 的 17 位标准大写格式。`loadCapacityKg` 使用大于零、最多三位小数的十进制定点字符串；返回时规范化为三位小数。`accountNumber` 去除空白和连字符并规范化为大写。
 
-经营主体和外部主体的当前非空税号分别在各自主体名录内大小写不敏感唯一。客户、供应、服务和销售合作关系不重复保存税号。产品条码、车辆 VIN、资金账号和车牌在同一实体的最新批准版本与唯一开放候选之间大小写不敏感唯一；旧批准版本不占用。
+经营主体及每种强类型业务档案的非空强标识分别在自己的实体名录内大小写不敏感唯一，跨类型不比较。产品条码、车辆 VIN、资金账号和车牌的既有占用规则不变。
 
 BOB 不实现任何审核、版本或归档流程。稳定对象编码由服务端生成；DCL 版本 ID、操作者与审计时间同样由服务端和中央 Approval 生成，客户端不得伪造。
 
 ### 2.3 Stable identity 与草稿删除边界
 
-BOB 不公开 `delete`，也不拥有 stable identity writer。DCL 删除未进入正式历史的 V1 草稿时，必须在同一事务锁定 DCL subject，证明不存在已批准版本、历史 DCL/VOU/ACC 或其他持久化引用，再删除 typed snapshot、Approval Entry 与 subject。已分配的 business code 永不复用，编码计数器不得回退。DCL 反批准只改变 Approval lifecycle，不能删除历史 DCL snapshot、Approval Entry、subject 或业务引用；BOB 下一次 typed query 按 highest APPROVED 自然回落或不可见。
+BOB 不公开 `delete`。DCL 删除未进入正式历史的 V1 草稿时，必须证明不存在批准版本或持久化引用，再删除 snapshot、Approval Entry 与 subject；业务编码不复用。客户核算账户只有从未进入批准版本且未被引用的草稿子项可以物理删除；已批准账户只能通过 Customer 下一版本停用或移除，历史账户 ID 与 Customer Approval Entry 永久保留。
 
 ### 2.4 车辆承运归属
 
-外部承运方使用其他单位服务关系，不属于供应关系，也不建立独立物流主体、物流关系类型或物流服务范围。具体合同、送货单或承运业务对该关系的引用本身表达其物流用途；送货单归集、承运对账和物流过程跟踪属于 VOU 与 RPT，不进入主体或关系通用字段。
+外部承运方使用 Other Unit，不属于 Supplier，也不建立独立物流档案类型。具体合同、送货单或承运业务对该档案的引用表达其物流用途。
 
-车辆申报必须保存完整的 `carrierAffiliation` 封闭对象，`type` 的完整 wire value 集合为 `INTERNAL`（自有）和 `EXTERNAL`（外部承运）。`INTERNAL` 必须且只能引用一个当前启用且存在 latest approved 版本的经营主体；`EXTERNAL` 必须且只能引用一条当前启用且存在 latest approved 版本的“其他单位”服务关系。每辆车只能有一种承运归属，不允许为空，不为自有车辆虚构其他单位，也不允许送货时临时改成另一承运方。线协议只接受 `carrierAffiliation`，不接受 `platformObjectId`、双读或双写。
+车辆 `carrierAffiliation.type` 只有 `INTERNAL` 与 `EXTERNAL`。`INTERNAL` 引用一个经营主体，`EXTERNAL` 引用一个 Other Unit；每辆车只能有一种承运归属。
 
-车辆由 DCL 保存承运归属的稳定对象和 `approvalEntryId` 快照；创建和保存时解析 latest approved，提交和审核时确认已存 entry 仍是 latest approved。外部服务关系编辑期间旧 latest approved 版本继续被已批准车辆快照保留，候选批准后旧快照不会自动改写，必须编辑车辆候选才能选用新版本；经营主体或服务关系仍被 highest-approved 车辆资料引用时拒绝禁用，用户必须先通过 DCL 车辆正常编辑、提交和审核流程修改承运归属。已有历史单据引用不被改写。
+车辆保存承运对象 stable ID 和 `approvalEntryId` 快照；承运对象后续改版不自动改写车辆，必须通过车辆下一候选显式采用。已有历史单据不被改写。
 
 车辆使用明确的 `bulkLiquidCapable` 布尔能力表示能否作为槽车承运散水，默认 `false`。`vehicleType` 仍只是 AUX 字典分类，VOU 不得根据车型编码或名称猜测散水承运能力；车辆容量、核载量或历史装载量也不形成每车产品数量换算。
 
@@ -202,7 +188,7 @@ BOB 不公开 `delete`，也不拥有 stable identity writer。DCL 删除未进�
 
 ### 2.5 辅助对象与业务对象引用
 
-`productTypeId`、`categoryId`、`employeeCategoryId`、`departmentId` 和 `positionId` 分别引用 AUX 的产品类型、产品分类、人员类别、部门和岗位；`managerEmployeeId` 和供应关系 `defaultPurchaserEmployeeId` 引用 BOB employee current。客户、供应、雇佣、服务和销售合作关系以及资金账户均引用一个 BOB 经营主体。AUX 新选择必须存在、启用且 entity 匹配，并把需要的 typed 值复制进引用方版本；提交和审核只校验引用方 snapshot。关系的经营主体在创建后不可转移。已有正式版本和交易单据继续使用自身快照，不追溯改写。
+`productTypeId`、`categoryId`、`employeeCategoryId`、`departmentId` 和 `positionId` 引用对应 AUX 对象；`managerEmployeeId` 和 Supplier 的 `defaultPurchaserEmployeeId` 引用 Employee current。Customer 只有默认经营主体且不维护白名单；Supplier、Other Unit 与 Sales Partner 保存适用经营主体集合和默认值；Employee 保存一个任职经营主体但不形成单据选择限制。已有正式版本和单据继续使用自身快照。
 
 产品分类只允许用于产品，不再为客户、供应商、员工、服务、仓库、车辆、资金账户等对象提供含义宽泛的通用分类。AUX 对象停用或修改后不会追溯改变已经保存的申报版本；只有用户新选择或更换 AUX 对象时才校验当时的 current 状态，后续审核只校验引用方快照完整性。车辆与承运归属对象的严格递归有效性规则仍按 2.4 节执行。
 
@@ -222,7 +208,7 @@ BOB Typed Query
   └── DCL Subject + highest APPROVED Approval Entry + matching Typed Snapshot
 ```
 
-`dcl_subjects` 不保存 `enabled`、Approval status、version number、revision 或 current pointer；非空 `(entity, code)` 唯一。Approval Entry 是唯一版本头，typed snapshot 是唯一业务 payload。BOB 不保存这些结构的副本，也不建立理解所有实体的 Generic BOB Engine。交易只能引用强类型关系或关系内明确的交易子账户，不能引用裸主体。
+`dcl_subjects` 不保存 `enabled`、Approval status、version number、revision 或 current pointer；Approval Entry 是唯一版本头，typed snapshot 是唯一业务 payload。Customer typed snapshot 额外包含全部客户核算账户子项。交易只引用明确的强类型档案，客户交易使用 `customerId + accountId + customerApprovalEntryId`；Party 不存在。
 
 ### 3.2 DCL 来源与审计
 
@@ -241,27 +227,13 @@ BOB 没有公开生命周期状态机。所有实体的 `DRAFT`、`PENDING`、`A
 - latest approved 反批准后，查询自然回落到上一批准版本，首版反批准后无结果；
 - approve/unapprove 不执行 BOB apply、remove、rollback、rebuild 或 refresh。
 
-BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读取模式。候选、版本、审计、合并写动作和启停申请只由 DCL 路由处理；BOB 内部只保留业务规则、typed read 与精确引用校验能力。
-
-### 4.1 主体合并
-
-主体合并是 DCL Party 的独立高风险动作。操作者选定一个保留主体和一个重复来源主体；两者必须类型相同、均有 current approved DCL source、且未被其他合并占用。系统不得因强标识相同自动执行合并。
-
-执行合并前必须调用 `POST /dcl/party/merge-preflight`。请求携带双方 Party ID、各自 current `sourceApprovalEntryId` 与其 Approval revision；任一方存在 `DRAFT` 或 `PENDING` Party candidate 时预检返回结构化 blocker。预检返回可合并结论、关系冲突和同一组 current token；无权读取的关系只返回完成操作所需的最小阻断信息，不泄露业务字段。客户端展示预检结果并要求再次确认，`POST /dcl/party/merge-confirm` 只携带预检标识和全部显式冲突选择；资料或关系变化都会使该预检失效，不能点击后直接尝试合并再依赖失败提示。
-
-合并前扫描来源主体全部当前关系。若保留主体已经在同一经营主体下拥有同类型关系，操作者必须为每组冲突明确选择保留关系，并执行该关系类型自己的合并校验；系统不得自动覆盖、拼接或任选一条。来源主体、待转移关系或冲突关系存在 `DRAFT`、`PENDING` 候选变更时必须拒绝。
-
-关系合并保留指定关系稳定 ID，把来源关系标记为已合并并指向保留关系。客户关系需要逐一转移不冲突的结算子账户；供应、雇佣、服务和销售合作关系分别校验自身专属当前资料。来源关系已有合同、交易、ACC 余额或其他历史引用不搬迁、不汇总、不改写，仍可按原快照完成既有业务的后续履约、结算和冲销；来源关系不得再被独立选择用于新的业务起点，之后新业务统一选择保留关系。
-
-全部关系合并与主体合并在同一事务完成。不冲突关系的原端点版本冻结并由受信系统操作者创建、提交和批准只替换主体端点的新版本；冲突来源关系写专门合并审计并转入永久只读。来源主体在 DCL typed identity 上标记为已合并并记录保留主体 ID，之后从 BOB latest-approved 查询消失且永久只读，不物理删除；DCL 历史及其强标识 claim 保持审计占用。历史关系版本、VOU/ACC 引用及其主体、关系快照全部保持原值。任一步失败时不得产生部分关系转移、部分合并或主体状态变化。
+BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读取模式。候选、版本、审计和启停申请只由 DCL 路由处理；不存在 Party 或档案合并动作。
 
 ## 5. 领域动作
 
 公开动作及路径以 [OpenAPI](../../contracts/openapi/openapi.yaml) 为准。BOB 每个实体只登记 `query/get`，共享引用入口登记 `reference/query`；每个动作都是独立 APP 权限。后端通过路由元数据绑定权限标识，不能由 Handler 以字符串前缀或角色名称推断。
 
-主体读取与各关系读取权限分开。主体查询和详情不因用户拥有任一关系权限而自动开放；关系卡片按关系实体的查询与查看权限分别返回所需资料。无论从主体详情还是关系列表进入维护，同类关系都深链到同一 DCL 强类型声明入口，不提供 BOB 页面专用写接口。
-
-主体不提供 BOB `create` 动作；创建主体只能作为首条 DCL 强类型关系 `create` 的原子组成部分，并同时校验 DCL Party 创建权限和该关系创建权限。主体合并的预检和确认同样只在 DCL。
+每种业务档案使用自己的 BOB 读取权限和 DCL 维护权限，不因现实主体可能相同而隐式授权另一类型。BOB 不提供专用写接口。
 
 ## 6. 动作语义与约束
 
@@ -269,13 +241,9 @@ BOB `query/get/reference` 不接受 lifecycle status 或历史 entry 作为读�
 
 查询请求、筛选、排序和分页结构以 [OpenAPI BOB Schema](../../contracts/openapi/schemas/bob.yaml) 为准。各实体必须在后端定义允许的筛选、排序和关键词字段白名单；客户端字段名和排序方向不能直接拼接进 SQL。资金账号不能进入关键词搜索。
 
-主体查询默认排除已合并来源主体；只有显式选择“已合并”状态筛选时才返回。已合并主体详情永久只读，只展示合并时间、保留主体最小引用和审计；当前用户具有保留主体查看权限时才提供跳转，否则不得泄露其资料。已合并主体不得进入任何新关系或交易候选。
-
 BOB `query` 永远只返回 current 行；DCL 候选状态不进入筛选或响应，候选待审也不改变当前可读结果。
 
-经营主体、仓库、资金账户、供应商、员工、其他单位和销售合作方的 `query` 必须各自在一个只读 `REPEATABLE READ` 事务中完成。每次查询固定执行两条业务 SQL：第一条直接连接 DCL subject、highest `APPROVED` Approval Entry、对应 typed snapshot，以及关系类对象的 Party current snapshot，并返回该页完整列表结果；第二条在同一事务快照中返回总数。不得逐行调用 current `get`，不得增加第三条 batch snapshot 查询，也不得让 SQL 次数随页大小增长。
-
-新建客户、供应、其他单位服务或销售合作关系时，系统先按规范化强标识精确查找主体。命中时必须复用主体并只创建新的强类型关系，不复制主体身份资料；调用者无权读取命中主体时，只返回不泄露具体资料的“主体已存在，请联系有权人员”业务错误。强标识未命中或未填写时，可以按名称、电话、邮箱和地址返回当前用户有权读取的疑似主体供选择，但疑似匹配不阻断创建。未复用现有主体时，可以在同一事务创建主体和首条关系；其他单位与销售合作方这一创建能力由 DCL 调用。客户结算子账户和各关系明细不保存强标识，也不参与主体去重。
+经营主体、仓库、资金账户、客户、供应商、员工、其他单位和销售合作方的 `query` 必须各自在一个只读 `REPEATABLE READ` 事务中完成，直接连接 DCL subject、highest `APPROVED` Approval Entry 和对应 typed snapshot，不连接 Party 或关系 root。查询 SQL 次数不得随页大小增长。
 
 资金账号只在 BOB current `get` 与 DCL 授权历史详情中返回完整值；BOB `query` 摘要和 reference resolver 必须清空 `accountNumber`，也不得把账号纳入关键字搜索。
 
@@ -294,13 +262,13 @@ BOB 不注册 `create/save/enable/disable/submit/unsubmit/reject/approve/unappro
 ### 7.1 乐观并发
 
 - BOB HTTP 只读，不接收 revision 写入；
-- DCL typed identity reserve/delete 必须使用锁定后的 stable subject 与 typed relationship identity，并由外层 DCL Approval revision 保护整笔动作；
+- DCL typed identity reserve/delete 必须锁定 stable subject，并由外层 DCL Approval revision 保护整笔动作；
 - 来源、identity 或 Approval 状态已变化时返回稳定冲突，不能自动重放或退回旧来源。
 - WFL stable definition 的启停是独立运行开关，不拥有第二套 revision；同一 latest APPROVED `approvalEntryId + approvalRevision` 下的重复或相反启停请求由 subject lock 串行化，并明确以最后一次成功请求为准。
 
 ### 7.2 数据库锁
 
-DCL 创建候选、批准、反批准与删除必须在事务内按固定顺序锁定 DCL stable subject、typed relationship identity、Approval Entry 与相关引用，避免死锁和交错状态。BOB 不参与写事务；约束冲突转换为领域冲突，不能把 PostgreSQL 错误文本返回客户端。
+DCL 创建候选、批准、反批准与删除必须在事务内按固定顺序锁定 DCL stable subject、Approval Entry 与相关引用。Customer 同时锁定其全部账户 stable ID；BOB 不参与写事务。
 
 ### 7.3 幂等边界
 
@@ -310,12 +278,12 @@ BOB HTTP 读接口天然幂等。DCL lifecycle 写入只依赖自身事务提交
 
 交易领域创建新记录时，必须同时保存：
 
-- 强类型关系或其交易子账户的稳定标识；
-- 关系的 `approvalEntryId`；
-- 关系两端主体的稳定标识；
-- 交易领域要求的主体名称、身份标识、关系编码、税务信息等业务快照。
+- 强类型业务档案 stable ID；
+- 实际采用的 `approvalEntryId`；
+- Customer 子项引用时的 `accountId`；
+- 交易领域需要的名称、编码、身份、税务及业务快照。
 
-客户销售和应收引用客户结算子账户，采购和应付引用供应关系，员工业务引用雇佣关系，普通服务引用服务关系，外部兼职与渠道收益引用销售合作关系，其他往来引用对应的明确强类型关系。任何 VOU 或 ACC 事实都不得只保存裸主体 ID，再由调用方用自由文本或可配置枚举解释其业务身份。
+客户销售和应收引用 `customerId + accountId + customerApprovalEntryId`；采购和应付引用 Supplier；员工业务引用 Employee；普通服务引用 Other Unit；外部兼职与渠道收益引用 Sales Partner。不得保存 Party ID 或用自由文本解释对象类型。
 
 BOB 提供两个不得混用的内部领域能力。`ResolveLatestApprovedReference(entity, objectId)` 用于新建、新选择或主动重选，只接受当前 latest `APPROVED`。`ValidateApprovedSnapshotReference(entity, objectId, approvalEntryId)` 用于已有交易保存未修改引用，只确认 entry 属于该对象、曾正式批准且快照身份一致；它不要求 entry 仍是 latest。两者都必须在交易自身数据库事务中调用，并确认：
 
@@ -326,9 +294,9 @@ BOB 提供两个不得混用的内部领域能力。`ResolveLatestApprovedRefere
 
 VOU 已保存的 `objectId + approvalEntryId` 快照在对象产生新批准版本后仍可继续保存；若用户主动重选同一对象，则必须重新解析 latest。候选、最大创建版本和伪造 entry 永远不得作为正式快照。
 
-解析车辆正式引用时，从 BOB current 取得 DCL 来源 `approvalEntryId` 和完整车辆快照，并在同一事务内按 `carrierAffiliation.type` 确认经营主体或服务关系仍存在可用 current。车辆和承运归属对象的共享锁保持到消费方事务结束，防止校验后承运归属立即失效；已有业务使用精确车辆 Approval Entry 校验历史正式快照，不回读当前车型或承运归属重写历史。
+解析车辆正式引用时，从 BOB current 取得 DCL 来源 `approvalEntryId` 和完整车辆快照，并在同一事务内按 `carrierAffiliation.type` 确认经营主体或 Other Unit 仍存在可用 current。已有业务使用精确车辆 Approval Entry 校验历史快照。
 
-AUX 产品分类、部门、岗位和结算方式只在用户选择或更换时校验 current stable object 并复制关键值，后续不形成 current 依赖；BOB 经营主体、负责人、主要业务归属和默认采购员仍按 DCL Approval Entry 在引用方的创建、保存、提交和审核阶段校验。VOU 使用客户关系的经营主体、客户主要业务归属或供应关系默认采购员创建新单据时，会在同一事务内解析对应对象的 latest approved 版本。最终经营主体与资金账户必须引用同一经营主体对象；资金账户引用资料不返回完整账号。
+AUX 产品分类、部门、岗位和结算方式只在选择或更换时校验 current 并复制关键值。经营主体、负责人、主要业务归属和默认采购员按 DCL Approval Entry 校验。Employee 的任职经营主体不限制跨经营主体选择；最终经营主体与资金账户仍必须相同。
 
 引用候选在读取时有效不构成写入保证。为避免“校验后、交易写入前”发生编辑失效，交易事务应对对象行取得与 BOB 编辑更新互斥的共享锁，或采用经验证的等效数据库约束/串行化方案。
 
@@ -342,15 +310,15 @@ AUX 产品分类、部门、岗位和结算方式只在用户选择或更换时�
 2. **实体校验**：各实体字段组合、精度、编码规则和条件必填；
 3. **领域校验**：状态、提交人与审核人分离、唯一性、关联对象有效性和并发版本。
 
-`code` 在同一实体的稳定对象间唯一。主体强标识按标识类型和规范化值在未合并主体中唯一；已合并来源主体的强标识保留用于审计和解析，但不允许据此新建主体。条码、VIN、资金账号和车牌由 latest approved 与唯一开放候选共同占用，旧批准版本释放占用。分类和部门属于 AUX；其父级有效性、同类约束与无环约束由 AUX Service 在 direct save 事务中串行校验。数据库触发器只保留普通 `UNIQUE` 无法表达、且必须抵御并发写入的版本化标识占用约束；约束冲突统一映射为领域数据冲突。
+`code` 在同一实体的 stable subject 间唯一；客户核算账户 code 只在所属 Customer 内唯一。强标识按业务档案类型、标识类型和规范化值唯一，跨类型不比较。条码、VIN、资金账号和车牌的既有占用规则不变。
 
 ## 10. 权限与审计
 
 - 所有接口先由 APP 中间件校验会话、CSRF 和完整 API 路径权限；
-- 主体与每类关系的 `query/get` 使用独立 BOB 读取权限，不被其他关系权限或 DCL 维护权限隐式包含；
-- 关系查询和详情只返回该页面与交易所需的主体字段，完整税号、身份标识和通用联系方式仍按主体字段权限裁剪；
+- 每类业务档案的 `query/get` 使用独立 BOB 读取权限，不被其他档案权限或 DCL 维护权限隐式包含；
+- 查询和详情只返回页面与交易需要的字段，敏感身份资料继续按字段权限裁剪；
 - BOB 权限目录不包含任何写入、lifecycle、版本或审计权限；DCL 权限不会使 BOB 页面出现维护控件；
-- 主体合并、关系创建与维护、候选及审批都使用对应 DCL 精确权限；
+- 创建、维护、候选及审批都使用对应 DCL 精确权限；
 - 日志记录 `requestId`、实体、稳定对象 ID、来源 entry 与结果类别，不记录完整税号、账号、联系方式等敏感业务字段；
 - 若未来引入数据范围权限，必须在列表和单对象读取中同时实施，防止通过 ID 绕过。
 
@@ -377,7 +345,7 @@ BOB 验收以“当前有效的只读业务资料”公共边界为准，并由�
 2. query/get 只读取 current，不返回候选、Approval metadata 或历史读取模式；
 3. 每个 current 响应返回 DCL `sourceApprovalEntryId` 与 `sourceVersionNo`，两者来自同一实体、subject 和 approved entry；
 4. DCL V1/V2 批准与反批准后，BOB typed query 分别自然出现、切换、回落或消失；候选待审期间仍读取上一批准版本；
-5. DCL lifecycle 事务失败时 stable subject、typed relationship identity、snapshot、Approval 与 event 整体回滚，BOB 不保存这些资料的副本；
+5. DCL lifecycle 事务失败时 stable subject、snapshot、Approval 与 event 整体回滚，Customer 账户子项不得部分写入；
 6. 新引用只选择 current enabled 对象，已有业务继续按精确 DCL Approval Entry 校验历史来源；
 7. BOB 前端只调用 query/get/reference，没有隐藏写分支、lifecycle 控件、版本或审计弹窗；
 8. APP 工作台只聚合 DCL 资料待办，查看、编辑、提交、撤回、驳回和批准均深链或调用 `/dcl/{entity}`；

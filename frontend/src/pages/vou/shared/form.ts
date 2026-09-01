@@ -232,7 +232,7 @@ export function formFromDocument(
                       }
                     : {
                         type: 'EXTERNAL' as const,
-                        serviceRelationshipObjectId: data.carrier?.objectId,
+                        otherUnitObjectId: data.carrier?.objectId,
                       },
               }
             : {}),

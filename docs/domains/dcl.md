@@ -10,7 +10,7 @@ DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject�
 
 `dcl_subjects` 保存经营主体唯一稳定 ID 与 `OPE-*` 业务编码；二者跨全部版本不可变。`dcl_operating_entity_versions` 以 `approvalEntryId` 为主键，保存该版本完整的法定名称、简称、税号、地址、电话、备注和 `enabled`。所有可变字段均随候选版本冻结；启用或停用同样通过保存新候选并审批，不存在 BOB current 写入。
 
-唯一 wire 字段集合以 [OpenAPI DCL Schema](../../contracts/openapi/schemas/dcl.yaml) 为准。`/dcl/operating-entity` 是经营主体申报的唯一维护页面，候选查询、详情和全部写动作固定使用 `/dcl/operating-entity/*`。`/bob/operating-entity` 是独立的当前正式档案只读页面，只使用 `/bob/operating-entity/query|get`；它可以导航到同一稳定 subject 的 DCL 页面，但不在 BOB 内创建、保存或审批候选。APP 工作台和审批深链固定进入 DCL 页面。
+唯一 wire 字段集合以 [OpenAPI DCL Schema](../../contracts/openapi/schemas/dcl.yaml) 为准。`/dcl/operating-entity` 是经营主体档案的唯一页面，候选查询、当前正式资料、详情和全部写动作固定使用 `/dcl/operating-entity/*`。`/bob/operating-entity/query|get` 只作为内部当前正式资料读取边界，不注册页面、菜单或深链。APP 工作台和审批深链固定进入 DCL 页面。
 
 ## 3. 版本与当前读取
 
@@ -29,23 +29,23 @@ DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject�
 
 仓库 stable ID 与 `WHS-*` 编码跨全部版本不变。`dcl_warehouse_versions` 以 `approvalEntryId` 为主键，保存完整的名称、地址、联系人、联系电话、仓库负责人稳定 ID、负责人精确 Approval Entry、备注和 `enabled`。仓库负责人可空且只表达责任与联系，不授予任何操作权限；创建、保存、提交和批准时分别按最新选择或已保存精确版本校验该负责人。
 
-`/dcl/warehouse` 是唯一维护入口，`/bob/warehouse` 只提供当前正式资料的 `query/get`。启停同样通过完整 DCL candidate 的 `enabled` 改变，不存在 BOB 直接 `enable/disable`。批准 `enabled=false` 或反批准回落到 disabled/absent 前，在同一事务锁定仓库、库存和相关 VOU，并检查非零库存、进行中单据、仍可产生后续库存动作的来源单和当前正式引用；存在任一 blocker 时返回 `warehouse_disable_blocked`，Approval 保持不变。
+`/dcl/warehouse` 是唯一页面和维护入口，`/bob/warehouse/query|get` 只提供内部当前正式资料读取，不注册页面或菜单。启停同样通过完整 DCL candidate 的 `enabled` 改变，不存在 BOB 直接 `enable/disable`。批准 `enabled=false` 或反批准回落到 disabled/absent 前，在同一事务锁定仓库、库存和相关 VOU，并检查非零库存、进行中单据、仍可产生后续库存动作的来源单和当前正式引用；存在任一 blocker 时返回 `warehouse_disable_blocked`，Approval 保持不变。
 
 VOU 与 ACC 继续保存 warehouse stable ID；VOU 同时保存实际采用的精确 DCL Approval Entry ID 与名称等必要快照。候选和后续批准版本不改写历史事实；任一 VOU 状态精确引用某仓库版本时，该版本不得反批准。
 
 ## 3.2 车辆申报
 
-车辆 stable ID 与 `VEH-*` 编码跨全部版本不变。`dcl_vehicle_versions` 以 `approvalEntryId` 为主键，保存完整的名称、车牌、车型字典编码及来源 Approval Entry、承运归属封闭对象、VIN、发动机号、核定载重、散水承运能力、备注和 `enabled`。承运归属的 wire value 只有 `INTERNAL` 与 `EXTERNAL`：自有车辆必须引用一个当前可用经营主体及其精确 Approval Entry，外部车辆必须引用一条当前可用“其他单位”服务关系及其精确 Approval Entry。
+车辆 stable ID 与 `VEH-*` 编码跨全部版本不变。`dcl_vehicle_versions` 以 `approvalEntryId` 为主键，保存完整的名称、车牌、车型字典编码及来源 Approval Entry、承运归属封闭对象、VIN、发动机号、核定载重、散水承运能力、备注和 `enabled`。承运归属的 wire value 只有 `INTERNAL` 与 `EXTERNAL`：自有车辆必须引用一个当前可用经营主体及其精确 Approval Entry，外部车辆必须直接引用一个当前可用其他单位档案及其精确 Approval Entry。
 
-`/dcl/vehicle` 是唯一维护入口，`/bob/vehicle` 只提供当前正式档案的 `query/get/reference`。启停只能保存完整 DCL candidate 的 `enabled` 变更，不存在 BOB 直接 `enable/disable`。候选创建或保存时按最新引用解析车型与承运归属；提交和批准时重新校验已保存的精确来源版本仍是 latest approved。承运方后续改版不会自动改写车辆快照，必须由用户建立车辆下一候选显式采用新版本。
+`/dcl/vehicle` 是唯一页面和维护入口，`/bob/vehicle/query|get|reference` 只提供内部当前正式资料读取，不注册页面或菜单。启停只能保存完整 DCL candidate 的 `enabled` 变更，不存在 BOB 直接 `enable/disable`。候选创建或保存时按最新引用解析车型与承运归属；提交和批准时重新校验已保存的精确来源版本仍是 latest approved。承运方后续改版不会自动改写车辆快照，必须由用户建立车辆下一候选显式采用新版本。
 
-批准或反批准只改变 Approval lifecycle；BOB 通过 highest APPROVED typed query 自然切换、回落或隐藏车辆资料，不保存车辆 current copy。被任一 VOU 正式事实精确引用的车辆 Approval Entry 不得反批准；当前车辆引用的经营主体或服务关系也不得失效，必须先通过车辆正常候选与审批流程修改承运归属。VOU 与运输事实继续保存 vehicle stable ID、实际采用的 Approval Entry ID、承运归属和车辆能力快照，任何车辆后续版本均不得重算或改写历史。
+批准或反批准只改变 Approval lifecycle；BOB 通过 highest APPROVED typed query 自然切换、回落或隐藏车辆资料，不保存车辆 current copy。被任一 VOU 正式事实精确引用的车辆 Approval Entry 不得反批准；当前车辆引用的经营主体或其他单位档案也不得失效，必须先通过车辆正常候选与审批流程修改承运归属。VOU 与运输事实继续保存 vehicle stable ID、实际采用的 Approval Entry ID、承运归属和车辆能力快照，任何车辆后续版本均不得重算或改写历史。
 
 ## 3.3 资金账户申报
 
 资金账户 stable ID 与 `FAC-*` 编码跨全部版本不变。`dcl_fund_account_versions` 以 `approvalEntryId` 为主键，保存完整的名称、币种、户名、银行、支行、规范化账号、备注、所属经营主体 stable ID、精确 Approval Entry、编码与名称快照，以及 `enabled`。资金账户必须且只能属于一个当前可用经营主体；创建和保存时解析 latest approved，提交和批准时确认已存精确来源仍为 latest approved。所属主体后续改版不自动改写资金账户快照，必须通过新 candidate 显式采用。
 
-`/dcl/fund-account` 是唯一维护入口，`/bob/fund-account` 只提供当前正式资料的 `query/get/reference`。账号移除空白和连字符并转为大写；非空账号在全部资金账户的 latest approved 与唯一 open candidate 之间大小写不敏感唯一，旧批准版本在新版本批准后释放账号。批准或反批准只改变 Approval lifecycle，并在同一事务更新账号占用；BOB 通过 highest APPROVED typed query 自然切换、回落或隐藏资料，冲突时 Approval 与账号占用均不改变。
+`/dcl/fund-account` 是唯一页面和维护入口，`/bob/fund-account/query|get|reference` 只提供内部当前正式资料读取，不注册页面或菜单。账号移除空白和连字符并转为大写；非空账号在全部资金账户的 latest approved 与唯一 open candidate 之间大小写不敏感唯一，旧批准版本在新版本批准后释放账号。批准或反批准只改变 Approval lifecycle，并在同一事务更新账号占用；BOB 通过 highest APPROVED typed query 自然切换、回落或隐藏资料，冲突时 Approval 与账号占用均不改变。
 
 VOU 收付款、费用支付、其他收入和票据资金行继续保存 fund account stable ID、实际采用的 Approval Entry ID、编码、名称与币种快照。任一已持久化 VOU 正文精确引用的资金账户 Approval Entry 不得反批准；但可以建立下一 candidate。ACC 继续保存 fund account stable ID 维度，并通过不可变的 VOU `source_id` 追溯实际采用的资金账户版本，不重复保存 Approval Entry 或快照。历史事实不回查当前资金账户并且不随后续版本改变。
 
@@ -55,7 +55,7 @@ VOU 收付款、费用支付、其他收入和票据资金行继续保存 fund a
 
 创建或保存时解析当前启用且 entity 匹配的 AUX stable object，并按配方原料 stable ID 解析其 latest approved 产品版本；从正式版本创建候选时，原料 entry 自动前移但权威基准用量不变，需要确认的行保持显式待处理。提交和批准使用同一套完整性规则：AUX 快照只校验完整性与 stable identity，不回查来源 current，也不因来源后续改名、修改或停用而漂移；配方原料的已存精确 DCL entry 仍须为 latest approved。条码在全部产品的 latest approved 与唯一开放候选之间大小写不敏感唯一；并发候选和条码占用由同一事务保证。
 
-`/dcl/product` 是唯一维护入口，`/bob/product` 只提供当前正式资料的 `query/get/reference`。批准或反批准只改变 Approval lifecycle；BOB 直接读取 highest APPROVED entry 对应的完整 DCL snapshot，不保存产品 current source，也不复制单位换算或固定配方事实。失败时 DCL snapshot、Approval 与标识占用全部回滚。库存、销售、采购、生产和 ACC 历史继续保存 product stable ID、实际采用的 Approval Entry、数量、名称及各自所需业务快照；任何后续产品版本都不得重算历史数量、配方、金额或库存事实。任一正式业务事实精确引用某产品 Approval Entry 时，该版本不得反批准。
+`/dcl/product` 是唯一页面和维护入口，`/bob/product/query|get|reference` 只提供内部当前正式资料读取，不注册页面或菜单。批准或反批准只改变 Approval lifecycle；BOB 直接读取 highest APPROVED entry 对应的完整 DCL snapshot，不保存产品 current source，也不复制单位换算或固定配方事实。失败时 DCL snapshot、Approval 与标识占用全部回滚。库存、销售、采购、生产和 ACC 历史继续保存 product stable ID、实际采用的 Approval Entry、数量、名称及各自所需业务快照；任何后续产品版本都不得重算历史数量、配方、金额或库存事实。任一正式业务事实精确引用某产品 Approval Entry 时，该版本不得反批准。
 
 ## 3.5 强类型业务身份
 
@@ -137,8 +137,8 @@ BOB 对新业务解析 current/latest approved，并返回稳定 ID、来源 `ap
 
 ## 5. 权限
 
-DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history` 精确授权。Party 与 Customer Account 独立权限不存在；核算账户维护只服从 Customer 页面和 Customer 权限。BOB current 页面只检查本对象的 `query`、`get` 与 `reference`；其他领域既有权限边界不变。
+DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history` 精确授权。Party 与 Customer Account 独立权限不存在；核算账户维护只服从 Customer 页面和 Customer 权限。BOB 仅保留本对象的 `query`、`get` 与 `reference` 内部读取权限，不注册页面、主菜单、待办或审批入口；其他领域既有权限边界不变。
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖 V1/V2 highest-approved 切换与回落、同一 subject 唯一开放候选、并发保存最多一个成功、强标识按业务档案类型唯一，以及 subscriber 失败整笔回滚。Customer 必须覆盖创建时原子建立默认核算账户、全部账户与客户一次保存和审批、账户 code 客户内唯一、默认账户完整性、账户草稿删除与正式移除 blocker、跨经营主体共用账户默认值、`accountId + customerApprovalEntryId` 历史读取，以及账户无独立权限、API、版本和待办。Employee 必须覆盖任职经营主体快照以及跨经营主体单据仍可选择。Supplier、Other Unit 与 Sales Partner 必须覆盖适用经营主体集合、默认值、强标识和正式引用 blocker。HTTP 与前端验收必须证明 DCL 页面独占候选及生命周期、BOB 只读 current、动作文案区分编辑草稿与发起变更，并且不存在 Party 和独立 Customer Account 入口。其他实体的既有验收边界不变。
+真实 PostgreSQL 验收必须覆盖 V1/V2 highest-approved 切换与回落、同一 subject 唯一开放候选、并发保存最多一个成功、强标识按业务档案类型唯一，以及 subscriber 失败整笔回滚。Customer 必须覆盖创建时原子建立默认核算账户、全部账户与客户一次保存和审批、账户 code 客户内唯一、默认账户完整性、账户草稿删除与正式移除 blocker、跨经营主体共用账户默认值、`accountId + customerApprovalEntryId` 历史读取，以及账户无独立权限、API、版本和待办。Employee 必须覆盖任职经营主体快照以及跨经营主体单据仍可选择。Supplier、Other Unit 与 Sales Partner 必须覆盖适用经营主体集合、默认值、强标识和正式引用 blocker。HTTP 与前端验收必须证明 DCL 页面独占当前资料、候选及生命周期，BOB 只提供选择器、current 与 exact-reference 内部读取，动作文案区分编辑草稿与发起变更，并且不存在 Party、独立 Customer Account、BOB 页面、重复主菜单或旧深链。其他实体的既有验收边界不变。

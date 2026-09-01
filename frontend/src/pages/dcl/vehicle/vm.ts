@@ -288,7 +288,7 @@ export function useDclVehicleViewModel() {
       !form.vehicleType.trim() ||
       (form.carrierType === 'INTERNAL'
         ? !form.carrierOperatingEntityId.trim()
-        : !form.carrierServiceRelationshipObjectId.trim())
+        : !form.carrierOtherUnitObjectId.trim())
     ) {
       editorErrorMessage.value = '请完整填写车辆名称、车牌、车型和承运归属。'
       return false

@@ -231,7 +231,7 @@ func typedOtherListData(row dbsqlc.ListBobOtherUnitCurrentsTypedRow) DetailView 
 func typedSalesListData(row dbsqlc.ListBobSalesPartnerCurrentsTypedRow) DetailView {
 	return DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), DefaultOperatingEntityID: row.DefaultOperatingEntityID, OperatingEntities: []BusinessArchiveSnapshot{archiveSnapshot(row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName)}, SalesCapabilities: row.Capabilities, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
 }
-func (s *Service) queryRelationshipCurrent(ctx context.Context, q *dbsqlc.Queries, entity string, input QueryInput) (Page[QueryItem], error) {
+func (s *Service) queryTypedArchiveCurrent(ctx context.Context, q *dbsqlc.Queries, entity string, input QueryInput) (Page[QueryItem], error) {
 	offset, ok := pageOffset(input.Page, input.PageSize)
 	if !ok || len(input.Sort) > 1 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid business archive query", nil, nil)

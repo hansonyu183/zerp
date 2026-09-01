@@ -339,7 +339,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 }
 
-func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivableIntegration(t *testing.T) {
+func TestZZServiceAcceptanceApprovalPostsOtherUnitPayableAndReceivableIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
 	accounting := defaultIntegrationACCService(pool)
@@ -417,7 +417,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	}
 	auxiliary := auxdomain.NewService(pool)
 	business := newAccountingIntegrationBOBService(pool, bus)
-	relationships := dcldomain.NewRelationshipService(pool, business, authorization.Func(nil), bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, business, authorization.Func(nil), bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "服务验收经营主体"})
 	employee := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "服务验收经办人", "service-acceptance-employee")
 	var settlementID string
@@ -428,7 +428,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	`, bobdomain.SettlementTermMonthly30).Scan(&settlementID); err != nil {
 		t.Fatalf("load monthly settlement method: %v", err)
 	}
-	serviceRelationship, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
+	otherUnit, err := typedArchives.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
 		Data: dcldomain.OtherUnitData{
 			Kind:                     "ORGANIZATION",
 			LegalName:                "服务验收往来单位",
@@ -442,14 +442,14 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	if err != nil {
 		t.Fatalf("create service relationship: %v", err)
 	}
-	submittedRelationship, err := relationships.SubmitOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{
-		ObjectID: serviceRelationship.ObjectID, ApprovalEntryID: serviceRelationship.Approval.ApprovalEntryID, ApprovalRevision: serviceRelationship.Approval.Revision,
+	submittedOtherUnit, err := typedArchives.SubmitOtherUnit(t.Context(), dcldomain.TypedArchiveVersionInput{
+		ObjectID: otherUnit.ObjectID, ApprovalEntryID: otherUnit.Approval.ApprovalEntryID, ApprovalRevision: otherUnit.Approval.Revision,
 	}, trustedAccountingActor(t, "service-acceptance-other-unit-submit"))
 	if err != nil {
 		t.Fatalf("submit service relationship: %v", err)
 	}
-	approvedRelationship, err := relationships.ApproveOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{
-		ObjectID: serviceRelationship.ObjectID, ApprovalEntryID: serviceRelationship.Approval.ApprovalEntryID, ApprovalRevision: submittedRelationship.Approval.Revision,
+	approvedOtherUnit, err := typedArchives.ApproveOtherUnit(t.Context(), dcldomain.TypedArchiveVersionInput{
+		ObjectID: otherUnit.ObjectID, ApprovalEntryID: otherUnit.Approval.ApprovalEntryID, ApprovalRevision: submittedOtherUnit.Approval.Revision,
 	}, trustedAccountingActor(t, "service-acceptance-other-unit-approve"))
 	if err != nil {
 		t.Fatalf("approve service relationship: %v", err)
@@ -459,7 +459,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		t.Fatalf("new VOU service: %v", err)
 	}
 	handler := &employee
-	counterparty := &voudomain.ReferenceInput{ObjectID: approvedRelationship.ObjectID, ApprovalEntryID: approvedRelationship.Approval.ApprovalEntryID}
+	counterparty := &voudomain.ReferenceInput{ObjectID: approvedOtherUnit.ObjectID, ApprovalEntryID: approvedOtherUnit.Approval.ApprovalEntryID}
 	contract, err := vouchers.Create(t.Context(), voudomain.EntityServiceContract, voudomain.CreateInput{Data: voudomain.DraftInput{
 		BusinessDate: "2026-07-01", Currency: "CNY", CounterpartyType: bobdomain.EntityOtherUnit,
 		Counterparty: counterparty, Handler: handler,
@@ -523,14 +523,14 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		if dimensionSubjectID == "" {
 			return
 		}
-		var relationshipID string
+		var otherUnitID string
 		if err = pool.QueryRow(t.Context(), `
 			SELECT line.dimensions->>$3
 			FROM acc_voucher_lines line
 			JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
 			WHERE voucher.book_id=$1 AND voucher.source_id=$2 AND line.subject_id=$4
-		`, book.ID, acceptance.DocumentID, DimensionOtherUnit, dimensionSubjectID).Scan(&relationshipID); err != nil || relationshipID != approvedRelationship.ObjectID {
-			t.Fatalf("service relationship dimensions = relationship:%q want:%q err=%v", relationshipID, approvedRelationship.ObjectID, err)
+		`, book.ID, acceptance.DocumentID, DimensionOtherUnit, dimensionSubjectID).Scan(&otherUnitID); err != nil || otherUnitID != approvedOtherUnit.ObjectID {
+			t.Fatalf("service relationship dimensions = relationship:%q want:%q err=%v", otherUnitID, approvedOtherUnit.ObjectID, err)
 		}
 	}
 

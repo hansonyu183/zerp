@@ -1200,7 +1200,7 @@ SELECT EXISTS(
 -- name: LockVouSaleDeliveryCarrierSnapshot :one
 SELECT source_outbound_id,carrier_type,
        carrier_operating_entity_object_id,carrier_operating_entity_approval_entry_id,
-       carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,
+       carrier_other_unit_object_id,carrier_other_unit_approval_entry_id,
        vehicle_object_id,vehicle_approval_entry_id
 FROM vou_sale_delivery_details
 WHERE document_id=sqlc.arg(document_id)
@@ -1228,8 +1228,8 @@ INSERT INTO vou_sale_delivery_details(
     carrier_type,
     carrier_operating_entity_object_id,carrier_operating_entity_approval_entry_id,
     carrier_operating_entity_code,carrier_operating_entity_name,
-    carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,
-    carrier_service_relationship_code,carrier_service_relationship_name,
+    carrier_other_unit_object_id,carrier_other_unit_approval_entry_id,
+    carrier_other_unit_code,carrier_other_unit_name,
     vehicle_object_id,vehicle_approval_entry_id,vehicle_code,vehicle_name,
     vehicle_plate_number,vehicle_bulk_liquid_capable
 ) VALUES(
@@ -1237,9 +1237,9 @@ INSERT INTO vou_sale_delivery_details(
     sqlc.arg(customer_approval_entry_id),sqlc.arg(customer_code),sqlc.arg(customer_name),
     sqlc.arg(carrier_type),sqlc.narg(carrier_operating_entity_object_id),
     sqlc.narg(carrier_operating_entity_approval_entry_id),sqlc.narg(carrier_operating_entity_code),
-    sqlc.narg(carrier_operating_entity_name),sqlc.narg(carrier_service_relationship_object_id),
-    sqlc.narg(carrier_service_relationship_approval_entry_id),sqlc.narg(carrier_service_relationship_code),
-    sqlc.narg(carrier_service_relationship_name),sqlc.arg(vehicle_object_id),
+    sqlc.narg(carrier_operating_entity_name),sqlc.narg(carrier_other_unit_object_id),
+    sqlc.narg(carrier_other_unit_approval_entry_id),sqlc.narg(carrier_other_unit_code),
+    sqlc.narg(carrier_other_unit_name),sqlc.arg(vehicle_object_id),
     sqlc.arg(vehicle_approval_entry_id),sqlc.arg(vehicle_code),sqlc.arg(vehicle_name),
     sqlc.arg(vehicle_plate_number),sqlc.arg(vehicle_bulk_liquid_capable)
 );
@@ -1251,10 +1251,10 @@ UPDATE vou_sale_delivery_details SET
     carrier_operating_entity_approval_entry_id=sqlc.narg(carrier_operating_entity_approval_entry_id),
     carrier_operating_entity_code=sqlc.narg(carrier_operating_entity_code),
     carrier_operating_entity_name=sqlc.narg(carrier_operating_entity_name),
-    carrier_service_relationship_object_id=sqlc.narg(carrier_service_relationship_object_id),
-    carrier_service_relationship_approval_entry_id=sqlc.narg(carrier_service_relationship_approval_entry_id),
-    carrier_service_relationship_code=sqlc.narg(carrier_service_relationship_code),
-    carrier_service_relationship_name=sqlc.narg(carrier_service_relationship_name),
+    carrier_other_unit_object_id=sqlc.narg(carrier_other_unit_object_id),
+    carrier_other_unit_approval_entry_id=sqlc.narg(carrier_other_unit_approval_entry_id),
+    carrier_other_unit_code=sqlc.narg(carrier_other_unit_code),
+    carrier_other_unit_name=sqlc.narg(carrier_other_unit_name),
     vehicle_object_id=sqlc.arg(vehicle_object_id),vehicle_approval_entry_id=sqlc.arg(vehicle_approval_entry_id),
     vehicle_code=sqlc.arg(vehicle_code),vehicle_name=sqlc.arg(vehicle_name),
     vehicle_plate_number=sqlc.arg(vehicle_plate_number),
@@ -1269,10 +1269,10 @@ SELECT delivery.source_outbound_id,source.document_no AS source_document_no,
        COALESCE(delivery.carrier_operating_entity_approval_entry_id,'') AS carrier_operating_entity_approval_entry_id,
        COALESCE(delivery.carrier_operating_entity_code,'') AS carrier_operating_entity_code,
        COALESCE(delivery.carrier_operating_entity_name,'') AS carrier_operating_entity_name,
-       COALESCE(delivery.carrier_service_relationship_object_id,'') AS carrier_service_relationship_object_id,
-       COALESCE(delivery.carrier_service_relationship_approval_entry_id,'') AS carrier_service_relationship_approval_entry_id,
-       COALESCE(delivery.carrier_service_relationship_code,'') AS carrier_service_relationship_code,
-       COALESCE(delivery.carrier_service_relationship_name,'') AS carrier_service_relationship_name,
+       COALESCE(delivery.carrier_other_unit_object_id,'') AS carrier_other_unit_object_id,
+       COALESCE(delivery.carrier_other_unit_approval_entry_id,'') AS carrier_other_unit_approval_entry_id,
+       COALESCE(delivery.carrier_other_unit_code,'') AS carrier_other_unit_code,
+       COALESCE(delivery.carrier_other_unit_name,'') AS carrier_other_unit_name,
        COALESCE(delivery.vehicle_object_id,'') AS vehicle_object_id,
        COALESCE(delivery.vehicle_approval_entry_id,'') AS vehicle_approval_entry_id,
        COALESCE(delivery.vehicle_code,'') AS vehicle_code,

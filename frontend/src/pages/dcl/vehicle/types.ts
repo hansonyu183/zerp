@@ -18,7 +18,7 @@ export type DclVehicleForm = {
   vehicleType: string
   carrierType: 'INTERNAL' | 'EXTERNAL'
   carrierOperatingEntityId: string
-  carrierServiceRelationshipObjectId: string
+  carrierOtherUnitObjectId: string
   bulkLiquidCapable: boolean
   vin: string
   engineNumber: string

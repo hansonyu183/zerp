@@ -9,9 +9,7 @@ import { formatReferenceLabel } from '@/utils/reference-label'
 import type { DclVehicleConfig, DclVehicleForm } from './types'
 
 type ReferenceKey =
-  | 'vehicleType'
-  | 'carrierOperatingEntityId'
-  | 'carrierServiceRelationshipObjectId'
+  'vehicleType' | 'carrierOperatingEntityId' | 'carrierOtherUnitObjectId'
 
 interface ReferenceState {
   options: BusinessObjectFieldOption<string>[]
@@ -28,7 +26,7 @@ export function useDclVehicleReferences(config: DclVehicleConfig) {
   const states = reactive<Record<ReferenceKey, ReferenceState>>({
     vehicleType: createState(),
     carrierOperatingEntityId: createState(),
-    carrierServiceRelationshipObjectId: createState(),
+    carrierOtherUnitObjectId: createState(),
   })
   const timers = new Map<ReferenceKey, ReturnType<typeof setTimeout>>()
 
@@ -102,7 +100,7 @@ export function useDclVehicleReferences(config: DclVehicleConfig) {
     void load(
       form.carrierType === 'INTERNAL'
         ? 'carrierOperatingEntityId'
-        : 'carrierServiceRelationshipObjectId',
+        : 'carrierOtherUnitObjectId',
       '',
       form,
     )
@@ -134,7 +132,10 @@ async function loadOptions(
       sort: [{ field: 'name', order: 'asc' }],
     })
     return data.items.map((item) => ({
-      title: formatReferenceLabel({ code: item.code, name: item.data.name ?? '' }),
+      title: formatReferenceLabel({
+        code: item.code,
+        name: item.data.name ?? '',
+      }),
       value: item.code,
     }))
   }
@@ -177,7 +178,7 @@ function isReferenceKey(key: string): key is ReferenceKey {
   return (
     key === 'vehicleType' ||
     key === 'carrierOperatingEntityId' ||
-    key === 'carrierServiceRelationshipObjectId'
+    key === 'carrierOtherUnitObjectId'
   )
 }
 
@@ -188,8 +189,7 @@ function fieldIsVisible(
   return (
     key === 'vehicleType' ||
     (key === 'carrierOperatingEntityId' && form.carrierType === 'INTERNAL') ||
-    (key === 'carrierServiceRelationshipObjectId' &&
-      form.carrierType === 'EXTERNAL')
+    (key === 'carrierOtherUnitObjectId' && form.carrierType === 'EXTERNAL')
   )
 }
 
@@ -197,6 +197,6 @@ function referenceLabel(key: ReferenceKey): string {
   return {
     vehicleType: '车型',
     carrierOperatingEntityId: '经营主体',
-    carrierServiceRelationshipObjectId: '其他单位服务关系',
+    carrierOtherUnitObjectId: '其他单位',
   }[key]
 }

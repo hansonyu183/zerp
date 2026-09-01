@@ -350,8 +350,8 @@ describe('Dashboard workbench', () => {
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
     ).toEqual([
-      { title: '客户', value: 'customer' },
-      { title: '供应商', value: 'supplier' },
+      { title: '客户变更', value: 'customer' },
+      { title: '供应商变更', value: 'supplier' },
     ])
   })
 

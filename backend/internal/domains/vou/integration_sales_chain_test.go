@@ -137,7 +137,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 
 	deliveryOne, deliveryView := advanceWorkflowSalesDraft(t, pool, service, EntitySaleDelivery, func(tx pgx.Tx) (MutationResult, error) {
 		return service.CreateWorkflowSaleDelivery(t.Context(), tx, outboundOne.DocumentID, WorkflowSaleDeliveryInitial{
-			BusinessDate: "2026-07-26", CarrierServiceRelationshipObjectID: refs.carrier.ObjectID,
+			BusinessDate: "2026-07-26", CarrierOtherUnitObjectID: refs.carrier.ObjectID,
 			VehicleObjectID: refs.vehicle.ObjectID,
 		}, "workflow-delivery")
 	})
@@ -525,7 +525,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 		Name: "VOU 散装液体车辆", PlateNumber: "粤B" + newID()[20:], VehicleType: "DIT-0003",
 		BulkLiquidCapable: true,
 		CarrierAffiliation: &bobdomain.CarrierAffiliation{
-			Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID,
+			Type: "EXTERNAL", OtherUnitObjectID: refs.carrier.ObjectID,
 		},
 	})
 	_, bulkDeliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
@@ -546,7 +546,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 
 	recheckVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
 		Name: "VOU 审批复检车辆", PlateNumber: "粤R" + newID()[20:], VehicleType: "DIT-0003",
-		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID},
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: refs.carrier.ObjectID},
 	})
 	checkedDelivery, _ := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
@@ -561,7 +561,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 
 	checkVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
 		Name: "VOU 核对复检车辆", PlateNumber: "粤C" + newID()[20:], VehicleType: "DIT-0003",
-		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID},
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: refs.carrier.ObjectID},
 	})
 	draftDelivery, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,

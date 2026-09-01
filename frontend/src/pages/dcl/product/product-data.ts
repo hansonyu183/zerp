@@ -3,7 +3,7 @@ import {
   productFormulaFromPayload,
   productFormulaPayload,
   type ProductFormulaDraft,
-} from '@/pages/bob/product/product-formula-data'
+} from '@/pages/dcl/product/product-formula-data'
 import { parseFixed } from '@/components/voucher/decimal'
 
 export type ProductUnitConversionDraft = {

@@ -58,7 +58,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	}
 	if entity == EntityEmployee {
 		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
-			return s.queryEmploymentRelationships(ctx, q, input)
+			return s.queryEmployeesCurrent(ctx, q, input)
 		})
 	}
 	if entity == EntitySupplier {
@@ -71,7 +71,7 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	}
 	if entity == EntityOtherUnit || entity == EntitySalesPartner {
 		return s.queryCurrentSnapshot(ctx, func(q *dbsqlc.Queries) (Page[QueryItem], error) {
-			return s.queryRelationshipCurrent(ctx, q, entity, input)
+			return s.queryTypedArchiveCurrent(ctx, q, entity, input)
 		})
 	}
 	return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query entity", nil, nil)
@@ -384,7 +384,7 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 			if err := resolveBob(EntityOperatingEntity, data.CarrierAffiliation.OperatingEntityID, &data.CarrierAffiliation.OperatingApprovalEntryID); err != nil {
 				return DetailView{}, err
 			}
-		} else if err := resolveBob(EntityOtherUnit, data.CarrierAffiliation.ServiceRelationshipObjectID, &data.CarrierAffiliation.ServiceApprovalEntryID); err != nil {
+		} else if err := resolveBob(EntityOtherUnit, data.CarrierAffiliation.OtherUnitObjectID, &data.CarrierAffiliation.OtherUnitApprovalEntryID); err != nil {
 			return DetailView{}, err
 		}
 	}

@@ -95,12 +95,12 @@
   'VehicleExternalCarrierAffiliation':
     {
       'type': 'object',
-      'required': ['type', 'serviceRelationshipObjectId'],
+      'required': ['type', 'otherUnitObjectId'],
       'additionalProperties': false,
       'properties':
         {
           'type': { 'type': 'string', 'enum': ['EXTERNAL'] },
-          'serviceRelationshipObjectId': { 'type': 'string' },
+          'otherUnitObjectId': { 'type': 'string' },
         },
     },
   'BobListItem':

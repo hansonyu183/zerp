@@ -1,1 +1,0 @@
-<script setup lang="ts">import TypedBusinessArchivePage from '../shared/TypedBusinessArchivePage.vue'</script><template><TypedBusinessArchivePage entity="sales-partner" title="销售合作方（当前有效资料）" code-label="销售合作方编码" /></template>

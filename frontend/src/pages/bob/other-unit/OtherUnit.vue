@@ -1,1 +1,0 @@
-<script setup lang="ts">import TypedBusinessArchivePage from '../shared/TypedBusinessArchivePage.vue'</script><template><TypedBusinessArchivePage entity="other-unit" title="其他单位（当前有效资料）" code-label="其他单位编码" /></template>

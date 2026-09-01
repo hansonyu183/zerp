@@ -16,22 +16,22 @@ import {
 } from '@/shared/approval'
 import { formatLocalDateTime } from '@/utils/date'
 import {
-  dclRelationshipActiveVersion,
-  type DclRelationshipEntity,
-  type DclRelationshipListItem,
+  dclTypedArchiveActiveVersion,
+  type DclTypedArchiveEntity,
+  type DclTypedArchiveListItem,
 } from './types'
-import { useDclRelationshipViewModel } from './vm'
+import { useDclTypedArchiveViewModel } from './vm'
 
 const props = defineProps<{
-  entity: DclRelationshipEntity
+  entity: DclTypedArchiveEntity
 }>()
-const vm = reactive(useDclRelationshipViewModel(props.entity))
+const vm = reactive(useDclTypedArchiveViewModel(props.entity))
 const route = useRoute()
 const router = useRouter()
-const deleteTarget = ref<DclRelationshipListItem | null>(null)
-const reviewTarget = ref<DclRelationshipListItem | null>(null)
+const deleteTarget = ref<DclTypedArchiveListItem | null>(null)
+const reviewTarget = ref<DclTypedArchiveListItem | null>(null)
 const reviewComment = ref('')
-const reverseTarget = ref<DclRelationshipListItem | null>(null)
+const reverseTarget = ref<DclTypedArchiveListItem | null>(null)
 const reverseAction = ref<'unsubmit' | 'unapprove'>('unsubmit')
 const reverseReason = ref('')
 const versionsLength = computed(() =>
@@ -57,13 +57,17 @@ watch(
   },
 )
 
-function actions(row: DclRelationshipListItem): ListRowAction[] {
+function actions(row: DclTypedArchiveListItem): ListRowAction[] {
   const available = vm.actionAvailability(row)
   const result: ListRowAction[] = []
   if (available.edit)
     result.push({
       key: 'edit',
-      label: row.openVersion ? '继续编辑草稿' : row.latestApproved ? '发起变更' : '编辑草稿',
+      label: row.openVersion
+        ? '继续编辑草稿'
+        : row.latestApproved
+          ? '发起变更'
+          : '编辑草稿',
       icon: 'mdi-pencil-outline',
       color: 'primary',
     })
@@ -108,7 +112,7 @@ function actions(row: DclRelationshipListItem): ListRowAction[] {
     })
   return result
 }
-function selectAction(action: string, row: DclRelationshipListItem): void {
+function selectAction(action: string, row: DclTypedArchiveListItem): void {
   if (action === 'edit') void vm.openEdit(row)
   else if (action === 'view') void vm.openView(row)
   else if (action === 'submit') void vm.submitObject(row)
@@ -152,7 +156,7 @@ async function confirmReverse() {
 </script>
 
 <template>
-  <v-container fluid class="dcl-relationship-page pa-5 pa-md-8">
+  <v-container fluid class="dcl-typed-archive-page pa-5 pa-md-8">
     <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
     <AppSnackbar
       :message="vm.successMessage"
@@ -200,18 +204,24 @@ async function confirmReverse() {
           <v-chip density="comfortable" size="small" variant="tonal">
             {{
               approvalStatusPresentation[
-                dclRelationshipActiveVersion(row).approval.status
+                dclTypedArchiveActiveVersion(row).approval.status
               ].label
             }}
           </v-chip>
           <v-chip
             v-if="row.latestApproved"
-            :color="dclRelationshipActiveVersion(row).data.enabled ? 'success' : 'default'"
+            :color="
+              dclTypedArchiveActiveVersion(row).data.enabled
+                ? 'success'
+                : 'default'
+            "
             density="comfortable"
             size="small"
             variant="tonal"
           >
-            {{ dclRelationshipActiveVersion(row).data.enabled ? '启用' : '禁用' }}
+            {{
+              dclTypedArchiveActiveVersion(row).data.enabled ? '启用' : '禁用'
+            }}
           </v-chip>
           <v-chip
             v-if="row.openVersion"
@@ -238,12 +248,12 @@ async function confirmReverse() {
 
   <v-navigation-drawer
     v-model="vm.drawerOpen"
-    class="dcl-relationship-drawer"
+    class="dcl-typed-archive-drawer"
     location="end"
     temporary
     width="760"
   >
-    <div class="dcl-relationship-drawer__content">
+    <div class="dcl-typed-archive-drawer__content">
       <BusinessObjectEditor
         :editable="false"
         :editing="vm.editorMode !== 'view'"
@@ -479,10 +489,10 @@ async function confirmReverse() {
 </template>
 
 <style scoped>
-.dcl-relationship-drawer {
+.dcl-typed-archive-drawer {
   background: rgb(var(--v-theme-background));
 }
-.dcl-relationship-drawer__content {
+.dcl-typed-archive-drawer__content {
   padding: 20px;
 }
 .dcl-status-chips {
@@ -491,11 +501,11 @@ async function confirmReverse() {
   gap: 6px;
 }
 @media (max-width: 640px) {
-  .dcl-relationship-drawer {
+  .dcl-typed-archive-drawer {
     width: 100vw !important;
     max-width: 100vw !important;
   }
-  .dcl-relationship-drawer__content {
+  .dcl-typed-archive-drawer__content {
     padding: 12px;
   }
 }

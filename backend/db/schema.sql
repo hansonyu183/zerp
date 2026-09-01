@@ -1835,15 +1835,15 @@ CREATE TABLE public.dcl_vehicle_versions (
     carrier_operating_entity_id character varying(26),
     carrier_operating_entity_approval_entry_id character varying(26),
     carrier_operating_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
-    carrier_service_relationship_object_id character varying(26),
-    carrier_service_relationship_approval_entry_id character varying(26),
-    carrier_service_relationship_entity character varying(16) DEFAULT 'other-unit'::character varying CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_enti_not_null NOT NULL,
+    carrier_other_unit_object_id character varying(26),
+    carrier_other_unit_approval_entry_id character varying(26),
+    carrier_other_unit_entity character varying(16) DEFAULT 'other-unit'::character varying CONSTRAINT dcl_vehicle_versions_carrier_other_unit_enti_not_null NOT NULL,
     bulk_liquid_capable boolean DEFAULT false NOT NULL,
     enabled boolean NOT NULL,
-    CONSTRAINT dcl_vehicle_versions_carrier_affiliation_shape_ck CHECK (((((carrier_affiliation_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_id IS NOT NULL) AND (carrier_service_relationship_object_id IS NULL)) OR (((carrier_affiliation_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_id IS NULL) AND (carrier_service_relationship_object_id IS NOT NULL)))),
+    CONSTRAINT dcl_vehicle_versions_carrier_affiliation_shape_ck CHECK (((((carrier_affiliation_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_id IS NOT NULL) AND (carrier_other_unit_object_id IS NULL)) OR (((carrier_affiliation_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_id IS NULL) AND (carrier_other_unit_object_id IS NOT NULL)))),
     CONSTRAINT dcl_vehicle_versions_carrier_affiliation_type_ck CHECK (((carrier_affiliation_type)::text = ANY ((ARRAY['INTERNAL'::character varying, 'EXTERNAL'::character varying])::text[]))),
     CONSTRAINT dcl_vehicle_versions_carrier_operating_entity_check CHECK (((carrier_operating_entity)::text = 'operating-entity'::text)),
-    CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_entity_check CHECK (((carrier_service_relationship_entity)::text = 'other-unit'::text)),
+    CONSTRAINT dcl_vehicle_versions_carrier_other_unit_entity_check CHECK (((carrier_other_unit_entity)::text = 'other-unit'::text)),
     CONSTRAINT dcl_vehicle_versions_vehicle_type_entity_check CHECK (((vehicle_type_entity)::text = 'dictionary-item'::text)),
     CONSTRAINT dcl_vehicle_versions_entity_check CHECK (((entity)::text = 'vehicle'::text)),
     CONSTRAINT dcl_vehicle_versions_load_capacity_kg_check CHECK (((load_capacity_kg IS NULL) OR (load_capacity_kg > (0)::numeric))),
@@ -2958,10 +2958,10 @@ CREATE TABLE public.vou_sale_delivery_details (
     customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
-    carrier_service_relationship_object_id character varying(26),
-    carrier_service_relationship_approval_entry_id character varying(26),
-    carrier_service_relationship_code character varying(64),
-    carrier_service_relationship_name character varying(200),
+    carrier_other_unit_object_id character varying(26),
+    carrier_other_unit_approval_entry_id character varying(26),
+    carrier_other_unit_code character varying(64),
+    carrier_other_unit_name character varying(200),
     vehicle_object_id character varying(26),
     vehicle_approval_entry_id character varying(26),
     vehicle_code character varying(64),
@@ -2975,7 +2975,7 @@ CREATE TABLE public.vou_sale_delivery_details (
     vehicle_bulk_liquid_capable boolean DEFAULT false NOT NULL,
     CONSTRAINT vou_sale_delivery_carrier_type_ck CHECK (((carrier_type)::text = ANY ((ARRAY['INTERNAL'::character varying, 'EXTERNAL'::character varying])::text[]))),
     CONSTRAINT vou_sale_delivery_details_entity_check CHECK (((entity)::text = 'sale-delivery'::text)),
-    CONSTRAINT vou_sale_delivery_transport_snapshot_ck CHECK ((((vehicle_object_id IS NULL) AND (vehicle_approval_entry_id IS NULL) AND (vehicle_code IS NULL) AND (vehicle_name IS NULL) AND (vehicle_plate_number IS NULL) AND (carrier_operating_entity_object_id IS NULL) AND (carrier_operating_entity_approval_entry_id IS NULL) AND (carrier_operating_entity_code IS NULL) AND (carrier_operating_entity_name IS NULL) AND (carrier_service_relationship_object_id IS NULL) AND (carrier_service_relationship_approval_entry_id IS NULL) AND (carrier_service_relationship_code IS NULL) AND (carrier_service_relationship_name IS NULL)) OR ((vehicle_object_id IS NOT NULL) AND (vehicle_approval_entry_id IS NOT NULL) AND (vehicle_code IS NOT NULL) AND (vehicle_name IS NOT NULL) AND (vehicle_plate_number IS NOT NULL) AND ((((carrier_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_object_id IS NOT NULL) AND (carrier_operating_entity_approval_entry_id IS NOT NULL) AND (carrier_operating_entity_code IS NOT NULL) AND (carrier_operating_entity_name IS NOT NULL) AND (carrier_service_relationship_object_id IS NULL) AND (carrier_service_relationship_approval_entry_id IS NULL) AND (carrier_service_relationship_code IS NULL) AND (carrier_service_relationship_name IS NULL)) OR (((carrier_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_object_id IS NULL) AND (carrier_operating_entity_approval_entry_id IS NULL) AND (carrier_operating_entity_code IS NULL) AND (carrier_operating_entity_name IS NULL) AND (carrier_service_relationship_object_id IS NOT NULL) AND (carrier_service_relationship_approval_entry_id IS NOT NULL) AND (carrier_service_relationship_code IS NOT NULL) AND (carrier_service_relationship_name IS NOT NULL))))))
+    CONSTRAINT vou_sale_delivery_transport_snapshot_ck CHECK ((((vehicle_object_id IS NULL) AND (vehicle_approval_entry_id IS NULL) AND (vehicle_code IS NULL) AND (vehicle_name IS NULL) AND (vehicle_plate_number IS NULL) AND (carrier_operating_entity_object_id IS NULL) AND (carrier_operating_entity_approval_entry_id IS NULL) AND (carrier_operating_entity_code IS NULL) AND (carrier_operating_entity_name IS NULL) AND (carrier_other_unit_object_id IS NULL) AND (carrier_other_unit_approval_entry_id IS NULL) AND (carrier_other_unit_code IS NULL) AND (carrier_other_unit_name IS NULL)) OR ((vehicle_object_id IS NOT NULL) AND (vehicle_approval_entry_id IS NOT NULL) AND (vehicle_code IS NOT NULL) AND (vehicle_name IS NOT NULL) AND (vehicle_plate_number IS NOT NULL) AND ((((carrier_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_object_id IS NOT NULL) AND (carrier_operating_entity_approval_entry_id IS NOT NULL) AND (carrier_operating_entity_code IS NOT NULL) AND (carrier_operating_entity_name IS NOT NULL) AND (carrier_other_unit_object_id IS NULL) AND (carrier_other_unit_approval_entry_id IS NULL) AND (carrier_other_unit_code IS NULL) AND (carrier_other_unit_name IS NULL)) OR (((carrier_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_object_id IS NULL) AND (carrier_operating_entity_approval_entry_id IS NULL) AND (carrier_operating_entity_code IS NULL) AND (carrier_operating_entity_name IS NULL) AND (carrier_other_unit_object_id IS NOT NULL) AND (carrier_other_unit_approval_entry_id IS NOT NULL) AND (carrier_other_unit_code IS NOT NULL) AND (carrier_other_unit_name IS NOT NULL))))))
 );
 
 
@@ -5456,7 +5456,7 @@ outbound = node(key="sale-outbound", name="销售出库", entity="sale-outbound"
 delivery = node(key="sale-delivery", name="销售送货", entity="sale-delivery")
 signoff = node(key="sale-signoff", name="销售签收", entity="sale-signoff")
 refusal_return = node(key="sale-return", name="拒收退货", entity="sale-return")
-workflow(code="sales-fulfillment", name="销售履约", root=order, edges=[edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial={})), edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial={"carrierServiceRelationshipObjectId":"","vehicleObjectId":""})), edge(source=delivery, target=signoff, relation="signoff", action=sale_signoff(initial={})), edge(source=signoff, target=refusal_return, relation="refusal-return", action=sale_return(initial={}))])', NULL, '{"edges": [{"relation": "outbound", "sourceKey": "sale-order", "targetKey": "sale-outbound", "actionName": "sale_outbound"}, {"relation": "delivery", "sourceKey": "sale-outbound", "targetKey": "sale-delivery", "actionName": "sale_delivery"}, {"relation": "signoff", "sourceKey": "sale-delivery", "targetKey": "sale-signoff", "actionName": "sale_signoff"}, {"relation": "refusal-return", "sourceKey": "sale-signoff", "targetKey": "sale-return", "actionName": "sale_return"}], "nodes": [{"key": "sale-order", "name": "销售订单", "entity": "sale-order"}, {"key": "sale-outbound", "name": "销售出库", "entity": "sale-outbound"}, {"key": "sale-delivery", "name": "销售送货", "entity": "sale-delivery"}, {"key": "sale-signoff", "name": "销售签收", "entity": "sale-signoff"}, {"key": "sale-return", "name": "拒收退货", "entity": "sale-return"}], "rootKey": "sale-order"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+workflow(code="sales-fulfillment", name="销售履约", root=order, edges=[edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial={})), edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial={"carrierOtherUnitObjectId":"","vehicleObjectId":""})), edge(source=delivery, target=signoff, relation="signoff", action=sale_signoff(initial={})), edge(source=signoff, target=refusal_return, relation="refusal-return", action=sale_return(initial={}))])', NULL, '{"edges": [{"relation": "outbound", "sourceKey": "sale-order", "targetKey": "sale-outbound", "actionName": "sale_outbound"}, {"relation": "delivery", "sourceKey": "sale-outbound", "targetKey": "sale-delivery", "actionName": "sale_delivery"}, {"relation": "signoff", "sourceKey": "sale-delivery", "targetKey": "sale-signoff", "actionName": "sale_signoff"}, {"relation": "refusal-return", "sourceKey": "sale-signoff", "targetKey": "sale-return", "actionName": "sale_return"}], "nodes": [{"key": "sale-order", "name": "销售订单", "entity": "sale-order"}, {"key": "sale-outbound", "name": "销售出库", "entity": "sale-outbound"}, {"key": "sale-delivery", "name": "销售送货", "entity": "sale-delivery"}, {"key": "sale-signoff", "name": "销售签收", "entity": "sale-signoff"}, {"key": "sale-return", "name": "拒收退货", "entity": "sale-return"}], "rootKey": "sale-order"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
 UPDATE public.dcl_wfl_process_definition_versions
 SET compiled=jsonb_set(compiled, '{name}', to_jsonb(CASE definition_id
     WHEN 'WFD0f7b734eecb146455d2f051' THEN '费用报销付款'
@@ -7085,10 +7085,10 @@ CREATE INDEX dcl_vehicle_versions_carrier_operating_idx ON public.dcl_vehicle_ve
 
 
 --
--- Name: dcl_vehicle_versions_carrier_service_relationship_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions_carrier_other_unit_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX dcl_vehicle_versions_carrier_service_relationship_idx ON public.dcl_vehicle_versions USING btree (carrier_service_relationship_object_id);
+CREATE INDEX dcl_vehicle_versions_carrier_other_unit_idx ON public.dcl_vehicle_versions USING btree (carrier_other_unit_object_id);
 
 
 --
@@ -8131,11 +8131,11 @@ ALTER TABLE ONLY public.dcl_vehicle_versions
 
 
 --
--- Name: dcl_vehicle_versions dcl_vehicle_versions_carrier_service_relationship_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions dcl_vehicle_versions_carrier_other_unit_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.dcl_vehicle_versions
-    ADD CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_fk FOREIGN KEY (carrier_service_relationship_object_id, carrier_service_relationship_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT dcl_vehicle_versions_carrier_other_unit_fk FOREIGN KEY (carrier_other_unit_object_id, carrier_other_unit_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --

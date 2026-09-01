@@ -26,7 +26,7 @@ export function createVoucherReferenceChangeHandler(
       if (affiliation?.type !== 'EXTERNAL') {
         form.value.carrier = null
       } else if (
-        form.value.carrier?.objectId !== affiliation.serviceRelationshipObjectId
+        form.value.carrier?.objectId !== affiliation.otherUnitObjectId
       ) {
         form.value.carrier = null
       }

@@ -450,7 +450,7 @@ describe('shared VOU entity view model', () => {
       ...reference('vehicle'),
       carrierAffiliation: {
         type: 'EXTERNAL',
-        serviceRelationshipObjectId: form.carrier.objectId,
+        otherUnitObjectId: form.carrier.objectId,
       },
     }
 
@@ -1308,7 +1308,7 @@ describe('shared VOU entity view model', () => {
                 name: '匹配车辆',
                 carrierAffiliation: {
                   type: 'EXTERNAL',
-                  serviceRelationshipObjectId: 'CARRIER',
+                  otherUnitObjectId: 'CARRIER',
                 },
                 bulkLiquidCapable: true,
               },

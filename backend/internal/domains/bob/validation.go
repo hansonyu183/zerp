@@ -283,7 +283,7 @@ func normalizeDetail(input *DetailView) {
 	if input.CarrierAffiliation != nil {
 		input.CarrierAffiliation.Type = strings.ToUpper(strings.TrimSpace(input.CarrierAffiliation.Type))
 		input.CarrierAffiliation.OperatingEntityID = strings.TrimSpace(input.CarrierAffiliation.OperatingEntityID)
-		input.CarrierAffiliation.ServiceRelationshipObjectID = strings.TrimSpace(input.CarrierAffiliation.ServiceRelationshipObjectID)
+		input.CarrierAffiliation.OtherUnitObjectID = strings.TrimSpace(input.CarrierAffiliation.OtherUnitObjectID)
 	}
 }
 
@@ -293,9 +293,9 @@ func validCarrierAffiliation(value *CarrierAffiliation) bool {
 	}
 	switch value.Type {
 	case "INTERNAL":
-		return validID(value.OperatingEntityID) && value.ServiceRelationshipObjectID == ""
+		return validID(value.OperatingEntityID) && value.OtherUnitObjectID == ""
 	case "EXTERNAL":
-		return validID(value.ServiceRelationshipObjectID) && value.OperatingEntityID == ""
+		return validID(value.OtherUnitObjectID) && value.OperatingEntityID == ""
 	default:
 		return false
 	}
@@ -305,7 +305,7 @@ func carrierAffiliationField(value *CarrierAffiliation) string {
 	if value == nil {
 		return ""
 	}
-	return value.Type + value.OperatingEntityID + value.ServiceRelationshipObjectID
+	return value.Type + value.OperatingEntityID + value.OtherUnitObjectID
 }
 
 func normalizeQuantitySnapshot(quantity *QuantitySnapshot) {

@@ -8484,7 +8484,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '查询其他单位服务关系',
+              'summary': '查询其他单位',
               'operationId': 'otherUnitQuery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -8523,7 +8523,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '读取其他单位服务关系',
+              'summary': '读取其他单位',
               'operationId': 'otherUnitGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':

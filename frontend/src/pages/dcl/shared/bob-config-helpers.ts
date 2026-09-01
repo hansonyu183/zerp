@@ -8,7 +8,7 @@ import type {
   BobFieldContext,
   BobForm,
   BobListItem,
-} from './types'
+} from './bob-types'
 
 export const customerTypeOptions: readonly BusinessObjectFieldOption[] = [
   { title: '终端客户', value: 'DIT-0001' },

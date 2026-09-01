@@ -66,7 +66,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
-	relationships := dcldomain.NewRelationshipService(pool, service, authorization.Func(nil), bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, service, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") || strings.Contains(label, "reject") {
@@ -88,7 +88,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	`).Scan(&operatingEntityID); err != nil {
 		t.Fatalf("load operating entity identity: %v", err)
 	}
-	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
+	salesPartner, err := typedArchives.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
 		Data: dcldomain.SalesPartnerData{
 			Kind:                     "ORGANIZATION",
 			LegalName:                "销售合作方",
@@ -102,14 +102,14 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create sales partner: %v", err)
 	}
-	submittedPartner, err := relationships.SubmitSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
+	submittedPartner, err := typedArchives.SubmitSalesPartner(t.Context(), dcldomain.TypedArchiveVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID,
 		ApprovalRevision: salesPartner.Approval.Revision,
 	}, actor("sales-partner-submit"))
 	if err != nil {
 		t.Fatalf("submit sales partner: %v", err)
 	}
-	if _, err = relationships.ApproveSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
+	if _, err = typedArchives.ApproveSalesPartner(t.Context(), dcldomain.TypedArchiveVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID,
 		ApprovalRevision: submittedPartner.Approval.Revision,
 	}, actor("sales-partner-approve")); err != nil {

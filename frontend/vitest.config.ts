@@ -29,12 +29,6 @@ export default defineConfig({
           branches: 68,
           functions: 75,
         },
-        'src/pages/bob/shared/vm.ts': {
-          lines: 67,
-          statements: 63,
-          branches: 54,
-          functions: 62,
-        },
         'src/pages/vou/shared/vm.ts': {
           lines: 55.9,
           statements: 51,

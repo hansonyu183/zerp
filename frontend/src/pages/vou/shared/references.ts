@@ -271,8 +271,9 @@ export function useVoucherReferences(
               {
                 entity,
                 ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-                ...(['supplier', 'other-unit', 'sales-partner'].includes(entity) &&
-                form.value.operatingEntity
+                ...(['supplier', 'other-unit', 'sales-partner'].includes(
+                  entity,
+                ) && form.value.operatingEntity
                   ? { operatingEntityId: form.value.operatingEntity.objectId }
                   : {}),
               },
@@ -361,10 +362,10 @@ export function useVoucherReferences(
         }),
       )
       if (sequence !== state.sequence) return
-      const serviceRelationshipObjectId =
+      const otherUnitObjectId =
         key === 'carrier' &&
         form.value.vehicle?.carrierAffiliation?.type === 'EXTERNAL'
-          ? form.value.vehicle.carrierAffiliation.serviceRelationshipObjectId
+          ? form.value.vehicle.carrierAffiliation.otherUnitObjectId
           : undefined
       const allocationCustomerID =
         key === 'accountAllocation' ? form.value.customer?.objectId : undefined
@@ -372,8 +373,7 @@ export function useVoucherReferences(
         .filter(
           (item) =>
             definition.entities.includes(item.entity as ReferenceEntity) &&
-            (!serviceRelationshipObjectId ||
-              item.objectId === serviceRelationshipObjectId) &&
+            (!otherUnitObjectId || item.objectId === otherUnitObjectId) &&
             (!allocationCustomerID || item.customerId === allocationCustomerID),
         )
         .filter(

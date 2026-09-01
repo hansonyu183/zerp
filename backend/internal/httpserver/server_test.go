@@ -181,7 +181,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		dcldomain.NewEmployeeHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewSupplierHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewCustomerHandler(nil, nil, nil, testLogger()).Register(router)
-		dcldomain.NewRelationshipHandler(nil, nil, testLogger()).Register(router)
+		dcldomain.NewTypedArchiveHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewAccMappingHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewRptDefinitionHandler(nil, nil, testLogger()).Register(router)
 		dcldomain.NewWflProcessDefinitionHandler(nil, nil, testLogger()).Register(router)

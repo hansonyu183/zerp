@@ -1,1 +1,0 @@
-<script setup lang="ts">import TypedBusinessArchivePage from '../shared/TypedBusinessArchivePage.vue'</script><template><TypedBusinessArchivePage entity="supplier" title="供应商（当前有效资料）" code-label="供应商编码" /></template>

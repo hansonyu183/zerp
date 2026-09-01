@@ -34,7 +34,7 @@ func validateServiceContractDraft(input DraftInput, result validatedDraft) (vali
 		return validatedDraft{}, err
 	}
 	if result.CounterpartyType != contractCounterpartyService && result.CounterpartyType != contractCounterpartySales {
-		return validatedDraft{}, domainError(ErrorValidation, "service contract requires a typed service or sales relationship", nil, nil)
+		return validatedDraft{}, domainError(ErrorValidation, "service contract requires a Other Unit or Sales Partner", nil, nil)
 	}
 	if input.Customer != nil || input.Supplier != nil || input.Employee != nil || input.Salesperson != nil || input.Purchaser != nil ||
 		input.Warehouse != nil || input.FundAccount != nil || len(input.ProductLines) != 0 || len(input.PriceLines) != 0 || len(input.ExpenseLines) != 0 ||

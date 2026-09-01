@@ -10,7 +10,7 @@ func normalizeSalesPartnerCapabilities(input []string) ([]string, error) {
 	for _, raw := range input {
 		capability := strings.TrimSpace(raw)
 		if capability != SalesCapabilityExternalPartTime && capability != SalesCapabilityChannelPartner {
-			return nil, domainError(ErrorValidation, "invalid sales relationship capability", nil, nil)
+			return nil, domainError(ErrorValidation, "invalid sales partner capability", nil, nil)
 		}
 		seen[capability] = struct{}{}
 	}
@@ -28,7 +28,7 @@ func validateEffectiveSalesPartnerCapabilities(input []string) error {
 		return err
 	}
 	if len(capabilities) == 0 {
-		return domainError(ErrorValidation, "sales relationship requires at least one capability", nil, nil)
+		return domainError(ErrorValidation, "sales partner requires at least one capability", nil, nil)
 	}
 	return nil
 }

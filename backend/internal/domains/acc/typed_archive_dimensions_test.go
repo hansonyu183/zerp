@@ -2,7 +2,7 @@ package acc
 
 import "testing"
 
-func TestRelationshipDimensionsReplaceLegacyCounterpartyDimensions(t *testing.T) {
+func TestTypedArchiveDimensionsReplaceLegacyCounterpartyDimensions(t *testing.T) {
 	for _, dimension := range []string{
 		DimensionCustomerAccount,
 		DimensionSupplier,
@@ -15,7 +15,7 @@ func TestRelationshipDimensionsReplaceLegacyCounterpartyDimensions(t *testing.T)
 			Enabled: true, RequiredDimensions: []string{dimension}, SettlementPurpose: SettlementPurposeOther,
 		})
 		if err != nil {
-			t.Fatalf("relationship dimension %s was rejected: %v", dimension, err)
+			t.Fatalf("typed archive dimension %s was rejected: %v", dimension, err)
 		}
 	}
 	for _, legacy := range []string{"CUSTOMER", "SUPPLIER_RELATIONSHIP", "SERVICE_RELATIONSHIP", "EMPLOYMENT_RELATIONSHIP", "SALES_RELATIONSHIP", "OTHER_PARTY"} {

@@ -49,7 +49,7 @@ function vehicleForm() {
     vehicleType: 'DIT-0003',
     carrierType: 'INTERNAL' as const,
     carrierOperatingEntityId: 'OPE-1',
-    carrierServiceRelationshipObjectId: '',
+    carrierOtherUnitObjectId: '',
     bulkLiquidCapable: false,
     vin: '',
     engineNumber: '',
@@ -156,7 +156,7 @@ describe('DCL vehicle view model', () => {
         vehicleType: 'DIT-0003',
         carrierType: 'EXTERNAL',
         carrierOperatingEntityId: 'STALE',
-        carrierServiceRelationshipObjectId: 'SERVICE-1',
+        carrierOtherUnitObjectId: 'SERVICE-1',
         bulkLiquidCapable: true,
       }),
     ).resolves.toBe(true)
@@ -168,7 +168,7 @@ describe('DCL vehicle view model', () => {
         vehicleType: 'DIT-0003',
         carrierAffiliation: {
           type: 'EXTERNAL',
-          serviceRelationshipObjectId: 'SERVICE-1',
+          otherUnitObjectId: 'SERVICE-1',
         },
         bulkLiquidCapable: true,
       },
@@ -244,7 +244,7 @@ describe('DCL vehicle view model', () => {
       vm.openCreate()
       vm.editorModel.value.carrierType = 'EXTERNAL'
       vm.searchEditorReference(
-        'carrierServiceRelationshipObjectId',
+        'carrierOtherUnitObjectId',
         '承运商',
         vm.editorModel.value,
       )
@@ -260,7 +260,7 @@ describe('DCL vehicle view model', () => {
       })
       expect(
         vm.editorFields.value.find(
-          (field) => field.key === 'carrierServiceRelationshipObjectId',
+          (field) => field.key === 'carrierOtherUnitObjectId',
         )?.options,
       ).toEqual([{ title: 'OTU-0001 · 承运服务商', value: 'OUT-1' }])
     } finally {

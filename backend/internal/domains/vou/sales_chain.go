@@ -469,7 +469,7 @@ func (s *Service) writeSaleOutbound(
 type saleDeliveryTransport struct {
 	carrierType string
 	operating   nullableReferenceSnapshot
-	service     nullableReferenceSnapshot
+	otherUnit   nullableReferenceSnapshot
 	vehicle     bobdomain.EffectiveReference
 }
 
@@ -500,7 +500,7 @@ func (s *Service) resolveSaleDeliveryTransport(
 	vehicleInput ReferenceInput,
 	replacingID string,
 ) (saleDeliveryTransport, error) {
-	var savedVehicle, savedOperating, savedService *bobdomain.EffectiveReference
+	var savedVehicle, savedOperating, savedOtherUnit *bobdomain.EffectiveReference
 	if replacingID != "" {
 		snapshot, snapshotErr := s.queries.WithTx(tx).LockVouSaleDeliveryCarrierSnapshot(ctx, replacingID)
 		if snapshotErr != nil {
@@ -512,8 +512,8 @@ func (s *Service) resolveSaleDeliveryTransport(
 		if snapshot.CarrierOperatingEntityObjectID != nil && snapshot.CarrierOperatingEntityApprovalEntryID != nil {
 			savedOperating = &bobdomain.EffectiveReference{ObjectID: *snapshot.CarrierOperatingEntityObjectID, ApprovalEntryID: *snapshot.CarrierOperatingEntityApprovalEntryID}
 		}
-		if snapshot.CarrierServiceRelationshipObjectID != nil && snapshot.CarrierServiceRelationshipApprovalEntryID != nil {
-			savedService = &bobdomain.EffectiveReference{ObjectID: *snapshot.CarrierServiceRelationshipObjectID, ApprovalEntryID: *snapshot.CarrierServiceRelationshipApprovalEntryID}
+		if snapshot.CarrierOtherUnitObjectID != nil && snapshot.CarrierOtherUnitApprovalEntryID != nil {
+			savedOtherUnit = &bobdomain.EffectiveReference{ObjectID: *snapshot.CarrierOtherUnitObjectID, ApprovalEntryID: *snapshot.CarrierOtherUnitApprovalEntryID}
 		}
 	}
 	resolvedVehicle, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityVehicle,
@@ -554,15 +554,15 @@ func (s *Service) resolveSaleDeliveryTransport(
 		if err = validateReference(carrier, "carrier", true); err != nil {
 			return saleDeliveryTransport{}, err
 		}
-		serviceRef, resolveErr := s.resolveSelectedReference(ctx, tx, bobdomain.EntityOtherUnit,
-			carrier, savedService, replacingID == "")
+		otherUnitRef, resolveErr := s.resolveSelectedReference(ctx, tx, bobdomain.EntityOtherUnit,
+			carrier, savedOtherUnit, replacingID == "")
 		if resolveErr != nil {
-			return saleDeliveryTransport{}, domainError(ErrorConflict, "carrier is not a current Service Relationship", nil, resolveErr)
+			return saleDeliveryTransport{}, domainError(ErrorConflict, "carrier is not a current Other Unit", nil, resolveErr)
 		}
-		if affiliation.ServiceRelationshipObjectID != serviceRef.ObjectID {
+		if affiliation.OtherUnitObjectID != otherUnitRef.ObjectID {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "external vehicle does not belong to the selected carrier", nil, nil)
 		}
-		result.service = newNullableReferenceSnapshot(serviceRef)
+		result.otherUnit = newNullableReferenceSnapshot(otherUnitRef)
 	default:
 		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle carrier affiliation is invalid", nil, nil)
 	}
@@ -580,8 +580,8 @@ func (s *Service) validateSaleDeliveryTransportCurrent(ctx context.Context, tx p
 		return err
 	}
 	var carrier *ReferenceInput
-	if snapshot.CarrierServiceRelationshipObjectID != nil && snapshot.CarrierServiceRelationshipApprovalEntryID != nil {
-		carrier = &ReferenceInput{ObjectID: *snapshot.CarrierServiceRelationshipObjectID, ApprovalEntryID: *snapshot.CarrierServiceRelationshipApprovalEntryID}
+	if snapshot.CarrierOtherUnitObjectID != nil && snapshot.CarrierOtherUnitApprovalEntryID != nil {
+		carrier = &ReferenceInput{ObjectID: *snapshot.CarrierOtherUnitObjectID, ApprovalEntryID: *snapshot.CarrierOtherUnitApprovalEntryID}
 	}
 	if snapshot.VehicleObjectID == nil || snapshot.VehicleApprovalEntryID == nil {
 		return domainError(ErrorConflict, "sales-chain source is not ready", nil, nil)
@@ -643,16 +643,16 @@ func (s *Service) writeSaleDelivery(
 		CustomerObjectID: source.CustomerObjectID, CustomerApprovalEntryID: source.CustomerApprovalEntryID,
 		CustomerID:   source.CustomerID,
 		CustomerCode: source.CustomerCode, CustomerName: source.CustomerName,
-		CarrierType:                               transport.carrierType,
-		CarrierOperatingEntityObjectID:            transport.operating.objectID,
-		CarrierOperatingEntityApprovalEntryID:     transport.operating.versionID,
-		CarrierOperatingEntityCode:                transport.operating.code,
-		CarrierOperatingEntityName:                transport.operating.name,
-		CarrierServiceRelationshipObjectID:        transport.service.objectID,
-		CarrierServiceRelationshipApprovalEntryID: transport.service.versionID,
-		CarrierServiceRelationshipCode:            transport.service.code,
-		CarrierServiceRelationshipName:            transport.service.name,
-		VehicleObjectID:                           stringPtr(transport.vehicle.ObjectID), VehicleApprovalEntryID: stringPtr(transport.vehicle.ApprovalEntryID),
+		CarrierType:                           transport.carrierType,
+		CarrierOperatingEntityObjectID:        transport.operating.objectID,
+		CarrierOperatingEntityApprovalEntryID: transport.operating.versionID,
+		CarrierOperatingEntityCode:            transport.operating.code,
+		CarrierOperatingEntityName:            transport.operating.name,
+		CarrierOtherUnitObjectID:              transport.otherUnit.objectID,
+		CarrierOtherUnitApprovalEntryID:       transport.otherUnit.versionID,
+		CarrierOtherUnitCode:                  transport.otherUnit.code,
+		CarrierOtherUnitName:                  transport.otherUnit.name,
+		VehicleObjectID:                       stringPtr(transport.vehicle.ObjectID), VehicleApprovalEntryID: stringPtr(transport.vehicle.ApprovalEntryID),
 		VehicleCode: stringPtr(transport.vehicle.Code), VehicleName: stringPtr(transport.vehicle.Data.Name),
 		VehiclePlateNumber:       stringPtr(transport.vehicle.Data.PlateNumber),
 		VehicleBulkLiquidCapable: transport.vehicle.Data.BulkLiquidCapable,
@@ -674,16 +674,16 @@ func (s *Service) writeSaleDelivery(
 		}
 		if err == nil {
 			_, err = qtx.UpdateVouSaleDeliveryCarrierSnapshot(ctx, dbsqlc.UpdateVouSaleDeliveryCarrierSnapshotParams{
-				CarrierType:                               detail.CarrierType,
-				CarrierOperatingEntityObjectID:            detail.CarrierOperatingEntityObjectID,
-				CarrierOperatingEntityApprovalEntryID:     detail.CarrierOperatingEntityApprovalEntryID,
-				CarrierOperatingEntityCode:                detail.CarrierOperatingEntityCode,
-				CarrierOperatingEntityName:                detail.CarrierOperatingEntityName,
-				CarrierServiceRelationshipObjectID:        detail.CarrierServiceRelationshipObjectID,
-				CarrierServiceRelationshipApprovalEntryID: detail.CarrierServiceRelationshipApprovalEntryID,
-				CarrierServiceRelationshipCode:            detail.CarrierServiceRelationshipCode,
-				CarrierServiceRelationshipName:            detail.CarrierServiceRelationshipName,
-				VehicleObjectID:                           detail.VehicleObjectID, VehicleApprovalEntryID: detail.VehicleApprovalEntryID,
+				CarrierType:                           detail.CarrierType,
+				CarrierOperatingEntityObjectID:        detail.CarrierOperatingEntityObjectID,
+				CarrierOperatingEntityApprovalEntryID: detail.CarrierOperatingEntityApprovalEntryID,
+				CarrierOperatingEntityCode:            detail.CarrierOperatingEntityCode,
+				CarrierOperatingEntityName:            detail.CarrierOperatingEntityName,
+				CarrierOtherUnitObjectID:              detail.CarrierOtherUnitObjectID,
+				CarrierOtherUnitApprovalEntryID:       detail.CarrierOtherUnitApprovalEntryID,
+				CarrierOtherUnitCode:                  detail.CarrierOtherUnitCode,
+				CarrierOtherUnitName:                  detail.CarrierOtherUnitName,
+				VehicleObjectID:                       detail.VehicleObjectID, VehicleApprovalEntryID: detail.VehicleApprovalEntryID,
 				VehicleCode: detail.VehicleCode, VehicleName: detail.VehicleName,
 				VehiclePlateNumber:       detail.VehiclePlateNumber,
 				VehicleBulkLiquidCapable: detail.VehicleBulkLiquidCapable,

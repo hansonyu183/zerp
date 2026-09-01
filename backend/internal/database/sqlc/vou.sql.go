@@ -1420,10 +1420,10 @@ SELECT delivery.source_outbound_id,source.document_no AS source_document_no,
        COALESCE(delivery.carrier_operating_entity_approval_entry_id,'') AS carrier_operating_entity_approval_entry_id,
        COALESCE(delivery.carrier_operating_entity_code,'') AS carrier_operating_entity_code,
        COALESCE(delivery.carrier_operating_entity_name,'') AS carrier_operating_entity_name,
-       COALESCE(delivery.carrier_service_relationship_object_id,'') AS carrier_service_relationship_object_id,
-       COALESCE(delivery.carrier_service_relationship_approval_entry_id,'') AS carrier_service_relationship_approval_entry_id,
-       COALESCE(delivery.carrier_service_relationship_code,'') AS carrier_service_relationship_code,
-       COALESCE(delivery.carrier_service_relationship_name,'') AS carrier_service_relationship_name,
+       COALESCE(delivery.carrier_other_unit_object_id,'') AS carrier_other_unit_object_id,
+       COALESCE(delivery.carrier_other_unit_approval_entry_id,'') AS carrier_other_unit_approval_entry_id,
+       COALESCE(delivery.carrier_other_unit_code,'') AS carrier_other_unit_code,
+       COALESCE(delivery.carrier_other_unit_name,'') AS carrier_other_unit_name,
        COALESCE(delivery.vehicle_object_id,'') AS vehicle_object_id,
        COALESCE(delivery.vehicle_approval_entry_id,'') AS vehicle_approval_entry_id,
        COALESCE(delivery.vehicle_code,'') AS vehicle_code,
@@ -1436,28 +1436,28 @@ WHERE delivery.document_id=$1
 `
 
 type GetVouSaleDeliveryViewRow struct {
-	SourceOutboundID                          string `db:"source_outbound_id" json:"source_outbound_id"`
-	SourceDocumentNo                          string `db:"source_document_no" json:"source_document_no"`
-	CustomerObjectID                          string `db:"customer_object_id" json:"customer_object_id"`
-	CustomerID                                string `db:"customer_id" json:"customer_id"`
-	CustomerApprovalEntryID                   string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	CustomerCode                              string `db:"customer_code" json:"customer_code"`
-	CustomerName                              string `db:"customer_name" json:"customer_name"`
-	CarrierType                               string `db:"carrier_type" json:"carrier_type"`
-	CarrierOperatingEntityObjectID            string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
-	CarrierOperatingEntityApprovalEntryID     string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierOperatingEntityCode                string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
-	CarrierOperatingEntityName                string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
-	CarrierServiceRelationshipObjectID        string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID string `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	CarrierServiceRelationshipCode            string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
-	CarrierServiceRelationshipName            string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
-	VehicleObjectID                           string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleApprovalEntryID                    string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
-	VehicleCode                               string `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName                               string `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber                        string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	VehicleBulkLiquidCapable                  bool   `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+	SourceOutboundID                      string `db:"source_outbound_id" json:"source_outbound_id"`
+	SourceDocumentNo                      string `db:"source_document_no" json:"source_document_no"`
+	CustomerObjectID                      string `db:"customer_object_id" json:"customer_object_id"`
+	CustomerID                            string `db:"customer_id" json:"customer_id"`
+	CustomerApprovalEntryID               string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode                          string `db:"customer_code" json:"customer_code"`
+	CustomerName                          string `db:"customer_name" json:"customer_name"`
+	CarrierType                           string `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID        string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityApprovalEntryID string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOperatingEntityCode            string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName            string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierOtherUnitObjectID              string `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       string `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	CarrierOtherUnitCode                  string `db:"carrier_other_unit_code" json:"carrier_other_unit_code"`
+	CarrierOtherUnitName                  string `db:"carrier_other_unit_name" json:"carrier_other_unit_name"`
+	VehicleObjectID                       string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleApprovalEntryID                string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
+	VehicleCode                           string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                           string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                    string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable              bool   `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
 }
 
 func (q *Queries) GetVouSaleDeliveryView(ctx context.Context, documentID string) (GetVouSaleDeliveryViewRow, error) {
@@ -1476,10 +1476,10 @@ func (q *Queries) GetVouSaleDeliveryView(ctx context.Context, documentID string)
 		&i.CarrierOperatingEntityApprovalEntryID,
 		&i.CarrierOperatingEntityCode,
 		&i.CarrierOperatingEntityName,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
-		&i.CarrierServiceRelationshipCode,
-		&i.CarrierServiceRelationshipName,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
+		&i.CarrierOtherUnitCode,
+		&i.CarrierOtherUnitName,
 		&i.VehicleObjectID,
 		&i.VehicleApprovalEntryID,
 		&i.VehicleCode,
@@ -2917,8 +2917,8 @@ INSERT INTO vou_sale_delivery_details(
     carrier_type,
     carrier_operating_entity_object_id,carrier_operating_entity_approval_entry_id,
     carrier_operating_entity_code,carrier_operating_entity_name,
-    carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,
-    carrier_service_relationship_code,carrier_service_relationship_name,
+    carrier_other_unit_object_id,carrier_other_unit_approval_entry_id,
+    carrier_other_unit_code,carrier_other_unit_name,
     vehicle_object_id,vehicle_approval_entry_id,vehicle_code,vehicle_name,
     vehicle_plate_number,vehicle_bulk_liquid_capable
 ) VALUES(
@@ -2935,28 +2935,28 @@ INSERT INTO vou_sale_delivery_details(
 `
 
 type InsertVouSaleDeliveryDetailParams struct {
-	DocumentID                                string  `db:"document_id" json:"document_id"`
-	SourceOutboundID                          string  `db:"source_outbound_id" json:"source_outbound_id"`
-	CustomerObjectID                          string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerID                                string  `db:"customer_id" json:"customer_id"`
-	CustomerApprovalEntryID                   string  `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	CustomerCode                              string  `db:"customer_code" json:"customer_code"`
-	CustomerName                              string  `db:"customer_name" json:"customer_name"`
-	CarrierType                               string  `db:"carrier_type" json:"carrier_type"`
-	CarrierOperatingEntityObjectID            *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
-	CarrierOperatingEntityApprovalEntryID     *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierOperatingEntityCode                *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
-	CarrierOperatingEntityName                *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
-	CarrierServiceRelationshipObjectID        *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	CarrierServiceRelationshipCode            *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
-	CarrierServiceRelationshipName            *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
-	VehicleObjectID                           *string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleApprovalEntryID                    *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
-	VehicleCode                               *string `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName                               *string `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber                        *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	VehicleBulkLiquidCapable                  bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+	DocumentID                            string  `db:"document_id" json:"document_id"`
+	SourceOutboundID                      string  `db:"source_outbound_id" json:"source_outbound_id"`
+	CustomerObjectID                      string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerID                            string  `db:"customer_id" json:"customer_id"`
+	CustomerApprovalEntryID               string  `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode                          string  `db:"customer_code" json:"customer_code"`
+	CustomerName                          string  `db:"customer_name" json:"customer_name"`
+	CarrierType                           string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID        *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityApprovalEntryID *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOperatingEntityCode            *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName            *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierOtherUnitObjectID              *string `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	CarrierOtherUnitCode                  *string `db:"carrier_other_unit_code" json:"carrier_other_unit_code"`
+	CarrierOtherUnitName                  *string `db:"carrier_other_unit_name" json:"carrier_other_unit_name"`
+	VehicleObjectID                       *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleApprovalEntryID                *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
+	VehicleCode                           *string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                           *string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                    *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable              bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
 }
 
 func (q *Queries) InsertVouSaleDeliveryDetail(ctx context.Context, arg InsertVouSaleDeliveryDetailParams) error {
@@ -2973,10 +2973,10 @@ func (q *Queries) InsertVouSaleDeliveryDetail(ctx context.Context, arg InsertVou
 		arg.CarrierOperatingEntityApprovalEntryID,
 		arg.CarrierOperatingEntityCode,
 		arg.CarrierOperatingEntityName,
-		arg.CarrierServiceRelationshipObjectID,
-		arg.CarrierServiceRelationshipApprovalEntryID,
-		arg.CarrierServiceRelationshipCode,
-		arg.CarrierServiceRelationshipName,
+		arg.CarrierOtherUnitObjectID,
+		arg.CarrierOtherUnitApprovalEntryID,
+		arg.CarrierOtherUnitCode,
+		arg.CarrierOtherUnitName,
 		arg.VehicleObjectID,
 		arg.VehicleApprovalEntryID,
 		arg.VehicleCode,
@@ -4824,7 +4824,7 @@ func (q *Queries) LockVouRefusalReturnSource(ctx context.Context, documentID str
 const lockVouSaleDeliveryCarrierSnapshot = `-- name: LockVouSaleDeliveryCarrierSnapshot :one
 SELECT source_outbound_id,carrier_type,
        carrier_operating_entity_object_id,carrier_operating_entity_approval_entry_id,
-       carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,
+       carrier_other_unit_object_id,carrier_other_unit_approval_entry_id,
        vehicle_object_id,vehicle_approval_entry_id
 FROM vou_sale_delivery_details
 WHERE document_id=$1
@@ -4832,14 +4832,14 @@ FOR UPDATE
 `
 
 type LockVouSaleDeliveryCarrierSnapshotRow struct {
-	SourceOutboundID                          string  `db:"source_outbound_id" json:"source_outbound_id"`
-	CarrierType                               string  `db:"carrier_type" json:"carrier_type"`
-	CarrierOperatingEntityObjectID            *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
-	CarrierOperatingEntityApprovalEntryID     *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	VehicleObjectID                           *string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleApprovalEntryID                    *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
+	SourceOutboundID                      string  `db:"source_outbound_id" json:"source_outbound_id"`
+	CarrierType                           string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID        *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityApprovalEntryID *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOtherUnitObjectID              *string `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	VehicleObjectID                       *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleApprovalEntryID                *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
 }
 
 func (q *Queries) LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, documentID string) (LockVouSaleDeliveryCarrierSnapshotRow, error) {
@@ -4850,8 +4850,8 @@ func (q *Queries) LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, docume
 		&i.CarrierType,
 		&i.CarrierOperatingEntityObjectID,
 		&i.CarrierOperatingEntityApprovalEntryID,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
 		&i.VehicleObjectID,
 		&i.VehicleApprovalEntryID,
 	)
@@ -5642,10 +5642,10 @@ UPDATE vou_sale_delivery_details SET
     carrier_operating_entity_approval_entry_id=$3,
     carrier_operating_entity_code=$4,
     carrier_operating_entity_name=$5,
-    carrier_service_relationship_object_id=$6,
-    carrier_service_relationship_approval_entry_id=$7,
-    carrier_service_relationship_code=$8,
-    carrier_service_relationship_name=$9,
+    carrier_other_unit_object_id=$6,
+    carrier_other_unit_approval_entry_id=$7,
+    carrier_other_unit_code=$8,
+    carrier_other_unit_name=$9,
     vehicle_object_id=$10,vehicle_approval_entry_id=$11,
     vehicle_code=$12,vehicle_name=$13,
     vehicle_plate_number=$14,
@@ -5654,22 +5654,22 @@ WHERE document_id=$16
 `
 
 type UpdateVouSaleDeliveryCarrierSnapshotParams struct {
-	CarrierType                               string  `db:"carrier_type" json:"carrier_type"`
-	CarrierOperatingEntityObjectID            *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
-	CarrierOperatingEntityApprovalEntryID     *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierOperatingEntityCode                *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
-	CarrierOperatingEntityName                *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
-	CarrierServiceRelationshipObjectID        *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	CarrierServiceRelationshipCode            *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
-	CarrierServiceRelationshipName            *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
-	VehicleObjectID                           *string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleApprovalEntryID                    *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
-	VehicleCode                               *string `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName                               *string `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber                        *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	VehicleBulkLiquidCapable                  bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
-	DocumentID                                string  `db:"document_id" json:"document_id"`
+	CarrierType                           string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID        *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityApprovalEntryID *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOperatingEntityCode            *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName            *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierOtherUnitObjectID              *string `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	CarrierOtherUnitCode                  *string `db:"carrier_other_unit_code" json:"carrier_other_unit_code"`
+	CarrierOtherUnitName                  *string `db:"carrier_other_unit_name" json:"carrier_other_unit_name"`
+	VehicleObjectID                       *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleApprovalEntryID                *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
+	VehicleCode                           *string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                           *string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                    *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable              bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+	DocumentID                            string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouSaleDeliveryCarrierSnapshot(ctx context.Context, arg UpdateVouSaleDeliveryCarrierSnapshotParams) (int64, error) {
@@ -5679,10 +5679,10 @@ func (q *Queries) UpdateVouSaleDeliveryCarrierSnapshot(ctx context.Context, arg 
 		arg.CarrierOperatingEntityApprovalEntryID,
 		arg.CarrierOperatingEntityCode,
 		arg.CarrierOperatingEntityName,
-		arg.CarrierServiceRelationshipObjectID,
-		arg.CarrierServiceRelationshipApprovalEntryID,
-		arg.CarrierServiceRelationshipCode,
-		arg.CarrierServiceRelationshipName,
+		arg.CarrierOtherUnitObjectID,
+		arg.CarrierOtherUnitApprovalEntryID,
+		arg.CarrierOtherUnitCode,
+		arg.CarrierOtherUnitName,
 		arg.VehicleObjectID,
 		arg.VehicleApprovalEntryID,
 		arg.VehicleCode,

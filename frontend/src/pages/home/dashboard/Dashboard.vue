@@ -9,10 +9,7 @@ import {
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
-import {
-  VoucherList,
-  type VoucherSort,
-} from '@/components/voucher'
+import { VoucherList, type VoucherSort } from '@/components/voucher'
 import { pageRegistrations, pageRegistry } from '@/router/registry'
 import {
   type WorkbenchAction,
@@ -61,9 +58,11 @@ const entityFilterOptions = computed(() => {
   const options = new Map<string, string>()
   const add = (entity: string, title?: string): void => {
     if (!options.has(entity)) {
+      const registryDomain =
+        domain === 'bob' && isDclDeclarationEntity(entity) ? 'dcl' : domain
       options.set(
         entity,
-        pageRegistry[`${domain}/${entity}`]?.entityTitle ??
+        pageRegistry[`${registryDomain}/${entity}`]?.entityTitle ??
           (title ? `开发中：${title}` : fallbackEntityTitle(entity)),
       )
     }
@@ -137,15 +136,15 @@ const objectRows = computed(() =>
   ),
 )
 const documentRows = computed(() =>
-  vm.states.VOU.rows.filter(
-    (row): row is WorkbenchDocumentItem => row.category === 'VOU',
-  ).map((row) => ({
-    ...row,
-    availableApprovalActions: row.availableActions.filter(
-      (action): action is ApprovalAction =>
-        action in approvalActionPresentation,
-    ),
-  })),
+  vm.states.VOU.rows
+    .filter((row): row is WorkbenchDocumentItem => row.category === 'VOU')
+    .map((row) => ({
+      ...row,
+      availableApprovalActions: row.availableActions.filter(
+        (action): action is ApprovalAction =>
+          action in approvalActionPresentation,
+      ),
+    })),
 )
 const documentSort: VoucherSort = { field: 'updatedAt', order: 'desc' }
 

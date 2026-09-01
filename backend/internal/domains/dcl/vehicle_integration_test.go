@@ -25,7 +25,7 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
-	relationships := NewRelationshipService(pool, business, authorizer, bus)
+	typedArchives := NewTypedArchiveService(pool, business, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -100,7 +100,7 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	if _, err = business.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: v1.ObjectID}); err == nil {
 		t.Fatal("BOB current still exposes first-version unapproved vehicle")
 	}
-	external, err := relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{Data: OtherUnitData{
+	external, err := typedArchives.CreateOtherUnit(t.Context(), OtherUnitCreateInput{Data: OtherUnitData{
 		Kind: "ORGANIZATION", LegalName: "外部承运服务商",
 		StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91310000VEH345001"}},
 		Enabled:           true, OperatingEntityIDs: []string{carrierID}, DefaultOperatingEntityID: carrierID,
@@ -108,21 +108,21 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create external carrier: %v", err)
 	}
-	externalPending, err := relationships.SubmitOtherUnit(t.Context(), RelationshipVersionInput{ObjectID: external.ObjectID, ApprovalEntryID: external.Approval.ApprovalEntryID, ApprovalRevision: external.Approval.Revision}, creator("external-carrier-submit"))
+	externalPending, err := typedArchives.SubmitOtherUnit(t.Context(), TypedArchiveVersionInput{ObjectID: external.ObjectID, ApprovalEntryID: external.Approval.ApprovalEntryID, ApprovalRevision: external.Approval.Revision}, creator("external-carrier-submit"))
 	if err != nil {
 		t.Fatalf("submit external carrier: %v", err)
 	}
-	externalApproved, err := relationships.ApproveOtherUnit(t.Context(), RelationshipVersionInput{ObjectID: externalPending.ObjectID, ApprovalEntryID: externalPending.Approval.ApprovalEntryID, ApprovalRevision: externalPending.Approval.Revision}, reviewer("external-carrier-approve"))
+	externalApproved, err := typedArchives.ApproveOtherUnit(t.Context(), TypedArchiveVersionInput{ObjectID: externalPending.ObjectID, ApprovalEntryID: externalPending.Approval.ApprovalEntryID, ApprovalRevision: externalPending.Approval.Revision}, reviewer("external-carrier-approve"))
 	if err != nil {
 		t.Fatalf("approve external carrier: %v", err)
 	}
-	externalVehicle, err := service.Create(t.Context(), VehicleCreateInput{Data: VehicleData{Name: "外部车辆", PlateNumber: "沪B10001", VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: externalApproved.ObjectID}}}, creator("external-vehicle-create"))
+	externalVehicle, err := service.Create(t.Context(), VehicleCreateInput{Data: VehicleData{Name: "外部车辆", PlateNumber: "沪B10001", VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", OtherUnitObjectID: externalApproved.ObjectID}}}, creator("external-vehicle-create"))
 	if err != nil {
 		t.Fatalf("create external vehicle: %v", err)
 	}
 	externalVehicle = submitAndApproveVehicle(t, service, externalVehicle, creator("external-vehicle-submit"), reviewer("external-vehicle-approve"))
 	var serviceObjectID, serviceEntryID string
-	if err = pool.QueryRow(t.Context(), `SELECT carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id FROM dcl_vehicle_versions WHERE approval_entry_id=$1`, externalVehicle.Approval.ApprovalEntryID).Scan(&serviceObjectID, &serviceEntryID); err != nil {
+	if err = pool.QueryRow(t.Context(), `SELECT carrier_other_unit_object_id,carrier_other_unit_approval_entry_id FROM dcl_vehicle_versions WHERE approval_entry_id=$1`, externalVehicle.Approval.ApprovalEntryID).Scan(&serviceObjectID, &serviceEntryID); err != nil {
 		t.Fatalf("read external carrier snapshot: %v", err)
 	}
 	if serviceObjectID != externalApproved.ObjectID || serviceEntryID != externalApproved.Approval.ApprovalEntryID {

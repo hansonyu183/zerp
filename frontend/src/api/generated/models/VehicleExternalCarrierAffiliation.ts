@@ -4,5 +4,5 @@
 /* eslint-disable */
 export type VehicleExternalCarrierAffiliation = {
   type: 'EXTERNAL';
-  serviceRelationshipObjectId: string;
+  otherUnitObjectId: string;
 };

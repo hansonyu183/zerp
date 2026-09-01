@@ -15,23 +15,23 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type relationshipBusinessRules interface {
+type typedArchiveBusinessRules interface {
 	ResolveOtherUnitDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bool) (bobdomain.DetailView, error)
 	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	EnsureOtherUnitUnapproveAllowed(context.Context, pgx.Tx, string) error
 	EnsureSalesPartnerUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 
-// RelationshipService coordinates the Other Unit and Sales Partner archives.
-type RelationshipService struct {
+// TypedArchiveService coordinates the Other Unit and Sales Partner archives.
+type TypedArchiveService struct {
 	pool    *pgxpool.Pool
 	queries *dbsqlc.Queries
-	rules   relationshipBusinessRules
+	rules   typedArchiveBusinessRules
 	other   *approval.Coordinator[dclapproval.OtherUnitPayload]
 	sales   *approval.Coordinator[dclapproval.SalesPartnerPayload]
 }
 
-func NewRelationshipService(pool *pgxpool.Pool, rules relationshipBusinessRules, authorizer approval.Authorizer, bus *txevent.Bus) *RelationshipService {
+func NewTypedArchiveService(pool *pgxpool.Pool, rules typedArchiveBusinessRules, authorizer approval.Authorizer, bus *txevent.Bus) *TypedArchiveService {
 	if pool == nil || rules == nil || authorizer == nil || bus == nil {
 		panic("dcl: typed archive dependencies are required")
 	}
@@ -43,7 +43,7 @@ func NewRelationshipService(pool *pgxpool.Pool, rules relationshipBusinessRules,
 	if err != nil {
 		panic(err)
 	}
-	return &RelationshipService{pool: pool, queries: dbsqlc.New(pool), rules: rules, other: other, sales: sales}
+	return &TypedArchiveService{pool: pool, queries: dbsqlc.New(pool), rules: rules, other: other, sales: sales}
 }
 
 func otherPayload(id subjectIdentity, enabled bool) dclapproval.OtherUnitPayload {
@@ -52,8 +52,8 @@ func otherPayload(id subjectIdentity, enabled bool) dclapproval.OtherUnitPayload
 func salesPayload(id subjectIdentity, enabled bool) dclapproval.SalesPartnerPayload {
 	return dclapproval.SalesPartnerPayload{SubjectID: id.ObjectID, Code: id.Code, Enabled: enabled}
 }
-func archiveMutation(id subjectIdentity, enabled bool, entry approval.Entry) RelationshipMutation {
-	return RelationshipMutation{ObjectID: id.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
+func archiveMutation(id subjectIdentity, enabled bool, entry approval.Entry) TypedArchiveMutation {
+	return TypedArchiveMutation{ObjectID: id.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
 }
 func normalizeArchiveIdentifier(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
@@ -137,7 +137,7 @@ func normalizeSales(data SalesPartnerData, required bool) (SalesPartnerData, err
 	data.ContactName, data.ContactPhone, data.Email, data.Address, data.Remark = strings.TrimSpace(data.ContactName), strings.TrimSpace(data.ContactPhone), strings.TrimSpace(data.Email), strings.TrimSpace(data.Address), strings.TrimSpace(data.Remark)
 	return data, nil
 }
-func (s *RelationshipService) resolveOperating(ctx context.Context, tx pgx.Tx, ids []string, defaultID string) ([]BusinessArchiveSnapshot, BusinessArchiveSnapshot, error) {
+func (s *TypedArchiveService) resolveOperating(ctx context.Context, tx pgx.Tx, ids []string, defaultID string) ([]BusinessArchiveSnapshot, BusinessArchiveSnapshot, error) {
 	items := make([]BusinessArchiveSnapshot, 0, len(ids))
 	var defaultItem BusinessArchiveSnapshot
 	for _, id := range ids {
@@ -153,7 +153,7 @@ func (s *RelationshipService) resolveOperating(ctx context.Context, tx pgx.Tx, i
 	}
 	return items, defaultItem, nil
 }
-func (s *RelationshipService) checkOperating(ctx context.Context, tx pgx.Tx, items []BusinessArchiveSnapshot, defaultItem BusinessArchiveSnapshot) error {
+func (s *TypedArchiveService) checkOperating(ctx context.Context, tx pgx.Tx, items []BusinessArchiveSnapshot, defaultItem BusinessArchiveSnapshot) error {
 	if len(items) == 0 || defaultItem.SourceObjectID == "" {
 		return newError(ErrorValidation, "validation_failed", "operating entity snapshots are required", nil, nil)
 	}
@@ -176,105 +176,105 @@ func (s *RelationshipService) checkOperating(ctx context.Context, tx pgx.Tx, ite
 	return nil
 }
 
-func (s *RelationshipService) CreateOtherUnit(ctx context.Context, input OtherUnitCreateInput, actor approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) CreateOtherUnit(ctx context.Context, input OtherUnitCreateInput, actor approval.Actor) (TypedArchiveMutation, error) {
 	data, err := normalizeOther(input.Data)
 	if err != nil || !validActor(actor) {
 		if err == nil {
 			err = newError(ErrorValidation, "validation_failed", "invalid Other Unit create", nil, nil)
 		}
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
 	data.OperatingEntities, data.DefaultOperatingEntity, err = s.resolveOperating(ctx, tx, data.OperatingEntityIDs, data.DefaultOperatingEntityID)
 	if err != nil {
-		return RelationshipMutation{}, err
+		return TypedArchiveMutation{}, err
 	}
 	detail, err := s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDetail(data), false)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	data = otherFromDetail(data, detail)
 	id, err := reserveSubject(ctx, tx, EntityOtherUnit, "OTU", actor.ID())
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	entry, err := s.other.CreateFirstVersion(ctx, tx, id.ObjectID, actor, otherPayload(id, data.Enabled))
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = s.writeOther(ctx, s.queries.WithTx(tx), id.ObjectID, entry.ID, data); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	return archiveMutation(id, data.Enabled, entry), nil
 }
-func (s *RelationshipService) CreateSalesPartner(ctx context.Context, input SalesPartnerCreateInput, actor approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) CreateSalesPartner(ctx context.Context, input SalesPartnerCreateInput, actor approval.Actor) (TypedArchiveMutation, error) {
 	data, err := normalizeSales(input.Data, false)
 	if err != nil || !validActor(actor) {
 		if err == nil {
 			err = newError(ErrorValidation, "validation_failed", "invalid Sales Partner create", nil, nil)
 		}
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
 	data.OperatingEntities, data.DefaultOperatingEntity, err = s.resolveOperating(ctx, tx, data.OperatingEntityIDs, data.DefaultOperatingEntityID)
 	if err != nil {
-		return RelationshipMutation{}, err
+		return TypedArchiveMutation{}, err
 	}
 	id, err := reserveSubject(ctx, tx, EntitySalesPartner, "SLP", actor.ID())
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	entry, err := s.sales.CreateFirstVersion(ctx, tx, id.ObjectID, actor, salesPayload(id, data.Enabled))
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = s.writeSales(ctx, s.queries.WithTx(tx), id.ObjectID, entry.ID, data); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	return archiveMutation(id, data.Enabled, entry), nil
 }
 
-func (s *RelationshipService) SaveOtherUnit(ctx context.Context, input OtherUnitSaveInput, actor approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) SaveOtherUnit(ctx context.Context, input OtherUnitSaveInput, actor approval.Actor) (TypedArchiveMutation, error) {
 	data, err := normalizeOther(input.Data)
 	if err != nil || !validVersionInput(input.ObjectID, input.ApprovalEntryID, input.ApprovalRevision, actor) {
 		if err == nil {
 			err = newError(ErrorValidation, "validation_failed", "invalid Other Unit save", nil, nil)
 		}
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	return s.saveOther(ctx, input, data, actor)
 }
-func (s *RelationshipService) saveOther(ctx context.Context, input OtherUnitSaveInput, data OtherUnitData, actor approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) saveOther(ctx context.Context, input OtherUnitSaveInput, data OtherUnitData, actor approval.Actor) (TypedArchiveMutation, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
 	if err = s.other.LockVersionSubject(ctx, tx, input.ObjectID); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
 	id, err := lockSubject(ctx, tx, EntityOtherUnit, input.ObjectID)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	stored, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: input.ApprovalEntryID, Domain: "dcl", Entity: EntityOtherUnit})
 	if err != nil || stored.SubjectID != input.ObjectID || stored.Revision != input.ApprovalRevision {
-		return RelationshipMutation{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
+		return TypedArchiveMutation{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
 	}
 	var entry approval.Entry
 	if approval.Status(stored.Status) == approval.StatusApproved {
@@ -291,56 +291,56 @@ func (s *RelationshipService) saveOther(ctx context.Context, input OtherUnitSave
 		err = newError(ErrorConflict, "approval_invalid_transition", "only draft or approved declaration can be saved", nil, nil)
 	}
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	data.OperatingEntities, data.DefaultOperatingEntity, err = s.resolveOperating(ctx, tx, data.OperatingEntityIDs, data.DefaultOperatingEntityID)
 	if err != nil {
-		return RelationshipMutation{}, err
+		return TypedArchiveMutation{}, err
 	}
 	detail, err := s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDetail(data), false)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	data = otherFromDetail(data, detail)
 	if err = s.updateOther(ctx, q, entry.ID, data); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = s.writeOtherIdentifiers(ctx, q, input.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	entry, err = s.other.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, otherPayload(id, data.Enabled))
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	return archiveMutation(id, data.Enabled, entry), nil
 }
-func (s *RelationshipService) SaveSalesPartner(ctx context.Context, input SalesPartnerSaveInput, actor approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) SaveSalesPartner(ctx context.Context, input SalesPartnerSaveInput, actor approval.Actor) (TypedArchiveMutation, error) {
 	data, err := normalizeSales(input.Data, false)
 	if err != nil || !validVersionInput(input.ObjectID, input.ApprovalEntryID, input.ApprovalRevision, actor) {
 		if err == nil {
 			err = newError(ErrorValidation, "validation_failed", "invalid Sales Partner save", nil, nil)
 		}
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
 	if err = s.sales.LockVersionSubject(ctx, tx, input.ObjectID); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
 	id, err := lockSubject(ctx, tx, EntitySalesPartner, input.ObjectID)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	stored, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: input.ApprovalEntryID, Domain: "dcl", Entity: EntitySalesPartner})
 	if err != nil || stored.SubjectID != input.ObjectID || stored.Revision != input.ApprovalRevision {
-		return RelationshipMutation{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
+		return TypedArchiveMutation{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
 	}
 	var entry approval.Entry
 	if approval.Status(stored.Status) == approval.StatusApproved {
@@ -357,113 +357,113 @@ func (s *RelationshipService) SaveSalesPartner(ctx context.Context, input SalesP
 		err = newError(ErrorConflict, "approval_invalid_transition", "only draft or approved declaration can be saved", nil, nil)
 	}
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	data.OperatingEntities, data.DefaultOperatingEntity, err = s.resolveOperating(ctx, tx, data.OperatingEntityIDs, data.DefaultOperatingEntityID)
 	if err != nil {
-		return RelationshipMutation{}, err
+		return TypedArchiveMutation{}, err
 	}
 	if err = s.updateSales(ctx, q, entry.ID, data); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = s.writeSalesIdentifiers(ctx, q, input.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	entry, err = s.sales.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, salesPayload(id, data.Enabled))
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	return archiveMutation(id, data.Enabled, entry), nil
 }
 
-func archiveVersionInput(i RelationshipReviewInput) RelationshipVersionInput {
-	return RelationshipVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
+func archiveVersionInput(i TypedArchiveReviewInput) TypedArchiveVersionInput {
+	return TypedArchiveVersionInput{ObjectID: i.ObjectID, ApprovalEntryID: i.ApprovalEntryID, ApprovalRevision: i.ApprovalRevision}
 }
-func (s *RelationshipService) SubmitOtherUnit(ctx context.Context, i RelationshipVersionInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) SubmitOtherUnit(ctx context.Context, i TypedArchiveVersionInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionOther(ctx, i, "", approval.ActionSubmitted, a)
 }
-func (s *RelationshipService) UnsubmitOtherUnit(ctx context.Context, i RelationshipReviewInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) UnsubmitOtherUnit(ctx context.Context, i TypedArchiveReviewInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionOther(ctx, archiveVersionInput(i), "", approval.ActionUnsubmitted, a)
 }
-func (s *RelationshipService) RejectOtherUnit(ctx context.Context, i RelationshipReviewInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) RejectOtherUnit(ctx context.Context, i TypedArchiveReviewInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionOther(ctx, archiveVersionInput(i), strings.TrimSpace(i.Reason), approval.ActionRejected, a)
 }
-func (s *RelationshipService) ApproveOtherUnit(ctx context.Context, i RelationshipVersionInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) ApproveOtherUnit(ctx context.Context, i TypedArchiveVersionInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionOther(ctx, i, "", approval.ActionApproved, a)
 }
-func (s *RelationshipService) UnapproveOtherUnit(ctx context.Context, i RelationshipReviewInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) UnapproveOtherUnit(ctx context.Context, i TypedArchiveReviewInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionOther(ctx, archiveVersionInput(i), strings.TrimSpace(i.Reason), approval.ActionUnapproved, a)
 }
-func (s *RelationshipService) SubmitSalesPartner(ctx context.Context, i RelationshipVersionInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) SubmitSalesPartner(ctx context.Context, i TypedArchiveVersionInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionSales(ctx, i, "", approval.ActionSubmitted, a)
 }
-func (s *RelationshipService) UnsubmitSalesPartner(ctx context.Context, i RelationshipReviewInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) UnsubmitSalesPartner(ctx context.Context, i TypedArchiveReviewInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionSales(ctx, archiveVersionInput(i), "", approval.ActionUnsubmitted, a)
 }
-func (s *RelationshipService) RejectSalesPartner(ctx context.Context, i RelationshipReviewInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) RejectSalesPartner(ctx context.Context, i TypedArchiveReviewInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionSales(ctx, archiveVersionInput(i), strings.TrimSpace(i.Reason), approval.ActionRejected, a)
 }
-func (s *RelationshipService) ApproveSalesPartner(ctx context.Context, i RelationshipVersionInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) ApproveSalesPartner(ctx context.Context, i TypedArchiveVersionInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionSales(ctx, i, "", approval.ActionApproved, a)
 }
-func (s *RelationshipService) UnapproveSalesPartner(ctx context.Context, i RelationshipReviewInput, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) UnapproveSalesPartner(ctx context.Context, i TypedArchiveReviewInput, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transitionSales(ctx, archiveVersionInput(i), strings.TrimSpace(i.Reason), approval.ActionUnapproved, a)
 }
-func (s *RelationshipService) transitionOther(ctx context.Context, i RelationshipVersionInput, reason string, action approval.Action, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) transitionOther(ctx context.Context, i TypedArchiveVersionInput, reason string, action approval.Action, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transition(ctx, EntityOtherUnit, i, reason, action, a)
 }
-func (s *RelationshipService) transitionSales(ctx context.Context, i RelationshipVersionInput, reason string, action approval.Action, a approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) transitionSales(ctx context.Context, i TypedArchiveVersionInput, reason string, action approval.Action, a approval.Actor) (TypedArchiveMutation, error) {
 	return s.transition(ctx, EntitySalesPartner, i, reason, action, a)
 }
-func (s *RelationshipService) transition(ctx context.Context, entity string, input RelationshipVersionInput, reason string, action approval.Action, actor approval.Actor) (RelationshipMutation, error) {
+func (s *TypedArchiveService) transition(ctx context.Context, entity string, input TypedArchiveVersionInput, reason string, action approval.Action, actor approval.Actor) (TypedArchiveMutation, error) {
 	if !validVersionInput(input.ObjectID, input.ApprovalEntryID, input.ApprovalRevision, actor) {
-		return RelationshipMutation{}, newError(ErrorValidation, "validation_failed", "invalid business archive lifecycle", nil, nil)
+		return TypedArchiveMutation{}, newError(ErrorValidation, "validation_failed", "invalid business archive lifecycle", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
 	id, err := lockSubject(ctx, tx, entity, input.ObjectID)
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	q := s.queries.WithTx(tx)
 	if entity == EntityOtherUnit {
 		pending, err := s.other.Prepare(ctx, tx, action, input.ApprovalEntryID, input.ApprovalRevision, actor, reason)
 		if err != nil || pending.Entry().SubjectID != input.ObjectID {
-			return RelationshipMutation{}, translateError(err)
+			return TypedArchiveMutation{}, translateError(err)
 		}
 		data, err := s.loadOther(ctx, q, input.ApprovalEntryID)
 		if err != nil {
-			return RelationshipMutation{}, err
+			return TypedArchiveMutation{}, err
 		}
 		if action == approval.ActionSubmitted || action == approval.ActionApproved {
 			if err = s.checkOperating(ctx, tx, data.OperatingEntities, data.DefaultOperatingEntity); err != nil {
-				return RelationshipMutation{}, err
+				return TypedArchiveMutation{}, err
 			}
 			if _, err = s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDetail(data), true); err != nil {
-				return RelationshipMutation{}, translateError(err)
+				return TypedArchiveMutation{}, translateError(err)
 			}
 		}
 		if action == approval.ActionUnapproved {
 			if err = s.rules.EnsureOtherUnitUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
-				return RelationshipMutation{}, translateError(err)
+				return TypedArchiveMutation{}, translateError(err)
 			}
 		}
 		if action == approval.ActionApproved {
 			if latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityOtherUnit, SubjectID: input.ObjectID}); latestErr == nil && latest.ID != input.ApprovalEntryID {
 				if err = q.DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
-					return RelationshipMutation{}, translateError(err)
+					return TypedArchiveMutation{}, translateError(err)
 				}
 			} else if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
-				return RelationshipMutation{}, translateError(latestErr)
+				return TypedArchiveMutation{}, translateError(latestErr)
 			}
 			if err = s.promoteOtherIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
-				return RelationshipMutation{}, translateError(err)
+				return TypedArchiveMutation{}, translateError(err)
 			}
 		}
 		if action == approval.ActionUnapproved {
@@ -471,58 +471,58 @@ func (s *RelationshipService) transition(ctx context.Context, entity string, inp
 			if fallbackErr == nil {
 				fallbackData, loadErr := s.loadOther(ctx, q, fallback.ID)
 				if loadErr != nil {
-					return RelationshipMutation{}, loadErr
+					return TypedArchiveMutation{}, loadErr
 				}
 				if err = s.promoteOtherIdentifiers(ctx, q, input.ObjectID, fallback.ID, fallbackData.StrongIdentifiers); err != nil {
-					return RelationshipMutation{}, translateError(err)
+					return TypedArchiveMutation{}, translateError(err)
 				}
 			} else if !errors.Is(fallbackErr, pgx.ErrNoRows) {
-				return RelationshipMutation{}, translateError(fallbackErr)
+				return TypedArchiveMutation{}, translateError(fallbackErr)
 			}
 			if err = s.claimOpenOtherIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
-				return RelationshipMutation{}, translateError(err)
+				return TypedArchiveMutation{}, translateError(err)
 			}
 		}
 		entry, err := s.other.Commit(ctx, tx, pending, otherPayload(id, data.Enabled))
 		if err != nil {
-			return RelationshipMutation{}, translateError(err)
+			return TypedArchiveMutation{}, translateError(err)
 		}
 		if err = tx.Commit(ctx); err != nil {
-			return RelationshipMutation{}, translateError(err)
+			return TypedArchiveMutation{}, translateError(err)
 		}
 		return archiveMutation(id, data.Enabled, entry), nil
 	}
 	pending, err := s.sales.Prepare(ctx, tx, action, input.ApprovalEntryID, input.ApprovalRevision, actor, reason)
 	if err != nil || pending.Entry().SubjectID != input.ObjectID {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	data, err := s.loadSales(ctx, q, input.ApprovalEntryID)
 	if err != nil {
-		return RelationshipMutation{}, err
+		return TypedArchiveMutation{}, err
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
 		if _, err = normalizeSales(data, true); err != nil {
-			return RelationshipMutation{}, err
+			return TypedArchiveMutation{}, err
 		}
 		if err = s.checkOperating(ctx, tx, data.OperatingEntities, data.DefaultOperatingEntity); err != nil {
-			return RelationshipMutation{}, err
+			return TypedArchiveMutation{}, err
 		}
 	}
 	if action == approval.ActionUnapproved {
 		if err = s.rules.EnsureSalesPartnerUnapproveAllowed(ctx, tx, input.ApprovalEntryID); err != nil {
-			return RelationshipMutation{}, translateError(err)
+			return TypedArchiveMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionApproved {
 		if latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySalesPartner, SubjectID: input.ObjectID}); latestErr == nil && latest.ID != input.ApprovalEntryID {
 			if err = q.DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
-				return RelationshipMutation{}, translateError(err)
+				return TypedArchiveMutation{}, translateError(err)
 			}
 		} else if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
-			return RelationshipMutation{}, translateError(latestErr)
+			return TypedArchiveMutation{}, translateError(latestErr)
 		}
 		if err = s.promoteSalesIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
-			return RelationshipMutation{}, translateError(err)
+			return TypedArchiveMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionUnapproved {
@@ -530,34 +530,34 @@ func (s *RelationshipService) transition(ctx context.Context, entity string, inp
 		if fallbackErr == nil {
 			fallbackData, loadErr := s.loadSales(ctx, q, fallback.ID)
 			if loadErr != nil {
-				return RelationshipMutation{}, loadErr
+				return TypedArchiveMutation{}, loadErr
 			}
 			if err = s.promoteSalesIdentifiers(ctx, q, input.ObjectID, fallback.ID, fallbackData.StrongIdentifiers); err != nil {
-				return RelationshipMutation{}, translateError(err)
+				return TypedArchiveMutation{}, translateError(err)
 			}
 		} else if !errors.Is(fallbackErr, pgx.ErrNoRows) {
-			return RelationshipMutation{}, translateError(fallbackErr)
+			return TypedArchiveMutation{}, translateError(fallbackErr)
 		}
 		if err = s.claimOpenSalesIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
-			return RelationshipMutation{}, translateError(err)
+			return TypedArchiveMutation{}, translateError(err)
 		}
 	}
 	entry, err := s.sales.Commit(ctx, tx, pending, salesPayload(id, data.Enabled))
 	if err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return RelationshipMutation{}, translateError(err)
+		return TypedArchiveMutation{}, translateError(err)
 	}
 	return archiveMutation(id, data.Enabled, entry), nil
 }
-func (s *RelationshipService) DeleteOtherUnit(ctx context.Context, i RelationshipVersionInput, a approval.Actor) error {
+func (s *TypedArchiveService) DeleteOtherUnit(ctx context.Context, i TypedArchiveVersionInput, a approval.Actor) error {
 	return s.delete(ctx, EntityOtherUnit, i, a)
 }
-func (s *RelationshipService) DeleteSalesPartner(ctx context.Context, i RelationshipVersionInput, a approval.Actor) error {
+func (s *TypedArchiveService) DeleteSalesPartner(ctx context.Context, i TypedArchiveVersionInput, a approval.Actor) error {
 	return s.delete(ctx, EntitySalesPartner, i, a)
 }
-func (s *RelationshipService) delete(ctx context.Context, entity string, input RelationshipVersionInput, actor approval.Actor) error {
+func (s *TypedArchiveService) delete(ctx context.Context, entity string, input TypedArchiveVersionInput, actor approval.Actor) error {
 	if !validVersionInput(input.ObjectID, input.ApprovalEntryID, input.ApprovalRevision, actor) {
 		return newError(ErrorValidation, "validation_failed", "invalid business archive delete", nil, nil)
 	}
@@ -616,7 +616,7 @@ func otherFromDetail(data OtherUnitData, d bobdomain.DetailView) OtherUnitData {
 func otherParams(id string, data OtherUnitData) dbsqlc.UpdateDCLOtherUnitVersionParams {
 	return dbsqlc.UpdateDCLOtherUnitVersionParams{ApprovalEntryID: id, Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address), SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.SettlementTermCode), SettlementRuleType: nilIfEmpty(data.SettlementRuleType), SettlementMonthOffset: data.SettlementMonthOffset, SettlementDayOfMonth: data.SettlementDayOfMonth, SettlementDayOffset: data.SettlementDayOffset, DefaultOperatingEntityID: data.DefaultOperatingEntity.SourceObjectID, DefaultOperatingEntityApprovalEntryID: data.DefaultOperatingEntity.ApprovalEntryID, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, DefaultOperatingEntityName: data.DefaultOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled}
 }
-func (s *RelationshipService) writeOther(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, data OtherUnitData) error {
+func (s *TypedArchiveService) writeOther(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, data OtherUnitData) error {
 	p := otherParams(entryID, data)
 	if err := q.InsertDCLOtherUnitVersion(ctx, dbsqlc.InsertDCLOtherUnitVersionParams{ApprovalEntryID: p.ApprovalEntryID, Kind: p.Kind, LegalName: p.LegalName, DisplayName: p.DisplayName, TaxNumber: p.TaxNumber, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, SettlementMethodID: p.SettlementMethodID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, DefaultOperatingEntityID: p.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: p.DefaultOperatingEntityApprovalEntryID, DefaultOperatingEntityCode: p.DefaultOperatingEntityCode, DefaultOperatingEntityName: p.DefaultOperatingEntityName, Remark: p.Remark, Enabled: p.Enabled}); err != nil {
 		return err
@@ -626,7 +626,7 @@ func (s *RelationshipService) writeOther(ctx context.Context, q *dbsqlc.Queries,
 	}
 	return s.writeOtherIdentifiers(ctx, q, objectID, entryID, data.StrongIdentifiers)
 }
-func (s *RelationshipService) updateOther(ctx context.Context, q *dbsqlc.Queries, entryID string, data OtherUnitData) error {
+func (s *TypedArchiveService) updateOther(ctx context.Context, q *dbsqlc.Queries, entryID string, data OtherUnitData) error {
 	n, err := q.UpdateDCLOtherUnitVersion(ctx, otherParams(entryID, data))
 	if err == nil && n != 1 {
 		err = errors.New("other unit snapshot missing")
@@ -636,7 +636,7 @@ func (s *RelationshipService) updateOther(ctx context.Context, q *dbsqlc.Queries
 	}
 	return s.replaceOtherOperating(ctx, q, entryID, data.OperatingEntities)
 }
-func (s *RelationshipService) replaceOtherOperating(ctx context.Context, q *dbsqlc.Queries, entryID string, items []BusinessArchiveSnapshot) error {
+func (s *TypedArchiveService) replaceOtherOperating(ctx context.Context, q *dbsqlc.Queries, entryID string, items []BusinessArchiveSnapshot) error {
 	if err := q.DeleteDCLOtherUnitVersionOperatingEntities(ctx, entryID); err != nil {
 		return err
 	}
@@ -647,7 +647,7 @@ func (s *RelationshipService) replaceOtherOperating(ctx context.Context, q *dbsq
 	}
 	return nil
 }
-func (s *RelationshipService) loadOther(ctx context.Context, q *dbsqlc.Queries, entryID string) (OtherUnitData, error) {
+func (s *TypedArchiveService) loadOther(ctx context.Context, q *dbsqlc.Queries, entryID string) (OtherUnitData, error) {
 	r, err := q.GetDCLOtherUnitVersion(ctx, entryID)
 	if err != nil {
 		return OtherUnitData{}, translateError(err)
@@ -670,7 +670,7 @@ func (s *RelationshipService) loadOther(ctx context.Context, q *dbsqlc.Queries, 
 	}
 	return data, nil
 }
-func (s *RelationshipService) writeOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
+func (s *TypedArchiveService) writeOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
 	if err := q.DeleteDCLOtherUnitVersionIdentifiers(ctx, entryID); err != nil {
 		return err
 	}
@@ -681,7 +681,7 @@ func (s *RelationshipService) writeOtherIdentifiers(ctx context.Context, q *dbsq
 	}
 	return s.claimOpenOtherIdentifiers(ctx, q, objectID, entryID, ids)
 }
-func (s *RelationshipService) claimOpenOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
+func (s *TypedArchiveService) claimOpenOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
 	if err := q.DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx, &entryID); err != nil {
 		return err
 	}
@@ -707,7 +707,7 @@ func (s *RelationshipService) claimOpenOtherIdentifiers(ctx context.Context, q *
 	}
 	return nil
 }
-func (s *RelationshipService) promoteOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
+func (s *TypedArchiveService) promoteOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
 	if err := q.DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx, &entryID); err != nil {
 		return err
 	}
@@ -722,7 +722,7 @@ func (s *RelationshipService) promoteOtherIdentifiers(ctx context.Context, q *db
 	}
 	return nil
 }
-func (s *RelationshipService) deleteOther(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
+func (s *TypedArchiveService) deleteOther(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
 	if err := q.DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx, &entryID); err != nil {
 		return err
 	}
@@ -739,7 +739,7 @@ func (s *RelationshipService) deleteOther(ctx context.Context, q *dbsqlc.Queries
 func salesParams(id string, data SalesPartnerData) dbsqlc.UpdateDCLSalesPartnerVersionParams {
 	return dbsqlc.UpdateDCLSalesPartnerVersionParams{ApprovalEntryID: id, Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, TaxNumber: nilIfEmpty(data.TaxNumber), Capabilities: data.Capabilities, ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address), DefaultOperatingEntityID: data.DefaultOperatingEntity.SourceObjectID, DefaultOperatingEntityApprovalEntryID: data.DefaultOperatingEntity.ApprovalEntryID, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, DefaultOperatingEntityName: data.DefaultOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled}
 }
-func (s *RelationshipService) writeSales(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, data SalesPartnerData) error {
+func (s *TypedArchiveService) writeSales(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, data SalesPartnerData) error {
 	p := salesParams(entryID, data)
 	if err := q.InsertDCLSalesPartnerVersion(ctx, dbsqlc.InsertDCLSalesPartnerVersionParams{ApprovalEntryID: p.ApprovalEntryID, Kind: p.Kind, LegalName: p.LegalName, DisplayName: p.DisplayName, TaxNumber: p.TaxNumber, Capabilities: p.Capabilities, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, DefaultOperatingEntityID: p.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: p.DefaultOperatingEntityApprovalEntryID, DefaultOperatingEntityCode: p.DefaultOperatingEntityCode, DefaultOperatingEntityName: p.DefaultOperatingEntityName, Remark: p.Remark, Enabled: p.Enabled}); err != nil {
 		return err
@@ -749,7 +749,7 @@ func (s *RelationshipService) writeSales(ctx context.Context, q *dbsqlc.Queries,
 	}
 	return s.writeSalesIdentifiers(ctx, q, objectID, entryID, data.StrongIdentifiers)
 }
-func (s *RelationshipService) updateSales(ctx context.Context, q *dbsqlc.Queries, entryID string, data SalesPartnerData) error {
+func (s *TypedArchiveService) updateSales(ctx context.Context, q *dbsqlc.Queries, entryID string, data SalesPartnerData) error {
 	n, err := q.UpdateDCLSalesPartnerVersion(ctx, salesParams(entryID, data))
 	if err == nil && n != 1 {
 		err = errors.New("sales partner snapshot missing")
@@ -759,7 +759,7 @@ func (s *RelationshipService) updateSales(ctx context.Context, q *dbsqlc.Queries
 	}
 	return s.replaceSalesOperating(ctx, q, entryID, data.OperatingEntities)
 }
-func (s *RelationshipService) replaceSalesOperating(ctx context.Context, q *dbsqlc.Queries, entryID string, items []BusinessArchiveSnapshot) error {
+func (s *TypedArchiveService) replaceSalesOperating(ctx context.Context, q *dbsqlc.Queries, entryID string, items []BusinessArchiveSnapshot) error {
 	if err := q.DeleteDCLSalesPartnerVersionOperatingEntities(ctx, entryID); err != nil {
 		return err
 	}
@@ -770,7 +770,7 @@ func (s *RelationshipService) replaceSalesOperating(ctx context.Context, q *dbsq
 	}
 	return nil
 }
-func (s *RelationshipService) loadSales(ctx context.Context, q *dbsqlc.Queries, entryID string) (SalesPartnerData, error) {
+func (s *TypedArchiveService) loadSales(ctx context.Context, q *dbsqlc.Queries, entryID string) (SalesPartnerData, error) {
 	r, err := q.GetDCLSalesPartnerVersion(ctx, entryID)
 	if err != nil {
 		return SalesPartnerData{}, translateError(err)
@@ -793,7 +793,7 @@ func (s *RelationshipService) loadSales(ctx context.Context, q *dbsqlc.Queries, 
 	}
 	return data, nil
 }
-func (s *RelationshipService) writeSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
+func (s *TypedArchiveService) writeSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
 	if err := q.DeleteDCLSalesPartnerVersionIdentifiers(ctx, entryID); err != nil {
 		return err
 	}
@@ -804,7 +804,7 @@ func (s *RelationshipService) writeSalesIdentifiers(ctx context.Context, q *dbsq
 	}
 	return s.claimOpenSalesIdentifiers(ctx, q, objectID, entryID, ids)
 }
-func (s *RelationshipService) claimOpenSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
+func (s *TypedArchiveService) claimOpenSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
 	if err := q.DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
 		return err
 	}
@@ -830,7 +830,7 @@ func (s *RelationshipService) claimOpenSalesIdentifiers(ctx context.Context, q *
 	}
 	return nil
 }
-func (s *RelationshipService) promoteSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
+func (s *TypedArchiveService) promoteSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
 	if err := q.DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
 		return err
 	}
@@ -845,7 +845,7 @@ func (s *RelationshipService) promoteSalesIdentifiers(ctx context.Context, q *db
 	}
 	return nil
 }
-func (s *RelationshipService) deleteSales(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
+func (s *TypedArchiveService) deleteSales(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
 	if err := q.DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
 		return err
 	}

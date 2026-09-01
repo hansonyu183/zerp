@@ -30,24 +30,6 @@ export async function queryOperatingEntityReferences(
   }))
 }
 
-export async function queryCustomerRelationshipReferences(
-  keyword: string,
-): Promise<CustomerReferenceOption[]> {
-  const { data } = await apiClient.postContract('bob/customer/query', {
-    page: 1,
-    pageSize: 20,
-    filters: {
-      enabled: true,
-      ...(keyword ? { keyword } : {}),
-    },
-    sort: [{ field: 'code', order: 'asc' }],
-  })
-  return data.items.map((item) => ({
-    value: item.objectId,
-    title: `${item.code} · ${item.displayName}`,
-  }))
-}
-
 export async function queryCustomerAccountReference(
   key: CustomerAccountReferenceKey,
   keyword: string,

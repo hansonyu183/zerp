@@ -128,8 +128,8 @@ type lifecycleService interface {
 	Reject(context.Context, string, seedReviewInput, approval.Actor) (seedMutation, error)
 }
 
-type relationshipAwareLifecycleService struct {
-	relationships     *dcldomain.RelationshipService
+type typedArchiveLifecycleService struct {
+	typedArchives     *dcldomain.TypedArchiveService
 	business          *bob.Service
 	customers         *dcldomain.CustomerService
 	auxiliary         *auxdomain.Service
@@ -144,7 +144,7 @@ type relationshipAwareLifecycleService struct {
 	suppliers         *dcldomain.SupplierService
 }
 
-func (service relationshipAwareLifecycleService) Create(
+func (service typedArchiveLifecycleService) Create(
 	ctx context.Context, entity string, input seedCreateInput, actor approval.Actor,
 ) (seedMutation, error) {
 	if entity == bob.EntityProduct {
@@ -185,7 +185,7 @@ func (service relationshipAwareLifecycleService) Create(
 		}, actor)
 		return supplierMutation(result), err
 	case bob.EntityOtherUnit:
-		result, err := service.relationships.CreateOtherUnit(ctx, dcldomain.OtherUnitCreateInput{
+		result, err := service.typedArchives.CreateOtherUnit(ctx, dcldomain.OtherUnitCreateInput{
 			Data: dcldomain.OtherUnitData{
 				Kind: "ORGANIZATION", LegalName: input.Data.Name, DisplayName: input.Data.ShortName,
 				TaxNumber: input.Data.TaxNumber, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true,
@@ -227,7 +227,7 @@ func (service relationshipAwareLifecycleService) Create(
 	return seedMutation{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 }
 
-func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context.Context, actor approval.Actor) (string, error) {
+func (service typedArchiveLifecycleService) ensurePaymentMethod(ctx context.Context, actor approval.Actor) (string, error) {
 	objectID, err := dbsqlc.New(service.pool).FindAuxObjectByName(ctx, dbsqlc.FindAuxObjectByNameParams{
 		Entity: auxdomain.EntityPaymentMethod, Name: "演示银行转账",
 	})
@@ -251,7 +251,7 @@ func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context
 	return objectID, nil
 }
 
-func (service relationshipAwareLifecycleService) Save(
+func (service typedArchiveLifecycleService) Save(
 	ctx context.Context, entity string, input seedSaveInput, actor approval.Actor,
 ) (seedMutation, error) {
 	if entity == bob.EntityProduct {
@@ -424,7 +424,7 @@ func (service relationshipAwareLifecycleService) Save(
 	return seedMutation{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 }
 
-func (service relationshipAwareLifecycleService) Get(
+func (service typedArchiveLifecycleService) Get(
 	ctx context.Context, entity string, input seedGetInput,
 ) (seedObjectView, error) {
 	if entity == bob.EntityProduct {
@@ -470,7 +470,7 @@ func (service relationshipAwareLifecycleService) Get(
 	if entity != bob.EntityOtherUnit {
 		return seedObjectView{}, fmt.Errorf("unsupported DCL seed entity %q", entity)
 	}
-	view, err := service.relationships.GetOtherUnit(ctx, dcldomain.RelationshipGetInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID}, mustSeedActor("seed-bob-other-unit-get"))
+	view, err := service.typedArchives.GetOtherUnit(ctx, dcldomain.TypedArchiveGetInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID}, mustSeedActor("seed-bob-other-unit-get"))
 	if err != nil {
 		return seedObjectView{}, err
 	}
@@ -482,7 +482,7 @@ func (service relationshipAwareLifecycleService) Get(
 			Remark: view.Data.Remark, SettlementMethodID: view.Data.SettlementMethodID}}, nil
 }
 
-func (service relationshipAwareLifecycleService) Submit(ctx context.Context, entity string, input seedVersionRevisionInput, actor approval.Actor) (seedMutation, error) {
+func (service typedArchiveLifecycleService) Submit(ctx context.Context, entity string, input seedVersionRevisionInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomer {
 		result, err := service.customers.Submit(ctx, dcldomain.CustomerVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return customerMutation(result), err
@@ -496,7 +496,7 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 		return employeeMutation(result), err
 	}
 	if entity == bob.EntityOtherUnit {
-		result, err := service.relationships.SubmitOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		result, err := service.typedArchives.SubmitOtherUnit(ctx, dcldomain.TypedArchiveVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return seedMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityProduct {
@@ -526,7 +526,7 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 	return operatingEntityMutation(result), err
 }
 
-func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input seedReverseInput, actor approval.Actor) (seedMutation, error) {
+func (service typedArchiveLifecycleService) Unsubmit(ctx context.Context, entity string, input seedReverseInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomer {
 		result, err := service.customers.Unsubmit(ctx, dcldomain.CustomerReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return customerMutation(result), err
@@ -540,7 +540,7 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 		return employeeMutation(result), err
 	}
 	if entity == bob.EntityOtherUnit {
-		result, err := service.relationships.UnsubmitOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
+		result, err := service.typedArchives.UnsubmitOtherUnit(ctx, dcldomain.TypedArchiveReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return seedMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityProduct {
@@ -578,7 +578,7 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 	return operatingEntityMutation(result), err
 }
 
-func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input seedReviewInput, actor approval.Actor) (seedMutation, error) {
+func (service typedArchiveLifecycleService) Approve(ctx context.Context, entity string, input seedReviewInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomer {
 		result, err := service.customers.Approve(ctx, dcldomain.CustomerVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return customerMutation(result), err
@@ -588,7 +588,7 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 		return supplierMutation(result), err
 	}
 	if entity == bob.EntityOtherUnit {
-		result, err := service.relationships.ApproveOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		result, err := service.typedArchives.ApproveOtherUnit(ctx, dcldomain.TypedArchiveVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return seedMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityEmployee {
@@ -622,7 +622,7 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 	return operatingEntityMutation(result), err
 }
 
-func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input seedReverseInput, actor approval.Actor) (seedMutation, error) {
+func (service typedArchiveLifecycleService) Unapprove(ctx context.Context, entity string, input seedReverseInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomer {
 		result, err := service.customers.Unapprove(ctx, dcldomain.CustomerReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return customerMutation(result), err
@@ -632,7 +632,7 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 		return supplierMutation(result), err
 	}
 	if entity == bob.EntityOtherUnit {
-		result, err := service.relationships.UnapproveOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
+		result, err := service.typedArchives.UnapproveOtherUnit(ctx, dcldomain.TypedArchiveReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
 		return seedMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityEmployee {
@@ -674,7 +674,7 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 	return operatingEntityMutation(result), err
 }
 
-func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input seedReviewInput, actor approval.Actor) (seedMutation, error) {
+func (service typedArchiveLifecycleService) Reject(ctx context.Context, entity string, input seedReviewInput, actor approval.Actor) (seedMutation, error) {
 	if entity == bob.EntityCustomer {
 		reason := ""
 		if input.Reason != nil {
@@ -696,7 +696,7 @@ func (service relationshipAwareLifecycleService) Reject(ctx context.Context, ent
 		if input.Reason != nil {
 			reason = *input.Reason
 		}
-		result, err := service.relationships.RejectOtherUnit(ctx, dcldomain.RelationshipReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: reason}, actor)
+		result, err := service.typedArchives.RejectOtherUnit(ctx, dcldomain.TypedArchiveReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: reason}, actor)
 		return seedMutation{ObjectID: result.ObjectID, ApprovalRevision: result.Approval.Revision, Enabled: result.Enabled, Approval: result.Approval}, err
 	}
 	if entity == bob.EntityEmployee {
@@ -1021,10 +1021,10 @@ func New(pool *pgxpool.Pool) *Seeder {
 	products := dcldomain.NewProductService(pool, service, authorizer, bus)
 	employees := dcldomain.NewEmployeeService(pool, service, authorizer, bus)
 	suppliers := dcldomain.NewSupplierService(pool, service, authorizer, bus)
-	relationships := dcldomain.NewRelationshipService(pool, service, authorizer, bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, service, authorizer, bus)
 	customers := dcldomain.NewCustomerService(pool, service, authorizer, bus)
 	return &Seeder{
-		service: relationshipAwareLifecycleService{relationships: relationships,
+		service: typedArchiveLifecycleService{typedArchives: typedArchives,
 			business: service, customers: customers, auxiliary: auxiliary, pool: pool, queries: dbsqlc.New(pool), operatingEntities: operatingEntities, warehouses: warehouses,
 			vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees,
 			suppliers: suppliers},
@@ -1047,21 +1047,21 @@ func auxiliarySeedEntity(entity string) (string, bool) {
 }
 
 type sample struct {
-	entity                         string
-	data                           bob.CreateDetailInput
-	status                         string
-	carrierServiceRelationshipCode string
-	categoryCode                   string
-	departmentCode                 string
-	positionCode                   string
-	parentCode                     string
-	managerEmployeeCode            string
-	salespersonEmployeeCode        string
-	settlementMethodCode           string
-	operatingEntityCode            string
-	formulaMaterialCode            string
-	formulaBaseQuantity            string
-	formulaMaterialQuantity        string
+	entity                  string
+	data                    bob.CreateDetailInput
+	status                  string
+	carrierOtherUnitCode    string
+	categoryCode            string
+	departmentCode          string
+	positionCode            string
+	parentCode              string
+	managerEmployeeCode     string
+	salespersonEmployeeCode string
+	settlementMethodCode    string
+	operatingEntityCode     string
+	formulaMaterialCode     string
+	formulaBaseQuantity     string
+	formulaMaterialQuantity string
 }
 
 var samples = [...]sample{
@@ -1152,11 +1152,11 @@ var samples = [...]sample{
 		Code: "DEMO-VEH-001", Name: "自营配送一号车", PlateNumber: "沪A10001", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000001", EngineNumber: "ENG-DEMO-001", LoadCapacityKG: "18000.000",
 		Remark: "演示有效车辆",
-	}, status: approvedStatus, carrierServiceRelationshipCode: "DEMO-OTU-001"},
+	}, status: approvedStatus, carrierOtherUnitCode: "DEMO-OTU-001"},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
 		Code: "DEMO-VEH-002", Name: "自营配送二号车", PlateNumber: "沪A10002", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000002", EngineNumber: "ENG-DEMO-002", LoadCapacityKG: "12000.000",
-	}, status: string(approval.StatusDraft), carrierServiceRelationshipCode: "DEMO-OTU-001"},
+	}, status: string(approval.StatusDraft), carrierOtherUnitCode: "DEMO-OTU-001"},
 	{entity: bob.EntityFundAccount, data: bob.CreateDetailInput{
 		Code: "DEMO-FA-001", Name: "人民币基本账户", Currency: "CNY",
 		AccountName: "上海示例科技有限公司", BankName: "示例银行",
@@ -1216,17 +1216,17 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		return objectID, nil
 	}
 	var err error
-	if item.carrierServiceRelationshipCode != "" {
+	if item.carrierOtherUnitCode != "" {
 		carrierObjectID, resolveErr := resolve(
 			bob.EntityOtherUnit,
-			item.carrierServiceRelationshipCode,
-			"carrier service relationship",
+			item.carrierOtherUnitCode,
+			"carrier other unit",
 		)
 		if resolveErr != nil {
 			return 0, resolveErr
 		}
 		item.data.CarrierAffiliation = &bob.CarrierAffiliation{
-			Type: "EXTERNAL", ServiceRelationshipObjectID: carrierObjectID,
+			Type: "EXTERNAL", OtherUnitObjectID: carrierObjectID,
 		}
 	}
 	if item.data.CategoryID, err = resolve(auxdomain.EntityProductCategory, item.categoryCode, "category"); err != nil {
@@ -1331,9 +1331,9 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		if getErr != nil {
 			return 0, fmt.Errorf("get existing object: %w", getErr)
 		}
-		seedManagedRelationship := item.entity == bob.EntityEmployee || item.entity == bob.EntitySupplier ||
+		seedManagedTypedArchive := item.entity == bob.EntityEmployee || item.entity == bob.EntitySupplier ||
 			item.entity == bob.EntityOtherUnit || item.entity == bob.EntityCustomer
-		if !seedManagedRelationship && !matches(item, view) {
+		if !seedManagedTypedArchive && !matches(item, view) {
 			if !matchesLegacyShape(item, view) {
 				return 0, fmt.Errorf("reserved demo code is occupied by different data")
 			}
@@ -1702,7 +1702,7 @@ func equalCarrierAffiliation(actual, expected *bob.CarrierAffiliation) bool {
 	}
 	return actual.Type == expected.Type &&
 		actual.OperatingEntityID == expected.OperatingEntityID &&
-		actual.ServiceRelationshipObjectID == expected.ServiceRelationshipObjectID
+		actual.OtherUnitObjectID == expected.OtherUnitObjectID
 }
 
 func stringPointer(value string) *string {

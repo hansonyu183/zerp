@@ -107,7 +107,7 @@ func TestWarehouseDeclarationPersistsManagerApprovalSnapshotIntegration(t *testi
 	_ = submitAndApproveWarehouse(t, service, warehouseV2, creator("warehouse-submit-v2"), reviewer("warehouse-approve-v2"))
 
 	assertExactApprovalReferenceBlockers(t, pool, business, employeeEntryID, "warehouse")
-	insertAccountingPartyReferenceFixtures(t, pool, employeeID, employeeEntryID)
+	insertAccountingCounterpartyReferenceFixtures(t, pool, employeeID, employeeEntryID)
 	assertExactApprovalReferenceBlockers(t, pool, business, employeeEntryID, "warehouse", "acc-bill", "acc-opening-bill")
 }
 
@@ -138,7 +138,7 @@ func assertExactApprovalReferenceBlockers(t *testing.T, pool *pgxpool.Pool, busi
 	}
 }
 
-func insertAccountingPartyReferenceFixtures(t *testing.T, pool *pgxpool.Pool, objectID, entryID string) {
+func insertAccountingCounterpartyReferenceFixtures(t *testing.T, pool *pgxpool.Pool, objectID, entryID string) {
 	t.Helper()
 	bookID, billID, openingBillID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
 	var actorID string

@@ -616,13 +616,13 @@ func (s *Service) validateStoredAttributes(
 		if !missing {
 			contract, lockErr := q.LockVouServiceAcceptanceContract(ctx, detail.ContractDocumentID)
 			if errors.Is(lockErr, pgx.ErrNoRows) {
-				return domainError(ErrorConflict, "service acceptance requires an approved service relationship contract", nil, nil)
+				return domainError(ErrorConflict, "service acceptance requires an approved service contract", nil, nil)
 			}
 			if lockErr != nil {
 				return s.internal("lock service acceptance contract", lockErr)
 			}
 			if contract.Status != StatusApproved || contract.CounterpartyEntity != contractCounterpartyService {
-				return domainError(ErrorConflict, "service acceptance requires an approved service relationship contract", nil, nil)
+				return domainError(ErrorConflict, "service acceptance requires an approved service contract", nil, nil)
 			}
 		}
 	case EntityIntermediaryCalculation:

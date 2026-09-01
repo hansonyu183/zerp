@@ -268,7 +268,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 			return bobdomain.CreateDetailInput{
 				Name: "自营配送一号车（测试）", PlateNumber: "沪A10101",
 				VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{
-					Type: "EXTERNAL", ServiceRelationshipObjectID: s.bobRefs["external-carrier"].ObjectID,
+					Type: "EXTERNAL", OtherUnitObjectID: s.bobRefs["external-carrier"].ObjectID,
 				},
 				VIN: "LSVAA4187N2100101", EngineNumber: "ENG-TEST-101",
 				LoadCapacityKG: "18000", Remark: "测试有效车辆",
@@ -278,7 +278,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 			return bobdomain.CreateDetailInput{
 				Name: "自营配送二号车（测试草稿）", PlateNumber: "沪A10102",
 				VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{
-					Type: "EXTERNAL", ServiceRelationshipObjectID: s.bobRefs["external-carrier"].ObjectID,
+					Type: "EXTERNAL", OtherUnitObjectID: s.bobRefs["external-carrier"].ObjectID,
 				},
 				VIN: "LSVAA4187N2100102", EngineNumber: "ENG-TEST-102",
 				LoadCapacityKG: "12000", Remark: "测试草稿车辆",
@@ -343,7 +343,7 @@ func (s *Seeder) ensureOtherUnit(ctx context.Context, sample bobSample) (seedBus
 		if actorErr != nil {
 			return seedBusinessView{}, 0, actorErr
 		}
-		result, createErr := s.relationships.CreateOtherUnit(ctx, dcldomain.OtherUnitCreateInput{
+		result, createErr := s.typedArchives.CreateOtherUnit(ctx, dcldomain.OtherUnitCreateInput{
 			Data: dcldomain.OtherUnitData{
 				Kind: "ORGANIZATION", LegalName: data.Name, DisplayName: data.ShortName,
 				TaxNumber: data.TaxNumber, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true,
@@ -365,7 +365,7 @@ func (s *Seeder) ensureOtherUnit(ctx context.Context, sample bobSample) (seedBus
 	if actorErr != nil {
 		return seedBusinessView{}, 0, actorErr
 	}
-	view, err := s.relationships.GetOtherUnit(ctx, dcldomain.RelationshipGetInput{ObjectID: objectID}, getActor)
+	view, err := s.typedArchives.GetOtherUnit(ctx, dcldomain.TypedArchiveGetInput{ObjectID: objectID}, getActor)
 	if err != nil {
 		return seedBusinessView{}, 0, err
 	}
@@ -374,7 +374,7 @@ func (s *Seeder) ensureOtherUnit(ctx context.Context, sample bobSample) (seedBus
 		if err = s.advanceBusiness(ctx, sample, converted); err != nil {
 			return seedBusinessView{}, 0, err
 		}
-		view, err = s.relationships.GetOtherUnit(ctx, dcldomain.RelationshipGetInput{ObjectID: objectID}, getActor)
+		view, err = s.typedArchives.GetOtherUnit(ctx, dcldomain.TypedArchiveGetInput{ObjectID: objectID}, getActor)
 		if err != nil {
 			return seedBusinessView{}, 0, err
 		}
@@ -486,7 +486,7 @@ func (s *Seeder) ensureBusiness(
 			}, createActor)
 			result, createErr = dclSupplierBusinessMutation(createdSupplier), declarationErr
 		case bobdomain.EntityCustomer:
-			createdCustomer, relationshipErr := s.customerDeclarations().Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerDataInput{
+			createdCustomer, archiveErr := s.customerDeclarations().Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerDataInput{
 				Kind: "ORGANIZATION", LegalName: data.Name, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
 				Phone: data.ContactPhone, Email: data.Email, Address: data.Address,
 				DefaultOperatingEntityID: s.bobRefs["operating-effective"].ObjectID, Enabled: true,
@@ -508,7 +508,7 @@ func (s *Seeder) ensureBusiness(
 						SubjectObjectID: data.SalespersonEmployeeID}, InternalReminder: data.Remark}},
 			}}, createActor)
 			result = dclCustomerBusinessMutation(createdCustomer)
-			createErr = relationshipErr
+			createErr = archiveErr
 		default:
 			createErr = fmt.Errorf("unsupported DCL seed entity %q", sample.entity)
 		}
@@ -706,7 +706,7 @@ func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) 
 		if err != nil {
 			return seedBusinessView{}, err
 		}
-		view, getErr := s.relationships.GetOtherUnit(ctx, dcldomain.RelationshipGetInput{ObjectID: objectID}, actor)
+		view, getErr := s.typedArchives.GetOtherUnit(ctx, dcldomain.TypedArchiveGetInput{ObjectID: objectID}, actor)
 		return dclOtherUnitObjectView(view), getErr
 	}
 	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse && entity != bobdomain.EntityVehicle && entity != bobdomain.EntityFundAccount && entity != bobdomain.EntityProduct && entity != bobdomain.EntityEmployee {
@@ -756,8 +756,8 @@ func (s *Seeder) advanceBusiness(
 			return actorErr
 		}
 		if sample.entity == bobdomain.EntityOtherUnit {
-			var submitted dcldomain.RelationshipMutation
-			submitted, err = s.relationships.SubmitOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+			var submitted dcldomain.TypedArchiveMutation
+			submitted, err = s.typedArchives.SubmitOtherUnit(ctx, dcldomain.TypedArchiveVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 			current = seedBusinessMutation{ObjectID: submitted.ObjectID, ApprovalRevision: submitted.Approval.Revision, Enabled: submitted.Enabled, Approval: submitted.Approval}
 		} else if sample.entity == bobdomain.EntityCustomer {
 			var submitted dcldomain.CustomerMutation
@@ -814,7 +814,7 @@ func (s *Seeder) advanceBusiness(
 			return actorErr
 		}
 		if sample.entity == bobdomain.EntityOtherUnit {
-			_, err = s.relationships.ApproveOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+			_, err = s.typedArchives.ApproveOtherUnit(ctx, dcldomain.TypedArchiveVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntityCustomer {
 			_, err = s.customerDeclarations().Approve(ctx, dcldomain.CustomerVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 		} else if sample.entity == bobdomain.EntitySupplier {

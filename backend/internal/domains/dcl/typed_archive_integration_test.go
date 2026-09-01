@@ -26,7 +26,7 @@ func TestTypedOtherUnitAndSalesPartnerLifecycleIntegration(t *testing.T) {
 	auxiliary := auxdomain.NewService(pool)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
-	archives := NewRelationshipService(pool, business, authorizer, bus)
+	archives := NewTypedArchiveService(pool, business, authorizer, bus)
 
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -72,7 +72,7 @@ func TestTypedOtherUnitAndSalesPartnerLifecycleIntegration(t *testing.T) {
 			t.Fatalf("Other Unit strong identifier conflict = %v", err)
 		}
 	}
-	otherView, err := archives.GetOtherUnit(t.Context(), RelationshipGetInput{ObjectID: other.ObjectID}, creator("other-get"))
+	otherView, err := archives.GetOtherUnit(t.Context(), TypedArchiveGetInput{ObjectID: other.ObjectID}, creator("other-get"))
 	if err != nil {
 		t.Fatalf("get typed Other Unit: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestTypedOtherUnitAndSalesPartnerLifecycleIntegration(t *testing.T) {
 	otherV2 = submitAndApproveOtherUnit(t, archives, otherV2, creator("other-submit-v2"), reviewer("other-approve-v2"))
 	assertOtherIdentifierClaim(t, pool, "91310000OTU345001", "", "")
 	assertOtherIdentifierClaim(t, pool, "91310000OTU345002", otherV2.Approval.ApprovalEntryID, "")
-	otherV2, err = archives.UnapproveOtherUnit(t.Context(), RelationshipReviewInput{ObjectID: otherV2.ObjectID, ApprovalEntryID: otherV2.Approval.ApprovalEntryID, ApprovalRevision: otherV2.Approval.Revision, Reason: "验证标识回落"}, reviewer("other-unapprove-v2"))
+	otherV2, err = archives.UnapproveOtherUnit(t.Context(), TypedArchiveReviewInput{ObjectID: otherV2.ObjectID, ApprovalEntryID: otherV2.Approval.ApprovalEntryID, ApprovalRevision: otherV2.Approval.Revision, Reason: "验证标识回落"}, reviewer("other-unapprove-v2"))
 	if err != nil {
 		t.Fatalf("unapprove typed Other Unit V2: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestTypedOtherUnitAndSalesPartnerLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create typed Sales Partner draft: %v", err)
 	}
-	if _, err = archives.SubmitSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision}, creator("sales-submit-empty")); err == nil {
+	if _, err = archives.SubmitSalesPartner(t.Context(), TypedArchiveVersionInput{ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision}, creator("sales-submit-empty")); err == nil {
 		t.Fatal("submitted sales-partner draft without capability")
 	}
 	salesInput.Capabilities = []string{"CHANNEL_PARTNER"}
@@ -121,16 +121,16 @@ func TestTypedOtherUnitAndSalesPartnerLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save typed Sales Partner capability: %v", err)
 	}
-	salesView, err := archives.GetSalesPartner(t.Context(), RelationshipGetInput{ObjectID: sales.ObjectID}, creator("sales-get"))
+	salesView, err := archives.GetSalesPartner(t.Context(), TypedArchiveGetInput{ObjectID: sales.ObjectID}, creator("sales-get"))
 	if err != nil {
 		t.Fatalf("get typed Sales Partner: %v", err)
 	}
 	assertSalesPartnerData(t, salesView.Data, salesInput)
-	pending, err := archives.SubmitSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision}, creator("sales-submit"))
+	pending, err := archives.SubmitSalesPartner(t.Context(), TypedArchiveVersionInput{ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision}, creator("sales-submit"))
 	if err != nil {
 		t.Fatalf("submit typed Sales Partner: %v", err)
 	}
-	sales, err = archives.ApproveSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer("sales-approve"))
+	sales, err = archives.ApproveSalesPartner(t.Context(), TypedArchiveVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer("sales-approve"))
 	if err != nil {
 		t.Fatalf("approve typed Sales Partner: %v", err)
 	}
@@ -169,13 +169,13 @@ func stringPointerValue(value *string) string {
 	return *value
 }
 
-func submitAndApproveOtherUnit(t *testing.T, service *RelationshipService, mutation RelationshipMutation, submitter, reviewer approval.Actor) RelationshipMutation {
+func submitAndApproveOtherUnit(t *testing.T, service *TypedArchiveService, mutation TypedArchiveMutation, submitter, reviewer approval.Actor) TypedArchiveMutation {
 	t.Helper()
-	pending, err := service.SubmitOtherUnit(t.Context(), RelationshipVersionInput{ObjectID: mutation.ObjectID, ApprovalEntryID: mutation.Approval.ApprovalEntryID, ApprovalRevision: mutation.Approval.Revision}, submitter)
+	pending, err := service.SubmitOtherUnit(t.Context(), TypedArchiveVersionInput{ObjectID: mutation.ObjectID, ApprovalEntryID: mutation.Approval.ApprovalEntryID, ApprovalRevision: mutation.Approval.Revision}, submitter)
 	if err != nil {
 		t.Fatalf("submit Other Unit: %v", err)
 	}
-	approved, err := service.ApproveOtherUnit(t.Context(), RelationshipVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer)
+	approved, err := service.ApproveOtherUnit(t.Context(), TypedArchiveVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer)
 	if err != nil {
 		t.Fatalf("approve Other Unit: %v", err)
 	}

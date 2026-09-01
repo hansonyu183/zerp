@@ -1,28 +1,28 @@
 import { expect, test, type Page, type WflWorkerState } from './fixtures'
 
 test.use({ storageState: { cookies: [], origins: [] } })
-const bobPages = [
-  { entity: 'customer', title: '客户', searchLabel: '客户关系编码或主体' },
-  { entity: 'supplier', title: '供应商', searchLabel: '供应商编码或名称' },
+const archivePages = [
+  { entity: 'customer', title: '客户', searchLabel: '客户编码或名称' },
+  { entity: 'supplier', title: '供应商', searchLabel: '供应商编码或主体名称' },
   {
     entity: 'employee',
-    title: '员工',
-    searchLabel: '人员编码或名称',
+    title: '人员',
+    searchLabel: '人员编码或主体名称',
   },
   {
     entity: 'warehouse',
     title: '仓库',
-    searchLabel: '仓库（当前有效资料）关键字',
+    searchLabel: '仓库变更关键字',
   },
   {
     entity: 'vehicle',
     title: '车辆',
-    searchLabel: '车辆（当前有效资料）关键字',
+    searchLabel: '车辆变更关键字',
   },
   {
     entity: 'fund-account',
-    title: '资金账户（当前有效资料）',
-    searchLabel: '资金账户（当前有效资料）关键字',
+    title: '资金账户',
+    searchLabel: '资金账户变更关键字',
   },
 ] as const
 
@@ -109,11 +109,11 @@ async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
 
   const customerLink = page.getByRole('link', { name: '客户', exact: true })
   if (!(await customerLink.isVisible())) {
-    await page.getByText('业务对象', { exact: true }).click()
+    await page.getByText('档案变更', { exact: true }).click()
   }
   await expect(customerLink).toBeVisible()
   await customerLink.click()
-  await expect(page).toHaveURL(/\/bob\/customer/)
+  await expect(page).toHaveURL(/\/dcl\/customer/)
 }
 
 async function expectSingleDirectWorkbenchEntry(page: Page): Promise<void> {
@@ -165,16 +165,33 @@ test('服务合同与资产清算重复深链和硬刷新均保留可诊断页�
   }
 })
 
-test('未登录访问完整深链后登录返回原路径', async ({ page, workerState }) => {
-  await page.goto('/bob/customer?tab=history#version-2')
+test('未登录访问 DCL 完整深链后登录返回原路径', async ({
+  page,
+  workerState,
+}) => {
+  await page.goto('/dcl/customer?tab=history#version-2')
   await expect(page).toHaveURL(/\/signin\?redirect=/)
 
   await submitCredentials(page, workerState.operator)
 
-  await expect(page).toHaveURL(/\/bob\/customer\?tab=history#version-2$/)
+  await expect(page).toHaveURL(/\/dcl\/customer\?tab=history#version-2$/)
   await expect(
-    page.getByRole('textbox', { name: '客户关系编码或主体' }),
+    page.getByRole('textbox', { name: '客户编码或名称' }),
   ).toBeVisible()
+})
+
+test('旧 BOB 与独立客户核算账户深链不可达', async ({ page, workerState }) => {
+  await signIn(page, workerState)
+
+  for (const path of [
+    '/bob/customer',
+    '/bob/product',
+    '/bob/customer-account',
+  ]) {
+    await page.goto(path)
+    await expect(page).toHaveURL(new RegExp(`${path}$`))
+    await expect(page.getByText('页面不存在', { exact: true })).toBeVisible()
+  }
 })
 
 test('登录后对已知但无权限的深链显示无权访问', async ({
@@ -219,7 +236,7 @@ test('有效会话访问带 redirect 的登录页时忽略参数且不再登录'
   await signIn(page, workerState)
   await expect.poll(() => signinRequests).toBe(1)
 
-  await page.goto('/signin?redirect=/bob/customer')
+  await page.goto('/signin?redirect=/dcl/customer')
 
   await expect(page).toHaveURL(/\/home\/dashboard$/)
   await expect(page.getByLabel('用户名')).not.toBeVisible()
@@ -227,13 +244,15 @@ test('有效会话访问带 redirect 的登录页时忽略参数且不再登录'
 })
 
 test(
-  '登录后逐项加载业务对象中文菜单与真实组件',
+  '登录后逐项加载 DCL 档案菜单且不暴露 BOB 主入口',
   { tag: '@mobile' },
   async ({ page, isMobile, workerState }) => {
     await signIn(page, workerState)
     await page.goto('/home/dashboard')
 
-    for (const item of bobPages) {
+    await expect(page.getByText('业务对象', { exact: true })).toHaveCount(0)
+
+    for (const item of archivePages) {
       if (isMobile) await page.getByLabel('切换导航').click()
 
       const link = page.getByRole('link', {
@@ -241,14 +260,14 @@ test(
         exact: true,
       })
       if (!(await link.isVisible())) {
-        await page.getByText('业务对象', { exact: true }).click()
+        await page.getByText('档案变更', { exact: true }).click()
       }
 
       await expect(link).toBeVisible()
       await link.click()
-      await expect(page).toHaveURL(new RegExp(`/bob/${item.entity}$`))
+      await expect(page).toHaveURL(new RegExp(`/dcl/${item.entity}$`))
       await expect(page.locator('.page-heading__breadcrumb')).toHaveText(
-        `ZERP / ${item.title}`,
+        `ZERP / ${item.title}变更`,
       )
       await expect(
         page.getByRole('textbox', {
@@ -262,10 +281,7 @@ test(
   },
 )
 
-test('DCL 经营主体变更与 BOB 当前有效资料使用独立入口和请求边界', async ({
-  page,
-  workerState,
-}) => {
+test('DCL 经营主体页面完成创建、提交和批准', async ({ page, workerState }) => {
   test.setTimeout(90_000)
   await signIn(page, workerState)
   await page.goto('/home/dashboard')
@@ -318,88 +334,7 @@ test('DCL 经营主体变更与 BOB 当前有效资料使用独立入口和请�
   await operatingEntityAction(page, code!, '批准')
   await expect(operatingEntityRow(page, code!)).toContainText('已批准')
 
-  const bobRequests: string[] = []
-  page.on('request', (request) => {
-    const pathname = new URL(request.url()).pathname
-    if (pathname.includes('/operating-entity/')) bobRequests.push(pathname)
-  })
-
-  await page.getByText('业务对象', { exact: true }).click()
-  const currentProfileLink = page.getByLabel('业务对象').getByRole('link', {
-    name: '经营主体',
-    exact: true,
-  })
-  await expect(currentProfileLink).toBeVisible()
-  await currentProfileLink.focus()
-  await expect(currentProfileLink).toBeFocused()
-  await currentProfileLink.press('Enter')
-  await expect(page).toHaveURL(/\/bob\/operating-entity$/)
-  await expect(
-    page.getByRole('textbox', {
-      name: '经营主体（当前有效资料）关键字',
-      exact: true,
-    }),
-  ).toBeVisible()
-  await expect(
-    page.getByRole('button', { name: '新增', exact: true }),
-  ).toHaveCount(0)
-  await expect(
-    page.getByRole('combobox', { name: '状态', exact: true }),
-  ).toHaveCount(0)
-  await page
-    .getByRole('textbox', { name: '经营主体（当前有效资料）关键字' })
-    .fill(code!)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  const currentRow = operatingEntityRow(page, code!)
-  await expect(currentRow).toContainText(declarationName)
-  const objectId = (
-    await currentRow.locator('td[data-label="Stable ID"]').textContent()
-  )?.trim()
-  const approvalEntryId = (
-    await currentRow
-      .locator('td[data-label="来源 Approval Entry ID"]')
-      .textContent()
-  )?.trim()
-  expect(objectId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
-  expect(approvalEntryId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
-  await currentRow.getByLabel(`查看 ${code}`, { exact: true }).click()
-  const currentDrawer = page.locator('.bob-entity-drawer')
-  await expect(
-    currentDrawer.getByText('Stable ID', { exact: true }),
-  ).toBeVisible()
-  await expect(
-    currentDrawer.getByText(objectId!, { exact: true }),
-  ).toBeVisible()
-  await expect(
-    currentDrawer.getByText('来源 Approval Entry ID', { exact: true }),
-  ).toBeVisible()
-  await expect(
-    currentDrawer.getByText(approvalEntryId!, { exact: true }),
-  ).toBeVisible()
-  for (const action of [
-    '提交',
-    '撤回',
-    '批准',
-    '驳回',
-    '反批准',
-    '版本历史',
-    '审核历史',
-  ]) {
-    await expect(
-      page.getByRole('button', { name: action, exact: true }),
-    ).toHaveCount(0)
-  }
-  await expect
-    .poll(() =>
-      bobRequests.some((path) => path.endsWith('/bob/operating-entity/query')),
-    )
-    .toBe(true)
-  await expect
-    .poll(() =>
-      bobRequests.some((path) => path.endsWith('/bob/operating-entity/get')),
-    )
-    .toBe(true)
-  expect(bobRequests.some((path) => path.includes('/dcl/'))).toBe(false)
+  await expect(page.getByText('业务对象', { exact: true })).toHaveCount(0)
 })
 
 test('使用真实后端读取、保存并恢复个人资料', async ({ page, workerState }) => {
@@ -439,7 +374,7 @@ test('使用真实后端读取、保存并恢复个人资料', async ({ page, wo
   }
 })
 
-test('登录后进入客户业务页面并在退出后退时保护旧页面', async ({
+test('登录后进入客户档案页面并在退出后退时保护旧页面', async ({
   page,
   isMobile,
   workerState,
@@ -449,7 +384,7 @@ test('登录后进入客户业务页面并在退出后退时保护旧页面', as
   await expect(page.getByRole('button', { name: '查询' })).toBeVisible()
 
   await page.reload()
-  await expect(page).toHaveURL(/\/bob\/customer/)
+  await expect(page).toHaveURL(/\/dcl\/customer/)
 
   await page.locator('.account-button').click()
   await page.getByText('退出登录').click()
@@ -518,7 +453,7 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({
   )
 
   const pages = [
-    ['/bob/customer', '客户'],
+    ['/dcl/customer', '客户变更'],
     ['/aux/product-category', '产品分类'],
     ['/vou/sale-order', '销售订单'],
     [`/wfl/${workerState.fixtures.salesProcessCode}`, null],
@@ -573,8 +508,8 @@ test(
       })
       .toBeGreaterThanOrEqual(0)
     await expectSingleDirectWorkbenchEntry(page)
-    await expect(page.getByText('业务对象', { exact: true })).toBeVisible()
-    await page.getByText('业务对象', { exact: true }).click()
+    await expect(page.getByText('业务对象', { exact: true })).toHaveCount(0)
+    await page.getByText('档案变更', { exact: true }).click()
     await expect(
       page.getByRole('link', { name: '客户', exact: true }),
     ).toBeVisible()

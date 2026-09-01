@@ -23,6 +23,10 @@ type registeredMenuRoute struct {
 	Always         bool
 }
 
+func isPrimaryUIRoute(route registeredMenuRoute) bool {
+	return !strings.HasPrefix(route.RouteKey, "bob/")
+}
+
 type initialMenuGroup struct {
 	ID    string
 	Name  string
@@ -278,6 +282,9 @@ func (s *Service) menuCatalog(ctx context.Context, q *dbsqlc.Queries) ([]registe
 func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRoute) ([]SaveMenuItemInput, error) {
 	knownRoutes := make(map[string]registeredMenuRoute, len(catalog))
 	for _, route := range catalog {
+		if !isPrimaryUIRoute(route) {
+			continue
+		}
 		knownRoutes[route.RouteKey] = route
 	}
 	items := make([]SaveMenuItemInput, len(input))
@@ -403,7 +410,6 @@ func replaceBusinessMenu(ctx context.Context, q *dbsqlc.Queries, items []SaveMen
 func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 	groups := []initialMenuGroup{
 		{ID: "default-dcl", Name: "档案变更", Icon: "mdi-file-sign", Order: 10},
-		{ID: "default-bob", Name: "业务对象", Icon: "mdi-account-group-outline", Order: 20},
 		{ID: "default-aux", Name: "辅助对象", Icon: "mdi-shape-outline", Order: 30},
 		{ID: "default-vou", Name: "业务单据", Icon: "mdi-file-document-multiple-outline", Order: 40},
 		{ID: "default-wfl", Name: "业务流程", Icon: "mdi-transit-connection-variant", Order: 50},
@@ -416,6 +422,9 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 	items := groupViews(groups)
 	orders := map[string]int32{}
 	for _, route := range catalog {
+		if !isPrimaryUIRoute(route) {
+			continue
+		}
 		if route.RouteKey == "home/dashboard" {
 			items = append(items, directRouteView(route, route.Order, stableRouteID("default", route.RouteKey)))
 			continue
@@ -423,7 +432,7 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 		parent := "default-other"
 		domain := strings.SplitN(route.RouteKey, "/", 2)[0]
 		switch domain {
-		case "dcl", "bob", "aux", "vou", "wfl", "acc", "led":
+		case "dcl", "aux", "vou", "wfl", "acc", "led":
 			parent = "default-" + domain
 		case "app":
 			parent = "default-system"
@@ -440,6 +449,9 @@ func buildInitialBusinessMenu(catalog []registeredMenuRoute) MenuTree {
 	items := groupViews(businessMenuGroups)
 	orders := map[string]int32{}
 	for _, route := range catalog {
+		if !isPrimaryUIRoute(route) {
+			continue
+		}
 		if route.RouteKey == "home/dashboard" {
 			items = append(items, directRouteView(route, route.Order, stableRouteID("business", route.RouteKey)))
 			continue
@@ -502,6 +514,9 @@ func classifyBusinessRoute(key string) string {
 func menuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, catalog []registeredMenuRoute) MenuTree {
 	byKey := make(map[string]registeredMenuRoute, len(catalog))
 	for _, route := range catalog {
+		if !isPrimaryUIRoute(route) {
+			continue
+		}
 		byKey[route.RouteKey] = route
 	}
 	items := make([]MenuItemView, 0, len(rows))
@@ -523,6 +538,9 @@ func menuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, catalog []registeredMen
 func editableMenuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, catalog []registeredMenuRoute) MenuTree {
 	registered := make(map[string]bool, len(catalog))
 	for _, route := range catalog {
+		if !isPrimaryUIRoute(route) {
+			continue
+		}
 		registered[route.RouteKey] = true
 	}
 	currentRows := make([]dbsqlc.AppBusinessMenuItem, 0, len(rows))
@@ -555,6 +573,9 @@ func appendUnclassifiedRoutes(tree MenuTree, catalog []registeredMenuRoute) Menu
 		tree.Items = append(tree.Items, MenuItemView{ID: otherID, Type: MenuItemGroup, Level: 1, Order: 1_000_000, DisplayName: "其他/待归类", Icon: stringPointer("mdi-folder-question-outline"), Enabled: true})
 	}
 	for _, route := range catalog {
+		if !isPrimaryUIRoute(route) {
+			continue
+		}
 		if route.RouteKey == "home/dashboard" {
 			continue
 		}
@@ -669,6 +690,9 @@ func stableRouteID(prefix, key string) string {
 func menuRouteOptions(routes []registeredMenuRoute) []MenuRouteOption {
 	items := make([]MenuRouteOption, 0, len(routes))
 	for _, route := range routes {
+		if !isPrimaryUIRoute(route) {
+			continue
+		}
 		permission := route.PermissionCode
 		items = append(items, MenuRouteOption{RouteKey: route.RouteKey, RoutePath: route.RoutePath, DisplayName: route.DisplayName, PermissionCode: &permission})
 	}

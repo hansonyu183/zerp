@@ -20,7 +20,7 @@ export interface VoucherReferenceBase {
   carrierAffiliation?: {
     type: 'INTERNAL' | 'EXTERNAL'
     operatingEntityId?: string
-    serviceRelationshipObjectId?: string
+    otherUnitObjectId?: string
   }
   bulkLiquidCapable?: boolean
   behaviorProfile?: ProductBehaviorProfile

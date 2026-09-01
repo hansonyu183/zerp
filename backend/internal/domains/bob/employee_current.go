@@ -140,7 +140,7 @@ func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (Objec
 	return ObjectView{ObjectID: row.ObjectID, Entity: EntityEmployee, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: detail, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 
-func (s *Service) queryEmploymentRelationships(ctx context.Context, q *dbsqlc.Queries, input QueryInput) (Page[QueryItem], error) {
+func (s *Service) queryEmployeesCurrent(ctx context.Context, q *dbsqlc.Queries, input QueryInput) (Page[QueryItem], error) {
 	offset, ok := pageOffset(input.Page, input.PageSize)
 	if !ok || len(input.Sort) > 1 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid Employee query", nil, nil)

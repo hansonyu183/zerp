@@ -90,19 +90,7 @@ async function selectAutocomplete(
   await option.click()
 }
 
-async function openBobCurrentPage(page: Page, path: string): Promise<void> {
-  const currentRead = page.waitForResponse((response) =>
-    response.url().endsWith(`${path}/query`),
-  )
-  await page.goto(path)
-  const payload = (await (await currentRead).json()) as {
-    code: number | string
-    message: string
-  }
-  expect(String(payload.code), payload.message).toBe('0')
-}
-
-function relationshipDeclarationRow(page: Page, code: string): Locator {
+function typedArchiveRow(page: Page, code: string): Locator {
   return page.locator('tbody tr').filter({
     has: page.locator('td[data-label="编码"]').filter({ hasText: code }),
   })
@@ -115,12 +103,12 @@ async function openOtherUnitDeclaration(
   await page.goto('/dcl/other-unit')
   await page.getByRole('textbox', { name: '其他单位编码或主体名称' }).fill(code)
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  const row = relationshipDeclarationRow(page, code)
+  const row = typedArchiveRow(page, code)
   await expect(row).toHaveCount(1)
   return row
 }
 
-async function selectRelationshipLifecycleAction(
+async function selectTypedArchiveLifecycleAction(
   page: Page,
   row: Locator,
   label: string,
@@ -139,7 +127,7 @@ async function selectRelationshipLifecycleAction(
 }
 
 test(
-  '其他单位独立申报并在批准后进入 BOB 当前档案',
+  '其他单位独立申报并在 DCL 批准后保持当前档案可见',
   { tag: '@mobile' },
   async ({ page, workerState }, testInfo) => {
     test.setTimeout(120_000)
@@ -152,7 +140,7 @@ test(
       page.getByRole('textbox', { name: '其他单位编码或主体名称' }),
     ).toBeVisible()
     await page.getByRole('button', { name: '新增', exact: true }).click()
-    const editor = page.locator('.dcl-relationship-drawer')
+    const editor = page.locator('.dcl-typed-archive-drawer')
     await editor.getByLabel('法定名称').fill(archiveName)
     await editor.getByLabel('显示名称').fill(archiveName)
     await selectAutocomplete(page, editor, '适用经营主体', '上海示例')
@@ -167,45 +155,18 @@ test(
     )?.trim()
     expect(code).toMatch(/^OTU-\d{4}$/)
 
-    let relationshipRow = await openOtherUnitDeclaration(page, code!)
-    await selectRelationshipLifecycleAction(page, relationshipRow, '提交')
+    let archiveRow = await openOtherUnitDeclaration(page, code!)
+    await selectTypedArchiveLifecycleAction(page, archiveRow, '提交')
     await dismissSupplierNotice(page, '已提交')
-    await expect(relationshipDeclarationRow(page, code!)).toContainText(
-      '待批准',
-    )
+    await expect(typedArchiveRow(page, code!)).toContainText('待批准')
     await signOut(page)
 
     await signIn(page, workerState.reviewer)
-    relationshipRow = await openOtherUnitDeclaration(page, code!)
-    await selectRelationshipLifecycleAction(page, relationshipRow, '批准')
+    archiveRow = await openOtherUnitDeclaration(page, code!)
+    await selectTypedArchiveLifecycleAction(page, archiveRow, '批准')
     await dismissSupplierNotice(page, '已批准')
-    await expect(relationshipDeclarationRow(page, code!)).toContainText(
-      '已批准',
-    )
-    await signOut(page)
-
-    await signIn(page, workerState.operator)
-    await openBobCurrentPage(page, '/bob/other-unit')
-    await expect(page.locator('tbody tr').filter({ hasText: code! })).toContainText(
-      archiveName,
-    )
-  },
-)
-
-test(
-  'BOB 客户聚合只读取当前有效资料',
-  { tag: '@mobile' },
-  async ({ page, workerState }) => {
-    await signIn(page, workerState.operator)
-    const legacyLifecycleRequests: string[] = []
-    page.on('request', (request) => {
-      const pathname = new URL(request.url()).pathname
-      if (/^\/bob\/customer\/(?!query$|get$)/.test(pathname)) {
-        legacyLifecycleRequests.push(pathname)
-      }
-    })
-    await openBobCurrentPage(page, '/bob/customer')
-    expect(legacyLifecycleRequests).toEqual([])
+    await expect(typedArchiveRow(page, code!)).toContainText('已批准')
+    await expect(typedArchiveRow(page, code!)).toContainText(archiveName)
   },
 )
 

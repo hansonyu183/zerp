@@ -4,7 +4,7 @@
 
 ## 页面与边界
 
-1. `/dcl/employee` 是员工身份、雇佣资料、启停、审批、版本和审计的唯一维护入口；`/bob/employee` 只读 current。
+1. `/dcl/employee` 是员工身份、雇佣资料、启停、审批、版本、审计和当前资料的唯一页面；`/bob/employee/query|get|reference` 只供内部 current 读取，不注册页面或菜单。
 2. 新建直接录入员工自己的个人身份、强标识、姓名、人员类别、部门、岗位、工作联系、入职日期、任职经营主体、备注与 `enabled`，不选择或创建 Party。
 3. 员工当前设置一个任职经营主体，但该字段不限制其他经营主体的订单、采购、费用或往来单据选择该员工；选择资格只由单据规则和 APP 权限决定。
 4. 保存提交完整 Employee candidate；批准后只影响新业务，历史继续保存原 Employee stable ID、精确 Approval Entry 和快照。

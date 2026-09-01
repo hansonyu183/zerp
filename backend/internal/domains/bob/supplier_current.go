@@ -29,7 +29,7 @@ func supplierTypedDetail(row dbsqlc.GetBobSupplierCurrentTypedRow) DetailView {
 }
 
 // BOB exposes only the highest APPROVED typed Supplier snapshot. It never
-// consults Party or relationship tables.
+// reads the Supplier typed snapshot directly.
 func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
 	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Supplier get request", nil, nil)

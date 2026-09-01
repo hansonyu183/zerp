@@ -1,1 +1,0 @@
-<script setup lang="ts">import TypedBusinessArchivePage from '../shared/TypedBusinessArchivePage.vue'</script><template><TypedBusinessArchivePage entity="employee" title="员工（当前有效资料）" code-label="人员编码" /></template>

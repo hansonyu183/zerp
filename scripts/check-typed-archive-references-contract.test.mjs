@@ -51,6 +51,45 @@ test('retired Party and standalone customer-account public surfaces are absent',
   ])
 })
 
+test('retired archive UI and relationship-era implementation names are absent', async () => {
+  const [
+    menuService,
+    routerRegistry,
+    schema,
+    dclQueries,
+    bobQueries,
+    referenceOptions,
+    errorMessages,
+  ] = await Promise.all([
+    source('backend/internal/domains/app/menu_service.go'),
+    source('frontend/src/router/registry.ts'),
+    source('backend/db/schema.sql'),
+    source('backend/db/queries/dcl.sql'),
+    source('backend/db/queries/bob.sql'),
+    source('frontend/src/pages/dcl/shared/bob-references.ts'),
+    source('frontend/src/api/business-error-messages.ts'),
+  ])
+
+  assert.doesNotMatch(menuService, /default-bob|Name: "业务对象"/)
+  assert.doesNotMatch(
+    routerRegistry,
+    /registerPage\('bob'|domainTitle: '业务对象'/,
+  )
+  assert.doesNotMatch(
+    `${schema}\n${dclQueries}\n${bobQueries}`,
+    /carrier_service_relationship/,
+  )
+  assert.doesNotMatch(referenceOptions, /partyDisplayName|record\.relationship/)
+  assert.doesNotMatch(errorMessages, /party_merged/)
+
+  await Promise.all([
+    assertMissing('backend/internal/domains/dcl/relationship.go'),
+    assertMissing('backend/internal/domains/dcl/relationship_handler.go'),
+    assertMissing('backend/internal/domains/dcl/relationship_query.go'),
+    assertMissing('frontend/src/pages/bob'),
+  ])
+})
+
 test('service contracts expose only typed archive counterparties', async () => {
   const [vou, schema, queries] = await Promise.all([
     source('contracts/openapi/schemas/vou.yaml'),

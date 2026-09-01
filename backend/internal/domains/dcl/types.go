@@ -76,7 +76,7 @@ type SalesPartnerData struct {
 }
 
 // SupplierInput is the mutable Supplier declaration. Supplier owns its legal
-// identity; it is not a Party relationship.
+// identity owned by the typed archive.
 type SupplierInput struct {
 	Kind                            string                    `json:"kind"`
 	LegalName                       string                    `json:"legalName"`
@@ -228,38 +228,38 @@ type SalesPartnerSaveInput struct {
 	ApprovalRevision int64            `json:"approvalRevision"`
 	Data             SalesPartnerData `json:"data"`
 }
-type RelationshipVersionInput struct {
+type TypedArchiveVersionInput struct {
 	ObjectID         string `json:"objectId"`
 	ApprovalEntryID  string `json:"approvalEntryId"`
 	ApprovalRevision int64  `json:"approvalRevision"`
 }
-type RelationshipReviewInput struct {
+type TypedArchiveReviewInput struct {
 	ObjectID         string `json:"objectId"`
 	ApprovalEntryID  string `json:"approvalEntryId"`
 	ApprovalRevision int64  `json:"approvalRevision"`
 	Reason           string `json:"reason"`
 }
-type RelationshipMutation struct {
+type TypedArchiveMutation struct {
 	ObjectID string               `json:"objectId"`
 	Enabled  bool                 `json:"enabled"`
 	Approval approval.VersionMeta `json:"approval"`
 }
-type RelationshipGetInput struct {
+type TypedArchiveGetInput struct {
 	ObjectID        string `json:"objectId"`
 	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
 }
-type RelationshipQueryInput struct {
+type TypedArchiveQueryInput struct {
 	Page     int                      `json:"page"`
 	PageSize int                      `json:"pageSize"`
-	Filters  RelationshipQueryFilters `json:"filters"`
+	Filters  TypedArchiveQueryFilters `json:"filters"`
 }
-type RelationshipQueryFilters struct {
+type TypedArchiveQueryFilters struct {
 	Keyword           string            `json:"keyword,omitempty"`
 	Status            []approval.Status `json:"status,omitempty"`
 	Enabled           *bool             `json:"enabled,omitempty"`
 	OperatingEntityID string            `json:"operatingEntityId,omitempty"`
 }
-type RelationshipHistoryInput struct {
+type TypedArchiveHistoryInput struct {
 	ObjectID string `json:"objectId"`
 	Page     int    `json:"page"`
 	PageSize int    `json:"pageSize"`

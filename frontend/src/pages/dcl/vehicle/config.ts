@@ -4,7 +4,7 @@ import {
   decimalPattern,
   patternRule,
   vinPattern,
-} from '@/pages/bob/shared/config-helpers'
+} from '@/pages/dcl/shared/bob-config-helpers'
 import {
   approvalStatusOptions,
   approvalStatusPresentation,
@@ -31,7 +31,7 @@ const fields: readonly BusinessObjectField<DclVehicleForm>[] = [
     ],
     onChange: () => ({
       carrierOperatingEntityId: '',
-      carrierServiceRelationshipObjectId: '',
+      carrierOtherUnitObjectId: '',
     }),
   },
   {
@@ -42,8 +42,8 @@ const fields: readonly BusinessObjectField<DclVehicleForm>[] = [
     visible: (form) => form.carrierType === 'INTERNAL',
   },
   {
-    key: 'carrierServiceRelationshipObjectId',
-    label: '其他单位服务关系',
+    key: 'carrierOtherUnitObjectId',
+    label: '其他单位',
     type: 'text',
     required: true,
     visible: (form) => form.carrierType === 'EXTERNAL',
@@ -78,7 +78,7 @@ export const dclVehicleConfig: DclVehicleConfig = {
     vehicleType: '',
     carrierType: 'INTERNAL',
     carrierOperatingEntityId: '',
-    carrierServiceRelationshipObjectId: '',
+    carrierOtherUnitObjectId: '',
     bulkLiquidCapable: false,
     vin: '',
     engineNumber: '',

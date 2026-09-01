@@ -318,8 +318,8 @@ func (q *Queries) CopyDCLSupplierVersionOperatingEntities(ctx context.Context, a
 }
 
 const copyDCLVehicleVersion = `-- name: CopyDCLVehicleVersion :execrows
-INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_name,vehicle_type_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable,enabled)
-SELECT $1,source.entity,source.name,source.plate_number,source.vehicle_type,source.vehicle_type_object_id,source.vehicle_type_name,source.vehicle_type_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_service_relationship_object_id,source.carrier_service_relationship_approval_entry_id,source.carrier_service_relationship_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=$2
+INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_name,vehicle_type_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_other_unit_object_id,carrier_other_unit_approval_entry_id,carrier_other_unit_entity,bulk_liquid_capable,enabled)
+SELECT $1,source.entity,source.name,source.plate_number,source.vehicle_type,source.vehicle_type_object_id,source.vehicle_type_name,source.vehicle_type_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_other_unit_object_id,source.carrier_other_unit_approval_entry_id,source.carrier_other_unit_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=$2
 `
 
 type CopyDCLVehicleVersionParams struct {
@@ -638,57 +638,6 @@ func (q *Queries) CountDCLProducts(ctx context.Context, arg CountDCLProductsPara
 	return count, err
 }
 
-const countDCLRelationshipApprovalEvents = `-- name: CountDCLRelationshipApprovalEvents :one
-SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity=$1 AND subject_id=$2
-`
-
-type CountDCLRelationshipApprovalEventsParams struct {
-	Entity   string `db:"entity" json:"entity"`
-	ObjectID string `db:"object_id" json:"object_id"`
-}
-
-func (q *Queries) CountDCLRelationshipApprovalEvents(ctx context.Context, arg CountDCLRelationshipApprovalEventsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDCLRelationshipApprovalEvents, arg.Entity, arg.ObjectID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countDCLRelationships = `-- name: CountDCLRelationships :one
-WITH selected AS (
- SELECT subject.id FROM dcl_subjects subject
- LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
- LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
- LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
- LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
- WHERE subject.entity=$1 AND ($2::text='' OR subject.code ILIKE '%'||$2::text||'%' OR COALESCE(other_snapshot.display_name,sales_snapshot.display_name) ILIKE '%'||$2::text||'%')
- AND ($3::integer=-1 OR COALESCE(other_snapshot.enabled,sales_snapshot.enabled)=($3::integer=1))
- AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
- AND ($5::text='' OR EXISTS (SELECT 1 FROM dcl_other_unit_version_operating_entities operating WHERE subject.entity='other-unit' AND operating.approval_entry_id=other_snapshot.approval_entry_id AND operating.operating_entity_id=$5) OR EXISTS (SELECT 1 FROM dcl_sales_partner_version_operating_entities operating WHERE subject.entity='sales-partner' AND operating.approval_entry_id=sales_snapshot.approval_entry_id AND operating.operating_entity_id=$5))
-) SELECT count(*) FROM selected
-`
-
-type CountDCLRelationshipsParams struct {
-	Entity            string   `db:"entity" json:"entity"`
-	Keyword           string   `db:"keyword" json:"keyword"`
-	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter      []string `db:"status_filter" json:"status_filter"`
-	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
-}
-
-func (q *Queries) CountDCLRelationships(ctx context.Context, arg CountDCLRelationshipsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDCLRelationships,
-		arg.Entity,
-		arg.Keyword,
-		arg.EnabledFilter,
-		arg.StatusFilter,
-		arg.OperatingEntityID,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countDCLSupplierApprovalEvents = `-- name: CountDCLSupplierApprovalEvents :one
 SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='supplier' AND subject_id=$1
 `
@@ -721,6 +670,57 @@ func (q *Queries) CountDCLSuppliers(ctx context.Context, arg CountDCLSuppliersPa
 		arg.EnabledFilter,
 		arg.OperatingEntityID,
 		arg.StatusFilter,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLTypedArchiveApprovalEvents = `-- name: CountDCLTypedArchiveApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity=$1 AND subject_id=$2
+`
+
+type CountDCLTypedArchiveApprovalEventsParams struct {
+	Entity   string `db:"entity" json:"entity"`
+	ObjectID string `db:"object_id" json:"object_id"`
+}
+
+func (q *Queries) CountDCLTypedArchiveApprovalEvents(ctx context.Context, arg CountDCLTypedArchiveApprovalEventsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLTypedArchiveApprovalEvents, arg.Entity, arg.ObjectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLTypedArchives = `-- name: CountDCLTypedArchives :one
+WITH selected AS (
+ SELECT subject.id FROM dcl_subjects subject
+ LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
+ LEFT JOIN LATERAL (SELECT id,status,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+ LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
+ LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
+ WHERE subject.entity=$1 AND ($2::text='' OR subject.code ILIKE '%'||$2::text||'%' OR COALESCE(other_snapshot.display_name,sales_snapshot.display_name) ILIKE '%'||$2::text||'%')
+ AND ($3::integer=-1 OR COALESCE(other_snapshot.enabled,sales_snapshot.enabled)=($3::integer=1))
+ AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
+ AND ($5::text='' OR EXISTS (SELECT 1 FROM dcl_other_unit_version_operating_entities operating WHERE subject.entity='other-unit' AND operating.approval_entry_id=other_snapshot.approval_entry_id AND operating.operating_entity_id=$5) OR EXISTS (SELECT 1 FROM dcl_sales_partner_version_operating_entities operating WHERE subject.entity='sales-partner' AND operating.approval_entry_id=sales_snapshot.approval_entry_id AND operating.operating_entity_id=$5))
+) SELECT count(*) FROM selected
+`
+
+type CountDCLTypedArchivesParams struct {
+	Entity            string   `db:"entity" json:"entity"`
+	Keyword           string   `db:"keyword" json:"keyword"`
+	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter      []string `db:"status_filter" json:"status_filter"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+}
+
+func (q *Queries) CountDCLTypedArchives(ctx context.Context, arg CountDCLTypedArchivesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLTypedArchives,
+		arg.Entity,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.OperatingEntityID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -1766,7 +1766,7 @@ WITH selected_entries AS (
    WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status='APPROVED'
    ORDER BY version_no DESC LIMIT 1)
 ), selected_versions AS (
-  SELECT version.approval_entry_id, version.entity, version.name, version.plate_number, version.vehicle_type, version.vehicle_type_object_id, version.vehicle_type_name, version.vehicle_type_entity, version.vin, version.engine_number, version.load_capacity_kg, version.remark, version.carrier_affiliation_type, version.carrier_operating_entity_id, version.carrier_operating_entity_approval_entry_id, version.carrier_operating_entity, version.carrier_service_relationship_object_id, version.carrier_service_relationship_approval_entry_id, version.carrier_service_relationship_entity, version.bulk_liquid_capable, version.enabled FROM selected_entries entry
+  SELECT version.approval_entry_id, version.entity, version.name, version.plate_number, version.vehicle_type, version.vehicle_type_object_id, version.vehicle_type_name, version.vehicle_type_entity, version.vin, version.engine_number, version.load_capacity_kg, version.remark, version.carrier_affiliation_type, version.carrier_operating_entity_id, version.carrier_operating_entity_approval_entry_id, version.carrier_operating_entity, version.carrier_other_unit_object_id, version.carrier_other_unit_approval_entry_id, version.carrier_other_unit_entity, version.bulk_liquid_capable, version.enabled FROM selected_entries entry
   JOIN dcl_vehicle_versions version ON version.approval_entry_id=entry.id
 ), desired AS (
   SELECT 'PLATE'::text AS identifier_kind,upper(btrim(plate_number)) AS normalized_value FROM selected_versions
@@ -2072,7 +2072,7 @@ func (q *Queries) GetDCLSupplierVersion(ctx context.Context, approvalEntryID str
 }
 
 const getDCLVehicleVersion = `-- name: GetDCLVehicleVersion :one
-SELECT approval_entry_id, entity, name, plate_number, vehicle_type, vehicle_type_object_id, vehicle_type_name, vehicle_type_entity, vin, engine_number, load_capacity_kg, remark, carrier_affiliation_type, carrier_operating_entity_id, carrier_operating_entity_approval_entry_id, carrier_operating_entity, carrier_service_relationship_object_id, carrier_service_relationship_approval_entry_id, carrier_service_relationship_entity, bulk_liquid_capable, enabled FROM dcl_vehicle_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, entity, name, plate_number, vehicle_type, vehicle_type_object_id, vehicle_type_name, vehicle_type_entity, vin, engine_number, load_capacity_kg, remark, carrier_affiliation_type, carrier_operating_entity_id, carrier_operating_entity_approval_entry_id, carrier_operating_entity, carrier_other_unit_object_id, carrier_other_unit_approval_entry_id, carrier_other_unit_entity, bulk_liquid_capable, enabled FROM dcl_vehicle_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLVehicleVersion(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error) {
@@ -2095,9 +2095,9 @@ func (q *Queries) GetDCLVehicleVersion(ctx context.Context, approvalEntryID stri
 		&i.CarrierOperatingEntityID,
 		&i.CarrierOperatingEntityApprovalEntryID,
 		&i.CarrierOperatingEntity,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
-		&i.CarrierServiceRelationshipEntity,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
+		&i.CarrierOtherUnitEntity,
 		&i.BulkLiquidCapable,
 		&i.Enabled,
 	)
@@ -2928,28 +2928,28 @@ func (q *Queries) InsertDCLSupplierVersionOperatingEntity(ctx context.Context, a
 }
 
 const insertDCLVehicleVersion = `-- name: InsertDCLVehicleVersion :exec
-INSERT INTO dcl_vehicle_versions(approval_entry_id,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_name,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,bulk_liquid_capable,enabled)
+INSERT INTO dcl_vehicle_versions(approval_entry_id,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_name,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_other_unit_object_id,carrier_other_unit_approval_entry_id,bulk_liquid_capable,enabled)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 `
 
 type InsertDCLVehicleVersionParams struct {
-	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
-	Name                                      string         `db:"name" json:"name"`
-	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
-	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
-	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
-	Vin                                       *string        `db:"vin" json:"vin"`
-	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string        `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
-	Enabled                                   bool           `db:"enabled" json:"enabled"`
+	ApprovalEntryID                       string         `db:"approval_entry_id" json:"approval_entry_id"`
+	Name                                  string         `db:"name" json:"name"`
+	PlateNumber                           string         `db:"plate_number" json:"plate_number"`
+	VehicleType                           string         `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                   string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeName                       string         `db:"vehicle_type_name" json:"vehicle_type_name"`
+	Vin                                   *string        `db:"vin" json:"vin"`
+	EngineNumber                          *string        `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                        pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                *string        `db:"remark" json:"remark"`
+	CarrierAffiliationType                string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID              *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOtherUnitObjectID              *string        `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string        `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	BulkLiquidCapable                     bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	Enabled                               bool           `db:"enabled" json:"enabled"`
 }
 
 func (q *Queries) InsertDCLVehicleVersion(ctx context.Context, arg InsertDCLVehicleVersionParams) error {
@@ -2967,8 +2967,8 @@ func (q *Queries) InsertDCLVehicleVersion(ctx context.Context, arg InsertDCLVehi
 		arg.CarrierAffiliationType,
 		arg.CarrierOperatingEntityID,
 		arg.CarrierOperatingEntityApprovalEntryID,
-		arg.CarrierServiceRelationshipObjectID,
-		arg.CarrierServiceRelationshipApprovalEntryID,
+		arg.CarrierOtherUnitObjectID,
+		arg.CarrierOtherUnitApprovalEntryID,
 		arg.BulkLiquidCapable,
 		arg.Enabled,
 	)
@@ -4084,147 +4084,6 @@ func (q *Queries) ListDCLProducts(ctx context.Context, arg ListDCLProductsParams
 	return items, nil
 }
 
-const listDCLRelationshipApprovalEvents = `-- name: ListDCLRelationshipApprovalEvents :many
-SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
-FROM approval_events WHERE domain='dcl' AND entity=$1 AND subject_id=$2
-ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $3
-`
-
-type ListDCLRelationshipApprovalEventsParams struct {
-	Entity    string `db:"entity" json:"entity"`
-	ObjectID  string `db:"object_id" json:"object_id"`
-	RowOffset int32  `db:"row_offset" json:"row_offset"`
-	RowLimit  int32  `db:"row_limit" json:"row_limit"`
-}
-
-func (q *Queries) ListDCLRelationshipApprovalEvents(ctx context.Context, arg ListDCLRelationshipApprovalEventsParams) ([]ApprovalEvent, error) {
-	rows, err := q.db.Query(ctx, listDCLRelationshipApprovalEvents,
-		arg.Entity,
-		arg.ObjectID,
-		arg.RowOffset,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ApprovalEvent{}
-	for rows.Next() {
-		var i ApprovalEvent
-		if err := rows.Scan(
-			&i.ID,
-			&i.EntryID,
-			&i.Domain,
-			&i.Entity,
-			&i.SubjectID,
-			&i.VersionNo,
-			&i.Action,
-			&i.FromStatus,
-			&i.ToStatus,
-			&i.FromRevision,
-			&i.ToRevision,
-			&i.ActorID,
-			&i.Reason,
-			&i.RequestID,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listDCLRelationships = `-- name: ListDCLRelationships :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.tax_number,sales_snapshot.tax_number) AS tax_number,
- COALESCE(other_snapshot.default_operating_entity_id,sales_snapshot.default_operating_entity_id) AS default_operating_entity_id,COALESCE(other_snapshot.default_operating_entity_approval_entry_id,sales_snapshot.default_operating_entity_approval_entry_id) AS default_operating_entity_approval_entry_id,COALESCE(other_snapshot.default_operating_entity_code,sales_snapshot.default_operating_entity_code) AS default_operating_entity_code,COALESCE(other_snapshot.default_operating_entity_name,sales_snapshot.default_operating_entity_name) AS default_operating_entity_name,
- COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
- COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
-FROM dcl_subjects subject
-LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
-LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
-LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
-LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
-WHERE subject.entity=$1 AND ($2::text='' OR subject.code ILIKE '%'||$2::text||'%' OR COALESCE(other_snapshot.display_name,sales_snapshot.display_name) ILIKE '%'||$2::text||'%')
- AND ($3::integer=-1 OR COALESCE(other_snapshot.enabled,sales_snapshot.enabled)=($3::integer=1))
- AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
- AND ($5::text='' OR EXISTS (SELECT 1 FROM dcl_other_unit_version_operating_entities operating WHERE subject.entity='other-unit' AND operating.approval_entry_id=other_snapshot.approval_entry_id AND operating.operating_entity_id=$5) OR EXISTS (SELECT 1 FROM dcl_sales_partner_version_operating_entities operating WHERE subject.entity='sales-partner' AND operating.approval_entry_id=sales_snapshot.approval_entry_id AND operating.operating_entity_id=$5))
-ORDER BY COALESCE(candidate.updated_at,approved.updated_at) DESC,subject.id DESC LIMIT $7 OFFSET $6
-`
-
-type ListDCLRelationshipsParams struct {
-	Entity            string   `db:"entity" json:"entity"`
-	Keyword           string   `db:"keyword" json:"keyword"`
-	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter      []string `db:"status_filter" json:"status_filter"`
-	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
-	RowOffset         int32    `db:"row_offset" json:"row_offset"`
-	RowLimit          int32    `db:"row_limit" json:"row_limit"`
-}
-
-type ListDCLRelationshipsRow struct {
-	ObjectID                              string             `db:"object_id" json:"object_id"`
-	Code                                  string             `db:"code" json:"code"`
-	Kind                                  string             `db:"kind" json:"kind"`
-	LegalName                             string             `db:"legal_name" json:"legal_name"`
-	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
-	DefaultOperatingEntityID              string             `db:"default_operating_entity_id" json:"default_operating_entity_id"`
-	DefaultOperatingEntityApprovalEntryID string             `db:"default_operating_entity_approval_entry_id" json:"default_operating_entity_approval_entry_id"`
-	DefaultOperatingEntityCode            string             `db:"default_operating_entity_code" json:"default_operating_entity_code"`
-	DefaultOperatingEntityName            string             `db:"default_operating_entity_name" json:"default_operating_entity_name"`
-	Enabled                               bool               `db:"enabled" json:"enabled"`
-	UpdatedAt                             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	ApprovedEntryID                       string             `db:"approved_entry_id" json:"approved_entry_id"`
-	OpenEntryID                           string             `db:"open_entry_id" json:"open_entry_id"`
-}
-
-func (q *Queries) ListDCLRelationships(ctx context.Context, arg ListDCLRelationshipsParams) ([]ListDCLRelationshipsRow, error) {
-	rows, err := q.db.Query(ctx, listDCLRelationships,
-		arg.Entity,
-		arg.Keyword,
-		arg.EnabledFilter,
-		arg.StatusFilter,
-		arg.OperatingEntityID,
-		arg.RowOffset,
-		arg.RowLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListDCLRelationshipsRow{}
-	for rows.Next() {
-		var i ListDCLRelationshipsRow
-		if err := rows.Scan(
-			&i.ObjectID,
-			&i.Code,
-			&i.Kind,
-			&i.LegalName,
-			&i.DisplayName,
-			&i.TaxNumber,
-			&i.DefaultOperatingEntityID,
-			&i.DefaultOperatingEntityApprovalEntryID,
-			&i.DefaultOperatingEntityCode,
-			&i.DefaultOperatingEntityName,
-			&i.Enabled,
-			&i.UpdatedAt,
-			&i.ApprovedEntryID,
-			&i.OpenEntryID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDCLSalesPartnerVersionIdentifiers = `-- name: ListDCLSalesPartnerVersionIdentifiers :many
 SELECT identifier.approval_entry_id,identifier.identifier_type,identifier.value,identifier.normalized_value FROM dcl_sales_partner_version_identifiers identifier WHERE identifier.approval_entry_id=$1 ORDER BY identifier.identifier_type,identifier.normalized_value
 `
@@ -4459,6 +4318,147 @@ func (q *Queries) ListDCLSuppliers(ctx context.Context, arg ListDCLSuppliersPara
 			&i.Enabled,
 			&i.UpdatedAt,
 			&i.LatestApprovedEntryID,
+			&i.OpenEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLTypedArchiveApprovalEvents = `-- name: ListDCLTypedArchiveApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM approval_events WHERE domain='dcl' AND entity=$1 AND subject_id=$2
+ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $3
+`
+
+type ListDCLTypedArchiveApprovalEventsParams struct {
+	Entity    string `db:"entity" json:"entity"`
+	ObjectID  string `db:"object_id" json:"object_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLTypedArchiveApprovalEvents(ctx context.Context, arg ListDCLTypedArchiveApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLTypedArchiveApprovalEvents,
+		arg.Entity,
+		arg.ObjectID,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLTypedArchives = `-- name: ListDCLTypedArchives :many
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.tax_number,sales_snapshot.tax_number) AS tax_number,
+ COALESCE(other_snapshot.default_operating_entity_id,sales_snapshot.default_operating_entity_id) AS default_operating_entity_id,COALESCE(other_snapshot.default_operating_entity_approval_entry_id,sales_snapshot.default_operating_entity_approval_entry_id) AS default_operating_entity_approval_entry_id,COALESCE(other_snapshot.default_operating_entity_code,sales_snapshot.default_operating_entity_code) AS default_operating_entity_code,COALESCE(other_snapshot.default_operating_entity_name,sales_snapshot.default_operating_entity_name) AS default_operating_entity_name,
+ COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
+ COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+FROM dcl_subjects subject
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity=subject.entity AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+LEFT JOIN dcl_other_unit_versions other_snapshot ON subject.entity='other-unit' AND other_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
+LEFT JOIN dcl_sales_partner_versions sales_snapshot ON subject.entity='sales-partner' AND sales_snapshot.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity=$1 AND ($2::text='' OR subject.code ILIKE '%'||$2::text||'%' OR COALESCE(other_snapshot.display_name,sales_snapshot.display_name) ILIKE '%'||$2::text||'%')
+ AND ($3::integer=-1 OR COALESCE(other_snapshot.enabled,sales_snapshot.enabled)=($3::integer=1))
+ AND (cardinality($4::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($4::text[]))
+ AND ($5::text='' OR EXISTS (SELECT 1 FROM dcl_other_unit_version_operating_entities operating WHERE subject.entity='other-unit' AND operating.approval_entry_id=other_snapshot.approval_entry_id AND operating.operating_entity_id=$5) OR EXISTS (SELECT 1 FROM dcl_sales_partner_version_operating_entities operating WHERE subject.entity='sales-partner' AND operating.approval_entry_id=sales_snapshot.approval_entry_id AND operating.operating_entity_id=$5))
+ORDER BY COALESCE(candidate.updated_at,approved.updated_at) DESC,subject.id DESC LIMIT $7 OFFSET $6
+`
+
+type ListDCLTypedArchivesParams struct {
+	Entity            string   `db:"entity" json:"entity"`
+	Keyword           string   `db:"keyword" json:"keyword"`
+	EnabledFilter     int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter      []string `db:"status_filter" json:"status_filter"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+	RowOffset         int32    `db:"row_offset" json:"row_offset"`
+	RowLimit          int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLTypedArchivesRow struct {
+	ObjectID                              string             `db:"object_id" json:"object_id"`
+	Code                                  string             `db:"code" json:"code"`
+	Kind                                  string             `db:"kind" json:"kind"`
+	LegalName                             string             `db:"legal_name" json:"legal_name"`
+	DisplayName                           string             `db:"display_name" json:"display_name"`
+	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	DefaultOperatingEntityID              string             `db:"default_operating_entity_id" json:"default_operating_entity_id"`
+	DefaultOperatingEntityApprovalEntryID string             `db:"default_operating_entity_approval_entry_id" json:"default_operating_entity_approval_entry_id"`
+	DefaultOperatingEntityCode            string             `db:"default_operating_entity_code" json:"default_operating_entity_code"`
+	DefaultOperatingEntityName            string             `db:"default_operating_entity_name" json:"default_operating_entity_name"`
+	Enabled                               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovedEntryID                       string             `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID                           string             `db:"open_entry_id" json:"open_entry_id"`
+}
+
+func (q *Queries) ListDCLTypedArchives(ctx context.Context, arg ListDCLTypedArchivesParams) ([]ListDCLTypedArchivesRow, error) {
+	rows, err := q.db.Query(ctx, listDCLTypedArchives,
+		arg.Entity,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.OperatingEntityID,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLTypedArchivesRow{}
+	for rows.Next() {
+		var i ListDCLTypedArchivesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.Kind,
+			&i.LegalName,
+			&i.DisplayName,
+			&i.TaxNumber,
+			&i.DefaultOperatingEntityID,
+			&i.DefaultOperatingEntityApprovalEntryID,
+			&i.DefaultOperatingEntityCode,
+			&i.DefaultOperatingEntityName,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.ApprovedEntryID,
 			&i.OpenEntryID,
 		); err != nil {
 			return nil, err
@@ -5307,7 +5307,7 @@ WITH selected_entries AS (
    WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status='APPROVED'
    ORDER BY version_no DESC LIMIT 1)
 ), selected_versions AS (
-  SELECT version.approval_entry_id, version.entity, version.name, version.plate_number, version.vehicle_type, version.vehicle_type_object_id, version.vehicle_type_name, version.vehicle_type_entity, version.vin, version.engine_number, version.load_capacity_kg, version.remark, version.carrier_affiliation_type, version.carrier_operating_entity_id, version.carrier_operating_entity_approval_entry_id, version.carrier_operating_entity, version.carrier_service_relationship_object_id, version.carrier_service_relationship_approval_entry_id, version.carrier_service_relationship_entity, version.bulk_liquid_capable, version.enabled,entry.id AS selected_entry_id,entry.status AS selected_status
+  SELECT version.approval_entry_id, version.entity, version.name, version.plate_number, version.vehicle_type, version.vehicle_type_object_id, version.vehicle_type_name, version.vehicle_type_entity, version.vin, version.engine_number, version.load_capacity_kg, version.remark, version.carrier_affiliation_type, version.carrier_operating_entity_id, version.carrier_operating_entity_approval_entry_id, version.carrier_operating_entity, version.carrier_other_unit_object_id, version.carrier_other_unit_approval_entry_id, version.carrier_other_unit_entity, version.bulk_liquid_capable, version.enabled,entry.id AS selected_entry_id,entry.status AS selected_status
   FROM selected_entries entry
   JOIN dcl_vehicle_versions version ON version.approval_entry_id=entry.id
 ), identifiers AS (
@@ -5702,27 +5702,27 @@ func (q *Queries) UpdateDCLSupplierVersion(ctx context.Context, arg UpdateDCLSup
 }
 
 const updateDCLVehicleVersion = `-- name: UpdateDCLVehicleVersion :execrows
-UPDATE dcl_vehicle_versions SET name=$1,plate_number=$2,vehicle_type=$3,vehicle_type_object_id=$4,vehicle_type_name=$5,vin=$6,engine_number=$7,load_capacity_kg=$8,remark=$9,carrier_affiliation_type=$10,carrier_operating_entity_id=$11,carrier_operating_entity_approval_entry_id=$12,carrier_service_relationship_object_id=$13,carrier_service_relationship_approval_entry_id=$14,bulk_liquid_capable=$15,enabled=$16 WHERE approval_entry_id=$17
+UPDATE dcl_vehicle_versions SET name=$1,plate_number=$2,vehicle_type=$3,vehicle_type_object_id=$4,vehicle_type_name=$5,vin=$6,engine_number=$7,load_capacity_kg=$8,remark=$9,carrier_affiliation_type=$10,carrier_operating_entity_id=$11,carrier_operating_entity_approval_entry_id=$12,carrier_other_unit_object_id=$13,carrier_other_unit_approval_entry_id=$14,bulk_liquid_capable=$15,enabled=$16 WHERE approval_entry_id=$17
 `
 
 type UpdateDCLVehicleVersionParams struct {
-	Name                                      string         `db:"name" json:"name"`
-	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
-	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
-	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
-	Vin                                       *string        `db:"vin" json:"vin"`
-	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string        `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
-	Enabled                                   bool           `db:"enabled" json:"enabled"`
-	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
+	Name                                  string         `db:"name" json:"name"`
+	PlateNumber                           string         `db:"plate_number" json:"plate_number"`
+	VehicleType                           string         `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                   string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeName                       string         `db:"vehicle_type_name" json:"vehicle_type_name"`
+	Vin                                   *string        `db:"vin" json:"vin"`
+	EngineNumber                          *string        `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                        pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                *string        `db:"remark" json:"remark"`
+	CarrierAffiliationType                string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID              *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOtherUnitObjectID              *string        `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string        `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	BulkLiquidCapable                     bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	Enabled                               bool           `db:"enabled" json:"enabled"`
+	ApprovalEntryID                       string         `db:"approval_entry_id" json:"approval_entry_id"`
 }
 
 func (q *Queries) UpdateDCLVehicleVersion(ctx context.Context, arg UpdateDCLVehicleVersionParams) (int64, error) {
@@ -5739,8 +5739,8 @@ func (q *Queries) UpdateDCLVehicleVersion(ctx context.Context, arg UpdateDCLVehi
 		arg.CarrierAffiliationType,
 		arg.CarrierOperatingEntityID,
 		arg.CarrierOperatingEntityApprovalEntryID,
-		arg.CarrierServiceRelationshipObjectID,
-		arg.CarrierServiceRelationshipApprovalEntryID,
+		arg.CarrierOtherUnitObjectID,
+		arg.CarrierOtherUnitApprovalEntryID,
 		arg.BulkLiquidCapable,
 		arg.Enabled,
 		arg.ApprovalEntryID,

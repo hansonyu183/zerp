@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func archivePage(input RelationshipQueryInput) (int32, int32, []string, error) {
+func archivePage(input TypedArchiveQueryInput) (int32, int32, []string, error) {
 	offset, ok := dclPageOffset(input.Page, input.PageSize)
 	if !ok {
 		return 0, 0, nil, newError(ErrorValidation, "validation_failed", "invalid business archive query", nil, nil)
@@ -33,11 +33,11 @@ func archivePage(input RelationshipQueryInput) (int32, int32, []string, error) {
 	return offset, enabled, statuses, nil
 }
 
-func archiveDefault(row dbsqlc.ListDCLRelationshipsRow) BusinessArchiveSnapshot {
+func archiveDefault(row dbsqlc.ListDCLTypedArchivesRow) BusinessArchiveSnapshot {
 	return BusinessArchiveSnapshot{SourceObjectID: row.DefaultOperatingEntityID, ApprovalEntryID: row.DefaultOperatingEntityApprovalEntryID, Code: row.DefaultOperatingEntityCode, Name: row.DefaultOperatingEntityName}
 }
 
-func (s *RelationshipService) QueryOtherUnits(ctx context.Context, input RelationshipQueryInput, actor approval.Actor) (Page[OtherUnitQueryItem], error) {
+func (s *TypedArchiveService) QueryOtherUnits(ctx context.Context, input TypedArchiveQueryInput, actor approval.Actor) (Page[OtherUnitQueryItem], error) {
 	offset, enabled, statuses, err := archivePage(input)
 	if err != nil {
 		return Page[OtherUnitQueryItem]{}, err
@@ -45,12 +45,12 @@ func (s *RelationshipService) QueryOtherUnits(ctx context.Context, input Relatio
 	if err = s.other.Authorize(ctx, actor, "query"); err != nil {
 		return Page[OtherUnitQueryItem]{}, translateError(err)
 	}
-	params := dbsqlc.ListDCLRelationshipsParams{Entity: EntityOtherUnit, Keyword: strings.TrimSpace(input.Filters.Keyword), OperatingEntityID: strings.TrimSpace(input.Filters.OperatingEntityID), EnabledFilter: enabled, StatusFilter: statuses, RowOffset: offset, RowLimit: int32(input.PageSize)}
-	rows, err := s.queries.ListDCLRelationships(ctx, params)
+	params := dbsqlc.ListDCLTypedArchivesParams{Entity: EntityOtherUnit, Keyword: strings.TrimSpace(input.Filters.Keyword), OperatingEntityID: strings.TrimSpace(input.Filters.OperatingEntityID), EnabledFilter: enabled, StatusFilter: statuses, RowOffset: offset, RowLimit: int32(input.PageSize)}
+	rows, err := s.queries.ListDCLTypedArchives(ctx, params)
 	if err != nil {
 		return Page[OtherUnitQueryItem]{}, translateError(err)
 	}
-	total, err := s.queries.CountDCLRelationships(ctx, dbsqlc.CountDCLRelationshipsParams{Entity: params.Entity, Keyword: params.Keyword, OperatingEntityID: params.OperatingEntityID, EnabledFilter: params.EnabledFilter, StatusFilter: params.StatusFilter})
+	total, err := s.queries.CountDCLTypedArchives(ctx, dbsqlc.CountDCLTypedArchivesParams{Entity: params.Entity, Keyword: params.Keyword, OperatingEntityID: params.OperatingEntityID, EnabledFilter: params.EnabledFilter, StatusFilter: params.StatusFilter})
 	if err != nil {
 		return Page[OtherUnitQueryItem]{}, translateError(err)
 	}
@@ -83,7 +83,7 @@ func (s *RelationshipService) QueryOtherUnits(ctx context.Context, input Relatio
 	return Page[OtherUnitQueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *RelationshipService) QuerySalesPartners(ctx context.Context, input RelationshipQueryInput, actor approval.Actor) (Page[SalesPartnerQueryItem], error) {
+func (s *TypedArchiveService) QuerySalesPartners(ctx context.Context, input TypedArchiveQueryInput, actor approval.Actor) (Page[SalesPartnerQueryItem], error) {
 	offset, enabled, statuses, err := archivePage(input)
 	if err != nil {
 		return Page[SalesPartnerQueryItem]{}, err
@@ -91,12 +91,12 @@ func (s *RelationshipService) QuerySalesPartners(ctx context.Context, input Rela
 	if err = s.sales.Authorize(ctx, actor, "query"); err != nil {
 		return Page[SalesPartnerQueryItem]{}, translateError(err)
 	}
-	params := dbsqlc.ListDCLRelationshipsParams{Entity: EntitySalesPartner, Keyword: strings.TrimSpace(input.Filters.Keyword), OperatingEntityID: strings.TrimSpace(input.Filters.OperatingEntityID), EnabledFilter: enabled, StatusFilter: statuses, RowOffset: offset, RowLimit: int32(input.PageSize)}
-	rows, err := s.queries.ListDCLRelationships(ctx, params)
+	params := dbsqlc.ListDCLTypedArchivesParams{Entity: EntitySalesPartner, Keyword: strings.TrimSpace(input.Filters.Keyword), OperatingEntityID: strings.TrimSpace(input.Filters.OperatingEntityID), EnabledFilter: enabled, StatusFilter: statuses, RowOffset: offset, RowLimit: int32(input.PageSize)}
+	rows, err := s.queries.ListDCLTypedArchives(ctx, params)
 	if err != nil {
 		return Page[SalesPartnerQueryItem]{}, translateError(err)
 	}
-	total, err := s.queries.CountDCLRelationships(ctx, dbsqlc.CountDCLRelationshipsParams{Entity: params.Entity, Keyword: params.Keyword, OperatingEntityID: params.OperatingEntityID, EnabledFilter: params.EnabledFilter, StatusFilter: params.StatusFilter})
+	total, err := s.queries.CountDCLTypedArchives(ctx, dbsqlc.CountDCLTypedArchivesParams{Entity: params.Entity, Keyword: params.Keyword, OperatingEntityID: params.OperatingEntityID, EnabledFilter: params.EnabledFilter, StatusFilter: params.StatusFilter})
 	if err != nil {
 		return Page[SalesPartnerQueryItem]{}, translateError(err)
 	}
@@ -129,7 +129,7 @@ func (s *RelationshipService) QuerySalesPartners(ctx context.Context, input Rela
 	return Page[SalesPartnerQueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *RelationshipService) otherVersion(ctx context.Context, entryID, objectID string) (OtherUnitVersionView, error) {
+func (s *TypedArchiveService) otherVersion(ctx context.Context, entryID, objectID string) (OtherUnitVersionView, error) {
 	entry, err := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntityOtherUnit})
 	if err != nil {
 		return OtherUnitVersionView{}, translateError(err)
@@ -143,7 +143,7 @@ func (s *RelationshipService) otherVersion(ctx context.Context, entryID, objectI
 	}
 	return OtherUnitVersionView{Approval: approval.VersionMetaFromEntry(approvalEntry(entry)), Data: data}, nil
 }
-func (s *RelationshipService) salesVersion(ctx context.Context, entryID, objectID string) (SalesPartnerVersionView, error) {
+func (s *TypedArchiveService) salesVersion(ctx context.Context, entryID, objectID string) (SalesPartnerVersionView, error) {
 	entry, err := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntitySalesPartner})
 	if err != nil {
 		return SalesPartnerVersionView{}, translateError(err)
@@ -158,7 +158,7 @@ func (s *RelationshipService) salesVersion(ctx context.Context, entryID, objectI
 	return SalesPartnerVersionView{Approval: approval.VersionMetaFromEntry(approvalEntry(entry)), Data: data}, nil
 }
 
-func (s *RelationshipService) GetOtherUnit(ctx context.Context, input RelationshipGetInput, actor approval.Actor) (OtherUnitView, error) {
+func (s *TypedArchiveService) GetOtherUnit(ctx context.Context, input TypedArchiveGetInput, actor approval.Actor) (OtherUnitView, error) {
 	if !validID(input.ObjectID) || !validActor(actor) {
 		return OtherUnitView{}, newError(ErrorValidation, "validation_failed", "invalid Other Unit get", nil, nil)
 	}
@@ -193,7 +193,7 @@ func (s *RelationshipService) GetOtherUnit(ctx context.Context, input Relationsh
 	}
 	return OtherUnitView{ObjectID: id.ObjectID, Entity: EntityOtherUnit, Code: id.Code, Approval: approval.VersionMetaFromEntry(entry), Data: data, UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.other.LifecycleActions(entry, actor)}, nil
 }
-func (s *RelationshipService) GetSalesPartner(ctx context.Context, input RelationshipGetInput, actor approval.Actor) (SalesPartnerView, error) {
+func (s *TypedArchiveService) GetSalesPartner(ctx context.Context, input TypedArchiveGetInput, actor approval.Actor) (SalesPartnerView, error) {
 	if !validID(input.ObjectID) || !validActor(actor) {
 		return SalesPartnerView{}, newError(ErrorValidation, "validation_failed", "invalid Sales Partner get", nil, nil)
 	}
@@ -229,10 +229,10 @@ func (s *RelationshipService) GetSalesPartner(ctx context.Context, input Relatio
 	return SalesPartnerView{ObjectID: id.ObjectID, Entity: EntitySalesPartner, Code: id.Code, Approval: approval.VersionMetaFromEntry(entry), Data: data, UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.sales.LifecycleActions(entry, actor)}, nil
 }
 
-func (s *RelationshipService) OtherUnitVersions(ctx context.Context, input RelationshipHistoryInput, actor approval.Actor) (Page[OtherUnitVersionView], error) {
+func (s *TypedArchiveService) OtherUnitVersions(ctx context.Context, input TypedArchiveHistoryInput, actor approval.Actor) (Page[OtherUnitVersionView], error) {
 	return s.otherVersions(ctx, input, actor)
 }
-func (s *RelationshipService) otherVersions(ctx context.Context, input RelationshipHistoryInput, actor approval.Actor) (Page[OtherUnitVersionView], error) {
+func (s *TypedArchiveService) otherVersions(ctx context.Context, input TypedArchiveHistoryInput, actor approval.Actor) (Page[OtherUnitVersionView], error) {
 	if _, ok := dclPageOffset(input.Page, input.PageSize); !ok || !validID(input.ObjectID) {
 		return Page[OtherUnitVersionView]{}, newError(ErrorValidation, "validation_failed", "invalid Other Unit history", nil, nil)
 	}
@@ -255,7 +255,7 @@ func (s *RelationshipService) otherVersions(ctx context.Context, input Relations
 	}
 	return Page[OtherUnitVersionView]{Items: items, Total: int64(len(items)), Page: input.Page, PageSize: input.PageSize}, nil
 }
-func (s *RelationshipService) SalesPartnerVersions(ctx context.Context, input RelationshipHistoryInput, actor approval.Actor) (Page[SalesPartnerVersionView], error) {
+func (s *TypedArchiveService) SalesPartnerVersions(ctx context.Context, input TypedArchiveHistoryInput, actor approval.Actor) (Page[SalesPartnerVersionView], error) {
 	if _, ok := dclPageOffset(input.Page, input.PageSize); !ok || !validID(input.ObjectID) {
 		return Page[SalesPartnerVersionView]{}, newError(ErrorValidation, "validation_failed", "invalid Sales Partner history", nil, nil)
 	}
@@ -278,13 +278,13 @@ func (s *RelationshipService) SalesPartnerVersions(ctx context.Context, input Re
 	}
 	return Page[SalesPartnerVersionView]{Items: items, Total: int64(len(items)), Page: input.Page, PageSize: input.PageSize}, nil
 }
-func (s *RelationshipService) OtherUnitAuditHistory(ctx context.Context, input RelationshipHistoryInput, actor approval.Actor) (Page[approval.EventView], error) {
+func (s *TypedArchiveService) OtherUnitAuditHistory(ctx context.Context, input TypedArchiveHistoryInput, actor approval.Actor) (Page[approval.EventView], error) {
 	return s.archiveAudit(ctx, EntityOtherUnit, input, actor)
 }
-func (s *RelationshipService) SalesPartnerAuditHistory(ctx context.Context, input RelationshipHistoryInput, actor approval.Actor) (Page[approval.EventView], error) {
+func (s *TypedArchiveService) SalesPartnerAuditHistory(ctx context.Context, input TypedArchiveHistoryInput, actor approval.Actor) (Page[approval.EventView], error) {
 	return s.archiveAudit(ctx, EntitySalesPartner, input, actor)
 }
-func (s *RelationshipService) archiveAudit(ctx context.Context, entity string, input RelationshipHistoryInput, actor approval.Actor) (Page[approval.EventView], error) {
+func (s *TypedArchiveService) archiveAudit(ctx context.Context, entity string, input TypedArchiveHistoryInput, actor approval.Actor) (Page[approval.EventView], error) {
 	offset, ok := dclPageOffset(input.Page, input.PageSize)
 	if !ok || !validID(input.ObjectID) {
 		return Page[approval.EventView]{}, newError(ErrorValidation, "validation_failed", "invalid business archive audit", nil, nil)
@@ -298,11 +298,11 @@ func (s *RelationshipService) archiveAudit(ctx context.Context, entity string, i
 	if err != nil {
 		return Page[approval.EventView]{}, translateError(err)
 	}
-	rows, err := s.queries.ListDCLRelationshipApprovalEvents(ctx, dbsqlc.ListDCLRelationshipApprovalEventsParams{Entity: entity, ObjectID: input.ObjectID, RowOffset: offset, RowLimit: int32(input.PageSize)})
+	rows, err := s.queries.ListDCLTypedArchiveApprovalEvents(ctx, dbsqlc.ListDCLTypedArchiveApprovalEventsParams{Entity: entity, ObjectID: input.ObjectID, RowOffset: offset, RowLimit: int32(input.PageSize)})
 	if err != nil {
 		return Page[approval.EventView]{}, translateError(err)
 	}
-	total, err := s.queries.CountDCLRelationshipApprovalEvents(ctx, dbsqlc.CountDCLRelationshipApprovalEventsParams{Entity: entity, ObjectID: input.ObjectID})
+	total, err := s.queries.CountDCLTypedArchiveApprovalEvents(ctx, dbsqlc.CountDCLTypedArchiveApprovalEventsParams{Entity: entity, ObjectID: input.ObjectID})
 	if err != nil {
 		return Page[approval.EventView]{}, translateError(err)
 	}

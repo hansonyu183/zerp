@@ -54,6 +54,7 @@ check-contracts:
 	pnpm contracts:test-acc-approval
 	pnpm contracts:test-customer-aggregate
 	pnpm contracts:test-typed-business-archives
+	pnpm contracts:test-typed-archive-references
 	$(MAKE) check-sqlc-generated
 
 check-openapi-generated:

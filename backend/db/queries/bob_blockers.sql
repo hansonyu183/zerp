@@ -37,7 +37,7 @@ WITH snapshot_references(entity, field, entry_id) AS (
 	FROM acc_voucher_lines entry CROSS JOIN LATERAL jsonb_each(entry.dimension_references) reference
     UNION ALL SELECT 'vehicle','vehicle-carrier-operating',payload.carrier_operating_entity_approval_entry_id
     FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED'
-    UNION ALL SELECT 'vehicle','vehicle-carrier-service',payload.carrier_service_relationship_approval_entry_id
+    UNION ALL SELECT 'vehicle','vehicle-carrier-other-unit',payload.carrier_other_unit_approval_entry_id
     FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED'
     UNION ALL SELECT 'warehouse','warehouse-manager',payload.manager_employee_approval_entry_id
     FROM dcl_warehouse_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
@@ -78,7 +78,7 @@ WITH snapshot_references(entity, field, entry_id) AS (
     UNION ALL SELECT 'vou_purchase_return_details','snapshot',unnest(ARRAY[supplier_approval_entry_id,warehouse_approval_entry_id]) FROM vou_purchase_return_details
     UNION ALL SELECT 'vou_purchase_return_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_purchase_return_lines
     UNION ALL SELECT 'vou_receipt_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id,fund_account_approval_entry_id,handler_approval_entry_id]) FROM vou_receipt_details
-    UNION ALL SELECT 'vou_sale_delivery_details','snapshot',unnest(ARRAY[customer_approval_entry_id,carrier_service_relationship_approval_entry_id,vehicle_approval_entry_id,carrier_operating_entity_approval_entry_id]) FROM vou_sale_delivery_details
+    UNION ALL SELECT 'vou_sale_delivery_details','snapshot',unnest(ARRAY[customer_approval_entry_id,carrier_other_unit_approval_entry_id,vehicle_approval_entry_id,carrier_operating_entity_approval_entry_id]) FROM vou_sale_delivery_details
     UNION ALL SELECT 'vou_sale_order_details','snapshot',unnest(ARRAY[customer_approval_entry_id,salesperson_approval_entry_id,warehouse_approval_entry_id,sales_attribution_subject_approval_entry_id]) FROM vou_sale_order_details
     UNION ALL SELECT 'vou_sale_order_formula_lines','snapshot',unnest(ARRAY[material_approval_entry_id]) FROM vou_sale_order_formula_lines
     UNION ALL SELECT 'vou_sale_outbound_details','snapshot',unnest(ARRAY[customer_approval_entry_id,warehouse_approval_entry_id]) FROM vou_sale_outbound_details

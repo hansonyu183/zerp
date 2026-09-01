@@ -76,8 +76,8 @@ func (s *Service) loadSalesChainData(
 			row.CarrierOperatingEntityObjectID, row.CarrierOperatingEntityApprovalEntryID
 		operatingEntity.Code, operatingEntity.Name = row.CarrierOperatingEntityCode, row.CarrierOperatingEntityName
 		carrier.ObjectID, carrier.ApprovalEntryID =
-			row.CarrierServiceRelationshipObjectID, row.CarrierServiceRelationshipApprovalEntryID
-		carrier.Code, carrier.Name = row.CarrierServiceRelationshipCode, row.CarrierServiceRelationshipName
+			row.CarrierOtherUnitObjectID, row.CarrierOtherUnitApprovalEntryID
+		carrier.Code, carrier.Name = row.CarrierOtherUnitCode, row.CarrierOtherUnitName
 		vehicle.ObjectID, vehicle.ApprovalEntryID, vehicle.Code, vehicle.Name, vehicle.PlateNumber =
 			row.VehicleObjectID, row.VehicleApprovalEntryID, row.VehicleCode, row.VehicleName, row.VehiclePlateNumber
 		customer.Entity, operatingEntity.Entity, carrier.Entity, vehicle.Entity =

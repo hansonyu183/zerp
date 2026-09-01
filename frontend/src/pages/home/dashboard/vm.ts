@@ -9,7 +9,7 @@ import { runDclFundAccountAction } from '@/pages/dcl/fund-account/data'
 import { runDclProductAction } from '@/pages/dcl/product/data'
 import { runDclEmployeeAction } from '@/pages/dcl/employee/data'
 import { runDclSupplierAction } from '@/pages/dcl/supplier/data'
-import { runDclRelationshipAction } from '@/pages/dcl/shared/typed-business-archive/data'
+import { runDclTypedArchiveAction } from '@/pages/dcl/shared/typed-business-archive/data'
 import { runAccountingMappingLifecycleAction } from '@/pages/dcl/acc-mapping/api'
 import { runRptDefinitionLifecycleAction } from '@/pages/dcl/rpt-definition/api'
 import { runWflProcessDefinitionLifecycleAction } from '@/pages/dcl/wfl-process-definition/api'
@@ -246,13 +246,16 @@ export function useDashboardViewModel() {
           await runDclSupplierAction(action, request, comment.trim())
         } else if (item.entity === 'customer') {
           if (action === 'reject' || action === 'unapprove')
-            await apiClient.postContract(`dcl/customer/${action}`, { ...request, reason: comment.trim() })
+            await apiClient.postContract(`dcl/customer/${action}`, {
+              ...request,
+              reason: comment.trim(),
+            })
           else await apiClient.postContract(`dcl/customer/${action}`, request)
         } else if (
           item.entity === 'other-unit' ||
           item.entity === 'sales-partner'
         ) {
-          await runDclRelationshipAction(
+          await runDclTypedArchiveAction(
             item.entity,
             action,
             request,

@@ -6,9 +6,9 @@
 
 统计口径：页面入口只统计静态注册页面，并将 `/rpt/{code}` 计为一个动态路由；运行时菜单项和具体报表定义实例另行统计，不与本页入口数直接相加。
 
-- 页面入口：87
-- 已覆盖入口：43
-- 已登记用例：42
+- 页面入口：77
+- 已覆盖入口：33
+- 已登记用例：32
 - 缺少用例：44
 - 孤儿用例：0
 
@@ -52,21 +52,6 @@
 | 账簿期初          | `/acc/opening` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](acc/opening.md) |
 | 当前 VOU 会计映射 | `/acc/mapping` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                   |
 | 会计期间          | `/acc/period`  | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                   |
-
-## BOB
-
-| 页面                     | 路由                    | 来源                                                | 状态                                |
-| ------------------------ | ----------------------- | --------------------------------------------------- | ----------------------------------- |
-| 客户                     | `/bob/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer.md)         |
-| 供应商                   | `/bob/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/supplier.md)         |
-| 其他单位                 | `/bob/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/other-unit.md)       |
-| 销售合作方               | `/bob/sales-partner`    | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/sales-partner.md)    |
-| 员工                     | `/bob/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/employee.md)         |
-| 产品（当前有效资料）     | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/product.md)          |
-| 仓库                     | `/bob/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/warehouse.md)        |
-| 车辆                     | `/bob/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/vehicle.md)          |
-| 资金账户（当前有效资料） | `/bob/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/fund-account.md)     |
-| 经营主体                 | `/bob/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/operating-entity.md) |
 
 ## AUX
 

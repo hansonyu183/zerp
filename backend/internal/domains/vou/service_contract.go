@@ -105,7 +105,7 @@ func (s *Service) writeServiceAcceptanceDetail(
 		return s.internal("lock service acceptance contract", err)
 	}
 	if contract.Status != StatusApproved || contract.CounterpartyEntity != contractCounterpartyService {
-		return domainError(ErrorConflict, "service acceptance requires an approved service relationship contract", nil, nil)
+		return domainError(ErrorConflict, "service acceptance requires an approved service contract", nil, nil)
 	}
 	contractDetail, err := q.GetVouServiceContractDetail(ctx, draft.ServiceAcceptance.ContractDocumentID)
 	if err != nil {

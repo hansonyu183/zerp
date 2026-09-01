@@ -79,7 +79,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	refs := prepareReferences(t, pool)
 	bobService := newBOBIntegrationService(pool)
 	bus := txevent.NewBus()
-	relationships := dcldomain.NewRelationshipService(pool, bobService, authorization.Func(nil), bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, bobService, authorization.Func(nil), bus)
 	service := newIntegrationService(t, pool)
 
 	serviceContract := approveServiceContractIntegration(t, service, DraftInput{
@@ -108,7 +108,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		t.Fatalf("approve service acceptance: %v", err)
 	}
 
-	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
+	salesPartner, err := typedArchives.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
 		Data: dcldomain.SalesPartnerData{
 			Kind:                     "ORGANIZATION",
 			LegalName:                "渠道合作方",
@@ -122,13 +122,13 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	if err != nil {
 		t.Fatalf("create Sales Partner archive: %v", err)
 	}
-	submitted, err := relationships.SubmitSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
+	submitted, err := typedArchives.SubmitSalesPartner(t.Context(), dcldomain.TypedArchiveVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID, ApprovalRevision: salesPartner.Approval.Revision,
 	}, trustedIntegrationActor(t, "customer-channel-submit"))
 	if err != nil {
 		t.Fatalf("submit Sales Partner archive: %v", err)
 	}
-	approvedSalesPartner, err := relationships.ApproveSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
+	approvedSalesPartner, err := typedArchives.ApproveSalesPartner(t.Context(), dcldomain.TypedArchiveVersionInput{
 		ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
 	}, trustedIntegrationActor(t, "customer-channel-approve"))
 	if err != nil {
@@ -179,7 +179,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		SELECT counterparty_entity,counterparty_object_id
 		FROM vou_payment_details WHERE document_id=$1
 	`, payment.DocumentID).Scan(&paymentCounterpartyEntity, &paymentCounterpartyObjectID); err != nil {
-		t.Fatalf("read sales relationship payment: %v", err)
+		t.Fatalf("read sales partner payment: %v", err)
 	}
 	if paymentCounterpartyEntity != bobdomain.EntitySalesPartner || paymentCounterpartyObjectID != approvedSalesPartner.ObjectID {
 		t.Fatalf("payment counterparty=%s/%s, want Sales Partner %s", paymentCounterpartyEntity, paymentCounterpartyObjectID, approvedSalesPartner.ObjectID)

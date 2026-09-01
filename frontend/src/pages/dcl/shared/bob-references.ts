@@ -15,7 +15,7 @@ import type {
   BobFilterField,
   BobForm,
   BobReferenceConfig,
-} from './types'
+} from './bob-types'
 
 interface ReferenceState {
   options: BusinessObjectFieldOption<string>[]
@@ -27,18 +27,11 @@ interface ReferenceState {
 function referenceName(item: unknown): string {
   if (!item || typeof item !== 'object') return ''
   const record = item as Record<string, unknown>
-  if (typeof record.partyDisplayName === 'string')
-    return record.partyDisplayName
-  const relationship = record.relationship
-  if (relationship && typeof relationship === 'object') {
-    const partyDisplayName = (relationship as Record<string, unknown>)
-      .partyDisplayName
-    if (typeof partyDisplayName === 'string') return partyDisplayName
-  }
   const data = record.data
   if (!data || typeof data !== 'object') return ''
-  const name = (data as Record<string, unknown>).name
-  return typeof name === 'string' ? name : ''
+  const values = data as Record<string, unknown>
+  if (typeof values.displayName === 'string') return values.displayName
+  return typeof values.name === 'string' ? values.name : ''
 }
 
 function createReferenceState(): ReferenceState {

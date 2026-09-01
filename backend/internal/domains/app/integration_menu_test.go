@@ -3,6 +3,7 @@
 package app
 
 import (
+	"strings"
 	"sync"
 	"testing"
 )
@@ -18,10 +19,25 @@ func TestSynchronizeMenuRoutesInitializesCatalogAndIsIdempotent(t *testing.T) {
 	if err != nil || !menuContainsRoute(initialized.BusinessMenu, "app/menu") {
 		t.Fatalf("initialized menu = %+v, %v", initialized, err)
 	}
-	// The authoritative runtime surface has 92 routes after Party and the
-	// independent customer-account pages were retired, including eight RPT instances.
-	if got := menuRouteTotal(initialized.BusinessMenu); got != 92 {
-		t.Fatalf("runtime menu route count = %d, want 92", got)
+	if !menuContainsRoute(initialized.BusinessMenu, "dcl/customer") {
+		t.Fatalf("DCL customer route missing from initialized menu: %+v", initialized.BusinessMenu)
+	}
+	for name, tree := range map[string]MenuTree{
+		"default": initialized.DefaultMenu, "business": initialized.BusinessMenu, "navigation": initialized.Navigation,
+	} {
+		for _, item := range tree.Items {
+			if item.RouteKey != nil && strings.HasPrefix(*item.RouteKey, "bob/") {
+				t.Fatalf("%s menu exposed BOB current-read route %q", name, *item.RouteKey)
+			}
+			if item.Type == MenuItemGroup && item.DisplayName == "业务对象" {
+				t.Fatalf("%s menu exposed retired business-object group", name)
+			}
+		}
+	}
+	for _, route := range initialized.AvailableRoutes {
+		if strings.HasPrefix(route.RouteKey, "bob/") {
+			t.Fatalf("available routes exposed BOB current-read route %q", route.RouteKey)
+		}
 	}
 	if err = service.SynchronizeMenuRoutes(t.Context()); err != nil {
 		t.Fatalf("idempotent menu route synchronization: %v", err)
@@ -252,9 +268,9 @@ func TestMenuManagementIntegration(t *testing.T) {
 		t.Fatalf("restored route synchronization = %+v, %v", restored, err)
 	}
 
-	limited := Principal{User: principal.User, Permissions: []string{"/bob/customer/get"}}
+	limited := Principal{User: principal.User, Permissions: []string{"/dcl/customer/get"}}
 	filtered, err := service.GetMenu(t.Context(), limited)
-	if err != nil || !menuContainsRoute(filtered.Navigation, "bob/customer") || menuContainsRoute(filtered.Navigation, "app/user") {
+	if err != nil || !menuContainsRoute(filtered.Navigation, "dcl/customer") || menuContainsRoute(filtered.Navigation, "app/user") || menuContainsRoute(filtered.Navigation, "bob/customer") {
 		t.Fatalf("permission-filtered navigation = %+v, %v", filtered.Navigation, err)
 	}
 

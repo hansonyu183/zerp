@@ -12,39 +12,37 @@ import {
   useDclDeclarationHistory,
   useDclDeclarationLifecycle,
 } from '../declaration'
-import { dclRelationshipConfig } from './config'
+import { dclTypedArchiveConfig } from './config'
 import {
-  createDclRelationship,
-  dclRelationshipData,
-  dclRelationshipFormFromView,
-  dclRelationshipHistoryPort,
-  dclRelationshipLifecyclePort,
-  deleteDclRelationship,
-  getDclRelationship,
-  queryDclRelationships,
-  queryRelationshipReference,
-  saveDclRelationship,
+  createDclTypedArchive,
+  dclTypedArchiveData,
+  dclTypedArchiveFormFromView,
+  dclTypedArchiveHistoryPort,
+  dclTypedArchiveLifecyclePort,
+  deleteDclTypedArchive,
+  getDclTypedArchive,
+  queryDclTypedArchives,
+  queryTypedArchiveReference,
+  saveDclTypedArchive,
 } from './data'
-import { dclRelationshipActiveVersion } from './types'
+import { dclTypedArchiveActiveVersion } from './types'
 import type {
-  DclRelationshipAuditEvent,
-  DclRelationshipEditContext,
-  DclRelationshipEntity,
-  DclRelationshipForm,
-  DclRelationshipListItem,
-  DclRelationshipReferenceOption,
-  DclRelationshipVersionView,
-  DclRelationshipView,
+  DclTypedArchiveAuditEvent,
+  DclTypedArchiveEditContext,
+  DclTypedArchiveEntity,
+  DclTypedArchiveForm,
+  DclTypedArchiveListItem,
+  DclTypedArchiveReferenceOption,
+  DclTypedArchiveVersionView,
+  DclTypedArchiveView,
 } from './types'
 
 type ReferenceKey =
-  | 'operatingEntityIds'
-  | 'defaultOperatingEntityId'
-  | 'settlementMethodId'
+  'operatingEntityIds' | 'defaultOperatingEntityId' | 'settlementMethodId'
 
-export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
+export function useDclTypedArchiveViewModel(entity: DclTypedArchiveEntity) {
   const session = useSessionStore()
-  const config = dclRelationshipConfig(entity)
+  const config = dclTypedArchiveConfig(entity)
   const loading = ref(false)
   const editorLoading = ref(false)
   const saving = ref(false)
@@ -52,7 +50,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   const errorMessage = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
   const editorErrorMessage = ref<string | null>(null)
-  const rows = ref<DclRelationshipListItem[]>([])
+  const rows = ref<DclTypedArchiveListItem[]>([])
   const total = ref(0)
   const page = ref(1)
   const pageSize = ref(20)
@@ -61,13 +59,17 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   const filters = ref<Record<string, unknown>>(emptyFilters())
   const drawerOpen = ref(false)
   const editorMode = ref<'create' | 'edit' | 'view'>('view')
-  const editorModel = ref<DclRelationshipForm>(config.emptyForm())
+  const editorModel = ref<DclTypedArchiveForm>(config.emptyForm())
   const editorResetKey = ref(0)
-  const editContext = ref<DclRelationshipEditContext | null>(null)
-  const currentView = ref<DclRelationshipView | null>(null)
+  const editContext = ref<DclTypedArchiveEditContext | null>(null)
+  const currentView = ref<DclTypedArchiveView | null>(null)
   const referenceOptions = ref<
-    Record<ReferenceKey, DclRelationshipReferenceOption[]>
-  >({ operatingEntityIds: [], defaultOperatingEntityId: [], settlementMethodId: [] })
+    Record<ReferenceKey, DclTypedArchiveReferenceOption[]>
+  >({
+    operatingEntityIds: [],
+    defaultOperatingEntityId: [],
+    settlementMethodId: [],
+  })
   const referenceLoading = ref<Record<ReferenceKey, boolean>>({
     operatingEntityIds: false,
     defaultOperatingEntityId: false,
@@ -81,15 +83,15 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   const sequences = new Map<ReferenceKey, number>()
   const timers = new Map<ReferenceKey, ReturnType<typeof setTimeout>>()
   const { permission, actionAvailability } =
-    useDclDeclarationActionAvailability<DclRelationshipListItem>(
+    useDclDeclarationActionAvailability<DclTypedArchiveListItem>(
       entity,
-      (row: DclRelationshipListItem) => {
-        const approval = dclRelationshipActiveVersion(row).approval
+      (row: DclTypedArchiveListItem) => {
+        const approval = dclTypedArchiveActiveVersion(row).approval
         return {
           status: approval.status,
           versionNo: approval.versionNo,
           availableApprovalActions: row.availableApprovalActions,
-          enabled: dclRelationshipActiveVersion(row).data.enabled,
+          enabled: dclTypedArchiveActiveVersion(row).data.enabled,
           hasOpenVersion: row.openVersion !== null,
           hasLatestApproved: row.latestApproved !== null,
         }
@@ -103,9 +105,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
         session.can('/aux/settlement-method/query')),
   )
   const canCreate = computed(
-    () =>
-      session.can(permission('create')) &&
-      canReferences.value,
+    () => session.can(permission('create')) && canReferences.value,
   )
   const canEdit = computed(
     () => session.can(permission('save')) && canReferences.value,
@@ -119,7 +119,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
         : `${entityLabel}变更详情`,
   )
   const editorFields = computed<
-    readonly BusinessObjectField<DclRelationshipForm>[]
+    readonly BusinessObjectField<DclTypedArchiveForm>[]
   >(() =>
     config.fields.map((field) => {
       if (!Object.hasOwn(referenceOptions.value, field.key)) return field
@@ -135,14 +135,14 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     }),
   )
   const history = useDclDeclarationHistory<
-    DclRelationshipListItem,
-    DclRelationshipVersionView,
-    DclRelationshipAuditEvent
+    DclTypedArchiveListItem,
+    DclTypedArchiveVersionView,
+    DclTypedArchiveAuditEvent
   >(
     errorMessage,
     (row) => actionAvailability(row).versions,
     (row) => actionAvailability(row).audit,
-    dclRelationshipHistoryPort(entity),
+    dclTypedArchiveHistoryPort(entity),
   )
 
   function emptyFilters(): Record<string, unknown> {
@@ -162,12 +162,12 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   }
   function mergeSelected(
     key: ReferenceKey,
-    options: DclRelationshipReferenceOption[],
+    options: DclTypedArchiveReferenceOption[],
   ): void {
     const selected = editorModel.value[key]
     const selectedValues = Array.isArray(selected) ? selected : [selected]
-    const old = referenceOptions.value[key].filter(
-      (option) => selectedValues.includes(option.value),
+    const old = referenceOptions.value[key].filter((option) =>
+      selectedValues.includes(option.value),
     )
     referenceOptions.value[key] = [...options, ...old].filter(
       (option, index, all) =>
@@ -176,10 +176,15 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     )
     if (
       selectedValues.length &&
-      selectedValues.some((value) => !referenceOptions.value[key].some((option) => option.value === value))
+      selectedValues.some(
+        (value) =>
+          !referenceOptions.value[key].some((option) => option.value === value),
+      )
     )
       for (const value of selectedValues)
-        if (!referenceOptions.value[key].some((option) => option.value === value))
+        if (
+          !referenceOptions.value[key].some((option) => option.value === value)
+        )
           referenceOptions.value[key].push({ value, title: value })
   }
   async function loadReference(key: ReferenceKey, search = ''): Promise<void> {
@@ -196,7 +201,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     referenceLoading.value[key] = true
     referenceError.value[key] = null
     try {
-      const options = await queryRelationshipReference(
+      const options = await queryTypedArchiveReference(
         key === 'settlementMethodId' ? 'settlement-method' : 'operating-entity',
         search.trim(),
       )
@@ -237,7 +242,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     loading.value = true
     errorMessage.value = null
     try {
-      const result = await queryDclRelationships(entity, {
+      const result = await queryDclTypedArchives(entity, {
         page: page.value,
         pageSize: pageSize.value,
         filters: buildQueryFilters(),
@@ -286,11 +291,25 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     drawerOpen.value = true
     preloadReferences()
   }
-  function hydrateViewReferences(view: DclRelationshipView): void {
-    referenceOptions.value.operatingEntityIds = view.data.operatingEntities.map((item) => ({ value: item.sourceObjectId, title: `${item.code} · ${item.name}` }))
-    const defaultOperatingEntity = view.data.operatingEntities.find((item) => item.sourceObjectId === view.data.defaultOperatingEntityId)
-    referenceOptions.value.defaultOperatingEntityId = defaultOperatingEntity ? [{ value: defaultOperatingEntity.sourceObjectId, title: `${defaultOperatingEntity.code} · ${defaultOperatingEntity.name}` }] : []
-    const form = dclRelationshipFormFromView(entity, view)
+  function hydrateViewReferences(view: DclTypedArchiveView): void {
+    referenceOptions.value.operatingEntityIds = view.data.operatingEntities.map(
+      (item) => ({
+        value: item.sourceObjectId,
+        title: `${item.code} · ${item.name}`,
+      }),
+    )
+    const defaultOperatingEntity = view.data.operatingEntities.find(
+      (item) => item.sourceObjectId === view.data.defaultOperatingEntityId,
+    )
+    referenceOptions.value.defaultOperatingEntityId = defaultOperatingEntity
+      ? [
+          {
+            value: defaultOperatingEntity.sourceObjectId,
+            title: `${defaultOperatingEntity.code} · ${defaultOperatingEntity.name}`,
+          },
+        ]
+      : []
+    const form = dclTypedArchiveFormFromView(entity, view)
     referenceOptions.value.settlementMethodId = form.settlementMethodId
       ? [
           {
@@ -305,7 +324,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
       : []
   }
   async function open(
-    row: DclRelationshipListItem,
+    row: DclTypedArchiveListItem,
     mode: 'view' | 'edit',
     approvalEntryId?: string,
   ): Promise<void> {
@@ -320,7 +339,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     editorLoading.value = true
     editorErrorMessage.value = null
     try {
-      const view = await getDclRelationship(
+      const view = await getDclTypedArchive(
         entity,
         row.objectId,
         approvalEntryId,
@@ -334,7 +353,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
               approvalRevision: view.approval.revision,
             }
           : null
-      editorModel.value = dclRelationshipFormFromView(entity, view)
+      editorModel.value = dclTypedArchiveFormFromView(entity, view)
       hydrateViewReferences(view)
       if (mode === 'edit') preloadReferences()
       editorResetKey.value += 1
@@ -348,9 +367,9 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
       editorLoading.value = false
     }
   }
-  const openView = (row: DclRelationshipListItem, approvalEntryId?: string) =>
+  const openView = (row: DclTypedArchiveListItem, approvalEntryId?: string) =>
     open(row, 'view', approvalEntryId)
-  const openEdit = (row: DclRelationshipListItem) => open(row, 'edit')
+  const openEdit = (row: DclTypedArchiveListItem) => open(row, 'edit')
   async function openById(
     objectId: string,
     mode: 'view' | 'edit',
@@ -358,7 +377,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     if (!session.can(permission('get'))) return
     editorLoading.value = true
     try {
-      const view = await getDclRelationship(entity, objectId)
+      const view = await getDclTypedArchive(entity, objectId)
       const editable =
         mode === 'edit' &&
         canEdit.value &&
@@ -373,7 +392,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
             approvalRevision: view.approval.revision,
           }
         : null
-      editorModel.value = dclRelationshipFormFromView(entity, view)
+      editorModel.value = dclTypedArchiveFormFromView(entity, view)
       hydrateViewReferences(view)
       if (editable) preloadReferences()
       editorResetKey.value += 1
@@ -398,7 +417,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
       editorErrorMessage.value = null
     }
   }
-  async function save(form: DclRelationshipForm): Promise<boolean> {
+  async function save(form: DclTypedArchiveForm): Promise<boolean> {
     if (saving.value || editorMode.value === 'view') return false
     if (
       (editorMode.value === 'create' ? !canCreate.value : !canEdit.value) ||
@@ -406,20 +425,21 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
       !form.defaultOperatingEntityId.trim() ||
       !form.legalName.trim()
     ) {
-      editorErrorMessage.value = '请选择适用和默认经营主体，并完整填写身份资料。'
+      editorErrorMessage.value =
+        '请选择适用和默认经营主体，并完整填写身份资料。'
       return false
     }
     saving.value = true
     editorErrorMessage.value = null
     try {
       if (editorMode.value === 'create')
-        await createDclRelationship(entity, form)
+        await createDclTypedArchive(entity, form)
       else {
         const context = editContext.value
         if (!context) throw new Error('未加载可编辑的业务档案版本。')
-        await saveDclRelationship(entity, {
+        await saveDclTypedArchive(entity, {
           ...context,
-          data: dclRelationshipData(entity, form),
+          data: dclTypedArchiveData(entity, form),
         })
       }
       closeEditor()
@@ -436,14 +456,14 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     }
   }
   async function runRowAction(
-    row: DclRelationshipListItem,
+    row: DclTypedArchiveListItem,
     action: 'delete' | 'submit',
   ): Promise<boolean> {
     if (!actionAvailability(row)[action] || actionLoading.value) return false
     actionLoading.value = `${action}:${row.objectId}`
     try {
-      if (action === 'delete') await deleteDclRelationship(entity, row)
-      else await dclRelationshipLifecyclePort(entity).run(row, 'submit', '')
+      if (action === 'delete') await deleteDclTypedArchive(entity, row)
+      else await dclTypedArchiveLifecyclePort(entity).run(row, 'submit', '')
       await query()
       successMessage.value =
         action === 'delete' ? `${row.code} 已删除。` : `${row.code} 已提交。`
@@ -460,16 +480,16 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   const lifecycle = useDclDeclarationLifecycle(
     actionLoading,
     errorMessage,
-    (row: DclRelationshipListItem) => row.objectId,
-    (row) => dclRelationshipActiveVersion(row).data.enabled,
+    (row: DclTypedArchiveListItem) => row.objectId,
+    (row) => dclTypedArchiveActiveVersion(row).data.enabled,
     actionAvailability,
-    dclRelationshipLifecyclePort(entity),
+    dclTypedArchiveLifecyclePort(entity),
     query,
     (row, action) => {
       successMessage.value = `${row.code} ${dclDeclarationLifecycleSuccessLabel(action)}。`
     },
   )
-  function versionSummary(version: DclRelationshipVersionView): string {
+  function versionSummary(version: DclTypedArchiveVersionView): string {
     if (entity === 'sales-partner') {
       const data = version.data as components['schemas']['DclSalesPartnerInput']
       return data.capabilities?.join('、') || '未设置能力'
@@ -507,7 +527,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     editorTitle,
     editorFields,
     actionAvailability,
-    hasAnyAction: (row: DclRelationshipListItem) =>
+    hasAnyAction: (row: DclTypedArchiveListItem) =>
       Object.values(actionAvailability(row)).some(Boolean),
     versionSummary,
     query,
@@ -522,8 +542,8 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     closeEditor,
     searchEditorReference,
     save,
-    deleteObject: (row: DclRelationshipListItem) => runRowAction(row, 'delete'),
-    submitObject: (row: DclRelationshipListItem) => runRowAction(row, 'submit'),
+    deleteObject: (row: DclTypedArchiveListItem) => runRowAction(row, 'delete'),
+    submitObject: (row: DclTypedArchiveListItem) => runRowAction(row, 'submit'),
     ...history,
     ...lifecycle,
   }

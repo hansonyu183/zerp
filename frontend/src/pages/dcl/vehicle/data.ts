@@ -79,10 +79,8 @@ export function dclVehicleFormFromView(view: DclVehicleView): DclVehicleForm {
     carrierType: affiliation.type,
     carrierOperatingEntityId:
       affiliation.type === 'INTERNAL' ? affiliation.operatingEntityId : '',
-    carrierServiceRelationshipObjectId:
-      affiliation.type === 'EXTERNAL'
-        ? affiliation.serviceRelationshipObjectId
-        : '',
+    carrierOtherUnitObjectId:
+      affiliation.type === 'EXTERNAL' ? affiliation.otherUnitObjectId : '',
     bulkLiquidCapable: view.data.bulkLiquidCapable,
     vin: view.data.vin ?? '',
     engineNumber: view.data.engineNumber ?? '',
@@ -104,8 +102,7 @@ export function dclVehicleData(form: DclVehicleForm) {
           }
         : {
             type: 'EXTERNAL' as const,
-            serviceRelationshipObjectId:
-              form.carrierServiceRelationshipObjectId.trim(),
+            otherUnitObjectId: form.carrierOtherUnitObjectId.trim(),
           },
     bulkLiquidCapable: form.bulkLiquidCapable,
     ...(form.vin.trim() ? { vin: form.vin.trim().toUpperCase() } : {}),

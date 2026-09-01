@@ -1497,7 +1497,7 @@ export async function createWflWorkerState(options: {
         vehicleType: 'DIT-0003',
         carrierAffiliation: {
           type: 'EXTERNAL',
-          serviceRelationshipObjectId: carrier.objectId,
+          otherUnitObjectId: carrier.objectId,
         },
         bulkLiquidCapable: false,
       },

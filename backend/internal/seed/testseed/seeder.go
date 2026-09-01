@@ -83,7 +83,7 @@ type Seeder struct {
 	fundAccounts      *dcldomain.FundAccountService
 	products          *dcldomain.ProductService
 	employees         *dcldomain.EmployeeService
-	relationships     *dcldomain.RelationshipService
+	typedArchives     *dcldomain.TypedArchiveService
 	vouchers          *voudomain.Service
 	accounting        *accdomain.Service
 	accountMappings   *dcldomain.AccMappingService
@@ -146,7 +146,7 @@ func New(
 	fundAccounts := dcldomain.NewFundAccountService(pool, business, seedAuthorizer{}, events)
 	products := dcldomain.NewProductService(pool, business, seedAuthorizer{}, events)
 	employees := dcldomain.NewEmployeeService(pool, business, seedAuthorizer{}, events)
-	relationships := dcldomain.NewRelationshipService(pool, business, seedAuthorizer{}, events)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, business, seedAuthorizer{}, events)
 	accounting := accdomain.NewService(pool, business, seedAuthorizer{}, events)
 	accountMappings := dcldomain.NewAccMappingService(pool, accounting, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(
@@ -171,7 +171,7 @@ func New(
 	}
 	return &Seeder{
 		pool: pool, queries: dbsqlc.New(pool), app: appdomain.NewService(pool, cfg, logger), accounts: accounts,
-		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, relationships: relationships,
+		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, typedArchives: typedArchives,
 		vouchers: vouchers, accounting: accounting, accountMappings: accountMappings,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]seedBusinessView),

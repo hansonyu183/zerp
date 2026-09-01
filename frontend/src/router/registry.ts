@@ -59,7 +59,7 @@ const developingPage: PageLoader = () =>
 const workflowInstancePage: PageLoader = () =>
   import('@/pages/wfl/process-instance/ProcessInstance.vue')
 
-type DomainId = 'dcl' | 'bob' | 'aux' | 'vou' | 'wfl' | 'acc' | 'rpt'
+type DomainId = 'dcl' | 'aux' | 'vou' | 'wfl' | 'acc' | 'rpt'
 type DomainRegistration = Pick<
   PageRegistration,
   'domainTitle' | 'domainIcon' | 'domainOrder'
@@ -74,11 +74,6 @@ const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
     domainTitle: '档案变更',
     domainIcon: 'mdi-file-sign',
     domainOrder: 5,
-  },
-  bob: {
-    domainTitle: '业务对象',
-    domainIcon: 'mdi-database-outline',
-    domainOrder: 10,
   },
   aux: {
     domainTitle: '辅助对象',
@@ -245,76 +240,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     icon: 'mdi-calendar-lock-outline',
     order: 50,
     component: () => import('@/pages/acc/period/Period.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'customer',
-    entityTitle: '客户',
-    icon: 'mdi-account-group',
-    order: 10,
-    component: () => import('@/pages/bob/customer/Customer.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'supplier',
-    entityTitle: '供应商',
-    icon: 'mdi-truck-delivery-outline',
-    order: 20,
-    component: () => import('@/pages/bob/supplier/Supplier.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'other-unit',
-    entityTitle: '其他单位',
-    icon: 'mdi-account-question-outline',
-    order: 25,
-    component: () => import('@/pages/bob/other-unit/OtherUnit.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'sales-partner',
-    entityTitle: '销售合作方',
-    icon: 'mdi-handshake-outline',
-    order: 27,
-    component: () => import('@/pages/bob/sales-partner/SalesPartner.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'employee',
-    entityTitle: '员工',
-    icon: 'mdi-badge-account-horizontal-outline',
-    order: 30,
-    component: () => import('@/pages/bob/employee/Employee.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'product',
-    entityTitle: '产品（当前有效资料）',
-    icon: 'mdi-package-variant-closed',
-    order: 40,
-    component: () => import('@/pages/bob/product/Product.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'warehouse',
-    entityTitle: '仓库',
-    icon: 'mdi-warehouse',
-    order: 60,
-    component: () => import('@/pages/bob/warehouse/Warehouse.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'vehicle',
-    entityTitle: '车辆',
-    icon: 'mdi-truck-outline',
-    order: 70,
-    component: () => import('@/pages/bob/vehicle/Vehicle.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'fund-account',
-    entityTitle: '资金账户（当前有效资料）',
-    icon: 'mdi-bank-outline',
-    order: 80,
-    component: () => import('@/pages/bob/fund-account/FundAccount.vue'),
-  }),
-  registerPage('bob', {
-    entity: 'operating-entity',
-    entityTitle: '经营主体',
-    icon: 'mdi-office-building-cog-outline',
-    order: 90,
-    component: () => import('@/pages/bob/operating-entity/OperatingEntity.vue'),
   }),
   registerPage('aux', {
     entity: 'settlement-method',
@@ -757,6 +682,7 @@ export function buildMenus(
 
   for (const [key, actions] of actionsByPage) {
     const [domainId, entityId] = key.split('/') as [string, string]
+    if (domainId === 'bob') continue
     if (
       domainId === 'wfl' &&
       entityId !== 'process-definition' &&

@@ -328,8 +328,8 @@ func createApprovedOtherUnitDeclaration(t *testing.T, pool *pgxpool.Pool, busine
 	t.Helper()
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
-	relationships := dcldomain.NewRelationshipService(pool, business, authorizer, bus)
-	created, err := relationships.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
+	typedArchives := dcldomain.NewTypedArchiveService(pool, business, authorizer, bus)
+	created, err := typedArchives.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
 		Data: dcldomain.OtherUnitData{
 			Kind: "ORGANIZATION", LegalName: data.Name,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, SettlementMethodID: data.SettlementMethodID,
@@ -342,11 +342,11 @@ func createApprovedOtherUnitDeclaration(t *testing.T, pool *pgxpool.Pool, busine
 	if err != nil {
 		t.Fatalf("create other-unit declaration: %v", err)
 	}
-	submitted, err := relationships.SubmitOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-submit"))
+	submitted, err := typedArchives.SubmitOtherUnit(t.Context(), dcldomain.TypedArchiveVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-submit"))
 	if err != nil {
 		t.Fatalf("submit other-unit declaration: %v", err)
 	}
-	approved, err := relationships.ApproveOtherUnit(t.Context(), dcldomain.RelationshipVersionInput{ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-approve"))
+	approved, err := typedArchives.ApproveOtherUnit(t.Context(), dcldomain.TypedArchiveVersionInput{ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, trustedIntegrationActor(t, "vou-other-unit-approve"))
 	if err != nil {
 		t.Fatalf("approve other-unit declaration: %v", err)
 	}
@@ -573,7 +573,7 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 		vehicle: createApprovedBOB(t, service, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
 			Code: "VV" + suffix, Name: "VOU 车辆", PlateNumber: "粤V" + suffix[len(suffix)-6:],
 			VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{
-				Type: "EXTERNAL", ServiceRelationshipObjectID: carrier.ObjectID,
+				Type: "EXTERNAL", OtherUnitObjectID: carrier.ObjectID,
 			},
 		}),
 	}

@@ -29,10 +29,10 @@ type WorkflowSaleOutboundInitial struct {
 }
 
 type WorkflowSaleDeliveryInitial struct {
-	CarrierServiceRelationshipObjectID string                    `json:"carrierServiceRelationshipObjectId,omitempty"`
-	VehicleObjectID                    string                    `json:"vehicleObjectId"`
-	BusinessDate                       string                    `json:"businessDate,omitempty"`
-	Lines                              []SourceQuantityLineInput `json:"lines,omitempty"`
+	CarrierOtherUnitObjectID string                    `json:"carrierOtherUnitObjectId,omitempty"`
+	VehicleObjectID          string                    `json:"vehicleObjectId"`
+	BusinessDate             string                    `json:"businessDate,omitempty"`
+	Lines                    []SourceQuantityLineInput `json:"lines,omitempty"`
 }
 
 type WorkflowSaleSignoffInitial struct {
@@ -103,8 +103,8 @@ func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sou
 		SourceDocumentID: sourceDocumentID,
 		Vehicle:          &ReferenceInput{ObjectID: vehicle.ObjectID, ApprovalEntryID: vehicle.ApprovalEntryID},
 	}
-	if initial.CarrierServiceRelationshipObjectID != "" {
-		carrier, resolveErr := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityOtherUnit, initial.CarrierServiceRelationshipObjectID, "carrier")
+	if initial.CarrierOtherUnitObjectID != "" {
+		carrier, resolveErr := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityOtherUnit, initial.CarrierOtherUnitObjectID, "carrier")
 		if resolveErr != nil {
 			return MutationResult{}, resolveErr
 		}

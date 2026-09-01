@@ -2,7 +2,7 @@ import type {
   BusinessObjectColumn,
   BusinessObjectField,
 } from '@/components/business-object'
-import type { BobForm } from '@/pages/bob/shared/types'
+import type { BobForm } from '@/pages/dcl/shared/bob-types'
 import {
   commonFields,
   defineBobEntityConfig,
@@ -10,7 +10,7 @@ import {
   reference,
   text,
   textarea,
-} from '@/pages/bob/shared/config-helpers'
+} from '@/pages/dcl/shared/bob-config-helpers'
 import { approvalStatusPresentation } from '@/shared/approval'
 import { dclProductActiveVersion } from './types'
 import type { DclProductConfig, DclProductListItem } from './types'

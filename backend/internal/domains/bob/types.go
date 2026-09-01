@@ -273,11 +273,11 @@ type QuantitySnapshot struct {
 }
 
 type CarrierAffiliation struct {
-	Type                        string `json:"type"`
-	OperatingEntityID           string `json:"operatingEntityId,omitempty"`
-	ServiceRelationshipObjectID string `json:"serviceRelationshipObjectId,omitempty"`
-	OperatingApprovalEntryID    string `json:"-"`
-	ServiceApprovalEntryID      string `json:"-"`
+	Type                     string `json:"type"`
+	OperatingEntityID        string `json:"operatingEntityId,omitempty"`
+	OtherUnitObjectID        string `json:"otherUnitObjectId,omitempty"`
+	OperatingApprovalEntryID string `json:"-"`
+	OtherUnitApprovalEntryID string `json:"-"`
 }
 
 // OptionalString distinguishes an omitted field from an explicit null or

@@ -251,7 +251,13 @@ test(
       )
 
       await selectMode(page, '业务归类菜单')
-      await expectNavigationGroup(page, '基础资料')
+      await expectNavigationGroup(page, '辅助资料')
+      await expect(
+        page.getByRole('navigation').getByText('基础资料', { exact: true }),
+      ).toHaveCount(0)
+      await expect(
+        page.getByRole('navigation').getByText('业务对象', { exact: true }),
+      ).toHaveCount(0)
       const observerAfterActivation = await menuRequest(
         observer.api,
         'app/menu/get',

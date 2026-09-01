@@ -400,7 +400,7 @@ func (q *Queries) GetBobFundAccountCurrentReference(ctx context.Context, objectI
 }
 
 const getBobOpenVehiclePayload = `-- name: GetBobOpenVehiclePayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.name, payload.plate_number, payload.vehicle_type, payload.vehicle_type_object_id, payload.vehicle_type_name, payload.vehicle_type_entity, payload.vin, payload.engine_number, payload.load_capacity_kg, payload.remark, payload.carrier_affiliation_type, payload.carrier_operating_entity_id, payload.carrier_operating_entity_approval_entry_id, payload.carrier_operating_entity, payload.carrier_service_relationship_object_id, payload.carrier_service_relationship_approval_entry_id, payload.carrier_service_relationship_entity, payload.bulk_liquid_capable, payload.enabled FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=$1
+SELECT payload.approval_entry_id, payload.entity, payload.name, payload.plate_number, payload.vehicle_type, payload.vehicle_type_object_id, payload.vehicle_type_name, payload.vehicle_type_entity, payload.vin, payload.engine_number, payload.load_capacity_kg, payload.remark, payload.carrier_affiliation_type, payload.carrier_operating_entity_id, payload.carrier_operating_entity_approval_entry_id, payload.carrier_operating_entity, payload.carrier_other_unit_object_id, payload.carrier_other_unit_approval_entry_id, payload.carrier_other_unit_entity, payload.bulk_liquid_capable, payload.enabled FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=$1
 `
 
 func (q *Queries) GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error) {
@@ -423,9 +423,9 @@ func (q *Queries) GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID 
 		&i.CarrierOperatingEntityID,
 		&i.CarrierOperatingEntityApprovalEntryID,
 		&i.CarrierOperatingEntity,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
-		&i.CarrierServiceRelationshipEntity,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
+		&i.CarrierOtherUnitEntity,
 		&i.BulkLiquidCapable,
 		&i.Enabled,
 	)
@@ -611,44 +611,44 @@ func (q *Queries) GetBobProductCurrentReference(ctx context.Context, objectID st
 }
 
 const getBobVehicleCurrent = `-- name: GetBobVehicleCurrent :one
-SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS source_approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle'
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS source_approval_entry_id,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_other_unit_object_id,snapshot.carrier_other_unit_approval_entry_id,snapshot.bulk_liquid_capable,snapshot.enabled,entry.updated_at,entry.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle'
 `
 
 type GetBobVehicleCurrentRow struct {
-	ObjectID                                  string             `db:"object_id" json:"object_id"`
-	Entity                                    string             `db:"entity" json:"entity"`
-	Code                                      *string            `db:"code" json:"code"`
-	SourceApprovalEntryID                     string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-	Name                                      string             `db:"name" json:"name"`
-	PlateNumber                               string             `db:"plate_number" json:"plate_number"`
-	VehicleType                               string             `db:"vehicle_type" json:"vehicle_type"`
-	VehicleTypeObjectID                       string             `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeName                           string             `db:"vehicle_type_name" json:"vehicle_type_name"`
-	Vin                                       *string            `db:"vin" json:"vin"`
-	EngineNumber                              *string            `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric     `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string            `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string             `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string            `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string            `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string            `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string            `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool               `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
-	Enabled                                   bool               `db:"enabled" json:"enabled"`
-	UpdatedAt                                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy                                 string             `db:"updated_by" json:"updated_by"`
-	Domain                                    string             `db:"domain" json:"domain"`
-	VersionNo                                 *int32             `db:"version_no" json:"version_no"`
-	Status                                    string             `db:"status" json:"status"`
-	ApprovalRevision                          int64              `db:"approval_revision" json:"approval_revision"`
-	CreatedBy                                 string             `db:"created_by" json:"created_by"`
-	CreatedAt                                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	ApprovalUpdatedBy                         string             `db:"approval_updated_by" json:"approval_updated_by"`
-	ApprovalUpdatedAt                         pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
-	SubmittedBy                               *string            `db:"submitted_by" json:"submitted_by"`
-	SubmittedAt                               pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	ApprovedBy                                *string            `db:"approved_by" json:"approved_by"`
-	ApprovedAt                                pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	ObjectID                              string             `db:"object_id" json:"object_id"`
+	Entity                                string             `db:"entity" json:"entity"`
+	Code                                  *string            `db:"code" json:"code"`
+	SourceApprovalEntryID                 string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Name                                  string             `db:"name" json:"name"`
+	PlateNumber                           string             `db:"plate_number" json:"plate_number"`
+	VehicleType                           string             `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                   string             `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeName                       string             `db:"vehicle_type_name" json:"vehicle_type_name"`
+	Vin                                   *string            `db:"vin" json:"vin"`
+	EngineNumber                          *string            `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                        pgtype.Numeric     `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                *string            `db:"remark" json:"remark"`
+	CarrierAffiliationType                string             `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID              *string            `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID *string            `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOtherUnitObjectID              *string            `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string            `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	BulkLiquidCapable                     bool               `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	Enabled                               bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                             string             `db:"updated_by" json:"updated_by"`
+	Domain                                string             `db:"domain" json:"domain"`
+	VersionNo                             *int32             `db:"version_no" json:"version_no"`
+	Status                                string             `db:"status" json:"status"`
+	ApprovalRevision                      int64              `db:"approval_revision" json:"approval_revision"`
+	CreatedBy                             string             `db:"created_by" json:"created_by"`
+	CreatedAt                             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ApprovalUpdatedBy                     string             `db:"approval_updated_by" json:"approval_updated_by"`
+	ApprovalUpdatedAt                     pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	SubmittedBy                           *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt                           pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy                            *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt                            pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
 }
 
 func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (GetBobVehicleCurrentRow, error) {
@@ -671,8 +671,8 @@ func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (Ge
 		&i.CarrierAffiliationType,
 		&i.CarrierOperatingEntityID,
 		&i.CarrierOperatingEntityApprovalEntryID,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
 		&i.BulkLiquidCapable,
 		&i.Enabled,
 		&i.UpdatedAt,
@@ -694,30 +694,30 @@ func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (Ge
 }
 
 const getBobVehicleCurrentReference = `-- name: GetBobVehicleCurrentReference :one
-SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS approval_entry_id,entry.version_no,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_service_relationship_object_id,snapshot.carrier_service_relationship_approval_entry_id,snapshot.bulk_liquid_capable FROM dcl_subjects subject JOIN LATERAL (SELECT id,version_no FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle' AND snapshot.enabled
+SELECT subject.id AS object_id,subject.entity,subject.code,snapshot.approval_entry_id AS approval_entry_id,entry.version_no,snapshot.name,snapshot.plate_number,snapshot.vehicle_type,snapshot.vehicle_type_object_id,snapshot.vehicle_type_name,snapshot.vin,snapshot.engine_number,snapshot.load_capacity_kg,snapshot.remark,snapshot.carrier_affiliation_type,snapshot.carrier_operating_entity_id,snapshot.carrier_operating_entity_approval_entry_id,snapshot.carrier_other_unit_object_id,snapshot.carrier_other_unit_approval_entry_id,snapshot.bulk_liquid_capable FROM dcl_subjects subject JOIN LATERAL (SELECT id,version_no FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='vehicle' AND snapshot.enabled
 `
 
 type GetBobVehicleCurrentReferenceRow struct {
-	ObjectID                                  string         `db:"object_id" json:"object_id"`
-	Entity                                    string         `db:"entity" json:"entity"`
-	Code                                      *string        `db:"code" json:"code"`
-	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
-	VersionNo                                 *int32         `db:"version_no" json:"version_no"`
-	Name                                      string         `db:"name" json:"name"`
-	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
-	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
-	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
-	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
-	Vin                                       *string        `db:"vin" json:"vin"`
-	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string        `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	ObjectID                              string         `db:"object_id" json:"object_id"`
+	Entity                                string         `db:"entity" json:"entity"`
+	Code                                  *string        `db:"code" json:"code"`
+	ApprovalEntryID                       string         `db:"approval_entry_id" json:"approval_entry_id"`
+	VersionNo                             *int32         `db:"version_no" json:"version_no"`
+	Name                                  string         `db:"name" json:"name"`
+	PlateNumber                           string         `db:"plate_number" json:"plate_number"`
+	VehicleType                           string         `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                   string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeName                       string         `db:"vehicle_type_name" json:"vehicle_type_name"`
+	Vin                                   *string        `db:"vin" json:"vin"`
+	EngineNumber                          *string        `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                        pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                *string        `db:"remark" json:"remark"`
+	CarrierAffiliationType                string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID              *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOtherUnitObjectID              *string        `db:"carrier_other_unit_object_id" json:"carrier_other_unit_object_id"`
+	CarrierOtherUnitApprovalEntryID       *string        `db:"carrier_other_unit_approval_entry_id" json:"carrier_other_unit_approval_entry_id"`
+	BulkLiquidCapable                     bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
 }
 
 func (q *Queries) GetBobVehicleCurrentReference(ctx context.Context, objectID string) (GetBobVehicleCurrentReferenceRow, error) {
@@ -741,8 +741,8 @@ func (q *Queries) GetBobVehicleCurrentReference(ctx context.Context, objectID st
 		&i.CarrierAffiliationType,
 		&i.CarrierOperatingEntityID,
 		&i.CarrierOperatingEntityApprovalEntryID,
-		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipApprovalEntryID,
+		&i.CarrierOtherUnitObjectID,
+		&i.CarrierOtherUnitApprovalEntryID,
 		&i.BulkLiquidCapable,
 	)
 	return i, err
@@ -872,7 +872,7 @@ const getDCLProductFormula = `-- name: GetDCLProductFormula :one
 SELECT product_approval_entry_id, output_base_quantity_micros, output_entered_quantity_micros, output_unit_object_id, output_unit_code, output_unit_name, output_unit_symbol, output_unit_quantity_scale FROM dcl_product_formulas WHERE product_approval_entry_id=$1
 `
 
-// BOB validates business rules through DCL-owned typed relationship identities.
+// BOB validates business rules through DCL-owned typed archive identities.
 // DCL is their only writer.
 func (q *Queries) GetDCLProductFormula(ctx context.Context, productApprovalEntryID string) (DclProductFormula, error) {
 	row := q.db.QueryRow(ctx, getDCLProductFormula, productApprovalEntryID)
@@ -2303,11 +2303,11 @@ func (q *Queries) ListVehicleCarrierOperatingReferences(ctx context.Context, sou
 }
 
 const listVehicleCarrierServiceReferences = `-- name: ListVehicleCarrierServiceReferences :many
-SELECT subject.id AS object_id,subject.entity,'vehicle-carrier-service'::text AS role
+SELECT subject.id AS object_id,subject.entity,'vehicle-carrier-other-unit'::text AS role
 FROM dcl_subjects subject
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='vehicle' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true
 JOIN dcl_vehicle_versions snapshot ON snapshot.approval_entry_id=entry.id
-WHERE snapshot.carrier_service_relationship_object_id=$1
+WHERE snapshot.carrier_other_unit_object_id=$1
 `
 
 type ListVehicleCarrierServiceReferencesRow struct {

@@ -7,10 +7,11 @@ import (
 )
 
 type ReferenceQueryInput struct {
-	Entity          string `json:"entity"`
-	Keyword         string `json:"keyword"`
-	SourceObjectID  string `json:"sourceObjectId"`
-	BehaviorProfile string `json:"behaviorProfile"`
+	Entity            string `json:"entity"`
+	Keyword           string `json:"keyword"`
+	SourceObjectID    string `json:"sourceObjectId"`
+	BehaviorProfile   string `json:"behaviorProfile"`
+	OperatingEntityID string `json:"operatingEntityId"`
 }
 
 type ReferenceCandidate struct {
@@ -32,6 +33,9 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 	}
 	if input.SourceObjectID != "" && !validID(input.SourceObjectID) {
 		return nil, domainError(ErrorValidation, "invalid BOB reference source", nil, nil)
+	}
+	if input.OperatingEntityID != "" && !validID(input.OperatingEntityID) {
+		return nil, domainError(ErrorValidation, "invalid BOB reference operating entity", nil, nil)
 	}
 	if input.BehaviorProfile != "" && (input.Entity != EntityProduct || !validProductBehavior(input.BehaviorProfile)) {
 		return nil, domainError(ErrorValidation, "invalid product behavior profile", nil, nil)
@@ -80,6 +84,22 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 				return nil, s.internal("read product reference unit conversions", err)
 			}
 			result = append(result, candidate)
+		}
+		return result, nil
+	} else if input.Entity == EntitySupplier || input.Entity == EntityEmployee || input.Entity == EntityOtherUnit || input.Entity == EntitySalesPartner {
+		typedRows, queryErr := s.queries.QueryBobTypedReferenceCandidates(ctx, dbsqlc.QueryBobTypedReferenceCandidatesParams{
+			Entity: input.Entity, SourceObjectID: input.SourceObjectID, Keyword: input.Keyword,
+			BehaviorProfile: input.BehaviorProfile, OperatingEntityID: input.OperatingEntityID,
+		})
+		if queryErr != nil {
+			return nil, s.internal("query typed BOB reference candidates", queryErr)
+		}
+		result := make([]ReferenceCandidate, 0, len(typedRows))
+		for _, row := range typedRows {
+			result = append(result, ReferenceCandidate{
+				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID,
+				Code: row.Code, Name: row.Name,
+			})
 		}
 		return result, nil
 	} else {

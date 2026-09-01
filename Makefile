@@ -53,6 +53,7 @@ check-contracts:
 	pnpm contracts:test-vou-approval
 	pnpm contracts:test-acc-approval
 	pnpm contracts:test-customer-aggregate
+	pnpm contracts:test-typed-business-archives
 	$(MAKE) check-sqlc-generated
 
 check-openapi-generated:

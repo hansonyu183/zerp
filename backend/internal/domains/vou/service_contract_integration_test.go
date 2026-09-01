@@ -79,8 +79,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	refs := prepareReferences(t, pool)
 	bobService := newBOBIntegrationService(pool)
 	bus := txevent.NewBus()
-	parties := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
-	relationships := dcldomain.NewRelationshipService(pool, bobService, parties, bobdomain.NewPartyCurrentReader(pool), authorization.Func(nil), bus)
+	relationships := dcldomain.NewRelationshipService(pool, bobService, authorization.Func(nil), bus)
 	service := newIntegrationService(t, pool)
 
 	serviceContract := approveServiceContractIntegration(t, service, DraftInput{
@@ -110,28 +109,16 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	}
 
 	salesPartner, err := relationships.CreateSalesPartner(t.Context(), dcldomain.SalesPartnerCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "渠道合作方"},
-		OperatingEntityID: refs.salesReceiptOperatingEntity.ObjectID,
 		Data: dcldomain.SalesPartnerData{
-			Capabilities: []string{bobdomain.SalesCapabilityChannelPartner}},
+			Kind:                     bobdomain.PartyKindOrganization,
+			LegalName:                "渠道合作方",
+			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
+			OperatingEntityIDs:       []string{refs.salesReceiptOperatingEntity.ObjectID},
+			DefaultOperatingEntityID: refs.salesReceiptOperatingEntity.ObjectID,
+			Capabilities:             []string{bobdomain.SalesCapabilityChannelPartner}},
 	}, trustedIntegrationActor(t, "customer-channel-create"))
 	if err != nil {
 		t.Fatalf("create channel relationship on customer Party: %v", err)
-	}
-	partyView, err := parties.Get(t.Context(), dcldomain.PartyGetInput{PartyID: salesPartner.PartyID}, bobdomain.PartyRelationshipVisibility{}, trustedIntegrationActor(t, "customer-channel-party-get"))
-	if err != nil {
-		t.Fatalf("get channel Party declaration: %v", err)
-	}
-	partyPending, err := parties.Submit(t.Context(), dcldomain.PartyVersionInput{
-		PartyID: salesPartner.PartyID, ApprovalEntryID: partyView.Approval.ApprovalEntryID, ApprovalRevision: partyView.Approval.Revision,
-	}, trustedIntegrationActor(t, "customer-channel-party-submit"))
-	if err != nil {
-		t.Fatalf("submit channel Party declaration: %v", err)
-	}
-	if _, err = parties.Approve(t.Context(), dcldomain.PartyVersionInput{
-		PartyID: salesPartner.PartyID, ApprovalEntryID: partyPending.Approval.ApprovalEntryID, ApprovalRevision: partyPending.Approval.Revision,
-	}, trustedIntegrationActor(t, "customer-channel-party-approve")); err != nil {
-		t.Fatalf("approve channel Party declaration: %v", err)
 	}
 	submitted, err := relationships.SubmitSalesPartner(t.Context(), dcldomain.RelationshipVersionInput{
 		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID, ApprovalRevision: salesPartner.Approval.Revision,

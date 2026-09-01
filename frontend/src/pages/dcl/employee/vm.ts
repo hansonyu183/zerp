@@ -21,7 +21,6 @@ import {
   deleteDclEmployee,
   getDclEmployee,
   queryDclEmployees,
-  queryEmployeeParties,
   queryEmployeeReference,
   saveDclEmployee,
 } from './data'
@@ -37,17 +36,16 @@ import type {
 } from './types'
 
 type ReferenceKey =
-  | 'partyId'
-  | 'operatingEntityId'
+  | 'currentOperatingEntityId'
   | 'employeeCategoryId'
   | 'departmentId'
   | 'positionId'
 
 const referenceEntity: Record<
-  Exclude<ReferenceKey, 'partyId'>,
+  ReferenceKey,
   Parameters<typeof queryEmployeeReference>[0]
 > = {
-  operatingEntityId: 'operating-entity',
+  currentOperatingEntityId: 'operating-entity',
   employeeCategoryId: 'employee-category',
   departmentId: 'department',
   positionId: 'position',
@@ -79,22 +77,19 @@ export function useDclEmployeeViewModel() {
   const referenceOptions = ref<
     Record<ReferenceKey, DclEmployeeReferenceOption[]>
   >({
-    partyId: [],
-    operatingEntityId: [],
+    currentOperatingEntityId: [],
     employeeCategoryId: [],
     departmentId: [],
     positionId: [],
   })
   const referenceLoading = ref<Record<ReferenceKey, boolean>>({
-    partyId: false,
-    operatingEntityId: false,
+    currentOperatingEntityId: false,
     employeeCategoryId: false,
     departmentId: false,
     positionId: false,
   })
   const referenceError = ref<Record<ReferenceKey, string | null>>({
-    partyId: null,
-    operatingEntityId: null,
+    currentOperatingEntityId: null,
     employeeCategoryId: null,
     departmentId: null,
     positionId: null,
@@ -111,7 +106,7 @@ export function useDclEmployeeViewModel() {
           status: approval.status,
           versionNo: approval.versionNo,
           availableApprovalActions: row.availableApprovalActions,
-          enabled: row.enabled,
+          enabled: dclEmployeeActiveVersion(row).data.enabled,
           hasOpenVersion: row.openVersion !== null,
           hasLatestApproved: row.latestApproved !== null,
         }
@@ -128,8 +123,7 @@ export function useDclEmployeeViewModel() {
   const canCreate = computed(
     () =>
       session.can(permission('create')) &&
-      canReferences.value &&
-      (session.can('/bob/party/query') || session.can('/dcl/party/create')),
+      canReferences.value,
   )
   const canEdit = computed(
     () => session.can(permission('save')) && canReferences.value,
@@ -207,21 +201,16 @@ export function useDclEmployeeViewModel() {
   }
 
   async function loadReference(key: ReferenceKey, keyword = ''): Promise<void> {
-    if (
-      key === 'partyId'
-        ? !session.can('/bob/party/query')
-        : !canReferences.value
-    )
-      return
+    if (!canReferences.value) return
     const sequence = (sequences.get(key) ?? 0) + 1
     sequences.set(key, sequence)
     referenceLoading.value[key] = true
     referenceError.value[key] = null
     try {
-      const options =
-        key === 'partyId'
-          ? await queryEmployeeParties(keyword.trim())
-          : await queryEmployeeReference(referenceEntity[key], keyword.trim())
+      const options = await queryEmployeeReference(
+        referenceEntity[key],
+        keyword.trim(),
+      )
       if (sequences.get(key) === sequence) mergeSelected(key, options)
     } catch (error) {
       if (sequences.get(key) === sequence)
@@ -314,13 +303,10 @@ export function useDclEmployeeViewModel() {
   }
 
   function hydrateViewReferences(view: DclEmployeeView): void {
-    referenceOptions.value.partyId = [
-      { value: view.partyId, title: view.partyDisplayName },
-    ]
-    referenceOptions.value.operatingEntityId = [
+    referenceOptions.value.currentOperatingEntityId = [
       {
-        value: view.operatingEntityId,
-        title: `${view.operatingEntityCode} · ${view.operatingEntityName}`,
+        value: view.data.currentOperatingEntityId,
+        title: `${view.data.currentOperatingEntity.code} · ${view.data.currentOperatingEntity.name}`,
       },
     ]
     referenceOptions.value.employeeCategoryId = view.data.employeeCategoryId
@@ -433,13 +419,10 @@ export function useDclEmployeeViewModel() {
     if (saving.value || editorMode.value === 'view') return false
     if (
       (editorMode.value === 'create' ? !canCreate.value : !canEdit.value) ||
-      !form.operatingEntityId.trim() ||
-      (editorMode.value === 'create' &&
-        (form.partyMode === 'EXISTING'
-          ? !form.partyId.trim()
-          : !form.legalName.trim()))
+      !form.currentOperatingEntityId.trim() ||
+      !form.legalName.trim()
     ) {
-      editorErrorMessage.value = '请选择经营主体，并完整填写主体资料。'
+      editorErrorMessage.value = '请选择任职经营主体，并完整填写身份资料。'
       return false
     }
     saving.value = true
@@ -451,7 +434,6 @@ export function useDclEmployeeViewModel() {
         if (!context) throw new Error('未加载可编辑的人员变更版本。')
         await saveDclEmployee({
           ...context,
-          enabled: currentView.value?.enabled ?? true,
           data: dclEmployeeData(form),
         })
       }
@@ -496,7 +478,7 @@ export function useDclEmployeeViewModel() {
     actionLoading,
     errorMessage,
     (row: DclEmployeeListItem) => row.objectId,
-    (row) => row.enabled,
+    (row) => dclEmployeeActiveVersion(row).data.enabled,
     actionAvailability,
     dclEmployeeLifecyclePort,
     query,

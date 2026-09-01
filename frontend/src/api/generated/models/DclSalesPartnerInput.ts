@@ -2,8 +2,18 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BusinessIdentifier } from './BusinessIdentifier';
+import type { BusinessIdentityKind } from './BusinessIdentityKind';
 import type { SalesPartnerCapability } from './SalesPartnerCapability';
 export type DclSalesPartnerInput = {
+  kind: BusinessIdentityKind;
+  legalName: string;
+  displayName?: string;
+  taxNumber?: string;
+  strongIdentifiers: Array<BusinessIdentifier>;
+  enabled: boolean;
+  operatingEntityIds: Array<string>;
+  defaultOperatingEntityId: string;
   capabilities?: Array<SalesPartnerCapability>;
   contactName?: string | null;
   contactPhone?: string | null;

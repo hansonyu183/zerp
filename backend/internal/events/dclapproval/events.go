@@ -47,28 +47,27 @@ type PartyPayload struct{ SubjectID, Name string }
 var PartyTopic = approval.MustTopic[PartyPayload]("dcl.party.approval")
 
 type EmployeePayload struct {
-	SubjectID, Code, PartyID string
-	Enabled                  bool
+	SubjectID, Code string
+	Enabled         bool
 }
 
 var EmployeeTopic = approval.MustTopic[EmployeePayload]("dcl.employee.approval")
 
 type OtherUnitPayload struct {
-	SubjectID, Code, PartyID string
-	Enabled                  bool
+	SubjectID, Code string
+	Enabled         bool
 }
 
 var OtherUnitTopic = approval.MustTopic[OtherUnitPayload]("dcl.other-unit.approval")
 
 type SalesPartnerPayload struct {
-	SubjectID, Code, PartyID string
-	Enabled                  bool
+	SubjectID, Code string
+	Enabled         bool
 }
 
 type SupplierPayload struct {
 	SubjectID string `json:"subjectId"`
 	Code      string `json:"code"`
-	PartyID   string `json:"partyId"`
 	Enabled   bool   `json:"enabled"`
 }
 

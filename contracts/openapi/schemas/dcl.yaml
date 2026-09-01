@@ -1714,12 +1714,44 @@
     },
   'DclProductAuditHistoryResponse':
     { '$ref': '#/DclWarehouseAuditHistoryResponse' },
-  'DclEmployeeInput':
+  'DclBusinessArchiveSnapshot':
     {
       'type': 'object',
+      'required': ['sourceObjectId', 'approvalEntryId', 'code', 'name'],
       'additionalProperties': false,
       'properties':
         {
+          'sourceObjectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+        },
+    },
+  'DclEmployeeInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'kind',
+          'legalName',
+          'strongIdentifiers',
+          'enabled',
+          'currentOperatingEntityId',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
+          'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'displayName': { 'type': 'string', 'maxLength': 200 },
+          'taxNumber': { 'type': 'string', 'maxLength': 100 },
+          'strongIdentifiers':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
+            },
+          'enabled': { 'type': 'boolean' },
+          'currentOperatingEntityId': { 'type': 'string' },
           'employeeCategoryId': { 'type': 'string', 'nullable': true },
           'departmentId': { 'type': 'string', 'nullable': true },
           'positionId': { 'type': 'string', 'nullable': true },
@@ -1731,58 +1763,45 @@
     },
   'DclEmployeeData':
     {
-      'type': 'object',
-      'additionalProperties': false,
-      'properties':
-        {
-          'employeeCategoryId': { 'type': 'string', 'nullable': true },
-          'employeeCategoryCode': { 'type': 'string', 'nullable': true },
-          'employeeCategoryName': { 'type': 'string', 'nullable': true },
-          'departmentId': { 'type': 'string', 'nullable': true },
-          'departmentCode': { 'type': 'string', 'nullable': true },
-          'departmentName': { 'type': 'string', 'nullable': true },
-          'positionId': { 'type': 'string', 'nullable': true },
-          'positionCode': { 'type': 'string', 'nullable': true },
-          'positionName': { 'type': 'string', 'nullable': true },
-          'phone': { 'type': 'string', 'nullable': true },
-          'email': { 'type': 'string', 'nullable': true },
-          'hireDate': { 'type': 'string', 'nullable': true, 'format': 'date' },
-          'remark': { 'type': 'string', 'nullable': true },
-        },
-    },
-  'DclEmployeeCreateRequest':
-    {
-      'oneOf':
+      'allOf':
         [
+          { '$ref': '#/DclEmployeeInput' },
           {
             'type': 'object',
-            'required': ['partyId', 'operatingEntityId', 'data'],
-            'additionalProperties': false,
+            'required': ['currentOperatingEntity'],
             'properties':
               {
-                'partyId': { 'type': 'string' },
-                'operatingEntityId': { 'type': 'string' },
-                'data': { '$ref': '#/DclEmployeeInput' },
-              },
-          },
-          {
-            'type': 'object',
-            'required': ['newParty', 'operatingEntityId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'newParty': { '$ref': './bob.yaml#/PartyIdentityData' },
-                'operatingEntityId': { 'type': 'string' },
-                'data': { '$ref': '#/DclEmployeeInput' },
+                'currentOperatingEntity':
+                  { '$ref': '#/DclBusinessArchiveSnapshot' },
+                'employeeCategoryId': { 'type': 'string', 'nullable': true },
+                'employeeCategoryCode': { 'type': 'string', 'nullable': true },
+                'employeeCategoryName': { 'type': 'string', 'nullable': true },
+                'departmentId': { 'type': 'string', 'nullable': true },
+                'departmentCode': { 'type': 'string', 'nullable': true },
+                'departmentName': { 'type': 'string', 'nullable': true },
+                'positionId': { 'type': 'string', 'nullable': true },
+                'positionCode': { 'type': 'string', 'nullable': true },
+                'positionName': { 'type': 'string', 'nullable': true },
+                'phone': { 'type': 'string', 'nullable': true },
+                'email': { 'type': 'string', 'nullable': true },
+                'hireDate':
+                  { 'type': 'string', 'nullable': true, 'format': 'date' },
+                'remark': { 'type': 'string', 'nullable': true },
               },
           },
         ],
     },
+  'DclEmployeeCreateRequest':
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/DclEmployeeInput' } },
+    },
   'DclEmployeeSaveRequest':
     {
       'type': 'object',
-      'required':
-        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
@@ -1790,7 +1809,6 @@
           'approvalEntryId': { 'type': 'string' },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'enabled': { 'type': 'boolean' },
           'data': { '$ref': '#/DclEmployeeInput' },
         },
     },
@@ -1853,13 +1871,6 @@
           'objectId',
           'entity',
           'code',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'enabled',
           'approval',
           'availableApprovalActions',
           'data',
@@ -1871,14 +1882,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['employee'] },
           'code': { 'type': 'string' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': './bob.yaml#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityApprovalEntryId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'availableApprovalActions':
             {
@@ -1892,13 +1895,12 @@
   'DclEmployeeVersionView':
     {
       'type': 'object',
-      'required': ['approval', 'data', 'enabled'],
+      'required': ['approval', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclEmployeeData' },
-          'enabled': { 'type': 'boolean' },
         },
     },
   'DclEmployeeListItem':
@@ -1909,13 +1911,8 @@
           'objectId',
           'entity',
           'code',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'enabled',
+          'displayName',
+          'currentOperatingEntity',
           'availableApprovalActions',
           'latestApproved',
           'openVersion',
@@ -1927,13 +1924,8 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['employee'] },
           'code': { 'type': 'string' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': './bob.yaml#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
+          'displayName': { 'type': 'string' },
+          'currentOperatingEntity': { '$ref': '#/DclBusinessArchiveSnapshot' },
           'availableApprovalActions':
             {
               'type': 'array',
@@ -2895,11 +2887,37 @@
   'DclSupplierInput':
     {
       'type': 'object',
+      'required':
+        [
+          'kind',
+          'legalName',
+          'strongIdentifiers',
+          'enabled',
+          'operatingEntityIds',
+          'defaultOperatingEntityId',
+        ],
       'additionalProperties': false,
       'properties':
         {
+          'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
+          'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'displayName': { 'type': 'string', 'maxLength': 200 },
+          'taxNumber': { 'type': 'string', 'maxLength': 100 },
+          'strongIdentifiers':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
+            },
+          'enabled': { 'type': 'boolean' },
+          'operatingEntityIds':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
+          'defaultOperatingEntityId': { 'type': 'string' },
           'shortName': { 'type': 'string', 'nullable': true, 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
           'contactName':
             { 'type': 'string', 'nullable': true, 'maxLength': 100 },
           'contactPhone':
@@ -2913,67 +2931,59 @@
     },
   'DclSupplierData':
     {
-      'type': 'object',
-      'required': ['settlementMethod', 'defaultPurchaser'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'shortName': { 'type': 'string', 'nullable': true },
-          'taxNumber': { 'type': 'string', 'nullable': true },
-          'contactName': { 'type': 'string', 'nullable': true },
-          'contactPhone': { 'type': 'string', 'nullable': true },
-          'email': { 'type': 'string', 'nullable': true },
-          'address': { 'type': 'string', 'nullable': true },
-          'remark': { 'type': 'string', 'nullable': true },
-          'settlementMethodId': { 'type': 'string', 'nullable': true },
-          'defaultPurchaserEmployeeId': { 'type': 'string', 'nullable': true },
-          'settlementMethod':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': './bob.yaml#/SupplierSettlementSnapshot' }],
-              'nullable': true,
-            },
-          'defaultPurchaser':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': './bob.yaml#/SupplierPurchaserSnapshot' }],
-              'nullable': true,
-            },
-        },
-    },
-  'DclSupplierCreateRequest':
-    {
-      'oneOf':
+      'allOf':
         [
+          { '$ref': '#/DclSupplierInput' },
           {
             'type': 'object',
-            'required': ['partyId', 'operatingEntityId', 'data'],
-            'additionalProperties': false,
+            'required':
+              ['operatingEntities', 'settlementMethod', 'defaultPurchaser'],
             'properties':
               {
-                'partyId': { 'type': 'string' },
-                'operatingEntityId': { 'type': 'string' },
-                'data': { '$ref': '#/DclSupplierInput' },
-              },
-          },
-          {
-            'type': 'object',
-            'required': ['newParty', 'operatingEntityId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'newParty': { '$ref': './bob.yaml#/PartyIdentityData' },
-                'operatingEntityId': { 'type': 'string' },
-                'data': { '$ref': '#/DclSupplierInput' },
+                'operatingEntities':
+                  {
+                    'type': 'array',
+                    'items': { '$ref': '#/DclBusinessArchiveSnapshot' },
+                  },
+                'shortName': { 'type': 'string', 'nullable': true },
+                'taxNumber': { 'type': 'string', 'nullable': true },
+                'contactName': { 'type': 'string', 'nullable': true },
+                'contactPhone': { 'type': 'string', 'nullable': true },
+                'email': { 'type': 'string', 'nullable': true },
+                'address': { 'type': 'string', 'nullable': true },
+                'remark': { 'type': 'string', 'nullable': true },
+                'settlementMethodId': { 'type': 'string', 'nullable': true },
+                'defaultPurchaserEmployeeId':
+                  { 'type': 'string', 'nullable': true },
+                'settlementMethod':
+                  {
+                    'type': 'object',
+                    'allOf':
+                      [{ '$ref': './bob.yaml#/SupplierSettlementSnapshot' }],
+                    'nullable': true,
+                  },
+                'defaultPurchaser':
+                  {
+                    'type': 'object',
+                    'allOf':
+                      [{ '$ref': './bob.yaml#/SupplierPurchaserSnapshot' }],
+                    'nullable': true,
+                  },
               },
           },
         ],
     },
+  'DclSupplierCreateRequest':
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/DclSupplierInput' } },
+    },
   'DclSupplierSaveRequest':
     {
       'type': 'object',
-      'required':
-        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
@@ -2981,7 +2991,6 @@
           'approvalEntryId': { 'type': 'string' },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'enabled': { 'type': 'boolean' },
           'data': { '$ref': '#/DclSupplierInput' },
         },
     },
@@ -3038,14 +3047,6 @@
           'objectId',
           'entity',
           'code',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityApprovalEntryId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'enabled',
           'approval',
           'availableApprovalActions',
           'data',
@@ -3057,14 +3058,6 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['supplier'] },
           'code': { 'type': 'string' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': './bob.yaml#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityApprovalEntryId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'availableApprovalActions':
             {
@@ -3078,13 +3071,12 @@
   'DclSupplierVersionView':
     {
       'type': 'object',
-      'required': ['approval', 'data', 'enabled'],
+      'required': ['approval', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'data': { '$ref': '#/DclSupplierData' },
-          'enabled': { 'type': 'boolean' },
         },
     },
   'DclSupplierListItem':
@@ -3095,13 +3087,8 @@
           'objectId',
           'entity',
           'code',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'enabled',
+          'displayName',
+          'defaultOperatingEntity',
           'availableApprovalActions',
           'latestApproved',
           'openVersion',
@@ -3113,13 +3100,8 @@
           'objectId': { 'type': 'string' },
           'entity': { 'type': 'string', 'enum': ['supplier'] },
           'code': { 'type': 'string' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': './bob.yaml#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
+          'displayName': { 'type': 'string' },
+          'defaultOperatingEntity': { '$ref': '#/DclBusinessArchiveSnapshot' },
           'availableApprovalActions':
             {
               'type': 'array',
@@ -3233,9 +3215,36 @@
   'DclOtherUnitInput':
     {
       'type': 'object',
+      'required':
+        [
+          'kind',
+          'legalName',
+          'strongIdentifiers',
+          'enabled',
+          'operatingEntityIds',
+          'defaultOperatingEntityId',
+        ],
       'additionalProperties': false,
       'properties':
         {
+          'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
+          'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'displayName': { 'type': 'string', 'maxLength': 200 },
+          'taxNumber': { 'type': 'string', 'maxLength': 100 },
+          'strongIdentifiers':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
+            },
+          'enabled': { 'type': 'boolean' },
+          'operatingEntityIds':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
+          'defaultOperatingEntityId': { 'type': 'string' },
           'contactName':
             { 'type': 'string', 'nullable': true, 'maxLength': 100 },
           'contactPhone':
@@ -3253,8 +3262,14 @@
           { '$ref': '#/DclOtherUnitInput' },
           {
             'type': 'object',
+            'required': ['operatingEntities'],
             'properties':
               {
+                'operatingEntities':
+                  {
+                    'type': 'array',
+                    'items': { '$ref': '#/DclBusinessArchiveSnapshot' },
+                  },
                 'settlementMethodCode': { 'type': 'string' },
                 'settlementMethodName': { 'type': 'string' },
                 'settlementTermCode': { 'type': 'string' },
@@ -3268,70 +3283,18 @@
           },
         ],
     },
-  'DclRelationshipQueryRequest':
+  'DclOtherUnitVersionView':
     {
       'type': 'object',
-      'required': ['page', 'pageSize'],
+      'required': ['approval', 'data'],
       'additionalProperties': false,
       'properties':
         {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20] },
-          'filters':
-            {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties':
-                {
-                  'keyword': { 'type': 'string', 'maxLength': 200 },
-                  'status':
-                    {
-                      'type': 'array',
-                      'items':
-                        {
-                          'type': 'string',
-                          'enum': ['DRAFT', 'PENDING', 'APPROVED'],
-                        },
-                    },
-                  'enabled': { 'type': 'boolean' },
-                  'operatingEntityId': { 'type': 'string' },
-                },
-            },
-        },
-    },
-  'DclRelationshipMutation':
-    {
-      'type': 'object',
-      'required': ['objectId', 'partyId', 'enabled', 'approval'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'partyId': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclOtherUnitData' },
         },
     },
-  'DclRelationshipMutationResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'errorKey': { 'type': 'string' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/DclRelationshipMutation' }],
-              'nullable': true,
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'DclRelationshipListIdentity':
+  'DclOtherUnitView':
     {
       'type': 'object',
       'required':
@@ -3339,96 +3302,69 @@
           'objectId',
           'entity',
           'code',
-          'partyId',
-          'partyKind',
-          'partyDisplayName',
-          'operatingEntityId',
-          'operatingEntityCode',
-          'operatingEntityName',
-          'enabled',
+          'approval',
+          'availableApprovalActions',
+          'data',
+          'updatedAt',
         ],
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'entity':
-            { 'type': 'string', 'enum': ['other-unit', 'sales-partner'] },
-          'code': { 'type': 'string' },
-          'partyId': { 'type': 'string' },
-          'partyKind': { '$ref': './bob.yaml#/PartyKind' },
-          'partyDisplayName': { 'type': 'string' },
-          'operatingEntityId': { 'type': 'string' },
-          'operatingEntityCode': { 'type': 'string' },
-          'operatingEntityName': { 'type': 'string' },
-          'enabled': { 'type': 'boolean' },
-        },
-    },
-  'DclOtherUnitVersionView':
-    {
-      'type': 'object',
-      'required': ['approval', 'enabled', 'data'],
       'additionalProperties': false,
       'properties':
         {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['other-unit'] },
+          'code': { 'type': 'string' },
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'enabled': { 'type': 'boolean' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
           'data': { '$ref': '#/DclOtherUnitData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
-    },
-  'DclOtherUnitView':
-    {
-      'allOf':
-        [
-          { '$ref': '#/DclRelationshipListIdentity' },
-          {
-            'type': 'object',
-            'required':
-              ['approval', 'availableApprovalActions', 'data', 'updatedAt'],
-            'properties':
-              {
-                'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-                'availableApprovalActions':
-                  {
-                    'type': 'array',
-                    'items':
-                      { '$ref': './common.yaml#/ApprovalLifecycleAction' },
-                  },
-                'data': { '$ref': '#/DclOtherUnitData' },
-                'updatedAt': { 'type': 'string', 'format': 'date-time' },
-              },
-          },
-        ],
     },
   'DclOtherUnitListItem':
     {
-      'allOf':
+      'type': 'object',
+      'required':
         [
-          { '$ref': '#/DclRelationshipListIdentity' },
-          {
-            'type': 'object',
-            'required': ['availableApprovalActions'],
-            'properties':
-              {
-                'availableApprovalActions':
-                  {
-                    'type': 'array',
-                    'items':
-                      { '$ref': './common.yaml#/ApprovalLifecycleAction' },
-                  },
-                'latestApproved':
-                  {
-                    'type': 'object',
-                    'allOf': [{ '$ref': '#/DclOtherUnitVersionView' }],
-                    'nullable': true,
-                  },
-                'openVersion':
-                  {
-                    'type': 'object',
-                    'allOf': [{ '$ref': '#/DclOtherUnitVersionView' }],
-                    'nullable': true,
-                  },
-              },
-          },
+          'objectId',
+          'entity',
+          'code',
+          'displayName',
+          'defaultOperatingEntity',
+          'availableApprovalActions',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
         ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['other-unit'] },
+          'code': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'defaultOperatingEntity': { '$ref': '#/DclBusinessArchiveSnapshot' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
+          'latestApproved':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclOtherUnitVersionView' }],
+              'nullable': true,
+            },
+          'openVersion':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclOtherUnitVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
     },
   'DclOtherUnitQueryPage':
     {
@@ -3463,37 +3399,15 @@
     },
   'DclOtherUnitCreateRequest':
     {
-      'oneOf':
-        [
-          {
-            'type': 'object',
-            'required': ['partyId', 'operatingEntityId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'partyId': { 'type': 'string' },
-                'operatingEntityId': { 'type': 'string' },
-                'data': { '$ref': '#/DclOtherUnitInput' },
-              },
-          },
-          {
-            'type': 'object',
-            'required': ['newParty', 'operatingEntityId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'newParty': { '$ref': './bob.yaml#/PartyIdentityData' },
-                'operatingEntityId': { 'type': 'string' },
-                'data': { '$ref': '#/DclOtherUnitInput' },
-              },
-          },
-        ],
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/DclOtherUnitInput' } },
     },
   'DclOtherUnitSaveRequest':
     {
       'type': 'object',
-      'required':
-        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
@@ -3501,7 +3415,6 @@
           'approvalEntryId': { 'type': 'string' },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'enabled': { 'type': 'boolean' },
           'data': { '$ref': '#/DclOtherUnitInput' },
         },
     },
@@ -3509,11 +3422,11 @@
     { '$ref': '#/DclOperatingEntityVersionRequest' },
   'DclOtherUnitReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
   'DclOtherUnitGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
-  'DclOtherUnitQueryRequest': { '$ref': '#/DclRelationshipQueryRequest' },
+  'DclOtherUnitQueryRequest': { '$ref': '#/DclSupplierQueryRequest' },
   'DclOtherUnitHistoryRequest':
     { '$ref': '#/DclOperatingEntityHistoryRequest' },
   'DclOtherUnitMutationResponse':
-    { '$ref': '#/DclRelationshipMutationResponse' },
+    { '$ref': '#/DclOperatingEntityMutationResponse' },
   'DclOtherUnitViewResponse':
     {
       'type': 'object',
@@ -3576,9 +3489,36 @@
   'DclSalesPartnerInput':
     {
       'type': 'object',
+      'required':
+        [
+          'kind',
+          'legalName',
+          'strongIdentifiers',
+          'enabled',
+          'operatingEntityIds',
+          'defaultOperatingEntityId',
+        ],
       'additionalProperties': false,
       'properties':
         {
+          'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
+          'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'displayName': { 'type': 'string', 'maxLength': 200 },
+          'taxNumber': { 'type': 'string', 'maxLength': 100 },
+          'strongIdentifiers':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
+            },
+          'enabled': { 'type': 'boolean' },
+          'operatingEntityIds':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
+          'defaultOperatingEntityId': { 'type': 'string' },
           'capabilities':
             {
               'type': 'array',
@@ -3594,73 +3534,107 @@
           'remark': { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
         },
     },
+  'DclSalesPartnerData':
+    {
+      'allOf':
+        [
+          { '$ref': '#/DclSalesPartnerInput' },
+          {
+            'type': 'object',
+            'required': ['operatingEntities'],
+            'properties':
+              {
+                'operatingEntities':
+                  {
+                    'type': 'array',
+                    'items': { '$ref': '#/DclBusinessArchiveSnapshot' },
+                  },
+              },
+          },
+        ],
+    },
   'DclSalesPartnerVersionView':
     {
       'type': 'object',
-      'required': ['approval', 'enabled', 'data'],
+      'required': ['approval', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-          'enabled': { 'type': 'boolean' },
-          'data': { '$ref': '#/DclSalesPartnerInput' },
+          'data': { '$ref': '#/DclSalesPartnerData' },
         },
     },
   'DclSalesPartnerView':
     {
-      'allOf':
+      'type': 'object',
+      'required':
         [
-          { '$ref': '#/DclRelationshipListIdentity' },
-          {
-            'type': 'object',
-            'required':
-              ['approval', 'availableApprovalActions', 'data', 'updatedAt'],
-            'properties':
-              {
-                'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
-                'availableApprovalActions':
-                  {
-                    'type': 'array',
-                    'items':
-                      { '$ref': './common.yaml#/ApprovalLifecycleAction' },
-                  },
-                'data': { '$ref': '#/DclSalesPartnerInput' },
-                'updatedAt': { 'type': 'string', 'format': 'date-time' },
-              },
-          },
+          'objectId',
+          'entity',
+          'code',
+          'approval',
+          'availableApprovalActions',
+          'data',
+          'updatedAt',
         ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['sales-partner'] },
+          'code': { 'type': 'string' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
+          'data': { '$ref': '#/DclSalesPartnerData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
     },
   'DclSalesPartnerListItem':
     {
-      'allOf':
+      'type': 'object',
+      'required':
         [
-          { '$ref': '#/DclRelationshipListIdentity' },
-          {
-            'type': 'object',
-            'required': ['availableApprovalActions'],
-            'properties':
-              {
-                'availableApprovalActions':
-                  {
-                    'type': 'array',
-                    'items':
-                      { '$ref': './common.yaml#/ApprovalLifecycleAction' },
-                  },
-                'latestApproved':
-                  {
-                    'type': 'object',
-                    'allOf': [{ '$ref': '#/DclSalesPartnerVersionView' }],
-                    'nullable': true,
-                  },
-                'openVersion':
-                  {
-                    'type': 'object',
-                    'allOf': [{ '$ref': '#/DclSalesPartnerVersionView' }],
-                    'nullable': true,
-                  },
-              },
-          },
+          'objectId',
+          'entity',
+          'code',
+          'displayName',
+          'defaultOperatingEntity',
+          'availableApprovalActions',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
         ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['sales-partner'] },
+          'code': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'defaultOperatingEntity': { '$ref': '#/DclBusinessArchiveSnapshot' },
+          'availableApprovalActions':
+            {
+              'type': 'array',
+              'items': { '$ref': './common.yaml#/ApprovalLifecycleAction' },
+            },
+          'latestApproved':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclSalesPartnerVersionView' }],
+              'nullable': true,
+            },
+          'openVersion':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclSalesPartnerVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
     },
   'DclSalesPartnerQueryPage':
     {
@@ -3698,37 +3672,15 @@
     },
   'DclSalesPartnerCreateRequest':
     {
-      'oneOf':
-        [
-          {
-            'type': 'object',
-            'required': ['partyId', 'operatingEntityId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'partyId': { 'type': 'string' },
-                'operatingEntityId': { 'type': 'string' },
-                'data': { '$ref': '#/DclSalesPartnerInput' },
-              },
-          },
-          {
-            'type': 'object',
-            'required': ['newParty', 'operatingEntityId', 'data'],
-            'additionalProperties': false,
-            'properties':
-              {
-                'newParty': { '$ref': './bob.yaml#/PartyIdentityData' },
-                'operatingEntityId': { 'type': 'string' },
-                'data': { '$ref': '#/DclSalesPartnerInput' },
-              },
-          },
-        ],
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/DclSalesPartnerInput' } },
     },
   'DclSalesPartnerSaveRequest':
     {
       'type': 'object',
-      'required':
-        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
@@ -3736,7 +3688,6 @@
           'approvalEntryId': { 'type': 'string' },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'enabled': { 'type': 'boolean' },
           'data': { '$ref': '#/DclSalesPartnerInput' },
         },
     },
@@ -3745,11 +3696,11 @@
   'DclSalesPartnerReviewRequest':
     { '$ref': '#/DclOperatingEntityReviewRequest' },
   'DclSalesPartnerGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
-  'DclSalesPartnerQueryRequest': { '$ref': '#/DclRelationshipQueryRequest' },
+  'DclSalesPartnerQueryRequest': { '$ref': '#/DclSupplierQueryRequest' },
   'DclSalesPartnerHistoryRequest':
     { '$ref': '#/DclOperatingEntityHistoryRequest' },
   'DclSalesPartnerMutationResponse':
-    { '$ref': '#/DclRelationshipMutationResponse' },
+    { '$ref': '#/DclOperatingEntityMutationResponse' },
   'DclSalesPartnerViewResponse':
     {
       'type': 'object',

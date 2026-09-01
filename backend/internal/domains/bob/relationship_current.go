@@ -9,11 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// RelationshipIdentity is the immutable Party-to-operating-entity root held
-// by BOB. Mutable commercial data is declared and approved in DCL.
-type RelationshipIdentity struct {
-	ObjectID, Code, PartyID, OperatingEntityID string
-}
+// RelationshipIdentity is retained for old Supplier/Party code only. Other
+// Unit and Sales Partner current views no longer populate it.
+type RelationshipIdentity struct{ ObjectID, Code, PartyID, OperatingEntityID string }
 
 func (s *Service) ResolveOtherUnitDeclaration(ctx context.Context, tx pgx.Tx, data DetailView, exact bool) (DetailView, error) {
 	if data.SettlementMethodID == "" {
@@ -32,24 +30,31 @@ func (s *Service) ResolveOtherUnitDeclaration(ctx context.Context, tx pgx.Tx, da
 	resolved.DefaultSalesSurcharge = ""
 	return validateDetailData(EntityOtherUnit, resolved)
 }
-
 func (s *Service) EnsureSupplierUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
 	if tx == nil || !validID(entryID) {
 		return domainError(ErrorValidation, "invalid Supplier unapprove request", nil, nil)
 	}
 	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
-
 func (s *Service) EnsureCustomerUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
 	if tx == nil || !validID(entryID) {
 		return domainError(ErrorValidation, "invalid Customer unapprove request", nil, nil)
 	}
 	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
+func (s *Service) EnsureOtherUnitUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
+	if tx == nil || !validID(entryID) {
+		return domainError(ErrorValidation, "invalid Other Unit unapprove request", nil, nil)
+	}
+	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
+}
+func (s *Service) EnsureSalesPartnerUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
+	if tx == nil || !validID(entryID) {
+		return domainError(ErrorValidation, "invalid Sales Partner unapprove request", nil, nil)
+	}
+	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
+}
 
-// ResolveCustomerAccountReferences resolves the exact commercial snapshots a
-// DCL account must own. It is a BOB integration primitive, not an account
-// declaration API: callers persist the returned immutable facts in DCL.
 func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerIdentifiers map[string]string, settlementID, paymentID, attributionType, attributionID string) (EffectiveReference, EffectiveReference, EffectiveReference, error) {
 	if tx == nil || !validID(attributionID) {
 		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
@@ -59,7 +64,9 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 	if settlementID != "" {
 		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", settlementID)
 		err = e
-		settlement = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), TermCode: mapString(r.Data, "termCode"), RuleType: mapString(r.Data, "ruleType"), DueDays: int32(mapInt(r.Data, "dayOffset")), MonthOffset: int32(mapInt(r.Data, "monthOffset")), CutoffDay: int32(mapInt(r.Data, "dayOfMonth")), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
+		if err == nil {
+			settlement = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), TermCode: mapString(r.Data, "termCode"), RuleType: mapString(r.Data, "ruleType"), DueDays: int32(mapInt(r.Data, "dayOffset")), MonthOffset: int32(mapInt(r.Data, "monthOffset")), CutoffDay: int32(mapInt(r.Data, "dayOfMonth")), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
+		}
 		if err != nil {
 			return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
 		}
@@ -67,7 +74,9 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 	if paymentID != "" {
 		r, e := s.resolveNamedAuxiliaryReference(ctx, tx, "payment-method", paymentID)
 		err = e
-		payment = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
+		if err == nil {
+			payment = EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: DetailView{Name: mapString(r.Data, "name"), DefaultSalesSurcharge: mapString(r.Data, "defaultSalesSurcharge")}}
+		}
 		if err != nil {
 			return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
 		}
@@ -94,9 +103,6 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 	}
 	return settlement, payment, sales, nil
 }
-
-// ValidateCustomerAccountReferences proves a stored declaration still names
-// exact approved snapshots before it can be submitted or approved.
 func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerIdentifiers map[string]string, attributionType, attributionID, attributionEntryID string) error {
 	if tx == nil || !validID(attributionID) || !validID(attributionEntryID) {
 		return domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
@@ -123,94 +129,123 @@ func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.
 	}
 	return nil
 }
-
 func (s *Service) ensureDifferentCustomerSalesIdentity(ctx context.Context, q *dbsqlc.Queries, customerIdentifiers map[string]string, salesPartnerID string) error {
-	relationship, err := q.GetBobSalesPartnerRelationship(ctx, salesPartnerID)
+	entry, err := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySalesPartner, SubjectID: salesPartnerID})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return domainError(ErrorConflict, "sales-partner relationship is unavailable", nil, nil)
+		return domainError(ErrorConflict, "sales-partner has no approved typed version", nil, nil)
 	}
 	if err != nil {
-		return s.internal("get sales-partner relationship", err)
+		return s.internal("get sales-partner approved version", err)
 	}
-	identifiers, err := partyIdentifiers(ctx, q, relationship.PartyID)
+	identifiers, err := q.ListDCLSalesPartnerVersionIdentifiers(ctx, entry.ID)
 	if err != nil {
-		return s.internal("get sales-partner identifiers", err)
+		return s.internal("get sales-partner typed identifiers", err)
 	}
 	for _, identifier := range identifiers {
-		customerValue := customerIdentifiers[identifier.Type]
-		if customerValue != "" && normalizePartyIdentifier(customerValue) == normalizePartyIdentifier(identifier.Value) {
+		if customerValue := customerIdentifiers[identifier.IdentifierType]; customerValue != "" && normalizePartyIdentifier(customerValue) == identifier.NormalizedValue {
 			return domainError(ErrorConflict, "customer cannot attribute sales to the same business identity", nil, nil)
 		}
 	}
 	return nil
 }
 
-func (s *Service) EnsureOtherUnitUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
-	if tx == nil || !validID(entryID) {
-		return domainError(ErrorValidation, "invalid Other Unit unapprove request", nil, nil)
-	}
-	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
+func archiveSnapshot(id, entry, code, name string) BusinessArchiveSnapshot {
+	return BusinessArchiveSnapshot{SourceObjectID: id, ApprovalEntryID: entry, Code: code, Name: name}
 }
-func (s *Service) EnsureSalesPartnerUnapproveAllowed(ctx context.Context, tx pgx.Tx, entryID string) error {
-	if tx == nil || !validID(entryID) {
-		return domainError(ErrorValidation, "invalid Sales Partner unapprove request", nil, nil)
+func (s *Service) otherData(ctx context.Context, q *dbsqlc.Queries, row dbsqlc.GetBobOtherUnitCurrentTypedRow) (DetailView, error) {
+	identifiers, err := q.ListDCLOtherUnitVersionIdentifiers(ctx, row.ApprovalEntryID)
+	if err != nil {
+		return DetailView{}, err
 	}
-	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
+	operating, err := q.ListDCLOtherUnitVersionOperatingEntities(ctx, row.ApprovalEntryID)
+	if err != nil {
+		return DetailView{}, err
+	}
+	data := DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), StrongIdentifiers: make([]BusinessIdentifier, 0, len(identifiers)), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating)), DefaultOperatingEntityID: row.DefaultOperatingEntityID, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark), SettlementMethodID: deref(row.SettlementMethodID), SettlementMethodCode: deref(row.SettlementMethodCode), SettlementMethodName: deref(row.SettlementMethodName), TermCode: deref(row.SettlementTermCode), RuleType: deref(row.SettlementRuleType), MonthOffset: row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset}
+	for _, value := range identifiers {
+		data.StrongIdentifiers = append(data.StrongIdentifiers, BusinessIdentifier{Type: value.IdentifierType, Value: value.Value})
+	}
+	for _, value := range operating {
+		data.OperatingEntityIDs = append(data.OperatingEntityIDs, value.OperatingEntityID)
+		data.OperatingEntities = append(data.OperatingEntities, archiveSnapshot(value.OperatingEntityID, value.OperatingEntityApprovalEntryID, value.OperatingEntityCode, value.OperatingEntityName))
+	}
+	if row.SettlementDayOfMonth != 0 {
+		day := row.SettlementDayOfMonth
+		data.DayOfMonth = &day
+	}
+	return data, nil
 }
-
-func otherUnitCurrentView(r dbsqlc.GetBobOtherUnitCurrentRow) ObjectView {
-	e := struct {
-		ID        string
-		VersionNo int32
-	}{ID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo)}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName}, Data: DetailView{ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset}}
+func (s *Service) salesData(ctx context.Context, q *dbsqlc.Queries, row dbsqlc.GetBobSalesPartnerCurrentTypedRow) (DetailView, error) {
+	identifiers, err := q.ListDCLSalesPartnerVersionIdentifiers(ctx, row.ApprovalEntryID)
+	if err != nil {
+		return DetailView{}, err
+	}
+	operating, err := q.ListDCLSalesPartnerVersionOperatingEntities(ctx, row.ApprovalEntryID)
+	if err != nil {
+		return DetailView{}, err
+	}
+	data := DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), StrongIdentifiers: make([]BusinessIdentifier, 0, len(identifiers)), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating)), DefaultOperatingEntityID: row.DefaultOperatingEntityID, SalesCapabilities: row.Capabilities, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
+	for _, value := range identifiers {
+		data.StrongIdentifiers = append(data.StrongIdentifiers, BusinessIdentifier{Type: value.IdentifierType, Value: value.Value})
+	}
+	for _, value := range operating {
+		data.OperatingEntityIDs = append(data.OperatingEntityIDs, value.OperatingEntityID)
+		data.OperatingEntities = append(data.OperatingEntities, archiveSnapshot(value.OperatingEntityID, value.OperatingEntityApprovalEntryID, value.OperatingEntityCode, value.OperatingEntityName))
+	}
+	return data, nil
 }
 func (s *Service) getOtherUnitCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
 	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Other Unit get request", nil, nil)
 	}
-	r, err := s.queries.GetBobOtherUnitCurrent(ctx, input.ObjectID)
+	row, err := s.queries.GetBobOtherUnitCurrentTyped(ctx, input.ObjectID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ObjectView{}, domainError(ErrorValidation, "Other Unit not found", nil, nil)
 	}
 	if err != nil {
 		return ObjectView{}, s.internal("get Other Unit current", err)
 	}
-	return otherUnitCurrentView(r), nil
+	data, err := s.otherData(ctx, s.queries, row)
+	if err != nil {
+		return ObjectView{}, s.internal("get Other Unit typed details", err)
+	}
+	return ObjectView{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: data, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 func (s *Service) getSalesPartnerCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
 	if !validID(input.ObjectID) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid Sales Partner get request", nil, nil)
 	}
-	r, err := s.queries.GetBobSalesPartnerCurrent(ctx, input.ObjectID)
+	row, err := s.queries.GetBobSalesPartnerCurrentTyped(ctx, input.ObjectID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ObjectView{}, domainError(ErrorValidation, "Sales Partner not found", nil, nil)
 	}
 	if err != nil {
 		return ObjectView{}, s.internal("get Sales Partner current", err)
 	}
-	e := struct {
-		ID        string
-		VersionNo int32
-	}{ID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo)}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: e.VersionNo, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName}, Data: DetailView{SalesCapabilities: r.Capabilities, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark)}}, nil
+	data, err := s.salesData(ctx, s.queries, row)
+	if err != nil {
+		return ObjectView{}, s.internal("get Sales Partner typed details", err)
+	}
+	return ObjectView{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: data, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 
+func typedOtherListData(row dbsqlc.ListBobOtherUnitCurrentsTypedRow) DetailView {
+	return DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), DefaultOperatingEntityID: row.DefaultOperatingEntityID, OperatingEntities: []BusinessArchiveSnapshot{archiveSnapshot(row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName)}, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
+}
+func typedSalesListData(row dbsqlc.ListBobSalesPartnerCurrentsTypedRow) DetailView {
+	return DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), DefaultOperatingEntityID: row.DefaultOperatingEntityID, OperatingEntities: []BusinessArchiveSnapshot{archiveSnapshot(row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName)}, SalesCapabilities: row.Capabilities, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
+}
 func (s *Service) queryRelationshipCurrent(ctx context.Context, q *dbsqlc.Queries, entity string, input QueryInput) (Page[QueryItem], error) {
 	offset, ok := pageOffset(input.Page, input.PageSize)
 	if !ok || len(input.Sort) > 1 {
-		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid relationship query", nil, nil)
+		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid business archive query", nil, nil)
+	}
+	if len(input.Sort) == 1 && (input.Sort[0].Field != "code" || strings.ToLower(input.Sort[0].Order) != "asc") {
+		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid business archive query sort", nil, nil)
 	}
 	filters, err := validateQueryFilters(entity, input.Filters)
 	if err != nil {
 		return Page[QueryItem]{}, err
-	}
-	sortField, sortOrder := "updatedAt", "desc"
-	if len(input.Sort) == 1 {
-		sortField, sortOrder = input.Sort[0].Field, strings.ToLower(input.Sort[0].Order)
-		if (sortField != "updatedAt" && sortField != "code" && sortField != "name") || (sortOrder != "asc" && sortOrder != "desc") {
-			return Page[QueryItem]{}, domainError(ErrorValidation, "invalid relationship query sort", nil, nil)
-		}
 	}
 	enabled := int32(-1)
 	if filters.Enabled != nil {
@@ -220,96 +255,89 @@ func (s *Service) queryRelationshipCurrent(ctx context.Context, q *dbsqlc.Querie
 			enabled = 0
 		}
 	}
-	params := dbsqlc.ListBobOtherUnitCurrentsParams{Keyword: filters.Keyword, EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)}
 	if entity == EntityOtherUnit {
-		rows, err := q.ListBobOtherUnitCurrents(ctx, params)
+		params := dbsqlc.ListBobOtherUnitCurrentsTypedParams{Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabled, OperatingEntityID: filters.OperatingEntityID, RowOffset: offset, RowLimit: int32(input.PageSize)}
+		rows, err := q.ListBobOtherUnitCurrentsTyped(ctx, params)
 		if err != nil {
 			return Page[QueryItem]{}, s.internal("list Other Unit current", err)
 		}
-		total, err := q.CountBobOtherUnitCurrents(ctx, dbsqlc.CountBobOtherUnitCurrentsParams{Keyword: filters.Keyword, EnabledFilter: enabled})
+		total, err := q.CountBobOtherUnitCurrentsTyped(ctx, dbsqlc.CountBobOtherUnitCurrentsTypedParams{Keyword: params.Keyword, EnabledFilter: enabled, OperatingEntityID: params.OperatingEntityID})
 		if err != nil {
 			return Page[QueryItem]{}, s.internal("count Other Unit current", err)
 		}
 		items := make([]QueryItem, 0, len(rows))
-		for _, r := range rows {
-			d := DetailView{ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOffset: r.SettlementDayOffset}
-			if r.SettlementDayOfMonth != 0 {
-				day := r.SettlementDayOfMonth
-				d.DayOfMonth = &day
-			}
-			items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: r.ApprovalEntryID, SourceVersionNo: versionNumber(r.VersionNo), Data: d, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName}})
+		for _, row := range rows {
+			items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntityOtherUnit, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: typedOtherListData(row), UpdatedAt: row.UpdatedAt.Time})
 		}
 		return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 	}
-	rows, err := q.ListBobSalesPartnerCurrents(ctx, dbsqlc.ListBobSalesPartnerCurrentsParams{Keyword: filters.Keyword, EnabledFilter: enabled, SortField: sortField, SortOrder: sortOrder, RowOffset: offset, RowLimit: int32(input.PageSize)})
+	params := dbsqlc.ListBobSalesPartnerCurrentsTypedParams{Keyword: strings.TrimSpace(filters.Keyword), EnabledFilter: enabled, OperatingEntityID: filters.OperatingEntityID, RowOffset: offset, RowLimit: int32(input.PageSize)}
+	rows, err := q.ListBobSalesPartnerCurrentsTyped(ctx, params)
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list Sales Partner current", err)
 	}
-	total, err := q.CountBobSalesPartnerCurrents(ctx, dbsqlc.CountBobSalesPartnerCurrentsParams{Keyword: filters.Keyword, EnabledFilter: enabled})
+	total, err := q.CountBobSalesPartnerCurrentsTyped(ctx, dbsqlc.CountBobSalesPartnerCurrentsTypedParams{Keyword: params.Keyword, EnabledFilter: enabled, OperatingEntityID: params.OperatingEntityID})
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("count Sales Partner current", err)
 	}
 	items := make([]QueryItem, 0, len(rows))
-	for _, r := range rows {
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, Enabled: r.Enabled, SourceApprovalEntryID: r.ApprovalEntryID, SourceVersionNo: versionNumber(r.VersionNo), Data: DetailView{SalesCapabilities: r.Capabilities, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark)}, UpdatedAt: r.UpdatedAt.Time, Relationship: &RelationshipIdentityView{PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName}})
+	for _, row := range rows {
+		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntitySalesPartner, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: typedSalesListData(row), UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
+
 func (s *Service) validateOtherUnitSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntityOtherUnit, objectID, "Other Unit approval snapshot is unavailable")
 	if err != nil {
 		return EffectiveReference{}, err
 	}
-	d, err := q.GetDCLOtherUnitVersion(ctx, entryID)
+	row, err := q.GetDCLOtherUnitVersion(ctx, entryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Other Unit snapshot", err)
 	}
-	o, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntityOtherUnit})
-	if err != nil {
-		return EffectiveReference{}, s.internal("load Other Unit identity", err)
-	}
-	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: deref(o.Code), ApprovalEntryID: entryID, VersionNo: versionNumber(entry.VersionNo), Data: otherUnitDetail(d)}, nil
-}
-func otherUnitDetail(d dbsqlc.DclOtherUnitVersion) DetailView {
-	return DetailView{ContactName: deref(d.ContactName), ContactPhone: deref(d.ContactPhone), Email: deref(d.Email), Address: deref(d.Address), SettlementMethodID: deref(d.SettlementMethodID), SettlementMethodCode: deref(d.SettlementMethodCode), SettlementMethodName: deref(d.SettlementMethodName), TermCode: deref(d.SettlementTermCode), RuleType: deref(d.SettlementRuleType), MonthOffset: d.SettlementMonthOffset, DayOffset: d.SettlementDayOffset, Remark: deref(d.Remark)}
+	return EffectiveReference{ObjectID: objectID, Entity: EntityOtherUnit, Code: "", ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName}}, nil
 }
 func (s *Service) validateSalesPartnerSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntitySalesPartner, objectID, "Sales Partner approval snapshot is unavailable")
 	if err != nil {
 		return EffectiveReference{}, err
 	}
-	d, err := q.GetDCLSalesPartnerVersion(ctx, entryID)
+	row, err := q.GetDCLSalesPartnerVersion(ctx, entryID)
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Sales Partner snapshot", err)
 	}
-	o, err := q.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: objectID, Entity: EntitySalesPartner})
-	if err != nil {
-		return EffectiveReference{}, s.internal("load Sales Partner identity", err)
-	}
-	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: deref(o.Code), ApprovalEntryID: entryID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{SalesCapabilities: d.Capabilities, ContactName: deref(d.ContactName), ContactPhone: deref(d.ContactPhone), Email: deref(d.Email), Address: deref(d.Address), Remark: deref(d.Remark)}}, nil
+	return EffectiveReference{ObjectID: objectID, Entity: EntitySalesPartner, ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, SalesCapabilities: row.Capabilities}}, nil
 }
 func (s *Service) resolveOtherUnitCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
-	r, err := q.GetBobOtherUnitCurrentReference(ctx, objectID)
+	row, err := q.GetBobOtherUnitCurrentTyped(ctx, objectID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "Other Unit reference has no enabled current version", nil, nil)
 	}
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve Other Unit current", err)
 	}
-	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.DisplayName}}, nil
+	if !row.Enabled {
+		return EffectiveReference{}, domainError(ErrorConflict, "Other Unit reference has no enabled current version", nil, nil)
+	}
+	data, err := s.otherData(ctx, q, row)
+	if err != nil {
+		return EffectiveReference{}, s.internal("resolve Other Unit current details", err)
+	}
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: data}, nil
 }
 func (s *Service) resolveSalesPartnerCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
-	r, err := q.GetBobSalesPartnerCurrentReference(ctx, objectID)
+	row, err := q.GetBobSalesPartnerCurrentTypedReference(ctx, dbsqlc.GetBobSalesPartnerCurrentTypedReferenceParams{ObjectID: objectID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "Sales Partner reference has no enabled current version", nil, nil)
 	}
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve Sales Partner current", err)
 	}
-	reference, err := s.validateSalesPartnerSnapshotReference(ctx, q, r.ObjectID, r.ApprovalEntryID)
+	reference, err := s.validateSalesPartnerSnapshotReference(ctx, q, row.ObjectID, row.ApprovalEntryID)
 	if err != nil {
 		return EffectiveReference{}, err
 	}
-	reference.Data.Name = r.DisplayName
+	reference.Code, reference.Data.Name, reference.Data.DisplayName = row.Code, row.DisplayName, row.DisplayName
 	return reference, nil
 }

@@ -58,7 +58,7 @@ function auxReference(
   const { data } = row
   return {
     objectId: row.objectId,
-    entity: row.entity,
+    entity: 'employee',
     code: row.code,
     name: String(data.name ?? ''),
     defaultUsefulLifeMonths:
@@ -72,14 +72,14 @@ function auxReference(
   }
 }
 function employeeReference(
-  row: components['schemas']['BobListItem'],
+  row: components['schemas']['BobEmployeeListItem'],
 ): VoucherReference {
   return {
     objectId: row.objectId,
     approvalEntryId: row.sourceApprovalEntryId,
-    entity: row.entity,
+    entity: 'employee',
     code: row.code,
-    name: String(row.data.name ?? ''),
+    name: row.displayName ?? '',
   }
 }
 async function loadEmployeeReferences(): Promise<VoucherReference[]> {

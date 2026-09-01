@@ -54,10 +54,10 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	dclVehicleService := dcldomain.NewVehicleService(db, bobService, authorizer, eventBus)
 	dclFundAccountService := dcldomain.NewFundAccountService(db, bobService, authorizer, eventBus)
 	dclProductService := dcldomain.NewProductService(db, bobService, authorizer, eventBus)
-	dclEmployeeService := dcldomain.NewEmployeeService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
-	dclSupplierService := dcldomain.NewSupplierService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
+	dclEmployeeService := dcldomain.NewEmployeeService(db, bobService, authorizer, eventBus)
+	dclSupplierService := dcldomain.NewSupplierService(db, bobService, authorizer, eventBus)
 	dclCustomerService := dcldomain.NewCustomerService(db, bobService, authorizer, eventBus)
-	dclRelationshipService := dcldomain.NewRelationshipService(db, bobService, dclPartyService, partyCurrentReader, authorizer, eventBus)
+	dclRelationshipService := dcldomain.NewRelationshipService(db, bobService, authorizer, eventBus)
 	dclCustomerAttachmentService, err := dcldomain.NewCustomerAttachmentService(db, dcldomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, authorizer, eventBus)

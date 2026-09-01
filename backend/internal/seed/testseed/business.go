@@ -344,13 +344,12 @@ func (s *Seeder) ensureOtherUnit(ctx context.Context, sample bobSample) (seedBus
 			return seedBusinessView{}, 0, actorErr
 		}
 		result, createErr := s.relationships.CreateOtherUnit(ctx, dcldomain.OtherUnitCreateInput{
-			NewParty: &bobdomain.PartyCreateData{
-				Kind: bobdomain.PartyKindOrganization, LegalName: data.Name,
-				DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
-			},
-			OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
 			Data: dcldomain.OtherUnitData{
-				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
+				Kind: "ORGANIZATION", LegalName: data.Name, DisplayName: data.ShortName,
+				TaxNumber: data.TaxNumber, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true,
+				OperatingEntityIDs:       []string{s.bobRefs["operating-effective"].ObjectID},
+				DefaultOperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+				ContactName:              data.ContactName, ContactPhone: data.ContactPhone,
 				Email: data.Email, Address: data.Address,
 				SettlementMethodID: data.SettlementMethodID, Remark: data.Remark,
 			},
@@ -393,20 +392,20 @@ func (s *Seeder) ensureOtherUnit(ctx context.Context, sample bobSample) (seedBus
 func dclOtherUnitObjectView(view dcldomain.OtherUnitView) seedBusinessView {
 	result := seedBusinessView{
 		ObjectID: view.ObjectID, Entity: bobdomain.EntityOtherUnit, Code: view.Code,
-		ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
+		ApprovalRevision: view.Approval.Revision, Enabled: view.Data.Enabled,
 	}
 	result.Approval, result.Data = view.Approval, bobdomain.DetailView{
-		Name: view.PartyDisplayName, ContactName: view.Data.ContactName,
+		Name: view.Data.DisplayName, ContactName: view.Data.ContactName,
 		ContactPhone: view.Data.ContactPhone, Email: view.Data.Email,
 		Address: view.Data.Address, SettlementMethodID: view.Data.SettlementMethodID,
-		OperatingEntityID: view.OperatingEntityID, Remark: view.Data.Remark,
+		OperatingEntityID: view.Data.DefaultOperatingEntityID, Remark: view.Data.Remark,
 	}
 	return result
 }
 
 func (s *Seeder) supplierDeclarations() *dcldomain.SupplierService {
 	return dcldomain.NewSupplierService(
-		s.pool, s.business, s.parties, bobdomain.NewPartyCurrentReader(s.pool), seedAuthorizer{}, txevent.NewBus(),
+		s.pool, s.business, seedAuthorizer{}, txevent.NewBus(),
 	)
 }
 
@@ -470,20 +469,16 @@ func (s *Seeder) ensureBusiness(
 			result, createErr = dclProductBusinessMutation(createdProduct), declarationErr
 		case bobdomain.EntityEmployee:
 			createdEmployee, declarationErr := s.employees.Create(ctx, dcldomain.EmployeeCreateInput{
-				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson,
-					LegalName: data.Name, Phone: data.Phone, Email: data.Email},
-				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
-				Data: dcldomain.EmployeeInput{DepartmentID: data.DepartmentID, PositionID: data.PositionID,
+				Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: data.Name, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true, CurrentOperatingEntityID: s.bobRefs["operating-effective"].ObjectID, DepartmentID: data.DepartmentID, PositionID: data.PositionID,
 					Phone: data.Phone, Email: data.Email, HireDate: data.HireDate, Remark: data.Remark},
 			}, createActor)
 			result, createErr = dclEmployeeBusinessMutation(createdEmployee), declarationErr
 		case bobdomain.EntitySupplier:
 			createdSupplier, declarationErr := s.supplierDeclarations().Create(ctx, dcldomain.SupplierCreateInput{
-				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization,
-					LegalName: data.Name, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
-					Phone: data.ContactPhone, Email: data.Email, Address: data.Address},
-				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
-				Data: dcldomain.SupplierData{ShortName: data.ShortName, TaxNumber: data.TaxNumber,
+				Data: dcldomain.SupplierInput{Kind: "ORGANIZATION", LegalName: data.Name, DisplayName: data.ShortName,
+					TaxNumber: data.TaxNumber, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true,
+					OperatingEntityIDs: []string{s.bobRefs["operating-effective"].ObjectID}, DefaultOperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+					ShortName:   data.ShortName,
 					ContactName: data.ContactName, ContactPhone: data.ContactPhone,
 					Email: data.Email, Address: data.Address, Remark: data.Remark,
 					SettlementMethodID:         data.SettlementMethodID,
@@ -525,9 +520,6 @@ func (s *Seeder) ensureBusiness(
 	} else if err != nil {
 		return seedBusinessView{}, 0, err
 	}
-	if err = s.ensureRelationshipPartyApproved(ctx, sample.entity, objectID, sample.key); err != nil {
-		return seedBusinessView{}, 0, err
-	}
 	view, err := s.getBusiness(ctx, sample.entity, objectID, sample.key)
 	if err != nil {
 		return seedBusinessView{}, 0, err
@@ -558,59 +550,6 @@ func (s *Seeder) ensureBusiness(
 		return view, outcomeCreated, nil
 	}
 	return view, outcomeSkipped, nil
-}
-
-func (s *Seeder) ensureRelationshipPartyApproved(ctx context.Context, entity, objectID, key string) error {
-	var query string
-	switch entity {
-	case bobdomain.EntityEmployee:
-		query = `SELECT party_id FROM dcl_employment_relationships WHERE object_id=$1`
-	case bobdomain.EntitySupplier:
-		query = `SELECT party_id FROM dcl_supplier_relationships WHERE object_id=$1`
-	case bobdomain.EntityOtherUnit:
-		query = `SELECT party_id FROM dcl_service_relationships WHERE object_id=$1`
-	default:
-		return nil
-	}
-	var partyID string
-	if err := s.pool.QueryRow(ctx, query, objectID).Scan(&partyID); err != nil {
-		return fmt.Errorf("load %s Party identity: %w", key, err)
-	}
-	actor, err := seedActor(actorID, requestID(key, "party-get"))
-	if err != nil {
-		return err
-	}
-	party, err := s.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: partyID}, bobdomain.PartyRelationshipVisibility{}, actor)
-	if err != nil {
-		return fmt.Errorf("get %s Party: %w", key, err)
-	}
-	if party.Approval.Status == approval.StatusDraft {
-		submitActor, actorErr := seedActor(actorID, requestID(key, "party-submit"))
-		if actorErr != nil {
-			return actorErr
-		}
-		pending, submitErr := s.parties.Submit(ctx, dcldomain.PartyVersionInput{
-			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID,
-			ApprovalRevision: party.Approval.Revision,
-		}, submitActor)
-		if submitErr != nil {
-			return fmt.Errorf("submit %s Party: %w", key, submitErr)
-		}
-		party.Approval = pending.Approval
-	}
-	if party.Approval.Status == approval.StatusPending {
-		reviewer, actorErr := seedActor(reviewerID, requestID(key, "party-approve"))
-		if actorErr != nil {
-			return actorErr
-		}
-		if _, approveErr := s.parties.Approve(ctx, dcldomain.PartyVersionInput{
-			PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID,
-			ApprovalRevision: party.Approval.Revision,
-		}, reviewer); approveErr != nil {
-			return fmt.Errorf("approve %s Party: %w", key, approveErr)
-		}
-	}
-	return nil
 }
 
 func dclBusinessMutation(result dcldomain.OperatingEntityMutation) seedBusinessMutation {
@@ -670,9 +609,9 @@ func dclEmployeeBusinessMutation(result dcldomain.EmployeeMutation) seedBusiness
 
 func dclEmployeeBusinessView(view dcldomain.EmployeeView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityEmployee,
-		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
-		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.PartyDisplayName,
-			OperatingEntityID: view.OperatingEntityID, DepartmentID: view.Data.DepartmentID,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Data.Enabled,
+		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.DisplayName,
+			OperatingEntityID: view.Data.CurrentOperatingEntityID, DepartmentID: view.Data.DepartmentID,
 			PositionID: view.Data.PositionID, Phone: view.Data.Phone, Email: view.Data.Email,
 			HireDate: view.Data.HireDate, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
@@ -684,14 +623,14 @@ func dclSupplierBusinessMutation(result dcldomain.SupplierMutation) seedBusiness
 
 func dclSupplierBusinessView(view dcldomain.SupplierView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntitySupplier,
-		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Enabled,
-		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.PartyDisplayName,
+		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Data.Enabled,
+		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.DisplayName,
 			ShortName: view.Data.ShortName, TaxNumber: view.Data.TaxNumber,
 			ContactName: view.Data.ContactName, ContactPhone: view.Data.ContactPhone,
 			Email: view.Data.Email, Address: view.Data.Address, Remark: view.Data.Remark,
 			SettlementMethodID:         view.Data.SettlementMethodID,
 			DefaultPurchaserEmployeeID: view.Data.DefaultPurchaserEmployeeID,
-			OperatingEntityID:          view.OperatingEntityID}, UpdatedAt: view.UpdatedAt}
+			OperatingEntityID:          view.Data.DefaultOperatingEntityID}, UpdatedAt: view.UpdatedAt}
 }
 
 func dclCustomerBusinessMutation(result dcldomain.CustomerMutation) seedBusinessMutation {
@@ -817,31 +756,6 @@ func (s *Seeder) advanceBusiness(
 			return actorErr
 		}
 		if sample.entity == bobdomain.EntityOtherUnit {
-			relationship, getErr := s.relationships.GetOtherUnit(ctx, dcldomain.RelationshipGetInput{ObjectID: current.ObjectID}, actor)
-			if getErr != nil {
-				return getErr
-			}
-			party, getErr := s.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: relationship.PartyID}, bobdomain.PartyRelationshipVisibility{}, actor)
-			if getErr != nil {
-				return getErr
-			}
-			if party.Approval.Status == approval.StatusDraft {
-				pending, submitErr := s.parties.Submit(ctx, dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor)
-				err = submitErr
-				if err != nil {
-					return err
-				}
-				party.Approval = pending.Approval
-			}
-			if party.Approval.Status == approval.StatusPending {
-				partyActor, actorErr := seedActor(reviewerID, requestID(sample.key, "party-approve"))
-				if actorErr != nil {
-					return actorErr
-				}
-				if _, err = s.parties.Approve(ctx, dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, partyActor); err != nil {
-					return err
-				}
-			}
 			var submitted dcldomain.RelationshipMutation
 			submitted, err = s.relationships.SubmitOtherUnit(ctx, dcldomain.RelationshipVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 			current = seedBusinessMutation{ObjectID: submitted.ObjectID, ApprovalRevision: submitted.Approval.Revision, Enabled: submitted.Enabled, Approval: submitted.Approval}
@@ -851,30 +765,6 @@ func (s *Seeder) advanceBusiness(
 			current = dclCustomerBusinessMutation(submitted)
 		} else if sample.entity == bobdomain.EntitySupplier {
 			declarations := s.supplierDeclarations()
-			supplier, getErr := declarations.Get(ctx, dcldomain.SupplierGetInput{ObjectID: current.ObjectID}, actor)
-			if getErr != nil {
-				return getErr
-			}
-			party, getErr := s.parties.Get(ctx, dcldomain.PartyGetInput{PartyID: supplier.PartyID}, bobdomain.PartyRelationshipVisibility{}, actor)
-			if getErr != nil {
-				return getErr
-			}
-			if party.Approval.Status == approval.StatusDraft {
-				pending, submitErr := s.parties.Submit(ctx, dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, actor)
-				if submitErr != nil {
-					return submitErr
-				}
-				party.Approval = pending.Approval
-			}
-			if party.Approval.Status == approval.StatusPending {
-				partyActor, actorErr := seedActor(reviewerID, requestID(sample.key, "party-approve"))
-				if actorErr != nil {
-					return actorErr
-				}
-				if _, err = s.parties.Approve(ctx, dcldomain.PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, partyActor); err != nil {
-					return err
-				}
-			}
 			var submitted dcldomain.SupplierMutation
 			submitted, err = declarations.Submit(ctx, dcldomain.SupplierVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
 			current = dclSupplierBusinessMutation(submitted)

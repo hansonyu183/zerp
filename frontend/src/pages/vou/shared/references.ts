@@ -271,6 +271,10 @@ export function useVoucherReferences(
               {
                 entity,
                 ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+                ...(['supplier', 'other-unit', 'sales-partner'].includes(entity) &&
+                form.value.operatingEntity
+                  ? { operatingEntityId: form.value.operatingEntity.objectId }
+                  : {}),
               },
               { signal: controller.signal },
             )

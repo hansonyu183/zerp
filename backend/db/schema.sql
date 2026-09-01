@@ -1310,9 +1310,12 @@ CREATE TABLE public.dcl_party_relationship_merge_events (
     CONSTRAINT dcl_party_relationship_merge_events_operating_entity_ck CHECK (operating_entity_entity='operating-entity')
 );
 
--- This DCL payload intentionally contains no Party identity data.
 CREATE TABLE public.dcl_employee_versions (
     approval_entry_id character varying(26) NOT NULL,
+    kind character varying(16) NOT NULL,
+    legal_name character varying(200) NOT NULL,
+    display_name character varying(200) NOT NULL,
+    tax_number character varying(100),
     employee_category_id character varying(26),
     employee_category_code character varying(64),
     employee_category_name character varying(200),
@@ -1325,18 +1328,27 @@ CREATE TABLE public.dcl_employee_versions (
     phone character varying(32),
     email character varying(254),
     hire_date date,
+    current_operating_entity_id character varying(26) NOT NULL,
+    current_operating_entity_approval_entry_id character varying(26) NOT NULL,
+    current_operating_entity_code character varying(64) NOT NULL,
+    current_operating_entity_name character varying(200) NOT NULL,
     remark character varying(1000),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_employee_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_employee_versions_kind_ck CHECK (kind IN ('PERSON','ORGANIZATION')),
+    CONSTRAINT dcl_employee_versions_legal_name_ck CHECK (length(btrim(legal_name)) BETWEEN 1 AND 200),
+    CONSTRAINT dcl_employee_versions_display_name_ck CHECK (length(btrim(display_name)) BETWEEN 1 AND 200),
     CONSTRAINT dcl_employee_versions_employee_category_snapshot_check CHECK (((employee_category_id IS NULL) = (employee_category_code IS NULL)) AND ((employee_category_id IS NULL) = (employee_category_name IS NULL))),
     CONSTRAINT dcl_employee_versions_department_snapshot_check CHECK (((department_id IS NULL) = (department_code IS NULL)) AND ((department_id IS NULL) = (department_name IS NULL))),
     CONSTRAINT dcl_employee_versions_position_snapshot_check CHECK (((position_id IS NULL) = (position_code IS NULL)) AND ((position_id IS NULL) = (position_name IS NULL)))
 );
 
--- Other Unit and Sales Partner keep their immutable Party-to-operating-entity
--- identities in typed DCL roots alongside their declaration snapshots.
 CREATE TABLE public.dcl_other_unit_versions (
     approval_entry_id character varying(26) NOT NULL,
+    kind character varying(16) NOT NULL,
+    legal_name character varying(200) NOT NULL,
+    display_name character varying(200) NOT NULL,
+    tax_number character varying(100),
     contact_name character varying(100),
     contact_phone character varying(32),
     email character varying(254),
@@ -1349,9 +1361,16 @@ CREATE TABLE public.dcl_other_unit_versions (
     settlement_month_offset integer DEFAULT 0 NOT NULL,
     settlement_day_of_month integer DEFAULT 0 NOT NULL,
     settlement_day_offset integer DEFAULT 0 NOT NULL,
+    default_operating_entity_id character varying(26) NOT NULL,
+    default_operating_entity_approval_entry_id character varying(26) NOT NULL,
+    default_operating_entity_code character varying(64) NOT NULL,
+    default_operating_entity_name character varying(200) NOT NULL,
     remark character varying(1000),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_other_unit_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_other_unit_versions_kind_ck CHECK (kind IN ('PERSON','ORGANIZATION')),
+    CONSTRAINT dcl_other_unit_versions_legal_name_ck CHECK (length(btrim(legal_name)) BETWEEN 1 AND 200),
+    CONSTRAINT dcl_other_unit_versions_display_name_ck CHECK (length(btrim(display_name)) BETWEEN 1 AND 200),
     CONSTRAINT dcl_other_unit_settlement_ck CHECK (
       (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
       AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
@@ -1377,19 +1396,33 @@ CREATE TABLE public.dcl_other_unit_versions (
 
 CREATE TABLE public.dcl_sales_partner_versions (
     approval_entry_id character varying(26) NOT NULL,
+    kind character varying(16) NOT NULL,
+    legal_name character varying(200) NOT NULL,
+    display_name character varying(200) NOT NULL,
+    tax_number character varying(100),
     capabilities character varying(32)[] DEFAULT '{}'::character varying[] NOT NULL,
     contact_name character varying(100),
     contact_phone character varying(32),
     email character varying(254),
     address character varying(500),
+    default_operating_entity_id character varying(26) NOT NULL,
+    default_operating_entity_approval_entry_id character varying(26) NOT NULL,
+    default_operating_entity_code character varying(64) NOT NULL,
+    default_operating_entity_name character varying(200) NOT NULL,
     remark character varying(1000),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_sales_partner_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_sales_partner_versions_kind_ck CHECK (kind IN ('PERSON','ORGANIZATION')),
+    CONSTRAINT dcl_sales_partner_versions_legal_name_ck CHECK (length(btrim(legal_name)) BETWEEN 1 AND 200),
+    CONSTRAINT dcl_sales_partner_versions_display_name_ck CHECK (length(btrim(display_name)) BETWEEN 1 AND 200),
     CONSTRAINT dcl_sales_partner_capabilities_ck CHECK ((capabilities <@ ARRAY['EXTERNAL_PART_TIME'::character varying(32), 'CHANNEL_PARTNER'::character varying(32)]) AND cardinality(capabilities) <= 2 AND (cardinality(capabilities) < 2 OR capabilities[1] <> capabilities[2]))
 );
 
 CREATE TABLE public.dcl_supplier_versions (
     approval_entry_id character varying(26) NOT NULL,
+    kind character varying(16) NOT NULL,
+    legal_name character varying(200) NOT NULL,
+    display_name character varying(200) NOT NULL,
     short_name character varying(100), tax_number character varying(50),
     contact_name character varying(100), contact_phone character varying(32), email character varying(254),
     address character varying(500), remark character varying(1000),
@@ -1398,10 +1431,17 @@ CREATE TABLE public.dcl_supplier_versions (
     settlement_term_code character varying(32), settlement_rule_type character varying(32),
     settlement_month_offset integer NOT NULL DEFAULT 0, settlement_day_of_month integer NOT NULL DEFAULT 0,
     settlement_day_offset integer NOT NULL DEFAULT 0,
+    default_operating_entity_id character varying(26) NOT NULL,
+    default_operating_entity_approval_entry_id character varying(26) NOT NULL,
+    default_operating_entity_code character varying(64) NOT NULL,
+    default_operating_entity_name character varying(200) NOT NULL,
     default_purchaser_employee_id character varying(26), default_purchaser_employee_entity character varying(16) DEFAULT 'employee'::character varying NOT NULL, default_purchaser_employee_approval_entry_id character varying(26),
     default_purchaser_employee_code character varying(64), default_purchaser_employee_name character varying(200),
     enabled boolean NOT NULL,
     CONSTRAINT dcl_supplier_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_supplier_versions_kind_ck CHECK (kind IN ('PERSON','ORGANIZATION')),
+    CONSTRAINT dcl_supplier_versions_legal_name_ck CHECK (length(btrim(legal_name)) BETWEEN 1 AND 200),
+    CONSTRAINT dcl_supplier_versions_display_name_ck CHECK (length(btrim(display_name)) BETWEEN 1 AND 200),
     CONSTRAINT dcl_supplier_settlement_snapshot_ck CHECK (
       (settlement_method_id IS NULL)=(settlement_method_code IS NULL)
       AND (settlement_method_id IS NULL)=(settlement_method_name IS NULL)
@@ -1427,6 +1467,86 @@ CREATE TABLE public.dcl_supplier_versions (
       AND (default_purchaser_employee_id IS NULL)=(default_purchaser_employee_name IS NULL)
     ),
     CONSTRAINT dcl_supplier_default_purchaser_employee_entity_ck CHECK (default_purchaser_employee_entity='employee')
+);
+
+CREATE TABLE public.dcl_employee_version_identifiers (
+    approval_entry_id character varying(26) NOT NULL,
+    identifier_type character varying(40) NOT NULL,
+    value character varying(100) NOT NULL,
+    normalized_value character varying(100) NOT NULL,
+    CONSTRAINT dcl_employee_version_identifiers_pkey PRIMARY KEY (approval_entry_id, identifier_type, normalized_value),
+    CONSTRAINT dcl_employee_version_identifiers_type_ck CHECK (identifier_type IN ('PERSON_ID','UNIFIED_SOCIAL_CREDIT_CODE','TAX_NUMBER')),
+    CONSTRAINT dcl_employee_version_identifiers_value_ck CHECK (length(btrim(value)) > 0 AND length(btrim(normalized_value)) > 0)
+);
+CREATE TABLE public.dcl_employee_identifier_claims (
+    identifier_type character varying(40) NOT NULL,
+    normalized_value character varying(100) NOT NULL,
+    approved_employee_id character varying(26),
+    approved_approval_entry_id character varying(26),
+    open_employee_id character varying(26),
+    open_approval_entry_id character varying(26),
+    CONSTRAINT dcl_employee_identifier_claims_pkey PRIMARY KEY (identifier_type, normalized_value),
+    CONSTRAINT dcl_employee_identifier_claims_approved_pair_ck CHECK ((approved_employee_id IS NULL) = (approved_approval_entry_id IS NULL)),
+    CONSTRAINT dcl_employee_identifier_claims_open_pair_ck CHECK ((open_employee_id IS NULL) = (open_approval_entry_id IS NULL))
+);
+
+CREATE TABLE public.dcl_supplier_version_identifiers (
+    approval_entry_id character varying(26) NOT NULL, identifier_type character varying(40) NOT NULL, value character varying(100) NOT NULL, normalized_value character varying(100) NOT NULL,
+    CONSTRAINT dcl_supplier_version_identifiers_pkey PRIMARY KEY (approval_entry_id, identifier_type, normalized_value),
+    CONSTRAINT dcl_supplier_version_identifiers_type_ck CHECK (identifier_type IN ('PERSON_ID','UNIFIED_SOCIAL_CREDIT_CODE','TAX_NUMBER')),
+    CONSTRAINT dcl_supplier_version_identifiers_value_ck CHECK (length(btrim(value)) > 0 AND length(btrim(normalized_value)) > 0)
+);
+CREATE TABLE public.dcl_other_unit_version_identifiers (
+    approval_entry_id character varying(26) NOT NULL, identifier_type character varying(40) NOT NULL, value character varying(100) NOT NULL, normalized_value character varying(100) NOT NULL,
+    CONSTRAINT dcl_other_unit_version_identifiers_pkey PRIMARY KEY (approval_entry_id, identifier_type, normalized_value),
+    CONSTRAINT dcl_other_unit_version_identifiers_type_ck CHECK (identifier_type IN ('PERSON_ID','UNIFIED_SOCIAL_CREDIT_CODE','TAX_NUMBER')),
+    CONSTRAINT dcl_other_unit_version_identifiers_value_ck CHECK (length(btrim(value)) > 0 AND length(btrim(normalized_value)) > 0)
+);
+CREATE TABLE public.dcl_sales_partner_version_identifiers (
+    approval_entry_id character varying(26) NOT NULL, identifier_type character varying(40) NOT NULL, value character varying(100) NOT NULL, normalized_value character varying(100) NOT NULL,
+    CONSTRAINT dcl_sales_partner_version_identifiers_pkey PRIMARY KEY (approval_entry_id, identifier_type, normalized_value),
+    CONSTRAINT dcl_sales_partner_version_identifiers_type_ck CHECK (identifier_type IN ('PERSON_ID','UNIFIED_SOCIAL_CREDIT_CODE','TAX_NUMBER')),
+    CONSTRAINT dcl_sales_partner_version_identifiers_value_ck CHECK (length(btrim(value)) > 0 AND length(btrim(normalized_value)) > 0)
+);
+CREATE TABLE public.dcl_supplier_identifier_claims (
+    identifier_type character varying(40) NOT NULL, normalized_value character varying(100) NOT NULL,
+    approved_supplier_id character varying(26), approved_approval_entry_id character varying(26),
+    open_supplier_id character varying(26), open_approval_entry_id character varying(26),
+    CONSTRAINT dcl_supplier_identifier_claims_pkey PRIMARY KEY (identifier_type, normalized_value),
+    CONSTRAINT dcl_supplier_identifier_claims_approved_pair_ck CHECK ((approved_supplier_id IS NULL) = (approved_approval_entry_id IS NULL)),
+    CONSTRAINT dcl_supplier_identifier_claims_open_pair_ck CHECK ((open_supplier_id IS NULL) = (open_approval_entry_id IS NULL))
+);
+CREATE TABLE public.dcl_other_unit_identifier_claims (
+    identifier_type character varying(40) NOT NULL, normalized_value character varying(100) NOT NULL,
+    approved_other_unit_id character varying(26), approved_approval_entry_id character varying(26),
+    open_other_unit_id character varying(26), open_approval_entry_id character varying(26),
+    CONSTRAINT dcl_other_unit_identifier_claims_pkey PRIMARY KEY (identifier_type, normalized_value),
+    CONSTRAINT dcl_other_unit_identifier_claims_approved_pair_ck CHECK ((approved_other_unit_id IS NULL) = (approved_approval_entry_id IS NULL)),
+    CONSTRAINT dcl_other_unit_identifier_claims_open_pair_ck CHECK ((open_other_unit_id IS NULL) = (open_approval_entry_id IS NULL))
+);
+CREATE TABLE public.dcl_sales_partner_identifier_claims (
+    identifier_type character varying(40) NOT NULL, normalized_value character varying(100) NOT NULL,
+    approved_sales_partner_id character varying(26), approved_approval_entry_id character varying(26),
+    open_sales_partner_id character varying(26), open_approval_entry_id character varying(26),
+    CONSTRAINT dcl_sales_partner_identifier_claims_pkey PRIMARY KEY (identifier_type, normalized_value),
+    CONSTRAINT dcl_sales_partner_identifier_claims_approved_pair_ck CHECK ((approved_sales_partner_id IS NULL) = (approved_approval_entry_id IS NULL)),
+    CONSTRAINT dcl_sales_partner_identifier_claims_open_pair_ck CHECK ((open_sales_partner_id IS NULL) = (open_approval_entry_id IS NULL))
+);
+
+CREATE TABLE public.dcl_supplier_version_operating_entities (
+    approval_entry_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL,
+    operating_entity_approval_entry_id character varying(26) NOT NULL, operating_entity_code character varying(64) NOT NULL, operating_entity_name character varying(200) NOT NULL,
+    CONSTRAINT dcl_supplier_version_operating_entities_pkey PRIMARY KEY (approval_entry_id, operating_entity_id)
+);
+CREATE TABLE public.dcl_other_unit_version_operating_entities (
+    approval_entry_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL,
+    operating_entity_approval_entry_id character varying(26) NOT NULL, operating_entity_code character varying(64) NOT NULL, operating_entity_name character varying(200) NOT NULL,
+    CONSTRAINT dcl_other_unit_version_operating_entities_pkey PRIMARY KEY (approval_entry_id, operating_entity_id)
+);
+CREATE TABLE public.dcl_sales_partner_version_operating_entities (
+    approval_entry_id character varying(26) NOT NULL, operating_entity_id character varying(26) NOT NULL,
+    operating_entity_approval_entry_id character varying(26) NOT NULL, operating_entity_code character varying(64) NOT NULL, operating_entity_name character varying(200) NOT NULL,
+    CONSTRAINT dcl_sales_partner_version_operating_entities_pkey PRIMARY KEY (approval_entry_id, operating_entity_id)
 );
 
 -- DCL owns the stable Party identity referenced by every relationship. BOB
@@ -9476,6 +9596,12 @@ ALTER TABLE ONLY public.dcl_employee_versions
 ALTER TABLE ONLY public.dcl_employee_versions
     ADD CONSTRAINT dcl_employee_versions_position_id_fkey
     FOREIGN KEY (position_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employee_versions
+    ADD CONSTRAINT dcl_employee_versions_current_operating_entity_id_fkey
+    FOREIGN KEY (current_operating_entity_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employee_versions
+    ADD CONSTRAINT dcl_employee_versions_current_operating_entry_id_fkey
+    FOREIGN KEY (current_operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_other_unit_versions
     ADD CONSTRAINT dcl_other_unit_versions_approval_entry_id_fkey
@@ -9483,6 +9609,12 @@ ALTER TABLE ONLY public.dcl_other_unit_versions
 ALTER TABLE ONLY public.dcl_other_unit_versions
     ADD CONSTRAINT dcl_other_unit_versions_settlement_method_id_fkey
     FOREIGN KEY (settlement_method_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_versions
+    ADD CONSTRAINT dcl_other_unit_versions_default_operating_entity_id_fkey
+    FOREIGN KEY (default_operating_entity_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_versions
+    ADD CONSTRAINT dcl_other_unit_versions_default_operating_entry_id_fkey
+    FOREIGN KEY (default_operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_supplier_versions
     ADD CONSTRAINT dcl_supplier_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
@@ -9495,6 +9627,12 @@ ALTER TABLE ONLY public.dcl_supplier_versions
 ALTER TABLE ONLY public.dcl_supplier_versions
     ADD CONSTRAINT dcl_supplier_versions_default_purchaser_entry_id_fkey
     FOREIGN KEY (default_purchaser_employee_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_versions
+    ADD CONSTRAINT dcl_supplier_versions_default_operating_entity_id_fkey
+    FOREIGN KEY (default_operating_entity_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_versions
+    ADD CONSTRAINT dcl_supplier_versions_default_operating_entry_id_fkey
+    FOREIGN KEY (default_operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY public.dcl_customer_versions
     ADD CONSTRAINT dcl_customer_versions_approval_entry_id_fkey
@@ -9541,6 +9679,71 @@ ALTER TABLE ONLY public.dcl_customer_attachments
 ALTER TABLE ONLY public.dcl_sales_partner_versions
     ADD CONSTRAINT dcl_sales_partner_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_versions
+    ADD CONSTRAINT dcl_sales_partner_versions_default_operating_entity_id_fkey
+    FOREIGN KEY (default_operating_entity_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_versions
+    ADD CONSTRAINT dcl_sales_partner_versions_default_operating_entry_id_fkey
+    FOREIGN KEY (default_operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_employee_version_identifiers
+    ADD CONSTRAINT dcl_employee_version_identifiers_entry_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_employee_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_supplier_version_identifiers
+    ADD CONSTRAINT dcl_supplier_version_identifiers_entry_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_supplier_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_other_unit_version_identifiers
+    ADD CONSTRAINT dcl_other_unit_version_identifiers_entry_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_other_unit_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_sales_partner_version_identifiers
+    ADD CONSTRAINT dcl_sales_partner_version_identifiers_entry_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_sales_partner_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_supplier_version_operating_entities
+    ADD CONSTRAINT dcl_supplier_version_operating_entities_entry_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_supplier_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_other_unit_version_operating_entities
+    ADD CONSTRAINT dcl_other_unit_version_operating_entities_entry_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_other_unit_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_sales_partner_version_operating_entities
+    ADD CONSTRAINT dcl_sales_partner_version_operating_entities_entry_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.dcl_sales_partner_versions(approval_entry_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_supplier_version_operating_entities
+    ADD CONSTRAINT dcl_supplier_version_operating_entities_operating_entry_fkey FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_version_operating_entities
+    ADD CONSTRAINT dcl_other_unit_version_operating_entities_operating_entry_fkey FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_version_operating_entities
+    ADD CONSTRAINT dcl_sales_partner_version_operating_entities_operating_entry_fkey FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_version_operating_entities
+    ADD CONSTRAINT dcl_supplier_version_operating_entities_operating_subject_fkey FOREIGN KEY (operating_entity_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_version_operating_entities
+    ADD CONSTRAINT dcl_other_unit_version_operating_entities_operating_subject_fkey FOREIGN KEY (operating_entity_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_version_operating_entities
+    ADD CONSTRAINT dcl_sales_partner_version_operating_entities_operating_subject_fkey FOREIGN KEY (operating_entity_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employee_identifier_claims
+    ADD CONSTRAINT dcl_employee_identifier_claims_approved_employee_fkey FOREIGN KEY (approved_employee_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employee_identifier_claims
+    ADD CONSTRAINT dcl_employee_identifier_claims_open_employee_fkey FOREIGN KEY (open_employee_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_identifier_claims
+    ADD CONSTRAINT dcl_supplier_identifier_claims_approved_supplier_fkey FOREIGN KEY (approved_supplier_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_identifier_claims
+    ADD CONSTRAINT dcl_supplier_identifier_claims_open_supplier_fkey FOREIGN KEY (open_supplier_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_identifier_claims
+    ADD CONSTRAINT dcl_other_unit_identifier_claims_approved_other_unit_fkey FOREIGN KEY (approved_other_unit_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_identifier_claims
+    ADD CONSTRAINT dcl_other_unit_identifier_claims_open_other_unit_fkey FOREIGN KEY (open_other_unit_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_identifier_claims
+    ADD CONSTRAINT dcl_sales_partner_identifier_claims_approved_sales_partner_fkey FOREIGN KEY (approved_sales_partner_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_identifier_claims
+    ADD CONSTRAINT dcl_sales_partner_identifier_claims_open_sales_partner_fkey FOREIGN KEY (open_sales_partner_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employee_identifier_claims
+    ADD CONSTRAINT dcl_employee_identifier_claims_approved_entry_fkey FOREIGN KEY (approved_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_employee_identifier_claims
+    ADD CONSTRAINT dcl_employee_identifier_claims_open_entry_fkey FOREIGN KEY (open_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_identifier_claims
+    ADD CONSTRAINT dcl_supplier_identifier_claims_approved_entry_fkey FOREIGN KEY (approved_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_supplier_identifier_claims
+    ADD CONSTRAINT dcl_supplier_identifier_claims_open_entry_fkey FOREIGN KEY (open_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_identifier_claims
+    ADD CONSTRAINT dcl_other_unit_identifier_claims_approved_entry_fkey FOREIGN KEY (approved_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_other_unit_identifier_claims
+    ADD CONSTRAINT dcl_other_unit_identifier_claims_open_entry_fkey FOREIGN KEY (open_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_identifier_claims
+    ADD CONSTRAINT dcl_sales_partner_identifier_claims_approved_entry_fkey FOREIGN KEY (approved_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_sales_partner_identifier_claims
+    ADD CONSTRAINT dcl_sales_partner_identifier_claims_open_entry_fkey FOREIGN KEY (open_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 CREATE INDEX dcl_employee_versions_employee_category_idx
     ON public.dcl_employee_versions USING btree (employee_category_id);

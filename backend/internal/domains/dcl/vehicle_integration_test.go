@@ -25,8 +25,7 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	relationships := NewRelationshipService(pool, business, authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
@@ -101,28 +100,13 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	if _, err = business.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: v1.ObjectID}); err == nil {
 		t.Fatal("BOB current still exposes first-version unapproved vehicle")
 	}
-	external, err := relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "外部承运服务商"},
-		OperatingEntityID: carrierID,
-	}, creator("external-carrier-create"))
+	external, err := relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{Data: OtherUnitData{
+		Kind: "ORGANIZATION", LegalName: "外部承运服务商",
+		StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91310000VEH345001"}},
+		Enabled:           true, OperatingEntityIDs: []string{carrierID}, DefaultOperatingEntityID: carrierID,
+	}}, creator("external-carrier-create"))
 	if err != nil {
 		t.Fatalf("create external carrier: %v", err)
-	}
-	party, err := parties.Get(t.Context(), PartyGetInput{PartyID: external.PartyID}, bobdomain.PartyRelationshipVisibility{}, creator("external-carrier-party-get"))
-	if err != nil {
-		t.Fatalf("get external carrier Party: %v", err)
-	}
-	if party.Approval.Status == approval.StatusDraft {
-		pending, submitErr := parties.Submit(t.Context(), PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, creator("external-carrier-party-submit"))
-		if submitErr != nil {
-			t.Fatalf("submit external carrier Party: %v", submitErr)
-		}
-		party.Approval = pending.Approval
-	}
-	if party.Approval.Status == approval.StatusPending {
-		if _, approveErr := parties.Approve(t.Context(), PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, reviewer("external-carrier-party-approve")); approveErr != nil {
-			t.Fatalf("approve external carrier Party: %v", approveErr)
-		}
 	}
 	externalPending, err := relationships.SubmitOtherUnit(t.Context(), RelationshipVersionInput{ObjectID: external.ObjectID, ApprovalEntryID: external.Approval.ApprovalEntryID, ApprovalRevision: external.Approval.Revision}, creator("external-carrier-submit"))
 	if err != nil {

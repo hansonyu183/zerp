@@ -53,7 +53,10 @@
   'BusinessIdentityKind':
     { 'type': 'string', 'enum': ['PERSON', 'ORGANIZATION'] },
   'BusinessIdentifierType':
-    { 'type': 'string', 'enum': ['PERSON_ID', 'UNIFIED_SOCIAL_CREDIT_CODE'] },
+    {
+      'type': 'string',
+      'enum': ['PERSON_ID', 'UNIFIED_SOCIAL_CREDIT_CODE', 'TAX_NUMBER'],
+    },
   'BusinessIdentifier':
     {
       'type': 'object',

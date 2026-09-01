@@ -309,29 +309,12 @@ func insertApprovedEmployeeReference(t *testing.T, pool *pgxpool.Pool, business 
 		t.Fatalf("create manager operating entity: %v", err)
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, dclActor(t, creatorID, "warehouse-manager-owner-submit"), dclActor(t, reviewerID, "warehouse-manager-owner-approve"))
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	employees := NewEmployeeService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
+	employees := NewEmployeeService(pool, business, authorizer, bus)
 	created, err := employees.Create(t.Context(), EmployeeCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "仓库负责人"},
-		OperatingEntityID: owner.ObjectID,
+		Data: employeeDeclarationInput("仓库负责人", "110101199001010099", owner.ObjectID, true, "", "", "", "", ""),
 	}, creator)
 	if err != nil {
 		t.Fatalf("create manager employee declaration: %v", err)
-	}
-	employee, err := employees.Get(t.Context(), EmployeeGetInput{ObjectID: created.ObjectID}, dclActor(t, creatorID, "warehouse-manager-get"))
-	if err != nil {
-		t.Fatalf("get manager employee declaration: %v", err)
-	}
-	party, err := parties.Get(t.Context(), PartyGetInput{PartyID: employee.PartyID}, bobdomain.PartyRelationshipVisibility{}, dclActor(t, creatorID, "warehouse-manager-party-get"))
-	if err != nil {
-		t.Fatalf("get manager party: %v", err)
-	}
-	partyPending, err := parties.Submit(t.Context(), PartyVersionInput{PartyID: party.PartyID, ApprovalEntryID: party.Approval.ApprovalEntryID, ApprovalRevision: party.Approval.Revision}, dclActor(t, creatorID, "warehouse-manager-party-submit"))
-	if err != nil {
-		t.Fatalf("submit manager party: %v", err)
-	}
-	if _, err = parties.Approve(t.Context(), PartyVersionInput{PartyID: partyPending.PartyID, ApprovalEntryID: partyPending.Approval.ApprovalEntryID, ApprovalRevision: partyPending.Approval.Revision}, reviewer); err != nil {
-		t.Fatalf("approve manager party: %v", err)
 	}
 	pending, err := employees.Submit(t.Context(), EmployeeVersionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, dclActor(t, creatorID, "warehouse-manager-submit"))
 	if err != nil {

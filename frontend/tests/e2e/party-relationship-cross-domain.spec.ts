@@ -1,4 +1,10 @@
 import { request, type APIRequestContext } from '@playwright/test'
+import type {
+  DclEmployeeCreateRequest,
+  DclOtherUnitCreateRequest,
+  DclSalesPartnerCreateRequest,
+  DclSupplierCreateRequest,
+} from '../../src/api/generated'
 import { expect, test, type Locator, type Page } from './fixtures'
 import type { WflWorkerState } from './wfl-global-setup'
 
@@ -18,7 +24,6 @@ interface Envelope<T> {
 
 interface Mutation {
   objectId: string
-  partyId?: string
   enabled: boolean
   approval: {
     approvalEntryId: string
@@ -32,12 +37,6 @@ interface AuxMutation {
   objectId: string
   objectRevision: number
   enabled: boolean
-}
-
-interface Party {
-  partyId: string
-  revision: number
-  displayName: string
 }
 
 interface VoucherMutation {
@@ -247,6 +246,7 @@ async function approveDcl(
     | 'warehouse'
     | 'vehicle'
     | 'employee'
+    | 'supplier'
     | 'customer'
     | 'other-unit'
     | 'sales-partner',
@@ -264,35 +264,27 @@ async function approveDcl(
   })
 }
 
-async function approveRelationshipParty(
+async function assertApprovedArchiveReads(
   operator: Api,
-  reviewer: Api,
-  entity: 'employee' | 'customer' | 'other-unit',
-  mutation: Mutation,
-): Promise<void> {
-  const partyId =
-    mutation.partyId ??
-    (
-      await operator.ok<{ partyId: string }>(`dcl/${entity}/get`, {
-        objectId: mutation.objectId,
-        approvalEntryId: mutation.approval.approvalEntryId,
-      })
-    ).partyId
-  const party = await operator.ok<{
-    approval: { approvalEntryId: string; revision: number }
-  }>('dcl/party/get', { partyId })
-  const submitted = await operator.ok<{
-    approval: { approvalEntryId: string; revision: number }
-  }>('dcl/party/submit', {
-    partyId,
-    approvalEntryId: party.approval.approvalEntryId,
-    approvalRevision: party.approval.revision,
+  entity: 'employee' | 'supplier' | 'other-unit' | 'sales-partner',
+  approved: Mutation,
+): Promise<BobCurrentView> {
+  const declaration = await operator.ok<{ objectId: string }>(
+    `dcl/${entity}/get`,
+    {
+      objectId: approved.objectId,
+      approvalEntryId: approved.approval.approvalEntryId,
+    },
+  )
+  expect(declaration.objectId, `${entity} exact DCL version`).toBe(
+    approved.objectId,
+  )
+  const current = await operator.ok<BobCurrentView>(`bob/${entity}/get`, {
+    objectId: approved.objectId,
   })
-  await reviewer.ok('dcl/party/approve', {
-    partyId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
+  expect(current.objectId, `${entity} BOB current`).toBe(approved.objectId)
+  await referenceByCode(operator, entity, current.code)
+  return current
 }
 
 async function createApprovedSharedRelationships(
@@ -300,7 +292,6 @@ async function createApprovedSharedRelationships(
   reviewer: Api,
   suffix: string,
 ): Promise<{
-  party: Party
   otherUnit: Mutation
   salesPartner: Mutation
   operatingEntityId: string
@@ -332,41 +323,47 @@ async function createApprovedSharedRelationships(
   expect(settlementMethodId).toBeTruthy()
 
   const name = `E2E 跨域主体 ${suffix}`
-  const otherUnit = await operator.ok<Mutation>('dcl/other-unit/create', {
-    newParty: {
+  const otherUnitRequest: DclOtherUnitCreateRequest = {
+    data: {
       kind: 'ORGANIZATION',
       legalName: name,
       displayName: name,
-      strongIdentifiers: [
-        { type: 'UNIFIED_SOCIAL_CREDIT_CODE', value: `91310000${suffix}` },
-      ],
+      strongIdentifiers: [],
+      enabled: true,
+      operatingEntityIds: [operatingEntityId!],
+      defaultOperatingEntityId: operatingEntityId!,
+      settlementMethodId: settlementMethodId!,
+      contactName: 'E2E',
     },
-    operatingEntityId,
-    data: { settlementMethodId, contactName: 'E2E' },
-  })
-  await approveRelationshipParty(operator, reviewer, 'other-unit', otherUnit)
+  }
+  const otherUnit = await operator.ok<Mutation>(
+    'dcl/other-unit/create',
+    otherUnitRequest,
+  )
   const approvedOtherUnit = await approveDcl(
     operator,
     reviewer,
     'other-unit',
     otherUnit,
   )
-  const otherUnitView = await operator.ok<{ code: string }>(
-    'bob/other-unit/get',
-    { objectId: approvedOtherUnit.objectId },
+  const otherUnitView = await assertApprovedArchiveReads(
+    operator,
+    'other-unit',
+    approvedOtherUnit,
   )
-  const parties = await operator.ok<{ items: Party[] }>('bob/party/query', {
-    page: 1,
-    pageSize: 20,
-    filters: { keyword: name },
-  })
-  const party = parties.items.find((item) => item.displayName === name)
-  expect(party).toBeTruthy()
 
-  const salesPartner = await operator.ok<Mutation>('dcl/sales-partner/create', {
-    partyId: party!.partyId,
-    operatingEntityId,
+  const salesPartnerName = `E2E 跨域合作方 ${suffix}`
+  const salesPartnerRequest: DclSalesPartnerCreateRequest = {
     data: {
+      kind: 'ORGANIZATION',
+      legalName: salesPartnerName,
+      displayName: salesPartnerName,
+      strongIdentifiers: [
+        { type: 'UNIFIED_SOCIAL_CREDIT_CODE', value: `91310000${suffix}` },
+      ],
+      enabled: true,
+      operatingEntityIds: [operatingEntityId!],
+      defaultOperatingEntityId: operatingEntityId!,
       capabilities: ['CHANNEL_PARTNER'],
       contactName: 'E2E',
       contactPhone: '',
@@ -374,19 +371,23 @@ async function createApprovedSharedRelationships(
       address: '',
       remark: '',
     },
-  })
+  }
+  const salesPartner = await operator.ok<Mutation>(
+    'dcl/sales-partner/create',
+    salesPartnerRequest,
+  )
   const approvedSalesPartner = await approveDcl(
     operator,
     reviewer,
     'sales-partner',
     salesPartner,
   )
-  const salesPartnerView = await operator.ok<{ code: string }>(
-    'bob/sales-partner/get',
-    { objectId: approvedSalesPartner.objectId },
+  const salesPartnerView = await assertApprovedArchiveReads(
+    operator,
+    'sales-partner',
+    approvedSalesPartner,
   )
   return {
-    party: party!,
     otherUnit: { ...approvedOtherUnit, code: otherUnitView.code },
     salesPartner: { ...approvedSalesPartner, code: salesPartnerView.code },
     operatingEntityId: operatingEntityId!,
@@ -916,16 +917,45 @@ async function createApprovedEmployee(
   name: string,
   operatingEntityId: string,
 ): Promise<BobCurrentView> {
-  const created = await operator.ok<Mutation>('dcl/employee/create', {
-    newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
-    operatingEntityId,
-    data: {},
-  })
-  await approveRelationshipParty(operator, reviewer, 'employee', created)
+  const request: DclEmployeeCreateRequest = {
+    data: {
+      kind: 'PERSON',
+      legalName: name,
+      displayName: name,
+      strongIdentifiers: [],
+      enabled: true,
+      currentOperatingEntityId: operatingEntityId,
+    },
+  }
+  const created = await operator.ok<Mutation>('dcl/employee/create', request)
   const approved = await approveDcl(operator, reviewer, 'employee', created)
-  return operator.ok<BobCurrentView>('bob/employee/get', {
-    objectId: approved.objectId,
-  })
+  return assertApprovedArchiveReads(operator, 'employee', approved)
+}
+
+async function createApprovedSupplier(
+  operator: Api,
+  reviewer: Api,
+  name: string,
+  operatingEntityId: string,
+  settlementMethodId: string,
+  purchaserEmployeeId: string,
+): Promise<BobCurrentView> {
+  const request: DclSupplierCreateRequest = {
+    data: {
+      kind: 'ORGANIZATION',
+      legalName: name,
+      displayName: name,
+      strongIdentifiers: [],
+      enabled: true,
+      operatingEntityIds: [operatingEntityId],
+      defaultOperatingEntityId: operatingEntityId,
+      settlementMethodId,
+      defaultPurchaserEmployeeId: purchaserEmployeeId,
+    },
+  }
+  const created = await operator.ok<Mutation>('dcl/supplier/create', request)
+  const approved = await approveDcl(operator, reviewer, 'supplier', created)
+  return assertApprovedArchiveReads(operator, 'supplier', approved)
 }
 
 async function createEmployeeAttributedCustomer(
@@ -1153,8 +1183,41 @@ async function accountJournalRows(
   )
 }
 
+test('直接业务档案 API：employee、supplier、other-unit、sales-partner 当前读取与引用', async ({
+  workerState,
+}, testInfo) => {
+  const suffix =
+    `${testInfo.parallelIndex}${Date.now().toString(36)}`.toUpperCase()
+  const operator = await operatorApi(workerState.operator)
+  const reviewer = await operatorApi(workerState.reviewer)
+  try {
+    const facts = await createApprovedSharedRelationships(
+      operator.api,
+      reviewer.api,
+      suffix,
+    )
+    const employee = await createApprovedEmployee(
+      operator.api,
+      reviewer.api,
+      `E2E 直接员工 ${suffix}`,
+      facts.operatingEntityId,
+    )
+    await createApprovedSupplier(
+      operator.api,
+      reviewer.api,
+      `E2E 直接供应商 ${suffix}`,
+      facts.operatingEntityId,
+      facts.settlementMethodId,
+      employee.objectId,
+    )
+  } finally {
+    await reviewer.dispose()
+    await operator.dispose()
+  }
+})
+
 test(
-  'Party 复用跨关系、合同验收及合并历史引用均走真实后端',
+  '直接业务档案、合同验收及渠道自归属校验均走真实后端',
   { tag: '@system-serial' },
   async ({ page, workerState }, testInfo) => {
     test.setTimeout(600_000)
@@ -1169,35 +1232,7 @@ test(
         suffix,
       )
 
-      // UI proves the single Party exposes both independently-effective cards.
       await signIn(page, workerState.operator)
-      await page.goto('/bob/party')
-      await page
-        .getByRole('textbox', { name: '名称、电话、邮箱或地址', exact: true })
-        .fill(`E2E 跨域主体 ${suffix}`)
-      await page.getByRole('button', { name: '查询', exact: true }).click()
-      const partyRow = page
-        .locator('tbody tr')
-        .filter({ hasText: `E2E 跨域主体 ${suffix}` })
-      await partyRow
-        .getByRole('button', {
-          name: new RegExp(`查看 E2E 跨域主体 ${suffix}`),
-          exact: true,
-        })
-        .click()
-      const partyDialog = page
-        .getByRole('dialog')
-        .filter({ hasText: '主体当前有效资料' })
-      await expect(partyDialog).toContainText(
-        `${facts.otherUnit.code} · 服务关系`,
-      )
-      await expect(partyDialog).toContainText(
-        `${facts.salesPartner.code} · 销售合作关系`,
-      )
-      await partyDialog
-        .getByRole('button', { name: '关闭', exact: true })
-        .click()
-
       const serviceContractDocumentId = await createAndApproveContract(
         page,
         reviewerSession.api,
@@ -1840,12 +1875,13 @@ test(
             line.salesContract?.documentId === latestSalesContractDocumentId,
         ),
       ).toBe(true)
-      const journalBeforeMerge = await accountJournalRows(
-        session.api,
-        calculationCreated.documentId,
-        period,
-      )
-      expect(journalBeforeMerge).toEqual([
+      expect(
+        await accountJournalRows(
+          session.api,
+          calculationCreated.documentId,
+          period,
+        ),
+      ).toEqual([
         expect.objectContaining({
           subject_code: '2241',
           direction: 'CREDIT',
@@ -1920,99 +1956,6 @@ test(
         },
       })
       expect(String(selfAttribution.code)).not.toBe('0')
-
-      // A duplicate target creates a service-relationship conflict; the source
-      // sales relationship moves while its approved contract keeps the same ID.
-      const target = await session.api.ok<Mutation>('dcl/other-unit/create', {
-        newParty: {
-          kind: 'ORGANIZATION',
-          legalName: `E2E 合并保留 ${suffix}`,
-          displayName: `E2E 合并保留 ${suffix}`,
-          strongIdentifiers: [],
-        },
-        operatingEntityId: facts.operatingEntityId,
-        data: {
-          settlementMethodId: facts.settlementMethodId,
-          contactName: '',
-          contactPhone: '',
-          email: '',
-          address: '',
-          remark: '',
-        },
-      })
-      await approveRelationshipParty(
-        session.api,
-        reviewerSession.api,
-        'other-unit',
-        target,
-      )
-      const approvedTarget = await approveDcl(
-        session.api,
-        reviewerSession.api,
-        'other-unit',
-        target,
-      )
-      const targetParty = (
-        await session.api.ok<{ items: Party[] }>('bob/party/query', {
-          page: 1,
-          pageSize: 20,
-          filters: { keyword: `E2E 合并保留 ${suffix}` },
-        })
-      ).items[0]!
-      const sourceParty = await session.api.ok<{
-        partyId: string
-        approval: { approvalEntryId: string; revision: number }
-      }>('dcl/party/get', { partyId: facts.party.partyId })
-      const targetPartyDeclaration = await session.api.ok<{
-        partyId: string
-        approval: { approvalEntryId: string; revision: number }
-      }>('dcl/party/get', { partyId: targetParty.partyId })
-      const preflight = await session.api.ok<{
-        preflightId: string
-        relationshipConflicts: Array<{
-          relationshipType: string
-          operatingEntityId: string
-        }>
-      }>('dcl/party/merge-preflight', {
-        sourcePartyId: facts.party.partyId,
-        targetPartyId: targetParty.partyId,
-        sourceApprovalEntryId: sourceParty.approval.approvalEntryId,
-        targetApprovalEntryId: targetPartyDeclaration.approval.approvalEntryId,
-        sourceApprovalRevision: sourceParty.approval.revision,
-        targetApprovalRevision: targetPartyDeclaration.approval.revision,
-      })
-      expect(
-        preflight.relationshipConflicts.some(
-          (item) => item.relationshipType === 'other-unit',
-        ),
-      ).toBe(true)
-      const merged = await session.api.ok('dcl/party/merge-confirm', {
-        preflightId: preflight.preflightId,
-        conflictResolutions: preflight.relationshipConflicts.map((item) => ({
-          relationshipType: item.relationshipType,
-          operatingEntityId: item.operatingEntityId,
-          retainObjectId:
-            item.relationshipType === 'other-unit'
-              ? approvedTarget.objectId
-              : facts.salesPartner.objectId,
-        })),
-      })
-      expect(merged).toBeTruthy()
-      const contract = await session.api.ok<{
-        data: { counterparty: { objectId: string } }
-      }>('vou/service-contract/get', {
-        documentId: latestSalesContractDocumentId,
-      })
-      expect(contract.data.counterparty.objectId).toBe(
-        facts.salesPartner.objectId,
-      )
-      expect(
-        await accountJournalRows(
-          session.api,
-          calculationCreated.documentId,
-          period,
-        ),
-      ).toEqual(journalBeforeMerge)
     } finally {
       await reviewerSession.dispose()
       await session.dispose()

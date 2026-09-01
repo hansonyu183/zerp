@@ -3,146 +3,48 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
 import { useDclSupplierViewModel } from '@/pages/dcl/supplier/vm'
 import { useSessionStore } from '@/stores/session'
-
 vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn() } }))
-const mockedPost = vi.mocked(apiClient.postContract)
+const post = vi.mocked(apiClient.postContract)
+describe('DCL supplier view model', () => { beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() }); it('creates a supplier with its own identity and operating-entity scope', async () => { useSessionStore().permissions = ['/dcl/supplier/create', '/bob/operating-entity/query', '/aux/settlement-method/query', '/bob/employee/query']; post.mockResolvedValue({ data: { items: [] } } as never); const vm = useDclSupplierViewModel(); vm.openCreate(); await expect(vm.save({ ...vm.editorModel.value, legalName: '供应商甲', displayName: '供应商甲', operatingEntityIds: ['OPE-1', 'OPE-2'], defaultOperatingEntityId: 'OPE-1' })).resolves.toBe(true); expect(post).toHaveBeenCalledWith('dcl/supplier/create', { data: expect.objectContaining({ legalName: '供应商甲', operatingEntityIds: ['OPE-1', 'OPE-2'], defaultOperatingEntityId: 'OPE-1' }) }); expect(post.mock.calls.map(([path]) => path)).not.toContain('bob/party/query') }) })
 
-const approval = {
-  approvalEntryId: 'SUP-V1',
-  versionNo: 1,
-  status: 'DRAFT' as const,
-  revision: 2,
-  createdBy: 'USER-1',
-  createdAt: '2026-08-28T00:00:00Z',
-  updatedBy: 'USER-1',
-  updatedAt: '2026-08-28T00:00:00Z',
-  submittedBy: null,
-  submittedAt: null,
-  approvedBy: null,
-  approvedAt: null,
-}
-
-describe('DCL supplier view model', () => {
+describe('DCL supplier strong identifiers', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('creates a declaration with exact settlement and default purchaser references', async () => {
-    useSessionStore().permissions = [
-      '/dcl/supplier/create',
-      '/bob/party/query',
-      '/bob/operating-entity/query',
-      '/aux/settlement-method/query',
-      '/bob/employee/query',
-    ]
-    mockedPost.mockResolvedValue({ data: { items: [] } })
+  const view = {
+    objectId: 'SUP-1', entity: 'supplier', code: 'SUP-001', updatedAt: '2026-09-01T00:00:00Z', availableApprovalActions: [],
+    approval: { approvalEntryId: 'APR-SUP-1', revision: 3, status: 'APPROVED', versionNo: 1 },
+    data: { kind: 'ORGANIZATION', legalName: '供应商甲', strongIdentifiers: [{ type: 'UNIFIED_SOCIAL_CREDIT_CODE', value: '913500001' }, { type: 'TAX_NUMBER', value: 'TAX-1' }], enabled: true, operatingEntityIds: ['OPE-1'], defaultOperatingEntityId: 'OPE-1', operatingEntities: [{ sourceObjectId: 'OPE-1', code: 'OPE-001', name: '经营主体甲' }], settlementMethod: null, defaultPurchaser: null },
+  } as never
+  const row = { objectId: 'SUP-1', code: 'SUP-001', availableApprovalActions: [], latestApproved: { approval: view.approval, data: view.data }, openVersion: null } as never
+
+  function mockRequests() {
+    post.mockImplementation(async (path) => ({
+      data: path === 'dcl/supplier/get' ? view : { items: [], total: 0, page: 1, pageSize: 20 },
+    }) as never)
+  }
+
+  it('round-trips every strong identifier when editing and saving', async () => {
+    useSessionStore().permissions = ['/dcl/supplier/get', '/dcl/supplier/save', '/bob/operating-entity/query', '/aux/settlement-method/query', '/bob/employee/query']
+    mockRequests()
     const vm = useDclSupplierViewModel()
-    vm.openCreate()
-    await expect(
-      vm.save({
-        ...vm.editorModel.value,
-        partyMode: 'EXISTING',
-        partyId: 'PARTY-1',
-        operatingEntityId: 'OPE-1',
-        settlementMethodId: 'SET-1',
-        defaultPurchaserEmployeeId: 'EMP-1',
-        contactName: '李四',
-      }),
-    ).resolves.toBe(true)
-    expect(mockedPost).toHaveBeenCalledWith('dcl/supplier/create', {
-      partyId: 'PARTY-1',
-      operatingEntityId: 'OPE-1',
-      data: {
-        shortName: null,
-        taxNumber: null,
-        contactName: '李四',
-        contactPhone: null,
-        email: null,
-        address: null,
-        remark: null,
-        settlementMethodId: 'SET-1',
-        defaultPurchaserEmployeeId: 'EMP-1',
-      },
-    })
+
+    await vm.openEdit(row)
+
+    expect(vm.editorModel.value.strongIdentifiers).toEqual(view.data.strongIdentifiers)
+    await expect(vm.save(vm.editorModel.value)).resolves.toBe(true)
+    expect(post).toHaveBeenCalledWith('dcl/supplier/save', expect.objectContaining({ data: expect.objectContaining({ strongIdentifiers: view.data.strongIdentifiers }) }))
   })
 
-  it('keeps new Party tax identity separate from the supplier declaration tax number', async () => {
-    useSessionStore().permissions = [
-      '/dcl/supplier/create',
-      '/bob/party/query',
-      '/bob/operating-entity/query',
-      '/aux/settlement-method/query',
-      '/bob/employee/query',
-    ]
-    mockedPost.mockResolvedValue({ data: { items: [] } })
+  it('round-trips every strong identifier when disabling', async () => {
+    useSessionStore().permissions = ['/dcl/supplier/get', '/dcl/supplier/save']
+    mockRequests()
     const vm = useDclSupplierViewModel()
-    vm.openCreate()
-    await expect(
-      vm.save({
-        ...vm.editorModel.value,
-        partyMode: 'NEW',
-        legalName: '新建主体',
-        partyTaxNumber: 'PARTY-TAX-1',
-        taxNumber: 'SUPPLIER-TAX-1',
-        operatingEntityId: 'OPE-1',
-      }),
-    ).resolves.toBe(true)
-    expect(mockedPost).toHaveBeenCalledWith('dcl/supplier/create', {
-      newParty: {
-        kind: 'ORGANIZATION',
-        legalName: '新建主体',
-        taxNumber: 'PARTY-TAX-1',
-        strongIdentifiers: [],
-      },
-      operatingEntityId: 'OPE-1',
-      data: expect.objectContaining({ taxNumber: 'SUPPLIER-TAX-1' }),
-    })
-  })
 
-  it('uses DCL approval actions, never the removed BOB lifecycle', async () => {
-    useSessionStore().permissions = [
-      '/dcl/supplier/query',
-      '/dcl/supplier/submit',
-    ]
-    const row = {
-      objectId: 'SUP-1',
-      entity: 'supplier' as const,
-      code: 'SUP-0001',
-      partyId: 'PARTY-1',
-      partyKind: 'ORGANIZATION' as const,
-      partyDisplayName: '供应商',
-      operatingEntityId: 'OPE-1',
-      operatingEntityCode: 'OPE-0001',
-      operatingEntityName: '主体',
-      enabled: true,
-      availableApprovalActions: ['submit'],
-      latestApproved: null,
-      openVersion: {
-        approval,
-        enabled: true,
-        data: { settlementMethod: null, defaultPurchaser: null },
-      },
-      updatedAt: '2026-08-28T00:00:00Z',
-    }
-    mockedPost
-      .mockResolvedValueOnce({
-        data: { items: [row], total: 1, page: 1, pageSize: 20 },
-      })
-      .mockResolvedValueOnce({ data: {} })
-      .mockResolvedValueOnce({
-        data: { items: [], total: 0, page: 1, pageSize: 20 },
-      })
-    const vm = useDclSupplierViewModel()
-    await vm.query()
-    await expect(vm.submitObject(row)).resolves.toBe(true)
-    expect(mockedPost).toHaveBeenNthCalledWith(2, 'dcl/supplier/submit', {
-      objectId: 'SUP-1',
-      approvalEntryId: 'SUP-V1',
-      approvalRevision: 2,
-    })
-    expect(mockedPost.mock.calls.map(([path]) => String(path))).not.toContain(
-      'bob/supplier/submit',
-    )
+    await expect(vm.changeEnabled(row)).resolves.toBe(true)
+
+    expect(post).toHaveBeenCalledWith('dcl/supplier/save', expect.objectContaining({ data: expect.objectContaining({ enabled: false, strongIdentifiers: view.data.strongIdentifiers }) }))
   })
 })

@@ -6,6 +6,5 @@ import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { DclOtherUnitData } from './DclOtherUnitData';
 export type DclOtherUnitVersionView = {
   approval: ApprovalVersionMeta;
-  enabled: boolean;
   data: DclOtherUnitData;
 };

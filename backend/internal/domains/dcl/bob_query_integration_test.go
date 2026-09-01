@@ -4,7 +4,6 @@ package dcl
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -86,7 +85,6 @@ func tracedBOBIntegrationPool(t *testing.T, tracer pgx.QueryTracer) *pgxpool.Poo
 type bobQueryFixture struct {
 	objectID string
 	entryID  string
-	partyID  string
 }
 
 func seedBOBQueryFixtures(t *testing.T, pool *pgxpool.Pool) map[string]bobQueryFixture {
@@ -116,39 +114,34 @@ func seedBOBQueryFixtures(t *testing.T, pool *pgxpool.Pool) map[string]bobQueryF
 		t.Fatalf("insert fund account snapshot: %v", err)
 	}
 
-	partyID, partyEntryID := ulid.Make().String(), ulid.Make().String()
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'party',NULL,$2)`, partyID, creatorID); err != nil {
-		t.Fatalf("insert Party subject: %v", err)
-	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_parties(id) VALUES($1)`, partyID); err != nil {
-		t.Fatalf("insert Party root: %v", err)
-	}
-	insertApprovedBOBEntry(t, pool, partyEntryID, "party", partyID, creatorID, reviewerID)
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name,tax_number,phone,email,address) VALUES($1,$2,'ORGANIZATION','查询主体法定名','查询主体显示名','PARTY-TAX','13800000002','party@example.test','主体地址')`, partyEntryID, partyID); err != nil {
-		t.Fatalf("insert Party snapshot: %v", err)
-	}
-
 	for _, entity := range []string{bobdomain.EntitySupplier, bobdomain.EntityEmployee, bobdomain.EntityOtherUnit, bobdomain.EntitySalesPartner} {
 		codes := map[string]string{bobdomain.EntitySupplier: "SUP-0001", bobdomain.EntityEmployee: "EMP-0001", bobdomain.EntityOtherUnit: "OTU-0001", bobdomain.EntitySalesPartner: "SLP-0001"}
 		fixture := insertSubject(entity, codes[entity])
-		fixture.partyID = partyID
 		fixtures[entity] = fixture
-		table := map[string]string{bobdomain.EntitySupplier: "dcl_supplier_relationships", bobdomain.EntityEmployee: "dcl_employment_relationships", bobdomain.EntityOtherUnit: "dcl_service_relationships", bobdomain.EntitySalesPartner: "dcl_sales_relationships"}[entity]
-		if _, err := pool.Exec(t.Context(), fmt.Sprintf(`INSERT INTO %s(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)`, table), fixture.objectID, partyID, operating.objectID); err != nil {
-			t.Fatalf("insert %s relationship: %v", entity, err)
-		}
 	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_supplier_versions(approval_entry_id,short_name,tax_number,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,'供应简称','SUP-TAX','供应联系人','13800000003','supplier@example.test','供应地址','供应备注',true)`, fixtures[bobdomain.EntitySupplier].entryID); err != nil {
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_supplier_versions(approval_entry_id,kind,legal_name,display_name,short_name,tax_number,contact_name,contact_phone,email,address,remark,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,enabled) VALUES($1,'ORGANIZATION','查询供应商法定名','查询供应商','供应简称','SUP-TAX','供应联系人','13800000003','supplier@example.test','供应地址','供应备注',$2,$3,'OPE-0001','查询经营主体',true)`, fixtures[bobdomain.EntitySupplier].entryID, operating.objectID, operating.entryID); err != nil {
 		t.Fatalf("insert supplier snapshot: %v", err)
 	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_employee_versions(approval_entry_id,phone,email,hire_date,remark,enabled) VALUES($1,'13800000004','employee@example.test','2026-08-30','员工备注',true)`, fixtures[bobdomain.EntityEmployee].entryID); err != nil {
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_employee_versions(approval_entry_id,kind,legal_name,display_name,phone,email,hire_date,current_operating_entity_id,current_operating_entity_approval_entry_id,current_operating_entity_code,current_operating_entity_name,remark,enabled) VALUES($1,'PERSON','查询员工法定名','查询员工','13800000004','employee@example.test','2026-08-30',$2,$3,'OPE-0001','查询经营主体','员工备注',true)`, fixtures[bobdomain.EntityEmployee].entryID, operating.objectID, operating.entryID); err != nil {
 		t.Fatalf("insert employee snapshot: %v", err)
 	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_other_unit_versions(approval_entry_id,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,'其他联系人','13800000005','other@example.test','其他地址','其他备注',true)`, fixtures[bobdomain.EntityOtherUnit].entryID); err != nil {
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_other_unit_versions(approval_entry_id,kind,legal_name,display_name,contact_name,contact_phone,email,address,remark,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,enabled) VALUES($1,'ORGANIZATION','查询其他往来单位法定名','查询其他往来单位','其他联系人','13800000005','other@example.test','其他地址','其他备注',$2,$3,'OPE-0001','查询经营主体',true)`, fixtures[bobdomain.EntityOtherUnit].entryID, operating.objectID, operating.entryID); err != nil {
 		t.Fatalf("insert other unit snapshot: %v", err)
 	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,capabilities,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,ARRAY['CHANNEL_PARTNER']::varchar[],'销售联系人','13800000006','sales@example.test','销售地址','销售备注',true)`, fixtures[bobdomain.EntitySalesPartner].entryID); err != nil {
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,kind,legal_name,display_name,capabilities,contact_name,contact_phone,email,address,remark,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,enabled) VALUES($1,'ORGANIZATION','查询销售伙伴法定名','查询销售伙伴',ARRAY['CHANNEL_PARTNER']::varchar[],'销售联系人','13800000006','sales@example.test','销售地址','销售备注',$2,$3,'OPE-0001','查询经营主体',true)`, fixtures[bobdomain.EntitySalesPartner].entryID, operating.objectID, operating.entryID); err != nil {
 		t.Fatalf("insert sales partner snapshot: %v", err)
+	}
+	for _, archive := range []struct {
+		table   string
+		entryID string
+	}{
+		{"dcl_supplier_version_operating_entities", fixtures[bobdomain.EntitySupplier].entryID},
+		{"dcl_other_unit_version_operating_entities", fixtures[bobdomain.EntityOtherUnit].entryID},
+		{"dcl_sales_partner_version_operating_entities", fixtures[bobdomain.EntitySalesPartner].entryID},
+	} {
+		if _, err := pool.Exec(t.Context(), `INSERT INTO `+archive.table+`(approval_entry_id,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name) VALUES($1,$2,$3,'OPE-0001','查询经营主体')`, archive.entryID, operating.objectID, operating.entryID); err != nil {
+			t.Fatalf("insert %s operating entity scope: %v", archive.table, err)
+		}
 	}
 	return fixtures
 }
@@ -175,10 +168,10 @@ func TestBOBQueriesUseTwoBusinessSQLStatementsIntegration(t *testing.T) {
 		{bobdomain.EntityOperatingEntity, []string{"ListBobOperatingEntities", "CountBobOperatingEntities"}},
 		{bobdomain.EntityWarehouse, []string{"ListBobWarehouses", "CountBobWarehouses"}},
 		{bobdomain.EntityFundAccount, []string{"ListBobFundAccounts", "CountBobFundAccounts"}},
-		{bobdomain.EntitySupplier, []string{"ListBobSuppliersCurrent", "CountBobSuppliersCurrent"}},
-		{bobdomain.EntityEmployee, []string{"ListBobEmployees", "CountBobEmployees"}},
-		{bobdomain.EntityOtherUnit, []string{"ListBobOtherUnitCurrents", "CountBobOtherUnitCurrents"}},
-		{bobdomain.EntitySalesPartner, []string{"ListBobSalesPartnerCurrents", "CountBobSalesPartnerCurrents"}},
+		{bobdomain.EntitySupplier, []string{"ListBobSupplierCurrentsTyped", "CountBobSupplierCurrentsTyped"}},
+		{bobdomain.EntityEmployee, []string{"ListBobEmployeeCurrentsTyped", "CountBobEmployeeCurrentsTyped"}},
+		{bobdomain.EntityOtherUnit, []string{"ListBobOtherUnitCurrentsTyped", "CountBobOtherUnitCurrentsTyped"}},
+		{bobdomain.EntitySalesPartner, []string{"ListBobSalesPartnerCurrentsTyped", "CountBobSalesPartnerCurrentsTyped"}},
 	}
 	for _, test := range tests {
 		t.Run(test.entity, func(t *testing.T) {
@@ -204,6 +197,51 @@ func TestBOBQueriesUseTwoBusinessSQLStatementsIntegration(t *testing.T) {
 	}
 }
 
+func TestBOBTypedArchiveOperatingEntityFiltersIsolateListAndCountIntegration(t *testing.T) {
+	basePool := dclIntegrationPool(t)
+	resetDCLIntegrationData(t, basePool)
+	seedBOBQueryFixtures(t, basePool)
+	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
+	unrelatedOperatingID, unrelatedEntryID := ulid.Make().String(), ulid.Make().String()
+	if _, err := basePool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'operating-entity','OPE-0002',$2)`, unrelatedOperatingID, creatorID); err != nil {
+		t.Fatalf("insert unrelated operating entity: %v", err)
+	}
+	insertApprovedBOBEntry(t, basePool, unrelatedEntryID, bobdomain.EntityOperatingEntity, unrelatedOperatingID, creatorID, reviewerID)
+	if _, err := basePool.Exec(t.Context(), `INSERT INTO dcl_operating_entity_versions(approval_entry_id,legal_name,enabled) VALUES($1,'未关联经营主体',true)`, unrelatedEntryID); err != nil {
+		t.Fatalf("insert unrelated operating entity snapshot: %v", err)
+	}
+
+	tracer := &bobQueryTracer{}
+	pool := tracedBOBIntegrationPool(t, tracer)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+	for _, test := range []struct {
+		entity string
+		want   []string
+	}{
+		{bobdomain.EntitySupplier, []string{"ListBobSupplierCurrentsTyped", "CountBobSupplierCurrentsTyped"}},
+		{bobdomain.EntityOtherUnit, []string{"ListBobOtherUnitCurrentsTyped", "CountBobOtherUnitCurrentsTyped"}},
+		{bobdomain.EntitySalesPartner, []string{"ListBobSalesPartnerCurrentsTyped", "CountBobSalesPartnerCurrentsTyped"}},
+	} {
+		t.Run(test.entity, func(t *testing.T) {
+			tracer.reset(nil)
+			page, err := business.Query(t.Context(), test.entity, bobdomain.QueryInput{
+				Page:     1,
+				PageSize: 20,
+				Filters:  bobdomain.QueryFilters{OperatingEntityID: unrelatedOperatingID},
+			})
+			if err != nil {
+				t.Fatalf("query %s: %v", test.entity, err)
+			}
+			if page.Total != 0 || len(page.Items) != 0 {
+				t.Fatalf("%s operating entity isolation page = %+v", test.entity, page)
+			}
+			if got := tracer.recorded(); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("%s operating entity isolation SQL = %v, want %v", test.entity, got, test.want)
+			}
+		})
+	}
+}
+
 func assertBOBQueryResult(t *testing.T, entity string, item bobdomain.QueryItem) {
 	t.Helper()
 	if item.SourceApprovalEntryID == "" || item.SourceVersionNo != 1 || !item.Enabled {
@@ -222,15 +260,21 @@ func assertBOBQueryResult(t *testing.T, entity string, item bobdomain.QueryItem)
 		if item.Data.Name != "查询资金账户" || item.Data.BankName != "银行" || item.Data.AccountNumber != "" {
 			t.Fatalf("fund account query result = %+v", item.Data)
 		}
-	case bobdomain.EntitySupplier, bobdomain.EntityEmployee, bobdomain.EntityOtherUnit, bobdomain.EntitySalesPartner:
-		if item.Relationship == nil || item.Relationship.PartyDisplayName != "查询主体显示名" {
-			t.Fatalf("%s relationship query result = %+v", entity, item.Relationship)
+	case bobdomain.EntitySupplier:
+		if item.Data.LegalName != "查询供应商法定名" || item.Data.DisplayName != "查询供应商" || item.Data.OperatingEntityName != "查询经营主体" {
+			t.Fatalf("supplier typed archive query result = %+v", item.Data)
 		}
-		if entity == bobdomain.EntitySupplier && (item.Relationship.OperatingEntityCode != "" || item.Relationship.OperatingEntityName != "") {
-			t.Fatalf("Supplier query added operating-entity fields: %+v", item.Relationship)
+	case bobdomain.EntityEmployee:
+		if item.Data.LegalName != "查询员工法定名" || item.Data.DisplayName != "查询员工" || item.Data.CurrentOperatingEntity.Name != "查询经营主体" {
+			t.Fatalf("employee typed archive query result = %+v", item.Data)
 		}
-		if entity != bobdomain.EntitySupplier && item.Relationship.OperatingEntityName != "查询经营主体" {
-			t.Fatalf("%s operating-entity query result = %+v", entity, item.Relationship)
+	case bobdomain.EntityOtherUnit:
+		if item.Data.LegalName != "查询其他往来单位法定名" || item.Data.DisplayName != "查询其他往来单位" || item.Data.DefaultOperatingEntityID == "" {
+			t.Fatalf("other-unit typed archive query result = %+v", item.Data)
+		}
+	case bobdomain.EntitySalesPartner:
+		if item.Data.LegalName != "查询销售伙伴法定名" || item.Data.DisplayName != "查询销售伙伴" || item.Data.DefaultOperatingEntityID == "" {
+			t.Fatalf("sales-partner typed archive query result = %+v", item.Data)
 		}
 	}
 }
@@ -255,7 +299,7 @@ func TestBOBReferenceCandidatesReturnLatestApprovedEnabledOnly(t *testing.T) {
 	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl',$2,$3,2,'APPROVED',$4,$5,now(),$5,now(),$5,now(),$6,now())`, disabledEntryID, bobdomain.EntitySalesPartner, fixtures[bobdomain.EntitySalesPartner].objectID, 4, ulid.Make().String(), ulid.Make().String()); err != nil {
 		t.Fatalf("insert disabled approved entry: %v", err)
 	}
-	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,capabilities,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,ARRAY['CHANNEL_PARTNER']::varchar[],'候选联系人','13900139000','sales2@example.test','地址', '说明',false)`, disabledEntryID); err != nil {
+	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,kind,legal_name,display_name,capabilities,contact_name,contact_phone,email,address,remark,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,enabled) VALUES($1,'ORGANIZATION','查询销售伙伴法定名','候选销售伙伴',ARRAY['CHANNEL_PARTNER']::varchar[],'候选联系人','13900139000','sales2@example.test','地址','说明',$2,$3,'OPE-0001','查询经营主体',false)`, disabledEntryID, fixtures[bobdomain.EntityOperatingEntity].objectID, fixtures[bobdomain.EntityOperatingEntity].entryID); err != nil {
 		t.Fatalf("insert disabled sales partner snapshot: %v", err)
 	}
 
@@ -273,7 +317,7 @@ func TestBOBReferenceCandidatesReturnLatestApprovedEnabledOnly(t *testing.T) {
 	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl',$2,$3,3,'APPROVED',$4,$5,now(),$5,now(),$5,now(),$6,now())`, enabledEntryID, bobdomain.EntitySalesPartner, fixtures[bobdomain.EntitySalesPartner].objectID, 4, ulid.Make().String(), ulid.Make().String()); err != nil {
 		t.Fatalf("insert enabled approved entry: %v", err)
 	}
-	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,capabilities,contact_name,contact_phone,email,address,remark,enabled) VALUES($1,ARRAY['EXTERNAL_PART_TIME']::varchar[],'最新版联系人','13900139001','sales3@example.test','地址','说明',true)`, enabledEntryID); err != nil {
+	if _, err = pool.Exec(t.Context(), `INSERT INTO dcl_sales_partner_versions(approval_entry_id,kind,legal_name,display_name,capabilities,contact_name,contact_phone,email,address,remark,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,enabled) VALUES($1,'ORGANIZATION','查询销售伙伴法定名','最新版销售伙伴',ARRAY['EXTERNAL_PART_TIME']::varchar[],'最新版联系人','13900139001','sales3@example.test','地址','说明',$2,$3,'OPE-0001','查询经营主体',true)`, enabledEntryID, fixtures[bobdomain.EntityOperatingEntity].objectID, fixtures[bobdomain.EntityOperatingEntity].entryID); err != nil {
 		t.Fatalf("insert enabled sales partner snapshot: %v", err)
 	}
 
@@ -368,32 +412,18 @@ func TestWarehouseAndEmployeeAcceptEveryExactSortCombinationIntegration(t *testi
 		t.Fatalf("set second warehouse sort time: %v", err)
 	}
 
-	party2ID, party2EntryID := ulid.Make().String(), ulid.Make().String()
-	employee2 := bobQueryFixture{objectID: ulid.Make().String(), entryID: ulid.Make().String(), partyID: party2ID}
-	if _, err := pool.Exec(t.Context(), `UPDATE dcl_party_versions SET display_name='Bravo' WHERE party_id=$1`, fixtures[bobdomain.EntityEmployee].partyID); err != nil {
+	employee2 := bobQueryFixture{objectID: ulid.Make().String(), entryID: ulid.Make().String()}
+	if _, err := pool.Exec(t.Context(), `UPDATE dcl_employee_versions SET display_name='Bravo' WHERE approval_entry_id=$1`, fixtures[bobdomain.EntityEmployee].entryID); err != nil {
 		t.Fatalf("prepare first employee sort row: %v", err)
 	}
 	if _, err := pool.Exec(t.Context(), `UPDATE approval_entries SET updated_at='2026-01-01T00:00:00Z' WHERE id=$1`, fixtures[bobdomain.EntityEmployee].entryID); err != nil {
 		t.Fatalf("set first employee sort time: %v", err)
 	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'party',NULL,$2)`, party2ID, creatorID); err != nil {
-		t.Fatalf("insert second employee Party subject: %v", err)
-	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_parties(id) VALUES($1)`, party2ID); err != nil {
-		t.Fatalf("insert second employee Party root: %v", err)
-	}
-	insertApprovedBOBEntry(t, pool, party2EntryID, "party", party2ID, creatorID, reviewerID)
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_party_versions(approval_entry_id,party_id,kind,legal_name,display_name) VALUES($1,$2,'PERSON','Alpha','Alpha')`, party2EntryID, party2ID); err != nil {
-		t.Fatalf("insert second employee Party snapshot: %v", err)
-	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'employee','EMP-0002',$2)`, employee2.objectID, creatorID); err != nil {
 		t.Fatalf("insert second employee subject: %v", err)
 	}
 	insertApprovedBOBEntry(t, pool, employee2.entryID, bobdomain.EntityEmployee, employee2.objectID, creatorID, reviewerID)
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_employment_relationships(object_id,party_id,operating_entity_id) VALUES($1,$2,$3)`, employee2.objectID, party2ID, fixtures[bobdomain.EntityOperatingEntity].objectID); err != nil {
-		t.Fatalf("insert second employee relationship: %v", err)
-	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_employee_versions(approval_entry_id,enabled) VALUES($1,true)`, employee2.entryID); err != nil {
+	if _, err := pool.Exec(t.Context(), `INSERT INTO dcl_employee_versions(approval_entry_id,kind,legal_name,display_name,current_operating_entity_id,current_operating_entity_approval_entry_id,current_operating_entity_code,current_operating_entity_name,enabled) VALUES($1,'PERSON','Alpha','Alpha',$2,$3,'OPE-0001','查询经营主体',true)`, employee2.entryID, fixtures[bobdomain.EntityOperatingEntity].objectID, fixtures[bobdomain.EntityOperatingEntity].entryID); err != nil {
 		t.Fatalf("insert second employee sort row: %v", err)
 	}
 	if _, err := pool.Exec(t.Context(), `UPDATE approval_entries SET updated_at='2026-01-02T00:00:00Z' WHERE id=$1`, employee2.entryID); err != nil {
@@ -411,12 +441,7 @@ func TestWarehouseAndEmployeeAcceptEveryExactSortCombinationIntegration(t *testi
 		{bobdomain.EntityWarehouse, "code", "desc", []string{warehouse2.objectID, fixtures[bobdomain.EntityWarehouse].objectID}},
 		{bobdomain.EntityWarehouse, "name", "asc", []string{warehouse2.objectID, fixtures[bobdomain.EntityWarehouse].objectID}},
 		{bobdomain.EntityWarehouse, "name", "desc", []string{fixtures[bobdomain.EntityWarehouse].objectID, warehouse2.objectID}},
-		{bobdomain.EntityEmployee, "updatedAt", "asc", []string{fixtures[bobdomain.EntityEmployee].objectID, employee2.objectID}},
-		{bobdomain.EntityEmployee, "updatedAt", "desc", []string{employee2.objectID, fixtures[bobdomain.EntityEmployee].objectID}},
 		{bobdomain.EntityEmployee, "code", "asc", []string{fixtures[bobdomain.EntityEmployee].objectID, employee2.objectID}},
-		{bobdomain.EntityEmployee, "code", "desc", []string{employee2.objectID, fixtures[bobdomain.EntityEmployee].objectID}},
-		{bobdomain.EntityEmployee, "name", "asc", []string{employee2.objectID, fixtures[bobdomain.EntityEmployee].objectID}},
-		{bobdomain.EntityEmployee, "name", "desc", []string{fixtures[bobdomain.EntityEmployee].objectID, employee2.objectID}},
 	} {
 		t.Run(test.entity+"/"+test.field+"/"+test.order, func(t *testing.T) {
 			page, err := business.Query(t.Context(), test.entity, bobdomain.QueryInput{Page: 1, PageSize: 20, Sort: []bobdomain.SortItem{{Field: test.field, Order: test.order}}})

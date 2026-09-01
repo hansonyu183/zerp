@@ -232,15 +232,7 @@ describe('DCL vehicle view model', () => {
                     enabled: true,
                     sourceApprovalEntryId: 'VER-1',
                     sourceVersionNo: 1,
-                    data: { name: '' },
-                    relationship: {
-                      partyId: 'PTY-1',
-                      partyKind: 'ORGANIZATION',
-                      partyDisplayName: '承运服务商',
-                      operatingEntityId: 'OPE-1',
-                      operatingEntityCode: 'OPE-0001',
-                      operatingEntityName: '经营主体',
-                    },
+                    displayName: '承运服务商',
                     updatedAt: '2026-08-28T00:00:00Z',
                   },
                 ]

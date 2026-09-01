@@ -675,7 +675,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
             approvalEntryId: item.sourceApprovalEntryId,
             entity,
             code: item.code,
-            name: item.relationship?.partyDisplayName ?? '',
+            name: item.displayName ?? '',
           }))
       } catch {
         return []

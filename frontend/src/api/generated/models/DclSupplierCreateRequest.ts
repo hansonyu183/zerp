@@ -3,13 +3,6 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { DclSupplierInput } from './DclSupplierInput';
-import type { PartyIdentityData } from './PartyIdentityData';
-export type DclSupplierCreateRequest = ({
-  partyId: string;
-  operatingEntityId: string;
+export type DclSupplierCreateRequest = {
   data: DclSupplierInput;
-} | {
-  newParty: PartyIdentityData;
-  operatingEntityId: string;
-  data: DclSupplierInput;
-});
+};

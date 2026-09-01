@@ -3,6 +3,11 @@ import { mkdir, rmdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { request, type APIRequestContext } from '@playwright/test'
+import type {
+  DclEmployeeCreateRequest,
+  DclOtherUnitCreateRequest,
+  DclSupplierCreateRequest,
+} from '../../src/api/generated'
 
 interface Envelope<T> {
   code: number | string
@@ -73,7 +78,6 @@ interface AccountingMappingView {
 
 interface BobMutation {
   objectId: string
-  partyId?: string
   customerObjectId?: string
   customerCode?: string
   customerLookup?: string
@@ -83,14 +87,6 @@ interface BobMutation {
     revision: number
   }
   code: string
-}
-
-interface DclPartyView {
-  partyId: string
-  approval: {
-    approvalEntryId: string
-    revision: number
-  }
 }
 
 interface AuxQueryItem {
@@ -399,22 +395,18 @@ const bobReviewerActions = new Set([
   '/dcl/product/approve',
 ])
 
-async function approveRelationshipParty(
+async function assertBobReference(
   operator: RealApi,
-  reviewer: RealApi,
-  partyId: string,
+  entity: 'employee' | 'supplier' | 'other-unit',
+  record: Pick<BobMutation, 'objectId' | 'code'>,
 ): Promise<void> {
-  const party = await operator.post<DclPartyView>('dcl/party/get', { partyId })
-  const submitted = await operator.post<DclPartyView>('dcl/party/submit', {
-    partyId,
-    approvalEntryId: party.approval.approvalEntryId,
-    approvalRevision: party.approval.revision,
-  })
-  await reviewer.post<DclPartyView>('dcl/party/approve', {
-    partyId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
+  const candidates = await operator.post<BobReferenceQueryItem[]>(
+    'bob/reference/query',
+    { entity, keyword: record.code },
+  )
+  if (!candidates.some((candidate) => candidate.objectId === record.objectId)) {
+    throw new Error(`${entity} 批准后未进入 BOB 引用候选。`)
+  }
 }
 
 async function createEffectiveBob(
@@ -472,16 +464,20 @@ async function createEffectiveEmployment(
   name: string,
   operatingEntityId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('dcl/employee/create', {
-    newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
-    operatingEntityId,
-    data: {},
-  })
-  const employee = await operator.post<DclPartyView>('dcl/employee/get', {
-    objectId: created.objectId,
-    approvalEntryId: created.approval.approvalEntryId,
-  })
-  await approveRelationshipParty(operator, reviewer, employee.partyId)
+  const request: DclEmployeeCreateRequest = {
+    data: {
+      kind: 'PERSON',
+      legalName: name,
+      displayName: name,
+      strongIdentifiers: [],
+      enabled: true,
+      currentOperatingEntityId: operatingEntityId,
+    },
+  }
+  const created = await operator.post<BobMutation>(
+    'dcl/employee/create',
+    request,
+  )
   const submitted = await operator.post<BobMutation>('dcl/employee/submit', {
     objectId: created.objectId,
     approvalEntryId: created.approval.approvalEntryId,
@@ -495,7 +491,9 @@ async function createEffectiveEmployment(
   const view = await operator.post<{ code: string }>('bob/employee/get', {
     objectId: approved.objectId,
   })
-  return { ...approved, code: view.code }
+  const record = { ...approved, code: view.code }
+  await assertBobReference(operator, 'employee', record)
+  return record
 }
 
 async function createEffectiveSupplier(
@@ -506,20 +504,23 @@ async function createEffectiveSupplier(
   settlementMethodId: string,
   purchaserObjectId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('dcl/supplier/create', {
-    newParty: {
+  const request: DclSupplierCreateRequest = {
+    data: {
       kind: 'ORGANIZATION',
       legalName: name,
+      displayName: name,
       strongIdentifiers: [],
-    },
-    operatingEntityId,
-    data: {
+      enabled: true,
+      operatingEntityIds: [operatingEntityId],
+      defaultOperatingEntityId: operatingEntityId,
       settlementMethodId,
       defaultPurchaserEmployeeId: purchaserObjectId,
     },
-  })
-  if (!created.partyId) throw new Error('供应商预置未返回 Party ID。')
-  await approveRelationshipParty(operator, reviewer, created.partyId)
+  }
+  const created = await operator.post<BobMutation>(
+    'dcl/supplier/create',
+    request,
+  )
   const submitted = await operator.post<BobMutation>('dcl/supplier/submit', {
     objectId: created.objectId,
     approvalEntryId: created.approval.approvalEntryId,
@@ -533,7 +534,9 @@ async function createEffectiveSupplier(
   const view = await operator.post<{ code: string }>('bob/supplier/get', {
     objectId: approved.objectId,
   })
-  return { ...approved, code: view.code }
+  const record = { ...approved, code: view.code }
+  await assertBobReference(operator, 'supplier', record)
+  return record
 }
 
 async function createEffectiveOtherUnit(
@@ -543,17 +546,22 @@ async function createEffectiveOtherUnit(
   operatingEntityId: string,
   settlementMethodId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('dcl/other-unit/create', {
-    newParty: {
+  const request: DclOtherUnitCreateRequest = {
+    data: {
       kind: 'ORGANIZATION',
       legalName: name,
+      displayName: name,
       strongIdentifiers: [],
+      enabled: true,
+      operatingEntityIds: [operatingEntityId],
+      defaultOperatingEntityId: operatingEntityId,
+      settlementMethodId,
     },
-    operatingEntityId,
-    data: { settlementMethodId },
-  })
-  if (!created.partyId) throw new Error('其他单位预置未返回 Party ID。')
-  await approveRelationshipParty(operator, reviewer, created.partyId)
+  }
+  const created = await operator.post<BobMutation>(
+    'dcl/other-unit/create',
+    request,
+  )
   const submitted = await operator.post<BobMutation>('dcl/other-unit/submit', {
     objectId: created.objectId,
     approvalEntryId: created.approval.approvalEntryId,
@@ -567,7 +575,9 @@ async function createEffectiveOtherUnit(
   const view = await operator.post<{ code: string }>('bob/other-unit/get', {
     objectId: approved.objectId,
   })
-  return { ...approved, code: view.code }
+  const record = { ...approved, code: view.code }
+  await assertBobReference(operator, 'other-unit', record)
+  return record
 }
 
 async function fixedSettlementMethod(
@@ -1413,17 +1423,6 @@ export async function createWflWorkerState(options: {
       `WFL 员工 ${suffix}`,
       operatingEntityId,
     )
-    const employeeReferences = await operatorSession.api.post<
-      BobReferenceQueryItem[]
-    >('bob/reference/query', {
-      entity: 'employee',
-      keyword: employee.code,
-    })
-    if (
-      !employeeReferences.some((item) => item.objectId === employee.objectId)
-    ) {
-      throw new Error(`WFL 预置员工 ${employee.code} 未进入雇佣关系引用候选。`)
-    }
     const paymentMethodId = await createPaymentMethod(
       operatorSession.api,
       `WFL 银行转账 ${suffix}`,

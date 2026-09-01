@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { DclRelationshipMutation } from './DclRelationshipMutation';
-export type DclRelationshipMutationResponse = {
+import type { BobSalesPartnerCurrentView } from './BobSalesPartnerCurrentView';
+export type BobSalesPartnerGetResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: DclRelationshipMutation | null;
+  data: BobSalesPartnerCurrentView | null;
   requestId: string;
 };

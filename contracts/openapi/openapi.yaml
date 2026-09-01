@@ -8997,6 +8997,84 @@
                 },
             },
         },
+      '/bob/employee/query':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询员工当前有效资料',
+              'operationId': 'employeeQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobEmployeeQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/employee/get':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '读取员工当前有效资料',
+              'operationId': 'employeeGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '员工当前正式资料。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobEmployeeGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/bob/other-unit/query':
         {
           'post':
@@ -9028,7 +9106,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/BobQueryResponse',
+                                  '$ref': './schemas/bob.yaml#/BobOtherUnitQueryResponse',
                                 },
                             },
                         },
@@ -9067,7 +9145,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/BobObjectResponse',
+                                  '$ref': './schemas/bob.yaml#/BobOtherUnitGetResponse',
                                 },
                             },
                         },
@@ -9186,7 +9264,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/BobQueryResponse',
+                                  '$ref': './schemas/bob.yaml#/BobSupplierQueryResponse',
                                 },
                             },
                         },
@@ -9225,7 +9303,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/BobObjectResponse',
+                                  '$ref': './schemas/bob.yaml#/BobSupplierGetResponse',
                                 },
                             },
                         },
@@ -9346,7 +9424,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/BobQueryResponse',
+                                  '$ref': './schemas/bob.yaml#/BobSalesPartnerQueryResponse',
                                 },
                             },
                         },
@@ -9385,7 +9463,7 @@
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/BobObjectResponse',
+                                  '$ref': './schemas/bob.yaml#/BobSalesPartnerGetResponse',
                                 },
                             },
                         },

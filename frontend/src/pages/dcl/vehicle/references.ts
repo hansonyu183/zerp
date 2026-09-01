@@ -167,7 +167,7 @@ async function loadOptions(
   return data.items.map((item) => ({
     title: formatReferenceLabel({
       code: item.code,
-      name: item.relationship?.partyDisplayName ?? '',
+      name: item.displayName,
     }),
     value: item.objectId,
   }))

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import Relationship from '../relationship/Relationship.vue'
+import TypedBusinessArchive from '../shared/typed-business-archive/TypedBusinessArchive.vue'
 </script>
 <template>
-  <Relationship entity="sales-partner" />
+  <TypedBusinessArchive entity="sales-partner" />
 </template>

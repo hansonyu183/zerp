@@ -84,7 +84,6 @@ type Seeder struct {
 	products          *dcldomain.ProductService
 	employees         *dcldomain.EmployeeService
 	relationships     *dcldomain.RelationshipService
-	parties           *dcldomain.PartyService
 	vouchers          *voudomain.Service
 	accounting        *accdomain.Service
 	accountMappings   *dcldomain.AccMappingService
@@ -140,15 +139,14 @@ func New(
 	events := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	partyDeclarations := dcldomain.NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
 	business := bobdomain.NewService(pool, auxiliaryResolver)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, business, seedAuthorizer{}, events)
 	warehouses := dcldomain.NewWarehouseService(pool, business, seedAuthorizer{}, events)
 	vehicles := dcldomain.NewVehicleService(pool, business, seedAuthorizer{}, events)
 	fundAccounts := dcldomain.NewFundAccountService(pool, business, seedAuthorizer{}, events)
 	products := dcldomain.NewProductService(pool, business, seedAuthorizer{}, events)
-	employees := dcldomain.NewEmployeeService(pool, business, partyDeclarations, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
-	relationships := dcldomain.NewRelationshipService(pool, business, partyDeclarations, bobdomain.NewPartyCurrentReader(pool), seedAuthorizer{}, events)
+	employees := dcldomain.NewEmployeeService(pool, business, seedAuthorizer{}, events)
+	relationships := dcldomain.NewRelationshipService(pool, business, seedAuthorizer{}, events)
 	accounting := accdomain.NewService(pool, business, seedAuthorizer{}, events)
 	accountMappings := dcldomain.NewAccMappingService(pool, accounting, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(
@@ -173,7 +171,7 @@ func New(
 	}
 	return &Seeder{
 		pool: pool, queries: dbsqlc.New(pool), app: appdomain.NewService(pool, cfg, logger), accounts: accounts,
-		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, relationships: relationships, parties: partyDeclarations,
+		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts, products: products, employees: employees, relationships: relationships,
 		vouchers: vouchers, accounting: accounting, accountMappings: accountMappings,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]seedBusinessView),

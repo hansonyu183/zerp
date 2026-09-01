@@ -21,7 +21,6 @@ import {
   deleteDclSupplier,
   getDclSupplier,
   queryDclSuppliers,
-  querySupplierParties,
   querySupplierReference,
   saveDclSupplier,
 } from './data'
@@ -37,15 +36,16 @@ import type {
 } from './types'
 
 type ReferenceKey =
-  | 'partyId'
-  | 'operatingEntityId'
+  | 'operatingEntityIds'
+  | 'defaultOperatingEntityId'
   | 'settlementMethodId'
   | 'defaultPurchaserEmployeeId'
 const referenceEntity: Record<
-  Exclude<ReferenceKey, 'partyId'>,
+  ReferenceKey,
   Parameters<typeof querySupplierReference>[0]
 > = {
-  operatingEntityId: 'operating-entity',
+  operatingEntityIds: 'operating-entity',
+  defaultOperatingEntityId: 'operating-entity',
   settlementMethodId: 'settlement-method',
   defaultPurchaserEmployeeId: 'employee',
 }
@@ -76,20 +76,20 @@ export function useDclSupplierViewModel() {
   const referenceOptions = ref<
     Record<ReferenceKey, DclSupplierReferenceOption[]>
   >({
-    partyId: [],
-    operatingEntityId: [],
+    operatingEntityIds: [],
+    defaultOperatingEntityId: [],
     settlementMethodId: [],
     defaultPurchaserEmployeeId: [],
   })
   const referenceLoading = ref<Record<ReferenceKey, boolean>>({
-    partyId: false,
-    operatingEntityId: false,
+    operatingEntityIds: false,
+    defaultOperatingEntityId: false,
     settlementMethodId: false,
     defaultPurchaserEmployeeId: false,
   })
   const referenceError = ref<Record<ReferenceKey, string | null>>({
-    partyId: null,
-    operatingEntityId: null,
+    operatingEntityIds: null,
+    defaultOperatingEntityId: null,
     settlementMethodId: null,
     defaultPurchaserEmployeeId: null,
   })
@@ -104,7 +104,7 @@ export function useDclSupplierViewModel() {
           status: approval.status,
           versionNo: approval.versionNo,
           availableApprovalActions: row.availableApprovalActions,
-          enabled: row.enabled,
+          enabled: dclSupplierActiveVersion(row).data.enabled,
           hasOpenVersion: row.openVersion !== null,
           hasLatestApproved: row.latestApproved !== null,
         }
@@ -120,8 +120,7 @@ export function useDclSupplierViewModel() {
   const canCreate = computed(
     () =>
       session.can(permission('create')) &&
-      canReferences.value &&
-      (session.can('/bob/party/query') || session.can('/dcl/party/create')),
+      canReferences.value,
   )
   const canEdit = computed(
     () => session.can(permission('save')) && canReferences.value,
@@ -180,8 +179,9 @@ export function useDclSupplierViewModel() {
     options: DclSupplierReferenceOption[],
   ): void {
     const selected = editorModel.value[key]
+    const selectedValues = Array.isArray(selected) ? selected : [selected]
     const old = referenceOptions.value[key].filter(
-      (option) => option.value === selected,
+      (option) => selectedValues.includes(option.value),
     )
     referenceOptions.value[key] = [...options, ...old].filter(
       (option, index, all) =>
@@ -189,27 +189,21 @@ export function useDclSupplierViewModel() {
         index,
     )
     if (
-      selected &&
-      !referenceOptions.value[key].some((option) => option.value === selected)
+      selectedValues.length &&
+      selectedValues.some((value) => !referenceOptions.value[key].some((option) => option.value === value))
     )
-      referenceOptions.value[key].push({ value: selected, title: selected })
+      for (const value of selectedValues)
+        if (!referenceOptions.value[key].some((option) => option.value === value))
+          referenceOptions.value[key].push({ value, title: value })
   }
   async function loadReference(key: ReferenceKey, search = ''): Promise<void> {
-    if (
-      key === 'partyId'
-        ? !session.can('/bob/party/query')
-        : !canReferences.value
-    )
-      return
+    if (!canReferences.value) return
     const sequence = (sequences.get(key) ?? 0) + 1
     sequences.set(key, sequence)
     referenceLoading.value[key] = true
     referenceError.value[key] = null
     try {
-      const options =
-        key === 'partyId'
-          ? await querySupplierParties(search.trim())
-          : await querySupplierReference(referenceEntity[key], search.trim())
+      const options = await querySupplierReference(referenceEntity[key], search.trim())
       if (sequences.get(key) === sequence) mergeSelected(key, options)
     } catch (error) {
       if (sequences.get(key) === sequence)
@@ -296,15 +290,9 @@ export function useDclSupplierViewModel() {
     preloadReferences()
   }
   function hydrateViewReferences(view: DclSupplierView): void {
-    referenceOptions.value.partyId = [
-      { value: view.partyId, title: view.partyDisplayName },
-    ]
-    referenceOptions.value.operatingEntityId = [
-      {
-        value: view.operatingEntityId,
-        title: `${view.operatingEntityCode} · ${view.operatingEntityName}`,
-      },
-    ]
+    referenceOptions.value.operatingEntityIds = view.data.operatingEntities.map((item) => ({ value: item.sourceObjectId, title: `${item.code} · ${item.name}` }))
+    const defaultOperatingEntity = view.data.operatingEntities.find((item) => item.sourceObjectId === view.data.defaultOperatingEntityId)
+    referenceOptions.value.defaultOperatingEntityId = defaultOperatingEntity ? [{ value: defaultOperatingEntity.sourceObjectId, title: `${defaultOperatingEntity.code} · ${defaultOperatingEntity.name}` }] : []
     referenceOptions.value.settlementMethodId = view.data.settlementMethod
       ? [
           {
@@ -395,13 +383,11 @@ export function useDclSupplierViewModel() {
     if (saving.value || editorMode.value === 'view') return false
     if (
       (editorMode.value === 'create' ? !canCreate.value : !canEdit.value) ||
-      !form.operatingEntityId.trim() ||
-      (editorMode.value === 'create' &&
-        (form.partyMode === 'EXISTING'
-          ? !form.partyId.trim()
-          : !form.legalName.trim()))
+      !form.operatingEntityIds.length ||
+      !form.defaultOperatingEntityId.trim() ||
+      !form.legalName.trim()
     ) {
-      editorErrorMessage.value = '请选择经营主体，并完整填写主体资料。'
+      editorErrorMessage.value = '请选择适用和默认经营主体，并完整填写身份资料。'
       return false
     }
     saving.value = true
@@ -413,7 +399,6 @@ export function useDclSupplierViewModel() {
         if (!context) throw new Error('未加载可编辑的供应商变更版本。')
         await saveDclSupplier({
           ...context,
-          enabled: currentView.value?.enabled ?? true,
           data: dclSupplierData(form),
         })
       }
@@ -456,7 +441,7 @@ export function useDclSupplierViewModel() {
     actionLoading,
     errorMessage,
     (row: DclSupplierListItem) => row.objectId,
-    (row) => row.enabled,
+    (row) => dclSupplierActiveVersion(row).data.enabled,
     actionAvailability,
     dclSupplierLifecyclePort,
     query,

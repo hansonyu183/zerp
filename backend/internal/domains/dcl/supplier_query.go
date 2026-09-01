@@ -3,28 +3,27 @@ package dcl
 import (
 	"context"
 	"errors"
-	"slices"
-	"strings"
-
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
+	"slices"
+	"strings"
 )
 
-func (s *SupplierService) Query(ctx context.Context, in SupplierQueryInput, actor approval.Actor) (Page[SupplierQueryItem], error) {
-	offset, ok := dclPageOffset(in.Page, in.PageSize)
-	if !ok || !validActor(actor) || len(in.Sort) > 1 {
+func (s *SupplierService) Query(ctx context.Context, in SupplierQueryInput, a approval.Actor) (Page[SupplierQueryItem], error) {
+	off, ok := dclPageOffset(in.Page, in.PageSize)
+	if !ok || !validActor(a) || len(in.Sort) > 1 {
 		return Page[SupplierQueryItem]{}, newError(ErrorValidation, "validation_failed", "invalid supplier query", nil, nil)
 	}
-	if err := s.coordinator.Authorize(ctx, actor, "query"); err != nil {
-		return Page[SupplierQueryItem]{}, translateError(err)
+	if e := s.coordinator.Authorize(ctx, a, "query"); e != nil {
+		return Page[SupplierQueryItem]{}, translateError(e)
 	}
 	statuses := make([]string, 0, len(in.Filters.Status))
-	for _, status := range in.Filters.Status {
-		if !slices.Contains([]approval.Status{approval.StatusDraft, approval.StatusPending, approval.StatusApproved}, status) || slices.Contains(statuses, string(status)) {
+	for _, x := range in.Filters.Status {
+		if !slices.Contains([]approval.Status{approval.StatusDraft, approval.StatusPending, approval.StatusApproved}, x) || slices.Contains(statuses, string(x)) {
 			return Page[SupplierQueryItem]{}, newError(ErrorValidation, "validation_failed", "invalid supplier status", nil, nil)
 		}
-		statuses = append(statuses, string(status))
+		statuses = append(statuses, string(x))
 	}
 	field, order := "updatedAt", "desc"
 	if len(in.Sort) == 1 {
@@ -41,101 +40,97 @@ func (s *SupplierService) Query(ctx context.Context, in SupplierQueryInput, acto
 			enabled = 0
 		}
 	}
-	p := dbsqlc.ListDCLSuppliersParams{Keyword: strings.TrimSpace(in.Filters.Keyword), EnabledFilter: enabled, OperatingEntityID: strings.TrimSpace(in.Filters.OperatingEntityID), StatusFilter: statuses, SortField: field, SortOrder: order, RowOffset: offset, RowLimit: int32(in.PageSize)}
-	rows, err := s.queries.ListDCLSuppliers(ctx, p)
-	if err != nil {
-		return Page[SupplierQueryItem]{}, translateError(err)
+	p := dbsqlc.ListDCLSuppliersParams{Keyword: strings.TrimSpace(in.Filters.Keyword), EnabledFilter: enabled, StatusFilter: statuses, SortField: field, SortOrder: order, RowOffset: off, RowLimit: int32(in.PageSize)}
+	rows, e := s.queries.ListDCLSuppliers(ctx, p)
+	if e != nil {
+		return Page[SupplierQueryItem]{}, translateError(e)
 	}
-	total, err := s.queries.CountDCLSuppliers(ctx, dbsqlc.CountDCLSuppliersParams{Keyword: p.Keyword, EnabledFilter: p.EnabledFilter, OperatingEntityID: p.OperatingEntityID, StatusFilter: p.StatusFilter})
-	if err != nil {
-		return Page[SupplierQueryItem]{}, translateError(err)
+	total, e := s.queries.CountDCLSuppliers(ctx, dbsqlc.CountDCLSuppliersParams{Keyword: p.Keyword, EnabledFilter: p.EnabledFilter, StatusFilter: p.StatusFilter})
+	if e != nil {
+		return Page[SupplierQueryItem]{}, translateError(e)
 	}
 	items := make([]SupplierQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := SupplierQueryItem{RelationshipIdentityView: RelationshipIdentityView{ObjectID: r.ObjectID, Entity: EntitySupplier, Code: r.Code, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.DisplayName, OperatingEntityID: r.OperatingEntityID, Enabled: r.Enabled}, OperatingEntityCode: stringValue(r.OperatingEntityCode), OperatingEntityName: r.OperatingEntityName, UpdatedAt: r.UpdatedAt.Time}
+		i := SupplierQueryItem{ObjectID: r.ObjectID, Entity: EntitySupplier, Code: r.Code, DisplayName: r.DisplayName, DefaultOperatingEntity: SupplierOperatingEntitySnapshot{SourceObjectID: r.DefaultOperatingEntityID, ApprovalEntryID: r.DefaultOperatingEntityApprovalEntryID, Code: r.DefaultOperatingEntityCode, Name: r.DefaultOperatingEntityName}, UpdatedAt: r.UpdatedAt.Time}
 		if r.LatestApprovedEntryID != "" {
-			v, e := s.version(ctx, s.queries, r.LatestApprovedEntryID, r.ObjectID)
-			if e != nil {
-				return Page[SupplierQueryItem]{}, e
+			v, x := s.version(ctx, s.queries, r.LatestApprovedEntryID, r.ObjectID)
+			if x != nil {
+				return Page[SupplierQueryItem]{}, x
 			}
-			item.LatestApproved = &v
+			i.LatestApproved = &v
 		}
 		if r.OpenEntryID != "" {
-			v, e := s.version(ctx, s.queries, r.OpenEntryID, r.ObjectID)
-			if e != nil {
-				return Page[SupplierQueryItem]{}, e
+			v, x := s.version(ctx, s.queries, r.OpenEntryID, r.ObjectID)
+			if x != nil {
+				return Page[SupplierQueryItem]{}, x
 			}
-			item.OpenVersion = &v
+			i.OpenVersion = &v
 		}
-		entry, ok, entryErr := dclActiveEntry(ctx, s.queries, EntitySupplier, r.OpenEntryID, r.LatestApprovedEntryID)
-		if entryErr != nil {
-			return Page[SupplierQueryItem]{}, entryErr
+		entry, found, x := dclActiveEntry(ctx, s.queries, EntitySupplier, r.OpenEntryID, r.LatestApprovedEntryID)
+		if x != nil {
+			return Page[SupplierQueryItem]{}, x
 		}
-		if ok {
-			item.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, actor)
+		if found {
+			i.AvailableApprovalActions = s.coordinator.LifecycleActions(entry, a)
 		}
-		items = append(items, item)
+		items = append(items, i)
 	}
 	return Page[SupplierQueryItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
-func (s *SupplierService) Get(ctx context.Context, in SupplierGetInput, actor approval.Actor) (SupplierView, error) {
-	if !validID(in.ObjectID) || (in.ApprovalEntryID != "" && !validID(in.ApprovalEntryID)) || !validActor(actor) {
+func (s *SupplierService) Get(ctx context.Context, in SupplierGetInput, a approval.Actor) (SupplierView, error) {
+	if !validID(in.ObjectID) || (in.ApprovalEntryID != "" && !validID(in.ApprovalEntryID)) || !validActor(a) {
 		return SupplierView{}, newError(ErrorValidation, "validation_failed", "invalid supplier get", nil, nil)
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return SupplierView{}, translateError(err)
+	tx, e := s.pool.Begin(ctx)
+	if e != nil {
+		return SupplierView{}, translateError(e)
 	}
 	defer tx.Rollback(ctx)
-	entryID := in.ApprovalEntryID
-	var e approval.Entry
-	if entryID == "" {
-		e, err = s.coordinator.GetOpenVersion(ctx, tx, in.ObjectID, actor)
-		if approval.IsKey(err, "approval_version_not_found") {
-			row, x := s.queries.WithTx(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySupplier, SubjectID: in.ObjectID})
-			err = x
+	id := in.ApprovalEntryID
+	var entry approval.Entry
+	if id == "" {
+		entry, e = s.coordinator.GetOpenVersion(ctx, tx, in.ObjectID, a)
+		if approval.IsKey(e, "approval_version_not_found") {
+			r, x := s.queries.WithTx(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySupplier, SubjectID: in.ObjectID})
+			e = x
 			if x == nil {
-				entryID = row.ID
-				e, err = s.coordinator.Get(ctx, tx, entryID, actor)
+				id = r.ID
+				entry, e = s.coordinator.Get(ctx, tx, id, a)
 			}
-		} else if err == nil {
-			entryID = e.ID
+		} else if e == nil {
+			id = entry.ID
 		}
 	} else {
-		e, err = s.coordinator.Get(ctx, tx, entryID, actor)
+		entry, e = s.coordinator.Get(ctx, tx, id, a)
 	}
-	if err != nil || e.SubjectID != in.ObjectID {
-		if err == nil {
-			err = newError(ErrorValidation, "validation_failed", "supplier declaration not found", nil, nil)
+	if e != nil || entry.SubjectID != in.ObjectID {
+		if e == nil {
+			e = newError(ErrorValidation, "validation_failed", "supplier declaration not found", nil, nil)
 		}
-		return SupplierView{}, translateError(err)
+		return SupplierView{}, translateError(e)
 	}
-	id, err := lockRelationshipIdentity(ctx, tx, EntitySupplier, in.ObjectID)
-	if err != nil {
-		return SupplierView{}, translateError(err)
+	identity, e := lockSubject(ctx, tx, EntitySupplier, in.ObjectID)
+	if e != nil {
+		return SupplierView{}, translateError(e)
 	}
-	stored, err := s.queries.WithTx(tx).GetDCLSupplierVersion(ctx, entryID)
-	if err != nil {
-		return SupplierView{}, translateError(err)
+	d, e := s.loadData(ctx, s.queries.WithTx(tx), id)
+	if e != nil {
+		return SupplierView{}, e
 	}
-	operating, err := s.rules.ResolveCurrentReference(ctx, tx, EntityOperatingEntity, id.OperatingEntityID)
-	if err != nil {
-		return SupplierView{}, translateError(err)
-	}
-	return SupplierView{RelationshipIdentityView: RelationshipIdentityView{ObjectID: id.ObjectID, Entity: EntitySupplier, Code: id.Code, PartyID: id.PartyID, PartyKind: stored.PartyKind, PartyDisplayName: stored.DisplayName, OperatingEntityID: id.OperatingEntityID, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(e)}, OperatingEntityApprovalEntryID: operating.ApprovalEntryID, OperatingEntityCode: operating.Code, OperatingEntityName: operating.Data.Name, Data: supplierStored(stored), UpdatedAt: e.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(e, actor)}, nil
+	return SupplierView{ObjectID: identity.ObjectID, Entity: EntitySupplier, Code: identity.Code, Approval: approval.VersionMetaFromEntry(entry), Data: d, UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, a)}, nil
 }
-func (s *SupplierService) Versions(ctx context.Context, in SupplierHistoryInput, actor approval.Actor) (Page[SupplierVersionView], error) {
-	if _, ok := dclPageOffset(in.Page, in.PageSize); !ok || !validID(in.ObjectID) || !validActor(actor) {
+func (s *SupplierService) Versions(ctx context.Context, in SupplierHistoryInput, a approval.Actor) (Page[SupplierVersionView], error) {
+	if _, ok := dclPageOffset(in.Page, in.PageSize); !ok || !validID(in.ObjectID) || !validActor(a) {
 		return Page[SupplierVersionView]{}, newError(ErrorValidation, "validation_failed", "invalid supplier history", nil, nil)
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Page[SupplierVersionView]{}, translateError(err)
+	tx, e := s.pool.Begin(ctx)
+	if e != nil {
+		return Page[SupplierVersionView]{}, translateError(e)
 	}
 	defer tx.Rollback(ctx)
-	entries, err := s.coordinator.ListVersions(ctx, tx, in.ObjectID, actor)
-	if err != nil {
-		return Page[SupplierVersionView]{}, translateError(err)
+	entries, e := s.coordinator.ListVersions(ctx, tx, in.ObjectID, a)
+	if e != nil {
+		return Page[SupplierVersionView]{}, translateError(e)
 	}
 	start := (in.Page - 1) * in.PageSize
 	if start > len(entries) {
@@ -143,8 +138,9 @@ func (s *SupplierService) Versions(ctx context.Context, in SupplierHistoryInput,
 	}
 	end := min(start+in.PageSize, len(entries))
 	items := make([]SupplierVersionView, 0, end-start)
-	for _, e := range entries[start:end] {
-		v, x := s.version(ctx, s.queries, e.ID, in.ObjectID)
+	q := s.queries.WithTx(tx)
+	for _, entry := range entries[start:end] {
+		v, x := s.version(ctx, q, entry.ID, in.ObjectID)
 		if x != nil {
 			return Page[SupplierVersionView]{}, x
 		}
@@ -152,27 +148,27 @@ func (s *SupplierService) Versions(ctx context.Context, in SupplierHistoryInput,
 	}
 	return Page[SupplierVersionView]{Items: items, Total: int64(len(entries)), Page: in.Page, PageSize: in.PageSize}, nil
 }
-func (s *SupplierService) AuditHistory(ctx context.Context, in SupplierHistoryInput, actor approval.Actor) (Page[approval.EventView], error) {
-	offset, ok := dclPageOffset(in.Page, in.PageSize)
-	if !ok || !validID(in.ObjectID) || !validActor(actor) {
+func (s *SupplierService) AuditHistory(ctx context.Context, in SupplierHistoryInput, a approval.Actor) (Page[approval.EventView], error) {
+	off, ok := dclPageOffset(in.Page, in.PageSize)
+	if !ok || !validID(in.ObjectID) || !validActor(a) {
 		return Page[approval.EventView]{}, newError(ErrorValidation, "validation_failed", "invalid supplier audit history", nil, nil)
 	}
-	if err := s.coordinator.Authorize(ctx, actor, "audit-history"); err != nil {
-		return Page[approval.EventView]{}, translateError(err)
+	if e := s.coordinator.Authorize(ctx, a, "audit-history"); e != nil {
+		return Page[approval.EventView]{}, translateError(e)
 	}
-	if _, err := s.queries.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: in.ObjectID, Entity: EntitySupplier}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Page[approval.EventView]{}, newError(ErrorValidation, "validation_failed", "supplier declaration not found", nil, err)
+	if _, e := s.queries.GetDCLSubject(ctx, dbsqlc.GetDCLSubjectParams{ID: in.ObjectID, Entity: EntitySupplier}); e != nil {
+		if errors.Is(e, pgx.ErrNoRows) {
+			return Page[approval.EventView]{}, newError(ErrorValidation, "validation_failed", "supplier declaration not found", nil, e)
 		}
-		return Page[approval.EventView]{}, translateError(err)
+		return Page[approval.EventView]{}, translateError(e)
 	}
-	rows, err := s.queries.ListDCLSupplierApprovalEvents(ctx, dbsqlc.ListDCLSupplierApprovalEventsParams{ObjectID: in.ObjectID, RowOffset: offset, RowLimit: int32(in.PageSize)})
-	if err != nil {
-		return Page[approval.EventView]{}, translateError(err)
+	rows, e := s.queries.ListDCLSupplierApprovalEvents(ctx, dbsqlc.ListDCLSupplierApprovalEventsParams{ObjectID: in.ObjectID, RowOffset: off, RowLimit: int32(in.PageSize)})
+	if e != nil {
+		return Page[approval.EventView]{}, translateError(e)
 	}
-	total, err := s.queries.CountDCLSupplierApprovalEvents(ctx, in.ObjectID)
-	if err != nil {
-		return Page[approval.EventView]{}, translateError(err)
+	total, e := s.queries.CountDCLSupplierApprovalEvents(ctx, in.ObjectID)
+	if e != nil {
+		return Page[approval.EventView]{}, translateError(e)
 	}
 	items := make([]approval.EventView, 0, len(rows))
 	for _, r := range rows {
@@ -180,17 +176,17 @@ func (s *SupplierService) AuditHistory(ctx context.Context, in SupplierHistoryIn
 	}
 	return Page[approval.EventView]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
-func (s *SupplierService) version(ctx context.Context, q *dbsqlc.Queries, entryID, objectID string) (SupplierVersionView, error) {
-	e, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "dcl", Entity: EntitySupplier})
-	if err != nil {
-		return SupplierVersionView{}, translateError(err)
+func (s *SupplierService) version(ctx context.Context, q *dbsqlc.Queries, id, objectID string) (SupplierVersionView, error) {
+	r, e := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: id, Domain: "dcl", Entity: EntitySupplier})
+	if e != nil {
+		return SupplierVersionView{}, translateError(e)
 	}
-	if e.SubjectID != objectID {
+	if r.SubjectID != objectID {
 		return SupplierVersionView{}, newError(ErrorValidation, "validation_failed", "supplier version does not belong to subject", nil, nil)
 	}
-	r, err := q.GetDCLSupplierVersion(ctx, entryID)
-	if err != nil {
-		return SupplierVersionView{}, translateError(err)
+	d, e := s.loadData(ctx, q, id)
+	if e != nil {
+		return SupplierVersionView{}, e
 	}
-	return SupplierVersionView{Approval: approval.VersionMetaFromEntry(approvalEntry(e)), Enabled: r.Enabled, Data: supplierStored(r)}, nil
+	return SupplierVersionView{Approval: approval.VersionMetaFromEntry(approvalEntry(r)), Data: d}, nil
 }

@@ -11,7 +11,7 @@ import {
   useDclDeclarationActionAvailability,
   useDclDeclarationHistory,
   useDclDeclarationLifecycle,
-} from '../shared/declaration'
+} from '../declaration'
 import { dclRelationshipConfig } from './config'
 import {
   createDclRelationship,
@@ -22,7 +22,6 @@ import {
   deleteDclRelationship,
   getDclRelationship,
   queryDclRelationships,
-  queryRelationshipParties,
   queryRelationshipReference,
   saveDclRelationship,
 } from './data'
@@ -38,7 +37,10 @@ import type {
   DclRelationshipView,
 } from './types'
 
-type ReferenceKey = 'partyId' | 'operatingEntityId' | 'settlementMethodId'
+type ReferenceKey =
+  | 'operatingEntityIds'
+  | 'defaultOperatingEntityId'
+  | 'settlementMethodId'
 
 export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   const session = useSessionStore()
@@ -65,21 +67,21 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   const currentView = ref<DclRelationshipView | null>(null)
   const referenceOptions = ref<
     Record<ReferenceKey, DclRelationshipReferenceOption[]>
-  >({ partyId: [], operatingEntityId: [], settlementMethodId: [] })
+  >({ operatingEntityIds: [], defaultOperatingEntityId: [], settlementMethodId: [] })
   const referenceLoading = ref<Record<ReferenceKey, boolean>>({
-    partyId: false,
-    operatingEntityId: false,
+    operatingEntityIds: false,
+    defaultOperatingEntityId: false,
     settlementMethodId: false,
   })
   const referenceError = ref<Record<ReferenceKey, string | null>>({
-    partyId: null,
-    operatingEntityId: null,
+    operatingEntityIds: null,
+    defaultOperatingEntityId: null,
     settlementMethodId: null,
   })
   const sequences = new Map<ReferenceKey, number>()
   const timers = new Map<ReferenceKey, ReturnType<typeof setTimeout>>()
   const { permission, actionAvailability } =
-    useDclDeclarationActionAvailability(
+    useDclDeclarationActionAvailability<DclRelationshipListItem>(
       entity,
       (row: DclRelationshipListItem) => {
         const approval = dclRelationshipActiveVersion(row).approval
@@ -87,7 +89,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
           status: approval.status,
           versionNo: approval.versionNo,
           availableApprovalActions: row.availableApprovalActions,
-          enabled: row.enabled,
+          enabled: dclRelationshipActiveVersion(row).data.enabled,
           hasOpenVersion: row.openVersion !== null,
           hasLatestApproved: row.latestApproved !== null,
         }
@@ -103,8 +105,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
   const canCreate = computed(
     () =>
       session.can(permission('create')) &&
-      canReferences.value &&
-      (session.can('/bob/party/query') || session.can('/dcl/party/create')),
+      canReferences.value,
   )
   const canEdit = computed(
     () => session.can(permission('save')) && canReferences.value,
@@ -164,8 +165,9 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     options: DclRelationshipReferenceOption[],
   ): void {
     const selected = editorModel.value[key]
+    const selectedValues = Array.isArray(selected) ? selected : [selected]
     const old = referenceOptions.value[key].filter(
-      (option) => option.value === selected,
+      (option) => selectedValues.includes(option.value),
     )
     referenceOptions.value[key] = [...options, ...old].filter(
       (option, index, all) =>
@@ -173,15 +175,16 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
         index,
     )
     if (
-      selected &&
-      !referenceOptions.value[key].some((option) => option.value === selected)
+      selectedValues.length &&
+      selectedValues.some((value) => !referenceOptions.value[key].some((option) => option.value === value))
     )
-      referenceOptions.value[key].push({ value: selected, title: selected })
+      for (const value of selectedValues)
+        if (!referenceOptions.value[key].some((option) => option.value === value))
+          referenceOptions.value[key].push({ value, title: value })
   }
   async function loadReference(key: ReferenceKey, search = ''): Promise<void> {
     if (
-      (key === 'partyId' && !session.can('/bob/party/query')) ||
-      (key === 'operatingEntityId' &&
+      ((key === 'operatingEntityIds' || key === 'defaultOperatingEntityId') &&
         !session.can('/bob/operating-entity/query')) ||
       (key === 'settlementMethodId' &&
         (entity !== 'other-unit' ||
@@ -193,15 +196,10 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     referenceLoading.value[key] = true
     referenceError.value[key] = null
     try {
-      const options =
-        key === 'partyId'
-          ? await queryRelationshipParties(search.trim())
-          : await queryRelationshipReference(
-              key === 'operatingEntityId'
-                ? 'operating-entity'
-                : 'settlement-method',
-              search.trim(),
-            )
+      const options = await queryRelationshipReference(
+        key === 'settlementMethodId' ? 'settlement-method' : 'operating-entity',
+        search.trim(),
+      )
       if (sequences.get(key) === sequence) mergeSelected(key, options)
     } catch (error) {
       if (sequences.get(key) === sequence)
@@ -211,8 +209,8 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     }
   }
   function preloadReferences(): void {
-    void loadReference('partyId')
-    void loadReference('operatingEntityId')
+    void loadReference('operatingEntityIds')
+    void loadReference('defaultOperatingEntityId')
     if (entity === 'other-unit') void loadReference('settlementMethodId')
   }
   function searchEditorReference(key: string, search: string): void {
@@ -289,15 +287,9 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     preloadReferences()
   }
   function hydrateViewReferences(view: DclRelationshipView): void {
-    referenceOptions.value.partyId = [
-      { value: view.partyId, title: view.partyDisplayName },
-    ]
-    referenceOptions.value.operatingEntityId = [
-      {
-        value: view.operatingEntityId,
-        title: `${view.operatingEntityCode} · ${view.operatingEntityName}`,
-      },
-    ]
+    referenceOptions.value.operatingEntityIds = view.data.operatingEntities.map((item) => ({ value: item.sourceObjectId, title: `${item.code} · ${item.name}` }))
+    const defaultOperatingEntity = view.data.operatingEntities.find((item) => item.sourceObjectId === view.data.defaultOperatingEntityId)
+    referenceOptions.value.defaultOperatingEntityId = defaultOperatingEntity ? [{ value: defaultOperatingEntity.sourceObjectId, title: `${defaultOperatingEntity.code} · ${defaultOperatingEntity.name}` }] : []
     const form = dclRelationshipFormFromView(entity, view)
     referenceOptions.value.settlementMethodId = form.settlementMethodId
       ? [
@@ -410,13 +402,11 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     if (saving.value || editorMode.value === 'view') return false
     if (
       (editorMode.value === 'create' ? !canCreate.value : !canEdit.value) ||
-      !form.operatingEntityId.trim() ||
-      (editorMode.value === 'create' &&
-        (form.partyMode === 'EXISTING'
-          ? !form.partyId.trim()
-          : !form.legalName.trim()))
+      !form.operatingEntityIds.length ||
+      !form.defaultOperatingEntityId.trim() ||
+      !form.legalName.trim()
     ) {
-      editorErrorMessage.value = '请选择经营主体，并完整填写主体资料。'
+      editorErrorMessage.value = '请选择适用和默认经营主体，并完整填写身份资料。'
       return false
     }
     saving.value = true
@@ -426,10 +416,9 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
         await createDclRelationship(entity, form)
       else {
         const context = editContext.value
-        if (!context) throw new Error('未加载可编辑的关系变更版本。')
+        if (!context) throw new Error('未加载可编辑的业务档案版本。')
         await saveDclRelationship(entity, {
           ...context,
-          enabled: currentView.value?.enabled ?? true,
           data: dclRelationshipData(entity, form),
         })
       }
@@ -472,7 +461,7 @@ export function useDclRelationshipViewModel(entity: DclRelationshipEntity) {
     actionLoading,
     errorMessage,
     (row: DclRelationshipListItem) => row.objectId,
-    (row) => row.enabled,
+    (row) => dclRelationshipActiveVersion(row).data.enabled,
     actionAvailability,
     dclRelationshipLifecyclePort(entity),
     query,

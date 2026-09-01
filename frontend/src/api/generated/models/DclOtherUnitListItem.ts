@@ -3,10 +3,16 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
+import type { DclBusinessArchiveSnapshot } from './DclBusinessArchiveSnapshot';
 import type { DclOtherUnitVersionView } from './DclOtherUnitVersionView';
-import type { DclRelationshipListIdentity } from './DclRelationshipListIdentity';
-export type DclOtherUnitListItem = (DclRelationshipListIdentity & {
+export type DclOtherUnitListItem = {
+  objectId: string;
+  entity: 'other-unit';
+  code: string;
+  displayName: string;
+  defaultOperatingEntity: DclBusinessArchiveSnapshot;
   availableApprovalActions: Array<ApprovalLifecycleAction>;
-  latestApproved?: DclOtherUnitVersionView | null;
-  openVersion?: DclOtherUnitVersionView | null;
-});
+  latestApproved: DclOtherUnitVersionView | null;
+  openVersion: DclOtherUnitVersionView | null;
+  updatedAt: string;
+};

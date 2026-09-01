@@ -594,22 +594,46 @@ type DclCustomerVersionIdentifier struct {
 	NormalizedValue         string `db:"normalized_value" json:"normalized_value"`
 }
 
+type DclEmployeeIdentifierClaim struct {
+	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
+	ApprovedEmployeeID      *string `db:"approved_employee_id" json:"approved_employee_id"`
+	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenEmployeeID          *string `db:"open_employee_id" json:"open_employee_id"`
+	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
 type DclEmployeeVersion struct {
-	ApprovalEntryID      string      `db:"approval_entry_id" json:"approval_entry_id"`
-	EmployeeCategoryID   *string     `db:"employee_category_id" json:"employee_category_id"`
-	EmployeeCategoryCode *string     `db:"employee_category_code" json:"employee_category_code"`
-	EmployeeCategoryName *string     `db:"employee_category_name" json:"employee_category_name"`
-	DepartmentID         *string     `db:"department_id" json:"department_id"`
-	DepartmentCode       *string     `db:"department_code" json:"department_code"`
-	DepartmentName       *string     `db:"department_name" json:"department_name"`
-	PositionID           *string     `db:"position_id" json:"position_id"`
-	PositionCode         *string     `db:"position_code" json:"position_code"`
-	PositionName         *string     `db:"position_name" json:"position_name"`
-	Phone                *string     `db:"phone" json:"phone"`
-	Email                *string     `db:"email" json:"email"`
-	HireDate             pgtype.Date `db:"hire_date" json:"hire_date"`
-	Remark               *string     `db:"remark" json:"remark"`
-	Enabled              bool        `db:"enabled" json:"enabled"`
+	ApprovalEntryID                       string      `db:"approval_entry_id" json:"approval_entry_id"`
+	Kind                                  string      `db:"kind" json:"kind"`
+	LegalName                             string      `db:"legal_name" json:"legal_name"`
+	DisplayName                           string      `db:"display_name" json:"display_name"`
+	TaxNumber                             *string     `db:"tax_number" json:"tax_number"`
+	EmployeeCategoryID                    *string     `db:"employee_category_id" json:"employee_category_id"`
+	EmployeeCategoryCode                  *string     `db:"employee_category_code" json:"employee_category_code"`
+	EmployeeCategoryName                  *string     `db:"employee_category_name" json:"employee_category_name"`
+	DepartmentID                          *string     `db:"department_id" json:"department_id"`
+	DepartmentCode                        *string     `db:"department_code" json:"department_code"`
+	DepartmentName                        *string     `db:"department_name" json:"department_name"`
+	PositionID                            *string     `db:"position_id" json:"position_id"`
+	PositionCode                          *string     `db:"position_code" json:"position_code"`
+	PositionName                          *string     `db:"position_name" json:"position_name"`
+	Phone                                 *string     `db:"phone" json:"phone"`
+	Email                                 *string     `db:"email" json:"email"`
+	HireDate                              pgtype.Date `db:"hire_date" json:"hire_date"`
+	CurrentOperatingEntityID              string      `db:"current_operating_entity_id" json:"current_operating_entity_id"`
+	CurrentOperatingEntityApprovalEntryID string      `db:"current_operating_entity_approval_entry_id" json:"current_operating_entity_approval_entry_id"`
+	CurrentOperatingEntityCode            string      `db:"current_operating_entity_code" json:"current_operating_entity_code"`
+	CurrentOperatingEntityName            string      `db:"current_operating_entity_name" json:"current_operating_entity_name"`
+	Remark                                *string     `db:"remark" json:"remark"`
+	Enabled                               bool        `db:"enabled" json:"enabled"`
+}
+
+type DclEmployeeVersionIdentifier struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
 }
 
 type DclEmploymentRelationship struct {
@@ -659,22 +683,54 @@ type DclOperatingEntityVersion struct {
 	Enabled         bool    `db:"enabled" json:"enabled"`
 }
 
+type DclOtherUnitIdentifierClaim struct {
+	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
+	ApprovedOtherUnitID     *string `db:"approved_other_unit_id" json:"approved_other_unit_id"`
+	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenOtherUnitID         *string `db:"open_other_unit_id" json:"open_other_unit_id"`
+	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
 type DclOtherUnitVersion struct {
-	ApprovalEntryID       string  `db:"approval_entry_id" json:"approval_entry_id"`
-	ContactName           *string `db:"contact_name" json:"contact_name"`
-	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
-	Email                 *string `db:"email" json:"email"`
-	Address               *string `db:"address" json:"address"`
-	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodCode  *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName  *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode    *string `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
-	Remark                *string `db:"remark" json:"remark"`
-	Enabled               bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID                       string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Kind                                  string  `db:"kind" json:"kind"`
+	LegalName                             string  `db:"legal_name" json:"legal_name"`
+	DisplayName                           string  `db:"display_name" json:"display_name"`
+	TaxNumber                             *string `db:"tax_number" json:"tax_number"`
+	ContactName                           *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                          *string `db:"contact_phone" json:"contact_phone"`
+	Email                                 *string `db:"email" json:"email"`
+	Address                               *string `db:"address" json:"address"`
+	SettlementMethodID                    *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode                  *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                  *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode                    *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType                    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                 int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	DefaultOperatingEntityID              string  `db:"default_operating_entity_id" json:"default_operating_entity_id"`
+	DefaultOperatingEntityApprovalEntryID string  `db:"default_operating_entity_approval_entry_id" json:"default_operating_entity_approval_entry_id"`
+	DefaultOperatingEntityCode            string  `db:"default_operating_entity_code" json:"default_operating_entity_code"`
+	DefaultOperatingEntityName            string  `db:"default_operating_entity_name" json:"default_operating_entity_name"`
+	Remark                                *string `db:"remark" json:"remark"`
+	Enabled                               bool    `db:"enabled" json:"enabled"`
+}
+
+type DclOtherUnitVersionIdentifier struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+type DclOtherUnitVersionOperatingEntity struct {
+	ApprovalEntryID                string `db:"approval_entry_id" json:"approval_entry_id"`
+	OperatingEntityID              string `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
 type DclParty struct {
@@ -841,15 +897,47 @@ type DclRptDefinitionVersion struct {
 	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
 }
 
+type DclSalesPartnerIdentifierClaim struct {
+	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
+	ApprovedSalesPartnerID  *string `db:"approved_sales_partner_id" json:"approved_sales_partner_id"`
+	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenSalesPartnerID      *string `db:"open_sales_partner_id" json:"open_sales_partner_id"`
+	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
 type DclSalesPartnerVersion struct {
-	ApprovalEntryID string   `db:"approval_entry_id" json:"approval_entry_id"`
-	Capabilities    []string `db:"capabilities" json:"capabilities"`
-	ContactName     *string  `db:"contact_name" json:"contact_name"`
-	ContactPhone    *string  `db:"contact_phone" json:"contact_phone"`
-	Email           *string  `db:"email" json:"email"`
-	Address         *string  `db:"address" json:"address"`
-	Remark          *string  `db:"remark" json:"remark"`
-	Enabled         bool     `db:"enabled" json:"enabled"`
+	ApprovalEntryID                       string   `db:"approval_entry_id" json:"approval_entry_id"`
+	Kind                                  string   `db:"kind" json:"kind"`
+	LegalName                             string   `db:"legal_name" json:"legal_name"`
+	DisplayName                           string   `db:"display_name" json:"display_name"`
+	TaxNumber                             *string  `db:"tax_number" json:"tax_number"`
+	Capabilities                          []string `db:"capabilities" json:"capabilities"`
+	ContactName                           *string  `db:"contact_name" json:"contact_name"`
+	ContactPhone                          *string  `db:"contact_phone" json:"contact_phone"`
+	Email                                 *string  `db:"email" json:"email"`
+	Address                               *string  `db:"address" json:"address"`
+	DefaultOperatingEntityID              string   `db:"default_operating_entity_id" json:"default_operating_entity_id"`
+	DefaultOperatingEntityApprovalEntryID string   `db:"default_operating_entity_approval_entry_id" json:"default_operating_entity_approval_entry_id"`
+	DefaultOperatingEntityCode            string   `db:"default_operating_entity_code" json:"default_operating_entity_code"`
+	DefaultOperatingEntityName            string   `db:"default_operating_entity_name" json:"default_operating_entity_name"`
+	Remark                                *string  `db:"remark" json:"remark"`
+	Enabled                               bool     `db:"enabled" json:"enabled"`
+}
+
+type DclSalesPartnerVersionIdentifier struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+type DclSalesPartnerVersionOperatingEntity struct {
+	ApprovalEntryID                string `db:"approval_entry_id" json:"approval_entry_id"`
+	OperatingEntityID              string `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
 type DclSalesRelationship struct {
@@ -880,6 +968,15 @@ type DclSubject struct {
 	CreatedBy string             `db:"created_by" json:"created_by"`
 }
 
+type DclSupplierIdentifierClaim struct {
+	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
+	ApprovedSupplierID      *string `db:"approved_supplier_id" json:"approved_supplier_id"`
+	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenSupplierID          *string `db:"open_supplier_id" json:"open_supplier_id"`
+	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
 type DclSupplierRelationship struct {
 	ObjectID              string             `db:"object_id" json:"object_id"`
 	ObjectEntity          string             `db:"object_entity" json:"object_entity"`
@@ -892,6 +989,9 @@ type DclSupplierRelationship struct {
 
 type DclSupplierVersion struct {
 	ApprovalEntryID                         string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Kind                                    string  `db:"kind" json:"kind"`
+	LegalName                               string  `db:"legal_name" json:"legal_name"`
+	DisplayName                             string  `db:"display_name" json:"display_name"`
 	ShortName                               *string `db:"short_name" json:"short_name"`
 	TaxNumber                               *string `db:"tax_number" json:"tax_number"`
 	ContactName                             *string `db:"contact_name" json:"contact_name"`
@@ -907,12 +1007,31 @@ type DclSupplierVersion struct {
 	SettlementMonthOffset                   int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
 	SettlementDayOfMonth                    int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
 	SettlementDayOffset                     int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	DefaultOperatingEntityID                string  `db:"default_operating_entity_id" json:"default_operating_entity_id"`
+	DefaultOperatingEntityApprovalEntryID   string  `db:"default_operating_entity_approval_entry_id" json:"default_operating_entity_approval_entry_id"`
+	DefaultOperatingEntityCode              string  `db:"default_operating_entity_code" json:"default_operating_entity_code"`
+	DefaultOperatingEntityName              string  `db:"default_operating_entity_name" json:"default_operating_entity_name"`
 	DefaultPurchaserEmployeeID              *string `db:"default_purchaser_employee_id" json:"default_purchaser_employee_id"`
 	DefaultPurchaserEmployeeEntity          string  `db:"default_purchaser_employee_entity" json:"default_purchaser_employee_entity"`
 	DefaultPurchaserEmployeeApprovalEntryID *string `db:"default_purchaser_employee_approval_entry_id" json:"default_purchaser_employee_approval_entry_id"`
 	DefaultPurchaserEmployeeCode            *string `db:"default_purchaser_employee_code" json:"default_purchaser_employee_code"`
 	DefaultPurchaserEmployeeName            *string `db:"default_purchaser_employee_name" json:"default_purchaser_employee_name"`
 	Enabled                                 bool    `db:"enabled" json:"enabled"`
+}
+
+type DclSupplierVersionIdentifier struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+type DclSupplierVersionOperatingEntity struct {
+	ApprovalEntryID                string `db:"approval_entry_id" json:"approval_entry_id"`
+	OperatingEntityID              string `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
 type DclVehicleIdentifierClaim struct {

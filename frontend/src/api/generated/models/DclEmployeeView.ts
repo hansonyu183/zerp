@@ -5,19 +5,10 @@
 import type { ApprovalLifecycleAction } from './ApprovalLifecycleAction';
 import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { DclEmployeeData } from './DclEmployeeData';
-import type { PartyKind } from './PartyKind';
 export type DclEmployeeView = {
   objectId: string;
   entity: 'employee';
   code: string;
-  partyId: string;
-  partyKind: PartyKind;
-  partyDisplayName: string;
-  operatingEntityId: string;
-  operatingEntityApprovalEntryId?: string;
-  operatingEntityCode: string;
-  operatingEntityName: string;
-  enabled: boolean;
   approval: ApprovalVersionMeta;
   availableApprovalActions: Array<ApprovalLifecycleAction>;
   data: DclEmployeeData;

@@ -15,7 +15,7 @@ export interface DclCustomerCreateForm {
   displayName: string
   taxNumber: string
   strongIdentifiers: Array<{
-    type: 'PERSON_ID' | 'UNIFIED_SOCIAL_CREDIT_CODE'
+    type: 'PERSON_ID' | 'UNIFIED_SOCIAL_CREDIT_CODE' | 'TAX_NUMBER'
     value: string
   }>
   phone: string

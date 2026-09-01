@@ -181,8 +181,8 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	`, seedPrefix+"%").Scan(&businessEntities); err != nil {
 		t.Fatalf("count test business entities: %v", err)
 	}
-	if businessEntities != 10 {
-		t.Fatalf("test business distinct entities = %d, want 10", businessEntities)
+	if businessEntities != 9 {
+		t.Fatalf("test business distinct entities = %d, want 9 direct business entities", businessEntities)
 	}
 	assertDistinctEntities(t, pool, "vou_documents", 33)
 	var workflowDefinitions, workflowInstances int

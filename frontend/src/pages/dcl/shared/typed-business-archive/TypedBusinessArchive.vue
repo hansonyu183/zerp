@@ -5,6 +5,7 @@ import {
   BusinessObjectEditor,
   BusinessObjectList,
 } from '@/components/business-object'
+import StrongIdentifiersField from './StrongIdentifiersField.vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
@@ -62,7 +63,7 @@ function actions(row: DclRelationshipListItem): ListRowAction[] {
   if (available.edit)
     result.push({
       key: 'edit',
-      label: `编辑 ${row.code}`,
+      label: row.openVersion ? '继续编辑草稿' : row.latestApproved ? '发起变更' : '编辑草稿',
       icon: 'mdi-pencil-outline',
       color: 'primary',
     })
@@ -205,12 +206,12 @@ async function confirmReverse() {
           </v-chip>
           <v-chip
             v-if="row.latestApproved"
-            :color="row.enabled ? 'success' : 'default'"
+            :color="dclRelationshipActiveVersion(row).data.enabled ? 'success' : 'default'"
             density="comfortable"
             size="small"
             variant="tonal"
           >
-            {{ row.enabled ? '启用' : '禁用' }}
+            {{ dclRelationshipActiveVersion(row).data.enabled ? '启用' : '禁用' }}
           </v-chip>
           <v-chip
             v-if="row.openVersion"
@@ -257,6 +258,13 @@ async function confirmReverse() {
         @reference-search="vm.searchEditorReference"
         @save="vm.save"
       >
+        <template #input-strongIdentifiers="{ disabled, setValue, value }">
+          <StrongIdentifiersField
+            :disabled="disabled"
+            :model-value="value"
+            @update:model-value="setValue"
+          />
+        </template>
         <template #actions="{ cancel, save }">
           <v-btn
             v-if="vm.editorMode === 'view'"

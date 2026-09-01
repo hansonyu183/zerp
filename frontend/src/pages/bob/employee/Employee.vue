@@ -1,8 +1,1 @@
-<script setup lang="ts">
-import BobEntityPage from '../shared/BobEntityPage.vue'
-import { useEmployeeViewModel } from './vm'
-
-const model = useEmployeeViewModel()
-</script>
-
-<template><BobEntityPage :model="model" /></template>
+<script setup lang="ts">import TypedBusinessArchivePage from '../shared/TypedBusinessArchivePage.vue'</script><template><TypedBusinessArchivePage entity="employee" title="员工（当前有效资料）" code-label="人员编码" /></template>

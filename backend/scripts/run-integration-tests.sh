@@ -365,10 +365,28 @@ ALTER TABLE dcl_other_unit_versions ADD CONSTRAINT dcl_other_unit_settlement_ck 
   AND (settlement_method_id IS NULL)=(settlement_rule_type IS NULL)
   AND (settlement_method_id IS NOT NULL OR (settlement_month_offset=0 AND settlement_day_of_month=0 AND settlement_day_offset=0))
 );
+INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES
+(:'ENTRY_ID','other-unit','OTU-031' || right(:'ENTRY_ID',1),'00000000000000000000000000'),
+('01Z31500000000000000000090','operating-entity','OPE-0315','00000000000000000000000000')
+ON CONFLICT DO NOTHING;
+INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
+VALUES ('01Z31500000000000000000091','dcl','operating-entity','01Z31500000000000000000090',1,'APPROVED',1,'00000000000000000000000000',now(),'00000000000000000000000000',now(),'00000000000000000000000000',now(),'00000000000000000000000001',now())
+ON CONFLICT DO NOTHING;
 INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
 VALUES (:'ENTRY_ID','dcl','other-unit',:'ENTRY_ID',1,'APPROVED',1,'00000000000000000000000000',now(),'00000000000000000000000000',now(),'00000000000000000000000000',now(),'00000000000000000000000001',now());
-INSERT INTO dcl_other_unit_versions(approval_entry_id,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,enabled)
-VALUES (:'ENTRY_ID','01JSMT00000000000000000005','STM-0003','货到3天','','RELATIVE_DAYS',0,0,:'DAY_OFFSET',true);
+INSERT INTO dcl_other_unit_versions(
+  approval_entry_id,kind,legal_name,display_name,
+  settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,
+  settlement_month_offset,settlement_day_of_month,settlement_day_offset,
+  default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,
+  enabled
+)
+VALUES (
+  :'ENTRY_ID','ORGANIZATION','issue-315 其他单位','issue-315 其他单位',
+  '01JSMT00000000000000000005','STM-0003','货到3天','','RELATIVE_DAYS',0,0,:'DAY_OFFSET',
+  '01Z31500000000000000000090','01Z31500000000000000000091','OPE-0315','issue-315 经营主体',
+  true
+);
 SQL
 }
 

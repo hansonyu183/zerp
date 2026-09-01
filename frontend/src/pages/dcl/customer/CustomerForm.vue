@@ -81,6 +81,7 @@ function addStrongIdentifier(): void {
           :items="[
             { title: '统一社会信用代码', value: 'UNIFIED_SOCIAL_CREDIT_CODE' },
             { title: '个人证件', value: 'PERSON_ID' },
+            { title: '税号', value: 'TAX_NUMBER' },
           ]"
           label="强标识类型"
         />

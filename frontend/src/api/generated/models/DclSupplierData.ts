@@ -2,9 +2,12 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { DclBusinessArchiveSnapshot } from './DclBusinessArchiveSnapshot';
+import type { DclSupplierInput } from './DclSupplierInput';
 import type { SupplierPurchaserSnapshot } from './SupplierPurchaserSnapshot';
 import type { SupplierSettlementSnapshot } from './SupplierSettlementSnapshot';
-export type DclSupplierData = {
+export type DclSupplierData = (DclSupplierInput & {
+  operatingEntities: Array<DclBusinessArchiveSnapshot>;
   shortName?: string | null;
   taxNumber?: string | null;
   contactName?: string | null;
@@ -16,4 +19,4 @@ export type DclSupplierData = {
   defaultPurchaserEmployeeId?: string | null;
   settlementMethod: SupplierSettlementSnapshot | null;
   defaultPurchaser: SupplierPurchaserSnapshot | null;
-};
+});

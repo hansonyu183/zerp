@@ -2,9 +2,18 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BusinessIdentifier } from './BusinessIdentifier';
+import type { BusinessIdentityKind } from './BusinessIdentityKind';
 export type DclSupplierInput = {
+  kind: BusinessIdentityKind;
+  legalName: string;
+  displayName?: string;
+  taxNumber?: string;
+  strongIdentifiers: Array<BusinessIdentifier>;
+  enabled: boolean;
+  operatingEntityIds: Array<string>;
+  defaultOperatingEntityId: string;
   shortName?: string | null;
-  taxNumber?: string | null;
   contactName?: string | null;
   contactPhone?: string | null;
   email?: string | null;

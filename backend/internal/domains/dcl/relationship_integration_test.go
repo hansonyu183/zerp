@@ -12,294 +12,161 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
 
-// TestRelationshipDeclarationsDriveLatestApprovedReadsIntegration is the
-// public DCL-to-BOB seam for both typed relationships. Candidates are DCL-only;
-// BOB derives its view from the latest approved snapshot and naturally falls
-// back after unapproval.
-func TestRelationshipDeclarationsDriveLatestApprovedReadsIntegration(t *testing.T) {
+// TestTypedOtherUnitAndSalesPartnerLifecycleIntegration proves the DCL-owned
+// typed identity lifecycle and the corresponding read-only BOB current view.
+func TestTypedOtherUnitAndSalesPartnerLifecycleIntegration(t *testing.T) {
 	pool := dclIntegrationPool(t)
 	resetDCLIntegrationData(t, pool)
 	authorizer, bus := authorization.Func(nil), txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
-	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	partyReader := bobdomain.NewPartyCurrentReader(pool)
+	archives := NewRelationshipService(pool, business, authorizer, bus)
 
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
 	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
-	owner, err := operating.Create(t.Context(), OperatingEntityCreateInput{Data: bobdomain.OperatingEntityData{Name: "关系所属主体"}}, creator("owner-create"))
+	owner, err := operating.Create(t.Context(), OperatingEntityCreateInput{Data: bobdomain.OperatingEntityData{Name: "归属主体"}}, creator("owner-create"))
 	if err != nil {
 		t.Fatalf("create operating entity: %v", err)
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), reviewer("owner-approve"))
-
-	other, err := relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "测试往来单位", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108TESTREL001"}}},
-		OperatingEntityID: owner.ObjectID,
-		Data:              OtherUnitData{ContactName: "王五", ContactPhone: "13800138000", Remark: "首版"},
-	}, creator("other-unit-create"))
-	if err != nil {
-		t.Fatalf("create Other Unit: %v", err)
-	}
-	if _, err = business.Get(t.Context(), bobdomain.EntityOtherUnit, bobdomain.GetInput{ObjectID: other.ObjectID}); err == nil {
-		t.Fatal("BOB exposed unapproved Other Unit")
+	if _, err = archives.CreateOtherUnit(t.Context(), OtherUnitCreateInput{Data: OtherUnitData{
+		Kind: "ORGANIZATION", LegalName: "非法其他单位标识", StrongIdentifiers: []BusinessIdentifierInput{{Type: "BANK_ACCOUNT", Value: "other-invalid"}},
+		Enabled: true, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID,
+	}}, creator("other-invalid-identifier")); err == nil {
+		t.Fatal("Other Unit accepted an unsupported business identifier type")
 	} else {
-		var domainErr *bobdomain.DomainError
-		if !errors.As(err, &domainErr) || domainErr.Kind != bobdomain.ErrorValidation {
-			if domainErr != nil {
-				t.Fatalf("BOB candidate lookup error=%v cause=%v", err, domainErr.Cause)
-			}
-			t.Fatalf("BOB candidate lookup error=%v", err)
-		}
+		assertDCLValidationFailure(t, err)
 	}
-	assertRelationshipCurrentQueryAbsent(t, business, bobdomain.EntityOtherUnit)
-	approveRelationshipParty(t, parties, other.PartyID, creator("other-unit-party-submit"), reviewer("other-unit-party-approve"))
-	partyCurrent, err := business.PartyGet(t.Context(), bobdomain.PartyGetInput{PartyID: other.PartyID}, bobdomain.PartyRelationshipVisibility{})
-	if err != nil || partyCurrent.SourceApprovalEntryID == "" || partyCurrent.SourceVersionNo != 1 {
-		t.Fatalf("BOB Party current source = (%q,%d), err=%v", partyCurrent.SourceApprovalEntryID, partyCurrent.SourceVersionNo, err)
-	}
-	partyPage, err := business.PartyQuery(t.Context(), bobdomain.QueryInput{Page: 1, PageSize: 20, Filters: bobdomain.QueryFilters{Keyword: "测试往来单位"}})
-	if err != nil || len(partyPage.Items) != 1 || partyPage.Items[0].SourceApprovalEntryID != partyCurrent.SourceApprovalEntryID || partyPage.Items[0].SourceVersionNo != 1 {
-		t.Fatalf("BOB Party current query source = %+v, err=%v", partyPage.Items, err)
-	}
-	cards, err := partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
-	if err != nil || len(cards) != 0 {
-		t.Fatalf("BOB Party exposed candidate relationship: cards=%+v err=%v", cards, err)
-	}
-	other = submitAndApproveOtherUnit(t, relationships, other, creator("other-unit-submit"), reviewer("other-unit-approve"))
-	assertRelationshipCurrent(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID, "测试往来单位")
-	assertRelationshipCurrentQuery(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID)
-	cards, err = partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
-	if err != nil || len(cards) != 1 || cards[0].ObjectID != other.ObjectID || cards[0].SourceApprovalEntryID != other.Approval.ApprovalEntryID || cards[0].SourceVersionNo != 1 {
-		t.Fatalf("BOB Party current relationships = %+v, err=%v", cards, err)
-	}
-
-	otherV2, err := relationships.SaveOtherUnit(t.Context(), OtherUnitSaveInput{ObjectID: other.ObjectID, ApprovalEntryID: other.Approval.ApprovalEntryID, ApprovalRevision: other.Approval.Revision, Enabled: false, Data: OtherUnitData{ContactName: "赵六", ContactPhone: "13900139000", Remark: "二版"}}, creator("other-unit-save"))
-	if err != nil {
-		t.Fatalf("save Other Unit V2: %v", err)
-	}
-	assertRelationshipCurrentQuery(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID)
-	otherV2 = submitAndApproveOtherUnit(t, relationships, otherV2, creator("other-unit-submit-v2"), reviewer("other-unit-approve-v2"))
-	if _, err = relationships.UnapproveOtherUnit(t.Context(), RelationshipReviewInput{ObjectID: otherV2.ObjectID, ApprovalEntryID: otherV2.Approval.ApprovalEntryID, ApprovalRevision: otherV2.Approval.Revision, Reason: "回落"}, reviewer("other-unit-unapprove")); err != nil {
-		t.Fatalf("unapprove Other Unit V2: %v", err)
-	}
-	assertRelationshipCurrent(t, business, bobdomain.EntityOtherUnit, other.ObjectID, other.Approval.ApprovalEntryID, "测试往来单位")
-	cards, err = partyReader.RelationshipCards(t.Context(), other.PartyID, bobdomain.PartyRelationshipVisibility{OtherUnit: true})
-	if err != nil || len(cards) != 1 || cards[0].SourceApprovalEntryID != other.Approval.ApprovalEntryID || cards[0].SourceVersionNo != 1 {
-		t.Fatalf("BOB Party relationship fallback source = %+v, err=%v", cards, err)
-	}
-
-	sales, err := relationships.CreateSalesPartner(t.Context(), SalesPartnerCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "测试销售合作方", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108TESTREL002"}}},
-		OperatingEntityID: owner.ObjectID,
-		Data:              SalesPartnerData{Capabilities: []string{"CHANNEL_PARTNER"}, ContactName: "钱七"},
-	}, creator("sales-partner-create"))
-	if err != nil {
-		t.Fatalf("create Sales Partner: %v", err)
-	}
-	approveRelationshipParty(t, parties, sales.PartyID, creator("sales-partner-party-submit"), reviewer("sales-partner-party-approve"))
-	pendingSales, err := relationships.SubmitSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision}, creator("sales-partner-submit"))
-	if err != nil {
-		t.Fatalf("submit Sales Partner: %v", err)
-	}
-	assertRelationshipCurrentQueryAbsent(t, business, bobdomain.EntitySalesPartner)
-	sales, err = relationships.ApproveSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: pendingSales.ObjectID, ApprovalEntryID: pendingSales.Approval.ApprovalEntryID, ApprovalRevision: pendingSales.Approval.Revision}, reviewer("sales-partner-approve"))
-	if err != nil {
-		t.Fatalf("approve Sales Partner: %v", err)
-	}
-	assertRelationshipCurrent(t, business, bobdomain.EntitySalesPartner, sales.ObjectID, sales.Approval.ApprovalEntryID, "测试销售合作方")
-	assertRelationshipCurrentQuery(t, business, bobdomain.EntitySalesPartner, sales.ObjectID, sales.Approval.ApprovalEntryID)
-
-	salesV2, err := relationships.SaveSalesPartner(t.Context(), SalesPartnerSaveInput{
-		ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision,
-		Enabled: false, Data: SalesPartnerData{Capabilities: []string{"EXTERNAL_PART_TIME"}, ContactName: "孙八"},
-	}, creator("sales-partner-save-v2"))
-	if err != nil {
-		t.Fatalf("save Sales Partner V2: %v", err)
-	}
-	salesV2, err = relationships.SubmitSalesPartner(t.Context(), RelationshipVersionInput{
-		ObjectID: salesV2.ObjectID, ApprovalEntryID: salesV2.Approval.ApprovalEntryID, ApprovalRevision: salesV2.Approval.Revision,
-	}, creator("sales-partner-submit-v2"))
-	if err != nil {
-		t.Fatalf("submit Sales Partner V2: %v", err)
-	}
-	assertRelationshipCurrentQuery(t, business, bobdomain.EntitySalesPartner, sales.ObjectID, sales.Approval.ApprovalEntryID)
-}
-
-func TestOtherUnitDuplicateCreateRollsBackIntegration(t *testing.T) {
-	pool := dclIntegrationPool(t)
-	resetDCLIntegrationData(t, pool)
-	authorizer, bus := authorization.Func(nil), txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
-	operating := NewOperatingEntityService(pool, business, authorizer, bus)
-	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-
-	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
-	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
-	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
-	owner, err := operating.Create(t.Context(), OperatingEntityCreateInput{Data: bobdomain.OperatingEntityData{Name: "重复关系主体"}}, creator("owner-create"))
-	if err != nil {
-		t.Fatalf("create operating entity: %v", err)
-	}
-	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), reviewer("owner-approve"))
-
-	other, err := relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{
-		NewParty:          &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "去重往来单位", StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108DUPOTU001"}}},
-		OperatingEntityID: owner.ObjectID,
-		Data:              OtherUnitData{ContactName: "联系人"},
-	}, creator("other-unit-create"))
-	if err != nil {
-		t.Fatalf("create first other-unit: %v", err)
-	}
-	var otherCode string
-	if err = pool.QueryRow(t.Context(), `SELECT dcl_require_subject_code(code) FROM dcl_subjects WHERE id=$1`, other.ObjectID).Scan(&otherCode); err != nil {
-		t.Fatalf("read first other-unit code: %v", err)
-	}
-	beforeRelCount := int64(0)
-	beforeSubCount := int64(0)
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_service_relationships WHERE party_id=$1 AND operating_entity_id=$2`, other.PartyID, owner.ObjectID).Scan(&beforeRelCount); err != nil {
-		t.Fatalf("count other-unit relationships before: %v", err)
-	}
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_subjects WHERE entity='other-unit'`).Scan(&beforeSubCount); err != nil {
-		t.Fatalf("count other-unit subjects before: %v", err)
-	}
-
-	if _, err = relationships.CreateOtherUnit(t.Context(), OtherUnitCreateInput{
-		PartyID:           other.PartyID,
-		OperatingEntityID: owner.ObjectID,
-		Data:              OtherUnitData{ContactName: "重复联系人"},
-	}, creator("other-unit-dup")); err == nil {
-		t.Fatal("duplicate other-unit create was accepted")
+	assertDCLSubjectCount(t, pool, EntityOtherUnit, 0)
+	if _, err = archives.CreateSalesPartner(t.Context(), SalesPartnerCreateInput{Data: SalesPartnerData{
+		Kind: "ORGANIZATION", LegalName: "非法销售合作方标识", StrongIdentifiers: []BusinessIdentifierInput{{Type: "BANK_ACCOUNT", Value: "sales-invalid"}},
+		Enabled: true, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID, Capabilities: []string{"CHANNEL_PARTNER"},
+	}}, creator("sales-invalid-identifier")); err == nil {
+		t.Fatal("Sales Partner accepted an unsupported business identifier type")
 	} else {
-		assertDCLDomainErrorKey(t, err, ErrorConflict, "relationship_exists")
+		assertDCLValidationFailure(t, err)
+	}
+	assertDCLSubjectCount(t, pool, EntitySalesPartner, 0)
+
+	otherInput := OtherUnitData{
+		Kind: "ORGANIZATION", LegalName: "独立其他单位", DisplayName: "其他单位",
+		StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91310000OTU345001"}},
+		Enabled:           true, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID,
+	}
+	other, err := archives.CreateOtherUnit(t.Context(), OtherUnitCreateInput{Data: otherInput}, creator("other-create"))
+	if err != nil {
+		t.Fatalf("create typed Other Unit: %v", err)
+	}
+	if _, err = archives.CreateOtherUnit(t.Context(), OtherUnitCreateInput{Data: otherInput}, creator("other-conflict")); err == nil {
+		t.Fatal("Other Unit accepted same-type strong identifier while first draft is open")
+	} else {
 		var domainErr *DomainError
-		if !errors.As(err, &domainErr) {
-			t.Fatalf("duplicate error type = %T", err)
+		if !errors.As(err, &domainErr) || domainErr.ErrorKey != "other_unit_identifier_claimed" {
+			t.Fatalf("Other Unit strong identifier conflict = %v", err)
 		}
-		data, ok := domainErr.Data.(map[string]any)
-		if !ok || data["objectId"] != other.ObjectID || data["code"] != otherCode || data["entity"] != EntityOtherUnit {
-			t.Fatalf("duplicate relationship data = %#v", domainErr.Data)
-		}
+	}
+	otherView, err := archives.GetOtherUnit(t.Context(), RelationshipGetInput{ObjectID: other.ObjectID}, creator("other-get"))
+	if err != nil {
+		t.Fatalf("get typed Other Unit: %v", err)
+	}
+	assertOtherUnitData(t, otherView.Data, otherInput)
+	other = submitAndApproveOtherUnit(t, archives, other, creator("other-submit"), reviewer("other-approve"))
+	current, err := business.Get(t.Context(), bobdomain.EntityOtherUnit, bobdomain.GetInput{ObjectID: other.ObjectID})
+	if err != nil || current.Data.Name != "其他单位" || current.SourceApprovalEntryID != other.Approval.ApprovalEntryID {
+		t.Fatalf("BOB typed Other Unit current = %+v, err=%v", current, err)
+	}
+	otherV1 := other
+	otherV2Input := otherInput
+	otherV2Input.DisplayName = "其他单位二版"
+	otherV2Input.StrongIdentifiers = []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91310000OTU345002"}}
+	otherV2, err := archives.SaveOtherUnit(t.Context(), OtherUnitSaveInput{ObjectID: other.ObjectID, ApprovalEntryID: other.Approval.ApprovalEntryID, ApprovalRevision: other.Approval.Revision, Data: otherV2Input}, creator("other-save-v2"))
+	if err != nil {
+		t.Fatalf("save typed Other Unit V2: %v", err)
+	}
+	otherV2 = submitAndApproveOtherUnit(t, archives, otherV2, creator("other-submit-v2"), reviewer("other-approve-v2"))
+	assertOtherIdentifierClaim(t, pool, "91310000OTU345001", "", "")
+	assertOtherIdentifierClaim(t, pool, "91310000OTU345002", otherV2.Approval.ApprovalEntryID, "")
+	otherV2, err = archives.UnapproveOtherUnit(t.Context(), RelationshipReviewInput{ObjectID: otherV2.ObjectID, ApprovalEntryID: otherV2.Approval.ApprovalEntryID, ApprovalRevision: otherV2.Approval.Revision, Reason: "验证标识回落"}, reviewer("other-unapprove-v2"))
+	if err != nil {
+		t.Fatalf("unapprove typed Other Unit V2: %v", err)
+	}
+	assertOtherIdentifierClaim(t, pool, "91310000OTU345001", otherV1.Approval.ApprovalEntryID, "")
+	assertOtherIdentifierClaim(t, pool, "91310000OTU345002", "", otherV2.Approval.ApprovalEntryID)
+	current, err = business.Get(t.Context(), bobdomain.EntityOtherUnit, bobdomain.GetInput{ObjectID: other.ObjectID})
+	if err != nil || current.SourceApprovalEntryID != otherV1.Approval.ApprovalEntryID {
+		t.Fatalf("BOB typed Other Unit fallback = %+v, err=%v", current, err)
 	}
 
-	afterRelCount := int64(0)
-	afterSubCount := int64(0)
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_service_relationships WHERE party_id=$1 AND operating_entity_id=$2`, other.PartyID, owner.ObjectID).Scan(&afterRelCount); err != nil {
-		t.Fatalf("count other-unit relationships after: %v", err)
+	salesInput := SalesPartnerData{
+		Kind: "ORGANIZATION", LegalName: "独立销售合作方", DisplayName: "销售合作方",
+		StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91310000OTU345001"}},
+		Enabled:           true, OperatingEntityIDs: []string{owner.ObjectID}, DefaultOperatingEntityID: owner.ObjectID,
 	}
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_subjects WHERE entity='other-unit'`).Scan(&afterSubCount); err != nil {
-		t.Fatalf("count other-unit subjects after: %v", err)
+	sales, err := archives.CreateSalesPartner(t.Context(), SalesPartnerCreateInput{Data: salesInput}, creator("sales-create"))
+	if err != nil {
+		t.Fatalf("create typed Sales Partner draft: %v", err)
 	}
-	if afterRelCount != beforeRelCount {
-		t.Fatalf("other-unit relationship count changed after failed create: before=%d after=%d", beforeRelCount, afterRelCount)
+	if _, err = archives.SubmitSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision}, creator("sales-submit-empty")); err == nil {
+		t.Fatal("submitted sales-partner draft without capability")
 	}
-	if afterSubCount != beforeSubCount {
-		t.Fatalf("other-unit subject count changed after failed create: before=%d after=%d", beforeSubCount, afterSubCount)
+	salesInput.Capabilities = []string{"CHANNEL_PARTNER"}
+	sales, err = archives.SaveSalesPartner(t.Context(), SalesPartnerSaveInput{ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision, Data: salesInput}, creator("sales-save"))
+	if err != nil {
+		t.Fatalf("save typed Sales Partner capability: %v", err)
+	}
+	salesView, err := archives.GetSalesPartner(t.Context(), RelationshipGetInput{ObjectID: sales.ObjectID}, creator("sales-get"))
+	if err != nil {
+		t.Fatalf("get typed Sales Partner: %v", err)
+	}
+	assertSalesPartnerData(t, salesView.Data, salesInput)
+	pending, err := archives.SubmitSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision}, creator("sales-submit"))
+	if err != nil {
+		t.Fatalf("submit typed Sales Partner: %v", err)
+	}
+	sales, err = archives.ApproveSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer("sales-approve"))
+	if err != nil {
+		t.Fatalf("approve typed Sales Partner: %v", err)
+	}
+	current, err = business.Get(t.Context(), bobdomain.EntitySalesPartner, bobdomain.GetInput{ObjectID: sales.ObjectID})
+	if err != nil || current.Data.Name != "销售合作方" || current.SourceApprovalEntryID != sales.Approval.ApprovalEntryID {
+		t.Fatalf("BOB typed Sales Partner current = %+v, err=%v", current, err)
 	}
 }
 
-func TestSalesPartnerDraftCapabilitiesValidationIntegration(t *testing.T) {
-	pool := dclIntegrationPool(t)
-	resetDCLIntegrationData(t, pool)
-	authorizer, bus := authorization.Func(nil), txevent.NewBus()
-	auxiliary := auxdomain.NewService(pool)
-	parties := NewPartyService(pool, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
-	operating := NewOperatingEntityService(pool, business, authorizer, bus)
-	relationships := NewRelationshipService(pool, business, parties, bobdomain.NewPartyCurrentReader(pool), authorizer, bus)
-
-	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
-	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }
-	reviewer := func(requestID string) approval.Actor { return dclActor(t, reviewerID, requestID) }
-
-	owner, err := operating.Create(t.Context(), OperatingEntityCreateInput{Data: bobdomain.OperatingEntityData{Name: "销售伙伴草稿主体"}}, creator("owner-create"))
-	if err != nil {
-		t.Fatalf("create operating entity: %v", err)
-	}
-	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), reviewer("owner-approve"))
-
-	sales, err := relationships.CreateSalesPartner(t.Context(), SalesPartnerCreateInput{
-		NewParty: &bobdomain.PartyCreateData{
-			Kind:              bobdomain.PartyKindOrganization,
-			LegalName:         "草稿销售伙伴",
-			StrongIdentifiers: []bobdomain.PartyIdentifierInput{{Type: bobdomain.PartyIdentifierUnifiedSocialCreditCode, Value: "91110108DUPSAL001"}},
-		},
-		OperatingEntityID: owner.ObjectID,
-		Data:              SalesPartnerData{Capabilities: nil, ContactName: "张三"},
-	}, creator("sales-create-empty"))
-	if err != nil {
-		t.Fatalf("create sales partner with empty capabilities: %v", err)
-	}
-	if _, err = relationships.SubmitSalesPartner(t.Context(), RelationshipVersionInput{
-		ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision,
-	}, creator("sales-submit-empty")); err == nil {
-		t.Fatal("submit sales partner with empty capabilities was accepted")
-	} else {
-		assertDCLDomainErrorKey(t, err, ErrorValidation, "validation_failed")
-	}
-	approveRelationshipParty(t, parties, sales.PartyID, creator("sales-party-submit"), reviewer("sales-party-approve"))
-
-	sales, err = relationships.SaveSalesPartner(t.Context(), SalesPartnerSaveInput{
-		ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision,
-		Enabled: true, Data: SalesPartnerData{Capabilities: nil, ContactName: "李四"},
-	}, creator("sales-save-empty"))
-	if err != nil {
-		t.Fatalf("save sales partner with empty capabilities: %v", err)
-	}
-	if _, err = relationships.SubmitSalesPartner(t.Context(), RelationshipVersionInput{
-		ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision,
-	}, creator("sales-submit-empty-2")); err == nil {
-		t.Fatal("submit sales partner after empty save was accepted")
-	} else {
-		assertDCLDomainErrorKey(t, err, ErrorValidation, "validation_failed")
-	}
-
-	sales, err = relationships.SaveSalesPartner(t.Context(), SalesPartnerSaveInput{
-		ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision,
-		Enabled: true, Data: SalesPartnerData{Capabilities: []string{"CHANNEL_PARTNER"}, ContactName: "王五"},
-	}, creator("sales-save-valid"))
-	if err != nil {
-		t.Fatalf("save sales partner with capability: %v", err)
-	}
-	pending, err := relationships.SubmitSalesPartner(t.Context(), RelationshipVersionInput{
-		ObjectID: sales.ObjectID, ApprovalEntryID: sales.Approval.ApprovalEntryID, ApprovalRevision: sales.Approval.Revision,
-	}, creator("sales-submit-valid"))
-	if err != nil {
-		t.Fatalf("submit sales partner with capability: %v", err)
-	}
-	if _, err = relationships.ApproveSalesPartner(t.Context(), RelationshipVersionInput{ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer("sales-approve")); err != nil {
-		t.Fatalf("approve sales partner: %v", err)
-	}
-	approvedCount := int64(0)
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=$1 AND status='APPROVED'`, sales.ObjectID).Scan(&approvedCount); err != nil {
-		t.Fatalf("query approved sales-partner count: %v", err)
-	}
-	if approvedCount != 1 {
-		t.Fatalf("expected exactly one approved sales-partner snapshot, got %d", approvedCount)
-	}
-}
-
-func approveRelationshipParty(t *testing.T, parties *PartyService, partyID string, creator, reviewer approval.Actor) {
+func assertOtherIdentifierClaim(t *testing.T, pool *pgxpool.Pool, normalizedValue, approvedEntryID, openEntryID string) {
 	t.Helper()
-	view, err := parties.Get(t.Context(), PartyGetInput{PartyID: partyID}, bobdomain.PartyRelationshipVisibility{}, creator)
+	var approved, open *string
+	err := pool.QueryRow(t.Context(), `
+		SELECT approved_approval_entry_id, open_approval_entry_id
+		FROM dcl_other_unit_identifier_claims
+		WHERE identifier_type='UNIFIED_SOCIAL_CREDIT_CODE' AND normalized_value=$1
+	`, normalizedValue).Scan(&approved, &open)
+	if approvedEntryID == "" && openEntryID == "" {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("Other Unit identifier claim %s still exists: approved=%v open=%v err=%v", normalizedValue, approved, open, err)
+		}
+		return
+	}
 	if err != nil {
-		t.Fatalf("get relationship Party: %v", err)
+		t.Fatalf("read Other Unit identifier claim %s: %v", normalizedValue, err)
 	}
-	pending, err := parties.Submit(t.Context(), PartyVersionInput{PartyID: partyID, ApprovalEntryID: view.Approval.ApprovalEntryID, ApprovalRevision: view.Approval.Revision}, creator)
-	if err != nil {
-		t.Fatalf("submit relationship Party: %v", err)
+	if stringPointerValue(approved) != approvedEntryID || stringPointerValue(open) != openEntryID {
+		t.Fatalf("Other Unit identifier claim %s = approved %q open %q, want approved %q open %q", normalizedValue, stringPointerValue(approved), stringPointerValue(open), approvedEntryID, openEntryID)
 	}
-	if _, err = parties.Approve(t.Context(), PartyVersionInput{PartyID: partyID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision}, reviewer); err != nil {
-		t.Fatalf("approve relationship Party: %v", err)
+}
+
+func stringPointerValue(value *string) string {
+	if value == nil {
+		return ""
 	}
+	return *value
 }
 
 func submitAndApproveOtherUnit(t *testing.T, service *RelationshipService, mutation RelationshipMutation, submitter, reviewer approval.Actor) RelationshipMutation {
@@ -315,59 +182,16 @@ func submitAndApproveOtherUnit(t *testing.T, service *RelationshipService, mutat
 	return approved
 }
 
-func assertRelationshipCurrent(t *testing.T, business *bobdomain.Service, entity, objectID, entryID, name string) {
+func assertOtherUnitData(t *testing.T, got, want OtherUnitData) {
 	t.Helper()
-	view, err := business.Get(t.Context(), entity, bobdomain.GetInput{ObjectID: objectID})
-	if err != nil {
-		t.Fatalf("get BOB %s current: %v", entity, err)
-	}
-	if view.SourceApprovalEntryID != entryID || view.Relationship == nil || view.Relationship.PartyDisplayName != name {
-		t.Fatalf("BOB %s current = %+v", entity, view)
+	if got.Kind != want.Kind || got.LegalName != want.LegalName || got.DisplayName != want.DisplayName || got.Enabled != want.Enabled || got.DefaultOperatingEntityID != want.DefaultOperatingEntityID || len(got.StrongIdentifiers) != 1 || got.StrongIdentifiers[0] != want.StrongIdentifiers[0] || len(got.OperatingEntityIDs) != 1 || got.OperatingEntityIDs[0] != want.OperatingEntityIDs[0] {
+		t.Fatalf("Other Unit data = %+v, want identity=%+v", got, want)
 	}
 }
 
-func assertRelationshipCurrentQueryAbsent(t *testing.T, business *bobdomain.Service, entity string) {
+func assertSalesPartnerData(t *testing.T, got, want SalesPartnerData) {
 	t.Helper()
-	page, err := business.Query(t.Context(), entity, bobdomain.QueryInput{Page: 1, PageSize: 20})
-	if err != nil {
-		var domainErr *bobdomain.DomainError
-		if errors.As(err, &domainErr) {
-			t.Fatalf("query BOB %s current with only a candidate: %v cause=%v", entity, err, domainErr.Cause)
-		}
-		t.Fatalf("query BOB %s current with only a candidate: %v", entity, err)
-	}
-	if page.Total != 0 || len(page.Items) != 0 {
-		t.Fatalf("BOB %s query exposed only-candidate relationship: %+v", entity, page)
-	}
-}
-
-func assertRelationshipCurrentQuery(t *testing.T, business *bobdomain.Service, entity, objectID, entryID string) {
-	t.Helper()
-	current, err := business.Get(t.Context(), entity, bobdomain.GetInput{ObjectID: objectID})
-	if err != nil {
-		t.Fatalf("get BOB %s current before query: %v", entity, err)
-	}
-	enabled := true
-	page, err := business.Query(t.Context(), entity, bobdomain.QueryInput{Page: 1, PageSize: 20, Filters: bobdomain.QueryFilters{Keyword: current.Relationship.PartyDisplayName, Enabled: &enabled}, Sort: []bobdomain.SortItem{{Field: "code", Order: "asc"}}})
-	if err != nil {
-		t.Fatalf("query BOB %s current: %v", entity, err)
-	}
-	if page.Total != 1 || len(page.Items) != 1 {
-		t.Fatalf("BOB %s current query page = %+v", entity, page)
-	}
-	item := page.Items[0]
-	if item.ObjectID != objectID || item.SourceApprovalEntryID != entryID || !item.Enabled || !item.UpdatedAt.Equal(current.UpdatedAt) {
-		t.Fatalf("BOB %s current query item = %+v, current = %+v", entity, item, current)
-	}
-	if _, err = business.Query(t.Context(), entity, bobdomain.QueryInput{Page: 1, PageSize: 20, Sort: []bobdomain.SortItem{{Field: "lifecycle", Order: "asc"}}}); err == nil {
-		t.Fatalf("BOB %s current query accepted unsupported sort", entity)
-	}
-}
-
-func assertDCLDomainErrorKey(t *testing.T, err error, wantKind ErrorKind, wantKey string) {
-	t.Helper()
-	var domainErr *DomainError
-	if err == nil || !errors.As(err, &domainErr) || domainErr.Kind != wantKind || domainErr.ErrorKey != wantKey {
-		t.Fatalf("unexpected error = %#v, want kind=%v key=%q", err, wantKind, wantKey)
+	if got.Kind != want.Kind || got.LegalName != want.LegalName || got.DisplayName != want.DisplayName || got.Enabled != want.Enabled || got.DefaultOperatingEntityID != want.DefaultOperatingEntityID || len(got.StrongIdentifiers) != 1 || got.StrongIdentifiers[0] != want.StrongIdentifiers[0] || len(got.OperatingEntityIDs) != 1 || got.OperatingEntityIDs[0] != want.OperatingEntityIDs[0] || len(got.Capabilities) != 1 || got.Capabilities[0] != want.Capabilities[0] {
+		t.Fatalf("Sales Partner data = %+v, want identity=%+v", got, want)
 	}
 }

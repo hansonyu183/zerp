@@ -12,6 +12,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -1021,7 +1022,7 @@ func New(pool *pgxpool.Pool) *Seeder {
 	products := dcldomain.NewProductService(pool, service, authorizer, bus)
 	employees := dcldomain.NewEmployeeService(pool, service, authorizer, bus)
 	suppliers := dcldomain.NewSupplierService(pool, service, authorizer, bus)
-	typedArchives := dcldomain.NewTypedArchiveService(pool, service, authorizer, bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(service), authorizer, bus)
 	customers := dcldomain.NewCustomerService(pool, service, authorizer, bus)
 	return &Seeder{
 		service: typedArchiveLifecycleService{typedArchives: typedArchives,

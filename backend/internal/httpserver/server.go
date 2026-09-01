@@ -23,6 +23,7 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
 	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -55,7 +56,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	dclEmployeeService := dcldomain.NewEmployeeService(db, bobService, authorizer, eventBus)
 	dclSupplierService := dcldomain.NewSupplierService(db, bobService, authorizer, eventBus)
 	dclCustomerService := dcldomain.NewCustomerService(db, bobService, authorizer, eventBus)
-	dclTypedArchiveService := dcldomain.NewTypedArchiveService(db, bobService, authorizer, eventBus)
+	dclTypedArchiveService := dcldomain.NewTypedArchiveService(db, typedarchiverules.New(bobService), authorizer, eventBus)
 	dclCustomerAttachmentService, err := dcldomain.NewCustomerAttachmentService(db, dcldomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, authorizer, eventBus)

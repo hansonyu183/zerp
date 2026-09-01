@@ -17,6 +17,7 @@ import (
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -328,7 +329,7 @@ func createApprovedOtherUnitDeclaration(t *testing.T, pool *pgxpool.Pool, busine
 	t.Helper()
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
-	typedArchives := dcldomain.NewTypedArchiveService(pool, business, authorizer, bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(business), authorizer, bus)
 	created, err := typedArchives.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
 		Data: dcldomain.OtherUnitData{
 			Kind: "ORGANIZATION", LegalName: data.Name,

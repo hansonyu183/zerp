@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/events/dclapproval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -15,23 +14,48 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type typedArchiveBusinessRules interface {
-	ResolveOtherUnitDeclaration(context.Context, pgx.Tx, bobdomain.DetailView, bool) (bobdomain.DetailView, error)
-	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+// TypedArchiveRules is the narrow DCL port for business-archive references
+// and cross-domain validation. Integrations own any BOB-specific mapping.
+type TypedArchiveRules interface {
+	ResolveOtherUnitDeclaration(context.Context, pgx.Tx, OtherUnitDeclaration, bool) (OtherUnitDeclaration, error)
+	ResolveOperatingEntity(context.Context, pgx.Tx, string) (OperatingEntityReference, error)
 	EnsureOtherUnitUnapproveAllowed(context.Context, pgx.Tx, string) error
 	EnsureSalesPartnerUnapproveAllowed(context.Context, pgx.Tx, string) error
+}
+
+type OtherUnitDeclaration struct {
+	ContactName          string
+	ContactPhone         string
+	Email                string
+	Address              string
+	SettlementMethodID   string
+	SettlementMethodCode string
+	SettlementMethodName string
+	TermCode             string
+	RuleType             string
+	MonthOffset          int32
+	DayOfMonth           *int32
+	DayOffset            int32
+	Remark               string
+}
+
+type OperatingEntityReference struct {
+	ObjectID        string
+	ApprovalEntryID string
+	Code            string
+	Name            string
 }
 
 // TypedArchiveService coordinates the Other Unit and Sales Partner archives.
 type TypedArchiveService struct {
 	pool    *pgxpool.Pool
 	queries *dbsqlc.Queries
-	rules   typedArchiveBusinessRules
+	rules   TypedArchiveRules
 	other   *approval.Coordinator[dclapproval.OtherUnitPayload]
 	sales   *approval.Coordinator[dclapproval.SalesPartnerPayload]
 }
 
-func NewTypedArchiveService(pool *pgxpool.Pool, rules typedArchiveBusinessRules, authorizer approval.Authorizer, bus *txevent.Bus) *TypedArchiveService {
+func NewTypedArchiveService(pool *pgxpool.Pool, rules TypedArchiveRules, authorizer approval.Authorizer, bus *txevent.Bus) *TypedArchiveService {
 	if pool == nil || rules == nil || authorizer == nil || bus == nil {
 		panic("dcl: typed archive dependencies are required")
 	}
@@ -100,8 +124,8 @@ func normalizeIdentity(kind, legalName, displayName, taxNumber string, identifie
 	}
 	return kind, legalName, displayName, taxNumber, identifiers, ids, nil
 }
-func otherDetail(data OtherUnitData) bobdomain.DetailView {
-	return bobdomain.DetailView{ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, SettlementMethodID: data.SettlementMethodID, SettlementMethodCode: data.SettlementMethodCode, SettlementMethodName: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOffset: data.SettlementDayOffset, Remark: data.Remark}
+func otherDeclaration(data OtherUnitData) OtherUnitDeclaration {
+	return OtherUnitDeclaration{ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, SettlementMethodID: data.SettlementMethodID, SettlementMethodCode: data.SettlementMethodCode, SettlementMethodName: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOffset: data.SettlementDayOffset, Remark: data.Remark}
 }
 func normalizeOther(data OtherUnitData) (OtherUnitData, error) {
 	kind, legal, display, tax, ids, operating, err := normalizeIdentity(data.Kind, data.LegalName, data.DisplayName, data.TaxNumber, data.StrongIdentifiers, data.OperatingEntityIDs, data.DefaultOperatingEntityID)
@@ -141,11 +165,11 @@ func (s *TypedArchiveService) resolveOperating(ctx context.Context, tx pgx.Tx, i
 	items := make([]BusinessArchiveSnapshot, 0, len(ids))
 	var defaultItem BusinessArchiveSnapshot
 	for _, id := range ids {
-		ref, err := s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, id)
+		ref, err := s.rules.ResolveOperatingEntity(ctx, tx, id)
 		if err != nil {
 			return nil, BusinessArchiveSnapshot{}, translateError(err)
 		}
-		item := BusinessArchiveSnapshot{SourceObjectID: ref.ObjectID, ApprovalEntryID: ref.ApprovalEntryID, Code: ref.Code, Name: ref.Data.Name}
+		item := BusinessArchiveSnapshot{SourceObjectID: ref.ObjectID, ApprovalEntryID: ref.ApprovalEntryID, Code: ref.Code, Name: ref.Name}
 		items = append(items, item)
 		if id == defaultID {
 			defaultItem = item
@@ -159,7 +183,7 @@ func (s *TypedArchiveService) checkOperating(ctx context.Context, tx pgx.Tx, ite
 	}
 	found := false
 	for _, item := range items {
-		ref, err := s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, item.SourceObjectID)
+		ref, err := s.rules.ResolveOperatingEntity(ctx, tx, item.SourceObjectID)
 		if err != nil {
 			return translateError(err)
 		}
@@ -193,7 +217,7 @@ func (s *TypedArchiveService) CreateOtherUnit(ctx context.Context, input OtherUn
 	if err != nil {
 		return TypedArchiveMutation{}, err
 	}
-	detail, err := s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDetail(data), false)
+	detail, err := s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDeclaration(data), false)
 	if err != nil {
 		return TypedArchiveMutation{}, translateError(err)
 	}
@@ -297,7 +321,7 @@ func (s *TypedArchiveService) saveOther(ctx context.Context, input OtherUnitSave
 	if err != nil {
 		return TypedArchiveMutation{}, err
 	}
-	detail, err := s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDetail(data), false)
+	detail, err := s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDeclaration(data), false)
 	if err != nil {
 		return TypedArchiveMutation{}, translateError(err)
 	}
@@ -445,7 +469,7 @@ func (s *TypedArchiveService) transition(ctx context.Context, entity string, inp
 			if err = s.checkOperating(ctx, tx, data.OperatingEntities, data.DefaultOperatingEntity); err != nil {
 				return TypedArchiveMutation{}, err
 			}
-			if _, err = s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDetail(data), true); err != nil {
+			if _, err = s.rules.ResolveOtherUnitDeclaration(ctx, tx, otherDeclaration(data), true); err != nil {
 				return TypedArchiveMutation{}, translateError(err)
 			}
 		}
@@ -604,7 +628,7 @@ func (s *TypedArchiveService) delete(ctx context.Context, entity string, input T
 	return translateError(tx.Commit(ctx))
 }
 
-func otherFromDetail(data OtherUnitData, d bobdomain.DetailView) OtherUnitData {
+func otherFromDetail(data OtherUnitData, d OtherUnitDeclaration) OtherUnitData {
 	data.SettlementMethodID, data.SettlementMethodCode, data.SettlementMethodName = d.SettlementMethodID, d.SettlementMethodCode, d.SettlementMethodName
 	data.SettlementTermCode, data.SettlementRuleType = d.TermCode, d.RuleType
 	data.SettlementMonthOffset, data.SettlementDayOffset = d.MonthOffset, d.DayOffset

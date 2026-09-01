@@ -18,6 +18,7 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
@@ -146,7 +147,7 @@ func New(
 	fundAccounts := dcldomain.NewFundAccountService(pool, business, seedAuthorizer{}, events)
 	products := dcldomain.NewProductService(pool, business, seedAuthorizer{}, events)
 	employees := dcldomain.NewEmployeeService(pool, business, seedAuthorizer{}, events)
-	typedArchives := dcldomain.NewTypedArchiveService(pool, business, seedAuthorizer{}, events)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(business), seedAuthorizer{}, events)
 	accounting := accdomain.NewService(pool, business, seedAuthorizer{}, events)
 	accountMappings := dcldomain.NewAccMappingService(pool, accounting, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(

@@ -34,6 +34,8 @@ interface ServiceContractView {
     serviceContract: {
       counterparty: ReferenceCandidate & { entity: string }
       handler: ReferenceCandidate & { entity: string }
+      capabilities?: string[]
+      applicableFrom?: string
     }
   }
 }
@@ -162,6 +164,64 @@ test('真实 API 保存服务合同类型化对手方精确快照', async ({
       objectId: handler.objectId,
       approvalEntryId: handler.approvalEntryId,
     })
+  } finally {
+    await operator.dispose()
+  }
+})
+
+test('真实 API 选择已批准销售合作方并保存服务合同快照', async ({
+  workerState,
+}) => {
+  const operator = await apiSession(workerState.operator)
+  try {
+    const counterparty = await oneReference(
+      operator.api,
+      'sales-partner',
+      workerState.fixtures.salesPartner,
+    )
+    const handler = await oneReference(
+      operator.api,
+      'employee',
+      workerState.fixtures.employee,
+    )
+    const created = await operator.api.post<ApprovalMutation>(
+      'vou/service-contract/create',
+      {
+        data: {
+          businessDate: '2098-01-02',
+          currency: 'CNY',
+          counterpartyType: 'sales-partner',
+          counterparty: {
+            objectId: counterparty.objectId,
+            approvalEntryId: counterparty.approvalEntryId,
+          },
+          handler: {
+            objectId: handler.objectId,
+            approvalEntryId: handler.approvalEntryId,
+          },
+          serviceContract: {
+            capabilities: ['EXTERNAL_PART_TIME'],
+            applicableFrom: '2098-01-02',
+            terms: 'E2E 销售合作服务合同',
+          },
+        },
+      },
+    )
+    const view = await operator.api.post<ServiceContractView>(
+      'vou/service-contract/get',
+      { documentId: created.documentId },
+    )
+    expect(view.data.serviceContract.counterparty).toMatchObject({
+      entity: 'sales-partner',
+      objectId: counterparty.objectId,
+      approvalEntryId: counterparty.approvalEntryId,
+      code: counterparty.code,
+      name: counterparty.name,
+    })
+    expect(view.data.serviceContract.capabilities).toEqual([
+      'EXTERNAL_PART_TIME',
+    ])
+    expect(view.data.serviceContract.applicableFrom).toBe('2098-01-02')
   } finally {
     await operator.dispose()
   }

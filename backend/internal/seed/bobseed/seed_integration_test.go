@@ -13,6 +13,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -66,7 +67,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	service := newIntegrationBOBService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
-	typedArchives := dcldomain.NewTypedArchiveService(pool, service, authorization.Func(nil), bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(service), authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") || strings.Contains(label, "reject") {

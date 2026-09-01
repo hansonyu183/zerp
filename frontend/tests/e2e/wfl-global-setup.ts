@@ -6,6 +6,7 @@ import { request, type APIRequestContext } from '@playwright/test'
 import type {
   DclEmployeeCreateRequest,
   DclOtherUnitCreateRequest,
+  DclSalesPartnerCreateRequest,
   DclSupplierCreateRequest,
 } from '../../src/api/generated'
 
@@ -189,6 +190,7 @@ export interface WflFixtures {
   customerAggregate: string
   supplier: string
   employee: string
+  salesPartner: string
   solventProduct: string
   resinProduct: string
   carrier: string
@@ -396,7 +398,7 @@ const bobReviewerActions = new Set([
 
 async function assertBobReference(
   operator: RealApi,
-  entity: 'employee' | 'supplier' | 'other-unit',
+  entity: 'employee' | 'supplier' | 'other-unit' | 'sales-partner',
   record: Pick<BobMutation, 'objectId' | 'code'>,
 ): Promise<void> {
   const candidates = await operator.post<BobReferenceQueryItem[]>(
@@ -576,6 +578,52 @@ async function createEffectiveOtherUnit(
   })
   const record = { ...approved, code: view.code }
   await assertBobReference(operator, 'other-unit', record)
+  return record
+}
+
+async function createEffectiveSalesPartner(
+  operator: RealApi,
+  reviewer: RealApi,
+  name: string,
+  operatingEntityId: string,
+): Promise<BobMutation> {
+  const request: DclSalesPartnerCreateRequest = {
+    data: {
+      kind: 'ORGANIZATION',
+      legalName: name,
+      displayName: name,
+      strongIdentifiers: [],
+      enabled: true,
+      operatingEntityIds: [operatingEntityId],
+      defaultOperatingEntityId: operatingEntityId,
+      capabilities: ['EXTERNAL_PART_TIME'],
+    },
+  }
+  const created = await operator.post<BobMutation>(
+    'dcl/sales-partner/create',
+    request,
+  )
+  const submitted = await operator.post<BobMutation>(
+    'dcl/sales-partner/submit',
+    {
+      objectId: created.objectId,
+      approvalEntryId: created.approval.approvalEntryId,
+      approvalRevision: created.approval.revision,
+    },
+  )
+  const approved = await reviewer.post<BobMutation>(
+    'dcl/sales-partner/approve',
+    {
+      objectId: submitted.objectId,
+      approvalEntryId: submitted.approval.approvalEntryId,
+      approvalRevision: submitted.approval.revision,
+    },
+  )
+  const view = await operator.post<{ code: string }>('bob/sales-partner/get', {
+    objectId: approved.objectId,
+  })
+  const record = { ...approved, code: view.code }
+  await assertBobReference(operator, 'sales-partner', record)
   return record
 }
 
@@ -1457,6 +1505,12 @@ export async function createWflWorkerState(options: {
       operatingEntityId,
       settlement.objectId,
     )
+    const salesPartner = await createEffectiveSalesPartner(
+      operatorSession.api,
+      reviewerSession.api,
+      `WFL 销售合作方 ${suffix}`,
+      operatingEntityId,
+    )
     const solventProduct = await createEffectiveBob(
       operatorSession.api,
       reviewerSession.api,
@@ -1636,6 +1690,7 @@ export async function createWflWorkerState(options: {
         customerAggregate: customer.customerCode,
         supplier: supplier.code,
         employee: employee.code,
+        salesPartner: salesPartner.code,
         solventProduct: solventProduct.code,
         resinProduct: resinProduct.code,
         carrier: carrier.code,

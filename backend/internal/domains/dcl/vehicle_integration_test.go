@@ -25,7 +25,7 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool)
 	business := newDCLIntegrationBOBService(pool, auxiliary, authorizer, bus)
-	typedArchives := NewTypedArchiveService(pool, business, authorizer, bus)
+	typedArchives := NewTypedArchiveService(pool, newTypedArchiveIntegrationRules(business), authorizer, bus)
 	service := NewVehicleService(pool, business, authorizer, bus)
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }

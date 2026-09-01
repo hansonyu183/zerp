@@ -26,7 +26,7 @@ func TestTypedOtherUnitAndSalesPartnerLifecycleIntegration(t *testing.T) {
 	auxiliary := auxdomain.NewService(pool)
 	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary))
 	operating := NewOperatingEntityService(pool, business, authorizer, bus)
-	archives := NewTypedArchiveService(pool, business, authorizer, bus)
+	archives := NewTypedArchiveService(pool, newTypedArchiveIntegrationRules(business), authorizer, bus)
 
 	creatorID, reviewerID := ulid.Make().String(), ulid.Make().String()
 	creator := func(requestID string) approval.Actor { return dclActor(t, creatorID, requestID) }

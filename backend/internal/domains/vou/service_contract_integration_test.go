@@ -13,6 +13,7 @@ import (
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 )
 
@@ -79,7 +80,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 	refs := prepareReferences(t, pool)
 	bobService := newBOBIntegrationService(pool)
 	bus := txevent.NewBus()
-	typedArchives := dcldomain.NewTypedArchiveService(pool, bobService, authorization.Func(nil), bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(bobService), authorization.Func(nil), bus)
 	service := newIntegrationService(t, pool)
 
 	serviceContract := approveServiceContractIntegration(t, service, DraftInput{

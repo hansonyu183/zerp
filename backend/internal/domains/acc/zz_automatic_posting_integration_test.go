@@ -15,6 +15,7 @@ import (
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/typedarchiverules"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -417,7 +418,7 @@ func TestZZServiceAcceptanceApprovalPostsOtherUnitPayableAndReceivableIntegratio
 	}
 	auxiliary := auxdomain.NewService(pool)
 	business := newAccountingIntegrationBOBService(pool, bus)
-	typedArchives := dcldomain.NewTypedArchiveService(pool, business, authorization.Func(nil), bus)
+	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(business), authorization.Func(nil), bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "服务验收经营主体"})
 	employee := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "服务验收经办人", "service-acceptance-employee")
 	var settlementID string

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, type UnwrapNestedRefs } from 'vue'
+import { computed, ref, toRaw, type UnwrapNestedRefs } from 'vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import CustomerSubunitFields from '../customer-subunit/CustomerSubunitFields.vue'
@@ -89,7 +89,7 @@ function openNewSubunit(): void {
 
 function openSubunit(index: number): void {
   subunitIndex.value = index
-  originalSubunit.value = structuredClone(form.value.subunits[index]!)
+  originalSubunit.value = structuredClone(toRaw(form.value.subunits[index]!))
   subunitDialogOpen.value = true
 }
 

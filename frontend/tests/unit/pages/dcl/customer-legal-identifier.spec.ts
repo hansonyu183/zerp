@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, reactive } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import CustomerForm from '@/pages/dcl/customer/CustomerForm.vue'
 import { createCustomerForm } from '@/pages/dcl/customer/vm'
@@ -127,7 +127,7 @@ describe('CustomerForm legal identifier', () => {
     expect(field(wrapper, '法定识别号')?.props('errorMessages')).toBeUndefined()
   })
 
-  it('renders the customer subunit mobile-card labels and shared row actions', () => {
+  it('opens the selected customer subunit editor from its row action', async () => {
     const { form, vm } = customerFormVm()
     form.subunits[0]!.name = '华东子单位'
     form.subunits[0]!.customerTypeId = '01JCUSTOMERTYPE00000000001'
@@ -140,19 +140,32 @@ describe('CustomerForm legal identifier', () => {
     const listRowActionsStub = defineComponent({
       name: 'ListRowActions',
       props: { actions: { type: Array, required: true } },
-      setup(props) {
+      emits: ['select'],
+      setup(props, { emit }) {
         return () =>
           h(
             'div',
             (props.actions as Array<{ key: string; label: string }>).map(
               (action) =>
-                h('button', { 'data-action': action.key }, action.label),
+                h(
+                  'button',
+                  {
+                    'data-action': action.key,
+                    onClick: () => emit('select', action.key),
+                  },
+                  action.label,
+                ),
             ),
           )
       },
     })
+    const dialogStub = defineComponent({
+      name: 'DialogStub',
+      props: { modelValue: { type: Boolean, required: true } },
+      template: '<div><slot /></div>',
+    })
     const wrapper = mount(CustomerForm, {
-      props: { vm: vm as never, kind: 'create' },
+      props: { vm: reactive(vm) as never, kind: 'create' },
       global: {
         stubs: {
           VRow: containerStub,
@@ -161,7 +174,7 @@ describe('CustomerForm legal identifier', () => {
           VCardTitle: containerStub,
           VCardText: containerStub,
           VCardActions: containerStub,
-          VDialog: containerStub,
+          VDialog: dialogStub,
           VDivider: containerStub,
           VSpacer: containerStub,
           VTextField: inputStub,
@@ -185,6 +198,10 @@ describe('CustomerForm legal identifier', () => {
       wrapper.findAll('td').map((cell) => cell.attributes('data-label')),
     ).toEqual(['编码', '名称', '客户类型', '状态', '操作'])
     expect(wrapper.get('td[data-label="名称"]').text()).toBe('华东子单位')
-    expect(wrapper.get('button[data-action="open"]').text()).toBe('编辑')
+    const edit = wrapper.get('button[data-action="open"]')
+    expect(edit.text()).toBe('编辑')
+    await edit.trigger('click')
+
+    expect(wrapper.getComponent(dialogStub).props('modelValue')).toBe(true)
   })
 })

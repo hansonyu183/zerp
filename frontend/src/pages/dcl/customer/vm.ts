@@ -59,7 +59,7 @@ export function customerPrimaryAction(
       icon: 'mdi-pencil-outline',
     }
   if (active.approval.status === 'APPROVED')
-    return { key: 'edit', label: '发起变更', icon: 'mdi-file-edit-outline' }
+    return { key: 'edit', label: '发起变更', icon: 'mdi-pencil-outline' }
   return { key: 'view', label: '查看', icon: 'mdi-eye-outline' }
 }
 

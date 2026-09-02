@@ -48,7 +48,7 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 ## 4. 查询 SQL 安全与版本契约
 
-每个版本 payload 包含单条只读 SQL、类型化绑定参数和显式结果列契约。SQL 只允许一条 `SELECT` 或 `WITH ... SELECT`，由数据库只读角色在只读事务执行；禁止字符串拼接、多语句、写入、DDL、可写函数和绕过只读角色的路径。参数类型为 `TEXT`、`INTEGER`、`DECIMAL`、`BOOLEAN`、`DATE`、`DATE_RANGE`、`ENUM` 与受控 `REFERENCE`；受控引用只开放会计账簿、会计科目、客户、供应商、其他单位、员工、部门、产品、仓库、资金账户、资产、票据和票据已记录的原始往来方，执行时只绑定稳定 ID。票据原始往来方候选读取票据事实中的历史快照，不以当前主数据覆盖历史名称。
+每个版本 payload 包含单条只读 SQL、类型化绑定参数和显式结果列契约。SQL 只允许一条 `SELECT` 或 `WITH ... SELECT`，由数据库只读角色在只读事务执行；禁止字符串拼接、多语句、写入、DDL、可写函数和绕过只读角色的路径。参数类型为 `TEXT`、`INTEGER`、`DECIMAL`、`BOOLEAN`、`DATE`、`DATE_RANGE`、`ENUM` 与受控 `REFERENCE`；受控引用只开放会计账簿、会计科目、客户子单位、供应商、其他单位、员工、销售合作方、部门、产品、仓库、资金账户、资产、票据和票据已记录的原始往来方，执行时只绑定稳定 ID。票据原始往来方候选读取票据事实中的历史快照，不以当前主数据覆盖历史名称。
 
 `CUSTOMER_SUBUNIT` 候选只读取 Customer 最新 `APPROVED` 且 Customer 与子单位均启用的内嵌子单位快照；每项返回 subunit stable ID、subunit code/name 和所属 Customer code/display name。子单位 code 只在 Customer 内唯一，界面必须同时展示 Customer code 与子单位 code。
 

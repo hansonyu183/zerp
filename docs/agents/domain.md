@@ -30,4 +30,4 @@ If a needed concept isn't in the glossary, reconsider whether the term belongs t
 
 If output contradicts an existing ADR, surface the actual ADR identifier and title rather than silently overriding it:
 
-> _Contradicts ADR-0030 (Party 与强类型业务关系)—but worth reopening because…_
+> _Contradicts ADR-0049 (强类型业务档案取代 Party 与关系层)—but worth reopening because…_

@@ -455,43 +455,17 @@ func employeeUpdateParams(entryID string, data EmployeeData) dbsqlc.UpdateDCLEmp
 }
 
 func (s *EmployeeService) claimLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
-	if err := q.DeleteDCLEmployeeLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
-		return err
-	}
-	normalized := normalizeEmployeeIdentifier(legalIdentifier)
-	if err := q.LockDCLEmployeeLegalIdentifierClaimKey(ctx, normalized); err != nil {
-		return err
-	}
-	claim, err := q.LockDCLEmployeeLegalIdentifierClaim(ctx, normalized)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	if err == nil && ((claim.ApprovedEmployeeID != nil && *claim.ApprovedEmployeeID != objectID) || (claim.OpenEmployeeID != nil && *claim.OpenEmployeeID != objectID)) {
-		return newError(ErrorConflict, "employee_legal_identifier_claimed", "employee legal identifier is already occupied", nil, nil)
-	}
-	var approvedID, approvedEntryID *string
-	if err == nil {
-		approvedID, approvedEntryID = claim.ApprovedEmployeeID, claim.ApprovedApprovalEntryID
-	}
-	return q.UpsertDCLEmployeeLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLEmployeeLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedEmployeeID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenEmployeeID: &objectID, OpenApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, employeeLegalIdentifierClaimStore{q: q}, objectID, entryID, normalizeEmployeeIdentifier(legalIdentifier), false, legalIdentifierClaimConflict{
+		errorKey: "employee_legal_identifier_claimed",
+		message:  "employee legal identifier is already occupied",
+	})
 }
 
 func (s *EmployeeService) promoteLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
-	if err := q.DeleteDCLEmployeeLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
-		return err
-	}
-	normalized := normalizeEmployeeIdentifier(legalIdentifier)
-	if err := q.LockDCLEmployeeLegalIdentifierClaimKey(ctx, normalized); err != nil {
-		return err
-	}
-	claim, err := q.LockDCLEmployeeLegalIdentifierClaim(ctx, normalized)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	if err == nil && ((claim.ApprovedEmployeeID != nil && *claim.ApprovedEmployeeID != objectID) || (claim.OpenEmployeeID != nil && *claim.OpenEmployeeID != objectID)) {
-		return newError(ErrorConflict, "employee_legal_identifier_claimed", "employee legal identifier is already occupied", nil, nil)
-	}
-	return q.UpsertDCLEmployeeLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLEmployeeLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedEmployeeID: &objectID, ApprovedApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, employeeLegalIdentifierClaimStore{q: q}, objectID, entryID, normalizeEmployeeIdentifier(legalIdentifier), true, legalIdentifierClaimConflict{
+		errorKey: "employee_legal_identifier_claimed",
+		message:  "employee legal identifier is already occupied",
+	})
 }
 
 func (s *EmployeeService) loadData(ctx context.Context, q *dbsqlc.Queries, entryID string) (EmployeeData, error) {

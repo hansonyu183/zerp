@@ -145,6 +145,7 @@ export function useDclCustomerViewModel() {
   const subunitReferenceErrorByScope = ref<Record<string, string | null>>({})
   const subunitReferenceIDs = new WeakMap<CustomerSubunitForm, number>()
   let nextSubunitReferenceID = 1
+  let referenceScopeActive = true
   const referenceSequences = new Map<string, number>()
   const referenceTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const canQueryReferences = computed(
@@ -350,7 +351,7 @@ export function useDclCustomerViewModel() {
   async function loadOperatingEntityReference(
     keywordValue = '',
   ): Promise<void> {
-    if (!canQueryReferences.value) return
+    if (!referenceScopeActive || !canQueryReferences.value) return
     const key = 'operatingEntityId'
     const sequence = (referenceSequences.get(key) ?? 0) + 1
     referenceSequences.set(key, sequence)
@@ -358,13 +359,13 @@ export function useDclCustomerViewModel() {
     referenceError.value[key] = null
     try {
       const options = await queryOperatingEntityReferences(keywordValue.trim())
-      if (referenceSequences.get(key) === sequence)
+      if (referenceScopeActive && referenceSequences.get(key) === sequence)
         mergeSelectedOperatingEntity(options)
     } catch (error) {
-      if (referenceSequences.get(key) === sequence)
+      if (referenceScopeActive && referenceSequences.get(key) === sequence)
         referenceError.value[key] = getErrorMessage(error)
     } finally {
-      if (referenceSequences.get(key) === sequence)
+      if (referenceScopeActive && referenceSequences.get(key) === sequence)
         referenceLoading.value[key] = false
     }
   }
@@ -373,7 +374,11 @@ export function useDclCustomerViewModel() {
     key: CustomerSubunitReferenceKey,
     keywordValue = '',
   ): Promise<void> {
-    if (!canQueryReferences.value || !activeForm().subunits.includes(subunit))
+    if (
+      !referenceScopeActive ||
+      !canQueryReferences.value ||
+      !activeForm().subunits.includes(subunit)
+    )
       return
     const scope = subunitReferenceScope(subunit, key)
     const sequence = (referenceSequences.get(scope) ?? 0) + 1
@@ -386,13 +391,13 @@ export function useDclCustomerViewModel() {
         keywordValue.trim(),
         subunit.primarySalesAttribution.type,
       )
-      if (referenceSequences.get(scope) === sequence)
+      if (referenceScopeActive && referenceSequences.get(scope) === sequence)
         mergeSelectedSubunitReference(subunit, key, options)
     } catch (error) {
-      if (referenceSequences.get(scope) === sequence)
+      if (referenceScopeActive && referenceSequences.get(scope) === sequence)
         subunitReferenceErrorByScope.value[scope] = getErrorMessage(error)
     } finally {
-      if (referenceSequences.get(scope) === sequence)
+      if (referenceScopeActive && referenceSequences.get(scope) === sequence)
         subunitReferenceLoadingByScope.value[scope] = false
     }
   }
@@ -434,6 +439,8 @@ export function useDclCustomerViewModel() {
   }
   if (getCurrentScope())
     onScopeDispose(() => {
+      referenceScopeActive = false
+      referenceSequences.clear()
       for (const timer of referenceTimers.values()) clearTimeout(timer)
     })
 

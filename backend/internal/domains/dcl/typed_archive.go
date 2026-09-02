@@ -719,25 +719,10 @@ func (s *TypedArchiveService) loadOther(ctx context.Context, q *dbsqlc.Queries, 
 	return data, nil
 }
 func (s *TypedArchiveService) claimOpenOtherLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
-	if err := q.DeleteDCLOtherUnitLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
-		return err
-	}
-	normalized := strings.ToUpper(strings.TrimSpace(legalIdentifier))
-	if err := q.LockDCLOtherUnitLegalIdentifierClaimKey(ctx, normalized); err != nil {
-		return err
-	}
-	claim, err := q.LockDCLOtherUnitLegalIdentifierClaim(ctx, normalized)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	if err == nil && ((claim.ApprovedOtherUnitID != nil && *claim.ApprovedOtherUnitID != objectID) || (claim.OpenOtherUnitID != nil && *claim.OpenOtherUnitID != objectID)) {
-		return newError(ErrorConflict, "other_unit_legal_identifier_claimed", "Other Unit legal identifier is already occupied", nil, nil)
-	}
-	var approvedID, approvedEntryID *string
-	if err == nil {
-		approvedID, approvedEntryID = claim.ApprovedOtherUnitID, claim.ApprovedApprovalEntryID
-	}
-	return q.UpsertDCLOtherUnitLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLOtherUnitLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedOtherUnitID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenOtherUnitID: &objectID, OpenApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, otherUnitLegalIdentifierClaimStore{q: q}, objectID, entryID, strings.ToUpper(strings.TrimSpace(legalIdentifier)), false, legalIdentifierClaimConflict{
+		errorKey: "other_unit_legal_identifier_claimed",
+		message:  "Other Unit legal identifier is already occupied",
+	})
 }
 func (s *TypedArchiveService) restoreOtherLatestApprovedLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID string) error {
 	latest, err := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityOtherUnit, SubjectID: objectID})
@@ -754,21 +739,10 @@ func (s *TypedArchiveService) restoreOtherLatestApprovedLegalIdentifier(ctx cont
 	return s.promoteOtherLegalIdentifier(ctx, q, objectID, latest.ID, data.LegalIdentifier)
 }
 func (s *TypedArchiveService) promoteOtherLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
-	if err := q.DeleteDCLOtherUnitLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
-		return err
-	}
-	normalized := strings.ToUpper(strings.TrimSpace(legalIdentifier))
-	if err := q.LockDCLOtherUnitLegalIdentifierClaimKey(ctx, normalized); err != nil {
-		return err
-	}
-	claim, err := q.LockDCLOtherUnitLegalIdentifierClaim(ctx, normalized)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	if err == nil && ((claim.ApprovedOtherUnitID != nil && *claim.ApprovedOtherUnitID != objectID) || (claim.OpenOtherUnitID != nil && *claim.OpenOtherUnitID != objectID)) {
-		return newError(ErrorConflict, "other_unit_legal_identifier_claimed", "Other Unit legal identifier is already occupied", nil, nil)
-	}
-	return q.UpsertDCLOtherUnitLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLOtherUnitLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedOtherUnitID: &objectID, ApprovedApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, otherUnitLegalIdentifierClaimStore{q: q}, objectID, entryID, strings.ToUpper(strings.TrimSpace(legalIdentifier)), true, legalIdentifierClaimConflict{
+		errorKey: "other_unit_legal_identifier_claimed",
+		message:  "Other Unit legal identifier is already occupied",
+	})
 }
 func (s *TypedArchiveService) deleteOther(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) error {
 	if err := q.DeleteDCLOtherUnitLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil {
@@ -846,25 +820,10 @@ func (s *TypedArchiveService) loadSales(ctx context.Context, q *dbsqlc.Queries, 
 	return data, nil
 }
 func (s *TypedArchiveService) claimOpenSalesLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
-	if err := q.DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
-		return err
-	}
-	normalized := strings.ToUpper(strings.TrimSpace(legalIdentifier))
-	if err := q.LockDCLSalesPartnerLegalIdentifierClaimKey(ctx, normalized); err != nil {
-		return err
-	}
-	claim, err := q.LockDCLSalesPartnerLegalIdentifierClaim(ctx, normalized)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	if err == nil && ((claim.ApprovedSalesPartnerID != nil && *claim.ApprovedSalesPartnerID != objectID) || (claim.OpenSalesPartnerID != nil && *claim.OpenSalesPartnerID != objectID)) {
-		return newError(ErrorConflict, "sales_partner_legal_identifier_claimed", "Sales Partner legal identifier is already occupied", nil, nil)
-	}
-	var approvedID, approvedEntryID *string
-	if err == nil {
-		approvedID, approvedEntryID = claim.ApprovedSalesPartnerID, claim.ApprovedApprovalEntryID
-	}
-	return q.UpsertDCLSalesPartnerLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLSalesPartnerLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedSalesPartnerID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenSalesPartnerID: &objectID, OpenApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, salesPartnerLegalIdentifierClaimStore{q: q}, objectID, entryID, strings.ToUpper(strings.TrimSpace(legalIdentifier)), false, legalIdentifierClaimConflict{
+		errorKey: "sales_partner_legal_identifier_claimed",
+		message:  "Sales Partner legal identifier is already occupied",
+	})
 }
 func (s *TypedArchiveService) restoreSalesLatestApprovedLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID string) error {
 	latest, err := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySalesPartner, SubjectID: objectID})
@@ -881,21 +840,10 @@ func (s *TypedArchiveService) restoreSalesLatestApprovedLegalIdentifier(ctx cont
 	return s.promoteSalesLegalIdentifier(ctx, q, objectID, latest.ID, data.LegalIdentifier)
 }
 func (s *TypedArchiveService) promoteSalesLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
-	if err := q.DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
-		return err
-	}
-	normalized := strings.ToUpper(strings.TrimSpace(legalIdentifier))
-	if err := q.LockDCLSalesPartnerLegalIdentifierClaimKey(ctx, normalized); err != nil {
-		return err
-	}
-	claim, err := q.LockDCLSalesPartnerLegalIdentifierClaim(ctx, normalized)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	if err == nil && ((claim.ApprovedSalesPartnerID != nil && *claim.ApprovedSalesPartnerID != objectID) || (claim.OpenSalesPartnerID != nil && *claim.OpenSalesPartnerID != objectID)) {
-		return newError(ErrorConflict, "sales_partner_legal_identifier_claimed", "Sales Partner legal identifier is already occupied", nil, nil)
-	}
-	return q.UpsertDCLSalesPartnerLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLSalesPartnerLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedSalesPartnerID: &objectID, ApprovedApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, salesPartnerLegalIdentifierClaimStore{q: q}, objectID, entryID, strings.ToUpper(strings.TrimSpace(legalIdentifier)), true, legalIdentifierClaimConflict{
+		errorKey: "sales_partner_legal_identifier_claimed",
+		message:  "Sales Partner legal identifier is already occupied",
+	})
 }
 func (s *TypedArchiveService) deleteSales(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) error {
 	if err := q.DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil {

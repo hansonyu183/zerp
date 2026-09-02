@@ -1,3 +1,4 @@
+import { effectScope } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
@@ -260,5 +261,45 @@ describe('DCL customer workspace', () => {
       ),
     ).toEqual([{ value: 'PAR-1', title: 'PAR-001 · 渠道伙伴' }])
     vi.useRealTimers()
+  })
+
+  it('does not write operating-entity references after its scope is disposed', async () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/dcl/customer/create',
+      '/dcl/customer/save-subunits',
+      '/bob/operating-entity/query',
+      '/aux/reference/query',
+      '/bob/reference/query',
+    ]
+    let resolveOperatingEntityQuery!: (value: unknown) => void
+    mockedPost.mockImplementation(
+      ((path: string) => {
+        if (path !== 'bob/operating-entity/query') return { data: [] }
+        return new Promise((resolve) => {
+          resolveOperatingEntityQuery = resolve
+        })
+      }) as never,
+    )
+    const scope = effectScope()
+    const vm = scope.run(() => useDclCustomerViewModel())!
+
+    vm.openCreate()
+    scope.stop()
+    resolveOperatingEntityQuery({
+      data: {
+        items: [
+          {
+            objectId: 'OPE-1',
+            code: 'OPE-001',
+            data: { name: '华南经营主体' },
+          },
+        ],
+      },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(vm.referenceOptions.value.operatingEntityId).toEqual([])
   })
 })

@@ -161,42 +161,16 @@ func (s *SupplierService) writeChildren(ctx context.Context, q *dbsqlc.Queries, 
 	return nil
 }
 func (s *SupplierService) claimLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
-	if e := q.DeleteDCLSupplierLegalIdentifierClaimsForEntry(ctx, &entryID); e != nil || legalIdentifier == "" {
-		return e
-	}
-	n := normalizeSupplierIdentifier(legalIdentifier)
-	if e := q.LockDCLSupplierLegalIdentifierClaimKey(ctx, n); e != nil {
-		return e
-	}
-	c, e := q.LockDCLSupplierLegalIdentifierClaim(ctx, n)
-	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
-		return e
-	}
-	if e == nil && ((c.ApprovedSupplierID != nil && *c.ApprovedSupplierID != objectID) || (c.OpenSupplierID != nil && *c.OpenSupplierID != objectID)) {
-		return newError(ErrorConflict, "supplier_legal_identifier_claimed", "supplier legal identifier is already occupied", nil, nil)
-	}
-	var approvedID, approvedEntryID *string
-	if e == nil {
-		approvedID, approvedEntryID = c.ApprovedSupplierID, c.ApprovedApprovalEntryID
-	}
-	return q.UpsertDCLSupplierLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLSupplierLegalIdentifierClaimParams{NormalizedLegalIdentifier: n, ApprovedSupplierID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenSupplierID: &objectID, OpenApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, supplierLegalIdentifierClaimStore{q: q}, objectID, entryID, normalizeSupplierIdentifier(legalIdentifier), false, legalIdentifierClaimConflict{
+		errorKey: "supplier_legal_identifier_claimed",
+		message:  "supplier legal identifier is already occupied",
+	})
 }
 func (s *SupplierService) promoteLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
-	if e := q.DeleteDCLSupplierLegalIdentifierClaimsForEntry(ctx, &entryID); e != nil || legalIdentifier == "" {
-		return e
-	}
-	n := normalizeSupplierIdentifier(legalIdentifier)
-	if e := q.LockDCLSupplierLegalIdentifierClaimKey(ctx, n); e != nil {
-		return e
-	}
-	c, e := q.LockDCLSupplierLegalIdentifierClaim(ctx, n)
-	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
-		return e
-	}
-	if e == nil && ((c.ApprovedSupplierID != nil && *c.ApprovedSupplierID != objectID) || (c.OpenSupplierID != nil && *c.OpenSupplierID != objectID)) {
-		return newError(ErrorConflict, "supplier_legal_identifier_claimed", "supplier legal identifier is already occupied", nil, nil)
-	}
-	return q.UpsertDCLSupplierLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLSupplierLegalIdentifierClaimParams{NormalizedLegalIdentifier: n, ApprovedSupplierID: &objectID, ApprovedApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, supplierLegalIdentifierClaimStore{q: q}, objectID, entryID, normalizeSupplierIdentifier(legalIdentifier), true, legalIdentifierClaimConflict{
+		errorKey: "supplier_legal_identifier_claimed",
+		message:  "supplier legal identifier is already occupied",
+	})
 }
 func (s *SupplierService) loadData(ctx context.Context, q *dbsqlc.Queries, id string) (SupplierData, error) {
 	r, e := q.GetDCLSupplierVersion(ctx, id)

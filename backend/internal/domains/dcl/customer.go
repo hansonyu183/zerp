@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/events/dclapproval"
@@ -30,10 +31,20 @@ type customerBusinessRules interface {
 
 // Customer owns identity and subunits in one DCL approval aggregate.
 type CustomerService struct {
-	pool        *pgxpool.Pool
-	queries     *dbsqlc.Queries
-	rules       customerBusinessRules
-	coordinator *approval.Coordinator[dclapproval.CustomerPayload]
+	pool               *pgxpool.Pool
+	queries            *dbsqlc.Queries
+	rules              customerBusinessRules
+	coordinator        *approval.Coordinator[dclapproval.CustomerPayload]
+	subunitCoordinator *approval.Coordinator[dclapproval.CustomerPayload]
+}
+
+type customerSubunitAuthorizer struct{ delegate approval.Authorizer }
+
+func (a customerSubunitAuthorizer) RequirePermission(ctx context.Context, principal authorization.Principal, path, requestID string) error {
+	if path == "/dcl/customer/save" {
+		path = "/dcl/customer/save-subunits"
+	}
+	return a.delegate.RequirePermission(ctx, principal, path, requestID)
 }
 
 func NewCustomerService(pool *pgxpool.Pool, rules customerBusinessRules, authorizer approval.Authorizer, bus *txevent.Bus) *CustomerService {
@@ -44,7 +55,11 @@ func NewCustomerService(pool *pgxpool.Pool, rules customerBusinessRules, authori
 	if err != nil {
 		panic(err)
 	}
-	return &CustomerService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
+	subunitCoordinator, err := approval.NewCoordinator("dcl", EntityCustomer, customerSubunitAuthorizer{delegate: authorizer}, bus, dclapproval.CustomerTopic)
+	if err != nil {
+		panic(err)
+	}
+	return &CustomerService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c, subunitCoordinator: subunitCoordinator}
 }
 
 func customerPayload(id subjectIdentity, enabled bool) dclapproval.CustomerPayload {
@@ -237,43 +252,17 @@ func customerCreditLimitCents(value string) (int64, error) {
 }
 
 func (s *CustomerService) claimCustomerLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, customerID, entryID, legalIdentifier string) error {
-	if err := q.DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
-		return err
-	}
-	normalized := normalizeCustomerIdentifier(legalIdentifier)
-	if err := q.LockDCLCustomerLegalIdentifierClaimKey(ctx, normalized); err != nil {
-		return err
-	}
-	claim, err := q.LockDCLCustomerLegalIdentifierClaim(ctx, normalized)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	if err == nil && ((claim.ApprovedCustomerID != nil && *claim.ApprovedCustomerID != customerID) || (claim.OpenCustomerID != nil && *claim.OpenCustomerID != customerID)) {
-		return newError(ErrorConflict, "customer_legal_identifier_claimed", "customer legal identifier is already occupied", nil, nil)
-	}
-	var approvedID, approvedEntry *string
-	if err == nil {
-		approvedID, approvedEntry = claim.ApprovedCustomerID, claim.ApprovedApprovalEntryID
-	}
-	return q.UpsertDCLCustomerLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLCustomerLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedCustomerID: approvedID, ApprovedApprovalEntryID: approvedEntry, OpenCustomerID: &customerID, OpenApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, customerLegalIdentifierClaimStore{q: q}, customerID, entryID, normalizeCustomerIdentifier(legalIdentifier), false, legalIdentifierClaimConflict{
+		errorKey: "customer_legal_identifier_claimed",
+		message:  "customer legal identifier is already occupied",
+	})
 }
 
 func (s *CustomerService) promoteCustomerLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, customerID, entryID, legalIdentifier string) error {
-	if err := q.DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
-		return err
-	}
-	normalized := normalizeCustomerIdentifier(legalIdentifier)
-	if err := q.LockDCLCustomerLegalIdentifierClaimKey(ctx, normalized); err != nil {
-		return err
-	}
-	claim, err := q.LockDCLCustomerLegalIdentifierClaim(ctx, normalized)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	if err == nil && ((claim.ApprovedCustomerID != nil && *claim.ApprovedCustomerID != customerID) || (claim.OpenCustomerID != nil && *claim.OpenCustomerID != customerID)) {
-		return newError(ErrorConflict, "customer_legal_identifier_claimed", "customer legal identifier is already occupied", nil, nil)
-	}
-	return q.UpsertDCLCustomerLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLCustomerLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedCustomerID: &customerID, ApprovedApprovalEntryID: &entryID})
+	return maintainLegalIdentifierClaim(ctx, customerLegalIdentifierClaimStore{q: q}, customerID, entryID, normalizeCustomerIdentifier(legalIdentifier), true, legalIdentifierClaimConflict{
+		errorKey: "customer_legal_identifier_claimed",
+		message:  "customer legal identifier is already occupied",
+	})
 }
 
 func (s *CustomerService) loadCustomerData(ctx context.Context, q *dbsqlc.Queries, entryID string) (CustomerData, error) {
@@ -452,7 +441,7 @@ func (s *CustomerService) updateAggregate(ctx context.Context, q *dbsqlc.Queries
 	return nil
 }
 
-func (s *CustomerService) openCandidate(ctx context.Context, tx pgx.Tx, id subjectIdentity, in CustomerVersionInput, actor approval.Actor, enabled bool, permissionAction string) (approval.Entry, *dbsqlc.Queries, error) {
+func (s *CustomerService) openCandidate(ctx context.Context, tx pgx.Tx, coordinator *approval.Coordinator[dclapproval.CustomerPayload], id subjectIdentity, in CustomerVersionInput, actor approval.Actor, enabled bool) (approval.Entry, *dbsqlc.Queries, error) {
 	if err := s.coordinator.LockVersionSubject(ctx, tx, in.ObjectID); err != nil {
 		return approval.Entry{}, nil, err
 	}
@@ -467,14 +456,14 @@ func (s *CustomerService) openCandidate(ctx context.Context, tx pgx.Tx, id subje
 	if stored.Status != string(approval.StatusApproved) {
 		return approval.Entry{}, nil, newError(ErrorConflict, "approval_invalid_transition", "only draft or latest approved customer can be saved", nil, nil)
 	}
-	latest, latestErr := s.coordinator.GetLatestApprovedForAction(ctx, tx, in.ObjectID, actor, permissionAction)
+	latest, latestErr := coordinator.GetLatestApprovedForSave(ctx, tx, in.ObjectID, actor)
 	if latestErr != nil || latest.ID != stored.ID {
 		if latestErr == nil || approval.IsKey(latestErr, "approval_version_not_found") {
 			latestErr = newError(ErrorConflict, "approval_stale_revision", "latest approved customer changed", nil, latestErr)
 		}
 		return approval.Entry{}, nil, latestErr
 	}
-	entry, err := s.coordinator.CreateNextVersionForAction(ctx, tx, id.ObjectID, actor, customerPayload(id, enabled), permissionAction)
+	entry, err := coordinator.CreateNextVersion(ctx, tx, id.ObjectID, actor, customerPayload(id, enabled))
 	if err == nil {
 		err = q.CopyDCLCustomerVersionAggregate(ctx, dbsqlc.CopyDCLCustomerVersionAggregateParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
 	}
@@ -537,7 +526,7 @@ func (s *CustomerService) Save(ctx context.Context, in CustomerSaveInput, actor 
 	if err != nil {
 		return CustomerMutation{}, err
 	}
-	entry, q, err := s.openCandidate(ctx, tx, id, CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}, actor, root.Enabled, "save")
+	entry, q, err := s.openCandidate(ctx, tx, s.coordinator, id, CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}, actor, root.Enabled)
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
@@ -587,7 +576,7 @@ func (s *CustomerService) SaveSubunits(ctx context.Context, in CustomerSaveSubun
 	if err != nil {
 		return CustomerMutation{}, err
 	}
-	entry, q, err := s.openCandidate(ctx, tx, id, CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}, actor, base.Enabled, "save-subunits")
+	entry, q, err := s.openCandidate(ctx, tx, s.subunitCoordinator, id, CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}, actor, base.Enabled)
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
@@ -608,7 +597,7 @@ func (s *CustomerService) SaveSubunits(ctx context.Context, in CustomerSaveSubun
 	if err = s.updateAggregate(ctx, q, entry.ID, data); err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	entry, err = s.coordinator.SaveDraftForAction(ctx, tx, entry.ID, entry.Revision, actor, customerPayload(id, data.Enabled), "save-subunits")
+	entry, err = s.subunitCoordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, customerPayload(id, data.Enabled))
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}

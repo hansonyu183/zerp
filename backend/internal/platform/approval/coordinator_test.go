@@ -82,6 +82,29 @@ func TestCoordinatorLifecycleActionsUseFixedEntityPermissions(t *testing.T) {
 	}
 }
 
+func TestCoordinatorRejectsDomainSpecificPermissionActions(t *testing.T) {
+	coordinator, err := NewCoordinator(
+		"dcl",
+		"customer",
+		allowAuthorizer{},
+		txevent.NewBus(),
+		MustTopic[string]("approval.test.domain-specific-permission"),
+	)
+	if err != nil {
+		t.Fatalf("new coordinator: %v", err)
+	}
+	actor, err := UserActor(authorization.Principal{
+		ActorID: "01J00000000000000000000001",
+	}, "request-domain-specific-permission")
+	if err != nil {
+		t.Fatalf("new actor: %v", err)
+	}
+
+	if err = coordinator.Authorize(t.Context(), actor, "save-subunits"); !IsKey(err, "approval_invalid_action") {
+		t.Fatalf("Authorize() domain-specific action error = %v", err)
+	}
+}
+
 type allowAuthorizer struct{}
 
 func (allowAuthorizer) RequirePermission(context.Context, authorization.Principal, string, string) error {

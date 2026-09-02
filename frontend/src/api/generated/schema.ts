@@ -2389,8 +2389,6 @@ export interface components {
       "DclProductVersionPage": Models.DclProductVersionPage;
       "DclProductVersionPageResponse": Models.DclProductVersionPageResponse;
       "BusinessIdentityKind": Models.BusinessIdentityKind;
-      "BusinessIdentifierType": Models.BusinessIdentifierType;
-      "BusinessIdentifier": Models.BusinessIdentifier;
       "DclEmployeeInput": Models.DclEmployeeInput;
       "DclEmployeeCreateRequest": Models.DclEmployeeCreateRequest;
       "DclOperatingEntityMutationResponse": Models.DclOperatingEntityMutationResponse;
@@ -2425,6 +2423,7 @@ export interface components {
       "DclCustomerListItem": Models.DclCustomerListItem;
       "DclCustomerQueryPage": Models.DclCustomerQueryPage;
       "DclCustomerQueryResponse": Models.DclCustomerQueryResponse;
+      "CustomerIdentityKind": Models.CustomerIdentityKind;
       "DclCustomerRemittanceProfile": Models.DclCustomerRemittanceProfile;
       "DclCustomerSnapshot": Models.DclCustomerSnapshot;
       "DclCustomerAuxiliarySnapshot": Models.DclCustomerAuxiliarySnapshot;

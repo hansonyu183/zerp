@@ -15,7 +15,10 @@ import { useSessionStore } from '@/stores/session'
 vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn() } }))
 const mockedPost = vi.mocked(apiClient.postContract)
 
-const approval = (status: 'DRAFT' | 'PENDING' | 'APPROVED', versionNo: number) => ({
+const approval = (
+  status: 'DRAFT' | 'PENDING' | 'APPROVED',
+  versionNo: number,
+) => ({
   approvalEntryId: `ENTRY-${status}-${versionNo}`,
   revision: 1,
   status,
@@ -47,7 +50,8 @@ describe('DCL customer workspace', () => {
     vm.createForm.value = form
     vm.addAccount()
     vm.createForm.value.accounts[1]!.name = '备用结算账户'
-    vm.createForm.value.accounts[1]!.primarySalesAttribution.subjectObjectId = 'EMP-1'
+    vm.createForm.value.accounts[1]!.primarySalesAttribution.subjectObjectId =
+      'EMP-1'
     vm.setDefaultAccount(1)
 
     await vm.create()
@@ -62,6 +66,33 @@ describe('DCL customer workspace', () => {
         ],
       }),
     })
+  })
+
+  it('allows a blank legal identifier in a draft but blocks an invalid non-empty enterprise identifier', async () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/dcl/customer/create',
+      '/bob/operating-entity/query',
+      '/aux/reference/query',
+      '/bob/reference/query',
+    ]
+    const vm = useDclCustomerViewModel()
+    const form = createCustomerForm()
+    form.legalName = '待校验客户'
+    form.legalIdentifier = '91350211M000100Y47'
+    form.defaultOperatingEntityId = 'OPE-1'
+    form.accounts[0]!.name = '主结算账户'
+    form.accounts[0]!.primarySalesAttribution.subjectObjectId = 'EMP-1'
+    vm.createForm.value = form
+
+    await expect(vm.create()).resolves.toBe(false)
+    expect(vm.errorMessage.value).toBe(
+      '统一社会信用代码须为校验通过的 18 位代码。',
+    )
+    expect(mockedPost).not.toHaveBeenCalledWith(
+      'dcl/customer/create',
+      expect.anything(),
+    )
   })
 
   it('maps the four customer list edit states without inferring approval actions', () => {
@@ -112,36 +143,46 @@ describe('DCL customer workspace', () => {
     })
   })
 
-  it('round-trips all strong identifiers and multi-currency credit limits', () => {
+  it('round-trips the single legal identifier and multi-currency credit limits', () => {
     const form = customerFormFromView({
       data: {
-        kind: 'ORGANIZATION', legalName: '多值客户', displayName: '多值客户',
-        strongIdentifiers: [
-          { type: 'UNIFIED_SOCIAL_CREDIT_CODE', value: '913500001' },
-          { type: 'PERSON_ID', value: '350100199001010001' },
-        ],
-        remittanceProfiles: [], defaultOperatingEntityId: 'OPE-1', enabled: true,
-        accounts: [{
-          accountId: 'ACC-1', enabled: true, isDefault: true, name: '主账户',
-          customerTypeId: 'TYPE-1', transportSurcharge: '0.00',
-          pricingPolicy: {
-            defaultPremiumUnitPrice: '0.00', defaultDiscountUnitPrice: '0.00', costItems: [],
-            thirdPartyIntermediaryFixedUnitCost: '0.00', thirdPartyIntermediaryVariableUnitCost: '0.00',
+        kind: 'MAINLAND_ENTERPRISE',
+        legalName: '客户甲',
+        displayName: '客户甲',
+        legalIdentifier: '91350211M000100Y46',
+        remittanceProfiles: [],
+        defaultOperatingEntityId: 'OPE-1',
+        enabled: true,
+        accounts: [
+          {
+            accountId: 'ACC-1',
+            enabled: true,
+            isDefault: true,
+            name: '主账户',
+            customerTypeId: 'TYPE-1',
+            transportSurcharge: '0.00',
+            pricingPolicy: {
+              defaultPremiumUnitPrice: '0.00',
+              defaultDiscountUnitPrice: '0.00',
+              costItems: [],
+              thirdPartyIntermediaryFixedUnitCost: '0.00',
+              thirdPartyIntermediaryVariableUnitCost: '0.00',
+            },
+            creditLimits: [
+              { currency: 'CNY', amount: '1000.00' },
+              { currency: 'USD', amount: '200.00' },
+            ],
+            primarySalesAttribution: {
+              type: 'INTERNAL_EMPLOYEE',
+              subjectObjectId: 'EMP-1',
+            },
           },
-          creditLimits: [
-            { currency: 'CNY', amount: '1000.00' },
-            { currency: 'USD', amount: '200.00' },
-          ],
-          primarySalesAttribution: { type: 'INTERNAL_EMPLOYEE', subjectObjectId: 'EMP-1' },
-        }],
+        ],
       },
     } as never)
 
     const payload = dclCustomerPayload(form)
-    expect(payload.strongIdentifiers).toEqual([
-      { type: 'UNIFIED_SOCIAL_CREDIT_CODE', value: '913500001' },
-      { type: 'PERSON_ID', value: '350100199001010001' },
-    ])
+    expect(payload.legalIdentifier).toBe('91350211M000100Y46')
     expect(payload.accounts[0]?.creditLimits).toEqual([
       { currency: 'CNY', amount: '1000.00' },
       { currency: 'USD', amount: '200.00' },
@@ -155,14 +196,16 @@ describe('DCL customer workspace', () => {
       const [path, payload] = args as [string, { entity?: string }]
       if (path !== 'bob/reference/query') return { data: [] } as never
       return {
-        data: payload.entity === 'employee'
-          ? [{ objectId: 'EMP-1', code: 'EMP-001', name: '内部业务员' }]
-          : [{ objectId: 'PAR-1', code: 'PAR-001', name: '渠道伙伴' }],
+        data:
+          payload.entity === 'employee'
+            ? [{ objectId: 'EMP-1', code: 'EMP-001', name: '内部业务员' }]
+            : [{ objectId: 'PAR-1', code: 'PAR-001', name: '渠道伙伴' }],
       } as never
     })
     const vm = useDclCustomerViewModel()
     vm.addAccount(vm.createForm.value)
-    vm.createForm.value.accounts[1]!.primarySalesAttribution.type = 'CHANNEL_PARTNER'
+    vm.createForm.value.accounts[1]!.primarySalesAttribution.type =
+      'CHANNEL_PARTNER'
     session.permissions = [
       '/bob/operating-entity/query',
       '/aux/reference/query',
@@ -174,12 +217,18 @@ describe('DCL customer workspace', () => {
     await vi.advanceTimersByTimeAsync(250)
     await Promise.resolve()
 
-    expect(vm.referenceOptionsForAccount(0, 'primarySalesAttributionSubjectObjectId')).toEqual([
-      { value: 'EMP-1', title: 'EMP-001 · 内部业务员' },
-    ])
-    expect(vm.referenceOptionsForAccount(1, 'primarySalesAttributionSubjectObjectId')).toEqual([
-      { value: 'PAR-1', title: 'PAR-001 · 渠道伙伴' },
-    ])
+    expect(
+      vm.referenceOptionsForAccount(
+        0,
+        'primarySalesAttributionSubjectObjectId',
+      ),
+    ).toEqual([{ value: 'EMP-1', title: 'EMP-001 · 内部业务员' }])
+    expect(
+      vm.referenceOptionsForAccount(
+        1,
+        'primarySalesAttributionSubjectObjectId',
+      ),
+    ).toEqual([{ value: 'PAR-1', title: 'PAR-001 · 渠道伙伴' }])
     vi.useRealTimers()
   })
 })

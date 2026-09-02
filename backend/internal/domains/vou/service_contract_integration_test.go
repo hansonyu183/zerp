@@ -114,7 +114,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 			Kind:                     "ORGANIZATION",
 			LegalName:                "渠道合作方",
 			DisplayName:              "渠道合作方",
-			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
+			LegalIdentifier:          "91350211M000100034",
 			OperatingEntityIDs:       []string{refs.salesReceiptOperatingEntity.ObjectID},
 			DefaultOperatingEntityID: refs.salesReceiptOperatingEntity.ObjectID,
 			Capabilities:             []string{bobdomain.SalesCapabilityChannelPartner},

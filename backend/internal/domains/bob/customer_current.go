@@ -197,7 +197,7 @@ func customerReferenceDetail(raw []byte) (DetailView, error) {
 		name = mapString(data, "legalName")
 	}
 	return DetailView{
-		Name: name, TaxNumber: mapString(data, "taxNumber"), Address: mapString(data, "address"), Phone: mapString(data, "phone"),
+		Name: name, LegalIdentifier: mapString(data, "legalIdentifier"), Address: mapString(data, "address"), Phone: mapString(data, "phone"),
 	}, nil
 }
 

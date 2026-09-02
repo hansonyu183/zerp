@@ -79,36 +79,25 @@ func salesPayload(id subjectIdentity, enabled bool) dclapproval.SalesPartnerPayl
 func archiveMutation(id subjectIdentity, enabled bool, entry approval.Entry) TypedArchiveMutation {
 	return TypedArchiveMutation{ObjectID: id.ObjectID, Enabled: enabled, Approval: approval.VersionMetaFromEntry(entry)}
 }
-func normalizeArchiveIdentifier(value string) string {
-	return strings.ToUpper(strings.TrimSpace(value))
-}
-
-func normalizeIdentity(kind, legalName, displayName, taxNumber string, identifiers []BusinessIdentifierInput, operatingIDs []string, defaultID string) (string, string, string, string, []BusinessIdentifierInput, []string, error) {
-	kind, legalName, displayName, taxNumber, defaultID = strings.TrimSpace(kind), strings.TrimSpace(legalName), strings.TrimSpace(displayName), strings.ToUpper(strings.TrimSpace(taxNumber)), strings.TrimSpace(defaultID)
-	if (kind != "PERSON" && kind != "ORGANIZATION") || legalName == "" || !runeLenAtMost(legalName, 200) || !runeLenAtMost(displayName, 200) || !runeLenAtMost(taxNumber, 100) || identifiers == nil || len(identifiers) > 10 || !validID(defaultID) {
-		return "", "", "", "", nil, nil, newError(ErrorValidation, "validation_failed", "invalid business archive identity", nil, nil)
+func normalizeIdentity(kind, legalName, displayName, legalIdentifier string, operatingIDs []string, defaultID string, identifierRequired bool) (string, string, string, string, []string, error) {
+	kind, legalName, displayName, defaultID = strings.TrimSpace(kind), strings.TrimSpace(legalName), strings.TrimSpace(displayName), strings.TrimSpace(defaultID)
+	if (kind != "PERSON" && kind != "ORGANIZATION") || legalName == "" || !runeLenAtMost(legalName, 200) || !runeLenAtMost(displayName, 200) || !validID(defaultID) {
+		return "", "", "", "", nil, newError(ErrorValidation, "validation_failed", "invalid business archive identity", nil, nil)
 	}
 	if displayName == "" {
 		displayName = legalName
 	}
-	seen := map[string]struct{}{}
-	for i := range identifiers {
-		identifiers[i].Type, identifiers[i].Value = strings.TrimSpace(identifiers[i].Type), strings.TrimSpace(identifiers[i].Value)
-		key := identifiers[i].Type + "\x00" + normalizeArchiveIdentifier(identifiers[i].Value)
-		if !validBusinessIdentifierType(identifiers[i].Type) || identifiers[i].Value == "" || !runeLenAtMost(identifiers[i].Value, 100) {
-			return "", "", "", "", nil, nil, newError(ErrorValidation, "validation_failed", "invalid business archive identifier", nil, nil)
-		}
-		if _, ok := seen[key]; ok {
-			return "", "", "", "", nil, nil, newError(ErrorValidation, "validation_failed", "duplicate business archive identifier", nil, nil)
-		}
-		seen[key] = struct{}{}
+	var err error
+	legalIdentifier, err = normalizeTypedArchiveLegalIdentifier(kind, legalIdentifier, identifierRequired)
+	if err != nil {
+		return "", "", "", "", nil, err
 	}
 	set := map[string]struct{}{}
 	ids := make([]string, 0, len(operatingIDs))
 	for _, id := range operatingIDs {
 		id = strings.TrimSpace(id)
 		if !validID(id) {
-			return "", "", "", "", nil, nil, newError(ErrorValidation, "validation_failed", "invalid operating entity", nil, nil)
+			return "", "", "", "", nil, newError(ErrorValidation, "validation_failed", "invalid operating entity", nil, nil)
 		}
 		if _, ok := set[id]; !ok {
 			set[id] = struct{}{}
@@ -117,27 +106,50 @@ func normalizeIdentity(kind, legalName, displayName, taxNumber string, identifie
 	}
 	sort.Strings(ids)
 	if len(ids) == 0 {
-		return "", "", "", "", nil, nil, newError(ErrorValidation, "validation_failed", "operating entity set is required", nil, nil)
+		return "", "", "", "", nil, newError(ErrorValidation, "validation_failed", "operating entity set is required", nil, nil)
 	}
 	if _, ok := set[defaultID]; !ok {
-		return "", "", "", "", nil, nil, newError(ErrorValidation, "validation_failed", "default operating entity must belong to operating entity set", nil, nil)
+		return "", "", "", "", nil, newError(ErrorValidation, "validation_failed", "default operating entity must belong to operating entity set", nil, nil)
 	}
-	return kind, legalName, displayName, taxNumber, identifiers, ids, nil
+	return kind, legalName, displayName, legalIdentifier, ids, nil
+}
+
+func normalizeTypedArchiveLegalIdentifier(kind, value string, required bool) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		if required {
+			return "", newError(ErrorValidation, "invalid_legal_identifier", "legal identifier is required", nil, nil)
+		}
+		return "", nil
+	}
+	var normalized string
+	var err error
+	switch kind {
+	case "PERSON":
+		normalized, err = normalizeCustomerLegalIdentifier("MAINLAND_INDIVIDUAL", value)
+	case "ORGANIZATION":
+		normalized, err = normalizeCustomerLegalIdentifier("MAINLAND_ENTERPRISE", value)
+	default:
+		return "", newError(ErrorValidation, "invalid_legal_identifier", "invalid archive identity kind", nil, nil)
+	}
+	if err != nil || !runeLenAtMost(normalized, 100) {
+		return "", newError(ErrorValidation, "invalid_legal_identifier", "legal identifier is invalid", nil, err)
+	}
+	return normalized, nil
 }
 func otherDeclaration(data OtherUnitData) OtherUnitDeclaration {
 	return OtherUnitDeclaration{ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, SettlementMethodID: data.SettlementMethodID, SettlementMethodCode: data.SettlementMethodCode, SettlementMethodName: data.SettlementMethodName, TermCode: data.SettlementTermCode, RuleType: data.SettlementRuleType, MonthOffset: data.SettlementMonthOffset, DayOffset: data.SettlementDayOffset, Remark: data.Remark}
 }
 func normalizeOther(data OtherUnitData) (OtherUnitData, error) {
-	kind, legal, display, tax, ids, operating, err := normalizeIdentity(data.Kind, data.LegalName, data.DisplayName, data.TaxNumber, data.StrongIdentifiers, data.OperatingEntityIDs, data.DefaultOperatingEntityID)
+	kind, legal, display, identifier, operating, err := normalizeIdentity(data.Kind, data.LegalName, data.DisplayName, data.LegalIdentifier, data.OperatingEntityIDs, data.DefaultOperatingEntityID, false)
 	if err != nil {
 		return OtherUnitData{}, err
 	}
-	data.Kind, data.LegalName, data.DisplayName, data.TaxNumber, data.StrongIdentifiers, data.OperatingEntityIDs = kind, legal, display, tax, ids, operating
+	data.Kind, data.LegalName, data.DisplayName, data.LegalIdentifier, data.OperatingEntityIDs = kind, legal, display, identifier, operating
 	data.ContactName, data.ContactPhone, data.Email, data.Address, data.Remark = strings.TrimSpace(data.ContactName), strings.TrimSpace(data.ContactPhone), strings.TrimSpace(data.Email), strings.TrimSpace(data.Address), strings.TrimSpace(data.Remark)
 	return data, nil
 }
 func normalizeSales(data SalesPartnerData, required bool) (SalesPartnerData, error) {
-	kind, legal, display, tax, ids, operating, err := normalizeIdentity(data.Kind, data.LegalName, data.DisplayName, data.TaxNumber, data.StrongIdentifiers, data.OperatingEntityIDs, data.DefaultOperatingEntityID)
+	kind, legal, display, identifier, operating, err := normalizeIdentity(data.Kind, data.LegalName, data.DisplayName, data.LegalIdentifier, data.OperatingEntityIDs, data.DefaultOperatingEntityID, required)
 	if err != nil {
 		return SalesPartnerData{}, err
 	}
@@ -157,7 +169,7 @@ func normalizeSales(data SalesPartnerData, required bool) (SalesPartnerData, err
 	if required && len(data.Capabilities) == 0 {
 		return SalesPartnerData{}, newError(ErrorValidation, "validation_failed", "sales partner requires at least one capability", nil, nil)
 	}
-	data.Kind, data.LegalName, data.DisplayName, data.TaxNumber, data.StrongIdentifiers, data.OperatingEntityIDs = kind, legal, display, tax, ids, operating
+	data.Kind, data.LegalName, data.DisplayName, data.LegalIdentifier, data.OperatingEntityIDs = kind, legal, display, identifier, operating
 	data.ContactName, data.ContactPhone, data.Email, data.Address, data.Remark = strings.TrimSpace(data.ContactName), strings.TrimSpace(data.ContactPhone), strings.TrimSpace(data.Email), strings.TrimSpace(data.Address), strings.TrimSpace(data.Remark)
 	return data, nil
 }
@@ -305,9 +317,6 @@ func (s *TypedArchiveService) saveOther(ctx context.Context, input OtherUnitSave
 		entry, err = s.other.CreateNextVersion(ctx, tx, input.ObjectID, actor, otherPayload(id, data.Enabled))
 		if err == nil {
 			_, err = q.CopyDCLOtherUnitVersion(ctx, dbsqlc.CopyDCLOtherUnitVersionParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
-			if err == nil {
-				err = q.CopyDCLOtherUnitVersionIdentifiers(ctx, dbsqlc.CopyDCLOtherUnitVersionIdentifiersParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
-			}
 		}
 	} else if approval.Status(stored.Status) == approval.StatusDraft {
 		entry = approvalEntry(stored)
@@ -329,7 +338,10 @@ func (s *TypedArchiveService) saveOther(ctx context.Context, input OtherUnitSave
 	if err = s.updateOther(ctx, q, entry.ID, data); err != nil {
 		return TypedArchiveMutation{}, translateError(err)
 	}
-	if err = s.writeOtherIdentifiers(ctx, q, input.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+	if err = s.restoreOtherLatestApprovedLegalIdentifier(ctx, q, input.ObjectID); err != nil {
+		return TypedArchiveMutation{}, translateError(err)
+	}
+	if err = s.claimOpenOtherLegalIdentifier(ctx, q, input.ObjectID, entry.ID, data.LegalIdentifier); err != nil {
 		return TypedArchiveMutation{}, translateError(err)
 	}
 	entry, err = s.other.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, otherPayload(id, data.Enabled))
@@ -371,9 +383,6 @@ func (s *TypedArchiveService) SaveSalesPartner(ctx context.Context, input SalesP
 		entry, err = s.sales.CreateNextVersion(ctx, tx, input.ObjectID, actor, salesPayload(id, data.Enabled))
 		if err == nil {
 			_, err = q.CopyDCLSalesPartnerVersion(ctx, dbsqlc.CopyDCLSalesPartnerVersionParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
-			if err == nil {
-				err = q.CopyDCLSalesPartnerVersionIdentifiers(ctx, dbsqlc.CopyDCLSalesPartnerVersionIdentifiersParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
-			}
 		}
 	} else if approval.Status(stored.Status) == approval.StatusDraft {
 		entry = approvalEntry(stored)
@@ -390,7 +399,10 @@ func (s *TypedArchiveService) SaveSalesPartner(ctx context.Context, input SalesP
 	if err = s.updateSales(ctx, q, entry.ID, data); err != nil {
 		return TypedArchiveMutation{}, translateError(err)
 	}
-	if err = s.writeSalesIdentifiers(ctx, q, input.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+	if err = s.restoreSalesLatestApprovedLegalIdentifier(ctx, q, input.ObjectID); err != nil {
+		return TypedArchiveMutation{}, translateError(err)
+	}
+	if err = s.claimOpenSalesLegalIdentifier(ctx, q, input.ObjectID, entry.ID, data.LegalIdentifier); err != nil {
 		return TypedArchiveMutation{}, translateError(err)
 	}
 	entry, err = s.sales.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, salesPayload(id, data.Enabled))
@@ -466,6 +478,9 @@ func (s *TypedArchiveService) transition(ctx context.Context, entity string, inp
 			return TypedArchiveMutation{}, err
 		}
 		if action == approval.ActionSubmitted || action == approval.ActionApproved {
+			if _, err = normalizeTypedArchiveLegalIdentifier(data.Kind, data.LegalIdentifier, true); err != nil {
+				return TypedArchiveMutation{}, err
+			}
 			if err = s.checkOperating(ctx, tx, data.OperatingEntities, data.DefaultOperatingEntity); err != nil {
 				return TypedArchiveMutation{}, err
 			}
@@ -478,15 +493,23 @@ func (s *TypedArchiveService) transition(ctx context.Context, entity string, inp
 				return TypedArchiveMutation{}, translateError(err)
 			}
 		}
+		if action == approval.ActionSubmitted {
+			if err = s.restoreOtherLatestApprovedLegalIdentifier(ctx, q, input.ObjectID); err != nil {
+				return TypedArchiveMutation{}, translateError(err)
+			}
+			if err = s.claimOpenOtherLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
+				return TypedArchiveMutation{}, translateError(err)
+			}
+		}
 		if action == approval.ActionApproved {
 			if latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityOtherUnit, SubjectID: input.ObjectID}); latestErr == nil && latest.ID != input.ApprovalEntryID {
-				if err = q.DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
+				if err = q.DeleteDCLOtherUnitLegalIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
 					return TypedArchiveMutation{}, translateError(err)
 				}
 			} else if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
 				return TypedArchiveMutation{}, translateError(latestErr)
 			}
-			if err = s.promoteOtherIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
+			if err = s.promoteOtherLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
 				return TypedArchiveMutation{}, translateError(err)
 			}
 		}
@@ -497,13 +520,13 @@ func (s *TypedArchiveService) transition(ctx context.Context, entity string, inp
 				if loadErr != nil {
 					return TypedArchiveMutation{}, loadErr
 				}
-				if err = s.promoteOtherIdentifiers(ctx, q, input.ObjectID, fallback.ID, fallbackData.StrongIdentifiers); err != nil {
+				if err = s.promoteOtherLegalIdentifier(ctx, q, input.ObjectID, fallback.ID, fallbackData.LegalIdentifier); err != nil {
 					return TypedArchiveMutation{}, translateError(err)
 				}
 			} else if !errors.Is(fallbackErr, pgx.ErrNoRows) {
 				return TypedArchiveMutation{}, translateError(fallbackErr)
 			}
-			if err = s.claimOpenOtherIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
+			if err = s.claimOpenOtherLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
 				return TypedArchiveMutation{}, translateError(err)
 			}
 		}
@@ -537,15 +560,23 @@ func (s *TypedArchiveService) transition(ctx context.Context, entity string, inp
 			return TypedArchiveMutation{}, translateError(err)
 		}
 	}
+	if action == approval.ActionSubmitted {
+		if err = s.restoreSalesLatestApprovedLegalIdentifier(ctx, q, input.ObjectID); err != nil {
+			return TypedArchiveMutation{}, translateError(err)
+		}
+		if err = s.claimOpenSalesLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
+			return TypedArchiveMutation{}, translateError(err)
+		}
+	}
 	if action == approval.ActionApproved {
 		if latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySalesPartner, SubjectID: input.ObjectID}); latestErr == nil && latest.ID != input.ApprovalEntryID {
-			if err = q.DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
+			if err = q.DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
 				return TypedArchiveMutation{}, translateError(err)
 			}
 		} else if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
 			return TypedArchiveMutation{}, translateError(latestErr)
 		}
-		if err = s.promoteSalesIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
+		if err = s.promoteSalesLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
 			return TypedArchiveMutation{}, translateError(err)
 		}
 	}
@@ -556,13 +587,13 @@ func (s *TypedArchiveService) transition(ctx context.Context, entity string, inp
 			if loadErr != nil {
 				return TypedArchiveMutation{}, loadErr
 			}
-			if err = s.promoteSalesIdentifiers(ctx, q, input.ObjectID, fallback.ID, fallbackData.StrongIdentifiers); err != nil {
+			if err = s.promoteSalesLegalIdentifier(ctx, q, input.ObjectID, fallback.ID, fallbackData.LegalIdentifier); err != nil {
 				return TypedArchiveMutation{}, translateError(err)
 			}
 		} else if !errors.Is(fallbackErr, pgx.ErrNoRows) {
 			return TypedArchiveMutation{}, translateError(fallbackErr)
 		}
-		if err = s.claimOpenSalesIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
+		if err = s.claimOpenSalesLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
 			return TypedArchiveMutation{}, translateError(err)
 		}
 	}
@@ -602,7 +633,7 @@ func (s *TypedArchiveService) delete(ctx context.Context, entity string, input T
 			return e
 		}
 		enabled = data.Enabled
-		if err = s.deleteOther(ctx, q, input.ApprovalEntryID); err == nil {
+		if err = s.deleteOther(ctx, q, input.ObjectID, input.ApprovalEntryID); err == nil {
 			err = s.other.DeleteDraftVersion(ctx, tx, input.ApprovalEntryID, input.ApprovalRevision, actor, otherPayload(id, enabled))
 		}
 	} else {
@@ -611,7 +642,7 @@ func (s *TypedArchiveService) delete(ctx context.Context, entity string, input T
 			return e
 		}
 		enabled = data.Enabled
-		if err = s.deleteSales(ctx, q, input.ApprovalEntryID); err == nil {
+		if err = s.deleteSales(ctx, q, input.ObjectID, input.ApprovalEntryID); err == nil {
 			err = s.sales.DeleteDraftVersion(ctx, tx, input.ApprovalEntryID, input.ApprovalRevision, actor, salesPayload(id, enabled))
 		}
 	}
@@ -638,17 +669,17 @@ func otherFromDetail(data OtherUnitData, d OtherUnitDeclaration) OtherUnitData {
 	return data
 }
 func otherParams(id string, data OtherUnitData) dbsqlc.UpdateDCLOtherUnitVersionParams {
-	return dbsqlc.UpdateDCLOtherUnitVersionParams{ApprovalEntryID: id, Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address), SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.SettlementTermCode), SettlementRuleType: nilIfEmpty(data.SettlementRuleType), SettlementMonthOffset: data.SettlementMonthOffset, SettlementDayOfMonth: data.SettlementDayOfMonth, SettlementDayOffset: data.SettlementDayOffset, DefaultOperatingEntityID: data.DefaultOperatingEntity.SourceObjectID, DefaultOperatingEntityApprovalEntryID: data.DefaultOperatingEntity.ApprovalEntryID, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, DefaultOperatingEntityName: data.DefaultOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled}
+	return dbsqlc.UpdateDCLOtherUnitVersionParams{ApprovalEntryID: id, Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, LegalIdentifier: nilIfEmpty(data.LegalIdentifier), ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address), SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.SettlementTermCode), SettlementRuleType: nilIfEmpty(data.SettlementRuleType), SettlementMonthOffset: data.SettlementMonthOffset, SettlementDayOfMonth: data.SettlementDayOfMonth, SettlementDayOffset: data.SettlementDayOffset, DefaultOperatingEntityID: data.DefaultOperatingEntity.SourceObjectID, DefaultOperatingEntityApprovalEntryID: data.DefaultOperatingEntity.ApprovalEntryID, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, DefaultOperatingEntityName: data.DefaultOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled}
 }
 func (s *TypedArchiveService) writeOther(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, data OtherUnitData) error {
 	p := otherParams(entryID, data)
-	if err := q.InsertDCLOtherUnitVersion(ctx, dbsqlc.InsertDCLOtherUnitVersionParams{ApprovalEntryID: p.ApprovalEntryID, Kind: p.Kind, LegalName: p.LegalName, DisplayName: p.DisplayName, TaxNumber: p.TaxNumber, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, SettlementMethodID: p.SettlementMethodID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, DefaultOperatingEntityID: p.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: p.DefaultOperatingEntityApprovalEntryID, DefaultOperatingEntityCode: p.DefaultOperatingEntityCode, DefaultOperatingEntityName: p.DefaultOperatingEntityName, Remark: p.Remark, Enabled: p.Enabled}); err != nil {
+	if err := q.InsertDCLOtherUnitVersion(ctx, dbsqlc.InsertDCLOtherUnitVersionParams{ApprovalEntryID: p.ApprovalEntryID, Kind: p.Kind, LegalName: p.LegalName, DisplayName: p.DisplayName, LegalIdentifier: p.LegalIdentifier, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, SettlementMethodID: p.SettlementMethodID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, DefaultOperatingEntityID: p.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: p.DefaultOperatingEntityApprovalEntryID, DefaultOperatingEntityCode: p.DefaultOperatingEntityCode, DefaultOperatingEntityName: p.DefaultOperatingEntityName, Remark: p.Remark, Enabled: p.Enabled}); err != nil {
 		return err
 	}
 	if err := s.replaceOtherOperating(ctx, q, entryID, data.OperatingEntities); err != nil {
 		return err
 	}
-	return s.writeOtherIdentifiers(ctx, q, objectID, entryID, data.StrongIdentifiers)
+	return s.claimOpenOtherLegalIdentifier(ctx, q, objectID, entryID, data.LegalIdentifier)
 }
 func (s *TypedArchiveService) updateOther(ctx context.Context, q *dbsqlc.Queries, entryID string, data OtherUnitData) error {
 	n, err := q.UpdateDCLOtherUnitVersion(ctx, otherParams(entryID, data))
@@ -676,102 +707,106 @@ func (s *TypedArchiveService) loadOther(ctx context.Context, q *dbsqlc.Queries, 
 	if err != nil {
 		return OtherUnitData{}, translateError(err)
 	}
-	identifiers, err := q.ListDCLOtherUnitVersionIdentifiers(ctx, entryID)
-	if err != nil {
-		return OtherUnitData{}, translateError(err)
-	}
 	operating, err := q.ListDCLOtherUnitVersionOperatingEntities(ctx, entryID)
 	if err != nil {
 		return OtherUnitData{}, translateError(err)
 	}
-	data := OtherUnitData{Kind: r.Kind, LegalName: r.LegalName, DisplayName: r.DisplayName, TaxNumber: stringValue(r.TaxNumber), Enabled: r.Enabled, DefaultOperatingEntityID: r.DefaultOperatingEntityID, DefaultOperatingEntity: BusinessArchiveSnapshot{SourceObjectID: r.DefaultOperatingEntityID, ApprovalEntryID: r.DefaultOperatingEntityApprovalEntryID, Code: r.DefaultOperatingEntityCode, Name: r.DefaultOperatingEntityName}, ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), SettlementTermCode: stringValue(r.SettlementTermCode), SettlementRuleType: stringValue(r.SettlementRuleType), SettlementMonthOffset: r.SettlementMonthOffset, SettlementDayOfMonth: r.SettlementDayOfMonth, SettlementDayOffset: r.SettlementDayOffset, Remark: stringValue(r.Remark), StrongIdentifiers: make([]BusinessIdentifierInput, 0, len(identifiers)), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating))}
-	for _, v := range identifiers {
-		data.StrongIdentifiers = append(data.StrongIdentifiers, BusinessIdentifierInput{Type: v.IdentifierType, Value: v.Value})
-	}
+	data := OtherUnitData{Kind: r.Kind, LegalName: r.LegalName, DisplayName: r.DisplayName, LegalIdentifier: stringValue(r.LegalIdentifier), Enabled: r.Enabled, DefaultOperatingEntityID: r.DefaultOperatingEntityID, DefaultOperatingEntity: BusinessArchiveSnapshot{SourceObjectID: r.DefaultOperatingEntityID, ApprovalEntryID: r.DefaultOperatingEntityApprovalEntryID, Code: r.DefaultOperatingEntityCode, Name: r.DefaultOperatingEntityName}, ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), SettlementMethodID: stringValue(r.SettlementMethodID), SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), SettlementTermCode: stringValue(r.SettlementTermCode), SettlementRuleType: stringValue(r.SettlementRuleType), SettlementMonthOffset: r.SettlementMonthOffset, SettlementDayOfMonth: r.SettlementDayOfMonth, SettlementDayOffset: r.SettlementDayOffset, Remark: stringValue(r.Remark), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating))}
 	for _, v := range operating {
 		data.OperatingEntityIDs = append(data.OperatingEntityIDs, v.OperatingEntityID)
 		data.OperatingEntities = append(data.OperatingEntities, BusinessArchiveSnapshot{SourceObjectID: v.OperatingEntityID, ApprovalEntryID: v.OperatingEntityApprovalEntryID, Code: v.OperatingEntityCode, Name: v.OperatingEntityName})
 	}
 	return data, nil
 }
-func (s *TypedArchiveService) writeOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLOtherUnitVersionIdentifiers(ctx, entryID); err != nil {
+func (s *TypedArchiveService) claimOpenOtherLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
+	if err := q.DeleteDCLOtherUnitLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
 		return err
 	}
-	for _, v := range ids {
-		if err := q.InsertDCLOtherUnitVersionIdentifier(ctx, dbsqlc.InsertDCLOtherUnitVersionIdentifierParams{ApprovalEntryID: entryID, IdentifierType: v.Type, Value: v.Value, NormalizedValue: normalizeArchiveIdentifier(v.Value)}); err != nil {
-			return err
-		}
-	}
-	return s.claimOpenOtherIdentifiers(ctx, q, objectID, entryID, ids)
-}
-func (s *TypedArchiveService) claimOpenOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+	normalized := strings.ToUpper(strings.TrimSpace(legalIdentifier))
+	if err := q.LockDCLOtherUnitLegalIdentifierClaimKey(ctx, normalized); err != nil {
 		return err
 	}
-	for _, identifier := range ids {
-		normalized := normalizeArchiveIdentifier(identifier.Value)
-		if err := q.LockDCLOtherUnitIdentifierClaimKey(ctx, dbsqlc.LockDCLOtherUnitIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		claim, err := q.LockDCLOtherUnitIdentifierClaim(ctx, dbsqlc.LockDCLOtherUnitIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized})
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		if err == nil && ((claim.ApprovedOtherUnitID != nil && *claim.ApprovedOtherUnitID != objectID) || (claim.OpenOtherUnitID != nil && *claim.OpenOtherUnitID != objectID)) {
-			return newError(ErrorConflict, "other_unit_identifier_claimed", "Other Unit identifier is already occupied", nil, nil)
-		}
-		var approvedID, approvedEntryID *string
-		if err == nil {
-			approvedID, approvedEntryID = claim.ApprovedOtherUnitID, claim.ApprovedApprovalEntryID
-		}
-		if err = q.UpsertDCLOtherUnitIdentifierClaim(ctx, dbsqlc.UpsertDCLOtherUnitIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedOtherUnitID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenOtherUnitID: &objectID, OpenApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-func (s *TypedArchiveService) promoteOtherIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+	claim, err := q.LockDCLOtherUnitLegalIdentifierClaim(ctx, normalized)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	for _, identifier := range ids {
-		normalized := normalizeArchiveIdentifier(identifier.Value)
-		if err := q.LockDCLOtherUnitIdentifierClaimKey(ctx, dbsqlc.LockDCLOtherUnitIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		if err := q.UpsertDCLOtherUnitIdentifierClaim(ctx, dbsqlc.UpsertDCLOtherUnitIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedOtherUnitID: &objectID, ApprovedApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
+	if err == nil && ((claim.ApprovedOtherUnitID != nil && *claim.ApprovedOtherUnitID != objectID) || (claim.OpenOtherUnitID != nil && *claim.OpenOtherUnitID != objectID)) {
+		return newError(ErrorConflict, "other_unit_legal_identifier_claimed", "Other Unit legal identifier is already occupied", nil, nil)
 	}
-	return nil
+	var approvedID, approvedEntryID *string
+	if err == nil {
+		approvedID, approvedEntryID = claim.ApprovedOtherUnitID, claim.ApprovedApprovalEntryID
+	}
+	return q.UpsertDCLOtherUnitLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLOtherUnitLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedOtherUnitID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenOtherUnitID: &objectID, OpenApprovalEntryID: &entryID})
 }
-func (s *TypedArchiveService) deleteOther(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
-	if err := q.DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+func (s *TypedArchiveService) restoreOtherLatestApprovedLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID string) error {
+	latest, err := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityOtherUnit, SubjectID: objectID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	data, err := s.loadOther(ctx, q, latest.ID)
+	if err != nil {
+		return err
+	}
+	return s.promoteOtherLegalIdentifier(ctx, q, objectID, latest.ID, data.LegalIdentifier)
+}
+func (s *TypedArchiveService) promoteOtherLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
+	if err := q.DeleteDCLOtherUnitLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
+		return err
+	}
+	normalized := strings.ToUpper(strings.TrimSpace(legalIdentifier))
+	if err := q.LockDCLOtherUnitLegalIdentifierClaimKey(ctx, normalized); err != nil {
+		return err
+	}
+	claim, err := q.LockDCLOtherUnitLegalIdentifierClaim(ctx, normalized)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if err == nil && ((claim.ApprovedOtherUnitID != nil && *claim.ApprovedOtherUnitID != objectID) || (claim.OpenOtherUnitID != nil && *claim.OpenOtherUnitID != objectID)) {
+		return newError(ErrorConflict, "other_unit_legal_identifier_claimed", "Other Unit legal identifier is already occupied", nil, nil)
+	}
+	return q.UpsertDCLOtherUnitLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLOtherUnitLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedOtherUnitID: &objectID, ApprovedApprovalEntryID: &entryID})
+}
+func (s *TypedArchiveService) deleteOther(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) error {
+	if err := q.DeleteDCLOtherUnitLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil {
 		return err
 	}
 	if err := q.DeleteDCLOtherUnitVersionOperatingEntities(ctx, entryID); err != nil {
 		return err
 	}
-	if err := q.DeleteDCLOtherUnitVersionIdentifiers(ctx, entryID); err != nil {
+	_, err := q.DeleteDCLOtherUnitVersion(ctx, entryID)
+	if err != nil {
 		return err
 	}
-	_, err := q.DeleteDCLOtherUnitVersion(ctx, entryID)
-	return err
+	latest, err := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityOtherUnit, SubjectID: objectID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	data, err := s.loadOther(ctx, q, latest.ID)
+	if err != nil {
+		return err
+	}
+	return s.promoteOtherLegalIdentifier(ctx, q, objectID, latest.ID, data.LegalIdentifier)
 }
 
 func salesParams(id string, data SalesPartnerData) dbsqlc.UpdateDCLSalesPartnerVersionParams {
-	return dbsqlc.UpdateDCLSalesPartnerVersionParams{ApprovalEntryID: id, Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, TaxNumber: nilIfEmpty(data.TaxNumber), Capabilities: data.Capabilities, ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address), DefaultOperatingEntityID: data.DefaultOperatingEntity.SourceObjectID, DefaultOperatingEntityApprovalEntryID: data.DefaultOperatingEntity.ApprovalEntryID, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, DefaultOperatingEntityName: data.DefaultOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled}
+	return dbsqlc.UpdateDCLSalesPartnerVersionParams{ApprovalEntryID: id, Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, LegalIdentifier: nilIfEmpty(data.LegalIdentifier), Capabilities: data.Capabilities, ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address), DefaultOperatingEntityID: data.DefaultOperatingEntity.SourceObjectID, DefaultOperatingEntityApprovalEntryID: data.DefaultOperatingEntity.ApprovalEntryID, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, DefaultOperatingEntityName: data.DefaultOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled}
 }
 func (s *TypedArchiveService) writeSales(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, data SalesPartnerData) error {
 	p := salesParams(entryID, data)
-	if err := q.InsertDCLSalesPartnerVersion(ctx, dbsqlc.InsertDCLSalesPartnerVersionParams{ApprovalEntryID: p.ApprovalEntryID, Kind: p.Kind, LegalName: p.LegalName, DisplayName: p.DisplayName, TaxNumber: p.TaxNumber, Capabilities: p.Capabilities, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, DefaultOperatingEntityID: p.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: p.DefaultOperatingEntityApprovalEntryID, DefaultOperatingEntityCode: p.DefaultOperatingEntityCode, DefaultOperatingEntityName: p.DefaultOperatingEntityName, Remark: p.Remark, Enabled: p.Enabled}); err != nil {
+	if err := q.InsertDCLSalesPartnerVersion(ctx, dbsqlc.InsertDCLSalesPartnerVersionParams{ApprovalEntryID: p.ApprovalEntryID, Kind: p.Kind, LegalName: p.LegalName, DisplayName: p.DisplayName, LegalIdentifier: p.LegalIdentifier, Capabilities: p.Capabilities, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, DefaultOperatingEntityID: p.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: p.DefaultOperatingEntityApprovalEntryID, DefaultOperatingEntityCode: p.DefaultOperatingEntityCode, DefaultOperatingEntityName: p.DefaultOperatingEntityName, Remark: p.Remark, Enabled: p.Enabled}); err != nil {
 		return err
 	}
 	if err := s.replaceSalesOperating(ctx, q, entryID, data.OperatingEntities); err != nil {
 		return err
 	}
-	return s.writeSalesIdentifiers(ctx, q, objectID, entryID, data.StrongIdentifiers)
+	return s.claimOpenSalesLegalIdentifier(ctx, q, objectID, entryID, data.LegalIdentifier)
 }
 func (s *TypedArchiveService) updateSales(ctx context.Context, q *dbsqlc.Queries, entryID string, data SalesPartnerData) error {
 	n, err := q.UpdateDCLSalesPartnerVersion(ctx, salesParams(entryID, data))
@@ -799,86 +834,90 @@ func (s *TypedArchiveService) loadSales(ctx context.Context, q *dbsqlc.Queries, 
 	if err != nil {
 		return SalesPartnerData{}, translateError(err)
 	}
-	identifiers, err := q.ListDCLSalesPartnerVersionIdentifiers(ctx, entryID)
-	if err != nil {
-		return SalesPartnerData{}, translateError(err)
-	}
 	operating, err := q.ListDCLSalesPartnerVersionOperatingEntities(ctx, entryID)
 	if err != nil {
 		return SalesPartnerData{}, translateError(err)
 	}
-	data := SalesPartnerData{Kind: r.Kind, LegalName: r.LegalName, DisplayName: r.DisplayName, TaxNumber: stringValue(r.TaxNumber), Enabled: r.Enabled, DefaultOperatingEntityID: r.DefaultOperatingEntityID, DefaultOperatingEntity: BusinessArchiveSnapshot{SourceObjectID: r.DefaultOperatingEntityID, ApprovalEntryID: r.DefaultOperatingEntityApprovalEntryID, Code: r.DefaultOperatingEntityCode, Name: r.DefaultOperatingEntityName}, Capabilities: r.Capabilities, ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), Remark: stringValue(r.Remark), StrongIdentifiers: make([]BusinessIdentifierInput, 0, len(identifiers)), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating))}
-	for _, v := range identifiers {
-		data.StrongIdentifiers = append(data.StrongIdentifiers, BusinessIdentifierInput{Type: v.IdentifierType, Value: v.Value})
-	}
+	data := SalesPartnerData{Kind: r.Kind, LegalName: r.LegalName, DisplayName: r.DisplayName, LegalIdentifier: stringValue(r.LegalIdentifier), Enabled: r.Enabled, DefaultOperatingEntityID: r.DefaultOperatingEntityID, DefaultOperatingEntity: BusinessArchiveSnapshot{SourceObjectID: r.DefaultOperatingEntityID, ApprovalEntryID: r.DefaultOperatingEntityApprovalEntryID, Code: r.DefaultOperatingEntityCode, Name: r.DefaultOperatingEntityName}, Capabilities: r.Capabilities, ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), Remark: stringValue(r.Remark), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating))}
 	for _, v := range operating {
 		data.OperatingEntityIDs = append(data.OperatingEntityIDs, v.OperatingEntityID)
 		data.OperatingEntities = append(data.OperatingEntities, BusinessArchiveSnapshot{SourceObjectID: v.OperatingEntityID, ApprovalEntryID: v.OperatingEntityApprovalEntryID, Code: v.OperatingEntityCode, Name: v.OperatingEntityName})
 	}
 	return data, nil
 }
-func (s *TypedArchiveService) writeSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLSalesPartnerVersionIdentifiers(ctx, entryID); err != nil {
+func (s *TypedArchiveService) claimOpenSalesLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
+	if err := q.DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
 		return err
 	}
-	for _, v := range ids {
-		if err := q.InsertDCLSalesPartnerVersionIdentifier(ctx, dbsqlc.InsertDCLSalesPartnerVersionIdentifierParams{ApprovalEntryID: entryID, IdentifierType: v.Type, Value: v.Value, NormalizedValue: normalizeArchiveIdentifier(v.Value)}); err != nil {
-			return err
-		}
-	}
-	return s.claimOpenSalesIdentifiers(ctx, q, objectID, entryID, ids)
-}
-func (s *TypedArchiveService) claimOpenSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+	normalized := strings.ToUpper(strings.TrimSpace(legalIdentifier))
+	if err := q.LockDCLSalesPartnerLegalIdentifierClaimKey(ctx, normalized); err != nil {
 		return err
 	}
-	for _, identifier := range ids {
-		normalized := normalizeArchiveIdentifier(identifier.Value)
-		if err := q.LockDCLSalesPartnerIdentifierClaimKey(ctx, dbsqlc.LockDCLSalesPartnerIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		claim, err := q.LockDCLSalesPartnerIdentifierClaim(ctx, dbsqlc.LockDCLSalesPartnerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized})
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		if err == nil && ((claim.ApprovedSalesPartnerID != nil && *claim.ApprovedSalesPartnerID != objectID) || (claim.OpenSalesPartnerID != nil && *claim.OpenSalesPartnerID != objectID)) {
-			return newError(ErrorConflict, "sales_partner_identifier_claimed", "Sales Partner identifier is already occupied", nil, nil)
-		}
-		var approvedID, approvedEntryID *string
-		if err == nil {
-			approvedID, approvedEntryID = claim.ApprovedSalesPartnerID, claim.ApprovedApprovalEntryID
-		}
-		if err = q.UpsertDCLSalesPartnerIdentifierClaim(ctx, dbsqlc.UpsertDCLSalesPartnerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedSalesPartnerID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenSalesPartnerID: &objectID, OpenApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-func (s *TypedArchiveService) promoteSalesIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, ids []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+	claim, err := q.LockDCLSalesPartnerLegalIdentifierClaim(ctx, normalized)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	for _, identifier := range ids {
-		normalized := normalizeArchiveIdentifier(identifier.Value)
-		if err := q.LockDCLSalesPartnerIdentifierClaimKey(ctx, dbsqlc.LockDCLSalesPartnerIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		if err := q.UpsertDCLSalesPartnerIdentifierClaim(ctx, dbsqlc.UpsertDCLSalesPartnerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedSalesPartnerID: &objectID, ApprovedApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
+	if err == nil && ((claim.ApprovedSalesPartnerID != nil && *claim.ApprovedSalesPartnerID != objectID) || (claim.OpenSalesPartnerID != nil && *claim.OpenSalesPartnerID != objectID)) {
+		return newError(ErrorConflict, "sales_partner_legal_identifier_claimed", "Sales Partner legal identifier is already occupied", nil, nil)
 	}
-	return nil
+	var approvedID, approvedEntryID *string
+	if err == nil {
+		approvedID, approvedEntryID = claim.ApprovedSalesPartnerID, claim.ApprovedApprovalEntryID
+	}
+	return q.UpsertDCLSalesPartnerLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLSalesPartnerLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedSalesPartnerID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenSalesPartnerID: &objectID, OpenApprovalEntryID: &entryID})
 }
-func (s *TypedArchiveService) deleteSales(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
-	if err := q.DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+func (s *TypedArchiveService) restoreSalesLatestApprovedLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID string) error {
+	latest, err := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySalesPartner, SubjectID: objectID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	data, err := s.loadSales(ctx, q, latest.ID)
+	if err != nil {
+		return err
+	}
+	return s.promoteSalesLegalIdentifier(ctx, q, objectID, latest.ID, data.LegalIdentifier)
+}
+func (s *TypedArchiveService) promoteSalesLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
+	if err := q.DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
+		return err
+	}
+	normalized := strings.ToUpper(strings.TrimSpace(legalIdentifier))
+	if err := q.LockDCLSalesPartnerLegalIdentifierClaimKey(ctx, normalized); err != nil {
+		return err
+	}
+	claim, err := q.LockDCLSalesPartnerLegalIdentifierClaim(ctx, normalized)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if err == nil && ((claim.ApprovedSalesPartnerID != nil && *claim.ApprovedSalesPartnerID != objectID) || (claim.OpenSalesPartnerID != nil && *claim.OpenSalesPartnerID != objectID)) {
+		return newError(ErrorConflict, "sales_partner_legal_identifier_claimed", "Sales Partner legal identifier is already occupied", nil, nil)
+	}
+	return q.UpsertDCLSalesPartnerLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLSalesPartnerLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedSalesPartnerID: &objectID, ApprovedApprovalEntryID: &entryID})
+}
+func (s *TypedArchiveService) deleteSales(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) error {
+	if err := q.DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil {
 		return err
 	}
 	if err := q.DeleteDCLSalesPartnerVersionOperatingEntities(ctx, entryID); err != nil {
 		return err
 	}
-	if err := q.DeleteDCLSalesPartnerVersionIdentifiers(ctx, entryID); err != nil {
+	_, err := q.DeleteDCLSalesPartnerVersion(ctx, entryID)
+	if err != nil {
 		return err
 	}
-	_, err := q.DeleteDCLSalesPartnerVersion(ctx, entryID)
-	return err
+	latest, err := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySalesPartner, SubjectID: objectID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	data, err := s.loadSales(ctx, q, latest.ID)
+	if err != nil {
+		return err
+	}
+	return s.promoteSalesLegalIdentifier(ctx, q, objectID, latest.ID, data.LegalIdentifier)
 }

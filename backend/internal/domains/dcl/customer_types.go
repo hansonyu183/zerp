@@ -19,8 +19,7 @@ type CustomerDataInput struct {
 	Kind                     string                      `json:"kind"`
 	LegalName                string                      `json:"legalName"`
 	DisplayName              string                      `json:"displayName,omitempty"`
-	TaxNumber                string                      `json:"taxNumber,omitempty"`
-	StrongIdentifiers        []BusinessIdentifierInput   `json:"strongIdentifiers"`
+	LegalIdentifier          string                      `json:"legalIdentifier"`
 	Phone                    string                      `json:"phone,omitempty"`
 	Email                    string                      `json:"email,omitempty"`
 	Address                  string                      `json:"address,omitempty"`
@@ -35,10 +34,6 @@ type CustomerDataInput struct {
 	Accounts                 []CustomerAccountDataInput  `json:"accounts"`
 }
 
-type BusinessIdentifierInput struct {
-	Type  string `json:"type"`
-	Value string `json:"value"`
-}
 type CustomerRemittanceProfile struct {
 	AccountName   string `json:"accountName"`
 	BankName      string `json:"bankName,omitempty"`
@@ -51,8 +46,7 @@ type CustomerData struct {
 	Kind                     string                      `json:"kind"`
 	LegalName                string                      `json:"legalName"`
 	DisplayName              string                      `json:"displayName"`
-	TaxNumber                string                      `json:"taxNumber,omitempty"`
-	StrongIdentifiers        []BusinessIdentifierInput   `json:"strongIdentifiers"`
+	LegalIdentifier          string                      `json:"legalIdentifier"`
 	Phone                    string                      `json:"phone,omitempty"`
 	Email                    string                      `json:"email,omitempty"`
 	Address                  string                      `json:"address,omitempty"`

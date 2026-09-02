@@ -21,11 +21,11 @@ func supplierPurchaser(id, entry, code, name string) *SupplierPurchaserSnapshot 
 	}
 	return &SupplierPurchaserSnapshot{SourceObjectID: id, ApprovalEntryID: entry, Code: code, Name: name}
 }
-func supplierDetail(kind, legal, display string, tax, short, contact, phone, email, address, remark, settlementID, settlementCode, settlementName, term, rule string, month, day, offset int32, defaultID, defaultEntry, defaultCode, defaultName, purchaserID, purchaserEntry, purchaserCode, purchaserName string) DetailView {
-	return DetailView{Kind: kind, LegalName: legal, DisplayName: display, Name: display, TaxNumber: tax, ShortName: short, ContactName: contact, ContactPhone: phone, Email: email, Address: address, Remark: remark, DefaultOperatingEntityID: defaultID, SettlementMethodID: settlementID, SettlementMethodCode: settlementCode, SettlementMethodName: settlementName, TermCode: term, RuleType: rule, MonthOffset: month, DayOffset: offset, DefaultPurchaserEmployeeID: purchaserID, DefaultPurchaserApprovalEntryID: purchaserEntry, DefaultPurchaserCode: purchaserCode, DefaultPurchaserName: purchaserName, SettlementMethod: supplierSettlement(settlementID, settlementCode, settlementName, term, rule, month, day, offset), DefaultPurchaser: supplierPurchaser(purchaserID, purchaserEntry, purchaserCode, purchaserName), OperatingEntityID: defaultID, OperatingEntityApprovalEntryID: defaultEntry, OperatingEntityCode: defaultCode, OperatingEntityName: defaultName}
+func supplierDetail(kind, legal, display string, legalIdentifier, short, contact, phone, email, address, remark, settlementID, settlementCode, settlementName, term, rule string, month, day, offset int32, defaultID, defaultEntry, defaultCode, defaultName, purchaserID, purchaserEntry, purchaserCode, purchaserName string) DetailView {
+	return DetailView{Kind: kind, LegalName: legal, DisplayName: display, LegalIdentifier: legalIdentifier, Name: display, ShortName: short, ContactName: contact, ContactPhone: phone, Email: email, Address: address, Remark: remark, DefaultOperatingEntityID: defaultID, SettlementMethodID: settlementID, SettlementMethodCode: settlementCode, SettlementMethodName: settlementName, TermCode: term, RuleType: rule, MonthOffset: month, DayOffset: offset, DefaultPurchaserEmployeeID: purchaserID, DefaultPurchaserApprovalEntryID: purchaserEntry, DefaultPurchaserCode: purchaserCode, DefaultPurchaserName: purchaserName, SettlementMethod: supplierSettlement(settlementID, settlementCode, settlementName, term, rule, month, day, offset), DefaultPurchaser: supplierPurchaser(purchaserID, purchaserEntry, purchaserCode, purchaserName), OperatingEntityID: defaultID, OperatingEntityApprovalEntryID: defaultEntry, OperatingEntityCode: defaultCode, OperatingEntityName: defaultName}
 }
 func supplierTypedDetail(row dbsqlc.GetBobSupplierCurrentTypedRow) DetailView {
-	return supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.TaxNumber), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))
+	return supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.LegalIdentifier), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))
 }
 
 // BOB exposes only the highest APPROVED typed Supplier snapshot. It never
@@ -42,20 +42,12 @@ func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (Objec
 		return ObjectView{}, s.internal("get Supplier current", err)
 	}
 	d := supplierTypedDetail(row)
-	identifiers, err := s.queries.ListDCLSupplierVersionIdentifiers(ctx, row.ApprovalEntryID)
-	if err != nil {
-		return ObjectView{}, s.internal("list Supplier identifiers", err)
-	}
 	operating, err := s.queries.ListDCLSupplierVersionOperatingEntities(ctx, row.ApprovalEntryID)
 	if err != nil {
 		return ObjectView{}, s.internal("list Supplier operating entities", err)
 	}
-	d.StrongIdentifiers = make([]BusinessIdentifier, 0, len(identifiers))
 	d.OperatingEntities = make([]BusinessArchiveSnapshot, 0, len(operating))
 	d.OperatingEntityIDs = make([]string, 0, len(operating))
-	for _, value := range identifiers {
-		d.StrongIdentifiers = append(d.StrongIdentifiers, BusinessIdentifier{Type: value.IdentifierType, Value: value.Value})
-	}
 	for _, value := range operating {
 		d.OperatingEntityIDs = append(d.OperatingEntityIDs, value.OperatingEntityID)
 		d.OperatingEntities = append(d.OperatingEntities, BusinessArchiveSnapshot{SourceObjectID: value.OperatingEntityID, ApprovalEntryID: value.OperatingEntityApprovalEntryID, Code: value.OperatingEntityCode, Name: value.OperatingEntityName})
@@ -63,7 +55,7 @@ func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (Objec
 	return ObjectView{ObjectID: row.ObjectID, Entity: EntitySupplier, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: d, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 func supplierListDetail(row dbsqlc.ListBobSupplierCurrentsTypedRow) DetailView {
-	return supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.TaxNumber), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))
+	return supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.LegalIdentifier), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))
 }
 func (s *Service) querySuppliersCurrent(ctx context.Context, q *dbsqlc.Queries, input QueryInput) (Page[QueryItem], error) {
 	if input.Page < 1 || input.PageSize != 20 || len(input.Sort) > 1 || (len(input.Sort) == 1 && (input.Sort[0].Field != "code" || strings.ToLower(input.Sort[0].Order) != "asc")) {
@@ -122,5 +114,5 @@ func (s *Service) validateSupplierSnapshotReference(ctx context.Context, q *dbsq
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Supplier identity", err)
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.TaxNumber), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))}, nil
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.LegalIdentifier), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))}, nil
 }

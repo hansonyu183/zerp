@@ -2,17 +2,15 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BusinessIdentifier } from './BusinessIdentifier';
-import type { BusinessIdentityKind } from './BusinessIdentityKind';
+import type { CustomerIdentityKind } from './CustomerIdentityKind';
 import type { DclCustomerAccountData } from './DclCustomerAccountData';
 import type { DclCustomerRemittanceProfile } from './DclCustomerRemittanceProfile';
 import type { DclCustomerSnapshot } from './DclCustomerSnapshot';
 export type DclCustomerData = {
-  kind: BusinessIdentityKind;
+  kind: CustomerIdentityKind;
   legalName: string;
   displayName: string;
-  taxNumber?: string | null;
-  strongIdentifiers: Array<BusinessIdentifier>;
+  legalIdentifier: string | null;
   phone?: string | null;
   email?: string | null;
   address?: string | null;

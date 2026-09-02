@@ -1,6 +1,24 @@
+import { randomBytes } from 'node:crypto'
 import { expect, test, type Locator, type Page } from './fixtures'
 
 test.use({ storageState: { cookies: [], origins: [] } })
+
+const mainlandUnifiedSocialCreditCharset = '0123456789ABCDEFGHJKLMNPQRTUWXY'
+const mainlandUnifiedSocialCreditWeights = [
+  1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28,
+]
+
+function mainlandEnterpriseIdentifier(): string {
+  const base = `91${randomBytes(8).toString('hex').toUpperCase().slice(0, 15)}`
+  const sum = [...base].reduce(
+    (total, character, index) =>
+      total +
+      mainlandUnifiedSocialCreditCharset.indexOf(character) *
+        mainlandUnifiedSocialCreditWeights[index]!,
+    0,
+  )
+  return `${base}${mainlandUnifiedSocialCreditCharset[(31 - (sum % 31)) % 31]}`
+}
 
 async function signIn(
   page: Page,
@@ -143,6 +161,7 @@ test(
     const editor = page.locator('.dcl-typed-archive-drawer')
     await editor.getByLabel('法定名称').fill(archiveName)
     await editor.getByLabel('显示名称').fill(archiveName)
+    await editor.getByLabel('法定识别号').fill(mainlandEnterpriseIdentifier())
     await selectAutocomplete(page, editor, '适用经营主体', '上海示例')
     await selectAutocomplete(page, editor, '默认经营主体', '上海示例')
     await editor.getByLabel('联系人').fill('E2E 联系人')
@@ -183,6 +202,7 @@ test(
     const editor = page.locator('.dcl-supplier-drawer')
     await editor.getByLabel('法定名称').fill(supplierName)
     await editor.getByLabel('显示名称').fill(supplierName)
+    await editor.getByLabel('法定识别号').fill(mainlandEnterpriseIdentifier())
     await selectAutocomplete(page, editor, '适用经营主体', '上海示例')
     await selectAutocomplete(page, editor, '默认经营主体', '上海示例')
     await selectAutocomplete(page, editor, '结算方式', '当月结')

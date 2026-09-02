@@ -10,14 +10,10 @@ export type DclCustomerData = components['schemas']['DclCustomerData']
 type DclCustomerInput = components['schemas']['DclCustomerInput']
 
 export interface DclCustomerCreateForm {
-  kind: 'PERSON' | 'ORGANIZATION'
+  kind: 'MAINLAND_ENTERPRISE' | 'MAINLAND_INDIVIDUAL' | 'OTHER'
   legalName: string
   displayName: string
-  taxNumber: string
-  strongIdentifiers: Array<{
-    type: 'PERSON_ID' | 'UNIFIED_SOCIAL_CREDIT_CODE' | 'TAX_NUMBER'
-    value: string
-  }>
+  legalIdentifier: string
   phone: string
   email: string
   address: string
@@ -102,13 +98,7 @@ export function dclCustomerPayload(
     kind: form.kind,
     legalName: form.legalName.trim(),
     displayName: optional(form.displayName),
-    taxNumber: optional(form.taxNumber),
-    strongIdentifiers: form.strongIdentifiers
-      .filter((identifier) => identifier.type && identifier.value.trim())
-      .map((identifier) => ({
-        type: identifier.type,
-        value: identifier.value.trim(),
-      })),
+    legalIdentifier: optional(form.legalIdentifier),
     phone: optional(form.phone),
     email: optional(form.email),
     address: optional(form.address),
@@ -253,10 +243,7 @@ export function customerFormFromView(
     kind: data.kind,
     legalName: data.legalName,
     displayName: data.displayName,
-    taxNumber: data.taxNumber ?? '',
-    strongIdentifiers: data.strongIdentifiers.map((identifier) => ({
-      ...identifier,
-    })),
+    legalIdentifier: data.legalIdentifier ?? '',
     phone: data.phone ?? '',
     email: data.email ?? '',
     address: data.address ?? '',

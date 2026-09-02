@@ -22,8 +22,8 @@ import (
 type customerBusinessRules interface {
 	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	ResolveCustomerTypeReference(context.Context, pgx.Tx, string) (bobdomain.EffectiveReference, error)
-	ResolveCustomerAccountReferences(context.Context, pgx.Tx, map[string]string, string, string, string, string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error)
-	ValidateCustomerAccountReferences(context.Context, pgx.Tx, map[string]string, string, string, string) error
+	ResolveCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string, string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error)
+	ValidateCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string) error
 	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	EnsureCustomerUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
@@ -59,10 +59,10 @@ func customerVersionInput(in CustomerReviewInput) CustomerVersionInput {
 
 func validateCustomerData(in CustomerDataInput) (CustomerDataInput, error) {
 	in.Kind, in.LegalName, in.DisplayName, in.DefaultOperatingEntityID = strings.TrimSpace(in.Kind), strings.TrimSpace(in.LegalName), strings.TrimSpace(in.DisplayName), strings.TrimSpace(in.DefaultOperatingEntityID)
-	in.TaxNumber, in.Phone, in.Email, in.Address = strings.TrimSpace(in.TaxNumber), strings.TrimSpace(in.Phone), strings.TrimSpace(in.Email), strings.TrimSpace(in.Address)
+	in.Phone, in.Email, in.Address = strings.TrimSpace(in.Phone), strings.TrimSpace(in.Email), strings.TrimSpace(in.Address)
 	in.InvoiceTitle, in.InvoiceAddress, in.InvoicePhone = strings.TrimSpace(in.InvoiceTitle), strings.TrimSpace(in.InvoiceAddress), strings.TrimSpace(in.InvoicePhone)
 	in.InvoiceBankName, in.InvoiceBankAccount = strings.TrimSpace(in.InvoiceBankName), strings.TrimSpace(in.InvoiceBankAccount)
-	if (in.Kind != "ORGANIZATION" && in.Kind != "PERSON") || in.LegalName == "" || !runeLenAtMost(in.LegalName, 200) || !runeLenAtMost(in.DisplayName, 200) || !runeLenAtMost(in.TaxNumber, 100) || !runeLenAtMost(in.Phone, 32) || !runeLenAtMost(in.Email, 254) || !runeLenAtMost(in.Address, 500) || !runeLenAtMost(in.InvoiceTitle, 200) || !runeLenAtMost(in.InvoiceAddress, 500) || !runeLenAtMost(in.InvoicePhone, 32) || !runeLenAtMost(in.InvoiceBankName, 200) || !runeLenAtMost(in.InvoiceBankAccount, 100) || !validID(in.DefaultOperatingEntityID) || len(in.Accounts) == 0 || len(in.Accounts) > 200 || in.StrongIdentifiers == nil || len(in.StrongIdentifiers) > 10 || in.RemittanceProfiles == nil || len(in.RemittanceProfiles) > 50 {
+	if (in.Kind != "MAINLAND_ENTERPRISE" && in.Kind != "MAINLAND_INDIVIDUAL" && in.Kind != "OTHER") || in.LegalName == "" || !runeLenAtMost(in.LegalName, 200) || !runeLenAtMost(in.DisplayName, 200) || !runeLenAtMost(in.LegalIdentifier, 100) || !runeLenAtMost(in.Phone, 32) || !runeLenAtMost(in.Email, 254) || !runeLenAtMost(in.Address, 500) || !runeLenAtMost(in.InvoiceTitle, 200) || !runeLenAtMost(in.InvoiceAddress, 500) || !runeLenAtMost(in.InvoicePhone, 32) || !runeLenAtMost(in.InvoiceBankName, 200) || !validID(in.DefaultOperatingEntityID) || len(in.Accounts) == 0 || len(in.Accounts) > 200 || in.RemittanceProfiles == nil || len(in.RemittanceProfiles) > 50 {
 		return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer data", nil, nil)
 	}
 	defaults, enabled := 0, 0
@@ -95,17 +95,12 @@ func validateCustomerData(in CustomerDataInput) (CustomerDataInput, error) {
 	if defaults > 1 {
 		return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "multiple default accounts", nil, nil)
 	}
-	identifierKeys := map[string]struct{}{}
-	for i := range in.StrongIdentifiers {
-		in.StrongIdentifiers[i].Type, in.StrongIdentifiers[i].Value = strings.TrimSpace(in.StrongIdentifiers[i].Type), strings.TrimSpace(in.StrongIdentifiers[i].Value)
-		key := in.StrongIdentifiers[i].Type + "\x00" + normalizeCustomerIdentifier(in.StrongIdentifiers[i].Value)
-		if in.StrongIdentifiers[i].Type == "" || !runeLenAtMost(in.StrongIdentifiers[i].Type, 40) || in.StrongIdentifiers[i].Value == "" || !runeLenAtMost(in.StrongIdentifiers[i].Value, 100) {
-			return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer identifier", nil, nil)
+	if in.LegalIdentifier != "" {
+		var err error
+		in.LegalIdentifier, err = normalizeCustomerLegalIdentifier(in.Kind, in.LegalIdentifier)
+		if err != nil {
+			return CustomerDataInput{}, err
 		}
-		if _, seen := identifierKeys[key]; seen {
-			return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "duplicate customer identifier", nil, nil)
-		}
-		identifierKeys[key] = struct{}{}
 	}
 	for i := range in.RemittanceProfiles {
 		profile := &in.RemittanceProfiles[i]
@@ -124,7 +119,7 @@ func runeLenAtMost(value string, maximum int) bool {
 }
 
 func normalizeCustomerIdentifier(value string) string {
-	return strings.ToUpper(strings.TrimSpace(value))
+	return strings.TrimSpace(value)
 }
 
 func (s *CustomerService) resolveData(ctx context.Context, tx pgx.Tx, in CustomerDataInput) (CustomerData, error) {
@@ -136,14 +131,13 @@ func (s *CustomerService) resolveData(ctx context.Context, tx pgx.Tx, in Custome
 	if err != nil {
 		return CustomerData{}, translateError(err)
 	}
-	identifiers := customerIdentifierMap(in.StrongIdentifiers)
 	accounts := make([]CustomerAccountData, 0, len(in.Accounts))
 	for _, account := range in.Accounts {
 		customerType, typeErr := s.rules.ResolveCustomerTypeReference(ctx, tx, account.CustomerTypeID)
 		if typeErr != nil {
 			return CustomerData{}, translateError(typeErr)
 		}
-		settlement, payment, sales, resolveErr := s.rules.ResolveCustomerAccountReferences(ctx, tx, identifiers, account.SettlementMethodID, account.PaymentMethodID, account.PrimarySalesAttribution.Type, account.PrimarySalesAttribution.SubjectObjectID)
+		settlement, payment, sales, resolveErr := s.rules.ResolveCustomerAccountReferences(ctx, tx, in.Kind, in.LegalIdentifier, account.SettlementMethodID, account.PaymentMethodID, account.PrimarySalesAttribution.Type, account.PrimarySalesAttribution.SubjectObjectID)
 		if resolveErr != nil {
 			return CustomerData{}, translateError(resolveErr)
 		}
@@ -158,19 +152,11 @@ func (s *CustomerService) resolveData(ctx context.Context, tx pgx.Tx, in Custome
 		}
 		accounts = append(accounts, CustomerAccountData{CustomerAccountDataInput: account, Attachments: []CustomerAttachmentView{}, CustomerType: customerAuxiliarySnapshot(customerType), SettlementMethod: settlementSnapshot, PaymentMethod: paymentSnapshot, PrimarySalesAttribution: CustomerSalesAttributionSnapshot{CustomerSalesAttributionInput: account.PrimarySalesAttribution, SubjectApprovalEntryID: sales.ApprovalEntryID, SubjectCode: sales.Code, SubjectName: sales.Data.Name}})
 	}
-	return CustomerData{Kind: in.Kind, LegalName: in.LegalName, DisplayName: in.DisplayName, TaxNumber: in.TaxNumber, StrongIdentifiers: in.StrongIdentifiers, Phone: in.Phone, Email: in.Email, Address: in.Address, InvoiceTitle: in.InvoiceTitle, InvoiceAddress: in.InvoiceAddress, InvoicePhone: in.InvoicePhone, InvoiceBankName: in.InvoiceBankName, InvoiceBankAccount: in.InvoiceBankAccount, RemittanceProfiles: in.RemittanceProfiles, DefaultOperatingEntityID: in.DefaultOperatingEntityID, DefaultOperatingEntity: CustomerSnapshot{SourceObjectID: op.ObjectID, ApprovalEntryID: op.ApprovalEntryID, Code: op.Code, Name: op.Data.Name, TaxNumber: op.Data.TaxNumber, Address: op.Data.Address, Phone: op.Data.Phone}, Enabled: in.Enabled, Accounts: accounts}, nil
+	return CustomerData{Kind: in.Kind, LegalName: in.LegalName, DisplayName: in.DisplayName, LegalIdentifier: in.LegalIdentifier, Phone: in.Phone, Email: in.Email, Address: in.Address, InvoiceTitle: in.InvoiceTitle, InvoiceAddress: in.InvoiceAddress, InvoicePhone: in.InvoicePhone, InvoiceBankName: in.InvoiceBankName, InvoiceBankAccount: in.InvoiceBankAccount, RemittanceProfiles: in.RemittanceProfiles, DefaultOperatingEntityID: in.DefaultOperatingEntityID, DefaultOperatingEntity: CustomerSnapshot{SourceObjectID: op.ObjectID, ApprovalEntryID: op.ApprovalEntryID, Code: op.Code, Name: op.Data.Name, TaxNumber: op.Data.TaxNumber, Address: op.Data.Address, Phone: op.Data.Phone}, Enabled: in.Enabled, Accounts: accounts}, nil
 }
 
 func customerAuxiliarySnapshot(reference bobdomain.EffectiveReference) CustomerAuxiliarySnapshot {
 	return CustomerAuxiliarySnapshot{SourceObjectID: reference.ObjectID, Code: reference.Code, Name: reference.Data.Name, TermCode: reference.Data.TermCode, RuleType: reference.Data.RuleType, DueDays: reference.Data.DueDays, MonthOffset: reference.Data.MonthOffset, CutoffDay: reference.Data.CutoffDay, DefaultSalesSurcharge: reference.Data.DefaultSalesSurcharge}
-}
-
-func customerIdentifierMap(values []BusinessIdentifierInput) map[string]string {
-	result := make(map[string]string, len(values))
-	for _, value := range values {
-		result[value.Type] = value.Value
-	}
-	return result
 }
 
 func (s *CustomerService) writeSnapshot(ctx context.Context, tx pgx.Tx, id subjectIdentity, entry approval.Entry, data CustomerData) error {
@@ -182,13 +168,13 @@ func (s *CustomerService) writeSnapshot(ctx context.Context, tx pgx.Tx, id subje
 	if err != nil {
 		return err
 	}
-	if err = q.InsertDCLCustomerVersionAggregate(ctx, dbsqlc.InsertDCLCustomerVersionAggregateParams{ApprovalEntryID: entry.ID, Data: payload, Enabled: data.Enabled}); err != nil {
+	if err = q.InsertDCLCustomerVersionAggregate(ctx, dbsqlc.InsertDCLCustomerVersionAggregateParams{ApprovalEntryID: entry.ID, Kind: data.Kind, LegalIdentifier: nilIfEmpty(data.LegalIdentifier), Data: payload, Enabled: data.Enabled}); err != nil {
 		return err
 	}
 	if err = s.writeAccounts(ctx, q, id.ObjectID, entry.ID, data.Accounts); err != nil {
 		return err
 	}
-	return s.writeCustomerIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers)
+	return s.claimCustomerLegalIdentifier(ctx, q, id.ObjectID, entry.ID, data.LegalIdentifier)
 }
 
 func (s *CustomerService) prepareAccountRoots(ctx context.Context, q *dbsqlc.Queries, customerID string, accounts []CustomerAccountData) error {
@@ -227,62 +213,44 @@ func customerCreditLimitCents(value string) (int64, error) {
 	return fixeddecimal.ParsePositive(value, 2, true)
 }
 
-func (s *CustomerService) writeCustomerIdentifiers(ctx context.Context, q *dbsqlc.Queries, customerID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLCustomerVersionIdentifiers(ctx, entryID); err != nil {
+func (s *CustomerService) claimCustomerLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, customerID, entryID, legalIdentifier string) error {
+	if err := q.DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
 		return err
 	}
-	for _, identifier := range identifiers {
-		normalized := normalizeCustomerIdentifier(identifier.Value)
-		if err := q.InsertDCLCustomerVersionIdentifier(ctx, dbsqlc.InsertDCLCustomerVersionIdentifierParams{CustomerApprovalEntryID: entryID, IdentifierType: identifier.Type, Value: identifier.Value, NormalizedValue: normalized}); err != nil {
-			return err
-		}
+	normalized := normalizeCustomerIdentifier(legalIdentifier)
+	if err := q.LockDCLCustomerLegalIdentifierClaimKey(ctx, normalized); err != nil {
+		return err
 	}
-	return s.claimCustomerOpenIdentifiers(ctx, q, customerID, entryID, identifiers)
+	claim, err := q.LockDCLCustomerLegalIdentifierClaim(ctx, normalized)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if err == nil && ((claim.ApprovedCustomerID != nil && *claim.ApprovedCustomerID != customerID) || (claim.OpenCustomerID != nil && *claim.OpenCustomerID != customerID)) {
+		return newError(ErrorConflict, "customer_legal_identifier_claimed", "customer legal identifier is already occupied", nil, nil)
+	}
+	var approvedID, approvedEntry *string
+	if err == nil {
+		approvedID, approvedEntry = claim.ApprovedCustomerID, claim.ApprovedApprovalEntryID
+	}
+	return q.UpsertDCLCustomerLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLCustomerLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedCustomerID: approvedID, ApprovedApprovalEntryID: approvedEntry, OpenCustomerID: &customerID, OpenApprovalEntryID: &entryID})
 }
 
-func (s *CustomerService) claimCustomerOpenIdentifiers(ctx context.Context, q *dbsqlc.Queries, customerID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLCustomerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+func (s *CustomerService) promoteCustomerLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, customerID, entryID, legalIdentifier string) error {
+	if err := q.DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
 		return err
 	}
-	for _, identifier := range identifiers {
-		normalized := normalizeCustomerIdentifier(identifier.Value)
-		if err := q.LockDCLCustomerIdentifierClaimKey(ctx, dbsqlc.LockDCLCustomerIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		claim, err := q.LockDCLCustomerIdentifierClaim(ctx, dbsqlc.LockDCLCustomerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized})
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		if err == nil {
-			if (claim.ApprovedCustomerID != nil && *claim.ApprovedCustomerID != customerID) || (claim.OpenCustomerID != nil && *claim.OpenCustomerID != customerID) {
-				return newError(ErrorConflict, "customer_identifier_claimed", "customer identifier is already occupied", nil, nil)
-			}
-		}
-		var approvedCustomerID, approvedEntryID *string
-		if err == nil {
-			approvedCustomerID, approvedEntryID = claim.ApprovedCustomerID, claim.ApprovedApprovalEntryID
-		}
-		if err = q.UpsertDCLCustomerIdentifierClaim(ctx, dbsqlc.UpsertDCLCustomerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedCustomerID: approvedCustomerID, ApprovedApprovalEntryID: approvedEntryID, OpenCustomerID: &customerID, OpenApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *CustomerService) promoteCustomerIdentifiers(ctx context.Context, q *dbsqlc.Queries, customerID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLCustomerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+	normalized := normalizeCustomerIdentifier(legalIdentifier)
+	if err := q.LockDCLCustomerLegalIdentifierClaimKey(ctx, normalized); err != nil {
 		return err
 	}
-	for _, identifier := range identifiers {
-		normalized := normalizeCustomerIdentifier(identifier.Value)
-		if err := q.LockDCLCustomerIdentifierClaimKey(ctx, dbsqlc.LockDCLCustomerIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		if err := q.UpsertDCLCustomerIdentifierClaim(ctx, dbsqlc.UpsertDCLCustomerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedCustomerID: &customerID, ApprovedApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
+	claim, err := q.LockDCLCustomerLegalIdentifierClaim(ctx, normalized)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
 	}
-	return nil
+	if err == nil && ((claim.ApprovedCustomerID != nil && *claim.ApprovedCustomerID != customerID) || (claim.OpenCustomerID != nil && *claim.OpenCustomerID != customerID)) {
+		return newError(ErrorConflict, "customer_legal_identifier_claimed", "customer legal identifier is already occupied", nil, nil)
+	}
+	return q.UpsertDCLCustomerLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLCustomerLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedCustomerID: &customerID, ApprovedApprovalEntryID: &entryID})
 }
 
 func (s *CustomerService) loadCustomerData(ctx context.Context, q *dbsqlc.Queries, entryID string) (CustomerData, error) {
@@ -472,9 +440,6 @@ func (s *CustomerService) Save(ctx context.Context, in CustomerSaveInput, actor 
 			err = q.CopyDCLCustomerVersionAccountCreditLimits(ctx, dbsqlc.CopyDCLCustomerVersionAccountCreditLimitsParams{NewCustomerApprovalEntryID: entry.ID, SourceCustomerApprovalEntryID: stored.ID})
 		}
 		if err == nil {
-			err = q.CopyDCLCustomerVersionIdentifiers(ctx, dbsqlc.CopyDCLCustomerVersionIdentifiersParams{NewCustomerApprovalEntryID: entry.ID, SourceCustomerApprovalEntryID: stored.ID})
-		}
-		if err == nil {
 			err = q.CopyDCLCustomerAttachments(ctx, dbsqlc.CopyDCLCustomerAttachmentsParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
@@ -492,7 +457,7 @@ func (s *CustomerService) Save(ctx context.Context, in CustomerSaveInput, actor 
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	if n, updateErr := q.UpdateDCLCustomerVersionAggregate(ctx, dbsqlc.UpdateDCLCustomerVersionAggregateParams{ApprovalEntryID: entry.ID, Data: payload, Enabled: data.Enabled}); updateErr != nil || n != 1 {
+	if n, updateErr := q.UpdateDCLCustomerVersionAggregate(ctx, dbsqlc.UpdateDCLCustomerVersionAggregateParams{ApprovalEntryID: entry.ID, Kind: data.Kind, LegalIdentifier: nilIfEmpty(data.LegalIdentifier), Data: payload, Enabled: data.Enabled}); updateErr != nil || n != 1 {
 		if updateErr == nil {
 			updateErr = errors.New("customer snapshot is missing")
 		}
@@ -501,7 +466,7 @@ func (s *CustomerService) Save(ctx context.Context, in CustomerSaveInput, actor 
 	if err = s.writeAccounts(ctx, q, id.ObjectID, entry.ID, data.Accounts); err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	if err = s.writeCustomerIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+	if err = s.claimCustomerLegalIdentifier(ctx, q, id.ObjectID, entry.ID, data.LegalIdentifier); err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
 	entry, err = s.coordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, customerPayload(id, data.Enabled))
@@ -553,12 +518,22 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 		return CustomerMutation{}, err
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
+		if data.LegalIdentifier == "" {
+			return CustomerMutation{}, newError(ErrorValidation, "legal_identifier_required", "legal identifier is required for submit and approve", nil, nil)
+		}
+		if _, err = normalizeCustomerLegalIdentifier(data.Kind, data.LegalIdentifier); err != nil {
+			return CustomerMutation{}, err
+		}
+		if action == approval.ActionSubmitted {
+			if err = s.claimCustomerLegalIdentifier(ctx, q, id.ObjectID, in.ApprovalEntryID, data.LegalIdentifier); err != nil {
+				return CustomerMutation{}, translateError(err)
+			}
+		}
 		if _, err = s.rules.ValidateHistoricalReference(ctx, tx, EntityOperatingEntity, data.DefaultOperatingEntityID, data.DefaultOperatingEntity.ApprovalEntryID); err != nil {
 			return CustomerMutation{}, translateError(err)
 		}
-		identifiers := customerIdentifierMap(data.StrongIdentifiers)
 		for _, account := range data.Accounts {
-			if err = s.rules.ValidateCustomerAccountReferences(ctx, tx, identifiers, account.PrimarySalesAttribution.Type, account.PrimarySalesAttribution.SubjectObjectID, account.PrimarySalesAttribution.SubjectApprovalEntryID); err != nil {
+			if err = s.rules.ValidateCustomerAccountReferences(ctx, tx, data.Kind, data.LegalIdentifier, account.PrimarySalesAttribution.Type, account.PrimarySalesAttribution.SubjectObjectID, account.PrimarySalesAttribution.SubjectApprovalEntryID); err != nil {
 				return CustomerMutation{}, translateError(err)
 			}
 		}
@@ -570,7 +545,7 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 	}
 	if action == approval.ActionApproved {
 		if latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: id.ObjectID}); latestErr == nil && latest.ID != in.ApprovalEntryID {
-			if err = q.DeleteDCLCustomerIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
+			if err = q.DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
 				return CustomerMutation{}, translateError(err)
 			}
 		} else if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
@@ -582,7 +557,7 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 		return CustomerMutation{}, translateError(err)
 	}
 	if action == approval.ActionApproved {
-		if err = s.promoteCustomerIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+		if err = s.promoteCustomerLegalIdentifier(ctx, q, id.ObjectID, entry.ID, data.LegalIdentifier); err != nil {
 			return CustomerMutation{}, translateError(err)
 		}
 		for _, account := range data.Accounts {
@@ -598,13 +573,13 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 			if loadErr != nil {
 				return CustomerMutation{}, loadErr
 			}
-			if claimErr := s.promoteCustomerIdentifiers(ctx, q, id.ObjectID, latest.ID, fallback.StrongIdentifiers); claimErr != nil {
+			if claimErr := s.promoteCustomerLegalIdentifier(ctx, q, id.ObjectID, latest.ID, fallback.LegalIdentifier); claimErr != nil {
 				return CustomerMutation{}, translateError(claimErr)
 			}
 		} else if !errors.Is(latestErr, pgx.ErrNoRows) {
 			return CustomerMutation{}, translateError(latestErr)
 		}
-		if err = s.claimCustomerOpenIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+		if err = s.claimCustomerLegalIdentifier(ctx, q, id.ObjectID, entry.ID, data.LegalIdentifier); err != nil {
 			return CustomerMutation{}, translateError(err)
 		}
 	}
@@ -642,7 +617,7 @@ func (s *CustomerService) Delete(ctx context.Context, in CustomerDeleteInput, a 
 	if _, err = q.DeleteDCLCustomerVersionAggregate(ctx, in.ApprovalEntryID); err != nil {
 		return translateError(err)
 	}
-	if err = q.DeleteDCLCustomerIdentifierClaimsForEntry(ctx, &in.ApprovalEntryID); err != nil {
+	if err = q.DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx, &in.ApprovalEntryID); err != nil {
 		return translateError(err)
 	}
 	if err = s.coordinator.DeleteDraftVersion(ctx, tx, in.ApprovalEntryID, in.ApprovalRevision, a, customerPayload(id, data.Enabled)); err != nil {

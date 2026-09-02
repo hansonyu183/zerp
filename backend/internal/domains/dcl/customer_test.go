@@ -6,7 +6,7 @@ import (
 )
 
 func TestValidateCustomerDataRequiresOneEnabledDefault(t *testing.T) {
-	base := CustomerDataInput{Kind: "ORGANIZATION", LegalName: "客户", DefaultOperatingEntityID: "01JAVX00000000000000000001", Enabled: true, StrongIdentifiers: []BusinessIdentifierInput{}, RemittanceProfiles: []CustomerRemittanceProfile{}, Accounts: []CustomerAccountDataInput{{Name: "账户", CustomerTypeID: "01JAVX00000000000000000002", PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: "01JAVX00000000000000000003"}}}}
+	base := CustomerDataInput{Kind: "MAINLAND_ENTERPRISE", LegalIdentifier: "91350211M000100Y46", LegalName: "客户", DefaultOperatingEntityID: "01JAVX00000000000000000001", Enabled: true, RemittanceProfiles: []CustomerRemittanceProfile{}, Accounts: []CustomerAccountDataInput{{Name: "账户", CustomerTypeID: "01JAVX00000000000000000002", PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: "01JAVX00000000000000000003"}}}}
 	if _, err := validateCustomerData(base); err == nil {
 		t.Fatal("enabled customer without default account must fail")
 	}
@@ -37,9 +37,9 @@ func TestValidateCustomerAccountDataAllowsDistinctCurrencies(t *testing.T) {
 
 func TestValidateCustomerDataCountsUnicodeCharactersAndChecksWireLimits(t *testing.T) {
 	base := CustomerDataInput{
-		Kind: "ORGANIZATION", LegalName: strings.Repeat("客", 200), DefaultOperatingEntityID: "01JAVX00000000000000000001", Enabled: true,
-		StrongIdentifiers: []BusinessIdentifierInput{}, RemittanceProfiles: []CustomerRemittanceProfile{},
-		Accounts: []CustomerAccountDataInput{{Enabled: true, IsDefault: true, Name: strings.Repeat("账", 200), CustomerTypeID: "01JAVX00000000000000000002", PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: "01JAVX00000000000000000003"}}},
+		Kind: "MAINLAND_ENTERPRISE", LegalIdentifier: "91350211M000100Y46", LegalName: strings.Repeat("客", 200), DefaultOperatingEntityID: "01JAVX00000000000000000001", Enabled: true,
+		RemittanceProfiles: []CustomerRemittanceProfile{},
+		Accounts:           []CustomerAccountDataInput{{Enabled: true, IsDefault: true, Name: strings.Repeat("账", 200), CustomerTypeID: "01JAVX00000000000000000002", PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: "01JAVX00000000000000000003"}}},
 	}
 	if _, err := validateCustomerData(base); err != nil {
 		t.Fatalf("200 Unicode characters should satisfy maxLength=200: %v", err)
@@ -57,9 +57,9 @@ func TestValidateCustomerDataCountsUnicodeCharactersAndChecksWireLimits(t *testi
 
 func TestValidateCustomerDataRequiresPresentArraysAndAllowsMinimalRemittanceProfile(t *testing.T) {
 	base := CustomerDataInput{
-		Kind: "ORGANIZATION", LegalName: "客户", DefaultOperatingEntityID: "01JAVX00000000000000000001", Enabled: true,
-		StrongIdentifiers: []BusinessIdentifierInput{}, RemittanceProfiles: []CustomerRemittanceProfile{{AccountName: "基本户"}},
-		Accounts: []CustomerAccountDataInput{{Enabled: true, IsDefault: true, Name: "账户", CustomerTypeID: "01JAVX00000000000000000002", PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: "01JAVX00000000000000000003"}}},
+		Kind: "MAINLAND_ENTERPRISE", LegalIdentifier: "91350211M000100Y46", LegalName: "客户", DefaultOperatingEntityID: "01JAVX00000000000000000001", Enabled: true,
+		RemittanceProfiles: []CustomerRemittanceProfile{{AccountName: "基本户"}},
+		Accounts:           []CustomerAccountDataInput{{Enabled: true, IsDefault: true, Name: "账户", CustomerTypeID: "01JAVX00000000000000000002", PrimarySalesAttribution: CustomerSalesAttributionInput{Type: CustomerSalesAttributionInternalEmployee, SubjectObjectID: "01JAVX00000000000000000003"}}},
 	}
 	validated, err := validateCustomerData(base)
 	if err != nil {
@@ -68,13 +68,10 @@ func TestValidateCustomerDataRequiresPresentArraysAndAllowsMinimalRemittanceProf
 	if validated.RemittanceProfiles[0].BankName != "" || validated.RemittanceProfiles[0].AccountNumber != "" {
 		t.Fatalf("optional remittance fields changed: %#v", validated.RemittanceProfiles[0])
 	}
-	base.StrongIdentifiers = nil
+	base.LegalIdentifier = "invalid"
 	if _, err = validateCustomerData(base); err == nil {
-		t.Fatal("missing strongIdentifiers array must fail before persistence")
-	} else if domainErr, ok := err.(*DomainError); !ok || domainErr.ErrorKey != "validation_failed" {
-		t.Fatalf("missing strongIdentifiers error = %#v", err)
+		t.Fatal("invalid mainland enterprise identifier must fail")
 	}
-	base.StrongIdentifiers = []BusinessIdentifierInput{}
 	base.RemittanceProfiles = nil
 	if _, err = validateCustomerData(base); err == nil {
 		t.Fatal("missing remittanceProfiles array must fail before persistence")

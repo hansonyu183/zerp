@@ -303,7 +303,7 @@ func (q *Queries) GetBobEmbeddedCustomerAccountHistoricalReference(ctx context.C
 }
 
 const getBobEmployeeCurrentTyped = `-- name: GetBobEmployeeCurrentTyped :one
-SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.tax_number, snapshot.employee_category_id, snapshot.employee_category_code, snapshot.employee_category_name, snapshot.department_id, snapshot.department_code, snapshot.department_name, snapshot.position_id, snapshot.position_code, snapshot.position_name, snapshot.phone, snapshot.email, snapshot.hire_date, snapshot.current_operating_entity_id, snapshot.current_operating_entity_approval_entry_id, snapshot.current_operating_entity_code, snapshot.current_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='employee'
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.legal_identifier, snapshot.employee_category_id, snapshot.employee_category_code, snapshot.employee_category_name, snapshot.department_id, snapshot.department_code, snapshot.department_name, snapshot.position_id, snapshot.position_code, snapshot.position_name, snapshot.phone, snapshot.email, snapshot.hire_date, snapshot.current_operating_entity_id, snapshot.current_operating_entity_approval_entry_id, snapshot.current_operating_entity_code, snapshot.current_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='employee'
 `
 
 type GetBobEmployeeCurrentTypedRow struct {
@@ -317,7 +317,7 @@ type GetBobEmployeeCurrentTypedRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	EmployeeCategoryID                    *string            `db:"employee_category_id" json:"employee_category_id"`
 	EmployeeCategoryCode                  *string            `db:"employee_category_code" json:"employee_category_code"`
 	EmployeeCategoryName                  *string            `db:"employee_category_name" json:"employee_category_name"`
@@ -352,7 +352,7 @@ func (q *Queries) GetBobEmployeeCurrentTyped(ctx context.Context, objectID strin
 		&i.Kind,
 		&i.LegalName,
 		&i.DisplayName,
-		&i.TaxNumber,
+		&i.LegalIdentifier,
 		&i.EmployeeCategoryID,
 		&i.EmployeeCategoryCode,
 		&i.EmployeeCategoryName,
@@ -403,7 +403,7 @@ func (q *Queries) GetBobEmployeeCurrentTypedReference(ctx context.Context, objec
 }
 
 const getBobOtherUnitCurrentTyped = `-- name: GetBobOtherUnitCurrentTyped :one
-SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.tax_number, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.settlement_method_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='other-unit' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='other-unit'
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.legal_identifier, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.settlement_method_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='other-unit' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='other-unit'
 `
 
 type GetBobOtherUnitCurrentTypedRow struct {
@@ -417,7 +417,7 @@ type GetBobOtherUnitCurrentTypedRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	ContactName                           *string            `db:"contact_name" json:"contact_name"`
 	ContactPhone                          *string            `db:"contact_phone" json:"contact_phone"`
 	Email                                 *string            `db:"email" json:"email"`
@@ -452,7 +452,7 @@ func (q *Queries) GetBobOtherUnitCurrentTyped(ctx context.Context, objectID stri
 		&i.Kind,
 		&i.LegalName,
 		&i.DisplayName,
-		&i.TaxNumber,
+		&i.LegalIdentifier,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.Email,
@@ -508,7 +508,7 @@ func (q *Queries) GetBobOtherUnitCurrentTypedReference(ctx context.Context, arg 
 }
 
 const getBobSalesPartnerCurrentTyped = `-- name: GetBobSalesPartnerCurrentTyped :one
-SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.tax_number, snapshot.capabilities, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='sales-partner'
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.legal_identifier, snapshot.capabilities, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.id=$1 AND subject.entity='sales-partner'
 `
 
 type GetBobSalesPartnerCurrentTypedRow struct {
@@ -522,7 +522,7 @@ type GetBobSalesPartnerCurrentTypedRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	Capabilities                          []string           `db:"capabilities" json:"capabilities"`
 	ContactName                           *string            `db:"contact_name" json:"contact_name"`
 	ContactPhone                          *string            `db:"contact_phone" json:"contact_phone"`
@@ -550,7 +550,7 @@ func (q *Queries) GetBobSalesPartnerCurrentTyped(ctx context.Context, objectID s
 		&i.Kind,
 		&i.LegalName,
 		&i.DisplayName,
-		&i.TaxNumber,
+		&i.LegalIdentifier,
 		&i.Capabilities,
 		&i.ContactName,
 		&i.ContactPhone,
@@ -599,7 +599,7 @@ func (q *Queries) GetBobSalesPartnerCurrentTypedReference(ctx context.Context, a
 }
 
 const getBobSupplierCurrentTyped = `-- name: GetBobSupplierCurrentTyped :one
-SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.short_name, snapshot.tax_number, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.remark, snapshot.settlement_method_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.default_purchaser_employee_id, snapshot.default_purchaser_employee_entity, snapshot.default_purchaser_employee_approval_entry_id, snapshot.default_purchaser_employee_code, snapshot.default_purchaser_employee_name, snapshot.enabled
+SELECT subject.id AS object_id,subject.entity,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.short_name, snapshot.legal_identifier, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.remark, snapshot.settlement_method_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.default_purchaser_employee_id, snapshot.default_purchaser_employee_entity, snapshot.default_purchaser_employee_approval_entry_id, snapshot.default_purchaser_employee_code, snapshot.default_purchaser_employee_name, snapshot.enabled
 FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_supplier_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.id=$1 AND subject.entity='supplier'
 `
@@ -616,7 +616,7 @@ type GetBobSupplierCurrentTypedRow struct {
 	LegalName                               string             `db:"legal_name" json:"legal_name"`
 	DisplayName                             string             `db:"display_name" json:"display_name"`
 	ShortName                               *string            `db:"short_name" json:"short_name"`
-	TaxNumber                               *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                         *string            `db:"legal_identifier" json:"legal_identifier"`
 	ContactName                             *string            `db:"contact_name" json:"contact_name"`
 	ContactPhone                            *string            `db:"contact_phone" json:"contact_phone"`
 	Email                                   *string            `db:"email" json:"email"`
@@ -657,7 +657,7 @@ func (q *Queries) GetBobSupplierCurrentTyped(ctx context.Context, objectID strin
 		&i.LegalName,
 		&i.DisplayName,
 		&i.ShortName,
-		&i.TaxNumber,
+		&i.LegalIdentifier,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.Email,
@@ -845,7 +845,7 @@ func (q *Queries) ListBobEmbeddedCustomerAccountReferenceCandidates(ctx context.
 }
 
 const listBobEmployeeCurrentsTyped = `-- name: ListBobEmployeeCurrentsTyped :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.tax_number, snapshot.employee_category_id, snapshot.employee_category_code, snapshot.employee_category_name, snapshot.department_id, snapshot.department_code, snapshot.department_name, snapshot.position_id, snapshot.position_code, snapshot.position_name, snapshot.phone, snapshot.email, snapshot.hire_date, snapshot.current_operating_entity_id, snapshot.current_operating_entity_approval_entry_id, snapshot.current_operating_entity_code, snapshot.current_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.entity='employee' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) ORDER BY subject.code LIMIT $4 OFFSET $3
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.legal_identifier, snapshot.employee_category_id, snapshot.employee_category_code, snapshot.employee_category_name, snapshot.department_id, snapshot.department_code, snapshot.department_name, snapshot.position_id, snapshot.position_code, snapshot.position_name, snapshot.phone, snapshot.email, snapshot.hire_date, snapshot.current_operating_entity_id, snapshot.current_operating_entity_approval_entry_id, snapshot.current_operating_entity_code, snapshot.current_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='employee' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_employee_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.entity='employee' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) ORDER BY subject.code LIMIT $4 OFFSET $3
 `
 
 type ListBobEmployeeCurrentsTypedParams struct {
@@ -865,7 +865,7 @@ type ListBobEmployeeCurrentsTypedRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	EmployeeCategoryID                    *string            `db:"employee_category_id" json:"employee_category_id"`
 	EmployeeCategoryCode                  *string            `db:"employee_category_code" json:"employee_category_code"`
 	EmployeeCategoryName                  *string            `db:"employee_category_name" json:"employee_category_name"`
@@ -910,7 +910,7 @@ func (q *Queries) ListBobEmployeeCurrentsTyped(ctx context.Context, arg ListBobE
 			&i.Kind,
 			&i.LegalName,
 			&i.DisplayName,
-			&i.TaxNumber,
+			&i.LegalIdentifier,
 			&i.EmployeeCategoryID,
 			&i.EmployeeCategoryCode,
 			&i.EmployeeCategoryName,
@@ -941,7 +941,7 @@ func (q *Queries) ListBobEmployeeCurrentsTyped(ctx context.Context, arg ListBobE
 }
 
 const listBobOtherUnitCurrentsTyped = `-- name: ListBobOtherUnitCurrentsTyped :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.tax_number, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.settlement_method_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='other-unit' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.entity='other-unit' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) AND ($3::text='' OR EXISTS (SELECT 1 FROM dcl_other_unit_version_operating_entities operating WHERE operating.approval_entry_id=entry.id AND operating.operating_entity_id=$3)) ORDER BY subject.code LIMIT $5 OFFSET $4
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.legal_identifier, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.settlement_method_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='other-unit' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_other_unit_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.entity='other-unit' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) AND ($3::text='' OR EXISTS (SELECT 1 FROM dcl_other_unit_version_operating_entities operating WHERE operating.approval_entry_id=entry.id AND operating.operating_entity_id=$3)) ORDER BY subject.code LIMIT $5 OFFSET $4
 `
 
 type ListBobOtherUnitCurrentsTypedParams struct {
@@ -962,7 +962,7 @@ type ListBobOtherUnitCurrentsTypedRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	ContactName                           *string            `db:"contact_name" json:"contact_name"`
 	ContactPhone                          *string            `db:"contact_phone" json:"contact_phone"`
 	Email                                 *string            `db:"email" json:"email"`
@@ -1008,7 +1008,7 @@ func (q *Queries) ListBobOtherUnitCurrentsTyped(ctx context.Context, arg ListBob
 			&i.Kind,
 			&i.LegalName,
 			&i.DisplayName,
-			&i.TaxNumber,
+			&i.LegalIdentifier,
 			&i.ContactName,
 			&i.ContactPhone,
 			&i.Email,
@@ -1039,7 +1039,7 @@ func (q *Queries) ListBobOtherUnitCurrentsTyped(ctx context.Context, arg ListBob
 }
 
 const listBobSalesPartnerCurrentsTyped = `-- name: ListBobSalesPartnerCurrentsTyped :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.tax_number, snapshot.capabilities, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.entity='sales-partner' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) AND ($3::text='' OR EXISTS (SELECT 1 FROM dcl_sales_partner_version_operating_entities operating WHERE operating.approval_entry_id=entry.id AND operating.operating_entity_id=$3)) ORDER BY subject.code LIMIT $5 OFFSET $4
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.legal_identifier, snapshot.capabilities, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.remark, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='sales-partner' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_sales_partner_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.entity='sales-partner' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) AND ($3::text='' OR EXISTS (SELECT 1 FROM dcl_sales_partner_version_operating_entities operating WHERE operating.approval_entry_id=entry.id AND operating.operating_entity_id=$3)) ORDER BY subject.code LIMIT $5 OFFSET $4
 `
 
 type ListBobSalesPartnerCurrentsTypedParams struct {
@@ -1060,7 +1060,7 @@ type ListBobSalesPartnerCurrentsTypedRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	Capabilities                          []string           `db:"capabilities" json:"capabilities"`
 	ContactName                           *string            `db:"contact_name" json:"contact_name"`
 	ContactPhone                          *string            `db:"contact_phone" json:"contact_phone"`
@@ -1099,7 +1099,7 @@ func (q *Queries) ListBobSalesPartnerCurrentsTyped(ctx context.Context, arg List
 			&i.Kind,
 			&i.LegalName,
 			&i.DisplayName,
-			&i.TaxNumber,
+			&i.LegalIdentifier,
 			&i.Capabilities,
 			&i.ContactName,
 			&i.ContactPhone,
@@ -1123,7 +1123,7 @@ func (q *Queries) ListBobSalesPartnerCurrentsTyped(ctx context.Context, arg List
 }
 
 const listBobSupplierCurrentsTyped = `-- name: ListBobSupplierCurrentsTyped :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.short_name, snapshot.tax_number, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.remark, snapshot.settlement_method_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.default_purchaser_employee_id, snapshot.default_purchaser_employee_entity, snapshot.default_purchaser_employee_approval_entry_id, snapshot.default_purchaser_employee_code, snapshot.default_purchaser_employee_name, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_supplier_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.entity='supplier' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) AND ($3::text='' OR EXISTS (SELECT 1 FROM dcl_supplier_version_operating_entities operating WHERE operating.approval_entry_id=entry.id AND operating.operating_entity_id=$3)) ORDER BY subject.code LIMIT $5 OFFSET $4
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,entry.id AS approval_entry_id,entry.version_no,entry.updated_at,snapshot.approval_entry_id, snapshot.kind, snapshot.legal_name, snapshot.display_name, snapshot.short_name, snapshot.legal_identifier, snapshot.contact_name, snapshot.contact_phone, snapshot.email, snapshot.address, snapshot.remark, snapshot.settlement_method_id, snapshot.settlement_method_code, snapshot.settlement_method_name, snapshot.settlement_term_code, snapshot.settlement_rule_type, snapshot.settlement_month_offset, snapshot.settlement_day_of_month, snapshot.settlement_day_offset, snapshot.default_operating_entity_id, snapshot.default_operating_entity_approval_entry_id, snapshot.default_operating_entity_code, snapshot.default_operating_entity_name, snapshot.default_purchaser_employee_id, snapshot.default_purchaser_employee_entity, snapshot.default_purchaser_employee_approval_entry_id, snapshot.default_purchaser_employee_code, snapshot.default_purchaser_employee_name, snapshot.enabled FROM dcl_subjects subject JOIN LATERAL (SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) entry ON true JOIN dcl_supplier_versions snapshot ON snapshot.approval_entry_id=entry.id WHERE subject.entity='supplier' AND ($1::text='' OR subject.code ILIKE '%'||$1::text||'%' OR snapshot.display_name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR snapshot.enabled=($2::integer=1)) AND ($3::text='' OR EXISTS (SELECT 1 FROM dcl_supplier_version_operating_entities operating WHERE operating.approval_entry_id=entry.id AND operating.operating_entity_id=$3)) ORDER BY subject.code LIMIT $5 OFFSET $4
 `
 
 type ListBobSupplierCurrentsTypedParams struct {
@@ -1145,7 +1145,7 @@ type ListBobSupplierCurrentsTypedRow struct {
 	LegalName                               string             `db:"legal_name" json:"legal_name"`
 	DisplayName                             string             `db:"display_name" json:"display_name"`
 	ShortName                               *string            `db:"short_name" json:"short_name"`
-	TaxNumber                               *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                         *string            `db:"legal_identifier" json:"legal_identifier"`
 	ContactName                             *string            `db:"contact_name" json:"contact_name"`
 	ContactPhone                            *string            `db:"contact_phone" json:"contact_phone"`
 	Email                                   *string            `db:"email" json:"email"`
@@ -1197,7 +1197,7 @@ func (q *Queries) ListBobSupplierCurrentsTyped(ctx context.Context, arg ListBobS
 			&i.LegalName,
 			&i.DisplayName,
 			&i.ShortName,
-			&i.TaxNumber,
+			&i.LegalIdentifier,
 			&i.ContactName,
 			&i.ContactPhone,
 			&i.Email,

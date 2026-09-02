@@ -247,8 +247,8 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 	}
 	customerData := func(legalName, displayName string, enabled bool) []byte {
 		data := map[string]any{
-			"kind": "ORGANIZATION", "legalName": legalName, "displayName": displayName,
-			"strongIdentifiers": []any{}, "remittanceProfiles": []any{},
+			"kind": "MAINLAND_ENTERPRISE", "legalName": legalName, "displayName": displayName,
+			"legalIdentifier": "91350211M00010001X", "remittanceProfiles": []any{},
 			"defaultOperatingEntityId": newID(), "defaultOperatingEntity": map[string]any{},
 			"enabled": enabled, "accounts": []any{},
 		}
@@ -303,7 +303,7 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 		{secondCustomerEntryID, customerData("RPT 第二客户法定名称", "", true), true},
 		{disabledCustomerEntryID, customerData("RPT 客户已禁用", "RPT 客户已禁用", false), false},
 	} {
-		if _, err = tx.Exec(t.Context(), `INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled) VALUES($1,$2,$3)`, version.entryID, version.data, version.enabled); err != nil {
+		if _, err = tx.Exec(t.Context(), `INSERT INTO dcl_customer_versions(approval_entry_id,kind,legal_identifier,data,enabled) VALUES($1,'MAINLAND_ENTERPRISE','91350211M00010001X',$2,$3)`, version.entryID, version.data, version.enabled); err != nil {
 			t.Fatal(err)
 		}
 	}

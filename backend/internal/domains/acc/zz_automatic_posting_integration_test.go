@@ -100,8 +100,12 @@ func createApprovedAccountingEmployee(t *testing.T, pool *pgxpool.Pool, business
 	t.Helper()
 	authorizer := authorization.Func(nil)
 	employees := dcldomain.NewEmployeeService(pool, business, authorizer, bus)
+	legalIdentifier := "110105199001010010"
+	if requestPrefix == "service-acceptance-employee" {
+		legalIdentifier = "110105199001020016"
+	}
 	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
-		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: name, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true, CurrentOperatingEntityID: operatingEntityID},
+		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: name, LegalIdentifier: legalIdentifier, Enabled: true, CurrentOperatingEntityID: operatingEntityID},
 	}, trustedAccountingActor(t, requestPrefix+"-create"))
 	if err != nil {
 		t.Fatalf("create employee declaration: %v", err)
@@ -433,7 +437,7 @@ func TestZZServiceAcceptanceApprovalPostsOtherUnitPayableAndReceivableIntegratio
 		Data: dcldomain.OtherUnitData{
 			Kind:                     "ORGANIZATION",
 			LegalName:                "服务验收往来单位",
-			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
+			LegalIdentifier:          "91350211M000100021",
 			Enabled:                  true,
 			OperatingEntityIDs:       []string{operating.ObjectID},
 			DefaultOperatingEntityID: operating.ObjectID,

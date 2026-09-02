@@ -311,7 +311,7 @@ func insertApprovedEmployeeReference(t *testing.T, pool *pgxpool.Pool, business 
 	owner = submitAndApproveOperatingEntity(t, operating, owner, dclActor(t, creatorID, "warehouse-manager-owner-submit"), dclActor(t, reviewerID, "warehouse-manager-owner-approve"))
 	employees := NewEmployeeService(pool, business, authorizer, bus)
 	created, err := employees.Create(t.Context(), EmployeeCreateInput{
-		Data: employeeDeclarationInput("仓库负责人", "110101199001010099", owner.ObjectID, true, "", "", "", "", ""),
+		Data: employeeDeclarationInput("仓库负责人", "110101199001010015", owner.ObjectID, true, "", "", "", "", ""),
 	}, creator)
 	if err != nil {
 		t.Fatalf("create manager employee declaration: %v", err)

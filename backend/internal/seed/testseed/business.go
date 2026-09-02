@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
@@ -15,6 +16,40 @@ import (
 )
 
 const approvedStatus = string(approval.StatusApproved)
+
+// legalIdentifierForSeed derives a valid, reproducible mainland identifier
+// without relying on domain validation. Each seed key maps to a distinct serial
+// within its archive fixture set.
+func legalIdentifierForSeed(kind, key string) string {
+	serials := map[string]int{
+		"employee-effective": 1, "employee-rejected": 2,
+		"other-unit-effective": 11, "other-unit-draft": 12, "external-carrier": 13,
+		"supplier-effective": 21, "supplier-pending": 22,
+		"customer-effective": 31, "customer-draft": 32,
+	}
+	serial, ok := serials[key]
+	if !ok {
+		panic("missing legal identifier serial for seed " + key)
+	}
+	if kind == "PERSON" {
+		base := fmt.Sprintf("11010519900101%03d", serial)
+		weights := [...]int{7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2}
+		checks := "10X98765432"
+		sum := 0
+		for i, weight := range weights {
+			sum += int(base[i]-'0') * weight
+		}
+		return base + string(checks[sum%11])
+	}
+	base := fmt.Sprintf("91350211M%08d", serial)
+	chars := "0123456789ABCDEFGHJKLMNPQRTUWXY"
+	weights := [...]int{1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28}
+	sum := 0
+	for i, weight := range weights {
+		sum += strings.IndexByte(chars, base[i]) * weight
+	}
+	return base + string(chars[(31-sum%31)%31])
+}
 
 type bobSample struct {
 	key, entity, status string
@@ -117,7 +152,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		{"other-unit-effective", bobdomain.EntityOtherUnit, approvedStatus, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "远航居间服务有限公司（测试）", ShortName: "远航居间",
-				TaxNumber: "91310000TEST0103", ContactName: "刘顾问", ContactPhone: "13800000107",
+				ContactName: "刘顾问", ContactPhone: "13800000107",
 				Email: "test.intermediary@example.com", Address: "上海市静安区测试商务路 88 号",
 				SettlementMethodID:    s.auxRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
@@ -136,7 +171,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 			customerType := bobdomain.CustomerTypeEndUser
 			return bobdomain.CreateDetailInput{
 				Name: "星河制造有限公司（测试）", CustomerType: &customerType,
-				ShortName: "星河制造", TaxNumber: "91310000TEST0101",
+				ShortName:   "星河制造",
 				ContactName: "王经理", ContactPhone: "13800000103",
 				Email: "test.customer@example.com", Address: "上海市浦东新区测试路 101 号",
 				SettlementMethodID:    s.auxRefs["settlement-month-end"].ObjectID,
@@ -167,8 +202,8 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		}},
 		{"supplier-effective", bobdomain.EntitySupplier, approvedStatus, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name:      "通用原料供应商（测试）",
-				ShortName: "测试原料", TaxNumber: "91310000TEST0102",
+				Name:        "通用原料供应商（测试）",
+				ShortName:   "测试原料",
 				ContactName: "赵经理", ContactPhone: "13800000105",
 				Address:                    "江苏省苏州市测试工业园",
 				SettlementMethodID:         s.auxRefs["settlement-due-days"].ObjectID,
@@ -346,7 +381,7 @@ func (s *Seeder) ensureOtherUnit(ctx context.Context, sample bobSample) (seedBus
 		result, createErr := s.typedArchives.CreateOtherUnit(ctx, dcldomain.OtherUnitCreateInput{
 			Data: dcldomain.OtherUnitData{
 				Kind: "ORGANIZATION", LegalName: data.Name, DisplayName: data.ShortName,
-				TaxNumber: data.TaxNumber, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true,
+				LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", sample.key), Enabled: true,
 				OperatingEntityIDs:       []string{s.bobRefs["operating-effective"].ObjectID},
 				DefaultOperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
 				ContactName:              data.ContactName, ContactPhone: data.ContactPhone,
@@ -469,14 +504,14 @@ func (s *Seeder) ensureBusiness(
 			result, createErr = dclProductBusinessMutation(createdProduct), declarationErr
 		case bobdomain.EntityEmployee:
 			createdEmployee, declarationErr := s.employees.Create(ctx, dcldomain.EmployeeCreateInput{
-				Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: data.Name, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true, CurrentOperatingEntityID: s.bobRefs["operating-effective"].ObjectID, DepartmentID: data.DepartmentID, PositionID: data.PositionID,
+				Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: data.Name, LegalIdentifier: legalIdentifierForSeed("PERSON", sample.key), Enabled: true, CurrentOperatingEntityID: s.bobRefs["operating-effective"].ObjectID, DepartmentID: data.DepartmentID, PositionID: data.PositionID,
 					Phone: data.Phone, Email: data.Email, HireDate: data.HireDate, Remark: data.Remark},
 			}, createActor)
 			result, createErr = dclEmployeeBusinessMutation(createdEmployee), declarationErr
 		case bobdomain.EntitySupplier:
 			createdSupplier, declarationErr := s.supplierDeclarations().Create(ctx, dcldomain.SupplierCreateInput{
 				Data: dcldomain.SupplierInput{Kind: "ORGANIZATION", LegalName: data.Name, DisplayName: data.ShortName,
-					TaxNumber: data.TaxNumber, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true,
+					LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", sample.key), Enabled: true,
 					OperatingEntityIDs: []string{s.bobRefs["operating-effective"].ObjectID}, DefaultOperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
 					ShortName:   data.ShortName,
 					ContactName: data.ContactName, ContactPhone: data.ContactPhone,
@@ -487,10 +522,9 @@ func (s *Seeder) ensureBusiness(
 			result, createErr = dclSupplierBusinessMutation(createdSupplier), declarationErr
 		case bobdomain.EntityCustomer:
 			createdCustomer, archiveErr := s.customerDeclarations().Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerDataInput{
-				Kind: "ORGANIZATION", LegalName: data.Name, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
+				Kind: "MAINLAND_ENTERPRISE", LegalName: data.Name, DisplayName: data.ShortName, LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", sample.key),
 				Phone: data.ContactPhone, Email: data.Email, Address: data.Address,
 				DefaultOperatingEntityID: s.bobRefs["operating-effective"].ObjectID, Enabled: true,
-				StrongIdentifiers:  []dcldomain.BusinessIdentifierInput{},
 				RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{},
 				Accounts: []dcldomain.CustomerAccountDataInput{{Enabled: true, IsDefault: true, Name: data.Name, ShortName: data.ShortName,
 					CustomerTypeID: bobdomain.CustomerTypeEndUserID, ContactName: data.ContactName,
@@ -625,7 +659,7 @@ func dclSupplierBusinessView(view dcldomain.SupplierView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntitySupplier,
 		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Data.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.DisplayName,
-			ShortName: view.Data.ShortName, TaxNumber: view.Data.TaxNumber,
+			ShortName: view.Data.ShortName, LegalIdentifier: view.Data.LegalIdentifier,
 			ContactName: view.Data.ContactName, ContactPhone: view.Data.ContactPhone,
 			Email: view.Data.Email, Address: view.Data.Address, Remark: view.Data.Remark,
 			SettlementMethodID:         view.Data.SettlementMethodID,
@@ -641,7 +675,7 @@ func dclCustomerBusinessView(view dcldomain.CustomerView) seedBusinessView {
 	return seedBusinessView{ObjectID: view.ObjectID, Entity: bobdomain.EntityCustomer,
 		Code: view.Code, ApprovalRevision: view.Approval.Revision, Enabled: view.Data.Enabled,
 		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.LegalName,
-			ShortName: view.Data.DisplayName, TaxNumber: view.Data.TaxNumber,
+			ShortName: view.Data.DisplayName, LegalIdentifier: view.Data.LegalIdentifier,
 			ContactPhone: view.Data.Phone, Email: view.Data.Email, Address: view.Data.Address,
 			OperatingEntityID: view.Data.DefaultOperatingEntityID}, UpdatedAt: view.UpdatedAt}
 }

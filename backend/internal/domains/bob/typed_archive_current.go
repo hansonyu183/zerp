@@ -51,7 +51,7 @@ func (s *Service) EnsureSalesPartnerUnapproveAllowed(ctx context.Context, tx pgx
 	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
 
-func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerIdentifiers map[string]string, settlementID, paymentID, attributionType, attributionID string) (EffectiveReference, EffectiveReference, EffectiveReference, error) {
+func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerKind, customerLegalIdentifier, settlementID, paymentID, attributionType, attributionID string) (EffectiveReference, EffectiveReference, EffectiveReference, error) {
 	if tx == nil || !validID(attributionID) {
 		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
 	}
@@ -86,7 +86,7 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
 	}
 	if entity == EntitySalesPartner {
-		if err = s.ensureDifferentCustomerSalesIdentity(ctx, s.queries.WithTx(tx), customerIdentifiers, attributionID); err != nil {
+		if err = s.ensureDifferentCustomerSalesIdentity(ctx, s.queries.WithTx(tx), customerKind, customerLegalIdentifier, attributionID); err != nil {
 			return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, err
 		}
 		required := SalesCapabilityExternalPartTime
@@ -99,7 +99,7 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 	}
 	return settlement, payment, sales, nil
 }
-func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerIdentifiers map[string]string, attributionType, attributionID, attributionEntryID string) error {
+func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerKind, customerLegalIdentifier, attributionType, attributionID, attributionEntryID string) error {
 	if tx == nil || !validID(attributionID) || !validID(attributionEntryID) {
 		return domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
 	}
@@ -112,7 +112,7 @@ func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.
 		return err
 	}
 	if entity == EntitySalesPartner {
-		if err = s.ensureDifferentCustomerSalesIdentity(ctx, s.queries.WithTx(tx), customerIdentifiers, attributionID); err != nil {
+		if err = s.ensureDifferentCustomerSalesIdentity(ctx, s.queries.WithTx(tx), customerKind, customerLegalIdentifier, attributionID); err != nil {
 			return err
 		}
 		required := SalesCapabilityExternalPartTime
@@ -125,7 +125,10 @@ func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.
 	}
 	return nil
 }
-func (s *Service) ensureDifferentCustomerSalesIdentity(ctx context.Context, q *dbsqlc.Queries, customerIdentifiers map[string]string, salesPartnerID string) error {
+func (s *Service) ensureDifferentCustomerSalesIdentity(ctx context.Context, q *dbsqlc.Queries, customerKind, customerLegalIdentifier, salesPartnerID string) error {
+	if customerKind == "OTHER" || customerLegalIdentifier == "" {
+		return nil
+	}
 	entry, err := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySalesPartner, SubjectID: salesPartnerID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domainError(ErrorConflict, "sales-partner has no approved typed version", nil, nil)
@@ -133,14 +136,22 @@ func (s *Service) ensureDifferentCustomerSalesIdentity(ctx context.Context, q *d
 	if err != nil {
 		return s.internal("get sales-partner approved version", err)
 	}
-	identifiers, err := q.ListDCLSalesPartnerVersionIdentifiers(ctx, entry.ID)
+	sales, err := q.GetDCLSalesPartnerVersion(ctx, entry.ID)
 	if err != nil {
-		return s.internal("get sales-partner typed identifiers", err)
+		return s.internal("get sales-partner legal identifier", err)
 	}
-	for _, identifier := range identifiers {
-		if customerValue := customerIdentifiers[identifier.IdentifierType]; customerValue != "" && strings.ToUpper(strings.TrimSpace(customerValue)) == identifier.NormalizedValue {
-			return domainError(ErrorConflict, "customer cannot attribute sales to the same business identity", nil, nil)
-		}
+	comparableKind := ""
+	switch customerKind {
+	case "MAINLAND_INDIVIDUAL":
+		comparableKind = "PERSON"
+	case "MAINLAND_ENTERPRISE":
+		comparableKind = "ORGANIZATION"
+	}
+	if sales.Kind != comparableKind {
+		return nil
+	}
+	if customerLegalIdentifier != "" && strings.EqualFold(strings.TrimSpace(customerLegalIdentifier), deref(sales.LegalIdentifier)) {
+		return domainError(ErrorConflict, "customer cannot attribute sales to the same business identity", nil, nil)
 	}
 	return nil
 }
@@ -149,18 +160,11 @@ func archiveSnapshot(id, entry, code, name string) BusinessArchiveSnapshot {
 	return BusinessArchiveSnapshot{SourceObjectID: id, ApprovalEntryID: entry, Code: code, Name: name}
 }
 func (s *Service) otherData(ctx context.Context, q *dbsqlc.Queries, row dbsqlc.GetBobOtherUnitCurrentTypedRow) (DetailView, error) {
-	identifiers, err := q.ListDCLOtherUnitVersionIdentifiers(ctx, row.ApprovalEntryID)
-	if err != nil {
-		return DetailView{}, err
-	}
 	operating, err := q.ListDCLOtherUnitVersionOperatingEntities(ctx, row.ApprovalEntryID)
 	if err != nil {
 		return DetailView{}, err
 	}
-	data := DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), StrongIdentifiers: make([]BusinessIdentifier, 0, len(identifiers)), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating)), DefaultOperatingEntityID: row.DefaultOperatingEntityID, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark), SettlementMethodID: deref(row.SettlementMethodID), SettlementMethodCode: deref(row.SettlementMethodCode), SettlementMethodName: deref(row.SettlementMethodName), TermCode: deref(row.SettlementTermCode), RuleType: deref(row.SettlementRuleType), MonthOffset: row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset}
-	for _, value := range identifiers {
-		data.StrongIdentifiers = append(data.StrongIdentifiers, BusinessIdentifier{Type: value.IdentifierType, Value: value.Value})
-	}
+	data := DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, LegalIdentifier: deref(row.LegalIdentifier), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating)), DefaultOperatingEntityID: row.DefaultOperatingEntityID, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark), SettlementMethodID: deref(row.SettlementMethodID), SettlementMethodCode: deref(row.SettlementMethodCode), SettlementMethodName: deref(row.SettlementMethodName), TermCode: deref(row.SettlementTermCode), RuleType: deref(row.SettlementRuleType), MonthOffset: row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset}
 	for _, value := range operating {
 		data.OperatingEntityIDs = append(data.OperatingEntityIDs, value.OperatingEntityID)
 		data.OperatingEntities = append(data.OperatingEntities, archiveSnapshot(value.OperatingEntityID, value.OperatingEntityApprovalEntryID, value.OperatingEntityCode, value.OperatingEntityName))
@@ -172,18 +176,11 @@ func (s *Service) otherData(ctx context.Context, q *dbsqlc.Queries, row dbsqlc.G
 	return data, nil
 }
 func (s *Service) salesData(ctx context.Context, q *dbsqlc.Queries, row dbsqlc.GetBobSalesPartnerCurrentTypedRow) (DetailView, error) {
-	identifiers, err := q.ListDCLSalesPartnerVersionIdentifiers(ctx, row.ApprovalEntryID)
-	if err != nil {
-		return DetailView{}, err
-	}
 	operating, err := q.ListDCLSalesPartnerVersionOperatingEntities(ctx, row.ApprovalEntryID)
 	if err != nil {
 		return DetailView{}, err
 	}
-	data := DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), StrongIdentifiers: make([]BusinessIdentifier, 0, len(identifiers)), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating)), DefaultOperatingEntityID: row.DefaultOperatingEntityID, SalesCapabilities: row.Capabilities, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
-	for _, value := range identifiers {
-		data.StrongIdentifiers = append(data.StrongIdentifiers, BusinessIdentifier{Type: value.IdentifierType, Value: value.Value})
-	}
+	data := DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, LegalIdentifier: deref(row.LegalIdentifier), OperatingEntityIDs: make([]string, 0, len(operating)), OperatingEntities: make([]BusinessArchiveSnapshot, 0, len(operating)), DefaultOperatingEntityID: row.DefaultOperatingEntityID, SalesCapabilities: row.Capabilities, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
 	for _, value := range operating {
 		data.OperatingEntityIDs = append(data.OperatingEntityIDs, value.OperatingEntityID)
 		data.OperatingEntities = append(data.OperatingEntities, archiveSnapshot(value.OperatingEntityID, value.OperatingEntityApprovalEntryID, value.OperatingEntityCode, value.OperatingEntityName))
@@ -226,10 +223,10 @@ func (s *Service) getSalesPartnerCurrent(ctx context.Context, input GetInput) (O
 }
 
 func typedOtherListData(row dbsqlc.ListBobOtherUnitCurrentsTypedRow) DetailView {
-	return DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), DefaultOperatingEntityID: row.DefaultOperatingEntityID, OperatingEntities: []BusinessArchiveSnapshot{archiveSnapshot(row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName)}, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
+	return DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, LegalIdentifier: deref(row.LegalIdentifier), DefaultOperatingEntityID: row.DefaultOperatingEntityID, OperatingEntities: []BusinessArchiveSnapshot{archiveSnapshot(row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName)}, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
 }
 func typedSalesListData(row dbsqlc.ListBobSalesPartnerCurrentsTypedRow) DetailView {
-	return DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: deref(row.TaxNumber), DefaultOperatingEntityID: row.DefaultOperatingEntityID, OperatingEntities: []BusinessArchiveSnapshot{archiveSnapshot(row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName)}, SalesCapabilities: row.Capabilities, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
+	return DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, LegalIdentifier: deref(row.LegalIdentifier), DefaultOperatingEntityID: row.DefaultOperatingEntityID, OperatingEntities: []BusinessArchiveSnapshot{archiveSnapshot(row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName)}, SalesCapabilities: row.Capabilities, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark)}
 }
 func (s *Service) queryTypedArchiveCurrent(ctx context.Context, q *dbsqlc.Queries, entity string, input QueryInput) (Page[QueryItem], error) {
 	offset, ok := pageOffset(input.Page, input.PageSize)

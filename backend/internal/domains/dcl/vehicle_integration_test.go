@@ -102,8 +102,8 @@ func TestVehicleDeclarationControlsBOBCurrentDataIntegration(t *testing.T) {
 	}
 	external, err := typedArchives.CreateOtherUnit(t.Context(), OtherUnitCreateInput{Data: OtherUnitData{
 		Kind: "ORGANIZATION", LegalName: "外部承运服务商",
-		StrongIdentifiers: []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: "91310000VEH345001"}},
-		Enabled:           true, OperatingEntityIDs: []string{carrierID}, DefaultOperatingEntityID: carrierID,
+		LegalIdentifier: "91350211M000100Y46",
+		Enabled:         true, OperatingEntityIDs: []string{carrierID}, DefaultOperatingEntityID: carrierID,
 	}}, creator("external-carrier-create"))
 	if err != nil {
 		t.Fatalf("create external carrier: %v", err)

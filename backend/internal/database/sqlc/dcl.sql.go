@@ -65,8 +65,8 @@ func (q *Queries) CopyDCLCustomerVersionAccounts(ctx context.Context, arg CopyDC
 }
 
 const copyDCLCustomerVersionAggregate = `-- name: CopyDCLCustomerVersionAggregate :exec
-INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled)
-SELECT $1,source.data,source.enabled
+INSERT INTO dcl_customer_versions(approval_entry_id,kind,legal_identifier,data,enabled)
+SELECT $1,source.kind,source.legal_identifier,source.data,source.enabled
 FROM dcl_customer_versions source
 WHERE source.approval_entry_id=$2
 `
@@ -81,29 +81,12 @@ func (q *Queries) CopyDCLCustomerVersionAggregate(ctx context.Context, arg CopyD
 	return err
 }
 
-const copyDCLCustomerVersionIdentifiers = `-- name: CopyDCLCustomerVersionIdentifiers :exec
-INSERT INTO dcl_customer_version_identifiers(customer_approval_entry_id,identifier_type,value,normalized_value)
-SELECT $1,source.identifier_type,source.value,source.normalized_value
-FROM dcl_customer_version_identifiers source
-WHERE source.customer_approval_entry_id=$2
-`
-
-type CopyDCLCustomerVersionIdentifiersParams struct {
-	NewCustomerApprovalEntryID    string `db:"new_customer_approval_entry_id" json:"new_customer_approval_entry_id"`
-	SourceCustomerApprovalEntryID string `db:"source_customer_approval_entry_id" json:"source_customer_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLCustomerVersionIdentifiers(ctx context.Context, arg CopyDCLCustomerVersionIdentifiersParams) error {
-	_, err := q.db.Exec(ctx, copyDCLCustomerVersionIdentifiers, arg.NewCustomerApprovalEntryID, arg.SourceCustomerApprovalEntryID)
-	return err
-}
-
 const copyDCLEmployeeVersion = `-- name: CopyDCLEmployeeVersion :execrows
 INSERT INTO dcl_employee_versions(
-  approval_entry_id,kind,legal_name,display_name,tax_number,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
+  approval_entry_id,kind,legal_name,display_name,legal_identifier,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
   position_name,phone,email,hire_date,current_operating_entity_id,current_operating_entity_approval_entry_id,current_operating_entity_code,current_operating_entity_name,remark,enabled
 )
-SELECT $1,source.kind,source.legal_name,source.display_name,source.tax_number,source.employee_category_id,
+SELECT $1,source.kind,source.legal_name,source.display_name,source.legal_identifier,source.employee_category_id,
   source.employee_category_code,source.employee_category_name,
   source.department_id,source.department_code,source.department_name,
   source.position_id,source.position_code,source.position_name,source.phone,source.email,
@@ -123,20 +106,6 @@ func (q *Queries) CopyDCLEmployeeVersion(ctx context.Context, arg CopyDCLEmploye
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const copyDCLEmployeeVersionIdentifiers = `-- name: CopyDCLEmployeeVersionIdentifiers :exec
-INSERT INTO dcl_employee_version_identifiers(approval_entry_id,identifier_type,value,normalized_value) SELECT $1,source.identifier_type,source.value,source.normalized_value FROM dcl_employee_version_identifiers source WHERE source.approval_entry_id=$2
-`
-
-type CopyDCLEmployeeVersionIdentifiersParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLEmployeeVersionIdentifiers(ctx context.Context, arg CopyDCLEmployeeVersionIdentifiersParams) error {
-	_, err := q.db.Exec(ctx, copyDCLEmployeeVersionIdentifiers, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
 }
 
 const copyDCLFundAccountVersion = `-- name: CopyDCLFundAccountVersion :execrows
@@ -180,8 +149,8 @@ func (q *Queries) CopyDCLOperatingEntityVersion(ctx context.Context, arg CopyDCL
 }
 
 const copyDCLOtherUnitVersion = `-- name: CopyDCLOtherUnitVersion :execrows
-INSERT INTO dcl_other_unit_versions(approval_entry_id,kind,legal_name,display_name,tax_number,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
-SELECT $1,source.kind,source.legal_name,source.display_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.default_operating_entity_id,source.default_operating_entity_approval_entry_id,source.default_operating_entity_code,source.default_operating_entity_name,source.remark,source.enabled FROM dcl_other_unit_versions source WHERE source.approval_entry_id=$2
+INSERT INTO dcl_other_unit_versions(approval_entry_id,kind,legal_name,display_name,legal_identifier,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
+SELECT $1,source.kind,source.legal_name,source.display_name,source.legal_identifier,source.contact_name,source.contact_phone,source.email,source.address,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.default_operating_entity_id,source.default_operating_entity_approval_entry_id,source.default_operating_entity_code,source.default_operating_entity_name,source.remark,source.enabled FROM dcl_other_unit_versions source WHERE source.approval_entry_id=$2
 `
 
 type CopyDCLOtherUnitVersionParams struct {
@@ -195,20 +164,6 @@ func (q *Queries) CopyDCLOtherUnitVersion(ctx context.Context, arg CopyDCLOtherU
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const copyDCLOtherUnitVersionIdentifiers = `-- name: CopyDCLOtherUnitVersionIdentifiers :exec
-INSERT INTO dcl_other_unit_version_identifiers(approval_entry_id,identifier_type,value,normalized_value) SELECT $1,source.identifier_type,source.value,source.normalized_value FROM dcl_other_unit_version_identifiers source WHERE source.approval_entry_id=$2
-`
-
-type CopyDCLOtherUnitVersionIdentifiersParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLOtherUnitVersionIdentifiers(ctx context.Context, arg CopyDCLOtherUnitVersionIdentifiersParams) error {
-	_, err := q.db.Exec(ctx, copyDCLOtherUnitVersionIdentifiers, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
 }
 
 const copyDCLOtherUnitVersionOperatingEntities = `-- name: CopyDCLOtherUnitVersionOperatingEntities :exec
@@ -226,8 +181,8 @@ func (q *Queries) CopyDCLOtherUnitVersionOperatingEntities(ctx context.Context, 
 }
 
 const copyDCLSalesPartnerVersion = `-- name: CopyDCLSalesPartnerVersion :execrows
-INSERT INTO dcl_sales_partner_versions(approval_entry_id,kind,legal_name,display_name,tax_number,capabilities,contact_name,contact_phone,email,address,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
-SELECT $1,source.kind,source.legal_name,source.display_name,source.tax_number,source.capabilities,source.contact_name,source.contact_phone,source.email,source.address,source.default_operating_entity_id,source.default_operating_entity_approval_entry_id,source.default_operating_entity_code,source.default_operating_entity_name,source.remark,source.enabled FROM dcl_sales_partner_versions source WHERE source.approval_entry_id=$2
+INSERT INTO dcl_sales_partner_versions(approval_entry_id,kind,legal_name,display_name,legal_identifier,capabilities,contact_name,contact_phone,email,address,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
+SELECT $1,source.kind,source.legal_name,source.display_name,source.legal_identifier,source.capabilities,source.contact_name,source.contact_phone,source.email,source.address,source.default_operating_entity_id,source.default_operating_entity_approval_entry_id,source.default_operating_entity_code,source.default_operating_entity_name,source.remark,source.enabled FROM dcl_sales_partner_versions source WHERE source.approval_entry_id=$2
 `
 
 type CopyDCLSalesPartnerVersionParams struct {
@@ -241,20 +196,6 @@ func (q *Queries) CopyDCLSalesPartnerVersion(ctx context.Context, arg CopyDCLSal
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const copyDCLSalesPartnerVersionIdentifiers = `-- name: CopyDCLSalesPartnerVersionIdentifiers :exec
-INSERT INTO dcl_sales_partner_version_identifiers(approval_entry_id,identifier_type,value,normalized_value) SELECT $1,source.identifier_type,source.value,source.normalized_value FROM dcl_sales_partner_version_identifiers source WHERE source.approval_entry_id=$2
-`
-
-type CopyDCLSalesPartnerVersionIdentifiersParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLSalesPartnerVersionIdentifiers(ctx context.Context, arg CopyDCLSalesPartnerVersionIdentifiersParams) error {
-	_, err := q.db.Exec(ctx, copyDCLSalesPartnerVersionIdentifiers, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
 }
 
 const copyDCLSalesPartnerVersionOperatingEntities = `-- name: CopyDCLSalesPartnerVersionOperatingEntities :exec
@@ -272,8 +213,8 @@ func (q *Queries) CopyDCLSalesPartnerVersionOperatingEntities(ctx context.Contex
 }
 
 const copyDCLSupplierVersion = `-- name: CopyDCLSupplierVersion :execrows
-INSERT INTO dcl_supplier_versions(approval_entry_id,kind,legal_name,display_name,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
-SELECT $1,source.kind,source.legal_name,source.display_name,source.short_name,source.tax_number,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.default_operating_entity_id,source.default_operating_entity_approval_entry_id,source.default_operating_entity_code,source.default_operating_entity_name,source.default_purchaser_employee_id,source.default_purchaser_employee_approval_entry_id,source.default_purchaser_employee_code,source.default_purchaser_employee_name,source.enabled FROM dcl_supplier_versions source WHERE source.approval_entry_id=$2
+INSERT INTO dcl_supplier_versions(approval_entry_id,kind,legal_name,display_name,short_name,legal_identifier,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
+SELECT $1,source.kind,source.legal_name,source.display_name,source.short_name,source.legal_identifier,source.contact_name,source.contact_phone,source.email,source.address,source.remark,source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,source.settlement_day_of_month,source.settlement_day_offset,source.default_operating_entity_id,source.default_operating_entity_approval_entry_id,source.default_operating_entity_code,source.default_operating_entity_name,source.default_purchaser_employee_id,source.default_purchaser_employee_approval_entry_id,source.default_purchaser_employee_code,source.default_purchaser_employee_name,source.enabled FROM dcl_supplier_versions source WHERE source.approval_entry_id=$2
 `
 
 type CopyDCLSupplierVersionParams struct {
@@ -287,20 +228,6 @@ func (q *Queries) CopyDCLSupplierVersion(ctx context.Context, arg CopyDCLSupplie
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const copyDCLSupplierVersionIdentifiers = `-- name: CopyDCLSupplierVersionIdentifiers :exec
-INSERT INTO dcl_supplier_version_identifiers(approval_entry_id,identifier_type,value,normalized_value) SELECT $1,source.identifier_type,source.value,source.normalized_value FROM dcl_supplier_version_identifiers source WHERE source.approval_entry_id=$2
-`
-
-type CopyDCLSupplierVersionIdentifiersParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLSupplierVersionIdentifiers(ctx context.Context, arg CopyDCLSupplierVersionIdentifiersParams) error {
-	_, err := q.db.Exec(ctx, copyDCLSupplierVersionIdentifiers, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
 }
 
 const copyDCLSupplierVersionOperatingEntities = `-- name: CopyDCLSupplierVersionOperatingEntities :exec
@@ -1420,13 +1347,17 @@ func (q *Queries) DeleteDCLCustomerAccountRoot(ctx context.Context, arg DeleteDC
 	return result.RowsAffected(), nil
 }
 
-const deleteDCLCustomerIdentifierClaimsForEntry = `-- name: DeleteDCLCustomerIdentifierClaimsForEntry :exec
-DELETE FROM dcl_customer_identifier_claims
-WHERE approved_approval_entry_id=$1 OR open_approval_entry_id=$1
+const deleteDCLCustomerLegalIdentifierClaimsForEntry = `-- name: DeleteDCLCustomerLegalIdentifierClaimsForEntry :exec
+UPDATE dcl_customer_legal_identifier_claims AS target SET
+  approved_customer_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_customer_id END,
+  approved_approval_entry_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_approval_entry_id END,
+  open_customer_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_customer_id END,
+  open_approval_entry_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_approval_entry_id END
+WHERE target.approved_approval_entry_id=$1 OR target.open_approval_entry_id=$1
 `
 
-func (q *Queries) DeleteDCLCustomerIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
-	_, err := q.db.Exec(ctx, deleteDCLCustomerIdentifierClaimsForEntry, approvalEntryID)
+func (q *Queries) DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
+	_, err := q.db.Exec(ctx, deleteDCLCustomerLegalIdentifierClaimsForEntry, approvalEntryID)
 	return err
 }
 
@@ -1469,22 +1400,12 @@ func (q *Queries) DeleteDCLCustomerVersionAggregate(ctx context.Context, approva
 	return result.RowsAffected(), nil
 }
 
-const deleteDCLCustomerVersionIdentifiers = `-- name: DeleteDCLCustomerVersionIdentifiers :exec
-DELETE FROM dcl_customer_version_identifiers
-WHERE customer_approval_entry_id=$1
+const deleteDCLEmployeeLegalIdentifierClaimsForEntry = `-- name: DeleteDCLEmployeeLegalIdentifierClaimsForEntry :exec
+UPDATE dcl_employee_legal_identifier_claims AS target SET approved_employee_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_employee_id END, approved_approval_entry_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_approval_entry_id END, open_employee_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_employee_id END, open_approval_entry_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_approval_entry_id END WHERE target.approved_approval_entry_id=$1 OR target.open_approval_entry_id=$1
 `
 
-func (q *Queries) DeleteDCLCustomerVersionIdentifiers(ctx context.Context, customerApprovalEntryID string) error {
-	_, err := q.db.Exec(ctx, deleteDCLCustomerVersionIdentifiers, customerApprovalEntryID)
-	return err
-}
-
-const deleteDCLEmployeeIdentifierClaimsForEntry = `-- name: DeleteDCLEmployeeIdentifierClaimsForEntry :exec
-DELETE FROM dcl_employee_identifier_claims WHERE approved_approval_entry_id=$1 OR open_approval_entry_id=$1
-`
-
-func (q *Queries) DeleteDCLEmployeeIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
-	_, err := q.db.Exec(ctx, deleteDCLEmployeeIdentifierClaimsForEntry, approvalEntryID)
+func (q *Queries) DeleteDCLEmployeeLegalIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
+	_, err := q.db.Exec(ctx, deleteDCLEmployeeLegalIdentifierClaimsForEntry, approvalEntryID)
 	return err
 }
 
@@ -1498,15 +1419,6 @@ func (q *Queries) DeleteDCLEmployeeVersion(ctx context.Context, approvalEntryID 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const deleteDCLEmployeeVersionIdentifiers = `-- name: DeleteDCLEmployeeVersionIdentifiers :exec
-DELETE FROM dcl_employee_version_identifiers WHERE approval_entry_id=$1
-`
-
-func (q *Queries) DeleteDCLEmployeeVersionIdentifiers(ctx context.Context, approvalEntryID string) error {
-	_, err := q.db.Exec(ctx, deleteDCLEmployeeVersionIdentifiers, approvalEntryID)
-	return err
 }
 
 const deleteDCLFundAccountIdentifierClaims = `-- name: DeleteDCLFundAccountIdentifierClaims :exec
@@ -1543,12 +1455,12 @@ func (q *Queries) DeleteDCLOperatingEntityVersion(ctx context.Context, approvalE
 	return result.RowsAffected(), nil
 }
 
-const deleteDCLOtherUnitIdentifierClaimsForEntry = `-- name: DeleteDCLOtherUnitIdentifierClaimsForEntry :exec
-DELETE FROM dcl_other_unit_identifier_claims WHERE approved_approval_entry_id=$1 OR open_approval_entry_id=$1
+const deleteDCLOtherUnitLegalIdentifierClaimsForEntry = `-- name: DeleteDCLOtherUnitLegalIdentifierClaimsForEntry :exec
+UPDATE dcl_other_unit_legal_identifier_claims AS target SET approved_other_unit_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_other_unit_id END, approved_approval_entry_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_approval_entry_id END, open_other_unit_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_other_unit_id END, open_approval_entry_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_approval_entry_id END WHERE target.approved_approval_entry_id=$1 OR target.open_approval_entry_id=$1
 `
 
-func (q *Queries) DeleteDCLOtherUnitIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
-	_, err := q.db.Exec(ctx, deleteDCLOtherUnitIdentifierClaimsForEntry, approvalEntryID)
+func (q *Queries) DeleteDCLOtherUnitLegalIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
+	_, err := q.db.Exec(ctx, deleteDCLOtherUnitLegalIdentifierClaimsForEntry, approvalEntryID)
 	return err
 }
 
@@ -1562,15 +1474,6 @@ func (q *Queries) DeleteDCLOtherUnitVersion(ctx context.Context, approvalEntryID
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const deleteDCLOtherUnitVersionIdentifiers = `-- name: DeleteDCLOtherUnitVersionIdentifiers :exec
-DELETE FROM dcl_other_unit_version_identifiers WHERE approval_entry_id=$1
-`
-
-func (q *Queries) DeleteDCLOtherUnitVersionIdentifiers(ctx context.Context, approvalEntryID string) error {
-	_, err := q.db.Exec(ctx, deleteDCLOtherUnitVersionIdentifiers, approvalEntryID)
-	return err
 }
 
 const deleteDCLOtherUnitVersionOperatingEntities = `-- name: DeleteDCLOtherUnitVersionOperatingEntities :exec
@@ -1591,12 +1494,12 @@ func (q *Queries) DeleteDCLProductBarcodeClaims(ctx context.Context, objectID st
 	return err
 }
 
-const deleteDCLSalesPartnerIdentifierClaimsForEntry = `-- name: DeleteDCLSalesPartnerIdentifierClaimsForEntry :exec
-DELETE FROM dcl_sales_partner_identifier_claims WHERE approved_approval_entry_id=$1 OR open_approval_entry_id=$1
+const deleteDCLSalesPartnerLegalIdentifierClaimsForEntry = `-- name: DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry :exec
+UPDATE dcl_sales_partner_legal_identifier_claims AS target SET approved_sales_partner_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_sales_partner_id END, approved_approval_entry_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_approval_entry_id END, open_sales_partner_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_sales_partner_id END, open_approval_entry_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_approval_entry_id END WHERE target.approved_approval_entry_id=$1 OR target.open_approval_entry_id=$1
 `
 
-func (q *Queries) DeleteDCLSalesPartnerIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
-	_, err := q.db.Exec(ctx, deleteDCLSalesPartnerIdentifierClaimsForEntry, approvalEntryID)
+func (q *Queries) DeleteDCLSalesPartnerLegalIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
+	_, err := q.db.Exec(ctx, deleteDCLSalesPartnerLegalIdentifierClaimsForEntry, approvalEntryID)
 	return err
 }
 
@@ -1610,15 +1513,6 @@ func (q *Queries) DeleteDCLSalesPartnerVersion(ctx context.Context, approvalEntr
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const deleteDCLSalesPartnerVersionIdentifiers = `-- name: DeleteDCLSalesPartnerVersionIdentifiers :exec
-DELETE FROM dcl_sales_partner_version_identifiers WHERE approval_entry_id=$1
-`
-
-func (q *Queries) DeleteDCLSalesPartnerVersionIdentifiers(ctx context.Context, approvalEntryID string) error {
-	_, err := q.db.Exec(ctx, deleteDCLSalesPartnerVersionIdentifiers, approvalEntryID)
-	return err
 }
 
 const deleteDCLSalesPartnerVersionOperatingEntities = `-- name: DeleteDCLSalesPartnerVersionOperatingEntities :exec
@@ -1648,12 +1542,12 @@ func (q *Queries) DeleteDCLSubject(ctx context.Context, arg DeleteDCLSubjectPara
 	return result.RowsAffected(), nil
 }
 
-const deleteDCLSupplierIdentifierClaimsForEntry = `-- name: DeleteDCLSupplierIdentifierClaimsForEntry :exec
-DELETE FROM dcl_supplier_identifier_claims WHERE approved_approval_entry_id=$1 OR open_approval_entry_id=$1
+const deleteDCLSupplierLegalIdentifierClaimsForEntry = `-- name: DeleteDCLSupplierLegalIdentifierClaimsForEntry :exec
+UPDATE dcl_supplier_legal_identifier_claims AS target SET approved_supplier_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_supplier_id END, approved_approval_entry_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_approval_entry_id END, open_supplier_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_supplier_id END, open_approval_entry_id=CASE WHEN target.open_approval_entry_id=$1 THEN NULL ELSE target.open_approval_entry_id END WHERE target.approved_approval_entry_id=$1 OR target.open_approval_entry_id=$1
 `
 
-func (q *Queries) DeleteDCLSupplierIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
-	_, err := q.db.Exec(ctx, deleteDCLSupplierIdentifierClaimsForEntry, approvalEntryID)
+func (q *Queries) DeleteDCLSupplierLegalIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error {
+	_, err := q.db.Exec(ctx, deleteDCLSupplierLegalIdentifierClaimsForEntry, approvalEntryID)
 	return err
 }
 
@@ -1667,15 +1561,6 @@ func (q *Queries) DeleteDCLSupplierVersion(ctx context.Context, approvalEntryID 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const deleteDCLSupplierVersionIdentifiers = `-- name: DeleteDCLSupplierVersionIdentifiers :exec
-DELETE FROM dcl_supplier_version_identifiers WHERE approval_entry_id=$1
-`
-
-func (q *Queries) DeleteDCLSupplierVersionIdentifiers(ctx context.Context, approvalEntryID string) error {
-	_, err := q.db.Exec(ctx, deleteDCLSupplierVersionIdentifiers, approvalEntryID)
-	return err
 }
 
 const deleteDCLSupplierVersionOperatingEntities = `-- name: DeleteDCLSupplierVersionOperatingEntities :exec
@@ -1847,7 +1732,7 @@ func (q *Queries) GetDCLCustomerAccountCodeMax(ctx context.Context, customerID s
 }
 
 const getDCLCustomerVersionAggregate = `-- name: GetDCLCustomerVersionAggregate :one
-SELECT approval_entry_id,data,enabled
+SELECT approval_entry_id,kind,legal_identifier,data,enabled
 FROM dcl_customer_versions
 WHERE approval_entry_id=$1
 `
@@ -1855,12 +1740,18 @@ WHERE approval_entry_id=$1
 func (q *Queries) GetDCLCustomerVersionAggregate(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error) {
 	row := q.db.QueryRow(ctx, getDCLCustomerVersionAggregate, approvalEntryID)
 	var i DclCustomerVersion
-	err := row.Scan(&i.ApprovalEntryID, &i.Data, &i.Enabled)
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.Kind,
+		&i.LegalIdentifier,
+		&i.Data,
+		&i.Enabled,
+	)
 	return i, err
 }
 
 const getDCLEmployeeVersion = `-- name: GetDCLEmployeeVersion :one
-SELECT approval_entry_id, kind, legal_name, display_name, tax_number, employee_category_id, employee_category_code, employee_category_name, department_id, department_code, department_name, position_id, position_code, position_name, phone, email, hire_date, current_operating_entity_id, current_operating_entity_approval_entry_id, current_operating_entity_code, current_operating_entity_name, remark, enabled FROM dcl_employee_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, kind, legal_name, display_name, legal_identifier, employee_category_id, employee_category_code, employee_category_name, department_id, department_code, department_name, position_id, position_code, position_name, phone, email, hire_date, current_operating_entity_id, current_operating_entity_approval_entry_id, current_operating_entity_code, current_operating_entity_name, remark, enabled FROM dcl_employee_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLEmployeeVersion(ctx context.Context, approvalEntryID string) (DclEmployeeVersion, error) {
@@ -1871,7 +1762,7 @@ func (q *Queries) GetDCLEmployeeVersion(ctx context.Context, approvalEntryID str
 		&i.Kind,
 		&i.LegalName,
 		&i.DisplayName,
-		&i.TaxNumber,
+		&i.LegalIdentifier,
 		&i.EmployeeCategoryID,
 		&i.EmployeeCategoryCode,
 		&i.EmployeeCategoryName,
@@ -1944,7 +1835,7 @@ func (q *Queries) GetDCLOperatingEntityVersion(ctx context.Context, approvalEntr
 }
 
 const getDCLOtherUnitVersion = `-- name: GetDCLOtherUnitVersion :one
-SELECT approval_entry_id, kind, legal_name, display_name, tax_number, contact_name, contact_phone, email, address, settlement_method_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, default_operating_entity_id, default_operating_entity_approval_entry_id, default_operating_entity_code, default_operating_entity_name, remark, enabled FROM dcl_other_unit_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, kind, legal_name, display_name, legal_identifier, contact_name, contact_phone, email, address, settlement_method_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, default_operating_entity_id, default_operating_entity_approval_entry_id, default_operating_entity_code, default_operating_entity_name, remark, enabled FROM dcl_other_unit_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLOtherUnitVersion(ctx context.Context, approvalEntryID string) (DclOtherUnitVersion, error) {
@@ -1955,7 +1846,7 @@ func (q *Queries) GetDCLOtherUnitVersion(ctx context.Context, approvalEntryID st
 		&i.Kind,
 		&i.LegalName,
 		&i.DisplayName,
-		&i.TaxNumber,
+		&i.LegalIdentifier,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.Email,
@@ -1979,7 +1870,7 @@ func (q *Queries) GetDCLOtherUnitVersion(ctx context.Context, approvalEntryID st
 }
 
 const getDCLSalesPartnerVersion = `-- name: GetDCLSalesPartnerVersion :one
-SELECT approval_entry_id, kind, legal_name, display_name, tax_number, capabilities, contact_name, contact_phone, email, address, default_operating_entity_id, default_operating_entity_approval_entry_id, default_operating_entity_code, default_operating_entity_name, remark, enabled FROM dcl_sales_partner_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, kind, legal_name, display_name, legal_identifier, capabilities, contact_name, contact_phone, email, address, default_operating_entity_id, default_operating_entity_approval_entry_id, default_operating_entity_code, default_operating_entity_name, remark, enabled FROM dcl_sales_partner_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLSalesPartnerVersion(ctx context.Context, approvalEntryID string) (DclSalesPartnerVersion, error) {
@@ -1990,7 +1881,7 @@ func (q *Queries) GetDCLSalesPartnerVersion(ctx context.Context, approvalEntryID
 		&i.Kind,
 		&i.LegalName,
 		&i.DisplayName,
-		&i.TaxNumber,
+		&i.LegalIdentifier,
 		&i.Capabilities,
 		&i.ContactName,
 		&i.ContactPhone,
@@ -2031,7 +1922,7 @@ func (q *Queries) GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (D
 }
 
 const getDCLSupplierVersion = `-- name: GetDCLSupplierVersion :one
-SELECT approval_entry_id, kind, legal_name, display_name, short_name, tax_number, contact_name, contact_phone, email, address, remark, settlement_method_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, default_operating_entity_id, default_operating_entity_approval_entry_id, default_operating_entity_code, default_operating_entity_name, default_purchaser_employee_id, default_purchaser_employee_entity, default_purchaser_employee_approval_entry_id, default_purchaser_employee_code, default_purchaser_employee_name, enabled FROM dcl_supplier_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, kind, legal_name, display_name, short_name, legal_identifier, contact_name, contact_phone, email, address, remark, settlement_method_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, default_operating_entity_id, default_operating_entity_approval_entry_id, default_operating_entity_code, default_operating_entity_name, default_purchaser_employee_id, default_purchaser_employee_entity, default_purchaser_employee_approval_entry_id, default_purchaser_employee_code, default_purchaser_employee_name, enabled FROM dcl_supplier_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLSupplierVersion(ctx context.Context, approvalEntryID string) (DclSupplierVersion, error) {
@@ -2043,7 +1934,7 @@ func (q *Queries) GetDCLSupplierVersion(ctx context.Context, approvalEntryID str
 		&i.LegalName,
 		&i.DisplayName,
 		&i.ShortName,
-		&i.TaxNumber,
+		&i.LegalIdentifier,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.Email,
@@ -2386,48 +2277,34 @@ func (q *Queries) InsertDCLCustomerVersionAccountCreditLimit(ctx context.Context
 }
 
 const insertDCLCustomerVersionAggregate = `-- name: InsertDCLCustomerVersionAggregate :exec
-INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled)
-VALUES($1,$2,$3)
+INSERT INTO dcl_customer_versions(approval_entry_id,kind,legal_identifier,data,enabled)
+VALUES($1,$2,$3,$4,$5)
 `
 
 type InsertDCLCustomerVersionAggregateParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Data            []byte `db:"data" json:"data"`
-	Enabled         bool   `db:"enabled" json:"enabled"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Kind            string  `db:"kind" json:"kind"`
+	LegalIdentifier *string `db:"legal_identifier" json:"legal_identifier"`
+	Data            []byte  `db:"data" json:"data"`
+	Enabled         bool    `db:"enabled" json:"enabled"`
 }
 
 // Customer is the sole approval aggregate.  Its JSON snapshot owns identity,
 // default operating entity, and every account line; roots are only stable IDs.
 func (q *Queries) InsertDCLCustomerVersionAggregate(ctx context.Context, arg InsertDCLCustomerVersionAggregateParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerVersionAggregate, arg.ApprovalEntryID, arg.Data, arg.Enabled)
-	return err
-}
-
-const insertDCLCustomerVersionIdentifier = `-- name: InsertDCLCustomerVersionIdentifier :exec
-INSERT INTO dcl_customer_version_identifiers(customer_approval_entry_id,identifier_type,value,normalized_value)
-VALUES($1,$2,$3,$4)
-`
-
-type InsertDCLCustomerVersionIdentifierParams struct {
-	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	IdentifierType          string `db:"identifier_type" json:"identifier_type"`
-	Value                   string `db:"value" json:"value"`
-	NormalizedValue         string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) InsertDCLCustomerVersionIdentifier(ctx context.Context, arg InsertDCLCustomerVersionIdentifierParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerVersionIdentifier,
-		arg.CustomerApprovalEntryID,
-		arg.IdentifierType,
-		arg.Value,
-		arg.NormalizedValue,
+	_, err := q.db.Exec(ctx, insertDCLCustomerVersionAggregate,
+		arg.ApprovalEntryID,
+		arg.Kind,
+		arg.LegalIdentifier,
+		arg.Data,
+		arg.Enabled,
 	)
 	return err
 }
 
 const insertDCLEmployeeVersion = `-- name: InsertDCLEmployeeVersion :exec
 INSERT INTO dcl_employee_versions(
-  approval_entry_id,kind,legal_name,display_name,tax_number,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
+  approval_entry_id,kind,legal_name,display_name,legal_identifier,employee_category_id,employee_category_code,employee_category_name,department_id,department_code,department_name,position_id,position_code,
   position_name,phone,email,hire_date,current_operating_entity_id,current_operating_entity_approval_entry_id,current_operating_entity_code,current_operating_entity_name,remark,enabled
 ) VALUES(
   $1,$2,$3,$4,$5,$6,
@@ -2446,7 +2323,7 @@ type InsertDCLEmployeeVersionParams struct {
 	Kind                                  string      `db:"kind" json:"kind"`
 	LegalName                             string      `db:"legal_name" json:"legal_name"`
 	DisplayName                           string      `db:"display_name" json:"display_name"`
-	TaxNumber                             *string     `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string     `db:"legal_identifier" json:"legal_identifier"`
 	EmployeeCategoryID                    *string     `db:"employee_category_id" json:"employee_category_id"`
 	EmployeeCategoryCode                  *string     `db:"employee_category_code" json:"employee_category_code"`
 	EmployeeCategoryName                  *string     `db:"employee_category_name" json:"employee_category_name"`
@@ -2474,7 +2351,7 @@ func (q *Queries) InsertDCLEmployeeVersion(ctx context.Context, arg InsertDCLEmp
 		arg.Kind,
 		arg.LegalName,
 		arg.DisplayName,
-		arg.TaxNumber,
+		arg.LegalIdentifier,
 		arg.EmployeeCategoryID,
 		arg.EmployeeCategoryCode,
 		arg.EmployeeCategoryName,
@@ -2493,27 +2370,6 @@ func (q *Queries) InsertDCLEmployeeVersion(ctx context.Context, arg InsertDCLEmp
 		arg.CurrentOperatingEntityName,
 		arg.Remark,
 		arg.Enabled,
-	)
-	return err
-}
-
-const insertDCLEmployeeVersionIdentifier = `-- name: InsertDCLEmployeeVersionIdentifier :exec
-INSERT INTO dcl_employee_version_identifiers(approval_entry_id,identifier_type,value,normalized_value) VALUES($1,$2,$3,$4)
-`
-
-type InsertDCLEmployeeVersionIdentifierParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	Value           string `db:"value" json:"value"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) InsertDCLEmployeeVersionIdentifier(ctx context.Context, arg InsertDCLEmployeeVersionIdentifierParams) error {
-	_, err := q.db.Exec(ctx, insertDCLEmployeeVersionIdentifier,
-		arg.ApprovalEntryID,
-		arg.IdentifierType,
-		arg.Value,
-		arg.NormalizedValue,
 	)
 	return err
 }
@@ -2594,7 +2450,7 @@ func (q *Queries) InsertDCLOperatingEntityVersion(ctx context.Context, arg Inser
 }
 
 const insertDCLOtherUnitVersion = `-- name: InsertDCLOtherUnitVersion :exec
-INSERT INTO dcl_other_unit_versions(approval_entry_id,kind,legal_name,display_name,tax_number,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
+INSERT INTO dcl_other_unit_versions(approval_entry_id,kind,legal_name,display_name,legal_identifier,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
 `
 
@@ -2603,7 +2459,7 @@ type InsertDCLOtherUnitVersionParams struct {
 	Kind                                  string  `db:"kind" json:"kind"`
 	LegalName                             string  `db:"legal_name" json:"legal_name"`
 	DisplayName                           string  `db:"display_name" json:"display_name"`
-	TaxNumber                             *string `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string `db:"legal_identifier" json:"legal_identifier"`
 	ContactName                           *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                          *string `db:"contact_phone" json:"contact_phone"`
 	Email                                 *string `db:"email" json:"email"`
@@ -2630,7 +2486,7 @@ func (q *Queries) InsertDCLOtherUnitVersion(ctx context.Context, arg InsertDCLOt
 		arg.Kind,
 		arg.LegalName,
 		arg.DisplayName,
-		arg.TaxNumber,
+		arg.LegalIdentifier,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.Email,
@@ -2649,27 +2505,6 @@ func (q *Queries) InsertDCLOtherUnitVersion(ctx context.Context, arg InsertDCLOt
 		arg.DefaultOperatingEntityName,
 		arg.Remark,
 		arg.Enabled,
-	)
-	return err
-}
-
-const insertDCLOtherUnitVersionIdentifier = `-- name: InsertDCLOtherUnitVersionIdentifier :exec
-INSERT INTO dcl_other_unit_version_identifiers(approval_entry_id,identifier_type,value,normalized_value) VALUES($1,$2,$3,$4)
-`
-
-type InsertDCLOtherUnitVersionIdentifierParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	Value           string `db:"value" json:"value"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) InsertDCLOtherUnitVersionIdentifier(ctx context.Context, arg InsertDCLOtherUnitVersionIdentifierParams) error {
-	_, err := q.db.Exec(ctx, insertDCLOtherUnitVersionIdentifier,
-		arg.ApprovalEntryID,
-		arg.IdentifierType,
-		arg.Value,
-		arg.NormalizedValue,
 	)
 	return err
 }
@@ -2698,7 +2533,7 @@ func (q *Queries) InsertDCLOtherUnitVersionOperatingEntity(ctx context.Context, 
 }
 
 const insertDCLSalesPartnerVersion = `-- name: InsertDCLSalesPartnerVersion :exec
-INSERT INTO dcl_sales_partner_versions(approval_entry_id,kind,legal_name,display_name,tax_number,capabilities,contact_name,contact_phone,email,address,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
+INSERT INTO dcl_sales_partner_versions(approval_entry_id,kind,legal_name,display_name,legal_identifier,capabilities,contact_name,contact_phone,email,address,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,remark,enabled)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 `
 
@@ -2707,7 +2542,7 @@ type InsertDCLSalesPartnerVersionParams struct {
 	Kind                                  string   `db:"kind" json:"kind"`
 	LegalName                             string   `db:"legal_name" json:"legal_name"`
 	DisplayName                           string   `db:"display_name" json:"display_name"`
-	TaxNumber                             *string  `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string  `db:"legal_identifier" json:"legal_identifier"`
 	Capabilities                          []string `db:"capabilities" json:"capabilities"`
 	ContactName                           *string  `db:"contact_name" json:"contact_name"`
 	ContactPhone                          *string  `db:"contact_phone" json:"contact_phone"`
@@ -2727,7 +2562,7 @@ func (q *Queries) InsertDCLSalesPartnerVersion(ctx context.Context, arg InsertDC
 		arg.Kind,
 		arg.LegalName,
 		arg.DisplayName,
-		arg.TaxNumber,
+		arg.LegalIdentifier,
 		arg.Capabilities,
 		arg.ContactName,
 		arg.ContactPhone,
@@ -2739,27 +2574,6 @@ func (q *Queries) InsertDCLSalesPartnerVersion(ctx context.Context, arg InsertDC
 		arg.DefaultOperatingEntityName,
 		arg.Remark,
 		arg.Enabled,
-	)
-	return err
-}
-
-const insertDCLSalesPartnerVersionIdentifier = `-- name: InsertDCLSalesPartnerVersionIdentifier :exec
-INSERT INTO dcl_sales_partner_version_identifiers(approval_entry_id,identifier_type,value,normalized_value) VALUES($1,$2,$3,$4)
-`
-
-type InsertDCLSalesPartnerVersionIdentifierParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	Value           string `db:"value" json:"value"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) InsertDCLSalesPartnerVersionIdentifier(ctx context.Context, arg InsertDCLSalesPartnerVersionIdentifierParams) error {
-	_, err := q.db.Exec(ctx, insertDCLSalesPartnerVersionIdentifier,
-		arg.ApprovalEntryID,
-		arg.IdentifierType,
-		arg.Value,
-		arg.NormalizedValue,
 	)
 	return err
 }
@@ -2813,7 +2627,7 @@ func (q *Queries) InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectPara
 }
 
 const insertDCLSupplierVersion = `-- name: InsertDCLSupplierVersion :exec
-INSERT INTO dcl_supplier_versions(approval_entry_id,kind,legal_name,display_name,short_name,tax_number,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
+INSERT INTO dcl_supplier_versions(approval_entry_id,kind,legal_name,display_name,short_name,legal_identifier,contact_name,contact_phone,email,address,remark,settlement_method_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,default_operating_entity_id,default_operating_entity_approval_entry_id,default_operating_entity_code,default_operating_entity_name,default_purchaser_employee_id,default_purchaser_employee_approval_entry_id,default_purchaser_employee_code,default_purchaser_employee_name,enabled)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
 `
 
@@ -2823,7 +2637,7 @@ type InsertDCLSupplierVersionParams struct {
 	LegalName                               string  `db:"legal_name" json:"legal_name"`
 	DisplayName                             string  `db:"display_name" json:"display_name"`
 	ShortName                               *string `db:"short_name" json:"short_name"`
-	TaxNumber                               *string `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                         *string `db:"legal_identifier" json:"legal_identifier"`
 	ContactName                             *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                            *string `db:"contact_phone" json:"contact_phone"`
 	Email                                   *string `db:"email" json:"email"`
@@ -2856,7 +2670,7 @@ func (q *Queries) InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSup
 		arg.LegalName,
 		arg.DisplayName,
 		arg.ShortName,
-		arg.TaxNumber,
+		arg.LegalIdentifier,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.Email,
@@ -2879,27 +2693,6 @@ func (q *Queries) InsertDCLSupplierVersion(ctx context.Context, arg InsertDCLSup
 		arg.DefaultPurchaserEmployeeCode,
 		arg.DefaultPurchaserEmployeeName,
 		arg.Enabled,
-	)
-	return err
-}
-
-const insertDCLSupplierVersionIdentifier = `-- name: InsertDCLSupplierVersionIdentifier :exec
-INSERT INTO dcl_supplier_version_identifiers(approval_entry_id,identifier_type,value,normalized_value) VALUES($1,$2,$3,$4)
-`
-
-type InsertDCLSupplierVersionIdentifierParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	Value           string `db:"value" json:"value"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) InsertDCLSupplierVersionIdentifier(ctx context.Context, arg InsertDCLSupplierVersionIdentifierParams) error {
-	_, err := q.db.Exec(ctx, insertDCLSupplierVersionIdentifier,
-		arg.ApprovalEntryID,
-		arg.IdentifierType,
-		arg.Value,
-		arg.NormalizedValue,
 	)
 	return err
 }
@@ -3432,38 +3225,6 @@ func (q *Queries) ListDCLCustomerVersionAccounts(ctx context.Context, customerAp
 	return items, nil
 }
 
-const listDCLCustomerVersionIdentifiers = `-- name: ListDCLCustomerVersionIdentifiers :many
-SELECT customer_approval_entry_id,identifier_type,value,normalized_value
-FROM dcl_customer_version_identifiers
-WHERE customer_approval_entry_id=$1
-ORDER BY identifier_type,normalized_value
-`
-
-func (q *Queries) ListDCLCustomerVersionIdentifiers(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionIdentifier, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomerVersionIdentifiers, customerApprovalEntryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DclCustomerVersionIdentifier{}
-	for rows.Next() {
-		var i DclCustomerVersionIdentifier
-		if err := rows.Scan(
-			&i.CustomerApprovalEntryID,
-			&i.IdentifierType,
-			&i.Value,
-			&i.NormalizedValue,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDCLEmployeeApprovalEvents = `-- name: ListDCLEmployeeApprovalEvents :many
 SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,
        from_revision,to_revision,actor_id,reason,request_id,created_at
@@ -3515,38 +3276,9 @@ func (q *Queries) ListDCLEmployeeApprovalEvents(ctx context.Context, arg ListDCL
 	return items, nil
 }
 
-const listDCLEmployeeVersionIdentifiers = `-- name: ListDCLEmployeeVersionIdentifiers :many
-SELECT identifier.approval_entry_id,identifier.identifier_type,identifier.value,identifier.normalized_value FROM dcl_employee_version_identifiers identifier WHERE identifier.approval_entry_id=$1 ORDER BY identifier.identifier_type,identifier.normalized_value
-`
-
-func (q *Queries) ListDCLEmployeeVersionIdentifiers(ctx context.Context, versionApprovalEntryID string) ([]DclEmployeeVersionIdentifier, error) {
-	rows, err := q.db.Query(ctx, listDCLEmployeeVersionIdentifiers, versionApprovalEntryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DclEmployeeVersionIdentifier{}
-	for rows.Next() {
-		var i DclEmployeeVersionIdentifier
-		if err := rows.Scan(
-			&i.ApprovalEntryID,
-			&i.IdentifierType,
-			&i.Value,
-			&i.NormalizedValue,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDCLEmployees = `-- name: ListDCLEmployees :many
 SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
-       display.kind,display.legal_name,display.display_name,display.tax_number,
+       display.kind,display.legal_name,display.display_name,display.legal_identifier,
        display.current_operating_entity_id,display.current_operating_entity_approval_entry_id,display.current_operating_entity_code,display.current_operating_entity_name,display.enabled,
        COALESCE(approved.id,'')::text AS latest_approved_entry_id,
        COALESCE(candidate.id,'')::text AS open_entry_id,
@@ -3603,7 +3335,7 @@ type ListDCLEmployeesRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	CurrentOperatingEntityID              string             `db:"current_operating_entity_id" json:"current_operating_entity_id"`
 	CurrentOperatingEntityApprovalEntryID string             `db:"current_operating_entity_approval_entry_id" json:"current_operating_entity_approval_entry_id"`
 	CurrentOperatingEntityCode            string             `db:"current_operating_entity_code" json:"current_operating_entity_code"`
@@ -3643,7 +3375,7 @@ func (q *Queries) ListDCLEmployees(ctx context.Context, arg ListDCLEmployeesPara
 			&i.Kind,
 			&i.LegalName,
 			&i.DisplayName,
-			&i.TaxNumber,
+			&i.LegalIdentifier,
 			&i.CurrentOperatingEntityID,
 			&i.CurrentOperatingEntityApprovalEntryID,
 			&i.CurrentOperatingEntityCode,
@@ -3917,35 +3649,6 @@ func (q *Queries) ListDCLOperatingEntityApprovalEvents(ctx context.Context, arg 
 	return items, nil
 }
 
-const listDCLOtherUnitVersionIdentifiers = `-- name: ListDCLOtherUnitVersionIdentifiers :many
-SELECT identifier.approval_entry_id,identifier.identifier_type,identifier.value,identifier.normalized_value FROM dcl_other_unit_version_identifiers identifier WHERE identifier.approval_entry_id=$1 ORDER BY identifier.identifier_type,identifier.normalized_value
-`
-
-func (q *Queries) ListDCLOtherUnitVersionIdentifiers(ctx context.Context, versionApprovalEntryID string) ([]DclOtherUnitVersionIdentifier, error) {
-	rows, err := q.db.Query(ctx, listDCLOtherUnitVersionIdentifiers, versionApprovalEntryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DclOtherUnitVersionIdentifier{}
-	for rows.Next() {
-		var i DclOtherUnitVersionIdentifier
-		if err := rows.Scan(
-			&i.ApprovalEntryID,
-			&i.IdentifierType,
-			&i.Value,
-			&i.NormalizedValue,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDCLOtherUnitVersionOperatingEntities = `-- name: ListDCLOtherUnitVersionOperatingEntities :many
 SELECT operating.approval_entry_id,operating.operating_entity_id,operating.operating_entity_approval_entry_id,operating.operating_entity_code,operating.operating_entity_name FROM dcl_other_unit_version_operating_entities operating WHERE operating.approval_entry_id=$1 ORDER BY operating.operating_entity_code,operating.operating_entity_id
 `
@@ -4084,35 +3787,6 @@ func (q *Queries) ListDCLProducts(ctx context.Context, arg ListDCLProductsParams
 	return items, nil
 }
 
-const listDCLSalesPartnerVersionIdentifiers = `-- name: ListDCLSalesPartnerVersionIdentifiers :many
-SELECT identifier.approval_entry_id,identifier.identifier_type,identifier.value,identifier.normalized_value FROM dcl_sales_partner_version_identifiers identifier WHERE identifier.approval_entry_id=$1 ORDER BY identifier.identifier_type,identifier.normalized_value
-`
-
-func (q *Queries) ListDCLSalesPartnerVersionIdentifiers(ctx context.Context, versionApprovalEntryID string) ([]DclSalesPartnerVersionIdentifier, error) {
-	rows, err := q.db.Query(ctx, listDCLSalesPartnerVersionIdentifiers, versionApprovalEntryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DclSalesPartnerVersionIdentifier{}
-	for rows.Next() {
-		var i DclSalesPartnerVersionIdentifier
-		if err := rows.Scan(
-			&i.ApprovalEntryID,
-			&i.IdentifierType,
-			&i.Value,
-			&i.NormalizedValue,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDCLSalesPartnerVersionOperatingEntities = `-- name: ListDCLSalesPartnerVersionOperatingEntities :many
 SELECT operating.approval_entry_id,operating.operating_entity_id,operating.operating_entity_approval_entry_id,operating.operating_entity_code,operating.operating_entity_name FROM dcl_sales_partner_version_operating_entities operating WHERE operating.approval_entry_id=$1 ORDER BY operating.operating_entity_code,operating.operating_entity_id
 `
@@ -4189,35 +3863,6 @@ func (q *Queries) ListDCLSupplierApprovalEvents(ctx context.Context, arg ListDCL
 	return items, nil
 }
 
-const listDCLSupplierVersionIdentifiers = `-- name: ListDCLSupplierVersionIdentifiers :many
-SELECT identifier.approval_entry_id,identifier.identifier_type,identifier.value,identifier.normalized_value FROM dcl_supplier_version_identifiers identifier WHERE identifier.approval_entry_id=$1 ORDER BY identifier.identifier_type,identifier.normalized_value
-`
-
-func (q *Queries) ListDCLSupplierVersionIdentifiers(ctx context.Context, versionApprovalEntryID string) ([]DclSupplierVersionIdentifier, error) {
-	rows, err := q.db.Query(ctx, listDCLSupplierVersionIdentifiers, versionApprovalEntryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DclSupplierVersionIdentifier{}
-	for rows.Next() {
-		var i DclSupplierVersionIdentifier
-		if err := rows.Scan(
-			&i.ApprovalEntryID,
-			&i.IdentifierType,
-			&i.Value,
-			&i.NormalizedValue,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDCLSupplierVersionOperatingEntities = `-- name: ListDCLSupplierVersionOperatingEntities :many
 SELECT operating.approval_entry_id,operating.operating_entity_id,operating.operating_entity_approval_entry_id,operating.operating_entity_code,operating.operating_entity_name FROM dcl_supplier_version_operating_entities operating WHERE operating.approval_entry_id=$1 ORDER BY operating.operating_entity_code,operating.operating_entity_id
 `
@@ -4249,7 +3894,7 @@ func (q *Queries) ListDCLSupplierVersionOperatingEntities(ctx context.Context, v
 }
 
 const listDCLSuppliers = `-- name: ListDCLSuppliers :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,display.kind,display.legal_name,display.display_name,display.tax_number,display.default_operating_entity_id,display.default_operating_entity_approval_entry_id,display.default_operating_entity_code,display.default_operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,display.kind,display.legal_name,display.display_name,display.legal_identifier,display.default_operating_entity_id,display.default_operating_entity_approval_entry_id,display.default_operating_entity_code,display.default_operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
@@ -4275,7 +3920,7 @@ type ListDCLSuppliersRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	DefaultOperatingEntityID              string             `db:"default_operating_entity_id" json:"default_operating_entity_id"`
 	DefaultOperatingEntityApprovalEntryID string             `db:"default_operating_entity_approval_entry_id" json:"default_operating_entity_approval_entry_id"`
 	DefaultOperatingEntityCode            string             `db:"default_operating_entity_code" json:"default_operating_entity_code"`
@@ -4310,7 +3955,7 @@ func (q *Queries) ListDCLSuppliers(ctx context.Context, arg ListDCLSuppliersPara
 			&i.Kind,
 			&i.LegalName,
 			&i.DisplayName,
-			&i.TaxNumber,
+			&i.LegalIdentifier,
 			&i.DefaultOperatingEntityID,
 			&i.DefaultOperatingEntityApprovalEntryID,
 			&i.DefaultOperatingEntityCode,
@@ -4385,7 +4030,7 @@ func (q *Queries) ListDCLTypedArchiveApprovalEvents(ctx context.Context, arg Lis
 }
 
 const listDCLTypedArchives = `-- name: ListDCLTypedArchives :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.tax_number,sales_snapshot.tax_number) AS tax_number,
+SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.legal_identifier,sales_snapshot.legal_identifier) AS legal_identifier,
  COALESCE(other_snapshot.default_operating_entity_id,sales_snapshot.default_operating_entity_id) AS default_operating_entity_id,COALESCE(other_snapshot.default_operating_entity_approval_entry_id,sales_snapshot.default_operating_entity_approval_entry_id) AS default_operating_entity_approval_entry_id,COALESCE(other_snapshot.default_operating_entity_code,sales_snapshot.default_operating_entity_code) AS default_operating_entity_code,COALESCE(other_snapshot.default_operating_entity_name,sales_snapshot.default_operating_entity_name) AS default_operating_entity_name,
  COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
  COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
@@ -4417,7 +4062,7 @@ type ListDCLTypedArchivesRow struct {
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
-	TaxNumber                             *string            `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string            `db:"legal_identifier" json:"legal_identifier"`
 	DefaultOperatingEntityID              string             `db:"default_operating_entity_id" json:"default_operating_entity_id"`
 	DefaultOperatingEntityApprovalEntryID string             `db:"default_operating_entity_approval_entry_id" json:"default_operating_entity_approval_entry_id"`
 	DefaultOperatingEntityCode            string             `db:"default_operating_entity_code" json:"default_operating_entity_code"`
@@ -4451,7 +4096,7 @@ func (q *Queries) ListDCLTypedArchives(ctx context.Context, arg ListDCLTypedArch
 			&i.Kind,
 			&i.LegalName,
 			&i.DisplayName,
-			&i.TaxNumber,
+			&i.LegalIdentifier,
 			&i.DefaultOperatingEntityID,
 			&i.DefaultOperatingEntityApprovalEntryID,
 			&i.DefaultOperatingEntityCode,
@@ -5000,24 +4645,18 @@ func (q *Queries) LockDCLCustomerAccountRoot(ctx context.Context, accountID stri
 	return i, err
 }
 
-const lockDCLCustomerIdentifierClaim = `-- name: LockDCLCustomerIdentifierClaim :one
-SELECT identifier_type,normalized_value,approved_customer_id,approved_approval_entry_id,open_customer_id,open_approval_entry_id
-FROM dcl_customer_identifier_claims
-WHERE identifier_type=$1 AND normalized_value=$2
+const lockDCLCustomerLegalIdentifierClaim = `-- name: LockDCLCustomerLegalIdentifierClaim :one
+SELECT normalized_legal_identifier,approved_customer_id,approved_approval_entry_id,open_customer_id,open_approval_entry_id
+FROM dcl_customer_legal_identifier_claims
+WHERE normalized_legal_identifier=$1
 FOR UPDATE
 `
 
-type LockDCLCustomerIdentifierClaimParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLCustomerIdentifierClaim(ctx context.Context, arg LockDCLCustomerIdentifierClaimParams) (DclCustomerIdentifierClaim, error) {
-	row := q.db.QueryRow(ctx, lockDCLCustomerIdentifierClaim, arg.IdentifierType, arg.NormalizedValue)
-	var i DclCustomerIdentifierClaim
+func (q *Queries) LockDCLCustomerLegalIdentifierClaim(ctx context.Context, normalizedLegalIdentifier string) (DclCustomerLegalIdentifierClaim, error) {
+	row := q.db.QueryRow(ctx, lockDCLCustomerLegalIdentifierClaim, normalizedLegalIdentifier)
+	var i DclCustomerLegalIdentifierClaim
 	err := row.Scan(
-		&i.IdentifierType,
-		&i.NormalizedValue,
+		&i.NormalizedLegalIdentifier,
 		&i.ApprovedCustomerID,
 		&i.ApprovedApprovalEntryID,
 		&i.OpenCustomerID,
@@ -5026,36 +4665,25 @@ func (q *Queries) LockDCLCustomerIdentifierClaim(ctx context.Context, arg LockDC
 	return i, err
 }
 
-const lockDCLCustomerIdentifierClaimKey = `-- name: LockDCLCustomerIdentifierClaimKey :exec
-SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text))
+const lockDCLCustomerLegalIdentifierClaimKey = `-- name: LockDCLCustomerLegalIdentifierClaimKey :exec
+SELECT pg_advisory_xact_lock(hashtext('customer:' || $1::text))
 `
 
-type LockDCLCustomerIdentifierClaimKeyParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
 // Serialize absent and existing claims alike before inspection/upsert.
-func (q *Queries) LockDCLCustomerIdentifierClaimKey(ctx context.Context, arg LockDCLCustomerIdentifierClaimKeyParams) error {
-	_, err := q.db.Exec(ctx, lockDCLCustomerIdentifierClaimKey, arg.IdentifierType, arg.NormalizedValue)
+func (q *Queries) LockDCLCustomerLegalIdentifierClaimKey(ctx context.Context, normalizedLegalIdentifier string) error {
+	_, err := q.db.Exec(ctx, lockDCLCustomerLegalIdentifierClaimKey, normalizedLegalIdentifier)
 	return err
 }
 
-const lockDCLEmployeeIdentifierClaim = `-- name: LockDCLEmployeeIdentifierClaim :one
-SELECT identifier_type, normalized_value, approved_employee_id, approved_approval_entry_id, open_employee_id, open_approval_entry_id FROM dcl_employee_identifier_claims WHERE identifier_type=$1 AND normalized_value=$2 FOR UPDATE
+const lockDCLEmployeeLegalIdentifierClaim = `-- name: LockDCLEmployeeLegalIdentifierClaim :one
+SELECT normalized_legal_identifier, approved_employee_id, approved_approval_entry_id, open_employee_id, open_approval_entry_id FROM dcl_employee_legal_identifier_claims WHERE normalized_legal_identifier=$1 FOR UPDATE
 `
 
-type LockDCLEmployeeIdentifierClaimParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLEmployeeIdentifierClaim(ctx context.Context, arg LockDCLEmployeeIdentifierClaimParams) (DclEmployeeIdentifierClaim, error) {
-	row := q.db.QueryRow(ctx, lockDCLEmployeeIdentifierClaim, arg.IdentifierType, arg.NormalizedValue)
-	var i DclEmployeeIdentifierClaim
+func (q *Queries) LockDCLEmployeeLegalIdentifierClaim(ctx context.Context, normalizedLegalIdentifier string) (DclEmployeeLegalIdentifierClaim, error) {
+	row := q.db.QueryRow(ctx, lockDCLEmployeeLegalIdentifierClaim, normalizedLegalIdentifier)
+	var i DclEmployeeLegalIdentifierClaim
 	err := row.Scan(
-		&i.IdentifierType,
-		&i.NormalizedValue,
+		&i.NormalizedLegalIdentifier,
 		&i.ApprovedEmployeeID,
 		&i.ApprovedApprovalEntryID,
 		&i.OpenEmployeeID,
@@ -5064,17 +4692,12 @@ func (q *Queries) LockDCLEmployeeIdentifierClaim(ctx context.Context, arg LockDC
 	return i, err
 }
 
-const lockDCLEmployeeIdentifierClaimKey = `-- name: LockDCLEmployeeIdentifierClaimKey :exec
-SELECT pg_advisory_xact_lock(hashtext('employee:' || $1::text || ':' || $2::text))
+const lockDCLEmployeeLegalIdentifierClaimKey = `-- name: LockDCLEmployeeLegalIdentifierClaimKey :exec
+SELECT pg_advisory_xact_lock(hashtext('employee:' || $1::text))
 `
 
-type LockDCLEmployeeIdentifierClaimKeyParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLEmployeeIdentifierClaimKey(ctx context.Context, arg LockDCLEmployeeIdentifierClaimKeyParams) error {
-	_, err := q.db.Exec(ctx, lockDCLEmployeeIdentifierClaimKey, arg.IdentifierType, arg.NormalizedValue)
+func (q *Queries) LockDCLEmployeeLegalIdentifierClaimKey(ctx context.Context, normalizedLegalIdentifier string) error {
+	_, err := q.db.Exec(ctx, lockDCLEmployeeLegalIdentifierClaimKey, normalizedLegalIdentifier)
 	return err
 }
 
@@ -5087,21 +4710,15 @@ func (q *Queries) LockDCLFundAccountIdentifierClaims(ctx context.Context) error 
 	return err
 }
 
-const lockDCLOtherUnitIdentifierClaim = `-- name: LockDCLOtherUnitIdentifierClaim :one
-SELECT identifier_type, normalized_value, approved_other_unit_id, approved_approval_entry_id, open_other_unit_id, open_approval_entry_id FROM dcl_other_unit_identifier_claims WHERE identifier_type=$1 AND normalized_value=$2 FOR UPDATE
+const lockDCLOtherUnitLegalIdentifierClaim = `-- name: LockDCLOtherUnitLegalIdentifierClaim :one
+SELECT normalized_legal_identifier, approved_other_unit_id, approved_approval_entry_id, open_other_unit_id, open_approval_entry_id FROM dcl_other_unit_legal_identifier_claims WHERE normalized_legal_identifier=$1 FOR UPDATE
 `
 
-type LockDCLOtherUnitIdentifierClaimParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLOtherUnitIdentifierClaim(ctx context.Context, arg LockDCLOtherUnitIdentifierClaimParams) (DclOtherUnitIdentifierClaim, error) {
-	row := q.db.QueryRow(ctx, lockDCLOtherUnitIdentifierClaim, arg.IdentifierType, arg.NormalizedValue)
-	var i DclOtherUnitIdentifierClaim
+func (q *Queries) LockDCLOtherUnitLegalIdentifierClaim(ctx context.Context, normalizedLegalIdentifier string) (DclOtherUnitLegalIdentifierClaim, error) {
+	row := q.db.QueryRow(ctx, lockDCLOtherUnitLegalIdentifierClaim, normalizedLegalIdentifier)
+	var i DclOtherUnitLegalIdentifierClaim
 	err := row.Scan(
-		&i.IdentifierType,
-		&i.NormalizedValue,
+		&i.NormalizedLegalIdentifier,
 		&i.ApprovedOtherUnitID,
 		&i.ApprovedApprovalEntryID,
 		&i.OpenOtherUnitID,
@@ -5110,17 +4727,12 @@ func (q *Queries) LockDCLOtherUnitIdentifierClaim(ctx context.Context, arg LockD
 	return i, err
 }
 
-const lockDCLOtherUnitIdentifierClaimKey = `-- name: LockDCLOtherUnitIdentifierClaimKey :exec
-SELECT pg_advisory_xact_lock(hashtext('other-unit:' || $1::text || ':' || $2::text))
+const lockDCLOtherUnitLegalIdentifierClaimKey = `-- name: LockDCLOtherUnitLegalIdentifierClaimKey :exec
+SELECT pg_advisory_xact_lock(hashtext('other-unit:' || $1::text))
 `
 
-type LockDCLOtherUnitIdentifierClaimKeyParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLOtherUnitIdentifierClaimKey(ctx context.Context, arg LockDCLOtherUnitIdentifierClaimKeyParams) error {
-	_, err := q.db.Exec(ctx, lockDCLOtherUnitIdentifierClaimKey, arg.IdentifierType, arg.NormalizedValue)
+func (q *Queries) LockDCLOtherUnitLegalIdentifierClaimKey(ctx context.Context, normalizedLegalIdentifier string) error {
+	_, err := q.db.Exec(ctx, lockDCLOtherUnitLegalIdentifierClaimKey, normalizedLegalIdentifier)
 	return err
 }
 
@@ -5133,21 +4745,15 @@ func (q *Queries) LockDCLProductBarcodeClaims(ctx context.Context) error {
 	return err
 }
 
-const lockDCLSalesPartnerIdentifierClaim = `-- name: LockDCLSalesPartnerIdentifierClaim :one
-SELECT identifier_type, normalized_value, approved_sales_partner_id, approved_approval_entry_id, open_sales_partner_id, open_approval_entry_id FROM dcl_sales_partner_identifier_claims WHERE identifier_type=$1 AND normalized_value=$2 FOR UPDATE
+const lockDCLSalesPartnerLegalIdentifierClaim = `-- name: LockDCLSalesPartnerLegalIdentifierClaim :one
+SELECT normalized_legal_identifier, approved_sales_partner_id, approved_approval_entry_id, open_sales_partner_id, open_approval_entry_id FROM dcl_sales_partner_legal_identifier_claims WHERE normalized_legal_identifier=$1 FOR UPDATE
 `
 
-type LockDCLSalesPartnerIdentifierClaimParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLSalesPartnerIdentifierClaim(ctx context.Context, arg LockDCLSalesPartnerIdentifierClaimParams) (DclSalesPartnerIdentifierClaim, error) {
-	row := q.db.QueryRow(ctx, lockDCLSalesPartnerIdentifierClaim, arg.IdentifierType, arg.NormalizedValue)
-	var i DclSalesPartnerIdentifierClaim
+func (q *Queries) LockDCLSalesPartnerLegalIdentifierClaim(ctx context.Context, normalizedLegalIdentifier string) (DclSalesPartnerLegalIdentifierClaim, error) {
+	row := q.db.QueryRow(ctx, lockDCLSalesPartnerLegalIdentifierClaim, normalizedLegalIdentifier)
+	var i DclSalesPartnerLegalIdentifierClaim
 	err := row.Scan(
-		&i.IdentifierType,
-		&i.NormalizedValue,
+		&i.NormalizedLegalIdentifier,
 		&i.ApprovedSalesPartnerID,
 		&i.ApprovedApprovalEntryID,
 		&i.OpenSalesPartnerID,
@@ -5156,17 +4762,12 @@ func (q *Queries) LockDCLSalesPartnerIdentifierClaim(ctx context.Context, arg Lo
 	return i, err
 }
 
-const lockDCLSalesPartnerIdentifierClaimKey = `-- name: LockDCLSalesPartnerIdentifierClaimKey :exec
-SELECT pg_advisory_xact_lock(hashtext('sales-partner:' || $1::text || ':' || $2::text))
+const lockDCLSalesPartnerLegalIdentifierClaimKey = `-- name: LockDCLSalesPartnerLegalIdentifierClaimKey :exec
+SELECT pg_advisory_xact_lock(hashtext('sales-partner:' || $1::text))
 `
 
-type LockDCLSalesPartnerIdentifierClaimKeyParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLSalesPartnerIdentifierClaimKey(ctx context.Context, arg LockDCLSalesPartnerIdentifierClaimKeyParams) error {
-	_, err := q.db.Exec(ctx, lockDCLSalesPartnerIdentifierClaimKey, arg.IdentifierType, arg.NormalizedValue)
+func (q *Queries) LockDCLSalesPartnerLegalIdentifierClaimKey(ctx context.Context, normalizedLegalIdentifier string) error {
+	_, err := q.db.Exec(ctx, lockDCLSalesPartnerLegalIdentifierClaimKey, normalizedLegalIdentifier)
 	return err
 }
 
@@ -5195,21 +4796,15 @@ func (q *Queries) LockDCLSubject(ctx context.Context, arg LockDCLSubjectParams) 
 	return i, err
 }
 
-const lockDCLSupplierIdentifierClaim = `-- name: LockDCLSupplierIdentifierClaim :one
-SELECT identifier_type, normalized_value, approved_supplier_id, approved_approval_entry_id, open_supplier_id, open_approval_entry_id FROM dcl_supplier_identifier_claims WHERE identifier_type=$1 AND normalized_value=$2 FOR UPDATE
+const lockDCLSupplierLegalIdentifierClaim = `-- name: LockDCLSupplierLegalIdentifierClaim :one
+SELECT normalized_legal_identifier, approved_supplier_id, approved_approval_entry_id, open_supplier_id, open_approval_entry_id FROM dcl_supplier_legal_identifier_claims WHERE normalized_legal_identifier=$1 FOR UPDATE
 `
 
-type LockDCLSupplierIdentifierClaimParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLSupplierIdentifierClaim(ctx context.Context, arg LockDCLSupplierIdentifierClaimParams) (DclSupplierIdentifierClaim, error) {
-	row := q.db.QueryRow(ctx, lockDCLSupplierIdentifierClaim, arg.IdentifierType, arg.NormalizedValue)
-	var i DclSupplierIdentifierClaim
+func (q *Queries) LockDCLSupplierLegalIdentifierClaim(ctx context.Context, normalizedLegalIdentifier string) (DclSupplierLegalIdentifierClaim, error) {
+	row := q.db.QueryRow(ctx, lockDCLSupplierLegalIdentifierClaim, normalizedLegalIdentifier)
+	var i DclSupplierLegalIdentifierClaim
 	err := row.Scan(
-		&i.IdentifierType,
-		&i.NormalizedValue,
+		&i.NormalizedLegalIdentifier,
 		&i.ApprovedSupplierID,
 		&i.ApprovedApprovalEntryID,
 		&i.OpenSupplierID,
@@ -5218,17 +4813,12 @@ func (q *Queries) LockDCLSupplierIdentifierClaim(ctx context.Context, arg LockDC
 	return i, err
 }
 
-const lockDCLSupplierIdentifierClaimKey = `-- name: LockDCLSupplierIdentifierClaimKey :exec
-SELECT pg_advisory_xact_lock(hashtext('supplier:' || $1::text || ':' || $2::text))
+const lockDCLSupplierLegalIdentifierClaimKey = `-- name: LockDCLSupplierLegalIdentifierClaimKey :exec
+SELECT pg_advisory_xact_lock(hashtext('supplier:' || $1::text))
 `
 
-type LockDCLSupplierIdentifierClaimKeyParams struct {
-	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
-}
-
-func (q *Queries) LockDCLSupplierIdentifierClaimKey(ctx context.Context, arg LockDCLSupplierIdentifierClaimKeyParams) error {
-	_, err := q.db.Exec(ctx, lockDCLSupplierIdentifierClaimKey, arg.IdentifierType, arg.NormalizedValue)
+func (q *Queries) LockDCLSupplierLegalIdentifierClaimKey(ctx context.Context, normalizedLegalIdentifier string) error {
+	_, err := q.db.Exec(ctx, lockDCLSupplierLegalIdentifierClaimKey, normalizedLegalIdentifier)
 	return err
 }
 
@@ -5351,18 +4941,26 @@ func (q *Queries) UpdateDCLAccMappingVersion(ctx context.Context, arg UpdateDCLA
 
 const updateDCLCustomerVersionAggregate = `-- name: UpdateDCLCustomerVersionAggregate :execrows
 UPDATE dcl_customer_versions
-SET data=$1,enabled=$2
-WHERE approval_entry_id=$3
+SET kind=$1,legal_identifier=$2,data=$3,enabled=$4
+WHERE approval_entry_id=$5
 `
 
 type UpdateDCLCustomerVersionAggregateParams struct {
-	Data            []byte `db:"data" json:"data"`
-	Enabled         bool   `db:"enabled" json:"enabled"`
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	Kind            string  `db:"kind" json:"kind"`
+	LegalIdentifier *string `db:"legal_identifier" json:"legal_identifier"`
+	Data            []byte  `db:"data" json:"data"`
+	Enabled         bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
 }
 
 func (q *Queries) UpdateDCLCustomerVersionAggregate(ctx context.Context, arg UpdateDCLCustomerVersionAggregateParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateDCLCustomerVersionAggregate, arg.Data, arg.Enabled, arg.ApprovalEntryID)
+	result, err := q.db.Exec(ctx, updateDCLCustomerVersionAggregate,
+		arg.Kind,
+		arg.LegalIdentifier,
+		arg.Data,
+		arg.Enabled,
+		arg.ApprovalEntryID,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -5371,7 +4969,7 @@ func (q *Queries) UpdateDCLCustomerVersionAggregate(ctx context.Context, arg Upd
 
 const updateDCLEmployeeVersion = `-- name: UpdateDCLEmployeeVersion :execrows
 UPDATE dcl_employee_versions SET
-  kind=$1,legal_name=$2,display_name=$3,tax_number=$4,
+  kind=$1,legal_name=$2,display_name=$3,legal_identifier=$4,
   employee_category_id=$5,
   employee_category_code=$6,employee_category_name=$7,
   department_id=$8,
@@ -5387,7 +4985,7 @@ type UpdateDCLEmployeeVersionParams struct {
 	Kind                                  string      `db:"kind" json:"kind"`
 	LegalName                             string      `db:"legal_name" json:"legal_name"`
 	DisplayName                           string      `db:"display_name" json:"display_name"`
-	TaxNumber                             *string     `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string     `db:"legal_identifier" json:"legal_identifier"`
 	EmployeeCategoryID                    *string     `db:"employee_category_id" json:"employee_category_id"`
 	EmployeeCategoryCode                  *string     `db:"employee_category_code" json:"employee_category_code"`
 	EmployeeCategoryName                  *string     `db:"employee_category_name" json:"employee_category_name"`
@@ -5414,7 +5012,7 @@ func (q *Queries) UpdateDCLEmployeeVersion(ctx context.Context, arg UpdateDCLEmp
 		arg.Kind,
 		arg.LegalName,
 		arg.DisplayName,
-		arg.TaxNumber,
+		arg.LegalIdentifier,
 		arg.EmployeeCategoryID,
 		arg.EmployeeCategoryCode,
 		arg.EmployeeCategoryName,
@@ -5520,14 +5118,14 @@ func (q *Queries) UpdateDCLOperatingEntityVersion(ctx context.Context, arg Updat
 }
 
 const updateDCLOtherUnitVersion = `-- name: UpdateDCLOtherUnitVersion :execrows
-UPDATE dcl_other_unit_versions SET kind=$1,legal_name=$2,display_name=$3,tax_number=$4,contact_name=$5,contact_phone=$6,email=$7,address=$8,settlement_method_id=$9,settlement_method_code=$10,settlement_method_name=$11,settlement_term_code=$12,settlement_rule_type=$13,settlement_month_offset=$14,settlement_day_of_month=$15,settlement_day_offset=$16,default_operating_entity_id=$17,default_operating_entity_approval_entry_id=$18,default_operating_entity_code=$19,default_operating_entity_name=$20,remark=$21,enabled=$22 WHERE approval_entry_id=$23
+UPDATE dcl_other_unit_versions SET kind=$1,legal_name=$2,display_name=$3,legal_identifier=$4,contact_name=$5,contact_phone=$6,email=$7,address=$8,settlement_method_id=$9,settlement_method_code=$10,settlement_method_name=$11,settlement_term_code=$12,settlement_rule_type=$13,settlement_month_offset=$14,settlement_day_of_month=$15,settlement_day_offset=$16,default_operating_entity_id=$17,default_operating_entity_approval_entry_id=$18,default_operating_entity_code=$19,default_operating_entity_name=$20,remark=$21,enabled=$22 WHERE approval_entry_id=$23
 `
 
 type UpdateDCLOtherUnitVersionParams struct {
 	Kind                                  string  `db:"kind" json:"kind"`
 	LegalName                             string  `db:"legal_name" json:"legal_name"`
 	DisplayName                           string  `db:"display_name" json:"display_name"`
-	TaxNumber                             *string `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string `db:"legal_identifier" json:"legal_identifier"`
 	ContactName                           *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                          *string `db:"contact_phone" json:"contact_phone"`
 	Email                                 *string `db:"email" json:"email"`
@@ -5554,7 +5152,7 @@ func (q *Queries) UpdateDCLOtherUnitVersion(ctx context.Context, arg UpdateDCLOt
 		arg.Kind,
 		arg.LegalName,
 		arg.DisplayName,
-		arg.TaxNumber,
+		arg.LegalIdentifier,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.Email,
@@ -5582,14 +5180,14 @@ func (q *Queries) UpdateDCLOtherUnitVersion(ctx context.Context, arg UpdateDCLOt
 }
 
 const updateDCLSalesPartnerVersion = `-- name: UpdateDCLSalesPartnerVersion :execrows
-UPDATE dcl_sales_partner_versions SET kind=$1,legal_name=$2,display_name=$3,tax_number=$4,capabilities=$5,contact_name=$6,contact_phone=$7,email=$8,address=$9,default_operating_entity_id=$10,default_operating_entity_approval_entry_id=$11,default_operating_entity_code=$12,default_operating_entity_name=$13,remark=$14,enabled=$15 WHERE approval_entry_id=$16
+UPDATE dcl_sales_partner_versions SET kind=$1,legal_name=$2,display_name=$3,legal_identifier=$4,capabilities=$5,contact_name=$6,contact_phone=$7,email=$8,address=$9,default_operating_entity_id=$10,default_operating_entity_approval_entry_id=$11,default_operating_entity_code=$12,default_operating_entity_name=$13,remark=$14,enabled=$15 WHERE approval_entry_id=$16
 `
 
 type UpdateDCLSalesPartnerVersionParams struct {
 	Kind                                  string   `db:"kind" json:"kind"`
 	LegalName                             string   `db:"legal_name" json:"legal_name"`
 	DisplayName                           string   `db:"display_name" json:"display_name"`
-	TaxNumber                             *string  `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                       *string  `db:"legal_identifier" json:"legal_identifier"`
 	Capabilities                          []string `db:"capabilities" json:"capabilities"`
 	ContactName                           *string  `db:"contact_name" json:"contact_name"`
 	ContactPhone                          *string  `db:"contact_phone" json:"contact_phone"`
@@ -5609,7 +5207,7 @@ func (q *Queries) UpdateDCLSalesPartnerVersion(ctx context.Context, arg UpdateDC
 		arg.Kind,
 		arg.LegalName,
 		arg.DisplayName,
-		arg.TaxNumber,
+		arg.LegalIdentifier,
 		arg.Capabilities,
 		arg.ContactName,
 		arg.ContactPhone,
@@ -5630,7 +5228,7 @@ func (q *Queries) UpdateDCLSalesPartnerVersion(ctx context.Context, arg UpdateDC
 }
 
 const updateDCLSupplierVersion = `-- name: UpdateDCLSupplierVersion :execrows
-UPDATE dcl_supplier_versions SET kind=$1,legal_name=$2,display_name=$3,short_name=$4,tax_number=$5,contact_name=$6,contact_phone=$7,email=$8,address=$9,remark=$10,settlement_method_id=$11,settlement_method_code=$12,settlement_method_name=$13,settlement_term_code=$14,settlement_rule_type=$15,settlement_month_offset=$16,settlement_day_of_month=$17,settlement_day_offset=$18,default_operating_entity_id=$19,default_operating_entity_approval_entry_id=$20,default_operating_entity_code=$21,default_operating_entity_name=$22,default_purchaser_employee_id=$23,default_purchaser_employee_approval_entry_id=$24,default_purchaser_employee_code=$25,default_purchaser_employee_name=$26,enabled=$27 WHERE approval_entry_id=$28
+UPDATE dcl_supplier_versions SET kind=$1,legal_name=$2,display_name=$3,short_name=$4,legal_identifier=$5,contact_name=$6,contact_phone=$7,email=$8,address=$9,remark=$10,settlement_method_id=$11,settlement_method_code=$12,settlement_method_name=$13,settlement_term_code=$14,settlement_rule_type=$15,settlement_month_offset=$16,settlement_day_of_month=$17,settlement_day_offset=$18,default_operating_entity_id=$19,default_operating_entity_approval_entry_id=$20,default_operating_entity_code=$21,default_operating_entity_name=$22,default_purchaser_employee_id=$23,default_purchaser_employee_approval_entry_id=$24,default_purchaser_employee_code=$25,default_purchaser_employee_name=$26,enabled=$27 WHERE approval_entry_id=$28
 `
 
 type UpdateDCLSupplierVersionParams struct {
@@ -5638,7 +5236,7 @@ type UpdateDCLSupplierVersionParams struct {
 	LegalName                               string  `db:"legal_name" json:"legal_name"`
 	DisplayName                             string  `db:"display_name" json:"display_name"`
 	ShortName                               *string `db:"short_name" json:"short_name"`
-	TaxNumber                               *string `db:"tax_number" json:"tax_number"`
+	LegalIdentifier                         *string `db:"legal_identifier" json:"legal_identifier"`
 	ContactName                             *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                            *string `db:"contact_phone" json:"contact_phone"`
 	Email                                   *string `db:"email" json:"email"`
@@ -5670,7 +5268,7 @@ func (q *Queries) UpdateDCLSupplierVersion(ctx context.Context, arg UpdateDCLSup
 		arg.LegalName,
 		arg.DisplayName,
 		arg.ShortName,
-		arg.TaxNumber,
+		arg.LegalIdentifier,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.Email,
@@ -5790,29 +5388,27 @@ func (q *Queries) UpdateDCLWarehouseVersion(ctx context.Context, arg UpdateDCLWa
 	return result.RowsAffected(), nil
 }
 
-const upsertDCLCustomerIdentifierClaim = `-- name: UpsertDCLCustomerIdentifierClaim :exec
-INSERT INTO dcl_customer_identifier_claims(identifier_type,normalized_value,approved_customer_id,approved_approval_entry_id,open_customer_id,open_approval_entry_id)
-VALUES($1,$2,$3,$4,$5,$6)
-ON CONFLICT(identifier_type,normalized_value) DO UPDATE SET
+const upsertDCLCustomerLegalIdentifierClaim = `-- name: UpsertDCLCustomerLegalIdentifierClaim :exec
+INSERT INTO dcl_customer_legal_identifier_claims(normalized_legal_identifier,approved_customer_id,approved_approval_entry_id,open_customer_id,open_approval_entry_id)
+VALUES($1,$2,$3,$4,$5)
+ON CONFLICT(normalized_legal_identifier) DO UPDATE SET
   approved_customer_id=EXCLUDED.approved_customer_id,
   approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,
   open_customer_id=EXCLUDED.open_customer_id,
   open_approval_entry_id=EXCLUDED.open_approval_entry_id
 `
 
-type UpsertDCLCustomerIdentifierClaimParams struct {
-	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
-	ApprovedCustomerID      *string `db:"approved_customer_id" json:"approved_customer_id"`
-	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
-	OpenCustomerID          *string `db:"open_customer_id" json:"open_customer_id"`
-	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+type UpsertDCLCustomerLegalIdentifierClaimParams struct {
+	NormalizedLegalIdentifier string  `db:"normalized_legal_identifier" json:"normalized_legal_identifier"`
+	ApprovedCustomerID        *string `db:"approved_customer_id" json:"approved_customer_id"`
+	ApprovedApprovalEntryID   *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenCustomerID            *string `db:"open_customer_id" json:"open_customer_id"`
+	OpenApprovalEntryID       *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
 }
 
-func (q *Queries) UpsertDCLCustomerIdentifierClaim(ctx context.Context, arg UpsertDCLCustomerIdentifierClaimParams) error {
-	_, err := q.db.Exec(ctx, upsertDCLCustomerIdentifierClaim,
-		arg.IdentifierType,
-		arg.NormalizedValue,
+func (q *Queries) UpsertDCLCustomerLegalIdentifierClaim(ctx context.Context, arg UpsertDCLCustomerLegalIdentifierClaimParams) error {
+	_, err := q.db.Exec(ctx, upsertDCLCustomerLegalIdentifierClaim,
+		arg.NormalizedLegalIdentifier,
 		arg.ApprovedCustomerID,
 		arg.ApprovedApprovalEntryID,
 		arg.OpenCustomerID,
@@ -5821,23 +5417,21 @@ func (q *Queries) UpsertDCLCustomerIdentifierClaim(ctx context.Context, arg Upse
 	return err
 }
 
-const upsertDCLEmployeeIdentifierClaim = `-- name: UpsertDCLEmployeeIdentifierClaim :exec
-INSERT INTO dcl_employee_identifier_claims(identifier_type,normalized_value,approved_employee_id,approved_approval_entry_id,open_employee_id,open_approval_entry_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(identifier_type,normalized_value) DO UPDATE SET approved_employee_id=EXCLUDED.approved_employee_id,approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,open_employee_id=EXCLUDED.open_employee_id,open_approval_entry_id=EXCLUDED.open_approval_entry_id
+const upsertDCLEmployeeLegalIdentifierClaim = `-- name: UpsertDCLEmployeeLegalIdentifierClaim :exec
+INSERT INTO dcl_employee_legal_identifier_claims(normalized_legal_identifier,approved_employee_id,approved_approval_entry_id,open_employee_id,open_approval_entry_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(normalized_legal_identifier) DO UPDATE SET approved_employee_id=EXCLUDED.approved_employee_id,approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,open_employee_id=EXCLUDED.open_employee_id,open_approval_entry_id=EXCLUDED.open_approval_entry_id
 `
 
-type UpsertDCLEmployeeIdentifierClaimParams struct {
-	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
-	ApprovedEmployeeID      *string `db:"approved_employee_id" json:"approved_employee_id"`
-	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
-	OpenEmployeeID          *string `db:"open_employee_id" json:"open_employee_id"`
-	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+type UpsertDCLEmployeeLegalIdentifierClaimParams struct {
+	NormalizedLegalIdentifier string  `db:"normalized_legal_identifier" json:"normalized_legal_identifier"`
+	ApprovedEmployeeID        *string `db:"approved_employee_id" json:"approved_employee_id"`
+	ApprovedApprovalEntryID   *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenEmployeeID            *string `db:"open_employee_id" json:"open_employee_id"`
+	OpenApprovalEntryID       *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
 }
 
-func (q *Queries) UpsertDCLEmployeeIdentifierClaim(ctx context.Context, arg UpsertDCLEmployeeIdentifierClaimParams) error {
-	_, err := q.db.Exec(ctx, upsertDCLEmployeeIdentifierClaim,
-		arg.IdentifierType,
-		arg.NormalizedValue,
+func (q *Queries) UpsertDCLEmployeeLegalIdentifierClaim(ctx context.Context, arg UpsertDCLEmployeeLegalIdentifierClaimParams) error {
+	_, err := q.db.Exec(ctx, upsertDCLEmployeeLegalIdentifierClaim,
+		arg.NormalizedLegalIdentifier,
 		arg.ApprovedEmployeeID,
 		arg.ApprovedApprovalEntryID,
 		arg.OpenEmployeeID,
@@ -5846,23 +5440,21 @@ func (q *Queries) UpsertDCLEmployeeIdentifierClaim(ctx context.Context, arg Upse
 	return err
 }
 
-const upsertDCLOtherUnitIdentifierClaim = `-- name: UpsertDCLOtherUnitIdentifierClaim :exec
-INSERT INTO dcl_other_unit_identifier_claims(identifier_type,normalized_value,approved_other_unit_id,approved_approval_entry_id,open_other_unit_id,open_approval_entry_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(identifier_type,normalized_value) DO UPDATE SET approved_other_unit_id=EXCLUDED.approved_other_unit_id,approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,open_other_unit_id=EXCLUDED.open_other_unit_id,open_approval_entry_id=EXCLUDED.open_approval_entry_id
+const upsertDCLOtherUnitLegalIdentifierClaim = `-- name: UpsertDCLOtherUnitLegalIdentifierClaim :exec
+INSERT INTO dcl_other_unit_legal_identifier_claims(normalized_legal_identifier,approved_other_unit_id,approved_approval_entry_id,open_other_unit_id,open_approval_entry_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(normalized_legal_identifier) DO UPDATE SET approved_other_unit_id=EXCLUDED.approved_other_unit_id,approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,open_other_unit_id=EXCLUDED.open_other_unit_id,open_approval_entry_id=EXCLUDED.open_approval_entry_id
 `
 
-type UpsertDCLOtherUnitIdentifierClaimParams struct {
-	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
-	ApprovedOtherUnitID     *string `db:"approved_other_unit_id" json:"approved_other_unit_id"`
-	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
-	OpenOtherUnitID         *string `db:"open_other_unit_id" json:"open_other_unit_id"`
-	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+type UpsertDCLOtherUnitLegalIdentifierClaimParams struct {
+	NormalizedLegalIdentifier string  `db:"normalized_legal_identifier" json:"normalized_legal_identifier"`
+	ApprovedOtherUnitID       *string `db:"approved_other_unit_id" json:"approved_other_unit_id"`
+	ApprovedApprovalEntryID   *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenOtherUnitID           *string `db:"open_other_unit_id" json:"open_other_unit_id"`
+	OpenApprovalEntryID       *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
 }
 
-func (q *Queries) UpsertDCLOtherUnitIdentifierClaim(ctx context.Context, arg UpsertDCLOtherUnitIdentifierClaimParams) error {
-	_, err := q.db.Exec(ctx, upsertDCLOtherUnitIdentifierClaim,
-		arg.IdentifierType,
-		arg.NormalizedValue,
+func (q *Queries) UpsertDCLOtherUnitLegalIdentifierClaim(ctx context.Context, arg UpsertDCLOtherUnitLegalIdentifierClaimParams) error {
+	_, err := q.db.Exec(ctx, upsertDCLOtherUnitLegalIdentifierClaim,
+		arg.NormalizedLegalIdentifier,
 		arg.ApprovedOtherUnitID,
 		arg.ApprovedApprovalEntryID,
 		arg.OpenOtherUnitID,
@@ -5871,23 +5463,21 @@ func (q *Queries) UpsertDCLOtherUnitIdentifierClaim(ctx context.Context, arg Ups
 	return err
 }
 
-const upsertDCLSalesPartnerIdentifierClaim = `-- name: UpsertDCLSalesPartnerIdentifierClaim :exec
-INSERT INTO dcl_sales_partner_identifier_claims(identifier_type,normalized_value,approved_sales_partner_id,approved_approval_entry_id,open_sales_partner_id,open_approval_entry_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(identifier_type,normalized_value) DO UPDATE SET approved_sales_partner_id=EXCLUDED.approved_sales_partner_id,approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,open_sales_partner_id=EXCLUDED.open_sales_partner_id,open_approval_entry_id=EXCLUDED.open_approval_entry_id
+const upsertDCLSalesPartnerLegalIdentifierClaim = `-- name: UpsertDCLSalesPartnerLegalIdentifierClaim :exec
+INSERT INTO dcl_sales_partner_legal_identifier_claims(normalized_legal_identifier,approved_sales_partner_id,approved_approval_entry_id,open_sales_partner_id,open_approval_entry_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(normalized_legal_identifier) DO UPDATE SET approved_sales_partner_id=EXCLUDED.approved_sales_partner_id,approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,open_sales_partner_id=EXCLUDED.open_sales_partner_id,open_approval_entry_id=EXCLUDED.open_approval_entry_id
 `
 
-type UpsertDCLSalesPartnerIdentifierClaimParams struct {
-	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
-	ApprovedSalesPartnerID  *string `db:"approved_sales_partner_id" json:"approved_sales_partner_id"`
-	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
-	OpenSalesPartnerID      *string `db:"open_sales_partner_id" json:"open_sales_partner_id"`
-	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+type UpsertDCLSalesPartnerLegalIdentifierClaimParams struct {
+	NormalizedLegalIdentifier string  `db:"normalized_legal_identifier" json:"normalized_legal_identifier"`
+	ApprovedSalesPartnerID    *string `db:"approved_sales_partner_id" json:"approved_sales_partner_id"`
+	ApprovedApprovalEntryID   *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenSalesPartnerID        *string `db:"open_sales_partner_id" json:"open_sales_partner_id"`
+	OpenApprovalEntryID       *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
 }
 
-func (q *Queries) UpsertDCLSalesPartnerIdentifierClaim(ctx context.Context, arg UpsertDCLSalesPartnerIdentifierClaimParams) error {
-	_, err := q.db.Exec(ctx, upsertDCLSalesPartnerIdentifierClaim,
-		arg.IdentifierType,
-		arg.NormalizedValue,
+func (q *Queries) UpsertDCLSalesPartnerLegalIdentifierClaim(ctx context.Context, arg UpsertDCLSalesPartnerLegalIdentifierClaimParams) error {
+	_, err := q.db.Exec(ctx, upsertDCLSalesPartnerLegalIdentifierClaim,
+		arg.NormalizedLegalIdentifier,
 		arg.ApprovedSalesPartnerID,
 		arg.ApprovedApprovalEntryID,
 		arg.OpenSalesPartnerID,
@@ -5896,23 +5486,21 @@ func (q *Queries) UpsertDCLSalesPartnerIdentifierClaim(ctx context.Context, arg 
 	return err
 }
 
-const upsertDCLSupplierIdentifierClaim = `-- name: UpsertDCLSupplierIdentifierClaim :exec
-INSERT INTO dcl_supplier_identifier_claims(identifier_type,normalized_value,approved_supplier_id,approved_approval_entry_id,open_supplier_id,open_approval_entry_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(identifier_type,normalized_value) DO UPDATE SET approved_supplier_id=EXCLUDED.approved_supplier_id,approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,open_supplier_id=EXCLUDED.open_supplier_id,open_approval_entry_id=EXCLUDED.open_approval_entry_id
+const upsertDCLSupplierLegalIdentifierClaim = `-- name: UpsertDCLSupplierLegalIdentifierClaim :exec
+INSERT INTO dcl_supplier_legal_identifier_claims(normalized_legal_identifier,approved_supplier_id,approved_approval_entry_id,open_supplier_id,open_approval_entry_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(normalized_legal_identifier) DO UPDATE SET approved_supplier_id=EXCLUDED.approved_supplier_id,approved_approval_entry_id=EXCLUDED.approved_approval_entry_id,open_supplier_id=EXCLUDED.open_supplier_id,open_approval_entry_id=EXCLUDED.open_approval_entry_id
 `
 
-type UpsertDCLSupplierIdentifierClaimParams struct {
-	IdentifierType          string  `db:"identifier_type" json:"identifier_type"`
-	NormalizedValue         string  `db:"normalized_value" json:"normalized_value"`
-	ApprovedSupplierID      *string `db:"approved_supplier_id" json:"approved_supplier_id"`
-	ApprovedApprovalEntryID *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
-	OpenSupplierID          *string `db:"open_supplier_id" json:"open_supplier_id"`
-	OpenApprovalEntryID     *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+type UpsertDCLSupplierLegalIdentifierClaimParams struct {
+	NormalizedLegalIdentifier string  `db:"normalized_legal_identifier" json:"normalized_legal_identifier"`
+	ApprovedSupplierID        *string `db:"approved_supplier_id" json:"approved_supplier_id"`
+	ApprovedApprovalEntryID   *string `db:"approved_approval_entry_id" json:"approved_approval_entry_id"`
+	OpenSupplierID            *string `db:"open_supplier_id" json:"open_supplier_id"`
+	OpenApprovalEntryID       *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
 }
 
-func (q *Queries) UpsertDCLSupplierIdentifierClaim(ctx context.Context, arg UpsertDCLSupplierIdentifierClaimParams) error {
-	_, err := q.db.Exec(ctx, upsertDCLSupplierIdentifierClaim,
-		arg.IdentifierType,
-		arg.NormalizedValue,
+func (q *Queries) UpsertDCLSupplierLegalIdentifierClaim(ctx context.Context, arg UpsertDCLSupplierLegalIdentifierClaimParams) error {
+	_, err := q.db.Exec(ctx, upsertDCLSupplierLegalIdentifierClaim,
+		arg.NormalizedLegalIdentifier,
 		arg.ApprovedSupplierID,
 		arg.ApprovedApprovalEntryID,
 		arg.OpenSupplierID,

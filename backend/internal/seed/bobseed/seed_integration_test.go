@@ -93,7 +93,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		Data: dcldomain.SalesPartnerData{
 			Kind:                     "ORGANIZATION",
 			LegalName:                "销售合作方",
-			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
+			LegalIdentifier:          "91350211M00010001X",
 			Enabled:                  true,
 			OperatingEntityIDs:       []string{operatingEntityID},
 			DefaultOperatingEntityID: operatingEntityID,

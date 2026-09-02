@@ -141,6 +141,39 @@ const accMappingEntities = new Set([
   'service-acceptance',
 ])
 
+const mainlandUnifiedSocialCreditCharset = '0123456789ABCDEFGHJKLMNPQRTUWXY'
+const mainlandUnifiedSocialCreditWeights = [
+  1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28,
+]
+
+function mainlandEnterpriseIdentifier(): string {
+  const base = `91${randomBytes(8).toString('hex').toUpperCase().slice(0, 15)}`
+  const sum = [...base].reduce(
+    (total, character, index) =>
+      total +
+      mainlandUnifiedSocialCreditCharset.indexOf(character) *
+        mainlandUnifiedSocialCreditWeights[index]!,
+    0,
+  )
+  return `${base}${mainlandUnifiedSocialCreditCharset[(31 - (sum % 31)) % 31]}`
+}
+
+function mainlandIndividualIdentifier(): string {
+  const serial = randomBytes(4).readUInt32BE()
+  const year = 1980 + (serial % 25)
+  const month = 1 + (Math.floor(serial / 25) % 12)
+  const day = 1 + (Math.floor(serial / 300) % 28)
+  const sequence = 1 + (Math.floor(serial / 8400) % 999)
+  const base = `110105${year}${month.toString().padStart(2, '0')}${day.toString().padStart(2, '0')}${sequence.toString().padStart(3, '0')}`
+  const weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+  const checks = '10X98765432'
+  const sum = [...base].reduce(
+    (total, character, index) => total + Number(character) * weights[index]!,
+    0,
+  )
+  return `${base}${checks[sum % 11]}`
+}
+
 interface AuxMutation {
   objectId: string
   objectRevision: number
@@ -470,7 +503,7 @@ async function createEffectiveEmployment(
       kind: 'PERSON',
       legalName: name,
       displayName: name,
-      strongIdentifiers: [],
+      legalIdentifier: mainlandIndividualIdentifier(),
       enabled: true,
       currentOperatingEntityId: operatingEntityId,
     },
@@ -510,7 +543,7 @@ async function createEffectiveSupplier(
       kind: 'ORGANIZATION',
       legalName: name,
       displayName: name,
-      strongIdentifiers: [],
+      legalIdentifier: mainlandEnterpriseIdentifier(),
       enabled: true,
       operatingEntityIds: [operatingEntityId],
       defaultOperatingEntityId: operatingEntityId,
@@ -552,7 +585,7 @@ async function createEffectiveOtherUnit(
       kind: 'ORGANIZATION',
       legalName: name,
       displayName: name,
-      strongIdentifiers: [],
+      legalIdentifier: mainlandEnterpriseIdentifier(),
       enabled: true,
       operatingEntityIds: [operatingEntityId],
       defaultOperatingEntityId: operatingEntityId,
@@ -592,7 +625,7 @@ async function createEffectiveSalesPartner(
       kind: 'ORGANIZATION',
       legalName: name,
       displayName: name,
-      strongIdentifiers: [],
+      legalIdentifier: mainlandEnterpriseIdentifier(),
       enabled: true,
       operatingEntityIds: [operatingEntityId],
       defaultOperatingEntityId: operatingEntityId,
@@ -689,10 +722,10 @@ async function createEffectiveCustomer(
 ): Promise<BobMutation> {
   const created = await operator.post<BobMutation>('dcl/customer/create', {
     data: {
-      kind: 'ORGANIZATION',
+      kind: 'MAINLAND_ENTERPRISE',
       legalName: name,
       displayName: name,
-      strongIdentifiers: [],
+      legalIdentifier: mainlandEnterpriseIdentifier(),
       remittanceProfiles: [],
       defaultOperatingEntityId: operatingEntityId,
       enabled: true,

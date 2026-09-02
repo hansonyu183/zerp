@@ -5,7 +5,6 @@ import {
   BusinessObjectEditor,
   BusinessObjectList,
 } from '@/components/business-object'
-import StrongIdentifiersField from '../shared/typed-business-archive/StrongIdentifiersField.vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
@@ -247,13 +246,6 @@ async function confirmReverse() {
         @reference-search="vm.searchEditorReference"
         @save="vm.save"
       >
-        <template #input-strongIdentifiers="{ disabled, setValue, value }">
-          <StrongIdentifiersField
-            :disabled="disabled"
-            :model-value="value"
-            @update:model-value="setValue"
-          />
-        </template>
         <template #actions="{ cancel, save }">
           <v-btn
             v-if="vm.editorMode === 'view'"

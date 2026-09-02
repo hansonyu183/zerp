@@ -55,42 +55,27 @@ func employeeVersionInput(input EmployeeReviewInput) EmployeeVersionInput {
 }
 
 func validateEmployeeInput(input EmployeeInput) (EmployeeInput, error) {
-	input.Kind, input.LegalName, input.DisplayName, input.TaxNumber = strings.TrimSpace(input.Kind), strings.TrimSpace(input.LegalName), strings.TrimSpace(input.DisplayName), strings.TrimSpace(input.TaxNumber)
+	input.Kind, input.LegalName, input.DisplayName = strings.TrimSpace(input.Kind), strings.TrimSpace(input.LegalName), strings.TrimSpace(input.DisplayName)
+	if input.LegalIdentifier != "" {
+		var err error
+		input.LegalIdentifier, err = archiveLegalIdentifier(input.Kind, input.LegalIdentifier)
+		if err != nil {
+			return EmployeeInput{}, err
+		}
+	}
 	if input.DisplayName == "" {
 		input.DisplayName = input.LegalName
 	}
 	input.CurrentOperatingEntityID = strings.TrimSpace(input.CurrentOperatingEntityID)
 	input.EmployeeCategoryID, input.DepartmentID, input.PositionID = strings.TrimSpace(input.EmployeeCategoryID), strings.TrimSpace(input.DepartmentID), strings.TrimSpace(input.PositionID)
 	input.Phone, input.Email, input.HireDate, input.Remark = strings.TrimSpace(input.Phone), strings.TrimSpace(input.Email), strings.TrimSpace(input.HireDate), strings.TrimSpace(input.Remark)
-	if (input.Kind != "PERSON" && input.Kind != "ORGANIZATION") || input.LegalName == "" || !runeLenAtMost(input.LegalName, 200) || !runeLenAtMost(input.DisplayName, 200) || !runeLenAtMost(input.TaxNumber, 100) || !runeLenAtMost(input.Phone, 32) || !runeLenAtMost(input.Email, 254) || !runeLenAtMost(input.HireDate, 10) || !runeLenAtMost(input.Remark, 1000) || !validID(input.CurrentOperatingEntityID) || input.StrongIdentifiers == nil || len(input.StrongIdentifiers) > 10 || (input.EmployeeCategoryID != "" && !validID(input.EmployeeCategoryID)) || (input.DepartmentID != "" && !validID(input.DepartmentID)) || (input.PositionID != "" && !validID(input.PositionID)) {
+	if (input.Kind != "PERSON" && input.Kind != "ORGANIZATION") || input.LegalName == "" || !runeLenAtMost(input.LegalName, 200) || !runeLenAtMost(input.DisplayName, 200) || !runeLenAtMost(input.LegalIdentifier, 100) || !runeLenAtMost(input.Phone, 32) || !runeLenAtMost(input.Email, 254) || !runeLenAtMost(input.HireDate, 10) || !runeLenAtMost(input.Remark, 1000) || !validID(input.CurrentOperatingEntityID) || (input.EmployeeCategoryID != "" && !validID(input.EmployeeCategoryID)) || (input.DepartmentID != "" && !validID(input.DepartmentID)) || (input.PositionID != "" && !validID(input.PositionID)) {
 		return EmployeeInput{}, newError(ErrorValidation, "validation_failed", "invalid employee data", nil, nil)
-	}
-	seen := map[string]struct{}{}
-	for index := range input.StrongIdentifiers {
-		identifier := &input.StrongIdentifiers[index]
-		identifier.Type, identifier.Value = strings.TrimSpace(identifier.Type), strings.TrimSpace(identifier.Value)
-		key := identifier.Type + "\x00" + normalizeEmployeeIdentifier(identifier.Value)
-		if !validBusinessIdentifierType(identifier.Type) || identifier.Value == "" || !runeLenAtMost(identifier.Value, 100) {
-			return EmployeeInput{}, newError(ErrorValidation, "validation_failed", "invalid employee identifier", nil, nil)
-		}
-		if _, exists := seen[key]; exists {
-			return EmployeeInput{}, newError(ErrorValidation, "validation_failed", "duplicate employee identifier", nil, nil)
-		}
-		seen[key] = struct{}{}
 	}
 	if _, err := bobdomain.ValidateEmployeeData(employeeAuxiliaryData(input)); err != nil {
 		return EmployeeInput{}, translateError(err)
 	}
 	return input, nil
-}
-
-func validBusinessIdentifierType(value string) bool {
-	switch value {
-	case "PERSON_ID", "UNIFIED_SOCIAL_CREDIT_CODE", "TAX_NUMBER":
-		return true
-	default:
-		return false
-	}
 }
 
 func normalizeEmployeeIdentifier(value string) string {
@@ -112,7 +97,7 @@ func employeeAuxiliaryData(input EmployeeInput) bobdomain.EmployeeData {
 }
 
 func employeeData(input EmployeeInput, operating bobdomain.EffectiveReference, auxiliary bobdomain.EmployeeData) EmployeeData {
-	result := EmployeeData{Kind: input.Kind, LegalName: input.LegalName, DisplayName: input.DisplayName, TaxNumber: input.TaxNumber, StrongIdentifiers: input.StrongIdentifiers, Enabled: input.Enabled, CurrentOperatingEntityID: operating.ObjectID, CurrentOperatingEntity: EmployeeOperatingEntitySnapshot{SourceObjectID: operating.ObjectID, ApprovalEntryID: operating.ApprovalEntryID, Code: operating.Code, Name: operating.Data.Name}, Phone: auxiliary.Phone, Email: auxiliary.Email, HireDate: auxiliary.HireDate, Remark: auxiliary.Remark}
+	result := EmployeeData{Kind: input.Kind, LegalName: input.LegalName, DisplayName: input.DisplayName, LegalIdentifier: input.LegalIdentifier, Enabled: input.Enabled, CurrentOperatingEntityID: operating.ObjectID, CurrentOperatingEntity: EmployeeOperatingEntitySnapshot{SourceObjectID: operating.ObjectID, ApprovalEntryID: operating.ApprovalEntryID, Code: operating.Code, Name: operating.Data.Name}, Phone: auxiliary.Phone, Email: auxiliary.Email, HireDate: auxiliary.HireDate, Remark: auxiliary.Remark}
 	if result.DisplayName == "" {
 		result.DisplayName = result.LegalName
 	}
@@ -229,9 +214,6 @@ func (s *EmployeeService) Save(ctx context.Context, input EmployeeSaveInput, act
 				err = errors.New("approved employee snapshot is missing")
 			}
 		}
-		if err == nil {
-			err = q.CopyDCLEmployeeVersionIdentifiers(ctx, dbsqlc.CopyDCLEmployeeVersionIdentifiersParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
-		}
 	case approval.StatusDraft:
 		entry = approvalEntry(stored)
 		loaded, loadErr := s.loadData(ctx, q, entry.ID)
@@ -253,7 +235,7 @@ func (s *EmployeeService) Save(ctx context.Context, input EmployeeSaveInput, act
 	if err = s.updateSnapshot(ctx, q, entry.ID, data); err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
-	if err = s.writeIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+	if err = s.claimLegalIdentifier(ctx, q, id.ObjectID, entry.ID, data.LegalIdentifier); err != nil {
 		return EmployeeMutation{}, translateError(err)
 	}
 	entry, err = s.coordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, employeePayload(id, data.Enabled))
@@ -308,6 +290,17 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 		return EmployeeMutation{}, err
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
+		if data.LegalIdentifier == "" {
+			return EmployeeMutation{}, newError(ErrorValidation, "legal_identifier_required", "employee legal identifier is required", nil, nil)
+		}
+		if _, err = archiveLegalIdentifier(data.Kind, data.LegalIdentifier); err != nil {
+			return EmployeeMutation{}, err
+		}
+		if action == approval.ActionSubmitted {
+			if err = s.claimLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
+				return EmployeeMutation{}, translateError(err)
+			}
+		}
 		operating, resolveErr := s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, data.CurrentOperatingEntityID)
 		if resolveErr != nil {
 			return EmployeeMutation{}, translateError(resolveErr)
@@ -337,7 +330,7 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 			if loadErr != nil {
 				return EmployeeMutation{}, loadErr
 			}
-			if err = s.promoteIdentifiers(ctx, q, input.ObjectID, fallback.ID, fallbackData.StrongIdentifiers); err != nil {
+			if err = s.promoteLegalIdentifier(ctx, q, input.ObjectID, fallback.ID, fallbackData.LegalIdentifier); err != nil {
 				return EmployeeMutation{}, translateError(err)
 			}
 		} else if !errors.Is(fallbackErr, pgx.ErrNoRows) {
@@ -346,18 +339,18 @@ func (s *EmployeeService) transition(ctx context.Context, input EmployeeVersionI
 	}
 	if action == approval.ActionApproved {
 		if latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityEmployee, SubjectID: input.ObjectID}); latestErr == nil && latest.ID != input.ApprovalEntryID {
-			if err = q.DeleteDCLEmployeeIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
+			if err = q.DeleteDCLEmployeeLegalIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
 				return EmployeeMutation{}, translateError(err)
 			}
 		} else if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
 			return EmployeeMutation{}, translateError(latestErr)
 		}
-		if err = s.promoteIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
+		if err = s.promoteLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
 			return EmployeeMutation{}, translateError(err)
 		}
 	}
 	if action == approval.ActionUnapproved {
-		if err = s.claimOpenIdentifiers(ctx, q, input.ObjectID, input.ApprovalEntryID, data.StrongIdentifiers); err != nil {
+		if err = s.claimLegalIdentifier(ctx, q, input.ObjectID, input.ApprovalEntryID, data.LegalIdentifier); err != nil {
 			return EmployeeMutation{}, translateError(err)
 		}
 	}
@@ -413,7 +406,7 @@ func (s *EmployeeService) Delete(ctx context.Context, input EmployeeDeleteInput,
 	if err != nil {
 		return err
 	}
-	if err = q.DeleteDCLEmployeeIdentifierClaimsForEntry(ctx, &stored.ID); err != nil {
+	if err = q.DeleteDCLEmployeeLegalIdentifierClaimsForEntry(ctx, &stored.ID); err != nil {
 		return translateError(err)
 	}
 	if count, deleteErr := q.DeleteDCLEmployeeVersion(ctx, stored.ID); deleteErr != nil || count != 1 {
@@ -442,7 +435,7 @@ func (s *EmployeeService) writeSnapshot(ctx context.Context, q *dbsqlc.Queries, 
 	if err := q.InsertDCLEmployeeVersion(ctx, employeeInsertParams(entryID, data)); err != nil {
 		return err
 	}
-	return s.writeIdentifiers(ctx, q, objectID, entryID, data.StrongIdentifiers)
+	return s.claimLegalIdentifier(ctx, q, objectID, entryID, data.LegalIdentifier)
 }
 
 func (s *EmployeeService) updateSnapshot(ctx context.Context, q *dbsqlc.Queries, entryID string, data EmployeeData) error {
@@ -454,66 +447,51 @@ func (s *EmployeeService) updateSnapshot(ctx context.Context, q *dbsqlc.Queries,
 }
 
 func employeeInsertParams(entryID string, data EmployeeData) dbsqlc.InsertDCLEmployeeVersionParams {
-	return dbsqlc.InsertDCLEmployeeVersionParams{ApprovalEntryID: entryID, Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, TaxNumber: nilIfEmpty(data.TaxNumber), EmployeeCategoryID: nilIfEmpty(data.EmployeeCategoryID), EmployeeCategoryCode: nilIfEmpty(data.EmployeeCategoryCode), EmployeeCategoryName: nilIfEmpty(data.EmployeeCategoryName), DepartmentID: nilIfEmpty(data.DepartmentID), DepartmentCode: nilIfEmpty(data.DepartmentCode), DepartmentName: nilIfEmpty(data.DepartmentName), PositionID: nilIfEmpty(data.PositionID), PositionCode: nilIfEmpty(data.PositionCode), PositionName: nilIfEmpty(data.PositionName), Phone: nilIfEmpty(data.Phone), Email: nilIfEmpty(data.Email), HireDate: employeeDateValue(data.HireDate), CurrentOperatingEntityID: data.CurrentOperatingEntity.SourceObjectID, CurrentOperatingEntityApprovalEntryID: data.CurrentOperatingEntity.ApprovalEntryID, CurrentOperatingEntityCode: data.CurrentOperatingEntity.Code, CurrentOperatingEntityName: data.CurrentOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled}
+	return dbsqlc.InsertDCLEmployeeVersionParams{ApprovalEntryID: entryID, Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, LegalIdentifier: nilIfEmpty(data.LegalIdentifier), EmployeeCategoryID: nilIfEmpty(data.EmployeeCategoryID), EmployeeCategoryCode: nilIfEmpty(data.EmployeeCategoryCode), EmployeeCategoryName: nilIfEmpty(data.EmployeeCategoryName), DepartmentID: nilIfEmpty(data.DepartmentID), DepartmentCode: nilIfEmpty(data.DepartmentCode), DepartmentName: nilIfEmpty(data.DepartmentName), PositionID: nilIfEmpty(data.PositionID), PositionCode: nilIfEmpty(data.PositionCode), PositionName: nilIfEmpty(data.PositionName), Phone: nilIfEmpty(data.Phone), Email: nilIfEmpty(data.Email), HireDate: employeeDateValue(data.HireDate), CurrentOperatingEntityID: data.CurrentOperatingEntity.SourceObjectID, CurrentOperatingEntityApprovalEntryID: data.CurrentOperatingEntity.ApprovalEntryID, CurrentOperatingEntityCode: data.CurrentOperatingEntity.Code, CurrentOperatingEntityName: data.CurrentOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled}
 }
 
 func employeeUpdateParams(entryID string, data EmployeeData) dbsqlc.UpdateDCLEmployeeVersionParams {
-	return dbsqlc.UpdateDCLEmployeeVersionParams{Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, TaxNumber: nilIfEmpty(data.TaxNumber), EmployeeCategoryID: nilIfEmpty(data.EmployeeCategoryID), EmployeeCategoryCode: nilIfEmpty(data.EmployeeCategoryCode), EmployeeCategoryName: nilIfEmpty(data.EmployeeCategoryName), DepartmentID: nilIfEmpty(data.DepartmentID), DepartmentCode: nilIfEmpty(data.DepartmentCode), DepartmentName: nilIfEmpty(data.DepartmentName), PositionID: nilIfEmpty(data.PositionID), PositionCode: nilIfEmpty(data.PositionCode), PositionName: nilIfEmpty(data.PositionName), Phone: nilIfEmpty(data.Phone), Email: nilIfEmpty(data.Email), HireDate: employeeDateValue(data.HireDate), CurrentOperatingEntityID: data.CurrentOperatingEntity.SourceObjectID, CurrentOperatingEntityApprovalEntryID: data.CurrentOperatingEntity.ApprovalEntryID, CurrentOperatingEntityCode: data.CurrentOperatingEntity.Code, CurrentOperatingEntityName: data.CurrentOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled, ApprovalEntryID: entryID}
+	return dbsqlc.UpdateDCLEmployeeVersionParams{Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, LegalIdentifier: nilIfEmpty(data.LegalIdentifier), EmployeeCategoryID: nilIfEmpty(data.EmployeeCategoryID), EmployeeCategoryCode: nilIfEmpty(data.EmployeeCategoryCode), EmployeeCategoryName: nilIfEmpty(data.EmployeeCategoryName), DepartmentID: nilIfEmpty(data.DepartmentID), DepartmentCode: nilIfEmpty(data.DepartmentCode), DepartmentName: nilIfEmpty(data.DepartmentName), PositionID: nilIfEmpty(data.PositionID), PositionCode: nilIfEmpty(data.PositionCode), PositionName: nilIfEmpty(data.PositionName), Phone: nilIfEmpty(data.Phone), Email: nilIfEmpty(data.Email), HireDate: employeeDateValue(data.HireDate), CurrentOperatingEntityID: data.CurrentOperatingEntity.SourceObjectID, CurrentOperatingEntityApprovalEntryID: data.CurrentOperatingEntity.ApprovalEntryID, CurrentOperatingEntityCode: data.CurrentOperatingEntity.Code, CurrentOperatingEntityName: data.CurrentOperatingEntity.Name, Remark: nilIfEmpty(data.Remark), Enabled: data.Enabled, ApprovalEntryID: entryID}
 }
 
-func (s *EmployeeService) writeIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLEmployeeVersionIdentifiers(ctx, entryID); err != nil {
+func (s *EmployeeService) claimLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
+	if err := q.DeleteDCLEmployeeLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
 		return err
 	}
-	for _, identifier := range identifiers {
-		if err := q.InsertDCLEmployeeVersionIdentifier(ctx, dbsqlc.InsertDCLEmployeeVersionIdentifierParams{ApprovalEntryID: entryID, IdentifierType: identifier.Type, Value: identifier.Value, NormalizedValue: normalizeEmployeeIdentifier(identifier.Value)}); err != nil {
-			return err
-		}
+	normalized := normalizeEmployeeIdentifier(legalIdentifier)
+	if err := q.LockDCLEmployeeLegalIdentifierClaimKey(ctx, normalized); err != nil {
+		return err
 	}
-	return s.claimOpenIdentifiers(ctx, q, objectID, entryID, identifiers)
+	claim, err := q.LockDCLEmployeeLegalIdentifierClaim(ctx, normalized)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if err == nil && ((claim.ApprovedEmployeeID != nil && *claim.ApprovedEmployeeID != objectID) || (claim.OpenEmployeeID != nil && *claim.OpenEmployeeID != objectID)) {
+		return newError(ErrorConflict, "employee_legal_identifier_claimed", "employee legal identifier is already occupied", nil, nil)
+	}
+	var approvedID, approvedEntryID *string
+	if err == nil {
+		approvedID, approvedEntryID = claim.ApprovedEmployeeID, claim.ApprovedApprovalEntryID
+	}
+	return q.UpsertDCLEmployeeLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLEmployeeLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedEmployeeID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenEmployeeID: &objectID, OpenApprovalEntryID: &entryID})
 }
 
-func (s *EmployeeService) claimOpenIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLEmployeeIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+func (s *EmployeeService) promoteLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
+	if err := q.DeleteDCLEmployeeLegalIdentifierClaimsForEntry(ctx, &entryID); err != nil || legalIdentifier == "" {
 		return err
 	}
-	for _, identifier := range identifiers {
-		normalized := normalizeEmployeeIdentifier(identifier.Value)
-		if err := q.LockDCLEmployeeIdentifierClaimKey(ctx, dbsqlc.LockDCLEmployeeIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		claim, err := q.LockDCLEmployeeIdentifierClaim(ctx, dbsqlc.LockDCLEmployeeIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized})
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		if err == nil && ((claim.ApprovedEmployeeID != nil && *claim.ApprovedEmployeeID != objectID) || (claim.OpenEmployeeID != nil && *claim.OpenEmployeeID != objectID)) {
-			return newError(ErrorConflict, "employee_identifier_claimed", "employee identifier is already occupied", nil, nil)
-		}
-		var approvedID, approvedEntryID *string
-		if err == nil {
-			approvedID, approvedEntryID = claim.ApprovedEmployeeID, claim.ApprovedApprovalEntryID
-		}
-		if err = q.UpsertDCLEmployeeIdentifierClaim(ctx, dbsqlc.UpsertDCLEmployeeIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedEmployeeID: approvedID, ApprovedApprovalEntryID: approvedEntryID, OpenEmployeeID: &objectID, OpenApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *EmployeeService) promoteIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLEmployeeIdentifierClaimsForEntry(ctx, &entryID); err != nil {
+	normalized := normalizeEmployeeIdentifier(legalIdentifier)
+	if err := q.LockDCLEmployeeLegalIdentifierClaimKey(ctx, normalized); err != nil {
 		return err
 	}
-	for _, identifier := range identifiers {
-		normalized := normalizeEmployeeIdentifier(identifier.Value)
-		if err := q.LockDCLEmployeeIdentifierClaimKey(ctx, dbsqlc.LockDCLEmployeeIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		if err := q.UpsertDCLEmployeeIdentifierClaim(ctx, dbsqlc.UpsertDCLEmployeeIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedEmployeeID: &objectID, ApprovedApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
+	claim, err := q.LockDCLEmployeeLegalIdentifierClaim(ctx, normalized)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
 	}
-	return nil
+	if err == nil && ((claim.ApprovedEmployeeID != nil && *claim.ApprovedEmployeeID != objectID) || (claim.OpenEmployeeID != nil && *claim.OpenEmployeeID != objectID)) {
+		return newError(ErrorConflict, "employee_legal_identifier_claimed", "employee legal identifier is already occupied", nil, nil)
+	}
+	return q.UpsertDCLEmployeeLegalIdentifierClaim(ctx, dbsqlc.UpsertDCLEmployeeLegalIdentifierClaimParams{NormalizedLegalIdentifier: normalized, ApprovedEmployeeID: &objectID, ApprovedApprovalEntryID: &entryID})
 }
 
 func (s *EmployeeService) loadData(ctx context.Context, q *dbsqlc.Queries, entryID string) (EmployeeData, error) {
@@ -521,14 +499,7 @@ func (s *EmployeeService) loadData(ctx context.Context, q *dbsqlc.Queries, entry
 	if err != nil {
 		return EmployeeData{}, translateError(err)
 	}
-	identifiers, err := q.ListDCLEmployeeVersionIdentifiers(ctx, entryID)
-	if err != nil {
-		return EmployeeData{}, translateError(err)
-	}
-	data := EmployeeData{Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, TaxNumber: stringValue(row.TaxNumber), StrongIdentifiers: make([]BusinessIdentifierInput, 0, len(identifiers)), Enabled: row.Enabled, CurrentOperatingEntityID: row.CurrentOperatingEntityID, CurrentOperatingEntity: EmployeeOperatingEntitySnapshot{SourceObjectID: row.CurrentOperatingEntityID, ApprovalEntryID: row.CurrentOperatingEntityApprovalEntryID, Code: row.CurrentOperatingEntityCode, Name: row.CurrentOperatingEntityName}, EmployeeCategoryID: stringValue(row.EmployeeCategoryID), EmployeeCategoryCode: stringValue(row.EmployeeCategoryCode), EmployeeCategoryName: stringValue(row.EmployeeCategoryName), DepartmentID: stringValue(row.DepartmentID), DepartmentCode: stringValue(row.DepartmentCode), DepartmentName: stringValue(row.DepartmentName), PositionID: stringValue(row.PositionID), PositionCode: stringValue(row.PositionCode), PositionName: stringValue(row.PositionName), Phone: stringValue(row.Phone), Email: stringValue(row.Email), HireDate: employeeDateString(row.HireDate), Remark: stringValue(row.Remark)}
-	for _, identifier := range identifiers {
-		data.StrongIdentifiers = append(data.StrongIdentifiers, BusinessIdentifierInput{Type: identifier.IdentifierType, Value: identifier.Value})
-	}
+	data := EmployeeData{Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, LegalIdentifier: stringValue(row.LegalIdentifier), Enabled: row.Enabled, CurrentOperatingEntityID: row.CurrentOperatingEntityID, CurrentOperatingEntity: EmployeeOperatingEntitySnapshot{SourceObjectID: row.CurrentOperatingEntityID, ApprovalEntryID: row.CurrentOperatingEntityApprovalEntryID, Code: row.CurrentOperatingEntityCode, Name: row.CurrentOperatingEntityName}, EmployeeCategoryID: stringValue(row.EmployeeCategoryID), EmployeeCategoryCode: stringValue(row.EmployeeCategoryCode), EmployeeCategoryName: stringValue(row.EmployeeCategoryName), DepartmentID: stringValue(row.DepartmentID), DepartmentCode: stringValue(row.DepartmentCode), DepartmentName: stringValue(row.DepartmentName), PositionID: stringValue(row.PositionID), PositionCode: stringValue(row.PositionCode), PositionName: stringValue(row.PositionName), Phone: stringValue(row.Phone), Email: stringValue(row.Email), HireDate: employeeDateString(row.HireDate), Remark: stringValue(row.Remark)}
 	return data, nil
 }
 

@@ -858,13 +858,19 @@ func (q *Queries) GetBobWarehouseCurrentReference(ctx context.Context, objectID 
 }
 
 const getDCLCustomerVersion = `-- name: GetDCLCustomerVersion :one
-SELECT approval_entry_id, data, enabled FROM dcl_customer_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, kind, legal_identifier, data, enabled FROM dcl_customer_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLCustomerVersion(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error) {
 	row := q.db.QueryRow(ctx, getDCLCustomerVersion, approvalEntryID)
 	var i DclCustomerVersion
-	err := row.Scan(&i.ApprovalEntryID, &i.Data, &i.Enabled)
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.Kind,
+		&i.LegalIdentifier,
+		&i.Data,
+		&i.Enabled,
+	)
 	return i, err
 }
 

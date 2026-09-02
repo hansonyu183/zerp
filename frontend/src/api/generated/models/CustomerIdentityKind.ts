@@ -2,4 +2,4 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type BusinessIdentifierType = 'PERSON_ID' | 'UNIFIED_SOCIAL_CREDIT_CODE' | 'TAX_NUMBER';
+export type CustomerIdentityKind = 'MAINLAND_ENTERPRISE' | 'MAINLAND_INDIVIDUAL' | 'OTHER';

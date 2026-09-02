@@ -16,8 +16,7 @@ export type DclEmployeeForm = {
   kind: 'PERSON' | 'ORGANIZATION'
   legalName: string
   displayName: string
-  taxNumber: string
-  strongIdentifiers: components['schemas']['BusinessIdentifier'][]
+  legalIdentifier: string
   enabled: boolean
   currentOperatingEntityId: string
   employeeCategoryId: string

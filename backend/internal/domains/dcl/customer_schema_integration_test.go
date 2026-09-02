@@ -26,8 +26,7 @@ func TestCustomerAggregateSchemaIntegration(t *testing.T) {
 		"dcl_customer_account_roots",
 		"dcl_customer_version_accounts",
 		"dcl_customer_version_account_credit_limits",
-		"dcl_customer_version_identifiers",
-		"dcl_customer_identifier_claims",
+		"dcl_customer_legal_identifier_claims",
 		"dcl_customer_attachments",
 	} {
 		var exists bool
@@ -38,7 +37,15 @@ func TestCustomerAggregateSchemaIntegration(t *testing.T) {
 			t.Fatalf("missing Customer aggregate table %s", table)
 		}
 	}
-	for _, retired := range []string{"dcl_customer_relationships", "dcl_customer_accounts", "dcl_customer_account_versions", "dcl_customer_account_credit_limits", "dcl_customer_account_attachments"} {
+	for _, retired := range []string{
+		"dcl_customer_version" + "_identifiers",
+		"dcl_customer_identifier" + "_claims",
+		"dcl_customer_relationships",
+		"dcl_customer_accounts",
+		"dcl_customer_account_versions",
+		"dcl_customer_account_credit_limits",
+		"dcl_customer_account_attachments",
+	} {
 		var exists bool
 		if err := pool.QueryRow(t.Context(), `SELECT to_regclass($1) IS NOT NULL`, "public."+retired).Scan(&exists); err != nil {
 			t.Fatalf("check retired %s: %v", retired, err)
@@ -67,7 +74,7 @@ func (r *customerAggregateRules) ResolveCustomerTypeReference(_ context.Context,
 	}, nil
 }
 
-func (r *customerAggregateRules) ResolveCustomerAccountReferences(_ context.Context, _ pgx.Tx, _ map[string]string, settlementID, paymentID, attributionType, attributionID string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error) {
+func (r *customerAggregateRules) ResolveCustomerAccountReferences(_ context.Context, _ pgx.Tx, _, _, settlementID, paymentID, attributionType, attributionID string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error) {
 	settlement := bobdomain.EffectiveReference{}
 	if settlementID != "" {
 		settlement = bobdomain.EffectiveReference{ObjectID: settlementID, Entity: "settlement-method", Code: "SET-0001", ApprovalEntryID: settlementID, Data: bobdomain.DetailView{Name: "月结"}}
@@ -80,7 +87,7 @@ func (r *customerAggregateRules) ResolveCustomerAccountReferences(_ context.Cont
 	return settlement, payment, attribution, nil
 }
 
-func (r *customerAggregateRules) ValidateCustomerAccountReferences(context.Context, pgx.Tx, map[string]string, string, string, string) error {
+func (r *customerAggregateRules) ValidateCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string) error {
 	return nil
 }
 
@@ -95,10 +102,10 @@ func (r *customerAggregateRules) EnsureCustomerUnapproveAllowed(context.Context,
 	return nil
 }
 
-func customerAggregateData(identifier, legalName string, accounts ...CustomerAccountDataInput) CustomerDataInput {
+func customerAggregateData(legalIdentifier, legalName string, accounts ...CustomerAccountDataInput) CustomerDataInput {
 	return CustomerDataInput{
-		Kind: "ORGANIZATION", LegalName: legalName, DisplayName: legalName,
-		StrongIdentifiers:  []BusinessIdentifierInput{{Type: "UNIFIED_SOCIAL_CREDIT_CODE", Value: identifier}},
+		Kind: "MAINLAND_ENTERPRISE", LegalName: legalName, DisplayName: legalName,
+		LegalIdentifier:    legalIdentifier,
 		RemittanceProfiles: []CustomerRemittanceProfile{}, DefaultOperatingEntityID: "01JCTEST000000000000000001", Enabled: true,
 		Accounts: accounts,
 	}
@@ -137,7 +144,7 @@ func TestCustomerAggregateLifecycleAndHistoricalAccountsIntegration(t *testing.T
 	creator := dclActor(t, creatorID, "customer-aggregate-creator")
 	reviewer := dclActor(t, ulid.Make().String(), "customer-aggregate-reviewer")
 
-	v1, err := service.Create(t.Context(), CustomerCreateInput{Data: customerAggregateData("91350000CUSTOMER01", "聚合客户 V1",
+	v1, err := service.Create(t.Context(), CustomerCreateInput{Data: customerAggregateData("91350211M00010001X", "聚合客户 V1",
 		customerAggregateAccount("默认账户", true), customerAggregateAccount("项目账户", false),
 	)}, creator)
 	if err != nil {
@@ -153,16 +160,16 @@ func TestCustomerAggregateLifecycleAndHistoricalAccountsIntegration(t *testing.T
 	defaultID, removedApprovedID := v1View.Data.Accounts[0].AccountID, v1View.Data.Accounts[1].AccountID
 	v1 = approveCustomerAggregate(t, service, v1, creator, reviewer)
 
-	other, err := service.Create(t.Context(), CustomerCreateInput{Data: customerAggregateData("91350000CONFLICT02", "占用标识客户", customerAggregateAccount("唯一账户", true))}, creator)
+	other, err := service.Create(t.Context(), CustomerCreateInput{Data: customerAggregateData("91350211M000100021", "占用法定识别号客户", customerAggregateAccount("唯一账户", true))}, creator)
 	if err != nil {
-		t.Fatalf("create conflicting identifier owner: %v", err)
+		t.Fatalf("create conflicting legal identifier owner: %v", err)
 	}
 	_ = approveCustomerAggregate(t, service, other, creator, reviewer)
 
-	failedData := customerAggregateData("91350000CONFLICT02", "应回滚客户", customerAggregateAccount("默认账户", true), customerAggregateAccount("回滚账户", false))
+	failedData := customerAggregateData("91350211M000100021", "应回滚客户", customerAggregateAccount("默认账户", true), customerAggregateAccount("回滚账户", false))
 	failedData.Accounts[0].AccountID = defaultID
 	if _, err = service.Save(t.Context(), CustomerSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Data: failedData}, creator); err == nil {
-		t.Fatal("saved Customer with an occupied strong identifier")
+		t.Fatal("saved Customer with an occupied legal identifier")
 	}
 	var rootCount, openCount int
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM dcl_customer_account_roots WHERE customer_id=$1`, v1.ObjectID).Scan(&rootCount); err != nil {
@@ -175,7 +182,7 @@ func TestCustomerAggregateLifecycleAndHistoricalAccountsIntegration(t *testing.T
 		t.Fatalf("failed aggregate save leaked state: roots=%d open=%d", rootCount, openCount)
 	}
 
-	v2Data := customerAggregateData("91350000CUSTOMER01", "聚合客户 V2", customerAggregateAccount("默认账户 V2", true), customerAggregateAccount("候选临时账户", false))
+	v2Data := customerAggregateData("91350211M00010001X", "聚合客户 V2", customerAggregateAccount("默认账户 V2", true), customerAggregateAccount("候选临时账户", false))
 	v2Data.Accounts[0].AccountID = defaultID
 	v2, err := service.Save(t.Context(), CustomerSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Data: v2Data}, creator)
 	if err != nil {
@@ -207,7 +214,7 @@ func TestCustomerAggregateLifecycleAndHistoricalAccountsIntegration(t *testing.T
 		t.Fatalf("attach file to Customer account: %v", err)
 	}
 
-	finalData := customerAggregateData("91350000CUSTOMER01", "聚合客户 V2", customerAggregateAccount("默认账户 V2", true))
+	finalData := customerAggregateData("91350211M00010001X", "聚合客户 V2", customerAggregateAccount("默认账户 V2", true))
 	finalData.Accounts[0].AccountID = defaultID
 	v2, err = service.Save(t.Context(), CustomerSaveInput{ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID, ApprovalRevision: v2.Approval.Revision, Data: finalData}, creator)
 	if err != nil {

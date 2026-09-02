@@ -1734,7 +1734,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'enabled',
           'currentOperatingEntityId',
         ],
@@ -1744,12 +1744,7 @@
           'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'maxLength': 100 },
           'enabled': { 'type': 'boolean' },
           'currentOperatingEntityId': { 'type': 'string' },
           'employeeCategoryId': { 'type': 'string', 'nullable': true },
@@ -2331,7 +2326,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'remittanceProfiles',
           'defaultOperatingEntityId',
           'enabled',
@@ -2340,17 +2335,12 @@
       'additionalProperties': false,
       'properties':
         {
-          'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
+          'kind': { '$ref': './common.yaml#/CustomerIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName':
             { 'type': 'string', 'nullable': true, 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'maxItems': 10,
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier':
+            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
           'phone': { 'type': 'string', 'nullable': true, 'maxLength': 32 },
           'email': { 'type': 'string', 'nullable': true, 'maxLength': 254 },
           'address': { 'type': 'string', 'nullable': true, 'maxLength': 500 },
@@ -2389,7 +2379,7 @@
           'kind',
           'legalName',
           'displayName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'remittanceProfiles',
           'defaultOperatingEntityId',
           'defaultOperatingEntity',
@@ -2399,15 +2389,10 @@
       'additionalProperties': false,
       'properties':
         {
-          'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
+          'kind': { '$ref': './common.yaml#/CustomerIdentityKind' },
           'legalName': { 'type': 'string' },
           'displayName': { 'type': 'string' },
-          'taxNumber': { 'type': 'string', 'nullable': true },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'nullable': true },
           'phone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
           'address': { 'type': 'string', 'nullable': true },
@@ -2891,7 +2876,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'enabled',
           'operatingEntityIds',
           'defaultOperatingEntityId',
@@ -2902,12 +2887,7 @@
           'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'maxLength': 100 },
           'enabled': { 'type': 'boolean' },
           'operatingEntityIds':
             {
@@ -2946,7 +2926,6 @@
                     'items': { '$ref': '#/DclBusinessArchiveSnapshot' },
                   },
                 'shortName': { 'type': 'string', 'nullable': true },
-                'taxNumber': { 'type': 'string', 'nullable': true },
                 'contactName': { 'type': 'string', 'nullable': true },
                 'contactPhone': { 'type': 'string', 'nullable': true },
                 'email': { 'type': 'string', 'nullable': true },
@@ -3219,7 +3198,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'enabled',
           'operatingEntityIds',
           'defaultOperatingEntityId',
@@ -3230,12 +3209,7 @@
           'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'maxLength': 100 },
           'enabled': { 'type': 'boolean' },
           'operatingEntityIds':
             {
@@ -3493,7 +3467,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'enabled',
           'operatingEntityIds',
           'defaultOperatingEntityId',
@@ -3504,12 +3478,7 @@
           'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'maxLength': 100 },
           'enabled': { 'type': 'boolean' },
           'operatingEntityIds':
             {

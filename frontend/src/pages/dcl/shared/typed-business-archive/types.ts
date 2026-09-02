@@ -24,8 +24,7 @@ export type DclTypedArchiveForm = {
   kind: 'PERSON' | 'ORGANIZATION'
   legalName: string
   displayName: string
-  taxNumber: string
-  strongIdentifiers: components['schemas']['BusinessIdentifier'][]
+  legalIdentifier: string
   enabled: boolean
   operatingEntityIds: string[]
   defaultOperatingEntityId: string

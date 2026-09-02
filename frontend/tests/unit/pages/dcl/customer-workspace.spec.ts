@@ -134,6 +134,7 @@ describe('DCL customer workspace', () => {
     expect(customerPrimaryAction(approved, true)).toMatchObject({
       key: 'edit',
       label: '发起变更',
+      icon: 'mdi-pencil-outline',
     })
     expect(customerPrimaryAction(approvedWithDraft, true)).toMatchObject({
       key: 'edit',

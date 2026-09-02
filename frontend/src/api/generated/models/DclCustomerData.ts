@@ -2,17 +2,15 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BusinessIdentifier } from './BusinessIdentifier';
-import type { BusinessIdentityKind } from './BusinessIdentityKind';
-import type { DclCustomerAccountData } from './DclCustomerAccountData';
+import type { CustomerIdentityKind } from './CustomerIdentityKind';
 import type { DclCustomerRemittanceProfile } from './DclCustomerRemittanceProfile';
 import type { DclCustomerSnapshot } from './DclCustomerSnapshot';
+import type { DclCustomerSubunitData } from './DclCustomerSubunitData';
 export type DclCustomerData = {
-  kind: BusinessIdentityKind;
+  kind: CustomerIdentityKind;
   legalName: string;
   displayName: string;
-  taxNumber?: string | null;
-  strongIdentifiers: Array<BusinessIdentifier>;
+  legalIdentifier: string | null;
   phone?: string | null;
   email?: string | null;
   address?: string | null;
@@ -25,5 +23,6 @@ export type DclCustomerData = {
   defaultOperatingEntityId: string;
   defaultOperatingEntity: DclCustomerSnapshot;
   enabled: boolean;
-  accounts: Array<DclCustomerAccountData>;
+  implicitSubunitId: string | null;
+  subunits: Array<DclCustomerSubunitData>;
 };

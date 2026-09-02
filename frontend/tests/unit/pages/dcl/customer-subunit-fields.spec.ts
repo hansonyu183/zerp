@@ -1,8 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { describe, expect, it } from 'vitest'
-import CustomerAccountFields from '@/pages/dcl/customer-account/CustomerAccountFields.vue'
-import { createCustomerAccountForm } from '@/pages/dcl/customer-account/form'
+import CustomerSubunitFields from '@/pages/dcl/customer-subunit/CustomerSubunitFields.vue'
+import { createCustomerSubunitForm } from '@/pages/dcl/customer-subunit/form'
 
 const containerStub = defineComponent({
   name: 'ContainerStub',
@@ -22,11 +22,11 @@ const inputStub = defineComponent({
   template: '<div />',
 })
 
-describe('CustomerAccountFields', () => {
+describe('CustomerSubunitFields', () => {
   it('renders controlled references and reloads the sales subject when its type changes', async () => {
-    const form = createCustomerAccountForm()
+    const form = createCustomerSubunitForm()
     form.primarySalesAttribution.subjectObjectId = 'EMP-1'
-    const wrapper = mount(CustomerAccountFields, {
+    const wrapper = mount(CustomerSubunitFields, {
       props: {
         modelValue: form,
         referenceOptions: {

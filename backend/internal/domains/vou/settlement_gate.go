@@ -89,7 +89,7 @@ func (s *Service) validateSettlementAmount(
 	if s.accounting == nil {
 		return domainError(ErrorConflict, "accounting control is not configured", nil, nil)
 	}
-	dimension := "CUSTOMER_ACCOUNT"
+	dimension := "CUSTOMER_SUBUNIT"
 	prepaidPurpose, tradePurpose := "ADVANCE_RECEIPT", "RECEIVABLE"
 	if gate.CounterpartyEntity == "supplier" {
 		dimension, prepaidPurpose, tradePurpose = "SUPPLIER", "PREPAID", "PAYABLE"
@@ -136,7 +136,7 @@ func loadOrderSettlementGate(
 	q := dbsqlc.New(tx)
 	switch entity {
 	case EntitySaleOrder:
-		gate.CounterpartyEntity = bobdomain.EntityCustomerAccount
+		gate.CounterpartyEntity = bobdomain.EntityCustomerSubunit
 		var row dbsqlc.GetSaleOrderSettlementGateRow
 		row, err = q.GetSaleOrderSettlementGate(ctx, orderID)
 		gate.TermCode, ruleType = row.SettlementTermCode, row.SettlementRuleType

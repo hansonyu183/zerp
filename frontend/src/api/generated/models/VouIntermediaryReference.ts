@@ -5,7 +5,7 @@
 export type VouIntermediaryReference = {
   objectId: string;
   approvalEntryId: string;
-  entity: 'customer-account' | 'employee' | 'sales-partner' | 'other-unit' | 'product';
+  entity: 'customer-subunit' | 'employee' | 'sales-partner' | 'other-unit' | 'product';
   code: string;
   name: string;
 };

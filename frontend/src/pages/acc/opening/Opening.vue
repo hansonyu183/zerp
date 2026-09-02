@@ -151,14 +151,29 @@ void vm.initialize()
                     hide-details
                     item-title="name"
                     item-value="objectId"
-                    :items="vm.dimensionReferenceOptions[vm.dimensionReferenceKey(line, dimension)] ?? Object.values(line.dimensionReferences).filter((item) => item.entity === openingBusinessArchiveEntities[dimension])"
+                    :items="
+                      vm.dimensionReferenceOptions[
+                        vm.dimensionReferenceKey(line, dimension)
+                      ] ??
+                      Object.values(line.dimensionReferences).filter(
+                        (item) =>
+                          item.entity ===
+                          openingBusinessArchiveEntities[dimension],
+                      )
+                    "
                     :label="openingDimensionLabels[dimension] ?? dimension"
                     variant="underlined"
-                    @update:search="vm.searchDimensionReferences(line, dimension, $event)"
-                    @update:model-value="vm.selectDimensionReference(line, dimension, $event)"
+                    @update:search="
+                      vm.searchDimensionReferences(line, dimension, $event)
+                    "
+                    @update:model-value="
+                      vm.selectDimensionReference(line, dimension, $event)
+                    "
                   />
                   <v-text-field
-                    v-for="dimension in (subjectFor(line)?.requiredDimensions ?? []).filter((item) => !openingBusinessArchiveEntities[item])"
+                    v-for="dimension in (
+                      subjectFor(line)?.requiredDimensions ?? []
+                    ).filter((item) => !openingBusinessArchiveEntities[item])"
                     :key="`plain-${dimension}`"
                     v-model="line.dimensions[dimension]"
                     class="mb-1"
@@ -562,11 +577,23 @@ void vm.initialize()
                 dense
               >
                 <v-col cols="12" md="6"
-                  ><v-text-field
-                    v-model="item.customerId"
-                    label="客户 ID"
-                    :disabled="!vm.canEdit"
-                    @update:model-value="vm.markDirty"
+                  ><v-autocomplete
+                    :model-value="item.subunit?.objectId ?? null"
+                    density="compact"
+                    hide-details
+                    :item-title="vm.referenceLabel"
+                    item-value="objectId"
+                    :items="
+                      vm.containerSubunitOptions[item.key] ??
+                      (item.subunit ? [item.subunit] : [])
+                    "
+                    label="客户子单位"
+                    :disabled="!vm.canManageContainers"
+                    variant="underlined"
+                    @update:search="vm.searchContainerSubunits(item, $event)"
+                    @update:model-value="
+                      vm.selectContainerSubunit(item, $event)
+                    "
                 /></v-col>
                 <v-col cols="6" md="3"
                   ><v-select
@@ -576,7 +603,7 @@ void vm.initialize()
                       { title: '树脂桶', value: 'RESIN' },
                     ]"
                     label="空桶类型"
-                    :disabled="!vm.canEdit"
+                    :disabled="!vm.canManageContainers"
                     @update:model-value="vm.markDirty"
                 /></v-col>
                 <v-col cols="4" md="2"
@@ -584,7 +611,7 @@ void vm.initialize()
                     v-model.number="item.quantity"
                     label="数量"
                     type="number"
-                    :disabled="!vm.canEdit"
+                    :disabled="!vm.canManageContainers"
                     @update:model-value="vm.markDirty"
                 /></v-col>
                 <v-col
@@ -594,15 +621,17 @@ void vm.initialize()
                   ><v-btn
                     aria-label="删除期初空桶"
                     color="error"
+                    :disabled="!vm.canManageContainers"
                     icon="mdi-delete-outline"
                     variant="text"
-                    @click="vm.removeRegister(vm.containers, index)"
+                    @click="vm.removeContainer(index)"
                 /></v-col>
               </v-row>
               <v-btn
                 v-if="vm.opening?.approval.status === 'DRAFT'"
                 prepend-icon="mdi-plus"
                 variant="tonal"
+                :disabled="!vm.canManageContainers"
                 @click="vm.addContainer"
                 >新增空桶</v-btn
               >

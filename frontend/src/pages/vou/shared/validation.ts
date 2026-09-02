@@ -120,29 +120,29 @@ export function validateVoucherDraft(
   if (config.usesFundAccount && !value.fundAccount) return '请选择资金账户。'
   if (config.usesOperatingEntity && !value.operatingEntity)
     return '请选择实际经营主体。'
-  if (config.usesAccountAllocations) {
+  if (config.usesSubunitAllocations) {
     if (
-      value.accountAllocations.length < 1 ||
-      value.accountAllocations.length > 200
+      value.subunitAllocations.length < 1 ||
+      value.subunitAllocations.length > 200
     ) {
-      return '收款分摊必须包含 1 到 200 个客户核算账户。'
+      return '收款分摊必须包含 1 到 200 个客户子单位。'
     }
     const seen = new Set<string>()
     const amounts: string[] = []
-    for (const [index, line] of value.accountAllocations.entries()) {
-      if (!line.account || !isMoney(line.amount)) {
-        return `第 ${index + 1} 行 · 核算账户和分摊金额必须有效。`
+    for (const [index, line] of value.subunitAllocations.entries()) {
+      if (!line.subunit || !isMoney(line.amount)) {
+        return `第 ${index + 1} 行 · 客户子单位和分摊金额必须有效。`
       }
       if (
         value.customer &&
-        line.account.customerId !== value.customer.objectId
+        line.subunit.customerId !== value.customer.objectId
       ) {
-        return `第 ${index + 1} 行 · 核算账户不属于所选客户。`
+        return `第 ${index + 1} 行 · 客户子单位不属于所选客户。`
       }
-      if (seen.has(line.account.objectId)) {
-        return `第 ${index + 1} 行 · 客户核算账户不能重复。`
+      if (seen.has(line.subunit.objectId)) {
+        return `第 ${index + 1} 行 · 客户子单位不能重复。`
       }
-      seen.add(line.account.objectId)
+      seen.add(line.subunit.objectId)
       amounts.push(line.amount)
     }
     if (

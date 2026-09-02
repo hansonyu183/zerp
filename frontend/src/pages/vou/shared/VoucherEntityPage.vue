@@ -142,24 +142,24 @@ function updateReference(
 }
 
 function addSalesReceiptAllocation(): void {
-  vm.form.accountAllocations.push({
+  vm.form.subunitAllocations.push({
     key: crypto.randomUUID(),
-    account: null,
+    subunit: null,
     amount: '',
   })
 }
 
 function removeSalesReceiptAllocation(index: number): void {
-  vm.form.accountAllocations.splice(index, 1)
+  vm.form.subunitAllocations.splice(index, 1)
 }
 
 function updateSalesReceiptAllocation(
   index: number,
   value: VoucherSelectableReference | null,
 ): void {
-  const line = vm.form.accountAllocations[index]
+  const line = vm.form.subunitAllocations[index]
   if (!line) return
-  line.account = value as VoucherReference | null
+  line.subunit = value as VoucherReference | null
 }
 
 function search(key: string, keyword: string): void {
@@ -706,15 +706,15 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     variant="outlined"
                   />
                   <div
-                    v-if="vm.config.usesAccountAllocations"
+                    v-if="vm.config.usesSubunitAllocations"
                     class="voucher-form__wide"
                   >
                     <div class="d-flex align-center justify-space-between mb-3">
-                      <span class="text-subtitle-2">客户核算账户分摊</span>
+                      <span class="text-subtitle-2">客户子单位分摊</span>
                       <v-btn
                         :disabled="
                           !vm.editing ||
-                          vm.form.accountAllocations.length >= 200
+                          vm.form.subunitAllocations.length >= 200
                         "
                         size="small"
                         variant="tonal"
@@ -723,7 +723,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       >
                     </div>
                     <div
-                      v-for="(line, index) in vm.form.accountAllocations"
+                      v-for="(line, index) in vm.form.subunitAllocations"
                       :key="line.key"
                       class="d-flex ga-3 align-start mb-2"
                     >
@@ -731,8 +731,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                         class="flex-grow-1"
                         :disabled="!vm.editing || !vm.form.customer"
                         v-bind="referenceProps('accountAllocation')"
-                        label="客户核算账户"
-                        :model-value="line.account"
+                        label="客户子单位"
+                        :model-value="line.subunit"
                         required
                         @search="search('accountAllocation', $event)"
                         @update:model-value="

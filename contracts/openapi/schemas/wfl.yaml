@@ -364,7 +364,7 @@
         'entity':
           {
             'type': 'string',
-            'enum': ['customer-account', 'supplier', 'employee'],
+            'enum': ['customer-subunit', 'supplier', 'employee'],
           },
         'objectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
         'approvalEntryId':

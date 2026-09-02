@@ -2,4 +2,4 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type DclCustomerAttachmentScope = 'CUSTOMER' | 'CUSTOMER_ACCOUNT';
+export type DclCustomerAttachmentScope = 'CUSTOMER' | 'CUSTOMER_SUBUNIT';

@@ -5,14 +5,9 @@ import (
 	"time"
 )
 
-// BusinessIdentifier and BusinessArchiveSnapshot are BOB-local wire values.
-// They deliberately mirror the DCL contract without importing DCL and creating
-// a domain cycle.
-type BusinessIdentifier struct {
-	Type  string `json:"type"`
-	Value string `json:"value"`
-}
-
+// BusinessArchiveSnapshot is a BOB-local immutable approved reference. It
+// deliberately mirrors the DCL contract without importing DCL and creating a
+// domain cycle.
 type BusinessArchiveSnapshot struct {
 	SourceObjectID  string `json:"sourceObjectId"`
 	ApprovalEntryID string `json:"approvalEntryId"`
@@ -30,12 +25,11 @@ type typedCurrentView struct {
 }
 
 type typedIdentityData struct {
-	Kind              string               `json:"kind"`
-	LegalName         string               `json:"legalName"`
-	DisplayName       string               `json:"displayName,omitempty"`
-	TaxNumber         string               `json:"taxNumber,omitempty"`
-	StrongIdentifiers []BusinessIdentifier `json:"strongIdentifiers"`
-	Enabled           bool                 `json:"enabled"`
+	Kind            string `json:"kind"`
+	LegalName       string `json:"legalName"`
+	DisplayName     string `json:"displayName,omitempty"`
+	LegalIdentifier string `json:"legalIdentifier,omitempty"`
+	Enabled         bool   `json:"enabled"`
 }
 
 type employeeCurrentData struct {
@@ -107,13 +101,6 @@ type salesPartnerCurrentData struct {
 	Remark                   string                    `json:"remark,omitempty"`
 }
 
-func nonNilIdentifiers(values []BusinessIdentifier) []BusinessIdentifier {
-	if values == nil {
-		return []BusinessIdentifier{}
-	}
-	return values
-}
-
 func nonNilStrings(values []string) []string {
 	if values == nil {
 		return []string{}
@@ -129,7 +116,7 @@ func nonNilSnapshots(values []BusinessArchiveSnapshot) []BusinessArchiveSnapshot
 }
 
 func typedIdentity(data DetailView, enabled bool) typedIdentityData {
-	return typedIdentityData{Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, TaxNumber: data.TaxNumber, StrongIdentifiers: nonNilIdentifiers(data.StrongIdentifiers), Enabled: enabled}
+	return typedIdentityData{Kind: data.Kind, LegalName: data.LegalName, DisplayName: data.DisplayName, LegalIdentifier: data.LegalIdentifier, Enabled: enabled}
 }
 
 func typedCurrentData(entity string, data DetailView, enabled bool) any {

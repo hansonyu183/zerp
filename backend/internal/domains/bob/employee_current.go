@@ -114,7 +114,7 @@ func (s *Service) EnsureEmployeeDisableAllowed(ctx context.Context, tx pgx.Tx, o
 }
 
 func employeeDetailFromTyped(row dbsqlc.GetBobEmployeeCurrentTypedRow) DetailView {
-	return DetailView{Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, Name: row.DisplayName, TaxNumber: deref(row.TaxNumber), CurrentOperatingEntityID: row.CurrentOperatingEntityID, CurrentOperatingEntity: BusinessArchiveSnapshot{SourceObjectID: row.CurrentOperatingEntityID, ApprovalEntryID: row.CurrentOperatingEntityApprovalEntryID, Code: row.CurrentOperatingEntityCode, Name: row.CurrentOperatingEntityName}, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), DepartmentCode: deref(row.DepartmentCode), DepartmentName: deref(row.DepartmentName), PositionID: deref(row.PositionID), PositionCode: deref(row.PositionCode), PositionName: deref(row.PositionName), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}
+	return DetailView{Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, LegalIdentifier: deref(row.LegalIdentifier), Name: row.DisplayName, CurrentOperatingEntityID: row.CurrentOperatingEntityID, CurrentOperatingEntity: BusinessArchiveSnapshot{SourceObjectID: row.CurrentOperatingEntityID, ApprovalEntryID: row.CurrentOperatingEntityApprovalEntryID, Code: row.CurrentOperatingEntityCode, Name: row.CurrentOperatingEntityName}, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), DepartmentCode: deref(row.DepartmentCode), DepartmentName: deref(row.DepartmentName), PositionID: deref(row.PositionID), PositionCode: deref(row.PositionCode), PositionName: deref(row.PositionName), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}
 }
 
 func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
@@ -128,15 +128,7 @@ func (s *Service) getEmployeeCurrent(ctx context.Context, input GetInput) (Objec
 	if err != nil {
 		return ObjectView{}, s.internal("get Employee current", err)
 	}
-	identifiers, err := s.queries.ListDCLEmployeeVersionIdentifiers(ctx, row.ApprovalEntryID)
-	if err != nil {
-		return ObjectView{}, s.internal("list Employee current identifiers", err)
-	}
 	detail := employeeDetailFromTyped(row)
-	detail.StrongIdentifiers = make([]BusinessIdentifier, 0, len(identifiers))
-	for _, identifier := range identifiers {
-		detail.StrongIdentifiers = append(detail.StrongIdentifiers, BusinessIdentifier{Type: identifier.IdentifierType, Value: identifier.Value})
-	}
 	return ObjectView{ObjectID: row.ObjectID, Entity: EntityEmployee, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: detail, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 
@@ -170,7 +162,7 @@ func (s *Service) queryEmployeesCurrent(ctx context.Context, q *dbsqlc.Queries, 
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntityEmployee, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: DetailView{Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, Name: row.DisplayName, TaxNumber: deref(row.TaxNumber), CurrentOperatingEntityID: row.CurrentOperatingEntityID, CurrentOperatingEntity: BusinessArchiveSnapshot{SourceObjectID: row.CurrentOperatingEntityID, ApprovalEntryID: row.CurrentOperatingEntityApprovalEntryID, Code: row.CurrentOperatingEntityCode, Name: row.CurrentOperatingEntityName}, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), DepartmentCode: deref(row.DepartmentCode), DepartmentName: deref(row.DepartmentName), PositionID: deref(row.PositionID), PositionCode: deref(row.PositionCode), PositionName: deref(row.PositionName), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}, UpdatedAt: row.UpdatedAt.Time})
+		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntityEmployee, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: DetailView{Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, LegalIdentifier: deref(row.LegalIdentifier), Name: row.DisplayName, CurrentOperatingEntityID: row.CurrentOperatingEntityID, CurrentOperatingEntity: BusinessArchiveSnapshot{SourceObjectID: row.CurrentOperatingEntityID, ApprovalEntryID: row.CurrentOperatingEntityApprovalEntryID, Code: row.CurrentOperatingEntityCode, Name: row.CurrentOperatingEntityName}, CategoryID: deref(row.EmployeeCategoryID), CategoryCode: deref(row.EmployeeCategoryCode), CategoryName: deref(row.EmployeeCategoryName), DepartmentID: deref(row.DepartmentID), DepartmentCode: deref(row.DepartmentCode), DepartmentName: deref(row.DepartmentName), PositionID: deref(row.PositionID), PositionCode: deref(row.PositionCode), PositionName: deref(row.PositionName), Phone: deref(row.Phone), Email: deref(row.Email), HireDate: dateString(row.HireDate), Remark: deref(row.Remark)}, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }

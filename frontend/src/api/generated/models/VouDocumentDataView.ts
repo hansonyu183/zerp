@@ -14,7 +14,7 @@ import type { VouProductionOutputView } from './VouProductionOutputView';
 import type { VouProductLineView } from './VouProductLineView';
 import type { VouReferenceView } from './VouReferenceView';
 import type { VouSaleSignoffLineView } from './VouSaleSignoffLineView';
-import type { VouSalesReceiptAccountAllocationView } from './VouSalesReceiptAccountAllocationView';
+import type { VouSalesReceiptSubunitAllocationView } from './VouSalesReceiptSubunitAllocationView';
 import type { VouServiceAcceptanceView } from './VouServiceAcceptanceView';
 import type { VouServiceContractView } from './VouServiceContractView';
 import type { VouSettlementMethodSnapshotView } from './VouSettlementMethodSnapshotView';
@@ -31,7 +31,7 @@ export type VouDocumentDataView = {
   specialApproval?: boolean;
   customer?: VouReferenceView;
   operatingEntity?: VouReferenceView;
-  accountAllocations?: Array<VouSalesReceiptAccountAllocationView>;
+  subunitAllocations?: Array<VouSalesReceiptSubunitAllocationView>;
   supplier?: VouReferenceView;
   counterparty?: VouReferenceView;
   employee?: VouReferenceView;

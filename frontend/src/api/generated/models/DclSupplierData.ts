@@ -9,7 +9,6 @@ import type { SupplierSettlementSnapshot } from './SupplierSettlementSnapshot';
 export type DclSupplierData = (DclSupplierInput & {
   operatingEntities: Array<DclBusinessArchiveSnapshot>;
   shortName?: string | null;
-  taxNumber?: string | null;
   contactName?: string | null;
   contactPhone?: string | null;
   email?: string | null;

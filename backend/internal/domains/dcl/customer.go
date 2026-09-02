@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/events/dclapproval"
@@ -22,18 +23,28 @@ import (
 type customerBusinessRules interface {
 	ResolveCurrentReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 	ResolveCustomerTypeReference(context.Context, pgx.Tx, string) (bobdomain.EffectiveReference, error)
-	ResolveCustomerAccountReferences(context.Context, pgx.Tx, map[string]string, string, string, string, string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error)
-	ValidateCustomerAccountReferences(context.Context, pgx.Tx, map[string]string, string, string, string) error
+	ResolveCustomerSubunitReferences(context.Context, pgx.Tx, string, string, string, string, string, string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error)
+	ValidateCustomerSubunitReferences(context.Context, pgx.Tx, string, string, string, string, string) error
 	ValidateHistoricalReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	EnsureCustomerUnapproveAllowed(context.Context, pgx.Tx, string) error
 }
 
-// Customer owns identity and accounts in one DCL approval aggregate.
+// Customer owns identity and subunits in one DCL approval aggregate.
 type CustomerService struct {
-	pool        *pgxpool.Pool
-	queries     *dbsqlc.Queries
-	rules       customerBusinessRules
-	coordinator *approval.Coordinator[dclapproval.CustomerPayload]
+	pool               *pgxpool.Pool
+	queries            *dbsqlc.Queries
+	rules              customerBusinessRules
+	coordinator        *approval.Coordinator[dclapproval.CustomerPayload]
+	subunitCoordinator *approval.Coordinator[dclapproval.CustomerPayload]
+}
+
+type customerSubunitAuthorizer struct{ delegate approval.Authorizer }
+
+func (a customerSubunitAuthorizer) RequirePermission(ctx context.Context, principal authorization.Principal, path, requestID string) error {
+	if path == "/dcl/customer/save" {
+		path = "/dcl/customer/save-subunits"
+	}
+	return a.delegate.RequirePermission(ctx, principal, path, requestID)
 }
 
 func NewCustomerService(pool *pgxpool.Pool, rules customerBusinessRules, authorizer approval.Authorizer, bus *txevent.Bus) *CustomerService {
@@ -44,7 +55,11 @@ func NewCustomerService(pool *pgxpool.Pool, rules customerBusinessRules, authori
 	if err != nil {
 		panic(err)
 	}
-	return &CustomerService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c}
+	subunitCoordinator, err := approval.NewCoordinator("dcl", EntityCustomer, customerSubunitAuthorizer{delegate: authorizer}, bus, dclapproval.CustomerTopic)
+	if err != nil {
+		panic(err)
+	}
+	return &CustomerService{pool: pool, queries: dbsqlc.New(pool), rules: rules, coordinator: c, subunitCoordinator: subunitCoordinator}
 }
 
 func customerPayload(id subjectIdentity, enabled bool) dclapproval.CustomerPayload {
@@ -57,55 +72,20 @@ func customerVersionInput(in CustomerReviewInput) CustomerVersionInput {
 	return CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}
 }
 
-func validateCustomerData(in CustomerDataInput) (CustomerDataInput, error) {
+func validateCustomerRootData(in CustomerRootDataInput) (CustomerRootDataInput, error) {
 	in.Kind, in.LegalName, in.DisplayName, in.DefaultOperatingEntityID = strings.TrimSpace(in.Kind), strings.TrimSpace(in.LegalName), strings.TrimSpace(in.DisplayName), strings.TrimSpace(in.DefaultOperatingEntityID)
-	in.TaxNumber, in.Phone, in.Email, in.Address = strings.TrimSpace(in.TaxNumber), strings.TrimSpace(in.Phone), strings.TrimSpace(in.Email), strings.TrimSpace(in.Address)
+	in.Phone, in.Email, in.Address = strings.TrimSpace(in.Phone), strings.TrimSpace(in.Email), strings.TrimSpace(in.Address)
 	in.InvoiceTitle, in.InvoiceAddress, in.InvoicePhone = strings.TrimSpace(in.InvoiceTitle), strings.TrimSpace(in.InvoiceAddress), strings.TrimSpace(in.InvoicePhone)
 	in.InvoiceBankName, in.InvoiceBankAccount = strings.TrimSpace(in.InvoiceBankName), strings.TrimSpace(in.InvoiceBankAccount)
-	if (in.Kind != "ORGANIZATION" && in.Kind != "PERSON") || in.LegalName == "" || !runeLenAtMost(in.LegalName, 200) || !runeLenAtMost(in.DisplayName, 200) || !runeLenAtMost(in.TaxNumber, 100) || !runeLenAtMost(in.Phone, 32) || !runeLenAtMost(in.Email, 254) || !runeLenAtMost(in.Address, 500) || !runeLenAtMost(in.InvoiceTitle, 200) || !runeLenAtMost(in.InvoiceAddress, 500) || !runeLenAtMost(in.InvoicePhone, 32) || !runeLenAtMost(in.InvoiceBankName, 200) || !runeLenAtMost(in.InvoiceBankAccount, 100) || !validID(in.DefaultOperatingEntityID) || len(in.Accounts) == 0 || len(in.Accounts) > 200 || in.StrongIdentifiers == nil || len(in.StrongIdentifiers) > 10 || in.RemittanceProfiles == nil || len(in.RemittanceProfiles) > 50 {
-		return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer data", nil, nil)
+	if (in.Kind != "MAINLAND_ENTERPRISE" && in.Kind != "MAINLAND_INDIVIDUAL" && in.Kind != "OTHER") || in.LegalName == "" || !runeLenAtMost(in.LegalName, 200) || !runeLenAtMost(in.DisplayName, 200) || !runeLenAtMost(in.LegalIdentifier, 100) || !runeLenAtMost(in.Phone, 32) || !runeLenAtMost(in.Email, 254) || !runeLenAtMost(in.Address, 500) || !runeLenAtMost(in.InvoiceTitle, 200) || !runeLenAtMost(in.InvoiceAddress, 500) || !runeLenAtMost(in.InvoicePhone, 32) || !runeLenAtMost(in.InvoiceBankName, 200) || !validID(in.DefaultOperatingEntityID) || in.RemittanceProfiles == nil || len(in.RemittanceProfiles) > 50 {
+		return CustomerRootDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer root data", nil, nil)
 	}
-	defaults, enabled := 0, 0
-	seen := map[string]bool{}
-	for i := range in.Accounts {
-		a, err := validateCustomerAccountData(in.Accounts[i])
+	if in.LegalIdentifier != "" {
+		var err error
+		in.LegalIdentifier, err = normalizeCustomerLegalIdentifier(in.Kind, in.LegalIdentifier)
 		if err != nil {
-			return CustomerDataInput{}, err
+			return CustomerRootDataInput{}, err
 		}
-		a.AccountID = strings.TrimSpace(in.Accounts[i].AccountID)
-		a.Enabled, a.IsDefault = in.Accounts[i].Enabled, in.Accounts[i].IsDefault
-		if a.AccountID != "" && (!validID(a.AccountID) || seen[a.AccountID]) {
-			return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "invalid accountId", nil, nil)
-		}
-		seen[a.AccountID] = true
-		in.Accounts[i] = a
-		if a.Enabled {
-			enabled++
-		}
-		if a.IsDefault {
-			defaults++
-			if !a.Enabled {
-				return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "default account must be enabled", nil, nil)
-			}
-		}
-	}
-	if in.Enabled && (enabled == 0 || defaults != 1) {
-		return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "enabled customer requires one enabled default account", nil, nil)
-	}
-	if defaults > 1 {
-		return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "multiple default accounts", nil, nil)
-	}
-	identifierKeys := map[string]struct{}{}
-	for i := range in.StrongIdentifiers {
-		in.StrongIdentifiers[i].Type, in.StrongIdentifiers[i].Value = strings.TrimSpace(in.StrongIdentifiers[i].Type), strings.TrimSpace(in.StrongIdentifiers[i].Value)
-		key := in.StrongIdentifiers[i].Type + "\x00" + normalizeCustomerIdentifier(in.StrongIdentifiers[i].Value)
-		if in.StrongIdentifiers[i].Type == "" || !runeLenAtMost(in.StrongIdentifiers[i].Type, 40) || in.StrongIdentifiers[i].Value == "" || !runeLenAtMost(in.StrongIdentifiers[i].Value, 100) {
-			return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer identifier", nil, nil)
-		}
-		if _, seen := identifierKeys[key]; seen {
-			return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "duplicate customer identifier", nil, nil)
-		}
-		identifierKeys[key] = struct{}{}
 	}
 	for i := range in.RemittanceProfiles {
 		profile := &in.RemittanceProfiles[i]
@@ -113,10 +93,43 @@ func validateCustomerData(in CustomerDataInput) (CustomerDataInput, error) {
 		profile.BankName = strings.TrimSpace(profile.BankName)
 		profile.AccountNumber = strings.TrimSpace(profile.AccountNumber)
 		if profile.AccountName == "" || !runeLenAtMost(profile.AccountName, 200) || !runeLenAtMost(profile.BankName, 200) || !runeLenAtMost(profile.AccountNumber, 100) {
-			return CustomerDataInput{}, newError(ErrorValidation, "validation_failed", "invalid remittance profile", nil, nil)
+			return CustomerRootDataInput{}, newError(ErrorValidation, "validation_failed", "invalid remittance profile", nil, nil)
 		}
 	}
 	return in, nil
+}
+
+func validateCustomerSubunits(in []CustomerSubunitDataInput, customerEnabled bool) ([]CustomerSubunitDataInput, error) {
+	if len(in) == 0 || len(in) > 200 {
+		return nil, newError(ErrorValidation, "customer_subunit_required", "customer requires subunits", nil, nil)
+	}
+	result := make([]CustomerSubunitDataInput, len(in))
+	seen := map[string]struct{}{}
+	enabled := 0
+	for i := range in {
+		subunit, err := validateCustomerSubunitData(in[i])
+		if err != nil {
+			return nil, err
+		}
+		subunit.SubunitID = strings.TrimSpace(in[i].SubunitID)
+		if subunit.SubunitID != "" {
+			if !validID(subunit.SubunitID) {
+				return nil, newError(ErrorValidation, "validation_failed", "invalid subunitId", nil, nil)
+			}
+			if _, duplicate := seen[subunit.SubunitID]; duplicate {
+				return nil, newError(ErrorValidation, "validation_failed", "duplicate subunitId", nil, nil)
+			}
+			seen[subunit.SubunitID] = struct{}{}
+		}
+		if subunit.Enabled {
+			enabled++
+		}
+		result[i] = subunit
+	}
+	if customerEnabled && enabled == 0 {
+		return nil, newError(ErrorValidation, "customer_subunit_required", "enabled customer requires one enabled subunit", nil, nil)
+	}
+	return result, nil
 }
 
 func runeLenAtMost(value string, maximum int) bool {
@@ -124,11 +137,11 @@ func runeLenAtMost(value string, maximum int) bool {
 }
 
 func normalizeCustomerIdentifier(value string) string {
-	return strings.ToUpper(strings.TrimSpace(value))
+	return strings.TrimSpace(value)
 }
 
-func (s *CustomerService) resolveData(ctx context.Context, tx pgx.Tx, in CustomerDataInput) (CustomerData, error) {
-	in, err := validateCustomerData(in)
+func (s *CustomerService) resolveRootData(ctx context.Context, tx pgx.Tx, in CustomerRootDataInput) (CustomerData, error) {
+	in, err := validateCustomerRootData(in)
 	if err != nil {
 		return CustomerData{}, err
 	}
@@ -136,16 +149,23 @@ func (s *CustomerService) resolveData(ctx context.Context, tx pgx.Tx, in Custome
 	if err != nil {
 		return CustomerData{}, translateError(err)
 	}
-	identifiers := customerIdentifierMap(in.StrongIdentifiers)
-	accounts := make([]CustomerAccountData, 0, len(in.Accounts))
-	for _, account := range in.Accounts {
-		customerType, typeErr := s.rules.ResolveCustomerTypeReference(ctx, tx, account.CustomerTypeID)
+	return CustomerData{Kind: in.Kind, LegalName: in.LegalName, DisplayName: in.DisplayName, LegalIdentifier: in.LegalIdentifier, Phone: in.Phone, Email: in.Email, Address: in.Address, InvoiceTitle: in.InvoiceTitle, InvoiceAddress: in.InvoiceAddress, InvoicePhone: in.InvoicePhone, InvoiceBankName: in.InvoiceBankName, InvoiceBankAccount: in.InvoiceBankAccount, RemittanceProfiles: in.RemittanceProfiles, DefaultOperatingEntityID: in.DefaultOperatingEntityID, DefaultOperatingEntity: CustomerSnapshot{SourceObjectID: op.ObjectID, ApprovalEntryID: op.ApprovalEntryID, Code: op.Code, Name: op.Data.Name, TaxNumber: op.Data.TaxNumber, Address: op.Data.Address, Phone: op.Data.Phone}, Enabled: in.Enabled, Subunits: []CustomerSubunitData{}}, nil
+}
+
+func (s *CustomerService) resolveSubunits(ctx context.Context, tx pgx.Tx, root CustomerData, in []CustomerSubunitDataInput) ([]CustomerSubunitData, error) {
+	validated, err := validateCustomerSubunits(in, root.Enabled)
+	if err != nil {
+		return nil, err
+	}
+	subunits := make([]CustomerSubunitData, 0, len(validated))
+	for _, subunit := range validated {
+		customerType, typeErr := s.rules.ResolveCustomerTypeReference(ctx, tx, subunit.CustomerTypeID)
 		if typeErr != nil {
-			return CustomerData{}, translateError(typeErr)
+			return nil, translateError(typeErr)
 		}
-		settlement, payment, sales, resolveErr := s.rules.ResolveCustomerAccountReferences(ctx, tx, identifiers, account.SettlementMethodID, account.PaymentMethodID, account.PrimarySalesAttribution.Type, account.PrimarySalesAttribution.SubjectObjectID)
+		settlement, payment, sales, resolveErr := s.rules.ResolveCustomerSubunitReferences(ctx, tx, root.Kind, root.LegalIdentifier, subunit.SettlementMethodID, subunit.PaymentMethodID, subunit.PrimarySalesAttribution.Type, subunit.PrimarySalesAttribution.SubjectObjectID)
 		if resolveErr != nil {
-			return CustomerData{}, translateError(resolveErr)
+			return nil, translateError(resolveErr)
 		}
 		var settlementSnapshot, paymentSnapshot *CustomerAuxiliarySnapshot
 		if settlement.ObjectID != "" {
@@ -156,68 +176,72 @@ func (s *CustomerService) resolveData(ctx context.Context, tx pgx.Tx, in Custome
 			value := customerAuxiliarySnapshot(payment)
 			paymentSnapshot = &value
 		}
-		accounts = append(accounts, CustomerAccountData{CustomerAccountDataInput: account, Attachments: []CustomerAttachmentView{}, CustomerType: customerAuxiliarySnapshot(customerType), SettlementMethod: settlementSnapshot, PaymentMethod: paymentSnapshot, PrimarySalesAttribution: CustomerSalesAttributionSnapshot{CustomerSalesAttributionInput: account.PrimarySalesAttribution, SubjectApprovalEntryID: sales.ApprovalEntryID, SubjectCode: sales.Code, SubjectName: sales.Data.Name}})
+		subunits = append(subunits, CustomerSubunitData{CustomerSubunitDataInput: subunit, Attachments: []CustomerAttachmentView{}, CustomerType: customerAuxiliarySnapshot(customerType), SettlementMethod: settlementSnapshot, PaymentMethod: paymentSnapshot, PrimarySalesAttribution: CustomerSalesAttributionSnapshot{CustomerSalesAttributionInput: subunit.PrimarySalesAttribution, SubjectApprovalEntryID: sales.ApprovalEntryID, SubjectCode: sales.Code, SubjectName: sales.Data.Name}})
 	}
-	return CustomerData{Kind: in.Kind, LegalName: in.LegalName, DisplayName: in.DisplayName, TaxNumber: in.TaxNumber, StrongIdentifiers: in.StrongIdentifiers, Phone: in.Phone, Email: in.Email, Address: in.Address, InvoiceTitle: in.InvoiceTitle, InvoiceAddress: in.InvoiceAddress, InvoicePhone: in.InvoicePhone, InvoiceBankName: in.InvoiceBankName, InvoiceBankAccount: in.InvoiceBankAccount, RemittanceProfiles: in.RemittanceProfiles, DefaultOperatingEntityID: in.DefaultOperatingEntityID, DefaultOperatingEntity: CustomerSnapshot{SourceObjectID: op.ObjectID, ApprovalEntryID: op.ApprovalEntryID, Code: op.Code, Name: op.Data.Name, TaxNumber: op.Data.TaxNumber, Address: op.Data.Address, Phone: op.Data.Phone}, Enabled: in.Enabled, Accounts: accounts}, nil
+	return subunits, nil
+}
+
+func (s *CustomerService) resolveCreateData(ctx context.Context, tx pgx.Tx, in CustomerCreateDataInput) (CustomerData, error) {
+	root, err := s.resolveRootData(ctx, tx, in.Root)
+	if err != nil {
+		return CustomerData{}, err
+	}
+	root.Subunits, err = s.resolveSubunits(ctx, tx, root, in.Subunits)
+	if err != nil {
+		return CustomerData{}, err
+	}
+	return root, nil
 }
 
 func customerAuxiliarySnapshot(reference bobdomain.EffectiveReference) CustomerAuxiliarySnapshot {
 	return CustomerAuxiliarySnapshot{SourceObjectID: reference.ObjectID, Code: reference.Code, Name: reference.Data.Name, TermCode: reference.Data.TermCode, RuleType: reference.Data.RuleType, DueDays: reference.Data.DueDays, MonthOffset: reference.Data.MonthOffset, CutoffDay: reference.Data.CutoffDay, DefaultSalesSurcharge: reference.Data.DefaultSalesSurcharge}
 }
 
-func customerIdentifierMap(values []BusinessIdentifierInput) map[string]string {
-	result := make(map[string]string, len(values))
-	for _, value := range values {
-		result[value.Type] = value.Value
-	}
-	return result
-}
-
 func (s *CustomerService) writeSnapshot(ctx context.Context, tx pgx.Tx, id subjectIdentity, entry approval.Entry, data CustomerData) error {
 	q := s.queries.WithTx(tx)
-	if err := s.prepareAccountRoots(ctx, q, id.ObjectID, data.Accounts); err != nil {
+	if err := s.prepareSubunitRoots(ctx, q, id.ObjectID, data.Subunits); err != nil {
 		return err
 	}
-	payload, err := json.Marshal(data)
+	payload, err := marshalCustomerSnapshot(data)
 	if err != nil {
 		return err
 	}
-	if err = q.InsertDCLCustomerVersionAggregate(ctx, dbsqlc.InsertDCLCustomerVersionAggregateParams{ApprovalEntryID: entry.ID, Data: payload, Enabled: data.Enabled}); err != nil {
+	if err = q.InsertDCLCustomerVersionAggregate(ctx, dbsqlc.InsertDCLCustomerVersionAggregateParams{ApprovalEntryID: entry.ID, Kind: data.Kind, LegalIdentifier: nilIfEmpty(data.LegalIdentifier), Data: payload, Enabled: data.Enabled}); err != nil {
 		return err
 	}
-	if err = s.writeAccounts(ctx, q, id.ObjectID, entry.ID, data.Accounts); err != nil {
+	if err = s.writeSubunits(ctx, q, id.ObjectID, entry.ID, data.Subunits); err != nil {
 		return err
 	}
-	return s.writeCustomerIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers)
+	return s.claimCustomerLegalIdentifier(ctx, q, id.ObjectID, entry.ID, data.LegalIdentifier)
 }
 
-func (s *CustomerService) prepareAccountRoots(ctx context.Context, q *dbsqlc.Queries, customerID string, accounts []CustomerAccountData) error {
-	_, err := q.ListDCLCustomerAccountRoots(ctx, customerID)
+func (s *CustomerService) prepareSubunitRoots(ctx context.Context, q *dbsqlc.Queries, customerID string, subunits []CustomerSubunitData) error {
+	_, err := q.ListDCLCustomerSubunitRoots(ctx, customerID)
 	if err != nil {
 		return err
 	}
-	maxCode, err := q.GetDCLCustomerAccountCodeMax(ctx, customerID)
+	maxCode, err := q.GetDCLCustomerSubunitCodeMax(ctx, customerID)
 	if err != nil {
 		return err
 	}
-	for i := range accounts {
-		account := &accounts[i]
-		if account.AccountID == "" {
+	for i := range subunits {
+		subunit := &subunits[i]
+		if subunit.SubunitID == "" {
 			maxCode++
-			account.AccountID = ulid.Make().String()
-			account.Code = fmt.Sprintf("ACC-%04d", maxCode)
-			if err = q.InsertDCLCustomerAccountRoot(ctx, dbsqlc.InsertDCLCustomerAccountRootParams{AccountID: account.AccountID, CustomerID: customerID, Code: account.Code}); err != nil {
+			subunit.SubunitID = ulid.Make().String()
+			subunit.Code = fmt.Sprintf("SUB-%04d", maxCode)
+			if err = q.InsertDCLCustomerSubunitRoot(ctx, dbsqlc.InsertDCLCustomerSubunitRootParams{SubunitID: subunit.SubunitID, CustomerID: customerID, Code: subunit.Code}); err != nil {
 				return err
 			}
 		} else {
-			root, lockErr := q.LockDCLCustomerAccountRoot(ctx, account.AccountID)
+			root, lockErr := q.LockDCLCustomerSubunitRoot(ctx, subunit.SubunitID)
 			if lockErr != nil {
 				return lockErr
 			}
 			if root.CustomerID != customerID {
-				return newError(ErrorConflict, "customer_account_owner_conflict", "account belongs to another customer", nil, nil)
+				return newError(ErrorConflict, "customer_subunit_owner_conflict", "subunit belongs to another customer", nil, nil)
 			}
-			account.Code = root.Code
+			subunit.Code = root.Code
 		}
 	}
 	return nil
@@ -227,62 +251,18 @@ func customerCreditLimitCents(value string) (int64, error) {
 	return fixeddecimal.ParsePositive(value, 2, true)
 }
 
-func (s *CustomerService) writeCustomerIdentifiers(ctx context.Context, q *dbsqlc.Queries, customerID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLCustomerVersionIdentifiers(ctx, entryID); err != nil {
-		return err
-	}
-	for _, identifier := range identifiers {
-		normalized := normalizeCustomerIdentifier(identifier.Value)
-		if err := q.InsertDCLCustomerVersionIdentifier(ctx, dbsqlc.InsertDCLCustomerVersionIdentifierParams{CustomerApprovalEntryID: entryID, IdentifierType: identifier.Type, Value: identifier.Value, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-	}
-	return s.claimCustomerOpenIdentifiers(ctx, q, customerID, entryID, identifiers)
+func (s *CustomerService) claimCustomerLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, customerID, entryID, legalIdentifier string) error {
+	return maintainLegalIdentifierClaim(ctx, customerLegalIdentifierClaimStore{q: q}, customerID, entryID, normalizeCustomerIdentifier(legalIdentifier), false, legalIdentifierClaimConflict{
+		errorKey: "customer_legal_identifier_claimed",
+		message:  "customer legal identifier is already occupied",
+	})
 }
 
-func (s *CustomerService) claimCustomerOpenIdentifiers(ctx context.Context, q *dbsqlc.Queries, customerID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLCustomerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
-		return err
-	}
-	for _, identifier := range identifiers {
-		normalized := normalizeCustomerIdentifier(identifier.Value)
-		if err := q.LockDCLCustomerIdentifierClaimKey(ctx, dbsqlc.LockDCLCustomerIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		claim, err := q.LockDCLCustomerIdentifierClaim(ctx, dbsqlc.LockDCLCustomerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized})
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		if err == nil {
-			if (claim.ApprovedCustomerID != nil && *claim.ApprovedCustomerID != customerID) || (claim.OpenCustomerID != nil && *claim.OpenCustomerID != customerID) {
-				return newError(ErrorConflict, "customer_identifier_claimed", "customer identifier is already occupied", nil, nil)
-			}
-		}
-		var approvedCustomerID, approvedEntryID *string
-		if err == nil {
-			approvedCustomerID, approvedEntryID = claim.ApprovedCustomerID, claim.ApprovedApprovalEntryID
-		}
-		if err = q.UpsertDCLCustomerIdentifierClaim(ctx, dbsqlc.UpsertDCLCustomerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedCustomerID: approvedCustomerID, ApprovedApprovalEntryID: approvedEntryID, OpenCustomerID: &customerID, OpenApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *CustomerService) promoteCustomerIdentifiers(ctx context.Context, q *dbsqlc.Queries, customerID, entryID string, identifiers []BusinessIdentifierInput) error {
-	if err := q.DeleteDCLCustomerIdentifierClaimsForEntry(ctx, &entryID); err != nil {
-		return err
-	}
-	for _, identifier := range identifiers {
-		normalized := normalizeCustomerIdentifier(identifier.Value)
-		if err := q.LockDCLCustomerIdentifierClaimKey(ctx, dbsqlc.LockDCLCustomerIdentifierClaimKeyParams{IdentifierType: identifier.Type, NormalizedValue: normalized}); err != nil {
-			return err
-		}
-		if err := q.UpsertDCLCustomerIdentifierClaim(ctx, dbsqlc.UpsertDCLCustomerIdentifierClaimParams{IdentifierType: identifier.Type, NormalizedValue: normalized, ApprovedCustomerID: &customerID, ApprovedApprovalEntryID: &entryID}); err != nil {
-			return err
-		}
-	}
-	return nil
+func (s *CustomerService) promoteCustomerLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, customerID, entryID, legalIdentifier string) error {
+	return maintainLegalIdentifierClaim(ctx, customerLegalIdentifierClaimStore{q: q}, customerID, entryID, normalizeCustomerIdentifier(legalIdentifier), true, legalIdentifierClaimConflict{
+		errorKey: "customer_legal_identifier_claimed",
+		message:  "customer legal identifier is already occupied",
+	})
 }
 
 func (s *CustomerService) loadCustomerData(ctx context.Context, q *dbsqlc.Queries, entryID string) (CustomerData, error) {
@@ -295,48 +275,49 @@ func (s *CustomerService) loadCustomerData(ctx context.Context, q *dbsqlc.Querie
 		return CustomerData{}, translateError(err)
 	}
 	data.Enabled = stored.Enabled
-	lines, err := q.ListDCLCustomerVersionAccounts(ctx, entryID)
+	lines, err := q.ListDCLCustomerVersionSubunits(ctx, entryID)
 	if err != nil {
 		return CustomerData{}, translateError(err)
 	}
-	limits, err := q.ListDCLCustomerVersionAccountCreditLimits(ctx, entryID)
+	limits, err := q.ListDCLCustomerVersionSubunitCreditLimits(ctx, entryID)
 	if err != nil {
 		return CustomerData{}, translateError(err)
 	}
-	limitsByAccount := make(map[string][]CustomerCreditLimit)
+	limitsBySubunit := make(map[string][]CustomerCreditLimit)
 	for _, limit := range limits {
-		limitsByAccount[limit.AccountID] = append(limitsByAccount[limit.AccountID], CustomerCreditLimit{Currency: limit.Currency, Amount: fixeddecimal.Format(limit.AmountCents, 2, false)})
+		limitsBySubunit[limit.SubunitID] = append(limitsBySubunit[limit.SubunitID], CustomerCreditLimit{Currency: limit.Currency, Amount: fixeddecimal.Format(limit.AmountCents, 2, false)})
 	}
-	data.Accounts = make([]CustomerAccountData, 0, len(lines))
+	data.Subunits = make([]CustomerSubunitData, 0, len(lines))
 	for _, line := range lines {
-		var account CustomerAccountData
-		if err = json.Unmarshal(line.Data, &account); err != nil {
+		var subunit CustomerSubunitData
+		if err = json.Unmarshal(line.Data, &subunit); err != nil {
 			return CustomerData{}, translateError(err)
 		}
-		account.AccountID, account.Code, account.Enabled, account.IsDefault = line.AccountID, line.Code, line.Enabled, line.IsDefault
-		account.CreditLimits = limitsByAccount[line.AccountID]
-		if account.CreditLimits == nil {
-			account.CreditLimits = []CustomerCreditLimit{}
+		subunit.SubunitID, subunit.Code, subunit.Enabled = line.SubunitID, line.Code, line.Enabled
+		subunit.CreditLimits = limitsBySubunit[line.SubunitID]
+		if subunit.CreditLimits == nil {
+			subunit.CreditLimits = []CustomerCreditLimit{}
 		}
-		data.Accounts = append(data.Accounts, account)
+		data.Subunits = append(data.Subunits, subunit)
 	}
 	attachments, err := ListCustomerAttachments(ctx, q, entryID)
 	if err != nil {
 		return CustomerData{}, err
 	}
-	byAccount := make(map[string][]CustomerAttachmentView)
+	bySubunit := make(map[string][]CustomerAttachmentView)
 	for _, attachment := range attachments {
-		if attachment.AccountID == "" {
+		if attachment.SubunitID == "" {
 			continue
 		}
-		byAccount[attachment.AccountID] = append(byAccount[attachment.AccountID], attachment)
+		bySubunit[attachment.SubunitID] = append(bySubunit[attachment.SubunitID], attachment)
 	}
-	for i := range data.Accounts {
-		data.Accounts[i].Attachments = byAccount[data.Accounts[i].AccountID]
-		if data.Accounts[i].Attachments == nil {
-			data.Accounts[i].Attachments = []CustomerAttachmentView{}
+	for i := range data.Subunits {
+		data.Subunits[i].Attachments = bySubunit[data.Subunits[i].SubunitID]
+		if data.Subunits[i].Attachments == nil {
+			data.Subunits[i].Attachments = []CustomerAttachmentView{}
 		}
 	}
+	assignImplicitSubunit(&data)
 	return data, nil
 }
 
@@ -347,61 +328,155 @@ func customerLevelAttachments(ctx context.Context, q *dbsqlc.Queries, entryID st
 	}
 	items := make([]CustomerAttachmentView, 0, len(attachments))
 	for _, attachment := range attachments {
-		if attachment.AccountID == "" {
+		if attachment.SubunitID == "" {
 			items = append(items, attachment)
 		}
 	}
 	return items, nil
 }
 
-func (s *CustomerService) writeAccounts(ctx context.Context, q *dbsqlc.Queries, customerID, entryID string, accounts []CustomerAccountData) error {
+func (s *CustomerService) writeSubunits(ctx context.Context, q *dbsqlc.Queries, customerID, entryID string, subunits []CustomerSubunitData) error {
 	var err error
-	if err := q.DeleteDCLCustomerVersionAccountCreditLimits(ctx, entryID); err != nil {
+	if err := q.DeleteDCLCustomerVersionSubunitCreditLimits(ctx, entryID); err != nil {
 		return err
 	}
-	remaining := make(map[string]struct{}, len(accounts))
-	accountIDs := make([]string, 0, len(accounts))
-	for i := range accounts {
-		accountIDs = append(accountIDs, accounts[i].AccountID)
+	remaining := make(map[string]struct{}, len(subunits))
+	subunitIDs := make([]string, 0, len(subunits))
+	for i := range subunits {
+		subunitIDs = append(subunitIDs, subunits[i].SubunitID)
 	}
-	if err := q.DeleteDCLCustomerVersionAccounts(ctx, dbsqlc.DeleteDCLCustomerVersionAccountsParams{CustomerApprovalEntryID: entryID, AccountIds: accountIDs}); err != nil {
+	if err := q.DeleteDCLCustomerVersionSubunits(ctx, dbsqlc.DeleteDCLCustomerVersionSubunitsParams{CustomerApprovalEntryID: entryID, SubunitIds: subunitIDs}); err != nil {
 		return err
 	}
-	for i := range accounts {
-		account := &accounts[i]
-		if account.AccountID == "" || account.Code == "" {
-			return newError(ErrorConflict, "customer_account_root_missing", "account root was not prepared", nil, nil)
+	for i := range subunits {
+		subunit := &subunits[i]
+		if subunit.SubunitID == "" || subunit.Code == "" {
+			return newError(ErrorConflict, "customer_subunit_root_missing", "subunit root was not prepared", nil, nil)
 		}
-		remaining[account.AccountID] = struct{}{}
-		payload, marshalErr := json.Marshal(account)
+		remaining[subunit.SubunitID] = struct{}{}
+		payload, marshalErr := json.Marshal(subunit)
 		if marshalErr != nil {
 			return marshalErr
 		}
-		if err = q.InsertDCLCustomerVersionAccount(ctx, dbsqlc.InsertDCLCustomerVersionAccountParams{CustomerApprovalEntryID: entryID, AccountID: account.AccountID, Data: payload, Enabled: account.Enabled, IsDefault: account.IsDefault}); err != nil {
+		if err = q.InsertDCLCustomerVersionSubunit(ctx, dbsqlc.InsertDCLCustomerVersionSubunitParams{CustomerApprovalEntryID: entryID, SubunitID: subunit.SubunitID, Data: payload, Enabled: subunit.Enabled}); err != nil {
 			return err
 		}
-		for _, limit := range account.CreditLimits {
+		for _, limit := range subunit.CreditLimits {
 			cents, parseErr := customerCreditLimitCents(limit.Amount)
 			if parseErr != nil {
 				return parseErr
 			}
-			if err = q.InsertDCLCustomerVersionAccountCreditLimit(ctx, dbsqlc.InsertDCLCustomerVersionAccountCreditLimitParams{CustomerApprovalEntryID: entryID, AccountID: account.AccountID, Currency: limit.Currency, AmountCents: cents}); err != nil {
+			if err = q.InsertDCLCustomerVersionSubunitCreditLimit(ctx, dbsqlc.InsertDCLCustomerVersionSubunitCreditLimitParams{CustomerApprovalEntryID: entryID, SubunitID: subunit.SubunitID, Currency: limit.Currency, AmountCents: cents}); err != nil {
 				return err
 			}
 		}
 	}
-	roots, err := q.ListDCLCustomerAccountRoots(ctx, customerID)
+	roots, err := q.ListDCLCustomerSubunitRoots(ctx, customerID)
 	if err != nil {
 		return err
 	}
 	for _, root := range roots {
-		if _, exists := remaining[root.AccountID]; !exists && !root.EverApproved {
-			if _, err = q.DeleteDCLCustomerAccountRoot(ctx, dbsqlc.DeleteDCLCustomerAccountRootParams{AccountID: root.AccountID, CustomerID: customerID}); err != nil {
+		if _, exists := remaining[root.SubunitID]; !exists && !root.EverApproved {
+			if _, err = q.DeleteDCLCustomerSubunitRoot(ctx, dbsqlc.DeleteDCLCustomerSubunitRootParams{SubunitID: root.SubunitID, CustomerID: customerID}); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func assignImplicitSubunit(data *CustomerData) {
+	data.ImplicitSubunitID = nil
+	if !data.Enabled {
+		return
+	}
+	var enabled []string
+	for _, subunit := range data.Subunits {
+		if subunit.Enabled {
+			enabled = append(enabled, subunit.SubunitID)
+		}
+	}
+	if len(enabled) == 1 {
+		data.ImplicitSubunitID = &enabled[0]
+	}
+}
+
+func marshalCustomerSnapshot(data CustomerData) ([]byte, error) {
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	var snapshot map[string]json.RawMessage
+	if err = json.Unmarshal(encoded, &snapshot); err != nil {
+		return nil, err
+	}
+	delete(snapshot, "implicitSubunitId")
+	return json.Marshal(snapshot)
+}
+
+func ensureCustomerSubunitAvailability(enabled bool, subunits []CustomerSubunitData) error {
+	if !enabled {
+		return nil
+	}
+	for _, subunit := range subunits {
+		if subunit.Enabled {
+			return nil
+		}
+	}
+	return newError(ErrorValidation, "customer_subunit_required", "enabled customer requires one enabled subunit", nil, nil)
+}
+
+func (s *CustomerService) updateAggregate(ctx context.Context, q *dbsqlc.Queries, entryID string, data CustomerData) error {
+	payload, err := marshalCustomerSnapshot(data)
+	if err != nil {
+		return err
+	}
+	n, err := q.UpdateDCLCustomerVersionAggregate(ctx, dbsqlc.UpdateDCLCustomerVersionAggregateParams{ApprovalEntryID: entryID, Kind: data.Kind, LegalIdentifier: nilIfEmpty(data.LegalIdentifier), Data: payload, Enabled: data.Enabled})
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return errors.New("customer snapshot is missing")
+	}
+	return nil
+}
+
+func (s *CustomerService) openCandidate(ctx context.Context, tx pgx.Tx, coordinator *approval.Coordinator[dclapproval.CustomerPayload], id subjectIdentity, in CustomerVersionInput, actor approval.Actor, enabled bool) (approval.Entry, *dbsqlc.Queries, error) {
+	if err := s.coordinator.LockVersionSubject(ctx, tx, in.ObjectID); err != nil {
+		return approval.Entry{}, nil, err
+	}
+	q := s.queries.WithTx(tx)
+	stored, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: in.ApprovalEntryID, Domain: "dcl", Entity: EntityCustomer})
+	if err != nil || stored.SubjectID != in.ObjectID || stored.Revision != in.ApprovalRevision {
+		return approval.Entry{}, nil, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
+	}
+	if stored.Status == string(approval.StatusDraft) {
+		return approvalEntry(stored), q, nil
+	}
+	if stored.Status != string(approval.StatusApproved) {
+		return approval.Entry{}, nil, newError(ErrorConflict, "approval_invalid_transition", "only draft or latest approved customer can be saved", nil, nil)
+	}
+	latest, latestErr := coordinator.GetLatestApprovedForSave(ctx, tx, in.ObjectID, actor)
+	if latestErr != nil || latest.ID != stored.ID {
+		if latestErr == nil || approval.IsKey(latestErr, "approval_version_not_found") {
+			latestErr = newError(ErrorConflict, "approval_stale_revision", "latest approved customer changed", nil, latestErr)
+		}
+		return approval.Entry{}, nil, latestErr
+	}
+	entry, err := coordinator.CreateNextVersion(ctx, tx, id.ObjectID, actor, customerPayload(id, enabled))
+	if err == nil {
+		err = q.CopyDCLCustomerVersionAggregate(ctx, dbsqlc.CopyDCLCustomerVersionAggregateParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
+	}
+	if err == nil {
+		err = q.CopyDCLCustomerVersionSubunits(ctx, dbsqlc.CopyDCLCustomerVersionSubunitsParams{NewCustomerApprovalEntryID: entry.ID, SourceCustomerApprovalEntryID: stored.ID})
+	}
+	if err == nil {
+		err = q.CopyDCLCustomerVersionSubunitCreditLimits(ctx, dbsqlc.CopyDCLCustomerVersionSubunitCreditLimitsParams{NewCustomerApprovalEntryID: entry.ID, SourceCustomerApprovalEntryID: stored.ID})
+	}
+	if err == nil {
+		err = q.CopyDCLCustomerAttachments(ctx, dbsqlc.CopyDCLCustomerAttachmentsParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
+	}
+	return entry, q, err
 }
 
 func (s *CustomerService) Create(ctx context.Context, in CustomerCreateInput, actor approval.Actor) (CustomerMutation, error) {
@@ -413,7 +488,7 @@ func (s *CustomerService) Create(ctx context.Context, in CustomerCreateInput, ac
 		return CustomerMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
-	data, err := s.resolveData(ctx, tx, in.Data)
+	data, err := s.resolveCreateData(ctx, tx, in.Data)
 	if err != nil {
 		return CustomerMutation{}, err
 	}
@@ -447,64 +522,82 @@ func (s *CustomerService) Save(ctx context.Context, in CustomerSaveInput, actor 
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	if err = s.coordinator.LockVersionSubject(ctx, tx, in.ObjectID); err != nil {
-		return CustomerMutation{}, translateError(err)
-	}
-	q := s.queries.WithTx(tx)
-	stored, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: in.ApprovalEntryID, Domain: "dcl", Entity: EntityCustomer})
-	if err != nil || stored.SubjectID != in.ObjectID || stored.Revision != in.ApprovalRevision {
-		return CustomerMutation{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
-	}
-	data, err := s.resolveData(ctx, tx, in.Data)
+	root, err := s.resolveRootData(ctx, tx, in.Data)
 	if err != nil {
 		return CustomerMutation{}, err
 	}
-	var entry approval.Entry
-	if stored.Status == string(approval.StatusApproved) {
-		entry, err = s.coordinator.CreateNextVersion(ctx, tx, id.ObjectID, actor, customerPayload(id, data.Enabled))
-		if err == nil {
-			err = q.CopyDCLCustomerVersionAggregate(ctx, dbsqlc.CopyDCLCustomerVersionAggregateParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
-		}
-		if err == nil {
-			err = q.CopyDCLCustomerVersionAccounts(ctx, dbsqlc.CopyDCLCustomerVersionAccountsParams{NewCustomerApprovalEntryID: entry.ID, SourceCustomerApprovalEntryID: stored.ID})
-		}
-		if err == nil {
-			err = q.CopyDCLCustomerVersionAccountCreditLimits(ctx, dbsqlc.CopyDCLCustomerVersionAccountCreditLimitsParams{NewCustomerApprovalEntryID: entry.ID, SourceCustomerApprovalEntryID: stored.ID})
-		}
-		if err == nil {
-			err = q.CopyDCLCustomerVersionIdentifiers(ctx, dbsqlc.CopyDCLCustomerVersionIdentifiersParams{NewCustomerApprovalEntryID: entry.ID, SourceCustomerApprovalEntryID: stored.ID})
-		}
-		if err == nil {
-			err = q.CopyDCLCustomerAttachments(ctx, dbsqlc.CopyDCLCustomerAttachmentsParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
-		}
-	} else if stored.Status == string(approval.StatusDraft) {
-		entry = approvalEntry(stored)
-	} else {
-		return CustomerMutation{}, newError(ErrorConflict, "approval_invalid_transition", "only draft or latest approved customer can be saved", nil, nil)
-	}
+	entry, q, err := s.openCandidate(ctx, tx, s.coordinator, id, CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}, actor, root.Enabled)
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	if err = s.prepareAccountRoots(ctx, q, id.ObjectID, data.Accounts); err != nil {
+	data, err := s.loadCustomerData(ctx, q, entry.ID)
+	if err != nil {
+		return CustomerMutation{}, err
+	}
+	root.Subunits = data.Subunits
+	if err = ensureCustomerSubunitAvailability(root.Enabled, root.Subunits); err != nil {
+		return CustomerMutation{}, err
+	}
+	if err = s.updateAggregate(ctx, q, entry.ID, root); err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	payload, err := json.Marshal(data)
+	if err = s.claimCustomerLegalIdentifier(ctx, q, id.ObjectID, entry.ID, root.LegalIdentifier); err != nil {
+		return CustomerMutation{}, translateError(err)
+	}
+	entry, err = s.coordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, customerPayload(id, root.Enabled))
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	if n, updateErr := q.UpdateDCLCustomerVersionAggregate(ctx, dbsqlc.UpdateDCLCustomerVersionAggregateParams{ApprovalEntryID: entry.ID, Data: payload, Enabled: data.Enabled}); updateErr != nil || n != 1 {
-		if updateErr == nil {
-			updateErr = errors.New("customer snapshot is missing")
-		}
-		return CustomerMutation{}, translateError(updateErr)
-	}
-	if err = s.writeAccounts(ctx, q, id.ObjectID, entry.ID, data.Accounts); err != nil {
+	if err = tx.Commit(ctx); err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	if err = s.writeCustomerIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+	return customerMutation(id, root.Enabled, entry), nil
+}
+
+// SaveSubunits updates only the child collection.  It deliberately shares the
+// Customer candidate and revision with root saves so either editor receives a
+// normal optimistic-concurrency conflict instead of silently overwriting the
+// other part of the aggregate.
+func (s *CustomerService) SaveSubunits(ctx context.Context, in CustomerSaveSubunitsInput, actor approval.Actor) (CustomerMutation, error) {
+	if !validVersionInput(in.ObjectID, in.ApprovalEntryID, in.ApprovalRevision, actor) {
+		return CustomerMutation{}, newError(ErrorValidation, "validation_failed", "invalid customer subunit save", nil, nil)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
-	entry, err = s.coordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, customerPayload(id, data.Enabled))
+	defer tx.Rollback(ctx)
+	id, err := lockSubject(ctx, tx, EntityCustomer, in.ObjectID)
+	if err != nil {
+		return CustomerMutation{}, translateError(err)
+	}
+	q := s.queries.WithTx(tx)
+	base, err := s.loadCustomerData(ctx, q, in.ApprovalEntryID)
+	if err != nil {
+		return CustomerMutation{}, err
+	}
+	entry, q, err := s.openCandidate(ctx, tx, s.subunitCoordinator, id, CustomerVersionInput{ObjectID: in.ObjectID, ApprovalEntryID: in.ApprovalEntryID, ApprovalRevision: in.ApprovalRevision}, actor, base.Enabled)
+	if err != nil {
+		return CustomerMutation{}, translateError(err)
+	}
+	data, err := s.loadCustomerData(ctx, q, entry.ID)
+	if err != nil {
+		return CustomerMutation{}, err
+	}
+	data.Subunits, err = s.resolveSubunits(ctx, tx, data, in.Subunits)
+	if err != nil {
+		return CustomerMutation{}, err
+	}
+	if err = s.prepareSubunitRoots(ctx, q, id.ObjectID, data.Subunits); err != nil {
+		return CustomerMutation{}, translateError(err)
+	}
+	if err = s.writeSubunits(ctx, q, id.ObjectID, entry.ID, data.Subunits); err != nil {
+		return CustomerMutation{}, translateError(err)
+	}
+	if err = s.updateAggregate(ctx, q, entry.ID, data); err != nil {
+		return CustomerMutation{}, translateError(err)
+	}
+	entry, err = s.subunitCoordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, customerPayload(id, data.Enabled))
 	if err != nil {
 		return CustomerMutation{}, translateError(err)
 	}
@@ -553,12 +646,25 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 		return CustomerMutation{}, err
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
+		if err = ensureCustomerSubunitAvailability(data.Enabled, data.Subunits); err != nil {
+			return CustomerMutation{}, err
+		}
+		if data.LegalIdentifier == "" {
+			return CustomerMutation{}, newError(ErrorValidation, "legal_identifier_required", "legal identifier is required for submit and approve", nil, nil)
+		}
+		if _, err = normalizeCustomerLegalIdentifier(data.Kind, data.LegalIdentifier); err != nil {
+			return CustomerMutation{}, err
+		}
+		if action == approval.ActionSubmitted {
+			if err = s.claimCustomerLegalIdentifier(ctx, q, id.ObjectID, in.ApprovalEntryID, data.LegalIdentifier); err != nil {
+				return CustomerMutation{}, translateError(err)
+			}
+		}
 		if _, err = s.rules.ValidateHistoricalReference(ctx, tx, EntityOperatingEntity, data.DefaultOperatingEntityID, data.DefaultOperatingEntity.ApprovalEntryID); err != nil {
 			return CustomerMutation{}, translateError(err)
 		}
-		identifiers := customerIdentifierMap(data.StrongIdentifiers)
-		for _, account := range data.Accounts {
-			if err = s.rules.ValidateCustomerAccountReferences(ctx, tx, identifiers, account.PrimarySalesAttribution.Type, account.PrimarySalesAttribution.SubjectObjectID, account.PrimarySalesAttribution.SubjectApprovalEntryID); err != nil {
+		for _, subunit := range data.Subunits {
+			if err = s.rules.ValidateCustomerSubunitReferences(ctx, tx, data.Kind, data.LegalIdentifier, subunit.PrimarySalesAttribution.Type, subunit.PrimarySalesAttribution.SubjectObjectID, subunit.PrimarySalesAttribution.SubjectApprovalEntryID); err != nil {
 				return CustomerMutation{}, translateError(err)
 			}
 		}
@@ -569,11 +675,11 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 		}
 	}
 	if action == approval.ActionApproved {
-		if latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: id.ObjectID}); latestErr == nil && latest.ID != in.ApprovalEntryID {
-			if err = q.DeleteDCLCustomerIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
+		if latest, latestErr := s.coordinator.GetLatestApprovedForAction(ctx, tx, id.ObjectID, actor, "approve"); latestErr == nil && latest.ID != in.ApprovalEntryID {
+			if err = q.DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx, &latest.ID); err != nil {
 				return CustomerMutation{}, translateError(err)
 			}
-		} else if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
+		} else if latestErr != nil && !approval.IsKey(latestErr, "approval_version_not_found") {
 			return CustomerMutation{}, translateError(latestErr)
 		}
 	}
@@ -582,29 +688,29 @@ func (s *CustomerService) transition(ctx context.Context, in CustomerVersionInpu
 		return CustomerMutation{}, translateError(err)
 	}
 	if action == approval.ActionApproved {
-		if err = s.promoteCustomerIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+		if err = s.promoteCustomerLegalIdentifier(ctx, q, id.ObjectID, entry.ID, data.LegalIdentifier); err != nil {
 			return CustomerMutation{}, translateError(err)
 		}
-		for _, account := range data.Accounts {
-			if _, err = q.MarkDCLCustomerAccountRootApproved(ctx, dbsqlc.MarkDCLCustomerAccountRootApprovedParams{CustomerApprovalEntryID: &entry.ID, AccountID: account.AccountID, CustomerID: id.ObjectID}); err != nil {
+		for _, subunit := range data.Subunits {
+			if _, err = q.MarkDCLCustomerSubunitRootApproved(ctx, dbsqlc.MarkDCLCustomerSubunitRootApprovedParams{CustomerApprovalEntryID: &entry.ID, SubunitID: subunit.SubunitID, CustomerID: id.ObjectID}); err != nil {
 				return CustomerMutation{}, translateError(err)
 			}
 		}
 	}
 	if action == approval.ActionUnapproved {
-		latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: id.ObjectID})
+		latest, latestErr := s.coordinator.GetLatestApprovedForAction(ctx, tx, id.ObjectID, actor, "unapprove")
 		if latestErr == nil {
 			fallback, loadErr := s.loadCustomerData(ctx, q, latest.ID)
 			if loadErr != nil {
 				return CustomerMutation{}, loadErr
 			}
-			if claimErr := s.promoteCustomerIdentifiers(ctx, q, id.ObjectID, latest.ID, fallback.StrongIdentifiers); claimErr != nil {
+			if claimErr := s.promoteCustomerLegalIdentifier(ctx, q, id.ObjectID, latest.ID, fallback.LegalIdentifier); claimErr != nil {
 				return CustomerMutation{}, translateError(claimErr)
 			}
-		} else if !errors.Is(latestErr, pgx.ErrNoRows) {
+		} else if !approval.IsKey(latestErr, "approval_version_not_found") {
 			return CustomerMutation{}, translateError(latestErr)
 		}
-		if err = s.claimCustomerOpenIdentifiers(ctx, q, id.ObjectID, entry.ID, data.StrongIdentifiers); err != nil {
+		if err = s.claimCustomerLegalIdentifier(ctx, q, id.ObjectID, entry.ID, data.LegalIdentifier); err != nil {
 			return CustomerMutation{}, translateError(err)
 		}
 	}
@@ -642,26 +748,26 @@ func (s *CustomerService) Delete(ctx context.Context, in CustomerDeleteInput, a 
 	if _, err = q.DeleteDCLCustomerVersionAggregate(ctx, in.ApprovalEntryID); err != nil {
 		return translateError(err)
 	}
-	if err = q.DeleteDCLCustomerIdentifierClaimsForEntry(ctx, &in.ApprovalEntryID); err != nil {
+	if err = q.DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx, &in.ApprovalEntryID); err != nil {
 		return translateError(err)
 	}
 	if err = s.coordinator.DeleteDraftVersion(ctx, tx, in.ApprovalEntryID, in.ApprovalRevision, a, customerPayload(id, data.Enabled)); err != nil {
 		return translateError(err)
 	}
-	if _, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: in.ObjectID}); latestErr == nil {
+	if _, latestErr := s.coordinator.GetLatestApprovedForAction(ctx, tx, in.ObjectID, a, "delete"); latestErr == nil {
 		return translateError(tx.Commit(ctx))
-	} else if !errors.Is(latestErr, pgx.ErrNoRows) {
+	} else if !approval.IsKey(latestErr, "approval_version_not_found") {
 		return translateError(latestErr)
 	}
-	roots, err := q.ListDCLCustomerAccountRoots(ctx, in.ObjectID)
+	roots, err := q.ListDCLCustomerSubunitRoots(ctx, in.ObjectID)
 	if err != nil {
 		return translateError(err)
 	}
 	for _, root := range roots {
 		if root.EverApproved {
-			return newError(ErrorConflict, "customer_account_history_exists", "approved account history prevents draft deletion", nil, nil)
+			return newError(ErrorConflict, "customer_subunit_history_exists", "approved subunit history prevents draft deletion", nil, nil)
 		}
-		if _, err = q.DeleteDCLCustomerAccountRoot(ctx, dbsqlc.DeleteDCLCustomerAccountRootParams{AccountID: root.AccountID, CustomerID: in.ObjectID}); err != nil {
+		if _, err = q.DeleteDCLCustomerSubunitRoot(ctx, dbsqlc.DeleteDCLCustomerSubunitRootParams{SubunitID: root.SubunitID, CustomerID: in.ObjectID}); err != nil {
 			return translateError(err)
 		}
 	}

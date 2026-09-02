@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export type RptCounterpartyReference = {
-  entity: 'customer-account' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
+  entity: 'customer-subunit' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
   objectId: string;
   approvalEntryId: string;
   code: string;

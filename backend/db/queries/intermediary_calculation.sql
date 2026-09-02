@@ -297,7 +297,7 @@ ORDER BY return_line.source_signoff_line_id,return_document.business_date,
 -- name: ListIntermediaryCustomerTradeEvents :many
 WITH trade AS (
     SELECT line.id,
-           (line.dimensions->>'CUSTOMER_ACCOUNT')::text AS counterparty_object_id,
+           (line.dimensions->>'CUSTOMER_SUBUNIT')::text AS counterparty_object_id,
            voucher.business_date AS effective_date,
            (line.debit_minor-line.credit_minor)::bigint AS amount_delta_cents,
            voucher.source_entity,
@@ -307,7 +307,7 @@ WITH trade AS (
     JOIN acc_books book ON book.id=line.book_id AND book.control_book
     JOIN acc_subjects subject ON subject.book_id=line.book_id AND subject.id=line.subject_id
     WHERE subject.settlement_purpose='CUSTOMER_RECEIVABLE'
-      AND line.dimensions ? 'CUSTOMER_ACCOUNT'
+      AND line.dimensions ? 'CUSTOMER_SUBUNIT'
       AND line.currency='CNY'
       AND voucher.business_date<=sqlc.arg(period_end)
 ), precutover_return_baseline AS (

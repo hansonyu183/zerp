@@ -20,6 +20,8 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 应收预收、应付预付分别按账簿、往来单位、币种和截止日展示原额与净额，并按到期日和先进先出倒推未结金额及账龄。报表必须区分应收与预收、应付与预付，不把不同方向抵销成无法解释的单一余额。
 
+客户账龄中的客户子单位编码和名称必须读取会计分录 `dimensionReferences` 保存的事实快照；不得关联 DCL 当前版本重解释历史名称。存在多笔事实时，展示截止日范围内最后一笔事实携带的快照，单纯改名、停用或移除客户子单位不得改变既有账龄结果。
+
 客户账龄和供应商账龄的最小账龄天数筛选必须大于或等于 0；`0` 表示不排除任何非负账龄，负数不得进入查询或导出执行。
 
 ### 2.3 库存
@@ -32,7 +34,7 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 ### 2.5 空桶
 
-空桶报表按客户、桶型和截止日展示期初、发出、收回、调整和欠桶余额；配置金额核算时同时展示金额。数量状态取全局空桶事实，金额取所选会计账簿的独立价值。
+空桶报表按客户子单位、桶型和截止日展示期初、发出、收回、调整和欠桶余额；参数和结果使用 `customerSubunitId` / `customer_subunit_*`，名称与编码读取事实保存时的精确子单位快照，后续改名或移除不得改写历史。配置金额核算时同时展示金额；数量状态取全局空桶事实，金额取所选会计账簿的独立价值。
 
 ### 2.6 员工借款
 
@@ -48,7 +50,7 @@ RPT 拥有以 `approvalEntryId` 键控的技术有效性（VALID/INVALID）、�
 
 每个版本 payload 包含单条只读 SQL、类型化绑定参数和显式结果列契约。SQL 只允许一条 `SELECT` 或 `WITH ... SELECT`，由数据库只读角色在只读事务执行；禁止字符串拼接、多语句、写入、DDL、可写函数和绕过只读角色的路径。参数类型为 `TEXT`、`INTEGER`、`DECIMAL`、`BOOLEAN`、`DATE`、`DATE_RANGE`、`ENUM` 与受控 `REFERENCE`；受控引用只开放会计账簿、会计科目、客户、供应商、其他单位、员工、部门、产品、仓库、资金账户、资产、票据和票据已记录的原始往来方，执行时只绑定稳定 ID。票据原始往来方候选读取票据事实中的历史快照，不以当前主数据覆盖历史名称。
 
-`CUSTOMER_ACCOUNT` 候选只读取 Customer 最新 `APPROVED` 且启用的内嵌账户快照；每项返回账户 stable ID、账户 code/name 和所属 Customer code/display name。账户 code 只在 Customer 内唯一，界面必须同时展示 Customer code 与账户 code。
+`CUSTOMER_SUBUNIT` 候选只读取 Customer 最新 `APPROVED` 且 Customer 与子单位均启用的内嵌子单位快照；每项返回 subunit stable ID、subunit code/name 和所属 Customer code/display name。子单位 code 只在 Customer 内唯一，界面必须同时展示 Customer code 与子单位 code。
 
 结果列必须声明 SQL alias、显示名、顺序、数据类型、宽度、默认可见性和格式。批准时实际返回列必须与契约完全一致；页面和导出只按该 entry 的列契约展示，不能自行猜测字段含义。查询每页最多 100 条，导出最多 100,000 条；两者都有只读事务、超时和资源限制。预置 SQL 依赖的科目编码变更时，同次变更必须提供并批准兼容新版本或明确停用受影响定义；不保留兼容视图、别名或第二套口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
 

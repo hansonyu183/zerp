@@ -374,7 +374,7 @@ func (s *Service) intermediarySource(
 				CollectionDelayDays: max(int(document.collectionDate.Sub(row.DueDate.Time).Hours()/24), 0),
 				OrderDocumentID:     row.OrderDocumentID, OrderDocumentNo: row.OrderDocumentNo,
 				OrderDate:            formatDate(row.OrderDate),
-				Customer:             intermediaryReference(row.CustomerObjectID, row.CustomerApprovalEntryID, bobdomain.EntityCustomerAccount, row.CustomerCode, row.CustomerName),
+				Customer:             intermediaryReference(row.CustomerObjectID, row.CustomerApprovalEntryID, bobdomain.EntityCustomerSubunit, row.CustomerCode, row.CustomerName),
 				Salesperson:          intermediaryReference(row.SalesAttributionSubjectObjectID, row.SalesAttributionSubjectApprovalEntryID, attributionEntity, row.SalesAttributionSubjectCode, row.SalesAttributionSubjectName),
 				SalesAttributionType: row.SalesAttributionType, SalesContractStatus: contractStatus, SalesContract: contract,
 				Product:         intermediaryReference(row.ProductObjectID, row.ProductApprovalEntryID, "product", row.ProductCode, row.ProductName),
@@ -409,7 +409,7 @@ func (s *Service) intermediarySource(
 		source.Bills = append(source.Bills, IntermediarySourceBill{
 			BillLineID: bill.BillLineID, ReceiptDocumentID: bill.ReceiptDocumentID, ReceiptDocumentNo: bill.ReceiptDocumentNo,
 			ReceiptDate: formatDate(bill.ReceiptDate),
-			Customer:    intermediaryReference(*bill.CustomerObjectID, *bill.CustomerApprovalEntryID, bobdomain.EntityCustomerAccount, *bill.CustomerCode, *bill.CustomerName),
+			Customer:    intermediaryReference(*bill.CustomerObjectID, *bill.CustomerApprovalEntryID, bobdomain.EntityCustomerSubunit, *bill.CustomerCode, *bill.CustomerName),
 			BillType:    bill.BillType, FaceAmount: formatMoney(bill.FaceAmountCents),
 			IssueDate: formatDate(bill.IssueDate), MaturityDate: formatDate(bill.MaturityDate), CostDays: costDays,
 		})

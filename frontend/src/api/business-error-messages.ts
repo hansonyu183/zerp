@@ -38,6 +38,19 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
   fund_account_operating_reference_stale:
     '所选经营主体已发生变化，请刷新后重试。',
   invalid_reference: '所选业务资料不存在、已失效或不适用于当前操作。',
+  invalid_legal_identifier:
+    '法定识别号不符合当前身份类型的规则，请检查后重试。',
+  legal_identifier_required: '提交前请填写法定识别号。',
+  customer_legal_identifier_claimed:
+    '该客户法定识别号已被其他客户占用，请修改后重试。',
+  supplier_legal_identifier_claimed:
+    '该供应商法定识别号已被其他供应商占用，请修改后重试。',
+  employee_legal_identifier_claimed:
+    '该员工法定识别号已被其他员工占用，请修改后重试。',
+  other_unit_legal_identifier_claimed:
+    '该其他单位法定识别号已被其他单位占用，请修改后重试。',
+  sales_partner_legal_identifier_claimed:
+    '该销售合作方法定识别号已被其他销售合作方占用，请修改后重试。',
 }
 
 export function businessErrorMessage(

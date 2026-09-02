@@ -243,11 +243,11 @@ type ExpenseLineInput struct {
 	Remark      string `json:"remark,omitempty"`
 }
 
-// SalesReceiptAccountAllocationInput assigns part of one bank receipt to a
-// Customer Accounting Account. The account's approval entry is the owning
-// Customer Version snapshot, never an independently approved account version.
-type SalesReceiptAccountAllocationInput struct {
-	Account ReferenceInput `json:"account"`
+// SalesReceiptSubunitAllocationInput assigns part of one bank receipt to a
+// Customer Subunit. Its approval entry is the owning Customer Version
+// snapshot, never an independently approved subunit version.
+type SalesReceiptSubunitAllocationInput struct {
+	Subunit ReferenceInput `json:"subunit"`
 	Amount  string         `json:"amount"`
 }
 
@@ -372,7 +372,7 @@ type DraftInput struct {
 	SettlementMethod        *AuxiliaryReferenceInput             `json:"settlementMethod,omitempty"`
 	SourceName              string                               `json:"sourceName,omitempty"`
 	Amount                  string                               `json:"amount,omitempty"`
-	AccountAllocations      []SalesReceiptAccountAllocationInput `json:"accountAllocations,omitempty"`
+	SubunitAllocations      []SalesReceiptSubunitAllocationInput `json:"subunitAllocations,omitempty"`
 	ProductLines            []ProductLineInput                   `json:"productLines,omitempty"`
 	PriceLines              []PriceLineInput                     `json:"priceLines,omitempty"`
 	ExpenseLines            []ExpenseLineInput                   `json:"expenseLines,omitempty"`
@@ -639,8 +639,8 @@ type ReferenceView struct {
 	UnitConversions     []bobdomain.ProductUnitConversion `json:"unitConversions,omitempty"`
 }
 
-type SalesReceiptAccountAllocationView struct {
-	Account ReferenceView `json:"account"`
+type SalesReceiptSubunitAllocationView struct {
+	Subunit ReferenceView `json:"subunit"`
 	Amount  string        `json:"amount"`
 }
 
@@ -974,7 +974,7 @@ type DocumentDataView struct {
 	ReturnKind                string                              `json:"returnKind,omitempty"`
 	Customer                  *ReferenceView                      `json:"customer,omitempty"`
 	OperatingEntity           *ReferenceView                      `json:"operatingEntity,omitempty"`
-	AccountAllocations        []SalesReceiptAccountAllocationView `json:"accountAllocations,omitempty"`
+	SubunitAllocations        []SalesReceiptSubunitAllocationView `json:"subunitAllocations,omitempty"`
 	Supplier                  *ReferenceView                      `json:"supplier,omitempty"`
 	Counterparty              *ReferenceView                      `json:"counterparty,omitempty"`
 	OtherCategory             string                              `json:"otherCategory,omitempty"`

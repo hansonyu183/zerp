@@ -424,9 +424,9 @@ func TestSaleOrderRequiresConfiguredCustomerSettlementTermIntegration(t *testing
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	if _, err := pool.Exec(t.Context(), `UPDATE dcl_customer_version_accounts
+	if _, err := pool.Exec(t.Context(), `UPDATE dcl_customer_version_subunits
 		SET data=data-'settlementMethodId'-'settlementMethod'
-		WHERE customer_approval_entry_id=$1 AND account_id=$2`, refs.customer.ApprovalEntryID, refs.customer.ObjectID); err != nil {
+		WHERE customer_approval_entry_id=$1 AND subunit_id=$2`, refs.customer.ApprovalEntryID, refs.customer.ObjectID); err != nil {
 		t.Fatalf("remove customer settlement snapshot: %v", err)
 	}
 	service := newIntegrationService(t, pool)

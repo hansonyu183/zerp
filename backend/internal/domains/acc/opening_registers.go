@@ -72,11 +72,20 @@ func (s *Service) saveOpeningRegisters(ctx context.Context, tx pgx.Tx, q *dbsqlc
 		}
 	}
 	for index, container := range input.Containers {
-		if !validID(container.CustomerID) || (container.ContainerType != "SOLVENT" && container.ContainerType != "RESIN") || container.Quantity == 0 {
+		if container.Subunit.Entity != "customer-subunit" || !validID(container.Subunit.ObjectID) ||
+			!validID(container.Subunit.ApprovalEntryID) ||
+			(container.ContainerType != "SOLVENT" && container.ContainerType != "RESIN") || container.Quantity == 0 {
 			return domainError(ErrorValidation, "invalid opening container balance", nil)
 		}
+		current, referenceErr := s.references.ResolveCurrentReference(ctx, tx, "customer-subunit", container.Subunit.ObjectID)
+		if referenceErr != nil || current.ApprovalEntryID != container.Subunit.ApprovalEntryID || current.CustomerID == "" ||
+			(container.Subunit.CustomerID != "" && container.Subunit.CustomerID != current.CustomerID) {
+			return domainError(ErrorConflict, "opening customer subunit reference is not current", referenceErr)
+		}
 		if err := q.InsertAccountingOpeningContainer(ctx, dbsqlc.InsertAccountingOpeningContainerParams{
-			BookID: input.BookID, LineOrder: int32(index), CustomerID: container.CustomerID,
+			BookID: input.BookID, LineOrder: int32(index), CustomerSubunitID: current.ObjectID,
+			CustomerID: current.CustomerID, CustomerApprovalEntryID: current.ApprovalEntryID,
+			CustomerSubunitCode: current.Code, CustomerSubunitName: current.Data.Name,
 			ContainerType: container.ContainerType, Quantity: container.Quantity,
 		}); err != nil {
 			return databaseError("save accounting opening container", err)
@@ -202,7 +211,13 @@ func loadOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, view *OpeningV
 		return databaseError("load accounting opening containers", err)
 	}
 	for _, row := range containers {
-		view.Containers = append(view.Containers, OpeningContainerView{CustomerID: row.CustomerID, ContainerType: row.ContainerType, Quantity: row.Quantity})
+		view.Containers = append(view.Containers, OpeningContainerView{
+			Subunit: BusinessArchiveDimensionReference{
+				Entity: "customer-subunit", ObjectID: row.CustomerSubunitID, CustomerID: row.CustomerID,
+				ApprovalEntryID: row.CustomerApprovalEntryID, Code: row.CustomerSubunitCode, Name: row.CustomerSubunitName,
+			},
+			ContainerType: row.ContainerType, Quantity: row.Quantity,
+		})
 	}
 	return nil
 }

@@ -692,21 +692,21 @@ describe('RPT report center view model', () => {
     ])
   })
 
-  it('labels customer accounts with their Customer and account codes', () => {
+  it('labels customer subunits with their Customer and subunit codes', () => {
     expect(
       parseReferenceItems({
         items: [
           {
             id: '01JRPT00000000000000000001',
-            code: 'ACC-0001',
-            name: '核算账户',
+            code: 'SUB-0001',
+            name: '客户子单位',
             customerCode: 'CUS-0001',
             customerName: '客户甲',
           },
           {
             id: '01JRPT00000000000000000002',
-            code: 'ACC-0001',
-            name: '核算账户',
+            code: 'SUB-0001',
+            name: '客户子单位',
             customerCode: 'CUS-0002',
             customerName: '客户乙',
           },
@@ -715,11 +715,11 @@ describe('RPT report center view model', () => {
     ).toEqual([
       {
         value: '01JRPT00000000000000000001',
-        title: 'CUS-0001 · 客户甲 · ACC-0001 · 核算账户',
+        title: 'CUS-0001 · 客户甲 · SUB-0001 · 客户子单位',
       },
       {
         value: '01JRPT00000000000000000002',
-        title: 'CUS-0002 · 客户乙 · ACC-0001 · 核算账户',
+        title: 'CUS-0002 · 客户乙 · SUB-0001 · 客户子单位',
       },
     ])
   })

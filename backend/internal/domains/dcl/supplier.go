@@ -47,13 +47,20 @@ func supplierVersionInput(i SupplierReviewInput) SupplierVersionInput {
 func normalizeSupplierIdentifier(v string) string { return strings.ToUpper(strings.TrimSpace(v)) }
 
 func validateSupplierInput(in SupplierInput) (SupplierInput, error) {
-	in.Kind, in.LegalName, in.DisplayName, in.TaxNumber = strings.TrimSpace(in.Kind), strings.TrimSpace(in.LegalName), strings.TrimSpace(in.DisplayName), strings.TrimSpace(in.TaxNumber)
+	in.Kind, in.LegalName, in.DisplayName = strings.TrimSpace(in.Kind), strings.TrimSpace(in.LegalName), strings.TrimSpace(in.DisplayName)
+	if in.LegalIdentifier != "" {
+		var err error
+		in.LegalIdentifier, err = archiveLegalIdentifier(in.Kind, in.LegalIdentifier)
+		if err != nil {
+			return SupplierInput{}, err
+		}
+	}
 	if in.DisplayName == "" {
 		in.DisplayName = in.LegalName
 	}
 	in.ShortName, in.ContactName, in.ContactPhone, in.Email, in.Address, in.Remark = strings.TrimSpace(in.ShortName), strings.TrimSpace(in.ContactName), strings.TrimSpace(in.ContactPhone), strings.TrimSpace(in.Email), strings.TrimSpace(in.Address), strings.TrimSpace(in.Remark)
 	in.SettlementMethodID, in.DefaultPurchaserEmployeeID, in.DefaultOperatingEntityID = strings.TrimSpace(in.SettlementMethodID), strings.TrimSpace(in.DefaultPurchaserEmployeeID), strings.TrimSpace(in.DefaultOperatingEntityID)
-	if (in.Kind != "PERSON" && in.Kind != "ORGANIZATION") || in.LegalName == "" || !runeLenAtMost(in.LegalName, 200) || !runeLenAtMost(in.DisplayName, 200) || !runeLenAtMost(in.TaxNumber, 100) || !runeLenAtMost(in.ShortName, 200) || !runeLenAtMost(in.ContactName, 100) || !runeLenAtMost(in.ContactPhone, 32) || !runeLenAtMost(in.Email, 254) || !runeLenAtMost(in.Address, 500) || !runeLenAtMost(in.Remark, 1000) || in.StrongIdentifiers == nil || len(in.StrongIdentifiers) > 10 || len(in.OperatingEntityIDs) == 0 || len(in.OperatingEntityIDs) > 100 || !validID(in.DefaultOperatingEntityID) || (in.SettlementMethodID != "" && !validID(in.SettlementMethodID)) || (in.DefaultPurchaserEmployeeID != "" && !validID(in.DefaultPurchaserEmployeeID)) {
+	if (in.Kind != "PERSON" && in.Kind != "ORGANIZATION") || in.LegalName == "" || !runeLenAtMost(in.LegalName, 200) || !runeLenAtMost(in.DisplayName, 200) || !runeLenAtMost(in.LegalIdentifier, 100) || !runeLenAtMost(in.ShortName, 200) || !runeLenAtMost(in.ContactName, 100) || !runeLenAtMost(in.ContactPhone, 32) || !runeLenAtMost(in.Email, 254) || !runeLenAtMost(in.Address, 500) || !runeLenAtMost(in.Remark, 1000) || len(in.OperatingEntityIDs) == 0 || len(in.OperatingEntityIDs) > 100 || !validID(in.DefaultOperatingEntityID) || (in.SettlementMethodID != "" && !validID(in.SettlementMethodID)) || (in.DefaultPurchaserEmployeeID != "" && !validID(in.DefaultPurchaserEmployeeID)) {
 		return SupplierInput{}, newError(ErrorValidation, "validation_failed", "invalid supplier data", nil, nil)
 	}
 	entities := map[string]struct{}{}
@@ -70,19 +77,6 @@ func validateSupplierInput(in SupplierInput) (SupplierInput, error) {
 	}
 	if _, ok := entities[in.DefaultOperatingEntityID]; !ok {
 		return SupplierInput{}, newError(ErrorValidation, "validation_failed", "supplier default operating entity is not applicable", nil, nil)
-	}
-	identifiers := map[string]struct{}{}
-	for x := range in.StrongIdentifiers {
-		v := &in.StrongIdentifiers[x]
-		v.Type, v.Value = strings.TrimSpace(v.Type), strings.TrimSpace(v.Value)
-		k := v.Type + "\x00" + normalizeSupplierIdentifier(v.Value)
-		if !validBusinessIdentifierType(v.Type) || v.Value == "" || !runeLenAtMost(v.Value, 100) {
-			return SupplierInput{}, newError(ErrorValidation, "validation_failed", "invalid supplier identifier", nil, nil)
-		}
-		if _, ok := identifiers[k]; ok {
-			return SupplierInput{}, newError(ErrorValidation, "validation_failed", "duplicate supplier identifier", nil, nil)
-		}
-		identifiers[k] = struct{}{}
 	}
 	return in, nil
 }
@@ -130,11 +124,11 @@ func supplierDefault(d SupplierData) SupplierOperatingEntitySnapshot {
 }
 func supplierParams(id string, d SupplierData) dbsqlc.UpdateDCLSupplierVersionParams {
 	x := supplierDefault(d)
-	return dbsqlc.UpdateDCLSupplierVersionParams{Kind: d.Kind, LegalName: d.LegalName, DisplayName: d.DisplayName, ShortName: nilIfEmpty(d.ShortName), TaxNumber: nilIfEmpty(d.TaxNumber), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.SettlementTermCode), SettlementRuleType: nilIfEmpty(d.SettlementRuleType), SettlementMonthOffset: d.SettlementMonthOffset, SettlementDayOfMonth: d.SettlementDayOfMonth, SettlementDayOffset: d.SettlementDayOffset, DefaultOperatingEntityID: d.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: x.ApprovalEntryID, DefaultOperatingEntityCode: x.Code, DefaultOperatingEntityName: x.Name, DefaultPurchaserEmployeeID: nilIfEmpty(d.DefaultPurchaserEmployeeID), DefaultPurchaserEmployeeApprovalEntryID: nilIfEmpty(d.DefaultPurchaserApprovalEntryID), DefaultPurchaserEmployeeCode: nilIfEmpty(d.DefaultPurchaserCode), DefaultPurchaserEmployeeName: nilIfEmpty(d.DefaultPurchaserName), Enabled: d.Enabled, ApprovalEntryID: id}
+	return dbsqlc.UpdateDCLSupplierVersionParams{Kind: d.Kind, LegalName: d.LegalName, DisplayName: d.DisplayName, ShortName: nilIfEmpty(d.ShortName), LegalIdentifier: nilIfEmpty(d.LegalIdentifier), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.SettlementTermCode), SettlementRuleType: nilIfEmpty(d.SettlementRuleType), SettlementMonthOffset: d.SettlementMonthOffset, SettlementDayOfMonth: d.SettlementDayOfMonth, SettlementDayOffset: d.SettlementDayOffset, DefaultOperatingEntityID: d.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: x.ApprovalEntryID, DefaultOperatingEntityCode: x.Code, DefaultOperatingEntityName: x.Name, DefaultPurchaserEmployeeID: nilIfEmpty(d.DefaultPurchaserEmployeeID), DefaultPurchaserEmployeeApprovalEntryID: nilIfEmpty(d.DefaultPurchaserApprovalEntryID), DefaultPurchaserEmployeeCode: nilIfEmpty(d.DefaultPurchaserCode), DefaultPurchaserEmployeeName: nilIfEmpty(d.DefaultPurchaserName), Enabled: d.Enabled, ApprovalEntryID: id}
 }
 func supplierInsert(id string, d SupplierData) dbsqlc.InsertDCLSupplierVersionParams {
 	p := supplierParams(id, d)
-	return dbsqlc.InsertDCLSupplierVersionParams{ApprovalEntryID: id, Kind: p.Kind, LegalName: p.LegalName, DisplayName: p.DisplayName, ShortName: p.ShortName, TaxNumber: p.TaxNumber, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, Remark: p.Remark, SettlementMethodID: p.SettlementMethodID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, DefaultOperatingEntityID: p.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: p.DefaultOperatingEntityApprovalEntryID, DefaultOperatingEntityCode: p.DefaultOperatingEntityCode, DefaultOperatingEntityName: p.DefaultOperatingEntityName, DefaultPurchaserEmployeeID: p.DefaultPurchaserEmployeeID, DefaultPurchaserEmployeeApprovalEntryID: p.DefaultPurchaserEmployeeApprovalEntryID, DefaultPurchaserEmployeeCode: p.DefaultPurchaserEmployeeCode, DefaultPurchaserEmployeeName: p.DefaultPurchaserEmployeeName, Enabled: p.Enabled}
+	return dbsqlc.InsertDCLSupplierVersionParams{ApprovalEntryID: id, Kind: p.Kind, LegalName: p.LegalName, DisplayName: p.DisplayName, ShortName: p.ShortName, LegalIdentifier: p.LegalIdentifier, ContactName: p.ContactName, ContactPhone: p.ContactPhone, Email: p.Email, Address: p.Address, Remark: p.Remark, SettlementMethodID: p.SettlementMethodID, SettlementMethodCode: p.SettlementMethodCode, SettlementMethodName: p.SettlementMethodName, SettlementTermCode: p.SettlementTermCode, SettlementRuleType: p.SettlementRuleType, SettlementMonthOffset: p.SettlementMonthOffset, SettlementDayOfMonth: p.SettlementDayOfMonth, SettlementDayOffset: p.SettlementDayOffset, DefaultOperatingEntityID: p.DefaultOperatingEntityID, DefaultOperatingEntityApprovalEntryID: p.DefaultOperatingEntityApprovalEntryID, DefaultOperatingEntityCode: p.DefaultOperatingEntityCode, DefaultOperatingEntityName: p.DefaultOperatingEntityName, DefaultPurchaserEmployeeID: p.DefaultPurchaserEmployeeID, DefaultPurchaserEmployeeApprovalEntryID: p.DefaultPurchaserEmployeeApprovalEntryID, DefaultPurchaserEmployeeCode: p.DefaultPurchaserEmployeeCode, DefaultPurchaserEmployeeName: p.DefaultPurchaserEmployeeName, Enabled: p.Enabled}
 }
 func (s *SupplierService) writeSnapshot(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, d SupplierData) error {
 	if e := q.InsertDCLSupplierVersion(ctx, supplierInsert(entryID, d)); e != nil {
@@ -153,14 +147,6 @@ func (s *SupplierService) updateSnapshot(ctx context.Context, q *dbsqlc.Queries,
 	return s.writeChildren(ctx, q, "", entryID, d)
 }
 func (s *SupplierService) writeChildren(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, d SupplierData) error {
-	if e := q.DeleteDCLSupplierVersionIdentifiers(ctx, entryID); e != nil {
-		return e
-	}
-	for _, v := range d.StrongIdentifiers {
-		if e := q.InsertDCLSupplierVersionIdentifier(ctx, dbsqlc.InsertDCLSupplierVersionIdentifierParams{ApprovalEntryID: entryID, IdentifierType: v.Type, Value: v.Value, NormalizedValue: normalizeSupplierIdentifier(v.Value)}); e != nil {
-			return e
-		}
-	}
 	if e := q.DeleteDCLSupplierVersionOperatingEntities(ctx, entryID); e != nil {
 		return e
 	}
@@ -170,57 +156,24 @@ func (s *SupplierService) writeChildren(ctx context.Context, q *dbsqlc.Queries, 
 		}
 	}
 	if objectID != "" {
-		return s.claimOpenIdentifiers(ctx, q, objectID, entryID, d.StrongIdentifiers)
+		return s.claimLegalIdentifier(ctx, q, objectID, entryID, d.LegalIdentifier)
 	}
 	return nil
 }
-func (s *SupplierService) claimOpenIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, vs []BusinessIdentifierInput) error {
-	if e := q.DeleteDCLSupplierIdentifierClaimsForEntry(ctx, &entryID); e != nil {
-		return e
-	}
-	for _, v := range vs {
-		n := normalizeSupplierIdentifier(v.Value)
-		if e := q.LockDCLSupplierIdentifierClaimKey(ctx, dbsqlc.LockDCLSupplierIdentifierClaimKeyParams{IdentifierType: v.Type, NormalizedValue: n}); e != nil {
-			return e
-		}
-		c, e := q.LockDCLSupplierIdentifierClaim(ctx, dbsqlc.LockDCLSupplierIdentifierClaimParams{IdentifierType: v.Type, NormalizedValue: n})
-		if e != nil && !errors.Is(e, pgx.ErrNoRows) {
-			return e
-		}
-		if e == nil && ((c.ApprovedSupplierID != nil && *c.ApprovedSupplierID != objectID) || (c.OpenSupplierID != nil && *c.OpenSupplierID != objectID)) {
-			return newError(ErrorConflict, "supplier_identifier_claimed", "supplier identifier is already occupied", nil, nil)
-		}
-		var ai, ae *string
-		if e == nil {
-			ai, ae = c.ApprovedSupplierID, c.ApprovedApprovalEntryID
-		}
-		if e = q.UpsertDCLSupplierIdentifierClaim(ctx, dbsqlc.UpsertDCLSupplierIdentifierClaimParams{IdentifierType: v.Type, NormalizedValue: n, ApprovedSupplierID: ai, ApprovedApprovalEntryID: ae, OpenSupplierID: &objectID, OpenApprovalEntryID: &entryID}); e != nil {
-			return e
-		}
-	}
-	return nil
+func (s *SupplierService) claimLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
+	return maintainLegalIdentifierClaim(ctx, supplierLegalIdentifierClaimStore{q: q}, objectID, entryID, normalizeSupplierIdentifier(legalIdentifier), false, legalIdentifierClaimConflict{
+		errorKey: "supplier_legal_identifier_claimed",
+		message:  "supplier legal identifier is already occupied",
+	})
 }
-func (s *SupplierService) promoteIdentifiers(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string, vs []BusinessIdentifierInput) error {
-	if e := q.DeleteDCLSupplierIdentifierClaimsForEntry(ctx, &entryID); e != nil {
-		return e
-	}
-	for _, v := range vs {
-		n := normalizeSupplierIdentifier(v.Value)
-		if e := q.LockDCLSupplierIdentifierClaimKey(ctx, dbsqlc.LockDCLSupplierIdentifierClaimKeyParams{IdentifierType: v.Type, NormalizedValue: n}); e != nil {
-			return e
-		}
-		if e := q.UpsertDCLSupplierIdentifierClaim(ctx, dbsqlc.UpsertDCLSupplierIdentifierClaimParams{IdentifierType: v.Type, NormalizedValue: n, ApprovedSupplierID: &objectID, ApprovedApprovalEntryID: &entryID}); e != nil {
-			return e
-		}
-	}
-	return nil
+func (s *SupplierService) promoteLegalIdentifier(ctx context.Context, q *dbsqlc.Queries, objectID, entryID, legalIdentifier string) error {
+	return maintainLegalIdentifierClaim(ctx, supplierLegalIdentifierClaimStore{q: q}, objectID, entryID, normalizeSupplierIdentifier(legalIdentifier), true, legalIdentifierClaimConflict{
+		errorKey: "supplier_legal_identifier_claimed",
+		message:  "supplier legal identifier is already occupied",
+	})
 }
 func (s *SupplierService) loadData(ctx context.Context, q *dbsqlc.Queries, id string) (SupplierData, error) {
 	r, e := q.GetDCLSupplierVersion(ctx, id)
-	if e != nil {
-		return SupplierData{}, translateError(e)
-	}
-	ids, e := q.ListDCLSupplierVersionIdentifiers(ctx, id)
 	if e != nil {
 		return SupplierData{}, translateError(e)
 	}
@@ -228,10 +181,7 @@ func (s *SupplierService) loadData(ctx context.Context, q *dbsqlc.Queries, id st
 	if e != nil {
 		return SupplierData{}, translateError(e)
 	}
-	d := SupplierData{SupplierInput: SupplierInput{Kind: r.Kind, LegalName: r.LegalName, DisplayName: r.DisplayName, TaxNumber: stringValue(r.TaxNumber), Enabled: r.Enabled, DefaultOperatingEntityID: r.DefaultOperatingEntityID, ShortName: stringValue(r.ShortName), ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), Remark: stringValue(r.Remark), SettlementMethodID: stringValue(r.SettlementMethodID), DefaultPurchaserEmployeeID: stringValue(r.DefaultPurchaserEmployeeID), StrongIdentifiers: make([]BusinessIdentifierInput, 0, len(ids))}, SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), SettlementTermCode: stringValue(r.SettlementTermCode), SettlementRuleType: stringValue(r.SettlementRuleType), SettlementMonthOffset: r.SettlementMonthOffset, SettlementDayOfMonth: r.SettlementDayOfMonth, SettlementDayOffset: r.SettlementDayOffset, DefaultPurchaserApprovalEntryID: stringValue(r.DefaultPurchaserEmployeeApprovalEntryID), DefaultPurchaserCode: stringValue(r.DefaultPurchaserEmployeeCode), DefaultPurchaserName: stringValue(r.DefaultPurchaserEmployeeName), OperatingEntities: make([]SupplierOperatingEntitySnapshot, 0, len(ops))}
-	for _, v := range ids {
-		d.StrongIdentifiers = append(d.StrongIdentifiers, BusinessIdentifierInput{Type: v.IdentifierType, Value: v.Value})
-	}
+	d := SupplierData{SupplierInput: SupplierInput{Kind: r.Kind, LegalName: r.LegalName, DisplayName: r.DisplayName, LegalIdentifier: stringValue(r.LegalIdentifier), Enabled: r.Enabled, DefaultOperatingEntityID: r.DefaultOperatingEntityID, ShortName: stringValue(r.ShortName), ContactName: stringValue(r.ContactName), ContactPhone: stringValue(r.ContactPhone), Email: stringValue(r.Email), Address: stringValue(r.Address), Remark: stringValue(r.Remark), SettlementMethodID: stringValue(r.SettlementMethodID), DefaultPurchaserEmployeeID: stringValue(r.DefaultPurchaserEmployeeID)}, SettlementMethodCode: stringValue(r.SettlementMethodCode), SettlementMethodName: stringValue(r.SettlementMethodName), SettlementTermCode: stringValue(r.SettlementTermCode), SettlementRuleType: stringValue(r.SettlementRuleType), SettlementMonthOffset: r.SettlementMonthOffset, SettlementDayOfMonth: r.SettlementDayOfMonth, SettlementDayOffset: r.SettlementDayOffset, DefaultPurchaserApprovalEntryID: stringValue(r.DefaultPurchaserEmployeeApprovalEntryID), DefaultPurchaserCode: stringValue(r.DefaultPurchaserEmployeeCode), DefaultPurchaserName: stringValue(r.DefaultPurchaserEmployeeName), OperatingEntities: make([]SupplierOperatingEntitySnapshot, 0, len(ops))}
 	for _, v := range ops {
 		d.OperatingEntityIDs = append(d.OperatingEntityIDs, v.OperatingEntityID)
 		d.OperatingEntities = append(d.OperatingEntities, SupplierOperatingEntitySnapshot{SourceObjectID: v.OperatingEntityID, ApprovalEntryID: v.OperatingEntityApprovalEntryID, Code: v.OperatingEntityCode, Name: v.OperatingEntityName})
@@ -306,9 +256,6 @@ func (s *SupplierService) Save(ctx context.Context, in SupplierSaveInput, a appr
 			}
 		}
 		if e == nil {
-			e = q.CopyDCLSupplierVersionIdentifiers(ctx, dbsqlc.CopyDCLSupplierVersionIdentifiersParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
-		}
-		if e == nil {
 			e = q.CopyDCLSupplierVersionOperatingEntities(ctx, dbsqlc.CopyDCLSupplierVersionOperatingEntitiesParams{NewApprovalEntryID: entry.ID, SourceApprovalEntryID: stored.ID})
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
@@ -326,7 +273,7 @@ func (s *SupplierService) Save(ctx context.Context, in SupplierSaveInput, a appr
 	if e = s.updateSnapshot(ctx, q, entry.ID, d); e != nil {
 		return SupplierMutation{}, translateError(e)
 	}
-	if e = s.claimOpenIdentifiers(ctx, q, id.ObjectID, entry.ID, d.StrongIdentifiers); e != nil {
+	if e = s.claimLegalIdentifier(ctx, q, id.ObjectID, entry.ID, d.LegalIdentifier); e != nil {
 		return SupplierMutation{}, translateError(e)
 	}
 	entry, e = s.coordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, a, supplierPayload(id, d.Enabled))
@@ -379,6 +326,17 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 		return SupplierMutation{}, e
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
+		if d.LegalIdentifier == "" {
+			return SupplierMutation{}, newError(ErrorValidation, "legal_identifier_required", "supplier legal identifier is required", nil, nil)
+		}
+		if _, identifierErr := archiveLegalIdentifier(d.Kind, d.LegalIdentifier); identifierErr != nil {
+			return SupplierMutation{}, identifierErr
+		}
+		if action == approval.ActionSubmitted {
+			if e = s.claimLegalIdentifier(ctx, q, in.ObjectID, in.ApprovalEntryID, d.LegalIdentifier); e != nil {
+				return SupplierMutation{}, translateError(e)
+			}
+		}
 		for _, v := range d.OperatingEntities {
 			r, x := s.rules.ResolveCurrentReference(ctx, tx, bobdomain.EntityOperatingEntity, v.SourceObjectID)
 			if x != nil {
@@ -405,13 +363,13 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 	}
 	if action == approval.ActionApproved {
 		if latest, latestErr := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntitySupplier, SubjectID: in.ObjectID}); latestErr == nil && latest.ID != in.ApprovalEntryID {
-			if e = q.DeleteDCLSupplierIdentifierClaimsForEntry(ctx, &latest.ID); e != nil {
+			if e = q.DeleteDCLSupplierLegalIdentifierClaimsForEntry(ctx, &latest.ID); e != nil {
 				return SupplierMutation{}, translateError(e)
 			}
 		} else if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
 			return SupplierMutation{}, translateError(latestErr)
 		}
-		if e = s.promoteIdentifiers(ctx, q, in.ObjectID, in.ApprovalEntryID, d.StrongIdentifiers); e != nil {
+		if e = s.promoteLegalIdentifier(ctx, q, in.ObjectID, in.ApprovalEntryID, d.LegalIdentifier); e != nil {
 			return SupplierMutation{}, translateError(e)
 		}
 	}
@@ -422,13 +380,13 @@ func (s *SupplierService) transition(ctx context.Context, in SupplierVersionInpu
 			if loadErr != nil {
 				return SupplierMutation{}, loadErr
 			}
-			if e = s.promoteIdentifiers(ctx, q, in.ObjectID, fallback.ID, fallbackData.StrongIdentifiers); e != nil {
+			if e = s.promoteLegalIdentifier(ctx, q, in.ObjectID, fallback.ID, fallbackData.LegalIdentifier); e != nil {
 				return SupplierMutation{}, translateError(e)
 			}
 		} else if !errors.Is(fallbackErr, pgx.ErrNoRows) {
 			return SupplierMutation{}, translateError(fallbackErr)
 		}
-		if e = s.claimOpenIdentifiers(ctx, q, in.ObjectID, in.ApprovalEntryID, d.StrongIdentifiers); e != nil {
+		if e = s.claimLegalIdentifier(ctx, q, in.ObjectID, in.ApprovalEntryID, d.LegalIdentifier); e != nil {
 			return SupplierMutation{}, translateError(e)
 		}
 	}
@@ -466,10 +424,7 @@ func (s *SupplierService) Delete(ctx context.Context, in SupplierDeleteInput, a 
 	if e != nil {
 		return e
 	}
-	if e = q.DeleteDCLSupplierIdentifierClaimsForEntry(ctx, &entry.ID); e != nil {
-		return translateError(e)
-	}
-	if e = q.DeleteDCLSupplierVersionIdentifiers(ctx, entry.ID); e != nil {
+	if e = q.DeleteDCLSupplierLegalIdentifierClaimsForEntry(ctx, &entry.ID); e != nil {
 		return translateError(e)
 	}
 	if e = q.DeleteDCLSupplierVersionOperatingEntities(ctx, entry.ID); e != nil {

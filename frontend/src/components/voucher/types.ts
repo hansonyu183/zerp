@@ -173,9 +173,9 @@ export interface VoucherProductionOutputDraft {
   formulaError?: string
 }
 
-export interface VoucherSalesReceiptAccountAllocationDraft {
+export interface VoucherSalesReceiptSubunitAllocationDraft {
   key: string
-  account: VoucherReference | null
+  subunit: VoucherReference | null
   amount: string
 }
 
@@ -207,7 +207,7 @@ export interface VoucherDraftForm {
   fundAccount: VoucherReference | null
   sourceName: string
   amount: string
-  accountAllocations: VoucherSalesReceiptAccountAllocationDraft[]
+  subunitAllocations: VoucherSalesReceiptSubunitAllocationDraft[]
   serviceContract: {
     capabilities: Array<'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'>
     applicableFrom: string
@@ -436,7 +436,7 @@ export interface IntermediaryReference {
   objectId: string
   approvalEntryId: string
   entity:
-    'customer-account' | 'employee' | 'sales-partner' | 'other-unit' | 'product'
+    'customer-subunit' | 'employee' | 'sales-partner' | 'other-unit' | 'product'
   code: string
   name: string
 }
@@ -669,7 +669,7 @@ export interface VoucherEntityConfig {
   usesHandler?: boolean
   usesEmployee?: boolean
   usesOperatingEntity?: boolean
-  usesAccountAllocations?: boolean
+  usesSubunitAllocations?: boolean
   usesSourceName?: boolean
   directAmount?: boolean
   productionMode?: 'order' | 'self'

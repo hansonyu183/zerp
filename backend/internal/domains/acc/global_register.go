@@ -269,8 +269,12 @@ func registerContainerChange(ctx context.Context, q *dbsqlc.Queries, event vouAp
 			continue
 		}
 		if err := q.CreateAccountingContainerEntry(ctx, dbsqlc.CreateAccountingContainerEntryParams{
-			ID: ulid.Make().String(), CustomerID: event.Snapshot.Data.Customer.ObjectID,
-			ContainerType: containerType, QuantityDelta: delta,
+			ID: ulid.Make().String(), CustomerSubunitID: event.Snapshot.Data.Customer.ObjectID,
+			CustomerID:              event.Snapshot.Data.Customer.CustomerID,
+			CustomerApprovalEntryID: event.Snapshot.Data.Customer.ApprovalEntryID,
+			CustomerSubunitCode:     event.Snapshot.Data.Customer.Code,
+			CustomerSubunitName:     event.Snapshot.Data.Customer.Name,
+			ContainerType:           containerType, QuantityDelta: delta,
 			SourceDocumentID: event.DocumentID, SourceRevision: event.Revision,
 		}); err != nil {
 			return databaseError("create container entry", err)

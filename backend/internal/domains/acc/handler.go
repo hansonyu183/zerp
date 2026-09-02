@@ -294,7 +294,14 @@ func (h *Handler) saveOpening(c *gin.Context) {
 	}
 	containers := make([]OpeningContainerInput, 0, len(body.Containers))
 	for _, item := range body.Containers {
-		containers = append(containers, OpeningContainerInput{CustomerID: item.CustomerId, ContainerType: string(item.ContainerType), Quantity: int64(item.Quantity)})
+		containers = append(containers, OpeningContainerInput{
+			Subunit: BusinessArchiveDimensionReference{
+				Entity: string(item.Subunit.Entity), ObjectID: item.Subunit.ObjectId,
+				CustomerID: optionalString(item.Subunit.CustomerId), ApprovalEntryID: item.Subunit.ApprovalEntryId,
+				Code: item.Subunit.Code, Name: item.Subunit.Name,
+			},
+			ContainerType: string(item.ContainerType), Quantity: int64(item.Quantity),
+		})
 	}
 	actor, ok := h.approvalActor(c)
 	if !ok {

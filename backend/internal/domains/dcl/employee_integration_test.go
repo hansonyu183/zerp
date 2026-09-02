@@ -36,12 +36,12 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	}
 	owner = submitAndApproveOperatingEntity(t, operating, owner, creator("owner-submit"), reviewer("owner-approve"))
 	if _, err = employees.Create(t.Context(), EmployeeCreateInput{Data: EmployeeInput{
-		Kind: "PERSON", LegalName: "非法员工标识", StrongIdentifiers: []BusinessIdentifierInput{{Type: "BANK_ACCOUNT", Value: "employee-invalid"}},
+		Kind: "PERSON", LegalName: "非法员工标识", LegalIdentifier: "employee-invalid",
 		Enabled: true, CurrentOperatingEntityID: owner.ObjectID,
 	}}, creator("employee-invalid-identifier")); err == nil {
-		t.Fatal("Employee accepted an unsupported business identifier type")
+		t.Fatal("Employee accepted an invalid legal identifier")
 	} else {
-		assertDCLValidationFailure(t, err)
+		requireLegalIdentifierError(t, err, "invalid_legal_identifier")
 	}
 	assertDCLSubjectCount(t, pool, EntityEmployee, 0)
 	categoryID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityEmployeeCategory, "正式员工", creator("category-create"))
@@ -49,7 +49,7 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 	positionID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityPosition, "销售经理", creator("position-create"))
 
 	v1, err := employees.Create(t.Context(), EmployeeCreateInput{
-		Data: employeeDeclarationInput("张三", "110101199001010011", owner.ObjectID, true, categoryID, departmentID, positionID, "13800138000", "首版"),
+		Data: employeeDeclarationInput("张三", "110105199001010010", owner.ObjectID, true, categoryID, departmentID, positionID, "13800138000", "首版"),
 	}, creator("employee-create"))
 	if err != nil {
 		t.Fatalf("create Employee V1: %v", err)
@@ -70,17 +70,17 @@ func TestEmployeeDeclarationOwnsLifecycleSnapshotsAndCurrentIntegration(t *testi
 		t.Fatalf("Employee AUX snapshots = %+v", view.Data)
 	}
 
-	if _, err = employees.Create(t.Context(), EmployeeCreateInput{Data: employeeDeclarationInput("同类标识冲突", "110101199001010011", owner.ObjectID, true, categoryID, departmentID, positionID, "13800138009", "冲突")}, creator("employee-identifier-conflict")); err == nil {
-		t.Fatal("Employee accepted same-type strong identifier while first draft is open")
-	} else if !errors.As(err, &domainErr) || domainErr.ErrorKey != "employee_identifier_claimed" {
-		t.Fatalf("Employee strong identifier conflict = %v", err)
+	if _, err = employees.Create(t.Context(), EmployeeCreateInput{Data: employeeDeclarationInput("同类标识冲突", "110105199001010010", owner.ObjectID, true, categoryID, departmentID, positionID, "13800138009", "冲突")}, creator("employee-identifier-conflict")); err == nil {
+		t.Fatal("Employee accepted same-type legal identifier while first draft is open")
+	} else if !errors.As(err, &domainErr) || domainErr.ErrorKey != "employee_legal_identifier_claimed" {
+		t.Fatalf("Employee legal identifier conflict = %v", err)
 	}
 	assertEmployeeCurrentAbsent(t, business, v1.ObjectID)
 
 	v1 = submitAndApproveEmployee(t, employees, v1, creator("employee-submit"), reviewer("employee-approve"))
 	assertEmployeeCurrent(t, business, v1.ObjectID, v1.Approval.ApprovalEntryID, "张三", "13800138000", true)
 
-	v2, err := employees.Save(t.Context(), EmployeeSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Data: employeeDeclarationInput("张三", "110101199001010011", owner.ObjectID, false, categoryID, departmentID, positionID, "13900139000", "二版")}, creator("employee-save-v2"))
+	v2, err := employees.Save(t.Context(), EmployeeSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Data: employeeDeclarationInput("张三", "110105199001010010", owner.ObjectID, false, categoryID, departmentID, positionID, "13900139000", "二版")}, creator("employee-save-v2"))
 	if err != nil {
 		t.Fatalf("save Employee V2: %v", err)
 	}
@@ -132,12 +132,12 @@ func TestEmployeeQueryFiltersOperatingEntityWithDatabasePaginationIntegration(t 
 	for _, fixture := range []struct {
 		name, identifier, operatingEntityID string
 	}{
-		{name: "筛选员工 A1", identifier: "110101199001010031", operatingEntityID: ownerA.ObjectID},
-		{name: "筛选员工 A2", identifier: "110101199001010032", operatingEntityID: ownerA.ObjectID},
-		{name: "筛选员工 B1", identifier: "110101199001010033", operatingEntityID: ownerB.ObjectID},
+		{name: "筛选员工 A1", identifier: "110105199001010029", operatingEntityID: ownerA.ObjectID},
+		{name: "筛选员工 A2", identifier: "110105199001010037", operatingEntityID: ownerA.ObjectID},
+		{name: "筛选员工 B1", identifier: "110105199001010045", operatingEntityID: ownerB.ObjectID},
 	} {
 		if _, err = employees.Create(t.Context(), EmployeeCreateInput{Data: EmployeeInput{
-			Kind: "PERSON", LegalName: fixture.name, StrongIdentifiers: []BusinessIdentifierInput{{Type: "PERSON_ID", Value: fixture.identifier}},
+			Kind: "PERSON", LegalName: fixture.name, LegalIdentifier: fixture.identifier,
 			Enabled: true, CurrentOperatingEntityID: fixture.operatingEntityID,
 		}}, creator("employee-create-"+fixture.identifier)); err != nil {
 			t.Fatalf("create %s: %v", fixture.name, err)
@@ -181,7 +181,7 @@ func TestEmployeeDraftSavePreservesDisabledAuxiliarySnapshotIntegration(t *testi
 	departmentV2ID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityDepartment, "销售二部", creator("department-v2-create"))
 	positionID := createEmployeeAuxiliary(t, auxiliary, auxdomain.EntityPosition, "销售经理", creator("position-create"))
 	draft, err := employees.Create(t.Context(), EmployeeCreateInput{
-		Data: employeeDeclarationInput("李四", "110101199001010022", owner.ObjectID, true, categoryID, departmentID, positionID, "13800138001", "首版"),
+		Data: employeeDeclarationInput("李四", "110105199001010053", owner.ObjectID, true, categoryID, departmentID, positionID, "13800138001", "首版"),
 	}, creator("employee-create"))
 	if err != nil {
 		t.Fatalf("create employee draft: %v", err)
@@ -195,7 +195,7 @@ func TestEmployeeDraftSavePreservesDisabledAuxiliarySnapshotIntegration(t *testi
 	}
 	saved, err := employees.Save(t.Context(), EmployeeSaveInput{
 		ObjectID: draft.ObjectID, ApprovalEntryID: draft.Approval.ApprovalEntryID, ApprovalRevision: draft.Approval.Revision,
-		Data: employeeDeclarationInput("李四", "110101199001010022", owner.ObjectID, true, categoryID, departmentV2ID, positionID, "13800138001", "仅修改备注"),
+		Data: employeeDeclarationInput("李四", "110105199001010053", owner.ObjectID, true, categoryID, departmentV2ID, positionID, "13800138001", "仅修改备注"),
 	}, creator("employee-save"))
 	if err != nil {
 		t.Fatalf("save employee draft with disabled AUX source: %v", err)
@@ -209,7 +209,7 @@ func TestEmployeeDraftSavePreservesDisabledAuxiliarySnapshotIntegration(t *testi
 	}
 	if _, err = employees.Save(t.Context(), EmployeeSaveInput{
 		ObjectID: saved.ObjectID, ApprovalEntryID: saved.Approval.ApprovalEntryID, ApprovalRevision: saved.Approval.Revision,
-		Data: employeeDeclarationInput("李四", "110101199001010022", owner.ObjectID, true, categoryID, departmentID, positionID, "13800138001", "拒绝停用新部门"),
+		Data: employeeDeclarationInput("李四", "110105199001010053", owner.ObjectID, true, categoryID, departmentID, positionID, "13800138001", "拒绝停用新部门"),
 	}, creator("employee-disabled-selection")); err == nil {
 		t.Fatal("save accepted newly selected disabled department")
 	}
@@ -219,7 +219,7 @@ func employeeDeclarationInput(name, identifier, operatingEntityID string, enable
 	return EmployeeInput{
 		Kind:                     "PERSON",
 		LegalName:                name,
-		StrongIdentifiers:        []BusinessIdentifierInput{{Type: "PERSON_ID", Value: identifier}},
+		LegalIdentifier:          identifier,
 		Enabled:                  enabled,
 		CurrentOperatingEntityID: operatingEntityID,
 		EmployeeCategoryID:       categoryID,

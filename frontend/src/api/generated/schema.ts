@@ -822,6 +822,14 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
     };
   };
+  "/dcl/customer/save-subunits": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclCustomerSaveSubunitsRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
   "/dcl/customer/submit": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -2389,8 +2397,6 @@ export interface components {
       "DclProductVersionPage": Models.DclProductVersionPage;
       "DclProductVersionPageResponse": Models.DclProductVersionPageResponse;
       "BusinessIdentityKind": Models.BusinessIdentityKind;
-      "BusinessIdentifierType": Models.BusinessIdentifierType;
-      "BusinessIdentifier": Models.BusinessIdentifier;
       "DclEmployeeInput": Models.DclEmployeeInput;
       "DclEmployeeCreateRequest": Models.DclEmployeeCreateRequest;
       "DclOperatingEntityMutationResponse": Models.DclOperatingEntityMutationResponse;
@@ -2425,6 +2431,7 @@ export interface components {
       "DclCustomerListItem": Models.DclCustomerListItem;
       "DclCustomerQueryPage": Models.DclCustomerQueryPage;
       "DclCustomerQueryResponse": Models.DclCustomerQueryResponse;
+      "CustomerIdentityKind": Models.CustomerIdentityKind;
       "DclCustomerRemittanceProfile": Models.DclCustomerRemittanceProfile;
       "DclCustomerSnapshot": Models.DclCustomerSnapshot;
       "DclCustomerAuxiliarySnapshot": Models.DclCustomerAuxiliarySnapshot;
@@ -2433,15 +2440,17 @@ export interface components {
       "DclCustomerCreditLimit": Models.DclCustomerCreditLimit;
       "DclCustomerSalesAttributionSnapshot": Models.DclCustomerSalesAttributionSnapshot;
       "DclCustomerAttachmentView": Models.DclCustomerAttachmentView;
-      "DclCustomerAccountData": Models.DclCustomerAccountData;
+      "DclCustomerSubunitData": Models.DclCustomerSubunitData;
       "DclCustomerData": Models.DclCustomerData;
       "DclCustomerView": Models.DclCustomerView;
       "DclCustomerViewResponse": Models.DclCustomerViewResponse;
+      "DclCustomerRootInput": Models.DclCustomerRootInput;
       "DclCustomerSalesAttributionInput": Models.DclCustomerSalesAttributionInput;
-      "DclCustomerAccountInput": Models.DclCustomerAccountInput;
+      "DclCustomerSubunitInput": Models.DclCustomerSubunitInput;
       "DclCustomerInput": Models.DclCustomerInput;
       "DclCustomerCreateRequest": Models.DclCustomerCreateRequest;
       "DclCustomerSaveRequest": Models.DclCustomerSaveRequest;
+      "DclCustomerSaveSubunitsRequest": Models.DclCustomerSaveSubunitsRequest;
       "DclCustomerVersionView": Models.DclCustomerVersionView;
       "DclCustomerVersionPage": Models.DclCustomerVersionPage;
       "DclCustomerVersionPageResponse": Models.DclCustomerVersionPageResponse;
@@ -2673,7 +2682,7 @@ export interface components {
       "BusinessEnvelope": Models.BusinessEnvelope;
       "VouUnitSnapshotView": Models.VouUnitSnapshotView;
       "VouReferenceView": Models.VouReferenceView;
-      "VouSalesReceiptAccountAllocationView": Models.VouSalesReceiptAccountAllocationView;
+      "VouSalesReceiptSubunitAllocationView": Models.VouSalesReceiptSubunitAllocationView;
       "VouQuantitySnapshotView": Models.VouQuantitySnapshotView;
       "VouFormulaView": Models.VouFormulaView;
       "VouProductLineView": Models.VouProductLineView;
@@ -2823,7 +2832,7 @@ export interface components {
       "RptDirectoryPageResponse": Models.RptDirectoryPageResponse;
       "RptReferenceQueryRequest": Models.RptReferenceQueryRequest;
       "RptReferenceItem": Models.RptReferenceItem;
-      "RptCustomerAccountReference": Models.RptCustomerAccountReference;
+      "RptCustomerSubunitReference": Models.RptCustomerSubunitReference;
       "RptCounterpartyReference": Models.RptCounterpartyReference;
       "RptReferencePageData": Models.RptReferencePageData;
       "RptReferencePageResponse": Models.RptReferencePageResponse;

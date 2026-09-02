@@ -141,7 +141,7 @@ func approveWorkflowEmployee(t *testing.T, pool *pgxpool.Pool, business *bobdoma
 	t.Helper()
 	employees := dcldomain.NewEmployeeService(pool, business, authorization.Func(nil), bus)
 	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
-		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: name, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true, CurrentOperatingEntityID: operatingEntityID},
+		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: name, LegalIdentifier: "110105199001010029", Enabled: true, CurrentOperatingEntityID: operatingEntityID},
 	}, workflowActor(t, "wfl-employee-create"))
 	if err != nil {
 		t.Fatalf("create employee declaration: %v", err)

@@ -180,13 +180,13 @@ test('未登录访问 DCL 完整深链后登录返回原路径', async ({
   ).toBeVisible()
 })
 
-test('旧 BOB 与独立客户核算账户深链不可达', async ({ page, workerState }) => {
+test('旧 BOB 与独立客户子单位深链不可达', async ({ page, workerState }) => {
   await signIn(page, workerState)
 
   for (const path of [
     '/bob/customer',
     '/bob/product',
-    '/bob/customer-account',
+    '/bob/customer-subunit',
   ]) {
     await page.goto(path)
     await expect(page).toHaveURL(new RegExp(`${path}$`))

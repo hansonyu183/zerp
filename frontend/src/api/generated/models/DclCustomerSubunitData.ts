@@ -2,16 +2,19 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { DclCustomerAttachmentView } from './DclCustomerAttachmentView';
+import type { DclCustomerAuxiliarySnapshot } from './DclCustomerAuxiliarySnapshot';
 import type { DclCustomerCreditLimit } from './DclCustomerCreditLimit';
 import type { DclCustomerPricingPolicy } from './DclCustomerPricingPolicy';
-import type { DclCustomerSalesAttributionInput } from './DclCustomerSalesAttributionInput';
-export type DclCustomerAccountInput = {
-  accountId?: string | null;
+import type { DclCustomerSalesAttributionSnapshot } from './DclCustomerSalesAttributionSnapshot';
+export type DclCustomerSubunitData = {
+  subunitId: string;
+  code: string;
   enabled: boolean;
-  isDefault: boolean;
   name: string;
   shortName?: string | null;
   customerTypeId: string;
+  customerType: DclCustomerAuxiliarySnapshot;
   contactName?: string | null;
   contactPhone?: string | null;
   email?: string | null;
@@ -23,7 +26,10 @@ export type DclCustomerAccountInput = {
   transportSurcharge?: string | null;
   pricingPolicy: DclCustomerPricingPolicy;
   creditLimits: Array<DclCustomerCreditLimit>;
-  primarySalesAttribution: DclCustomerSalesAttributionInput;
+  settlementMethod: DclCustomerAuxiliarySnapshot | null;
+  paymentMethod: DclCustomerAuxiliarySnapshot | null;
+  primarySalesAttribution: DclCustomerSalesAttributionSnapshot;
   internalReminder?: string | null;
   defaultSalesOrderRemark?: string | null;
+  attachments: Array<DclCustomerAttachmentView>;
 };

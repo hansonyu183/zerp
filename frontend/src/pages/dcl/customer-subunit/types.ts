@@ -9,10 +9,9 @@ export interface CustomerPricingCostItemForm {
   orderAmount?: string
 }
 
-export interface CustomerAccountForm {
-  accountId?: string
+export interface CustomerSubunitForm {
+  subunitId?: string
   enabled: boolean
-  isDefault: boolean
   name: string
   shortName: string
   customerTypeId: string

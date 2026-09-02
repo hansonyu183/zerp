@@ -145,8 +145,8 @@ func TestVOUApprovalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 				event.ToRevision == nil || event.Payload.DocumentID != event.Entry.SubjectID ||
 				event.Payload.Data.BusinessDate != "2026-07-24" || event.Payload.Data.FundAccount == nil ||
 				event.Payload.Data.Customer == nil || event.Payload.Data.OperatingEntity == nil ||
-				len(event.Payload.Data.AccountAllocations) != 1 ||
-				event.Payload.Data.AccountAllocations[0].Account.CustomerID != refs.salesReceiptCustomer.ObjectID ||
+				len(event.Payload.Data.SubunitAllocations) != 1 ||
+				event.Payload.Data.SubunitAllocations[0].Subunit.CustomerID != refs.salesReceiptCustomer.ObjectID ||
 				event.Payload.Amount != "100.00" {
 				return errors.New("approved event does not carry the complete typed document snapshot")
 			}

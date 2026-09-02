@@ -51,10 +51,7 @@ interface SubjectView {
 interface OpeningView {
   approval: ApprovalMeta
   lines: Array<{
-    dimensionReferences: Record<
-      string,
-      ReferenceCandidate & { entity: string }
-    >
+    dimensionReferences: Record<string, ReferenceCandidate & { entity: string }>
   }>
 }
 
@@ -114,9 +111,7 @@ async function oneReference(
   return candidate
 }
 
-test('真实 API 保存服务合同类型化对手方精确快照', async ({
-  workerState,
-}) => {
+test('真实 API 保存服务合同类型化对手方精确快照', async ({ workerState }) => {
   const operator = await apiSession(workerState.operator)
   try {
     const counterparty = await oneReference(
@@ -227,19 +222,19 @@ test('真实 API 选择已批准销售合作方并保存服务合同快照', asy
   }
 })
 
-test('真实 API 保存并历史读取 ACC Customer Account 类型化维度', async ({
+test('真实 API 保存并历史读取 ACC Customer Subunit 类型化维度', async ({
   workerState,
 }) => {
   const operator = await apiSession(workerState.operator)
   const reviewer = await apiSession(workerState.reviewer)
   try {
-    const account = await oneReference(
+    const subunit = await oneReference(
       operator.api,
-      'customer-account',
+      'customer-subunit',
       workerState.fixtures.customer,
     )
-    if (!account.customerId) {
-      throw new Error('Customer Account E2E 缺少 customerId。')
+    if (!subunit.customerId) {
+      throw new Error('Customer Subunit E2E 缺少 customerId。')
     }
     const users = await operator.api.post<UserPage>('app/user/query', {
       page: 1,
@@ -269,7 +264,7 @@ test('真实 API 保存并历史读取 ACC Customer Account 类型化维度', as
         name: 'E2E 客户应收',
         balanceDirection: 'DEBIT',
         enabled: true,
-        requiredDimensions: ['CUSTOMER_ACCOUNT'],
+        requiredDimensions: ['CUSTOMER_SUBUNIT'],
         inventoryQuantity: false,
         settlementPurpose: 'RECEIVABLE',
       },
@@ -285,12 +280,12 @@ test('真实 API 保存并历史读取 ACC Customer Account 类型化维度', as
       settlementPurpose: 'NONE',
     })
     const reference = {
-      entity: 'customer-account',
-      objectId: account.objectId,
-      customerId: account.customerId,
-      approvalEntryId: account.approvalEntryId,
-      code: account.code,
-      name: account.name,
+      entity: 'customer-subunit',
+      objectId: subunit.objectId,
+      customerId: subunit.customerId,
+      approvalEntryId: subunit.approvalEntryId,
+      code: subunit.code,
+      name: subunit.name,
     }
     const saved = await operator.api.post<OpeningView>('acc/opening/save', {
       bookId: book.bookId,
@@ -301,8 +296,8 @@ test('真实 API 保存并历史读取 ACC Customer Account 类型化维度', as
           currency: 'CNY',
           debitAmount: '100.00',
           creditAmount: '0.00',
-          dimensions: { CUSTOMER_ACCOUNT: account.objectId },
-          dimensionReferences: { CUSTOMER_ACCOUNT: reference },
+          dimensions: { CUSTOMER_SUBUNIT: subunit.objectId },
+          dimensionReferences: { CUSTOMER_SUBUNIT: reference },
         },
         {
           subjectId: equity.subjectId,
@@ -317,10 +312,10 @@ test('真实 API 保存并历史读取 ACC Customer Account 类型化维度', as
       bills: [],
       containers: [],
     })
-    const pending = await operator.api.post<OpeningView>(
-      'acc/opening/submit',
-      { bookId: book.bookId, revision: saved.approval.revision },
-    )
+    const pending = await operator.api.post<OpeningView>('acc/opening/submit', {
+      bookId: book.bookId,
+      revision: saved.approval.revision,
+    })
     await reviewer.api.post<OpeningView>('acc/opening/approve', {
       bookId: book.bookId,
       revision: pending.approval.revision,
@@ -330,7 +325,7 @@ test('真实 API 保存并历史读取 ACC Customer Account 类型化维度', as
       { bookId: book.bookId },
     )
     expect(historical.approval.status).toBe('APPROVED')
-    expect(historical.lines[0]?.dimensionReferences.CUSTOMER_ACCOUNT).toEqual(
+    expect(historical.lines[0]?.dimensionReferences.CUSTOMER_SUBUNIT).toEqual(
       reference,
     )
   } finally {

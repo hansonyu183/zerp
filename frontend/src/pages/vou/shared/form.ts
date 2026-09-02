@@ -44,7 +44,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     fundAccount: null,
     sourceName: '',
     amount: '',
-    accountAllocations: [],
+    subunitAllocations: [],
     ...emptyServiceDetails(),
     parentDocumentId: '',
     parentDocumentNo: '',
@@ -176,7 +176,7 @@ function formCounterpartyType(
   reference: VoucherReferenceView | undefined,
 ): VoucherDraftForm['counterpartyType'] {
   switch (reference?.entity) {
-    case 'customer-account':
+    case 'customer-subunit':
       return 'customer'
     case 'customer':
     case 'supplier':
@@ -242,9 +242,9 @@ export function formFromDocument(
     fundAccount: formReference(data.fundAccount),
     sourceName: data.sourceName ?? '',
     amount: document.amount,
-    accountAllocations: (data.accountAllocations ?? []).map((line) => ({
+    subunitAllocations: (data.subunitAllocations ?? []).map((line) => ({
       key: crypto.randomUUID(),
-      account: formReference(line.account),
+      subunit: formReference(line.subunit),
       amount: line.amount,
     })),
     ...serviceDetailsFromDocument(data),

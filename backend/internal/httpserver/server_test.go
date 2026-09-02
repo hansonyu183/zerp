@@ -231,15 +231,15 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 	}
 }
 
-func TestCustomerAccountRoutesAreNotRegistered(t *testing.T) {
+func TestCustomerSubunitRoutesAreNotRegistered(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
 		dcldomain.NewCustomerHandler(nil, nil, nil, testLogger()).Register(router)
 		bobdomain.NewHandler(nil, nil, testLogger()).Register(router)
 	})
 	hasCustomerRoute := false
 	for _, route := range router.Routes() {
-		if strings.Contains(route.Path, "customer-account") {
-			t.Fatalf("retired Customer Account route remains registered: %s", route.Path)
+		if strings.Contains(route.Path, "customer-subunit") {
+			t.Fatalf("retired Customer Subunit route remains registered: %s", route.Path)
 		}
 		if route.Path == "/dcl/customer/create" {
 			hasCustomerRoute = true

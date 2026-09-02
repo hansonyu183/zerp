@@ -23,14 +23,20 @@ test('typed business archive DCL contracts own identity and operating-entity fac
     new URL('contracts/openapi/schemas/common.yaml', root),
     'utf8',
   )
-  const identifierTypes = schemaBlock(
+  const customerIdentityKind = schemaBlock(
     common,
-    'BusinessIdentifierType',
-    'BusinessIdentifier',
+    'CustomerIdentityKind',
+    'IdRequest',
   )
-  assert.match(identifierTypes, /'TAX_NUMBER'/)
+  const enumValues = customerIdentityKind.match(/'enum': \[([^\]]+)\]/s)
+  assert.ok(enumValues, 'CustomerIdentityKind must declare an enum')
+  assert.deepEqual(
+    [...enumValues[1].matchAll(/'([^']+)'/g)].map((match) => match[1]),
+    ['MAINLAND_ENTERPRISE', 'MAINLAND_INDIVIDUAL', 'OTHER'],
+  )
 
   const cases = [
+    ['DclCustomerRootInput', 'DclCustomerInput', ['defaultOperatingEntityId']],
     ['DclEmployeeInput', 'DclEmployeeData', ['currentOperatingEntityId']],
     [
       'DclSupplierInput',
@@ -51,10 +57,10 @@ test('typed business archive DCL contracts own identity and operating-entity fac
 
   for (const [inputName, nextName, operatingFields] of cases) {
     const block = schemaBlock(dcl, inputName, nextName)
-    for (const field of ['kind', 'legalName', 'strongIdentifiers', 'enabled']) {
+    for (const field of ['kind', 'legalName', 'legalIdentifier', 'enabled']) {
       assert.match(
         block,
-        new RegExp(`'${field}'`),
+        new RegExp(`'${field}'\\s*:\\s*\\{`),
         `${inputName} must own ${field}`,
       )
     }
@@ -65,12 +71,26 @@ test('typed business archive DCL contracts own identity and operating-entity fac
         `${inputName} must own ${field}`,
       )
     }
-    assert.match(
-      block,
-      /'items': \{ '\$ref': '\.\/common\.yaml#\/BusinessIdentifier' \}/,
-      `${inputName} must use the shared business identifier values`,
+    assert.equal(
+      (block.match(/'legalIdentifier'\s*:\s*\{/g) || []).length,
+      1,
+      `${inputName} must expose one legalIdentifier field`,
     )
+    for (const retiredField of ['strong' + 'Identifiers', 'tax' + 'Number']) {
+      assert.doesNotMatch(
+        block,
+        new RegExp(`'${retiredField}'`),
+        `${inputName} must not expose ${retiredField}`,
+      )
+    }
   }
+
+  const operatingEntity = schemaBlock(
+    dcl,
+    'DclOperatingEntityData',
+    'DclOperatingEntityCreateRequest',
+  )
+  assert.match(operatingEntity, /'taxNumber'\s*:/)
 
   for (const [requestName, nextName] of [
     ['DclEmployeeCreateRequest', 'DclEmployeeSaveRequest'],
@@ -147,40 +167,51 @@ test('typed business archive snapshots persist identity without Party roots', as
     ['dcl_employee_versions', 'dcl_other_unit_versions'],
     ['dcl_other_unit_versions', 'dcl_sales_partner_versions'],
     ['dcl_sales_partner_versions', 'dcl_supplier_versions'],
-    ['dcl_supplier_versions', 'dcl_employee_version_identifiers'],
+    ['dcl_supplier_versions', 'dcl_customer_versions'],
+    ['dcl_customer_versions', 'dcl_customer_subunit_roots'],
   ]) {
     const start = schema.indexOf(`CREATE TABLE public.${table}`)
     const end = schema.indexOf(`CREATE TABLE public.${nextTable}`, start)
     assert.notEqual(start, -1, `${table} must exist`)
     assert.notEqual(end, -1, `${nextTable} must follow ${table}`)
     const block = schema.slice(start, end)
-    for (const column of ['kind', 'legal_name']) {
+    for (const column of ['kind', 'legal_identifier']) {
       assert.match(
         block,
         new RegExp(`\\b${column}\\b`),
         `${table} must own ${column}`,
       )
     }
+    if (table !== 'dcl_customer_versions') {
+      assert.match(block, /\blegal_name\b/, `${table} must own legal_name`)
+    }
     assert.doesNotMatch(block, /\bparty_id\b/)
   }
 
   assert.doesNotMatch(schema, /CREATE TABLE public\.dcl_party/)
+
+  const retiredVersionIdentifierTable = 'version' + '_identifiers'
+  assert.doesNotMatch(
+    schema,
+    new RegExp(
+      `CREATE TABLE public\\.dcl_[a-z_]+_${retiredVersionIdentifierTable}`,
+    ),
+  )
 
   for (const entity of [
     'employee',
     'supplier',
     'other_unit',
     'sales_partner',
+    'customer',
   ]) {
+    const legalIdentifierClaimsTable = 'legal_' + 'identifier_claims'
     assert.match(
       schema,
-      new RegExp(`CREATE TABLE public\\.dcl_${entity}_version_identifiers`),
-      `${entity} versions must own their strong identifiers`,
-    )
-    assert.match(
-      schema,
-      new RegExp(`CREATE TABLE public\\.dcl_${entity}_identifier_claims`),
-      `${entity} must enforce type-local identifier claims`,
+      new RegExp(
+        `CREATE TABLE public\\.dcl_${entity}_${legalIdentifierClaimsTable}`,
+      ),
+      `${entity} must enforce legal identifier claims`,
     )
   }
 

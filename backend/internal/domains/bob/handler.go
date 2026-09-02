@@ -71,7 +71,7 @@ func (h *Handler) referenceQuery(c *gin.Context) {
 		return
 	}
 	permission := "/bob/" + input.Entity + "/query"
-	if input.Entity == EntityCustomerAccount {
+	if input.Entity == EntityCustomerSubunit {
 		permission = "/bob/customer/query"
 	}
 	if !authmiddleware.CheckPermission(c, h.authorizer, permission, h.writeAuthorizationError) {

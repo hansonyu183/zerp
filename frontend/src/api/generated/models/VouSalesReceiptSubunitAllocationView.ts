@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { VouReferenceView } from './VouReferenceView';
-export type VouSalesReceiptAccountAllocationView = {
-  account: VouReferenceView;
+export type VouSalesReceiptSubunitAllocationView = {
+  subunit: VouReferenceView;
   amount: string;
 };

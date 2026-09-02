@@ -358,7 +358,7 @@ func (s *Service) loadSaleReturnData(
 		&warehouseID, &warehouseVersion, &warehouseCode, &warehouseName); err != nil {
 		return data, err
 	}
-	data.Customer = reference(customerID, customerVersion, bobdomain.EntityCustomerAccount, customerCode, customerName, "", "", "")
+	data.Customer = reference(customerID, customerVersion, bobdomain.EntityCustomerSubunit, customerCode, customerName, "", "", "")
 	data.Customer.CustomerID = rootCustomerID
 	data.Warehouse = reference(warehouseID, warehouseVersion, "warehouse", warehouseCode, warehouseName, "", "", "")
 	rows, err := s.pool.Query(ctx, `SELECT l.id,l.source_signoff_line_id,l.source_signoff_id,

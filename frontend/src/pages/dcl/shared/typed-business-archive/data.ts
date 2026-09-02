@@ -30,10 +30,7 @@ export function dclTypedArchiveData(
     ...(form.displayName.trim()
       ? { displayName: form.displayName.trim() }
       : {}),
-    ...(form.taxNumber.trim() ? { taxNumber: form.taxNumber.trim() } : {}),
-    strongIdentifiers: form.strongIdentifiers
-      .filter((identifier) => identifier.value.trim())
-      .map((identifier) => ({ ...identifier, value: identifier.value.trim() })),
+    legalIdentifier: form.legalIdentifier.trim(),
     enabled: form.enabled,
     operatingEntityIds: form.operatingEntityIds,
     defaultOperatingEntityId: form.defaultOperatingEntityId,
@@ -109,10 +106,7 @@ export function dclTypedArchiveFormFromView(
     kind: data.kind,
     legalName: data.legalName,
     displayName: data.displayName ?? '',
-    taxNumber: data.taxNumber ?? '',
-    strongIdentifiers: data.strongIdentifiers.map((identifier) => ({
-      ...identifier,
-    })),
+    legalIdentifier: data.legalIdentifier ?? '',
     enabled: data.enabled,
     operatingEntityIds: data.operatingEntityIds,
     defaultOperatingEntityId: data.defaultOperatingEntityId,

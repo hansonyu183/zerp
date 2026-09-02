@@ -24,7 +24,7 @@ func TestTypedArchiveCurrentViewUsesDedicatedWireContract(t *testing.T) {
 		ObjectID: "employee-1", Entity: EntityEmployee, Code: "EMP-0001", Enabled: true,
 		SourceApprovalEntryID: "approval-1", SourceVersionNo: 1, UpdatedAt: time.Unix(1, 0).UTC(),
 		Data: DetailView{
-			Kind: "PERSON", LegalName: "Alice", DisplayName: "Alice", StrongIdentifiers: []BusinessIdentifier{},
+			Kind: "PERSON", LegalName: "Alice", DisplayName: "Alice", LegalIdentifier: "11010519491231002X",
 			CurrentOperatingEntityID: "operating-1",
 			CurrentOperatingEntity:   BusinessArchiveSnapshot{SourceObjectID: "operating-1", ApprovalEntryID: "operating-entry-1", Code: "OP-0001", Name: "Main"},
 		},
@@ -39,7 +39,7 @@ func TestTypedArchiveCurrentViewUsesDedicatedWireContract(t *testing.T) {
 	if !ok {
 		t.Fatal("typed current view data is missing")
 	}
-	for _, required := range []string{"kind", "legalName", "strongIdentifiers", "enabled", "currentOperatingEntityId", "currentOperatingEntity"} {
+	for _, required := range []string{"kind", "legalName", "legalIdentifier", "enabled", "currentOperatingEntityId", "currentOperatingEntity"} {
 		if _, exists := data[required]; !exists {
 			t.Fatalf("typed employee data is missing %q", required)
 		}

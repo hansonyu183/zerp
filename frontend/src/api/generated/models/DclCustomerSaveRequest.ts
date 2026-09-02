@@ -2,10 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { DclCustomerInput } from './DclCustomerInput';
+import type { DclCustomerRootInput } from './DclCustomerRootInput';
 export type DclCustomerSaveRequest = {
   objectId: string;
   approvalEntryId: string;
   approvalRevision: number;
-  data: DclCustomerInput;
+  data: DclCustomerRootInput;
 };

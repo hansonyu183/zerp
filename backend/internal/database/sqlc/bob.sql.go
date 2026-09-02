@@ -38,7 +38,7 @@ func (q *Queries) ConsumeCustomerDownloadToken(ctx context.Context, tokenHash st
 }
 
 const copyDCLCustomerAttachments = `-- name: CopyDCLCustomerAttachments :exec
-INSERT INTO dcl_customer_attachments(approval_entry_id,account_id,file_id,category_object_id,category_code,category_name,created_at,created_by) SELECT $1,source.account_id,source.file_id,source.category_object_id,source.category_code,source.category_name,source.created_at,source.created_by FROM dcl_customer_attachments source WHERE source.approval_entry_id=$2
+INSERT INTO dcl_customer_attachments(approval_entry_id,subunit_id,file_id,category_object_id,category_code,category_name,created_at,created_by) SELECT $1,source.subunit_id,source.file_id,source.category_object_id,source.category_code,source.category_name,source.created_at,source.created_by FROM dcl_customer_attachments source WHERE source.approval_entry_id=$2
 `
 
 type CopyDCLCustomerAttachmentsParams struct {
@@ -858,13 +858,19 @@ func (q *Queries) GetBobWarehouseCurrentReference(ctx context.Context, objectID 
 }
 
 const getDCLCustomerVersion = `-- name: GetDCLCustomerVersion :one
-SELECT approval_entry_id, data, enabled FROM dcl_customer_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, kind, legal_identifier, data, enabled FROM dcl_customer_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLCustomerVersion(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error) {
 	row := q.db.QueryRow(ctx, getDCLCustomerVersion, approvalEntryID)
 	var i DclCustomerVersion
-	err := row.Scan(&i.ApprovalEntryID, &i.Data, &i.Enabled)
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.Kind,
+		&i.LegalIdentifier,
+		&i.Data,
+		&i.Enabled,
+	)
 	return i, err
 }
 
@@ -1055,12 +1061,12 @@ func (q *Queries) InsertCustomerFile(ctx context.Context, arg InsertCustomerFile
 }
 
 const insertDCLCustomerAttachment = `-- name: InsertDCLCustomerAttachment :exec
-INSERT INTO dcl_customer_attachments(approval_entry_id,account_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)
+INSERT INTO dcl_customer_attachments(approval_entry_id,subunit_id,file_id,category_object_id,category_code,category_name,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)
 `
 
 type InsertDCLCustomerAttachmentParams struct {
 	ApprovalEntryID  string  `db:"approval_entry_id" json:"approval_entry_id"`
-	AccountID        *string `db:"account_id" json:"account_id"`
+	SubunitID        *string `db:"subunit_id" json:"subunit_id"`
 	FileID           string  `db:"file_id" json:"file_id"`
 	CategoryObjectID string  `db:"category_object_id" json:"category_object_id"`
 	CategoryCode     string  `db:"category_code" json:"category_code"`
@@ -1071,7 +1077,7 @@ type InsertDCLCustomerAttachmentParams struct {
 func (q *Queries) InsertDCLCustomerAttachment(ctx context.Context, arg InsertDCLCustomerAttachmentParams) error {
 	_, err := q.db.Exec(ctx, insertDCLCustomerAttachment,
 		arg.ApprovalEntryID,
-		arg.AccountID,
+		arg.SubunitID,
 		arg.FileID,
 		arg.CategoryObjectID,
 		arg.CategoryCode,
@@ -1703,12 +1709,12 @@ func (q *Queries) ListCustomerOperatingReferences(ctx context.Context, sourceObj
 
 const listCustomerSalesReferencesForEmployee = `-- name: ListCustomerSalesReferencesForEmployee :many
 SELECT root.customer_id AS object_id,'customer'::text AS entity,'customer-sales'::text AS role
-FROM dcl_customer_account_roots root
+FROM dcl_customer_subunit_roots root
 JOIN LATERAL (
   SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
 WHERE line.enabled AND line.data->'primarySalesAttribution'->>'subjectObjectId'=$1::text
   AND line.data->'primarySalesAttribution'->>'type'='INTERNAL_EMPLOYEE'
 `
@@ -1745,12 +1751,12 @@ const listCustomerSalesReferencesForSalesPartner = `-- name: ListCustomerSalesRe
 SELECT root.customer_id AS object_id,'customer'::text AS entity,
        CASE line.data->'primarySalesAttribution'->>'type'
          WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales' ELSE 'customer-channel-sales' END::text AS role
-FROM dcl_customer_account_roots root
+FROM dcl_customer_subunit_roots root
 JOIN LATERAL (
   SELECT id FROM approval_entries WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
 WHERE line.enabled AND line.data->'primarySalesAttribution'->>'subjectObjectId'=$1::text
   AND line.data->'primarySalesAttribution'->>'type' IN ('EXTERNAL_PART_TIME','CHANNEL_PARTNER')
 `
@@ -1782,11 +1788,11 @@ func (q *Queries) ListCustomerSalesReferencesForSalesPartner(ctx context.Context
 }
 
 const listDCLCustomerAttachments = `-- name: ListDCLCustomerAttachments :many
-SELECT relation.account_id,relation.file_id,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.status,file.stored_at,relation.category_object_id,relation.category_code,relation.category_name,relation.created_at,relation.created_by FROM dcl_customer_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=$1 ORDER BY relation.account_id NULLS FIRST,relation.created_at,relation.file_id
+SELECT relation.subunit_id,relation.file_id,file.original_name,file.content_type,file.declared_size,file.sha256_hex,file.status,file.stored_at,relation.category_object_id,relation.category_code,relation.category_name,relation.created_at,relation.created_by FROM dcl_customer_attachments relation JOIN dcl_customer_files file ON file.id=relation.file_id WHERE relation.approval_entry_id=$1 ORDER BY relation.subunit_id NULLS FIRST,relation.created_at,relation.file_id
 `
 
 type ListDCLCustomerAttachmentsRow struct {
-	AccountID        *string            `db:"account_id" json:"account_id"`
+	SubunitID        *string            `db:"subunit_id" json:"subunit_id"`
 	FileID           string             `db:"file_id" json:"file_id"`
 	OriginalName     string             `db:"original_name" json:"original_name"`
 	ContentType      string             `db:"content_type" json:"content_type"`
@@ -1811,7 +1817,7 @@ func (q *Queries) ListDCLCustomerAttachments(ctx context.Context, approvalEntryI
 	for rows.Next() {
 		var i ListDCLCustomerAttachmentsRow
 		if err := rows.Scan(
-			&i.AccountID,
+			&i.SubunitID,
 			&i.FileID,
 			&i.OriginalName,
 			&i.ContentType,

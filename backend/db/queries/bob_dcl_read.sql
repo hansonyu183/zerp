@@ -16,40 +16,42 @@ JOIN approval_entries entry ON entry.id=sqlc.arg(approval_entry_id) AND entry.do
 JOIN dcl_customer_versions snapshot ON snapshot.approval_entry_id=entry.id
 WHERE subject.id=sqlc.arg(object_id) AND subject.entity='customer';
 
--- Customer accounts are child roots of Customer, not DCL subjects.  These
--- queries deliberately retain the customer-account wire entity only for
+-- Customer subunits are child roots of Customer, not DCL subjects.  These
+-- queries deliberately retain the customer-subunit wire entity only for
 -- internal VOU/ACC reference resolution.
--- name: GetBobEmbeddedCustomerAccountCurrentReference :one
-SELECT root.account_id AS object_id,root.customer_id,root.code,entry.id AS approval_entry_id,entry.version_no,line.data,customer.data AS customer_data
-FROM dcl_customer_account_roots root
+-- name: GetBobEmbeddedCustomerSubunitCurrentReference :one
+SELECT root.subunit_id AS object_id,root.customer_id,root.code,entry.id AS approval_entry_id,entry.version_no,line.data,customer.data AS customer_data
+FROM dcl_customer_subunit_roots root
 JOIN LATERAL (
   SELECT id,version_no FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
 JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id
-WHERE root.account_id=sqlc.arg(object_id) AND line.enabled;
+WHERE root.subunit_id=sqlc.arg(object_id) AND customer.enabled AND line.enabled;
 
--- name: GetBobEmbeddedCustomerAccountHistoricalReference :one
-SELECT root.account_id AS object_id,root.customer_id,root.code,entry.id AS approval_entry_id,entry.version_no,line.data,customer.data AS customer_data
-FROM dcl_customer_account_roots root
+-- name: GetBobEmbeddedCustomerSubunitHistoricalReference :one
+SELECT root.subunit_id AS object_id,root.customer_id,root.code,entry.id AS approval_entry_id,entry.version_no,line.data,customer.data AS customer_data
+FROM dcl_customer_subunit_roots root
 JOIN approval_entries entry ON entry.id=sqlc.arg(approval_entry_id) AND entry.domain='dcl' AND entry.entity='customer'
   AND entry.subject_id=root.customer_id AND entry.status='APPROVED'
-JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
 JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id
-WHERE root.account_id=sqlc.arg(object_id);
+WHERE root.subunit_id=sqlc.arg(object_id);
 
--- name: ListBobEmbeddedCustomerAccountReferenceCandidates :many
-SELECT root.account_id AS object_id,root.customer_id,entry.id AS approval_entry_id,root.code,COALESCE(line.data->>'name',root.code) AS name
-FROM dcl_customer_account_roots root
+-- name: ListBobEmbeddedCustomerSubunitReferenceCandidates :many
+SELECT root.subunit_id AS object_id,root.customer_id,entry.id AS approval_entry_id,root.code,COALESCE(line.data->>'name',root.code) AS name
+FROM dcl_customer_subunit_roots root
 JOIN LATERAL (
   SELECT id FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
-WHERE line.enabled
+JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
+JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id
+WHERE customer.enabled
+  AND line.enabled
   AND (sqlc.arg(keyword)::text='' OR root.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR COALESCE(line.data->>'name','') ILIKE '%'||sqlc.arg(keyword)::text||'%')
 ORDER BY root.code;
 

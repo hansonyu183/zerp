@@ -237,7 +237,7 @@ func (s *Service) normalizeOpeningLines(ctx context.Context, tx pgx.Tx, q *dbsql
 }
 
 var businessArchiveDimensionEntities = map[string]string{
-	DimensionCustomerAccount: "customer-account",
+	DimensionCustomerSubunit: "customer-subunit",
 	DimensionSupplier:        "supplier",
 	DimensionOtherUnit:       "other-unit",
 	DimensionEmployee:        "employee",
@@ -267,8 +267,8 @@ func (s *Service) normalizeBusinessArchiveDimensionReferences(
 		if err != nil || current.ApprovalEntryID != input.ApprovalEntryID {
 			return nil, domainError(ErrorConflict, "typed accounting dimension reference is not current", err)
 		}
-		if entity == "customer-account" && (current.CustomerID == "" || (input.CustomerID != "" && input.CustomerID != current.CustomerID)) {
-			return nil, domainError(ErrorConflict, "customer account dimension does not belong to the selected customer version", nil)
+		if entity == "customer-subunit" && (current.CustomerID == "" || (input.CustomerID != "" && input.CustomerID != current.CustomerID)) {
+			return nil, domainError(ErrorConflict, "customer subunit dimension does not belong to the selected customer version", nil)
 		}
 		result[dimension] = BusinessArchiveDimensionReference{
 			Entity: entity, ObjectID: current.ObjectID, CustomerID: current.CustomerID,

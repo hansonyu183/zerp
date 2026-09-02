@@ -5,7 +5,7 @@
       'enum':
         [
           'customer',
-          'customer-account',
+          'customer-subunit',
           'supplier',
           'employee',
           'other-unit',
@@ -189,6 +189,7 @@
           'categoryId': { 'type': 'string', 'nullable': true },
           'categoryCode': { 'type': 'string', 'nullable': true },
           'categoryName': { 'type': 'string', 'nullable': true },
+          'legalIdentifier': { 'type': 'string', 'nullable': true },
           'taxNumber': { 'type': 'string', 'nullable': true },
           'contactName': { 'type': 'string', 'nullable': true },
           'contactPhone': { 'type': 'string', 'nullable': true },
@@ -995,7 +996,7 @@
               'type': 'string',
               'enum':
                 [
-                  'customer-account',
+                  'customer-subunit',
                   'operating-entity',
                   'employee',
                   'other-unit',

@@ -35,8 +35,8 @@ export type VouCreateRequest = {
       objectId: string;
       approvalEntryId: string;
     };
-    accountAllocations?: Array<{
-      account: {
+    subunitAllocations?: Array<{
+      subunit: {
         objectId: string;
         approvalEntryId: string;
       };
@@ -46,7 +46,7 @@ export type VouCreateRequest = {
       objectId: string;
       approvalEntryId: string;
     };
-    counterpartyType?: 'customer-account' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
+    counterpartyType?: 'customer-subunit' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
     otherCategory?: 'COMMISSION' | 'INTERMEDIARY';
     counterparty?: {
       objectId: string;

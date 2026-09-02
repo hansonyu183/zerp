@@ -42,7 +42,7 @@ const typedSubject = {
   subjectId: '01JACC00000000000000000012',
   code: '1122',
   name: '应收账款',
-  requiredDimensions: ['CUSTOMER_ACCOUNT'] as const,
+  requiredDimensions: ['CUSTOMER_SUBUNIT'] as const,
 }
 function createDraftOpening() {
   return {
@@ -174,14 +174,27 @@ describe.sequential('ACC opening view model', () => {
   )
 
   it.sequential(
-    'saves opening global register values with the draft',
+    'queries and saves an exact customer-subunit snapshot for opening containers',
     async () => {
+      useSessionStore().permissions.push('/bob/reference/query')
       mockedPost.mockImplementation(async (path) => {
         if (path === 'acc/book/query')
           return { data: { items: [book], total: 1 } } as never
         if (path === 'acc/subject/query')
           return { data: { items: subjects, total: 1 } } as never
         if (path === 'acc/opening/query') return { data: draft } as never
+        if (path === 'bob/reference/query')
+          return {
+            data: [
+              {
+                objectId: '01JACC00000000000000000901',
+                customerId: '01JACC00000000000000000902',
+                approvalEntryId: '01JACC00000000000000000903',
+                code: 'SUB-0001',
+                name: '空桶客户子单位',
+              },
+            ],
+          } as never
         return {
           data: { ...draft, approval: { ...draft.approval, revision: 2 } },
         } as never
@@ -189,20 +202,34 @@ describe.sequential('ACC opening view model', () => {
       const vm = createAccountingOpeningViewModel()
       await vm.initialize()
       vm.addContainer()
-      vm.containers[0]!.customerId = '01JACC00000000000000000901'
+      await vm.searchContainerSubunits(vm.containers[0]!, '空桶')
+      vm.selectContainerSubunit(vm.containers[0]!, '01JACC00000000000000000901')
       vm.containers[0]!.quantity = 8
 
       await vm.save()
 
       expect(mockedPost).toHaveBeenNthCalledWith(
         4,
+        'bob/reference/query',
+        { entity: 'customer-subunit', keyword: '空桶' },
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
+      expect(mockedPost).toHaveBeenNthCalledWith(
+        5,
         'acc/opening/save',
         expect.objectContaining({
           assets: [],
           bills: [],
           containers: [
             {
-              customerId: '01JACC00000000000000000901',
+              subunit: {
+                entity: 'customer-subunit',
+                objectId: '01JACC00000000000000000901',
+                customerId: '01JACC00000000000000000902',
+                approvalEntryId: '01JACC00000000000000000903',
+                code: 'SUB-0001',
+                name: '空桶客户子单位',
+              },
               containerType: 'SOLVENT',
               quantity: 8,
             },
@@ -224,22 +251,67 @@ describe.sequential('ACC opening view model', () => {
       vm.addLine()
       vm.changeSubject(vm.lines[0]!, typedSubject.subjectId)
       vm.lines[0]!.debitAmount = '100.00'
-      vm.lines[0]!.dimensions.CUSTOMER_ACCOUNT = '01JACC00000000000000000013'
-      vm.lines[0]!.dimensionReferences.CUSTOMER_ACCOUNT = {
-        entity: 'customer-account',
+      vm.lines[0]!.dimensions.CUSTOMER_SUBUNIT = '01JACC00000000000000000013'
+      vm.lines[0]!.dimensionReferences.CUSTOMER_SUBUNIT = {
+        entity: 'customer-subunit',
         objectId: '01JACC00000000000000000013',
         customerId: '01JACC00000000000000000014',
         approvalEntryId: '01JACC00000000000000000015',
-        code: 'ACC-001',
-        name: '客户账户',
+        code: 'SUB-001',
+        name: '客户子单位',
       }
 
       expect(vm.subjectOptions).toEqual([])
       expect(vm.canSave).toBe(false)
+      vm.addContainer()
+      expect(vm.containers).toHaveLength(0)
 
       useSessionStore().permissions.push('/bob/reference/query')
       expect(vm.subjectOptions).toHaveLength(1)
       expect(vm.canSave).toBe(true)
+    },
+  )
+
+  it.sequential(
+    'requires the complete opening-save permission loop for container edits',
+    async () => {
+      useSessionStore().permissions = [
+        '/acc/book/query',
+        '/acc/subject/query',
+        '/acc/opening/query',
+        '/bob/reference/query',
+      ]
+      draft.containers = [
+        {
+          subunit: {
+            entity: 'customer-subunit',
+            objectId: '01JACC00000000000000000013',
+            customerId: '01JACC00000000000000000014',
+            approvalEntryId: '01JACC00000000000000000015',
+            code: 'SUB-0001',
+            name: '已载入子单位',
+          },
+          containerType: 'SOLVENT',
+          quantity: 3,
+        },
+      ] as never
+      mockedPost
+        .mockResolvedValueOnce({ data: { items: [book], total: 1 } })
+        .mockResolvedValueOnce({ data: { items: subjects, total: 1 } })
+        .mockResolvedValueOnce({ data: draft })
+      const vm = createAccountingOpeningViewModel()
+      await vm.initialize()
+      const item = vm.containers[0]!
+
+      expect(vm.canManageContainers).toBe(false)
+      vm.addContainer()
+      vm.removeContainer(0)
+      await vm.searchContainerSubunits(item, '不可查询')
+      vm.selectContainerSubunit(item, null)
+
+      expect(vm.containers).toHaveLength(1)
+      expect(item.subunit?.code).toBe('SUB-0001')
+      expect(mockedPost).toHaveBeenCalledTimes(3)
     },
   )
 
@@ -257,14 +329,14 @@ describe.sequential('ACC opening view model', () => {
       const line = vm.lines[0]!
       vm.changeSubject(line, typedSubject.subjectId)
       const selected = {
-        entity: 'customer-account' as const,
+        entity: 'customer-subunit' as const,
         objectId: '01JACC00000000000000000013',
         customerId: '01JACC00000000000000000014',
         approvalEntryId: '01JACC00000000000000000015',
-        code: 'ACC-001',
-        name: '已选账户',
+        code: 'SUB-001',
+        name: '已选子单位',
       }
-      line.dimensionReferences.CUSTOMER_ACCOUNT = selected
+      line.dimensionReferences.CUSTOMER_SUBUNIT = selected
 
       let resolveFirst!: (value: {
         data: Array<Record<string, string>>
@@ -286,10 +358,10 @@ describe.sequential('ACC opening view model', () => {
             }) as never,
         )
 
-      const first = vm.searchDimensionReferences(line, 'CUSTOMER_ACCOUNT', '旧')
+      const first = vm.searchDimensionReferences(line, 'CUSTOMER_SUBUNIT', '旧')
       const second = vm.searchDimensionReferences(
         line,
-        'CUSTOMER_ACCOUNT',
+        'CUSTOMER_SUBUNIT',
         '新',
       )
       resolveSecond({
@@ -298,7 +370,7 @@ describe.sequential('ACC opening view model', () => {
             objectId: '01JACC00000000000000000016',
             customerId: '01JACC00000000000000000017',
             approvalEntryId: '01JACC00000000000000000018',
-            code: 'ACC-002',
+            code: 'SUB-002',
             name: '新结果',
           },
         ],
@@ -310,7 +382,7 @@ describe.sequential('ACC opening view model', () => {
             objectId: '01JACC00000000000000000019',
             customerId: '01JACC00000000000000000020',
             approvalEntryId: '01JACC00000000000000000021',
-            code: 'ACC-003',
+            code: 'SUB-003',
             name: '旧结果',
           },
         ],
@@ -319,9 +391,89 @@ describe.sequential('ACC opening view model', () => {
 
       expect(
         vm.dimensionReferenceOptions[
-          vm.dimensionReferenceKey(line, 'CUSTOMER_ACCOUNT')
+          vm.dimensionReferenceKey(line, 'CUSTOMER_SUBUNIT')
         ],
-      ).toEqual([selected, expect.objectContaining({ code: 'ACC-002' })])
+      ).toEqual([selected, expect.objectContaining({ code: 'SUB-002' })])
+    },
+  )
+
+  it.sequential(
+    'ignores stale container searches and retains a loaded subunit snapshot',
+    async () => {
+      useSessionStore().permissions.push('/bob/reference/query')
+      draft.containers = [
+        {
+          subunit: {
+            entity: 'customer-subunit',
+            objectId: '01JACC00000000000000000013',
+            customerId: '01JACC00000000000000000014',
+            approvalEntryId: '01JACC00000000000000000015',
+            code: 'SUB-0001',
+            name: '已载入子单位',
+          },
+          containerType: 'SOLVENT',
+          quantity: 3,
+        },
+      ] as never
+      mockedPost
+        .mockResolvedValueOnce({ data: { items: [book], total: 1 } })
+        .mockResolvedValueOnce({ data: { items: [typedSubject], total: 1 } })
+        .mockResolvedValueOnce({ data: draft })
+      const vm = createAccountingOpeningViewModel()
+      await vm.initialize()
+      const item = vm.containers[0]!
+
+      let resolveFirst!: (value: {
+        data: Array<Record<string, string>>
+      }) => void
+      let resolveSecond!: (value: {
+        data: Array<Record<string, string>>
+      }) => void
+      mockedPost
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFirst = resolve as typeof resolveFirst
+            }) as never,
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSecond = resolve as typeof resolveSecond
+            }) as never,
+        )
+
+      const first = vm.searchContainerSubunits(item, '旧')
+      const second = vm.searchContainerSubunits(item, '新')
+      resolveSecond({
+        data: [
+          {
+            objectId: '01JACC00000000000000000016',
+            customerId: '01JACC00000000000000000017',
+            approvalEntryId: '01JACC00000000000000000018',
+            code: 'SUB-0002',
+            name: '新结果',
+          },
+        ],
+      })
+      await second
+      resolveFirst({
+        data: [
+          {
+            objectId: '01JACC00000000000000000019',
+            customerId: '01JACC00000000000000000020',
+            approvalEntryId: '01JACC00000000000000000021',
+            code: 'SUB-0003',
+            name: '旧结果',
+          },
+        ],
+      })
+      await first
+
+      expect(vm.containerSubunitOptions[item.key]).toEqual([
+        item.subunit,
+        expect.objectContaining({ code: 'SUB-0002' }),
+      ])
     },
   )
 })

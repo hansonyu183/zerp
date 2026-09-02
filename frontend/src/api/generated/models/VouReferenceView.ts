@@ -10,7 +10,7 @@ export type VouReferenceView = {
   code: string;
   name: string;
   /**
-   * 客户核算账户所属 Customer 根对象 ID；仅 customer-account 引用返回。
+   * 客户子单位所属 Customer 根对象 ID；仅 customer-subunit 引用返回。
    */
   customerId?: string;
   unit?: string;

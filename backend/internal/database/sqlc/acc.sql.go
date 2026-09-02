@@ -508,26 +508,36 @@ func (q *Queries) CreateAccountingBookScope(ctx context.Context, arg CreateAccou
 
 const createAccountingContainerEntry = `-- name: CreateAccountingContainerEntry :exec
 INSERT INTO acc_container_entries (
-  id,customer_id,container_type,quantity_delta,source_document_id,source_revision
+  id,customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,
+  container_type,quantity_delta,source_document_id,source_revision
 ) VALUES (
   $1,$2,$3,$4,
-  $5,$6
+  $5,$6,$7,$8,
+  $9,$10
 )
 `
 
 type CreateAccountingContainerEntryParams struct {
-	ID               string `db:"id" json:"id"`
-	CustomerID       string `db:"customer_id" json:"customer_id"`
-	ContainerType    string `db:"container_type" json:"container_type"`
-	QuantityDelta    int64  `db:"quantity_delta" json:"quantity_delta"`
-	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
-	SourceRevision   int64  `db:"source_revision" json:"source_revision"`
+	ID                      string `db:"id" json:"id"`
+	CustomerSubunitID       string `db:"customer_subunit_id" json:"customer_subunit_id"`
+	CustomerID              string `db:"customer_id" json:"customer_id"`
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerSubunitCode     string `db:"customer_subunit_code" json:"customer_subunit_code"`
+	CustomerSubunitName     string `db:"customer_subunit_name" json:"customer_subunit_name"`
+	ContainerType           string `db:"container_type" json:"container_type"`
+	QuantityDelta           int64  `db:"quantity_delta" json:"quantity_delta"`
+	SourceDocumentID        string `db:"source_document_id" json:"source_document_id"`
+	SourceRevision          int64  `db:"source_revision" json:"source_revision"`
 }
 
 func (q *Queries) CreateAccountingContainerEntry(ctx context.Context, arg CreateAccountingContainerEntryParams) error {
 	_, err := q.db.Exec(ctx, createAccountingContainerEntry,
 		arg.ID,
+		arg.CustomerSubunitID,
 		arg.CustomerID,
+		arg.CustomerApprovalEntryID,
+		arg.CustomerSubunitCode,
+		arg.CustomerSubunitName,
 		arg.ContainerType,
 		arg.QuantityDelta,
 		arg.SourceDocumentID,
@@ -552,8 +562,12 @@ func (q *Queries) CreateAccountingOpening(ctx context.Context, arg CreateAccount
 }
 
 const createAccountingOpeningContainerBalances = `-- name: CreateAccountingOpeningContainerBalances :exec
-INSERT INTO acc_container_entries(id,customer_id,container_type,quantity_delta,source_document_id,source_revision)
-SELECT substr(md5(book_id||customer_id||container_type),1,26),customer_id,container_type,quantity,book_id,0
+INSERT INTO acc_container_entries(
+  id,customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,
+  container_type,quantity_delta,source_document_id,source_revision
+)
+SELECT substr(md5(book_id||customer_subunit_id||container_type),1,26),customer_subunit_id,customer_id,
+  customer_approval_entry_id,customer_subunit_code,customer_subunit_name,container_type,quantity,book_id,0
 FROM acc_opening_containers WHERE book_id=$1
 `
 
@@ -1864,23 +1878,37 @@ func (q *Queries) InsertAccountingOpeningBill(ctx context.Context, arg InsertAcc
 }
 
 const insertAccountingOpeningContainer = `-- name: InsertAccountingOpeningContainer :exec
-INSERT INTO acc_opening_containers(book_id,line_order,customer_id,container_type,quantity)
-VALUES($1,$2,$3,$4,$5)
+INSERT INTO acc_opening_containers(
+  book_id,line_order,customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,
+  container_type,quantity
+)
+VALUES(
+  $1,$2,$3,$4,$5,
+  $6,$7,$8,$9
+)
 `
 
 type InsertAccountingOpeningContainerParams struct {
-	BookID        string `db:"book_id" json:"book_id"`
-	LineOrder     int32  `db:"line_order" json:"line_order"`
-	CustomerID    string `db:"customer_id" json:"customer_id"`
-	ContainerType string `db:"container_type" json:"container_type"`
-	Quantity      int64  `db:"quantity" json:"quantity"`
+	BookID                  string `db:"book_id" json:"book_id"`
+	LineOrder               int32  `db:"line_order" json:"line_order"`
+	CustomerSubunitID       string `db:"customer_subunit_id" json:"customer_subunit_id"`
+	CustomerID              string `db:"customer_id" json:"customer_id"`
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerSubunitCode     string `db:"customer_subunit_code" json:"customer_subunit_code"`
+	CustomerSubunitName     string `db:"customer_subunit_name" json:"customer_subunit_name"`
+	ContainerType           string `db:"container_type" json:"container_type"`
+	Quantity                int64  `db:"quantity" json:"quantity"`
 }
 
 func (q *Queries) InsertAccountingOpeningContainer(ctx context.Context, arg InsertAccountingOpeningContainerParams) error {
 	_, err := q.db.Exec(ctx, insertAccountingOpeningContainer,
 		arg.BookID,
 		arg.LineOrder,
+		arg.CustomerSubunitID,
 		arg.CustomerID,
+		arg.CustomerApprovalEntryID,
+		arg.CustomerSubunitCode,
+		arg.CustomerSubunitName,
 		arg.ContainerType,
 		arg.Quantity,
 	)
@@ -2795,14 +2823,18 @@ func (q *Queries) ListAccountingOpeningBillsForApproval(ctx context.Context, boo
 }
 
 const listAccountingOpeningContainers = `-- name: ListAccountingOpeningContainers :many
-SELECT customer_id,container_type,quantity
+SELECT customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,container_type,quantity
 FROM acc_opening_containers WHERE book_id=$1 ORDER BY line_order
 `
 
 type ListAccountingOpeningContainersRow struct {
-	CustomerID    string `db:"customer_id" json:"customer_id"`
-	ContainerType string `db:"container_type" json:"container_type"`
-	Quantity      int64  `db:"quantity" json:"quantity"`
+	CustomerSubunitID       string `db:"customer_subunit_id" json:"customer_subunit_id"`
+	CustomerID              string `db:"customer_id" json:"customer_id"`
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerSubunitCode     string `db:"customer_subunit_code" json:"customer_subunit_code"`
+	CustomerSubunitName     string `db:"customer_subunit_name" json:"customer_subunit_name"`
+	ContainerType           string `db:"container_type" json:"container_type"`
+	Quantity                int64  `db:"quantity" json:"quantity"`
 }
 
 func (q *Queries) ListAccountingOpeningContainers(ctx context.Context, bookID string) ([]ListAccountingOpeningContainersRow, error) {
@@ -2814,7 +2846,15 @@ func (q *Queries) ListAccountingOpeningContainers(ctx context.Context, bookID st
 	items := []ListAccountingOpeningContainersRow{}
 	for rows.Next() {
 		var i ListAccountingOpeningContainersRow
-		if err := rows.Scan(&i.CustomerID, &i.ContainerType, &i.Quantity); err != nil {
+		if err := rows.Scan(
+			&i.CustomerSubunitID,
+			&i.CustomerID,
+			&i.CustomerApprovalEntryID,
+			&i.CustomerSubunitCode,
+			&i.CustomerSubunitName,
+			&i.ContainerType,
+			&i.Quantity,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

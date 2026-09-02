@@ -1734,7 +1734,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'enabled',
           'currentOperatingEntityId',
         ],
@@ -1744,12 +1744,7 @@
           'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'maxLength': 100 },
           'enabled': { 'type': 'boolean' },
           'currentOperatingEntityId': { 'type': 'string' },
           'employeeCategoryId': { 'type': 'string', 'nullable': true },
@@ -2194,13 +2189,12 @@
           'subjectName': { 'type': 'string' },
         },
     },
-  'DclCustomerAccountInput':
+  'DclCustomerSubunitInput':
     {
       'type': 'object',
       'required':
         [
           'enabled',
-          'isDefault',
           'name',
           'customerTypeId',
           'pricingPolicy',
@@ -2210,9 +2204,8 @@
       'additionalProperties': false,
       'properties':
         {
-          'accountId': { 'type': 'string', 'nullable': true },
+          'subunitId': { 'type': 'string', 'nullable': true },
           'enabled': { 'type': 'boolean' },
-          'isDefault': { 'type': 'boolean' },
           'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'shortName': { 'type': 'string', 'nullable': true },
           'customerTypeId':
@@ -2243,15 +2236,14 @@
             { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
         },
     },
-  'DclCustomerAccountData':
+  'DclCustomerSubunitData':
     {
       'type': 'object',
       'required':
         [
-          'accountId',
+          'subunitId',
           'code',
           'enabled',
-          'isDefault',
           'name',
           'customerTypeId',
           'customerType',
@@ -2265,10 +2257,9 @@
       'additionalProperties': false,
       'properties':
         {
-          'accountId': { 'type': 'string' },
+          'subunitId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
-          'isDefault': { 'type': 'boolean' },
           'name': { 'type': 'string' },
           'shortName': { 'type': 'string', 'nullable': true },
           'customerTypeId': { 'type': 'string' },
@@ -2324,33 +2315,27 @@
             { 'type': 'string', 'nullable': true, 'maxLength': 100 },
         },
     },
-  'DclCustomerInput':
+  'DclCustomerRootInput':
     {
       'type': 'object',
       'required':
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'remittanceProfiles',
           'defaultOperatingEntityId',
           'enabled',
-          'accounts',
         ],
       'additionalProperties': false,
       'properties':
         {
-          'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
+          'kind': { '$ref': './common.yaml#/CustomerIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName':
             { 'type': 'string', 'nullable': true, 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'maxItems': 10,
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier':
+            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
           'phone': { 'type': 'string', 'nullable': true, 'maxLength': 32 },
           'email': { 'type': 'string', 'nullable': true, 'maxLength': 254 },
           'address': { 'type': 'string', 'nullable': true, 'maxLength': 500 },
@@ -2372,12 +2357,22 @@
             },
           'defaultOperatingEntityId': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
-          'accounts':
+        },
+    },
+  'DclCustomerInput':
+    {
+      'type': 'object',
+      'required': ['root', 'subunits'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'root': { '$ref': '#/DclCustomerRootInput' },
+          'subunits':
             {
               'type': 'array',
               'minItems': 1,
               'maxItems': 200,
-              'items': { '$ref': '#/DclCustomerAccountInput' },
+              'items': { '$ref': '#/DclCustomerSubunitInput' },
             },
         },
     },
@@ -2389,25 +2384,21 @@
           'kind',
           'legalName',
           'displayName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'remittanceProfiles',
           'defaultOperatingEntityId',
           'defaultOperatingEntity',
           'enabled',
-          'accounts',
+          'subunits',
+          'implicitSubunitId',
         ],
       'additionalProperties': false,
       'properties':
         {
-          'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
+          'kind': { '$ref': './common.yaml#/CustomerIdentityKind' },
           'legalName': { 'type': 'string' },
           'displayName': { 'type': 'string' },
-          'taxNumber': { 'type': 'string', 'nullable': true },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'nullable': true },
           'phone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
           'address': { 'type': 'string', 'nullable': true },
@@ -2424,15 +2415,16 @@
           'defaultOperatingEntityId': { 'type': 'string' },
           'defaultOperatingEntity': { '$ref': '#/DclCustomerSnapshot' },
           'enabled': { 'type': 'boolean' },
-          'accounts':
+          'implicitSubunitId': { 'type': 'string', 'nullable': true },
+          'subunits':
             {
               'type': 'array',
-              'items': { '$ref': '#/DclCustomerAccountData' },
+              'items': { '$ref': '#/DclCustomerSubunitData' },
             },
         },
     },
   'DclCustomerAttachmentScope':
-    { 'type': 'string', 'enum': ['CUSTOMER', 'CUSTOMER_ACCOUNT'] },
+    { 'type': 'string', 'enum': ['CUSTOMER', 'CUSTOMER_SUBUNIT'] },
   'DclCustomerAttachmentView':
     {
       'type': 'object',
@@ -2490,7 +2482,28 @@
           'approvalEntryId': { 'type': 'string' },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'data': { '$ref': '#/DclCustomerInput' },
+          'data': { '$ref': '#/DclCustomerRootInput' },
+        },
+    },
+  'DclCustomerSaveSubunitsRequest':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'approvalEntryId', 'approvalRevision', 'subunits'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'subunits':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 200,
+              'items': { '$ref': '#/DclCustomerSubunitInput' },
+            },
         },
     },
   'DclCustomerVersionRequest': { '$ref': '#/DclOperatingEntityVersionRequest' },
@@ -2761,7 +2774,7 @@
         {
           'scope': { '$ref': '#/DclCustomerAttachmentScope' },
           'ownerApprovalEntryId': { 'type': 'string' },
-          'accountId': { 'type': 'string', 'nullable': true },
+          'subunitId': { 'type': 'string', 'nullable': true },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
           'categoryObjectId': { 'type': 'string' },
@@ -2803,7 +2816,7 @@
         {
           'scope': { '$ref': '#/DclCustomerAttachmentScope' },
           'ownerApprovalEntryId': { 'type': 'string' },
-          'accountId': { 'type': 'string', 'nullable': true },
+          'subunitId': { 'type': 'string', 'nullable': true },
           'fileId': { 'type': 'string' },
         },
     },
@@ -2828,7 +2841,7 @@
         {
           'scope': { '$ref': '#/DclCustomerAttachmentScope' },
           'ownerApprovalEntryId': { 'type': 'string' },
-          'accountId': { 'type': 'string', 'nullable': true },
+          'subunitId': { 'type': 'string', 'nullable': true },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
           'fileId': { 'type': 'string' },
@@ -2891,7 +2904,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'enabled',
           'operatingEntityIds',
           'defaultOperatingEntityId',
@@ -2902,12 +2915,7 @@
           'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'maxLength': 100 },
           'enabled': { 'type': 'boolean' },
           'operatingEntityIds':
             {
@@ -2946,7 +2954,6 @@
                     'items': { '$ref': '#/DclBusinessArchiveSnapshot' },
                   },
                 'shortName': { 'type': 'string', 'nullable': true },
-                'taxNumber': { 'type': 'string', 'nullable': true },
                 'contactName': { 'type': 'string', 'nullable': true },
                 'contactPhone': { 'type': 'string', 'nullable': true },
                 'email': { 'type': 'string', 'nullable': true },
@@ -3219,7 +3226,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'enabled',
           'operatingEntityIds',
           'defaultOperatingEntityId',
@@ -3230,12 +3237,7 @@
           'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'maxLength': 100 },
           'enabled': { 'type': 'boolean' },
           'operatingEntityIds':
             {
@@ -3493,7 +3495,7 @@
         [
           'kind',
           'legalName',
-          'strongIdentifiers',
+          'legalIdentifier',
           'enabled',
           'operatingEntityIds',
           'defaultOperatingEntityId',
@@ -3504,12 +3506,7 @@
           'kind': { '$ref': './common.yaml#/BusinessIdentityKind' },
           'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'displayName': { 'type': 'string', 'maxLength': 200 },
-          'taxNumber': { 'type': 'string', 'maxLength': 100 },
-          'strongIdentifiers':
-            {
-              'type': 'array',
-              'items': { '$ref': './common.yaml#/BusinessIdentifier' },
-            },
+          'legalIdentifier': { 'type': 'string', 'maxLength': 100 },
           'enabled': { 'type': 'boolean' },
           'operatingEntityIds':
             {

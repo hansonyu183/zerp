@@ -18,6 +18,7 @@ export type BobDetailData = {
   categoryId?: string | null;
   categoryCode?: string | null;
   categoryName?: string | null;
+  legalIdentifier?: string | null;
   taxNumber?: string | null;
   contactName?: string | null;
   contactPhone?: string | null;

@@ -537,12 +537,12 @@ func (q *Queries) DeleteVouSaleSignoffLines(ctx context.Context, documentID stri
 	return err
 }
 
-const deleteVouSalesReceiptAccountAllocations = `-- name: DeleteVouSalesReceiptAccountAllocations :exec
-DELETE FROM vou_sales_receipt_account_allocations WHERE document_id=$1
+const deleteVouSalesReceiptSubunitAllocations = `-- name: DeleteVouSalesReceiptSubunitAllocations :exec
+DELETE FROM vou_sales_receipt_subunit_allocations WHERE document_id=$1
 `
 
-func (q *Queries) DeleteVouSalesReceiptAccountAllocations(ctx context.Context, documentID string) error {
-	_, err := q.db.Exec(ctx, deleteVouSalesReceiptAccountAllocations, documentID)
+func (q *Queries) DeleteVouSalesReceiptSubunitAllocations(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSalesReceiptSubunitAllocations, documentID)
 	return err
 }
 
@@ -1585,16 +1585,16 @@ SELECT COALESCE(line.data->'primarySalesAttribution'->>'type','')::text AS prima
        COALESCE(line.data->'primarySalesAttribution'->>'subjectApprovalEntryId','')::text AS primary_sales_subject_approval_entry_id,
        COALESCE(line.data->'primarySalesAttribution'->>'subjectCode','')::text AS primary_sales_subject_code,
        COALESCE(line.data->'primarySalesAttribution'->>'subjectName','')::text AS primary_sales_subject_name
-FROM dcl_customer_version_accounts line
+FROM dcl_customer_version_subunits line
 JOIN approval_entries entry ON entry.id=line.customer_approval_entry_id
 WHERE line.customer_approval_entry_id=$1
-  AND line.account_id=$2
+  AND line.subunit_id=$2
   AND entry.domain='dcl' AND entry.entity='customer' AND entry.status='APPROVED'
 `
 
 type GetVouSalesAttributionSnapshotParams struct {
 	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountObjectID         string `db:"account_object_id" json:"account_object_id"`
+	SubunitObjectID         string `db:"subunit_object_id" json:"subunit_object_id"`
 }
 
 type GetVouSalesAttributionSnapshotRow struct {
@@ -1606,7 +1606,7 @@ type GetVouSalesAttributionSnapshotRow struct {
 }
 
 func (q *Queries) GetVouSalesAttributionSnapshot(ctx context.Context, arg GetVouSalesAttributionSnapshotParams) (GetVouSalesAttributionSnapshotRow, error) {
-	row := q.db.QueryRow(ctx, getVouSalesAttributionSnapshot, arg.CustomerApprovalEntryID, arg.AccountObjectID)
+	row := q.db.QueryRow(ctx, getVouSalesAttributionSnapshot, arg.CustomerApprovalEntryID, arg.SubunitObjectID)
 	var i GetVouSalesAttributionSnapshotRow
 	err := row.Scan(
 		&i.PrimarySalesAttributionType,
@@ -3304,43 +3304,6 @@ func (q *Queries) InsertVouSaleReturnLine(ctx context.Context, arg InsertVouSale
 	return err
 }
 
-const insertVouSalesReceiptAccountAllocation = `-- name: InsertVouSalesReceiptAccountAllocation :exec
-INSERT INTO vou_sales_receipt_account_allocations(
-    document_id,line_no,customer_object_id,customer_approval_entry_id,
-    account_object_id,account_approval_entry_id,account_code,account_name,amount_cents
-) VALUES (
-    $1,$2,$3,$4,
-    $5,$6,$7,$8,$9
-)
-`
-
-type InsertVouSalesReceiptAccountAllocationParams struct {
-	DocumentID              string `db:"document_id" json:"document_id"`
-	LineNo                  int32  `db:"line_no" json:"line_no"`
-	CustomerObjectID        string `db:"customer_object_id" json:"customer_object_id"`
-	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountObjectID         string `db:"account_object_id" json:"account_object_id"`
-	AccountApprovalEntryID  string `db:"account_approval_entry_id" json:"account_approval_entry_id"`
-	AccountCode             string `db:"account_code" json:"account_code"`
-	AccountName             string `db:"account_name" json:"account_name"`
-	AmountCents             int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-func (q *Queries) InsertVouSalesReceiptAccountAllocation(ctx context.Context, arg InsertVouSalesReceiptAccountAllocationParams) error {
-	_, err := q.db.Exec(ctx, insertVouSalesReceiptAccountAllocation,
-		arg.DocumentID,
-		arg.LineNo,
-		arg.CustomerObjectID,
-		arg.CustomerApprovalEntryID,
-		arg.AccountObjectID,
-		arg.AccountApprovalEntryID,
-		arg.AccountCode,
-		arg.AccountName,
-		arg.AmountCents,
-	)
-	return err
-}
-
 const insertVouSalesReceiptDetail = `-- name: InsertVouSalesReceiptDetail :exec
 INSERT INTO vou_receipt_details (
     document_id,entity,
@@ -3396,6 +3359,43 @@ func (q *Queries) InsertVouSalesReceiptDetail(ctx context.Context, arg InsertVou
 		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
+	)
+	return err
+}
+
+const insertVouSalesReceiptSubunitAllocation = `-- name: InsertVouSalesReceiptSubunitAllocation :exec
+INSERT INTO vou_sales_receipt_subunit_allocations(
+    document_id,line_no,customer_object_id,customer_approval_entry_id,
+    subunit_object_id,subunit_approval_entry_id,subunit_code,subunit_name,amount_cents
+) VALUES (
+    $1,$2,$3,$4,
+    $5,$6,$7,$8,$9
+)
+`
+
+type InsertVouSalesReceiptSubunitAllocationParams struct {
+	DocumentID              string `db:"document_id" json:"document_id"`
+	LineNo                  int32  `db:"line_no" json:"line_no"`
+	CustomerObjectID        string `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	SubunitObjectID         string `db:"subunit_object_id" json:"subunit_object_id"`
+	SubunitApprovalEntryID  string `db:"subunit_approval_entry_id" json:"subunit_approval_entry_id"`
+	SubunitCode             string `db:"subunit_code" json:"subunit_code"`
+	SubunitName             string `db:"subunit_name" json:"subunit_name"`
+	AmountCents             int64  `db:"amount_cents" json:"amount_cents"`
+}
+
+func (q *Queries) InsertVouSalesReceiptSubunitAllocation(ctx context.Context, arg InsertVouSalesReceiptSubunitAllocationParams) error {
+	_, err := q.db.Exec(ctx, insertVouSalesReceiptSubunitAllocation,
+		arg.DocumentID,
+		arg.LineNo,
+		arg.CustomerObjectID,
+		arg.CustomerApprovalEntryID,
+		arg.SubunitObjectID,
+		arg.SubunitApprovalEntryID,
+		arg.SubunitCode,
+		arg.SubunitName,
+		arg.AmountCents,
 	)
 	return err
 }
@@ -4430,30 +4430,30 @@ func (q *Queries) ListVouSaleOutboundStateLines(ctx context.Context, documentID 
 	return items, nil
 }
 
-const listVouSalesReceiptAccountAllocations = `-- name: ListVouSalesReceiptAccountAllocations :many
+const listVouSalesReceiptSubunitAllocations = `-- name: ListVouSalesReceiptSubunitAllocations :many
 SELECT document_id,line_no,customer_object_id,customer_approval_entry_id,
-       account_object_id,account_approval_entry_id,account_code,account_name,amount_cents
-FROM vou_sales_receipt_account_allocations WHERE document_id=$1 ORDER BY line_no
+       subunit_object_id,subunit_approval_entry_id,subunit_code,subunit_name,amount_cents
+FROM vou_sales_receipt_subunit_allocations WHERE document_id=$1 ORDER BY line_no
 `
 
-func (q *Queries) ListVouSalesReceiptAccountAllocations(ctx context.Context, documentID string) ([]VouSalesReceiptAccountAllocation, error) {
-	rows, err := q.db.Query(ctx, listVouSalesReceiptAccountAllocations, documentID)
+func (q *Queries) ListVouSalesReceiptSubunitAllocations(ctx context.Context, documentID string) ([]VouSalesReceiptSubunitAllocation, error) {
+	rows, err := q.db.Query(ctx, listVouSalesReceiptSubunitAllocations, documentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []VouSalesReceiptAccountAllocation{}
+	items := []VouSalesReceiptSubunitAllocation{}
 	for rows.Next() {
-		var i VouSalesReceiptAccountAllocation
+		var i VouSalesReceiptSubunitAllocation
 		if err := rows.Scan(
 			&i.DocumentID,
 			&i.LineNo,
 			&i.CustomerObjectID,
 			&i.CustomerApprovalEntryID,
-			&i.AccountObjectID,
-			&i.AccountApprovalEntryID,
-			&i.AccountCode,
-			&i.AccountName,
+			&i.SubunitObjectID,
+			&i.SubunitApprovalEntryID,
+			&i.SubunitCode,
+			&i.SubunitName,
 			&i.AmountCents,
 		); err != nil {
 			return nil, err
@@ -4869,7 +4869,7 @@ SELECT document.document_no,approval.status,document.business_date,
 FROM vou_documents AS document
 JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_sale_outbound_details AS outbound ON outbound.document_id=document.id
-JOIN dcl_customer_version_accounts AS account ON account.customer_approval_entry_id=outbound.customer_approval_entry_id AND account.account_id=outbound.customer_object_id
+JOIN dcl_customer_version_subunits AS subunit ON subunit.customer_approval_entry_id=outbound.customer_approval_entry_id AND subunit.subunit_id=outbound.customer_object_id
 JOIN dcl_customer_versions AS customer ON customer.approval_entry_id=outbound.customer_approval_entry_id
 WHERE document.id=$1 AND document.entity='sale-outbound'
 FOR UPDATE OF document,approval,outbound

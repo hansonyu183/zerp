@@ -19,7 +19,7 @@ WITH snapshot_references(entity, field, entry_id) AS (
         WHEN 'INTERNAL_EMPLOYEE' THEN 'customer-sales'
         WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales'
         ELSE 'customer-channel-sales' END,line.data->'primarySalesAttribution'->>'subjectApprovalEntryId'
-    FROM dcl_customer_version_accounts line
+    FROM dcl_customer_version_subunits line
     JOIN approval_entries current_entry ON current_entry.id=line.customer_approval_entry_id
     WHERE current_entry.domain='dcl' AND current_entry.entity='customer' AND current_entry.status='APPROVED'
       AND line.enabled AND line.data->'primarySalesAttribution'->>'type' IS NOT NULL
@@ -121,7 +121,7 @@ WITH snapshot_references(entity, field, entry_id) AS (
     UNION ALL SELECT 'vou_sale_outbound_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_sale_outbound_lines
     UNION ALL SELECT 'vou_sale_return_details','snapshot',unnest(ARRAY[customer_approval_entry_id,warehouse_approval_entry_id]) FROM vou_sale_return_details
     UNION ALL SELECT 'vou_sale_return_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_sale_return_lines
-	UNION ALL SELECT 'vou_sales_receipt_account_allocations','snapshot',unnest(ARRAY[customer_approval_entry_id,account_approval_entry_id]) FROM vou_sales_receipt_account_allocations
+	UNION ALL SELECT 'vou_sales_receipt_subunit_allocations','snapshot',unnest(ARRAY[customer_approval_entry_id,subunit_approval_entry_id]) FROM vou_sales_receipt_subunit_allocations
     UNION ALL SELECT 'vou_sale_signoff_details','snapshot',unnest(ARRAY[customer_approval_entry_id,warehouse_approval_entry_id]) FROM vou_sale_signoff_details
     UNION ALL SELECT 'vou_sale_signoff_lines','snapshot',unnest(ARRAY[product_approval_entry_id]) FROM vou_sale_signoff_lines
     UNION ALL SELECT 'vou_service_contract_details','snapshot',unnest(ARRAY[counterparty_approval_entry_id,operating_entity_approval_entry_id,handler_approval_entry_id]) FROM vou_service_contract_details

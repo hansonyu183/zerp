@@ -150,8 +150,8 @@ func TestHandlerRegistersReadRoutesButNoDCLLifecycleAliases(t *testing.T) {
 		if strings.HasPrefix(route.Path, "/bob/customer/") && route.Path != "/bob/customer/query" && route.Path != "/bob/customer/get" {
 			t.Fatalf("legacy Customer write route remains registered: %s", route.Path)
 		}
-		if strings.HasPrefix(route.Path, "/bob/customer-account/") {
-			t.Fatalf("independent Customer Account route remains registered: %s", route.Path)
+		if strings.HasPrefix(route.Path, "/bob/customer-subunit/") {
+			t.Fatalf("independent Customer Subunit route remains registered: %s", route.Path)
 		}
 	}
 }
@@ -213,7 +213,7 @@ func TestHandlerReturnsNotFoundForEveryLegacyBOBWritePath(t *testing.T) {
 		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
 	})
 	entities := []string{
-		"party", "customer", "customer-account", "supplier", "employee",
+		"party", "customer", "customer-subunit", "supplier", "employee",
 		"other-unit", "sales-partner", "product", "warehouse", "vehicle",
 		"fund-account", "operating-entity",
 	}
@@ -241,7 +241,7 @@ func TestHandlerDoesNotRegisterCustomerWritePaths(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	for _, path := range []string{
 		"/bob/customer/create", "/bob/customer/save", "/bob/customer/submit", "/bob/customer/attachment-initiate",
-		"/bob/customer-account/create", "/bob/customer-account/save", "/bob/customer-account/approve",
+		"/bob/customer-subunit/create", "/bob/customer-subunit/save", "/bob/customer-subunit/approve",
 	} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))

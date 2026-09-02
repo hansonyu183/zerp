@@ -91,7 +91,7 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Customer = reference(detail.CustomerObjectID, detail.CustomerApprovalEntryID, bobdomain.EntityCustomerAccount, detail.CustomerCode, detail.CustomerName, "", "", "")
+		data.Customer = reference(detail.CustomerObjectID, detail.CustomerApprovalEntryID, bobdomain.EntityCustomerSubunit, detail.CustomerCode, detail.CustomerName, "", "", "")
 		data.Customer.CustomerID = detail.CustomerID
 		data.Salesperson = optionalReference(
 			detail.SalespersonObjectID, detail.SalespersonApprovalEntryID, "employee",
@@ -248,17 +248,17 @@ func (s *Service) loadData(
 		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(detail.HandlerObjectID, detail.HandlerApprovalEntryID, "employee", detail.HandlerCode, detail.HandlerName)
-		allocations, err := q.ListVouSalesReceiptAccountAllocations(ctx, document.ID)
+		allocations, err := q.ListVouSalesReceiptSubunitAllocations(ctx, document.ID)
 		if err != nil {
 			return data, err
 		}
-		data.AccountAllocations = make([]SalesReceiptAccountAllocationView, 0, len(allocations))
+		data.SubunitAllocations = make([]SalesReceiptSubunitAllocationView, 0, len(allocations))
 		for _, allocation := range allocations {
-			account := reference(allocation.AccountObjectID, allocation.AccountApprovalEntryID, bobdomain.EntityCustomerAccount,
-				allocation.AccountCode, allocation.AccountName, "", "", "")
-			account.CustomerID = detail.CustomerObjectID
-			data.AccountAllocations = append(data.AccountAllocations, SalesReceiptAccountAllocationView{
-				Account: *account,
+			subunit := reference(allocation.SubunitObjectID, allocation.SubunitApprovalEntryID, bobdomain.EntityCustomerSubunit,
+				allocation.SubunitCode, allocation.SubunitName, "", "", "")
+			subunit.CustomerID = detail.CustomerObjectID
+			data.SubunitAllocations = append(data.SubunitAllocations, SalesReceiptSubunitAllocationView{
+				Subunit: *subunit,
 				Amount:  formatMoney(allocation.AmountCents),
 			})
 		}

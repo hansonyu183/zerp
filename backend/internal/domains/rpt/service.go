@@ -279,20 +279,20 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in Reference
 			counterpartyTotal = rows[0].Total
 		}
 		return Page{Items: values, Total: counterpartyTotal, Page: page, PageSize: size}, nil
-	case ReferenceTypeCustomerAccount:
-		rows, e := s.queries.RptListCustomerAccountReferences(ctx, db.RptListCustomerAccountReferencesParams{SelectedID: selected, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
+	case ReferenceTypeCustomerSubunit:
+		rows, e := s.queries.RptListCustomerSubunitReferences(ctx, db.RptListCustomerSubunitReferencesParams{SelectedID: selected, Keyword: &keyword, RowOffset: offset, RowLimit: limit})
 		if e != nil {
 			return Page{}, internal("query report reference", e)
 		}
-		values := make([]CustomerAccountReference, len(rows))
+		values := make([]CustomerSubunitReference, len(rows))
 		for i, r := range rows {
-			values[i] = CustomerAccountReference{ID: r.ID, Code: r.Code, Name: r.Name, CustomerCode: value(r.CustomerCode), CustomerName: r.CustomerName}
+			values[i] = CustomerSubunitReference{ID: r.ID, Code: r.Code, Name: r.Name, CustomerCode: value(r.CustomerCode), CustomerName: r.CustomerName}
 		}
-		var customerAccountTotal int64
+		var customerSubunitTotal int64
 		if len(rows) > 0 {
-			customerAccountTotal = rows[0].Total
+			customerSubunitTotal = rows[0].Total
 		}
-		return Page{Items: values, Total: customerAccountTotal, Page: page, PageSize: size}, nil
+		return Page{Items: values, Total: customerSubunitTotal, Page: page, PageSize: size}, nil
 	default:
 		entity := map[ReferenceType]string{
 			ReferenceTypeSupplierRelationship:   "supplier",

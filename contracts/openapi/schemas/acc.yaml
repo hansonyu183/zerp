@@ -124,7 +124,7 @@
       'type': 'string',
       'enum':
         [
-          'CUSTOMER_ACCOUNT',
+          'CUSTOMER_SUBUNIT',
           'SUPPLIER',
           'OTHER_UNIT',
           'EMPLOYEE',
@@ -425,7 +425,7 @@
               'type': 'string',
               'enum':
                 [
-                  'customer-account',
+                  'customer-subunit',
                   'supplier',
                   'other-unit',
                   'employee',
@@ -548,11 +548,11 @@
   'OpeningContainerInput':
     {
       'type': 'object',
-      'required': ['customerId', 'containerType', 'quantity'],
+      'required': ['subunit', 'containerType', 'quantity'],
       'additionalProperties': false,
       'properties':
         {
-          'customerId': { 'type': 'string' },
+          'subunit': { '$ref': '#/BusinessArchiveDimensionReference' },
           'containerType': { 'type': 'string', 'enum': ['SOLVENT', 'RESIN'] },
           'quantity': { 'type': 'integer' },
         },

@@ -2,9 +2,9 @@
 
 ## 1. 领域职责
 
-DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject、business code 与强类型申报快照。当前实体是 `operating-entity`、`warehouse`、`vehicle`、`fund-account`、`product`、`employee`、`customer`、`supplier`、`other-unit`、`sales-partner`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition`：DCL 拥有申报创建、候选编辑、提交、撤回、驳回、批准、反批准、草稿删除、版本历史和审计读取；中央 Approval 唯一拥有版本号、状态、revision、审批元数据和审批事件；BOB 只通过 highest APPROVED typed snapshot 提供当前有效业务资料的只读查询与交易引用解析。Party 与独立 `customer-account` subject 不存在；客户核算账户是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
+DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject、business code 与强类型申报快照。当前实体是 `operating-entity`、`warehouse`、`vehicle`、`fund-account`、`product`、`employee`、`customer`、`supplier`、`other-unit`、`sales-partner`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition`：DCL 拥有申报创建、候选编辑、提交、撤回、驳回、批准、反批准、草稿删除、版本历史和审计读取；中央 Approval 唯一拥有版本号、状态、revision、审批元数据和审批事件；BOB 只通过 highest APPROVED typed snapshot 提供当前有效业务资料的只读查询与交易引用解析。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
 
-`dcl_subjects` 是版本化业务对象唯一通用稳定身份，最小保存不可变 ID、entity、code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是无编码 subject。Operating Entity、Warehouse、Vehicle、Fund Account、Product、Employee、Customer、Supplier、Other Unit 与 Sales Partner 必须分别匹配 `OPE/WHS/VEH/FAC/PRD/EMP/CUS/SUP/OTU/SLP-[0-9]{4}`；客户核算账户不占用 DCL subject 或全局编码空间，其稳定 ID 由 Customer 聚合持有，编码只在所属客户内大小写不敏感唯一。RPT 与 WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
+`dcl_subjects` 是版本化业务对象唯一通用稳定身份，最小保存不可变 ID、entity、code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是无编码 subject。Operating Entity、Warehouse、Vehicle、Fund Account、Product、Employee、Customer、Supplier、Other Unit 与 Sales Partner 必须分别匹配 `OPE/WHS/VEH/FAC/PRD/EMP/CUS/SUP/OTU/SLP-[0-9]{4}`；客户子单位不占用 DCL subject 或全局编码空间，其稳定 ID 由 Customer 聚合持有，编码只在所属客户内大小写不敏感唯一。RPT 与 WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
 
 ## 2. 经营主体申报
 
@@ -59,37 +59,37 @@ VOU 收付款、费用支付、其他收入和票据资金行继续保存 fund a
 
 ## 3.5 强类型业务身份
 
-Customer、Supplier、Employee、Other Unit 与 Sales Partner 各自在自己的完整 typed version 中保存个人或组织类型、法定名称、显示名称、税号、联系资料和强标识，不引用共享 Party。强标识按“业务档案类型 + 标识类型 + 规范化值”在该类型的 latest approved 与唯一 open candidate 间共同占用；跨业务档案类型不比较、不复用、不同步，也不提供跨类型或同类型合并。误建且已有历史引用的档案只能通过下一候选停用，历史快照保持原值。
+Customer、Supplier、Employee、Other Unit 与 Sales Partner 各自在自己的完整 typed version 中保存身份、法定名称、显示名称、单一法定识别号和联系资料，不引用共享 Party。法定识别号按“业务档案类型 + 规范化值”在该类型的 latest approved 与唯一 open candidate 间共同占用；跨业务档案类型不比较、不复用、不同步，也不提供跨类型或同类型合并。误建且已有历史引用的档案只能通过下一候选停用，历史快照保持原值。
 
-Party subject、版本、identifier claim、关系 root、影响预览、合并预检/确认、权限、页面和 API 全部不存在。新建每种业务档案都只创建该档案自己的 DCL subject、V1 candidate 和 typed snapshot；失败时整体回滚。税号等强标识变更与其他身份资料一起进入该档案正常的候选和审批流程。
+Party subject、版本、强标识数组、标识类型、重复税号字段、关系 root、影响预览、合并预检/确认、权限、页面和 API 全部不存在。新建每种业务档案都只创建该档案自己的 DCL subject、V1 candidate 和 typed snapshot；失败时整体回滚。法定识别号变更与其他身份资料一起进入该档案正常的候选和审批流程。
 
 ## 3.6 员工申报
 
-员工 stable ID 与 `EMP-*` 编码由 `dcl_subjects(entity=employee)` 持有。`dcl_employee_versions` 以 `approvalEntryId` 保存完整身份和雇佣 snapshot：人员法律身份、强标识、姓名、人员类别、部门、岗位、工作电话、工作邮箱、入职日期、任职经营主体、备注与 `enabled`。人员类别、部门、岗位与经营主体均保存稳定来源及必要快照。
+员工 stable ID 与 `EMP-*` 编码由 `dcl_subjects(entity=employee)` 持有。`dcl_employee_versions` 以 `approvalEntryId` 保存完整身份和雇佣 snapshot：人员法律身份、单一法定识别号、姓名、人员类别、部门、岗位、工作电话、工作邮箱、入职日期、任职经营主体、备注与 `enabled`。人员类别、部门、岗位与经营主体均保存稳定来源及必要快照。
 
 `/dcl/employee` 是员工唯一维护入口，`/bob/employee` 只提供 current `query|get|reference`。创建只提交员工完整资料，不选择或创建 Party。任职经营主体必须存在且当前有效，但只是员工资料，不限制其他经营主体的业务单据选择该员工；单据选择资格仍由自身权限和业务规则决定。V1 的 `enabled` 默认为 `true`，后续启停通过完整 DCL candidate 完成。
 
 批准或反批准只改变 Approval lifecycle；BOB 直接读取 highest APPROVED employee snapshot 并返回来源 Approval Entry。VOU/ACC 与其他正式事实继续保存 employee stable ID、精确 Approval Entry 以及各自所需 snapshot。任一正式事实精确引用目标 employee entry 时，反批准必须返回 blocker；新 employee candidate 和后续批准版本不改写历史。
 
-## 3.6.1 客户与客户核算账户申报
+## 3.6.1 客户与客户子单位申报
 
-Customer 是唯一 Approval subject 和聚合根。客户 stable ID 与 `CUS-*` 编码由 DCL subject 持有；Customer Version 完整保存个人或组织身份、法定名称、显示名称、税号、强标识、联系电话、邮箱、联系地址、开票抬头、开票地址、开票电话、开票开户行及账号、零个或多个汇款识别档案、默认经营主体、`enabled`、身份税务附件，以及一个或多个客户核算账户。每个汇款识别档案保存付款户名及可选付款银行、付款账号，用来辅助匹配真实来款，不代表核算账户或经营主体。客户不保存可交易经营主体名单；任一有效经营主体均可用于新销售单据，默认经营主体只提供预填。
+Customer 是唯一 Approval subject 和聚合根。客户 stable ID 与 `CUS-*` 编码由 DCL subject 持有；Customer 的身份 wire value 只有 `MAINLAND_ENTERPRISE`、`MAINLAND_INDIVIDUAL` 和 `OTHER`，创建默认 `MAINLAND_ENTERPRISE`。Customer Version 完整保存身份、法定名称、显示名称、单一法定识别号、联系电话、邮箱、联系地址、开票抬头、开票地址、开票电话、开票开户行及账号、零个或多个汇款识别档案、默认经营主体、`enabled`、身份税务附件，以及一个或多个客户子单位。大陆企业号码删除全部空白并大写，必须通过 18 位统一社会信用代码字符集和校验码；大陆个人号码规范化末位 `X`，必须通过 18 位居民身份证结构、出生日期和校验码；其他号码仅 trim 且非空时在 Customer 内查重。草稿可为空但非空时立即校验，提交和批准在同一事务重新验证必填、格式和唯一性。每个汇款识别档案保存付款户名及可选付款银行、付款账号，用来辅助匹配真实来款，不代表客户子单位或经营主体。客户不保存可交易经营主体名单；任一有效经营主体均可用于新销售单据，默认经营主体只提供预填。
 
-客户核算账户是 Customer Version 内的强类型子项，不是 DCL subject。账户保存稳定 `accountId`、客户内唯一 code、名称、联系人、业务地址、客户类型、结算和收款方式、运输与定价、逐币种信用额度、主要业务归属、内部提醒、默认订单备注、业务附件与 `enabled`。每个有效客户至少包含一个有效账户，并指定一个默认账户。账户业务参数跨经营主体只有一套默认值，不建立按经营主体覆盖层；采用方保存实际业务快照。
+客户子单位是 Customer Version 内的强类型子项，不是 DCL subject。子单位保存稳定 `subunitId`、客户内唯一且不可复用的 `SUB-NNNN` 顺序 code、名称、联系人、业务地址、客户类型、结算和收款方式、运输与定价、逐币种信用额度、主要业务归属、内部提醒、默认订单备注、业务附件与 `enabled`；联系人没有独立实体或启停状态。启用 Customer 至少包含一个启用子单位；停用 Customer 阻止全部新子单位引用，但保留子单位自身启停状态和历史事实。系统不保存 `isDefault` 或 `implicitSubunitId`：`implicitSubunitId` 只存在于查询响应中，恰有一个启用子单位时从所读版本即时派生，两个及以上时返回空值，采用方必须明确选择并保存实际子单位。
 
-`/dcl/customer` 是客户及全部核算账户的唯一维护路径，提供完整 lifecycle、版本和审计；`/dcl/customer-account` 与独立账户工作台任务不存在。创建在同一 transaction 建立 Customer subject、V1 candidate、完整客户 snapshot 和默认核算账户。任何账户新增、修改、停用或移除都修改唯一 Customer candidate，并与客户身份、税务、附件和全部账户一次保存、提交和批准。同一客户同时最多一个 open candidate，因此不存在账户间并行候选或部分审批。
+`/dcl/customer` 是客户及全部子单位的唯一维护边界，提供完整 lifecycle、版本和审计；`/dcl/customer-subunit`、独立子单位页面和独立工作台任务不存在。`save` 只保存 Customer 根资料，`save-subunits` 只保存完整子单位集合；两个命令拒绝越界字段，均可以从 latest approved 建立下一 candidate，并以同一 `approvalEntryId + approvalRevision` 并发保护同一开放 candidate。新建必须原子建立至少一个子单位，并同时要求 Customer create 与“维护客户子单位”权限。提交和批准在同一 transaction 校验根资料与完整子单位集合并一次切换，开放 candidate 不影响 BOB current。
 
-已批准版本中的账户不能物理删除；下一 Customer candidate 可以停用或移除它，但默认账户必须先改指向另一有效账户。只有从未进入任何批准版本且未被业务引用的草稿账户才可直接删除。客户候选期间业务继续使用上一 highest APPROVED 完整版本；批准后整体切换。交易和 ACC 历史至少保存 `accountId + customerApprovalEntryId + 必要业务快照`，正式引用阻止对应 Customer Approval Entry 的不安全反批准。
+已批准版本中的子单位不能物理删除；下一 Customer candidate 可以停用或从当前集合移除，但其 stable ID 与历史版本永久可解析。只有从未进入任何批准版本且未被业务引用的草稿子单位才可物理删除。保存 Customer 根资料不得丢失子单位或其业务附件，保存子单位集合不得改变根资料或身份税务附件。交易和 ACC 历史至少保存 `subunitId + customerApprovalEntryId + 必要业务快照`，正式引用阻止对应 Customer Approval Entry 的不安全反批准。
 
 ## 3.7 供应商、其他单位与销售合作方申报
 
 Supplier、Other Unit 与 Sales Partner 各自是全局强类型业务档案和独立 Approval subject，不引用 Party 或 relationship root。它们都可以维护适用经营主体集合和一个集合内的默认经营主体；新业务单据只能选择适用集合中的经营主体，默认值只用于预填。
 
-`dcl_supplier_versions` 保存完整供应商身份、强标识、联系人、地址、备注、适用和默认经营主体、可选结算方式快照、默认采购员快照与 `enabled`。供应商不维护 category 或 type。默认采购员必须是当前可用 Employee snapshot，但其任职经营主体不限制选择。
+`dcl_supplier_versions` 保存完整供应商身份、单一法定识别号、联系人、地址、备注、适用和默认经营主体、可选结算方式快照、默认采购员快照与 `enabled`。供应商不维护 category 或 type。默认采购员必须是当前可用 Employee snapshot，但其任职经营主体不限制选择。
 
 `/dcl/supplier` 是供应商唯一维护入口，`/bob/supplier` 只提供 current `query|get|reference`。采购订单、采购入库、采购退货、采购付款及 ACC 事实保存 Supplier stable ID、精确 Approval Entry 和必要快照；后续版本不改写历史。
 
-`dcl_other_unit_versions` 保存完整身份、强标识、联系人、地址、适用和默认经营主体、可选结算方式、备注与 `enabled`。`dcl_sales_partner_versions` 保存完整身份、强标识、适用和默认经营主体、`EXTERNAL_PART_TIME` 与 `CHANNEL_PARTNER` 能力集、联系人、地址、备注与 `enabled`。销售合作方草稿可暂缺能力，但 submit 与 approve 时至少有一种能力。Customer 与 Sales Partner 的同类型强标识相同时禁止把该客户核算账户归属给该 Sales Partner；缺少可比较强标识时不推测现实身份。
+`dcl_other_unit_versions` 保存完整身份、单一法定识别号、联系人、地址、适用和默认经营主体、可选结算方式、备注与 `enabled`。`dcl_sales_partner_versions` 保存完整身份、单一法定识别号、适用和默认经营主体、`EXTERNAL_PART_TIME` 与 `CHANNEL_PARTNER` 能力集、联系人、地址、备注与 `enabled`。销售合作方草稿可暂缺能力，但 submit 与 approve 时至少有一种能力。Customer 与 Sales Partner 的法定识别号相同且身份可比较时禁止把该客户子单位归属给该 Sales Partner；`OTHER` 不推测现实身份。
 
 `/dcl/other-unit` 与 `/dcl/sales-partner` 是各自唯一维护入口；对应 BOB 路径只提供 current `query|get|reference`。正式事实保存 typed stable ID、精确 Approval Entry 和必要快照；后续版本不改写历史合同、归属、收益、会计或车辆事实。
 
@@ -131,14 +131,14 @@ Starlark 脚本、编译图、试算零写入 adapter、类型化 `WorkflowActio
 
 ## 4. 原子性与引用
 
-DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照并同步发布强类型事件。Employee、Customer、Supplier、Other Unit 与 Sales Partner 直接从自己的 DCL stable subject、highest APPROVED entry 和完整 snapshot 向 BOB 提供 current 只读资料；不存在 Party、relationship identity 或 BOB 副本。Customer Version 与全部核算账户是一个原子 snapshot。任一 Approval subscriber 或领域内同步写入失败时，subject、entry、event 与 typed snapshot 必须全部回滚。
+DCL application service 创建 PostgreSQL transaction，并在同一事务内调用中央 Approval、写入 DCL 类型化快照并同步发布强类型事件。Employee、Customer、Supplier、Other Unit 与 Sales Partner 直接从自己的 DCL stable subject、highest APPROVED entry 和完整 snapshot 向 BOB 提供 current 只读资料；不存在 Party、relationship identity 或 BOB 副本。Customer Version 与全部客户子单位是一个原子 snapshot。任一 Approval subscriber 或领域内同步写入失败时，subject、entry、event 与 typed snapshot 必须全部回滚。
 
 BOB 对新业务解析 current/latest approved，并返回稳定 ID、来源 `approvalEntryId`、编码和类型化资料快照；已保存业务继续按精确 `approvalEntryId` 校验历史批准快照。旧批准版本不会因新版本批准而删除或改写。反批准前必须执行 BOB 领域的精确版本引用 blocker；只允许反批准 Approval 判断的 latest approved。
 
 ## 5. 权限
 
-DCL 每个维护页面分别按 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history` 精确授权。Party 与 Customer Account 独立权限不存在；核算账户维护只服从 Customer 页面和 Customer 权限。BOB 仅保留本对象的 `query`、`get` 与 `reference` 内部读取权限，不注册页面、主菜单、待办或审批入口；其他领域既有权限边界不变。
+DCL Customer 根资料继续按 `query`、`get`、`create`、`save` 和 lifecycle 路径精确授权；新增统一 `save-subunits` 权限覆盖子单位新增、编辑、启停、移除及子单位业务附件上传/移除。`get` 可以查看子单位并下载附件；根资料维护者不能修改子单位，子单位维护者无需根 `save` 权限即可修改同一 candidate；Customer `approve` 权限自身允许审批人查询、查看并下载完整 candidate，无需额外授予 `query` 或 `get`。Customer Subunit 不注册独立实体权限、页面、菜单、Approval、版本、工作台或待办。
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖 V1/V2 highest-approved 切换与回落、同一 subject 唯一开放候选、并发保存最多一个成功、强标识按业务档案类型唯一，以及 subscriber 失败整笔回滚。Customer 必须覆盖创建时原子建立默认核算账户、全部账户与客户一次保存和审批、账户 code 客户内唯一、默认账户完整性、账户草稿删除与正式移除 blocker、跨经营主体共用账户默认值、`accountId + customerApprovalEntryId` 历史读取，以及账户无独立权限、API、版本和待办。Employee 必须覆盖任职经营主体快照以及跨经营主体单据仍可选择。Supplier、Other Unit 与 Sales Partner 必须覆盖适用经营主体集合、默认值、强标识和正式引用 blocker。HTTP 与前端验收必须证明 DCL 页面独占当前资料、候选及生命周期，BOB 只提供选择器、current 与 exact-reference 内部读取，动作文案区分编辑草稿与发起变更，并且不存在 Party、独立 Customer Account、BOB 页面、重复主菜单或旧深链。其他实体的既有验收边界不变。
+真实 PostgreSQL 验收必须覆盖 V1/V2 highest-approved 切换与回落、同一 subject 唯一开放候选、分命令并发旧 revision、法定识别号按业务档案类型唯一，以及 subscriber 失败整笔回滚。Customer 还必须覆盖原子创建至少一个子单位、根/子单位字段隔离、附件保留、候选隔离、专属顺序 code、两级启停、草稿子单位物理删除与正式移除保留、唯一启用子单位隐式选择、多个启用子单位强制显式选择、`subunitId + customerApprovalEntryId` 历史读取，以及无独立子单位 lifecycle。跨域公共验收统一使用 `customer-subunit`、`subunits`、`subunitId` 和 `CUSTOMER_SUBUNIT`，并证明旧 wire、表、权限和路径不可达。

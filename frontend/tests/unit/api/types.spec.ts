@@ -80,6 +80,43 @@ describe('API user messages', () => {
     ).toBe(message)
   })
 
+  it.each([
+    [
+      'invalid_legal_identifier',
+      '法定识别号不符合当前身份类型的规则，请检查后重试。',
+    ],
+    ['legal_identifier_required', '提交前请填写法定识别号。'],
+    [
+      'customer_legal_identifier_claimed',
+      '该客户法定识别号已被其他客户占用，请修改后重试。',
+    ],
+    [
+      'supplier_legal_identifier_claimed',
+      '该供应商法定识别号已被其他供应商占用，请修改后重试。',
+    ],
+    [
+      'employee_legal_identifier_claimed',
+      '该员工法定识别号已被其他员工占用，请修改后重试。',
+    ],
+    [
+      'other_unit_legal_identifier_claimed',
+      '该其他单位法定识别号已被其他单位占用，请修改后重试。',
+    ],
+    [
+      'sales_partner_legal_identifier_claimed',
+      '该销售合作方法定识别号已被其他销售合作方占用，请修改后重试。',
+    ],
+  ])('映射法定识别号稳定错误 %s', (errorKey, message) => {
+    expect(
+      getErrorMessage(
+        new ApiError('business', 'unstable backend diagnostic', {
+          code: 3001,
+          errorKey,
+        }),
+      ),
+    ).toBe(message)
+  })
+
   it('未知 errorKey 使用清理请求标识后的后端可读说明', () => {
     expect(
       getErrorMessage(

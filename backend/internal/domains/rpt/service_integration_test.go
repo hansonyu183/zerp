@@ -224,7 +224,7 @@ func TestRPTBuiltInBillsCounterpartyReferenceIntegration(t *testing.T) {
 	}
 }
 
-func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration(t *testing.T) {
+func TestRPTCustomerSubunitReferencesUseLatestEnabledCustomerSnapshotIntegration(t *testing.T) {
 	pool := rptIntegrationPool(t)
 	seedRPTActors(t, pool)
 	service, err := NewService(pool)
@@ -234,7 +234,7 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 
 	currentCustomerID, secondCustomerID, disabledCustomerID := newID(), newID(), newID()
 	firstEntryID, latestEntryID, secondCustomerEntryID, disabledCustomerEntryID := newID(), newID(), newID(), newID()
-	currentAccountID, oldAccountID, disabledAccountID, secondAccountID, disabledCustomerAccountID := newID(), newID(), newID(), newID(), newID()
+	currentSubunitID, oldSubunitID, disabledSubunitID, secondSubunitID, disabledCustomerSubunitID := newID(), newID(), newID(), newID(), newID()
 	entryIDs := []string{firstEntryID, latestEntryID, secondCustomerEntryID, disabledCustomerEntryID}
 	customerIDs := []string{currentCustomerID, secondCustomerID, disabledCustomerID}
 
@@ -247,16 +247,16 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 	}
 	customerData := func(legalName, displayName string, enabled bool) []byte {
 		data := map[string]any{
-			"kind": "ORGANIZATION", "legalName": legalName, "displayName": displayName,
-			"strongIdentifiers": []any{}, "remittanceProfiles": []any{},
+			"kind": "MAINLAND_ENTERPRISE", "legalName": legalName, "displayName": displayName,
+			"legalIdentifier": "91350211M00010001X", "remittanceProfiles": []any{},
 			"defaultOperatingEntityId": newID(), "defaultOperatingEntity": map[string]any{},
-			"enabled": enabled, "accounts": []any{},
+			"enabled": enabled, "subunits": []any{},
 		}
 		return marshal(data)
 	}
-	accountData := func(accountID, code, name string, enabled bool) []byte {
+	subunitData := func(subunitID, code, name string, enabled bool) []byte {
 		return marshal(map[string]any{
-			"accountId": accountID, "enabled": enabled, "isDefault": false, "name": name,
+			"subunitId": subunitID, "enabled": enabled, "name": name,
 			"customerTypeId": newID(), "transportSurcharge": "0.00",
 			"pricingPolicy": map[string]any{"costItems": []any{}}, "creditLimits": []any{},
 			"primarySalesAttribution": map[string]any{}, "code": code, "attachments": []any{},
@@ -303,35 +303,35 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 		{secondCustomerEntryID, customerData("RPT 第二客户法定名称", "", true), true},
 		{disabledCustomerEntryID, customerData("RPT 客户已禁用", "RPT 客户已禁用", false), false},
 	} {
-		if _, err = tx.Exec(t.Context(), `INSERT INTO dcl_customer_versions(approval_entry_id,data,enabled) VALUES($1,$2,$3)`, version.entryID, version.data, version.enabled); err != nil {
+		if _, err = tx.Exec(t.Context(), `INSERT INTO dcl_customer_versions(approval_entry_id,kind,legal_identifier,data,enabled) VALUES($1,'MAINLAND_ENTERPRISE','91350211M00010001X',$2,$3)`, version.entryID, version.data, version.enabled); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, root := range []struct {
-		accountID, customerID, code string
+		subunitID, customerID, code string
 		firstEntryID                string
 	}{
-		{currentAccountID, currentCustomerID, "ACC-9001", firstEntryID},
-		{oldAccountID, currentCustomerID, "ACC-9002", firstEntryID},
-		{disabledAccountID, currentCustomerID, "ACC-9003", firstEntryID},
-		{secondAccountID, secondCustomerID, "ACC-9001", secondCustomerEntryID},
-		{disabledCustomerAccountID, disabledCustomerID, "ACC-9004", disabledCustomerEntryID},
+		{currentSubunitID, currentCustomerID, "SUB-9001", firstEntryID},
+		{oldSubunitID, currentCustomerID, "SUB-9002", firstEntryID},
+		{disabledSubunitID, currentCustomerID, "SUB-9003", firstEntryID},
+		{secondSubunitID, secondCustomerID, "SUB-9001", secondCustomerEntryID},
+		{disabledCustomerSubunitID, disabledCustomerID, "SUB-9004", disabledCustomerEntryID},
 	} {
-		if _, err = tx.Exec(t.Context(), `INSERT INTO dcl_customer_account_roots(account_id,customer_id,code,ever_approved,first_approved_customer_entry_id) VALUES($1,$2,$3,TRUE,$4)`, root.accountID, root.customerID, root.code, root.firstEntryID); err != nil {
+		if _, err = tx.Exec(t.Context(), `INSERT INTO dcl_customer_subunit_roots(subunit_id,customer_id,code,ever_approved,first_approved_customer_entry_id) VALUES($1,$2,$3,TRUE,$4)`, root.subunitID, root.customerID, root.code, root.firstEntryID); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, line := range []struct {
-		entryID, accountID, code, name string
+		entryID, subunitID, code, name string
 		enabled                        bool
 	}{
-		{firstEntryID, oldAccountID, "ACC-9002", "RPT 客户旧版本账户", true},
-		{latestEntryID, currentAccountID, "ACC-9001", "RPT 客户当前账户", true},
-		{latestEntryID, disabledAccountID, "ACC-9003", "RPT 客户禁用账户", false},
-		{secondCustomerEntryID, secondAccountID, "ACC-9001", "RPT 第二客户账户", true},
-		{disabledCustomerEntryID, disabledCustomerAccountID, "ACC-9004", "RPT 已禁用客户账户", true},
+		{firstEntryID, oldSubunitID, "SUB-9002", "RPT 客户旧版本子单位", true},
+		{latestEntryID, currentSubunitID, "SUB-9001", "RPT 客户当前子单位", true},
+		{latestEntryID, disabledSubunitID, "SUB-9003", "RPT 客户禁用子单位", false},
+		{secondCustomerEntryID, secondSubunitID, "SUB-9001", "RPT 第二客户子单位", true},
+		{disabledCustomerEntryID, disabledCustomerSubunitID, "SUB-9004", "RPT 已禁用客户子单位", true},
 	} {
-		if _, err = tx.Exec(t.Context(), `INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default) VALUES($1,$2,$3,$4,FALSE)`, line.entryID, line.accountID, accountData(line.accountID, line.code, line.name, line.enabled), line.enabled); err != nil {
+		if _, err = tx.Exec(t.Context(), `INSERT INTO dcl_customer_version_subunits(customer_approval_entry_id,subunit_id,data,enabled) VALUES($1,$2,$3,$4)`, line.entryID, line.subunitID, subunitData(line.subunitID, line.code, line.name, line.enabled), line.enabled); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -340,8 +340,8 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 	}
 	t.Cleanup(func() {
 		ctx := context.Background()
-		_, _ = pool.Exec(ctx, `DELETE FROM dcl_customer_version_accounts WHERE customer_approval_entry_id=ANY($1)`, entryIDs)
-		_, _ = pool.Exec(ctx, `DELETE FROM dcl_customer_account_roots WHERE customer_id=ANY($1)`, customerIDs)
+		_, _ = pool.Exec(ctx, `DELETE FROM dcl_customer_version_subunits WHERE customer_approval_entry_id=ANY($1)`, entryIDs)
+		_, _ = pool.Exec(ctx, `DELETE FROM dcl_customer_subunit_roots WHERE customer_id=ANY($1)`, customerIDs)
 		_, _ = pool.Exec(ctx, `DELETE FROM dcl_customer_versions WHERE approval_entry_id=ANY($1)`, entryIDs)
 		_, _ = pool.Exec(ctx, `DELETE FROM approval_entries WHERE id=ANY($1)`, entryIDs)
 		_, _ = pool.Exec(ctx, `DELETE FROM dcl_subjects WHERE id=ANY($1)`, customerIDs)
@@ -350,48 +350,48 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 	query := func(keyword, selectedID string) Page {
 		t.Helper()
 		page, queryErr := service.QueryReferences(t.Context(), "customer-aging", ReferenceQueryInput{
-			ParameterKey: "customerAccountId", Keyword: keyword, SelectedID: selectedID,
+			ParameterKey: "customerSubunitId", Keyword: keyword, SelectedID: selectedID,
 		})
 		if queryErr != nil {
-			t.Fatalf("query customer account references: %v", queryErr)
+			t.Fatalf("query customer subunit references: %v", queryErr)
 		}
 		return page
 	}
 	page := query("RPT", "")
-	items, ok := page.Items.([]CustomerAccountReference)
+	items, ok := page.Items.([]CustomerSubunitReference)
 	if !ok {
-		t.Fatalf("customer account reference items type = %T", page.Items)
+		t.Fatalf("customer subunit reference items type = %T", page.Items)
 	}
-	want := map[string]CustomerAccountReference{
-		currentAccountID: {ID: currentAccountID, Code: "ACC-9001", Name: "RPT 客户当前账户", CustomerCode: "CUS-9001", CustomerName: "RPT 客户当前"},
-		secondAccountID:  {ID: secondAccountID, Code: "ACC-9001", Name: "RPT 第二客户账户", CustomerCode: "CUS-9002", CustomerName: "RPT 第二客户法定名称"},
+	want := map[string]CustomerSubunitReference{
+		currentSubunitID: {ID: currentSubunitID, Code: "SUB-9001", Name: "RPT 客户当前子单位", CustomerCode: "CUS-9001", CustomerName: "RPT 客户当前"},
+		secondSubunitID:  {ID: secondSubunitID, Code: "SUB-9001", Name: "RPT 第二客户子单位", CustomerCode: "CUS-9002", CustomerName: "RPT 第二客户法定名称"},
 	}
 	if page.Total != int64(len(want)) || len(items) != len(want) {
-		t.Fatalf("current customer account candidates = total %d items %#v", page.Total, items)
+		t.Fatalf("current customer subunit candidates = total %d items %#v", page.Total, items)
 	}
 	for _, item := range items {
 		if expected, found := want[item.ID]; !found || item != expected {
-			t.Fatalf("customer account candidate = %#v, want one of %#v", item, want)
+			t.Fatalf("customer subunit candidate = %#v, want one of %#v", item, want)
 		}
 		delete(want, item.ID)
 	}
 	if len(want) != 0 {
-		t.Fatalf("customer account candidates missing: %#v", want)
+		t.Fatalf("customer subunit candidates missing: %#v", want)
 	}
 	for keyword, expectedID := range map[string]string{
-		"CUS-9001": currentAccountID,
-		"第二客户法定名称": secondAccountID,
+		"CUS-9001": currentSubunitID,
+		"第二客户法定名称": secondSubunitID,
 	} {
 		searched := query(keyword, "")
-		searchedItems, searchedOK := searched.Items.([]CustomerAccountReference)
+		searchedItems, searchedOK := searched.Items.([]CustomerSubunitReference)
 		if !searchedOK || searched.Total != 1 || len(searchedItems) != 1 || searchedItems[0].ID != expectedID {
-			t.Fatalf("customer account search %q = total %d items %#v", keyword, searched.Total, searched.Items)
+			t.Fatalf("customer subunit search %q = total %d items %#v", keyword, searched.Total, searched.Items)
 		}
 	}
-	selectedCurrent := query("does-not-match", currentAccountID)
-	selectedItems, ok := selectedCurrent.Items.([]CustomerAccountReference)
-	if !ok || selectedCurrent.Total != 1 || len(selectedItems) != 1 || selectedItems[0].ID != currentAccountID {
-		t.Fatalf("selected current customer account = total %d items %#v", selectedCurrent.Total, selectedCurrent.Items)
+	selectedCurrent := query("does-not-match", currentSubunitID)
+	selectedItems, ok := selectedCurrent.Items.([]CustomerSubunitReference)
+	if !ok || selectedCurrent.Total != 1 || len(selectedItems) != 1 || selectedItems[0].ID != currentSubunitID {
+		t.Fatalf("selected current customer subunit = total %d items %#v", selectedCurrent.Total, selectedCurrent.Items)
 	}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -399,13 +399,13 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 		return authorization.Principal{ActorID: rptIntegrationActor, Permissions: []string{permissionPath("customer-aging", "query")}}, nil
 	})
 	NewHandler(service, authorizer, slog.Default()).Register(router)
-	request := httptest.NewRequest(http.MethodPost, "/rpt/customer-aging/reference-query", bytes.NewBufferString(`{"parameterKey":"customerAccountId","keyword":"RPT"}`))
+	request := httptest.NewRequest(http.MethodPost, "/rpt/customer-aging/reference-query", bytes.NewBufferString(`{"parameterKey":"customerSubunitId","keyword":"RPT"}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	var responseBody struct {
 		Data struct {
-			Items []CustomerAccountReference `json:"items"`
+			Items []CustomerSubunitReference `json:"items"`
 			Total int64                      `json:"total"`
 		} `json:"data"`
 	}
@@ -413,21 +413,21 @@ func TestRPTCustomerAccountReferencesUseLatestEnabledCustomerSnapshotIntegration
 		t.Fatal(err)
 	}
 	if recorder.Code != http.StatusOK || responseBody.Data.Total != 2 || len(responseBody.Data.Items) != 2 {
-		t.Fatalf("customer account reference response status=%d data=%#v", recorder.Code, responseBody.Data)
+		t.Fatalf("customer subunit reference response status=%d data=%#v", recorder.Code, responseBody.Data)
 	}
 	wireCustomers := map[string]string{}
 	for _, item := range responseBody.Data.Items {
-		if item.Code != "ACC-9001" || (item.CustomerCode != "CUS-9001" && item.CustomerCode != "CUS-9002") || item.CustomerName == "" {
-			t.Fatalf("customer account reference response item = %#v", item)
+		if item.Code != "SUB-9001" || (item.CustomerCode != "CUS-9001" && item.CustomerCode != "CUS-9002") || item.CustomerName == "" {
+			t.Fatalf("customer subunit reference response item = %#v", item)
 		}
 		wireCustomers[item.CustomerCode] = item.CustomerName
 	}
 	if len(wireCustomers) != 2 || wireCustomers["CUS-9001"] != "RPT 客户当前" || wireCustomers["CUS-9002"] != "RPT 第二客户法定名称" {
-		t.Fatalf("customer account reference response owners = %#v", wireCustomers)
+		t.Fatalf("customer subunit reference response owners = %#v", wireCustomers)
 	}
-	for _, excludedID := range []string{oldAccountID, disabledAccountID, disabledCustomerAccountID} {
-		if excluded := query("does-not-match", excludedID); excluded.Total != 0 || len(excluded.Items.([]CustomerAccountReference)) != 0 {
-			t.Fatalf("stale or disabled customer account %q leaked into candidates: total %d items %#v", excludedID, excluded.Total, excluded.Items)
+	for _, excludedID := range []string{oldSubunitID, disabledSubunitID, disabledCustomerSubunitID} {
+		if excluded := query("does-not-match", excludedID); excluded.Total != 0 || len(excluded.Items.([]CustomerSubunitReference)) != 0 {
+			t.Fatalf("stale or disabled customer subunit %q leaked into candidates: total %d items %#v", excludedID, excluded.Total, excluded.Items)
 		}
 	}
 }
@@ -592,7 +592,8 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	bookID, bookCode := newID(), "RPT-"+strings.ToUpper(newID()[:8])
-	customerAccountID, supplierID, employeeID := newID(), newID(), newID()
+	customerSubunitID, customerID, customerApprovalEntryID := newID(), newID(), newID()
+	supplierID, employeeID := newID(), newID()
 	actor := rptIntegrationActor
 	if _, err = pool.Exec(t.Context(), `INSERT INTO acc_books(id,code,name,start_month,base_currency,created_by,updated_by)
 		VALUES($1,$2,'RPT semantic book','2026-01-01','CNY',$3,$3)`, bookID, bookCode, actor); err != nil {
@@ -607,8 +608,8 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 	})
 	type subject struct{ id, code, purpose, direction, dimension string }
 	subjects := []subject{
-		{newID(), "1122", "RECEIVABLE", "DEBIT", "CUSTOMER_ACCOUNT"},
-		{newID(), "2203", "ADVANCE_RECEIPT", "CREDIT", "CUSTOMER_ACCOUNT"},
+		{newID(), "1122", "RECEIVABLE", "DEBIT", "CUSTOMER_SUBUNIT"},
+		{newID(), "2203", "ADVANCE_RECEIPT", "CREDIT", "CUSTOMER_SUBUNIT"},
 		{newID(), "2202", "PAYABLE", "CREDIT", "SUPPLIER"},
 		{newID(), "1123", "PREPAID", "DEBIT", "SUPPLIER"},
 		{newID(), "1221", "OTHER", "DEBIT", "EMPLOYEE"},
@@ -642,9 +643,9 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 		amount                                                          int64
 	}
 	postings := []posting{
-		{"sale-delivery", "2026-01-01", "2026-01-01", subjectID("1122"), "DEBIT", "CUSTOMER_ACCOUNT", customerAccountID, 10000},
-		{"sale-delivery", "2026-02-01", "2026-02-01", subjectID("1122"), "DEBIT", "CUSTOMER_ACCOUNT", customerAccountID, 5000},
-		{"sales-receipt", "2026-02-10", "2026-02-10", subjectID("2203"), "CREDIT", "CUSTOMER_ACCOUNT", customerAccountID, 12000},
+		{"sale-delivery", "2026-01-01", "2026-01-01", subjectID("1122"), "DEBIT", "CUSTOMER_SUBUNIT", customerSubunitID, 10000},
+		{"sale-delivery", "2026-02-01", "2026-02-01", subjectID("1122"), "DEBIT", "CUSTOMER_SUBUNIT", customerSubunitID, 5000},
+		{"sales-receipt", "2026-02-10", "2026-02-10", subjectID("2203"), "CREDIT", "CUSTOMER_SUBUNIT", customerSubunitID, 12000},
 		{"purchase-inbound", "2026-01-05", "2026-01-05", subjectID("2202"), "CREDIT", "SUPPLIER", supplierID, 20000},
 		{"purchase-payment", "2026-02-05", "2026-02-05", subjectID("1123"), "DEBIT", "SUPPLIER", supplierID, 15000},
 		{"employee-loan", "2026-01-10", "2026-01-10", subjectID("1221"), "DEBIT", "EMPLOYEE", employeeID, 10000},
@@ -657,19 +658,29 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		dimensions, _ := json.Marshal(map[string]string{item.dimension: item.referenceID})
+		dimensionReferences := []byte(`{}`)
+		if item.dimension == "CUSTOMER_SUBUNIT" {
+			dimensionReferences, _ = json.Marshal(map[string]map[string]string{
+				"CUSTOMER_SUBUNIT": {
+					"entity": "customer-subunit", "objectId": customerSubunitID,
+					"customerId": customerID, "approvalEntryId": customerApprovalEntryID,
+					"code": "SUB-HISTORY", "name": "历史客户子单位",
+				},
+			})
+		}
 		debit, credit := int64(0), int64(0)
 		if item.direction == "DEBIT" {
 			debit = item.amount
 		} else {
 			credit = item.amount
 		}
-		if _, err = pool.Exec(t.Context(), `INSERT INTO acc_voucher_lines(id,voucher_id,book_id,subject_id,currency,debit_minor,credit_minor,dimensions,source_line_id,line_order)
-			VALUES($1,$2,$3,$4,'CNY',$5,$6,$7,$8,1)`, newID(), voucherID, bookID, item.subjectID, debit, credit, dimensions, documentID); err != nil {
+		if _, err = pool.Exec(t.Context(), `INSERT INTO acc_voucher_lines(id,voucher_id,book_id,subject_id,currency,debit_minor,credit_minor,dimensions,dimension_references,source_line_id,line_order)
+			VALUES($1,$2,$3,$4,'CNY',$5,$6,$7,$8,$9,1)`, newID(), voucherID, bookID, item.subjectID, debit, credit, dimensions, dimensionReferences, documentID); err != nil {
 			t.Fatal(err)
 		}
 	}
 	var customerFacts int
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id JOIN acc_subjects subject ON subject.id=line.subject_id WHERE line.book_id=$1 AND line.dimensions ? 'CUSTOMER_ACCOUNT' AND subject.settlement_purpose IN ('RECEIVABLE','ADVANCE_RECEIPT') AND voucher.business_date<='2026-03-01'`, bookID).Scan(&customerFacts); err != nil || customerFacts != 3 {
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id JOIN acc_subjects subject ON subject.id=line.subject_id WHERE line.book_id=$1 AND line.dimensions ? 'CUSTOMER_SUBUNIT' AND subject.settlement_purpose IN ('RECEIVABLE','ADVANCE_RECEIPT') AND voucher.business_date<='2026-03-01'`, bookID).Scan(&customerFacts); err != nil || customerFacts != 3 {
 		t.Fatalf("customer fact fixture count = %d, err=%v", customerFacts, err)
 	}
 	execute := func(code string, parameters map[string]any) map[string]any {
@@ -682,9 +693,12 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 		}
 		return rptNormalizedRow(t, result)
 	}
-	customer := execute("customer-aging", map[string]any{"bookId": bookID, "customerAccountId": customerAccountID, "currency": "CNY", "asOfDate": "2026-03-01", "minAgeDays": float64(0)})
-	if customer["customer_account_id"] != customerAccountID {
-		t.Fatalf("customer account result = %+v", customer)
+	customer := execute("customer-aging", map[string]any{"bookId": bookID, "customerSubunitId": customerSubunitID, "currency": "CNY", "asOfDate": "2026-03-01", "minAgeDays": float64(0)})
+	if customer["customer_subunit_id"] != customerSubunitID {
+		t.Fatalf("customer subunit result = %+v", customer)
+	}
+	if customer["customer_subunit_code"] != "SUB-HISTORY" || customer["customer_subunit_name"] != "历史客户子单位" {
+		t.Fatalf("customer subunit fact snapshot = %+v", customer)
 	}
 	if customer["receivable_amount"] != 150.0 || customer["advance_amount"] != 120.0 || customer["unsettled_amount"] != 30.0 || customer["oldest_age_days"] != 28.0 {
 		t.Fatalf("customer FIFO row = %+v", customer)
@@ -751,11 +765,14 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 		if _, err = pool.Exec(t.Context(), `INSERT INTO acc_vouchers(id,book_id,source_type,source_id,business_date,source_entity,created_by) VALUES($1,$2,'COST_SETTLEMENT',$3,$4,'sale-signoff',$5)`, newID(), bookID, documentID, event.date, actor); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = pool.Exec(t.Context(), `INSERT INTO acc_container_entries(id,customer_id,container_type,quantity_delta,source_document_id,source_revision) VALUES($1,$2,'SOLVENT',$3,$4,1)`, newID(), customerAccountID, event.quantity, documentID); err != nil {
+		if _, err = pool.Exec(t.Context(), `INSERT INTO acc_container_entries(id,customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,container_type,quantity_delta,source_document_id,source_revision) VALUES($1,$2,$3,$4,'SUB-RPT','报表客户子单位','SOLVENT',$5,$6,1)`, newID(), customerSubunitID, customerID, customerApprovalEntryID, event.quantity, documentID); err != nil {
 			t.Fatal(err)
 		}
 	}
-	container := execute("containers", map[string]any{"bookId": bookID, "customerId": customerAccountID, "containerType": "SOLVENT", "asOfDate": "2026-02-28"})
+	container := execute("containers", map[string]any{"bookId": bookID, "customerSubunitId": customerSubunitID, "containerType": "SOLVENT", "asOfDate": "2026-02-28"})
+	if container["customer_subunit_id"] != customerSubunitID || container["customer_id"] != customerID || container["customer_approval_entry_id"] != customerApprovalEntryID || container["customer_subunit_code"] != "SUB-RPT" || container["customer_subunit_name"] != "报表客户子单位" {
+		t.Fatalf("container snapshot row = %+v", container)
+	}
 	if container["issued_quantity"] != 0.0 || container["returned_quantity"] != 5.0 || container["adjusted_quantity"] != 0.0 || container["balance_quantity"] != 5.0 || container["amount"] != nil {
 		t.Fatalf("container row = %+v", container)
 	}

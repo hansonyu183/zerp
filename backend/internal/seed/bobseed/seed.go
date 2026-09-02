@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
@@ -23,6 +24,35 @@ const (
 	approvedStatus = string(approval.StatusApproved)
 	seedReviewerID = "01J00000000000000000000001"
 )
+
+// legalIdentifierForSeed derives valid identifiers from immutable demo codes.
+// It intentionally owns its checksum logic so seeds do not depend on runtime
+// domain validation and stays stable across re-runs.
+func legalIdentifierForSeed(kind, seed string) string {
+	serial := uint32(0)
+	for _, r := range seed {
+		serial = serial*31 + uint32(r)
+	}
+	serial %= 100000000
+	if kind == "PERSON" {
+		base := fmt.Sprintf("11010519900101%03d", serial%1000)
+		weights := [...]int{7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2}
+		checks := "10X98765432"
+		sum := 0
+		for i, weight := range weights {
+			sum += int(base[i]-'0') * weight
+		}
+		return base + string(checks[sum%11])
+	}
+	base := fmt.Sprintf("91350211M%08d", serial)
+	chars := "0123456789ABCDEFGHJKLMNPQRTUWXY"
+	weights := [...]int{1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28}
+	sum := 0
+	for i, weight := range weights {
+		sum += strings.IndexByte(chars, base[i]) * weight
+	}
+	return base + string(chars[(31-sum%31)%31])
+}
 
 type Result struct {
 	Created int
@@ -174,7 +204,7 @@ func (service typedArchiveLifecycleService) Create(
 	}
 	if entity == bob.EntityEmployee {
 		result, err := service.employees.Create(ctx, dcldomain.EmployeeCreateInput{
-			Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: input.Data.Name, DisplayName: input.Data.ShortName, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true, CurrentOperatingEntityID: input.Data.OperatingEntityID, DepartmentID: input.Data.DepartmentID, PositionID: input.Data.PositionID,
+			Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: input.Data.Name, DisplayName: input.Data.ShortName, LegalIdentifier: legalIdentifierForSeed("PERSON", input.Data.Code), Enabled: true, CurrentOperatingEntityID: input.Data.OperatingEntityID, DepartmentID: input.Data.DepartmentID, PositionID: input.Data.PositionID,
 				Phone: input.Data.Phone, Email: input.Data.Email, HireDate: input.Data.HireDate, Remark: input.Data.Remark},
 		}, actor)
 		return employeeMutation(result), err
@@ -189,7 +219,7 @@ func (service typedArchiveLifecycleService) Create(
 		result, err := service.typedArchives.CreateOtherUnit(ctx, dcldomain.OtherUnitCreateInput{
 			Data: dcldomain.OtherUnitData{
 				Kind: "ORGANIZATION", LegalName: input.Data.Name, DisplayName: input.Data.ShortName,
-				TaxNumber: input.Data.TaxNumber, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true,
+				LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", input.Data.Code), Enabled: true,
 				OperatingEntityIDs: []string{input.Data.OperatingEntityID}, DefaultOperatingEntityID: input.Data.OperatingEntityID,
 				ContactName: input.Data.ContactName, ContactPhone: input.Data.ContactPhone,
 				Email: input.Data.Email, Address: input.Data.Address,
@@ -201,13 +231,12 @@ func (service typedArchiveLifecycleService) Create(
 		if err != nil {
 			return seedMutation{}, err
 		}
-		customer, err := service.customers.Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerDataInput{
-			Kind: "ORGANIZATION", LegalName: input.Data.Name, DisplayName: input.Data.ShortName,
-			TaxNumber: input.Data.TaxNumber, Phone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
-			DefaultOperatingEntityID: input.Data.OperatingEntityID, Enabled: true,
-			StrongIdentifiers:  []dcldomain.BusinessIdentifierInput{},
-			RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{},
-			Accounts: []dcldomain.CustomerAccountDataInput{{Enabled: true, IsDefault: true, Name: input.Data.Name, ShortName: input.Data.ShortName,
+		customer, err := service.customers.Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerCreateDataInput{
+			Root: dcldomain.CustomerRootDataInput{Kind: "MAINLAND_ENTERPRISE", LegalName: input.Data.Name, DisplayName: input.Data.ShortName,
+				LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", input.Data.Code), Phone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
+				DefaultOperatingEntityID: input.Data.OperatingEntityID, Enabled: true,
+				RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{}},
+			Subunits: []dcldomain.CustomerSubunitDataInput{{Enabled: true, Name: input.Data.Name, ShortName: input.Data.ShortName,
 				CustomerTypeID: bob.CustomerTypeEndUserID, ContactName: input.Data.ContactName,
 				ContactPhone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
 				SettlementMethodID: input.Data.SettlementMethodID,
@@ -390,7 +419,7 @@ func (service typedArchiveLifecycleService) Save(
 		result, err := service.employees.Save(ctx, dcldomain.EmployeeSaveInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
 			ApprovalRevision: input.ApprovalRevision,
-			Data: dcldomain.EmployeeInput{Kind: view.Data.Kind, LegalName: view.Data.LegalName, DisplayName: view.Data.DisplayName, TaxNumber: view.Data.TaxNumber, StrongIdentifiers: view.Data.StrongIdentifiers, Enabled: view.Data.Enabled, CurrentOperatingEntityID: view.Data.CurrentOperatingEntityID, EmployeeCategoryID: view.Data.EmployeeCategoryID, DepartmentID: input.Data.DepartmentID.Value,
+			Data: dcldomain.EmployeeInput{Kind: view.Data.Kind, LegalName: view.Data.LegalName, DisplayName: view.Data.DisplayName, LegalIdentifier: view.Data.LegalIdentifier, Enabled: view.Data.Enabled, CurrentOperatingEntityID: view.Data.CurrentOperatingEntityID, EmployeeCategoryID: view.Data.EmployeeCategoryID, DepartmentID: input.Data.DepartmentID.Value,
 				PositionID: input.Data.PositionID.Value, Phone: input.Data.Phone.Value,
 				Email: input.Data.Email.Value, HireDate: input.Data.HireDate.Value,
 				Remark: input.Data.Remark.Value},
@@ -408,9 +437,9 @@ func (service typedArchiveLifecycleService) Save(
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
 			ApprovalRevision: input.ApprovalRevision,
 			Data: dcldomain.SupplierInput{Kind: view.Data.Kind, LegalName: view.Data.LegalName, DisplayName: view.Data.DisplayName,
-				StrongIdentifiers: view.Data.StrongIdentifiers, Enabled: view.Data.Enabled,
+				LegalIdentifier: view.Data.LegalIdentifier, Enabled: view.Data.Enabled,
 				OperatingEntityIDs: view.Data.OperatingEntityIDs, DefaultOperatingEntityID: view.Data.DefaultOperatingEntityID,
-				ShortName: input.Data.ShortName.Value, TaxNumber: input.Data.TaxNumber.Value,
+				ShortName:   input.Data.ShortName.Value,
 				ContactName: input.Data.ContactName.Value, ContactPhone: input.Data.ContactPhone.Value,
 				Email: input.Data.Email.Value, Address: input.Data.Address.Value, Remark: input.Data.Remark.Value,
 				SettlementMethodID:         input.Data.SettlementMethodID.Value,
@@ -792,7 +821,7 @@ func productInputFromReadData(data bob.DetailView) dcldomain.ProductInput {
 
 func supplierData(data bob.CreateDetailInput) dcldomain.SupplierInput {
 	return dcldomain.SupplierInput{Kind: "ORGANIZATION", LegalName: data.Name, DisplayName: data.ShortName,
-		TaxNumber: data.TaxNumber, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true,
+		LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", data.Code), Enabled: true,
 		OperatingEntityIDs: []string{data.OperatingEntityID}, DefaultOperatingEntityID: data.OperatingEntityID,
 		ShortName:   data.ShortName,
 		ContactName: data.ContactName, ContactPhone: data.ContactPhone,
@@ -810,7 +839,7 @@ func supplierView(view dcldomain.SupplierView) seedObjectView {
 	return seedObjectView{ObjectID: view.ObjectID, Entity: bob.EntitySupplier, Code: view.Code,
 		ApprovalRevision: view.Approval.Revision, Enabled: view.Data.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{Name: view.Data.DisplayName, ShortName: view.Data.ShortName,
-			TaxNumber: view.Data.TaxNumber, ContactName: view.Data.ContactName,
+			LegalIdentifier: view.Data.LegalIdentifier, ContactName: view.Data.ContactName,
 			ContactPhone: view.Data.ContactPhone, Email: view.Data.Email, Address: view.Data.Address,
 			Remark: view.Data.Remark, SettlementMethodID: view.Data.SettlementMethodID,
 			DefaultPurchaserEmployeeID: view.Data.DefaultPurchaserEmployeeID,
@@ -825,7 +854,7 @@ func customerView(view dcldomain.CustomerView) seedObjectView {
 	return seedObjectView{ObjectID: view.ObjectID, Entity: bob.EntityCustomer, Code: view.Code,
 		ApprovalRevision: view.Approval.Revision, Enabled: view.Data.Enabled, Approval: view.Approval,
 		Data: bob.DetailView{Name: view.Data.LegalName, ShortName: view.Data.DisplayName,
-			TaxNumber: view.Data.TaxNumber, ContactPhone: view.Data.Phone, Email: view.Data.Email,
+			LegalIdentifier: view.Data.LegalIdentifier, ContactPhone: view.Data.Phone, Email: view.Data.Email,
 			Address: view.Data.Address, OperatingEntityID: view.Data.DefaultOperatingEntityID}, UpdatedAt: view.UpdatedAt}
 }
 
@@ -1097,7 +1126,7 @@ var samples = [...]sample{
 	}, status: string(approval.StatusDraft), departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001", operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityCustomer, data: bob.CreateDetailInput{
 		Code: "DEMO-CUST-001", Name: "星河零售有限公司", CustomerType: stringPointer(bob.CustomerTypeEndUser),
-		ShortName: "星河零售", TaxNumber: "91310000DEMO000001", ContactName: "王经理",
+		ShortName: "星河零售", ContactName: "王经理",
 		ContactPhone: "+86 13800000001", Email: "sales@example.com",
 		Address: "上海市浦东新区示例路1号", Remark: "演示终端客户",
 	}, status: approvedStatus, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
@@ -1116,7 +1145,7 @@ var samples = [...]sample{
 		Address: "江苏省苏州市工业园区示例路3号", Remark: "VOU 演示普通供应商",
 	}, status: approvedStatus, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntitySupplier, data: bob.CreateDetailInput{
-		Code: "DEMO-SUP-002", Name: "待审核供应商", TaxNumber: "91310000DEMO000002",
+		Code: "DEMO-SUP-002", Name: "待审核供应商",
 		ContactName: "赵经理", ContactPhone: "13800000003",
 	}, status: string(approval.StatusPending), salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
@@ -1472,6 +1501,13 @@ func demoProductTypeID(profile string) string {
 
 func matches(item sample, view seedObjectView) bool {
 	expectedCustomerType := deref(item.data.CustomerType)
+	expectedLegalIdentifier := ""
+	switch item.entity {
+	case bob.EntityEmployee:
+		expectedLegalIdentifier = legalIdentifierForSeed("PERSON", item.data.Code)
+	case bob.EntitySupplier, bob.EntityOtherUnit, bob.EntitySalesPartner, bob.EntityCustomer:
+		expectedLegalIdentifier = legalIdentifierForSeed("ORGANIZATION", item.data.Code)
+	}
 	return view.Entity == item.entity &&
 		view.Data.Name == item.data.Name &&
 		view.Data.Unit == item.data.Unit &&
@@ -1483,7 +1519,7 @@ func matches(item sample, view seedObjectView) bool {
 		view.Data.TargetEntity == item.data.TargetEntity &&
 		view.Data.ShortName == item.data.ShortName &&
 		view.Data.CategoryID == item.data.CategoryID &&
-		view.Data.TaxNumber == item.data.TaxNumber &&
+		(expectedLegalIdentifier == "" && view.Data.TaxNumber == item.data.TaxNumber || expectedLegalIdentifier != "" && view.Data.LegalIdentifier == expectedLegalIdentifier) &&
 		view.Data.ContactName == item.data.ContactName &&
 		view.Data.ContactPhone == item.data.ContactPhone &&
 		view.Data.Email == item.data.Email &&
@@ -1627,7 +1663,6 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 	case bob.EntitySupplier:
 		result.ShortName = bob.Optional(input.ShortName)
 		result.CategoryID = bob.Optional(input.CategoryID)
-		result.TaxNumber = bob.Optional(input.TaxNumber)
 		result.ContactName = bob.Optional(input.ContactName)
 		result.ContactPhone = bob.Optional(input.ContactPhone)
 		result.Email = bob.Optional(input.Email)

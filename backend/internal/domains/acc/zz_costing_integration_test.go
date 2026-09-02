@@ -18,7 +18,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	service := defaultIntegrationACCService(pool)
 	productID, warehouseID := ulid.Make().String(), ulid.Make().String()
 	product := createAccountingProductSnapshot(t, pool, productID, "成本测试产品 V1")
-	account := createAccountingCustomerAccountSnapshot(t, pool, "成本结转客户账户")
+	subunit := createAccountingCustomerSubunitSnapshot(t, pool, "成本结转客户子单位")
 	book, err := service.CreateBook(t.Context(), CreateBookInput{Name: "成本账", StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +31,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	cost, err := service.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "6401", Name: "主营业务成本", BalanceDirection: BalanceDirectionDebit, Enabled: true, RequiredDimensions: []string{DimensionProduct, DimensionCustomerAccount}, SettlementPurpose: SettlementPurposeNone}, adminID)
+	cost, err := service.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "6401", Name: "主营业务成本", BalanceDirection: BalanceDirectionDebit, Enabled: true, RequiredDimensions: []string{DimensionProduct, DimensionCustomerSubunit}, SettlementPurpose: SettlementPurposeNone}, adminID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	templateID, quantityField := "sale-cost", "baseQuantity"
 	costSubjectID := cost.ID
 	mapping, err := createDCLIntegrationMapping(t, service, dclMappingFixtureInput{BookID: book.ID, VouEntity: voudomain.EntitySaleOrder, DefaultResult: MappingResultPost, Definition: MappingDefinition{DefaultTemplateID: &templateID, Templates: []PostingTemplate{{ID: templateID, Collection: stringPointer("productLines"), Lines: []PostingLineTemplate{
-		{SubjectSource: "FIXED", SubjectValue: inventory.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", QuantityField: &quantityField, Dimensions: map[string]string{DimensionProduct: "product.objectId", DimensionWarehouse: "warehouse.objectId"}, CostCounterpartSubjectID: &costSubjectID, CostCounterpartDimensions: map[string]string{DimensionProduct: "product.objectId", DimensionCustomerAccount: "customer.objectId"}},
+		{SubjectSource: "FIXED", SubjectValue: inventory.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", QuantityField: &quantityField, Dimensions: map[string]string{DimensionProduct: "product.objectId", DimensionWarehouse: "warehouse.objectId"}, CostCounterpartSubjectID: &costSubjectID, CostCounterpartDimensions: map[string]string{DimensionProduct: "product.objectId", DimensionCustomerSubunit: "customer.objectId"}},
 		{SubjectSource: "FIXED", SubjectValue: equity.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 	}}}}}, integrationACCActor(t, adminID, "acc-costing-mapping-create"))
 	if err != nil {
@@ -60,7 +60,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 		Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3}, Amount: "0",
 		Data: voudomain.DocumentDataView{
 			BusinessDate: "2026-07-25", Currency: "CNY",
-			Customer:     &voudomain.ReferenceView{Entity: "customer-account", ObjectID: account.ObjectID, CustomerID: account.CustomerID, ApprovalEntryID: account.ApprovalEntryID, Code: account.Code, Name: account.Name},
+			Customer:     &voudomain.ReferenceView{Entity: "customer-subunit", ObjectID: subunit.ObjectID, CustomerID: subunit.CustomerID, ApprovalEntryID: subunit.ApprovalEntryID, Code: subunit.Code, Name: subunit.Name},
 			Warehouse:    &voudomain.ReferenceView{ObjectID: warehouseID},
 			ProductLines: []voudomain.ProductLineView{{LineID: ulid.Make().String(), Product: voudomain.ReferenceView{ObjectID: product.ObjectID, ApprovalEntryID: product.ApprovalEntryID, Code: product.Code, Name: product.Name}, BaseQuantity: "2"}},
 		},
@@ -90,8 +90,8 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	if err = json.Unmarshal(encodedReferences, &references); err != nil {
 		t.Fatal(err)
 	}
-	if got := references[DimensionCustomerAccount]; got.CustomerID != account.CustomerID || got.ObjectID != account.ObjectID || got.ApprovalEntryID != account.ApprovalEntryID {
-		t.Fatalf("cost counterpart reference = %#v, want customer=%s account=%s entry=%s", got, account.CustomerID, account.ObjectID, account.ApprovalEntryID)
+	if got := references[DimensionCustomerSubunit]; got.CustomerID != subunit.CustomerID || got.ObjectID != subunit.ObjectID || got.ApprovalEntryID != subunit.ApprovalEntryID {
+		t.Fatalf("cost counterpart reference = %#v, want customer=%s subunit=%s entry=%s", got, subunit.CustomerID, subunit.ObjectID, subunit.ApprovalEntryID)
 	}
 	if _, err = service.UnlockPeriod(t.Context(), PeriodActionInput{BookID: book.ID, Month: "2026-07", Revision: locked.Revision}, adminID); err != nil {
 		t.Fatal(err)

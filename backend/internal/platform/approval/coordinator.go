@@ -85,7 +85,14 @@ func (c *Coordinator[T]) LifecycleActions(entry Entry, actor Actor) []LifecycleA
 }
 
 func (c *Coordinator[T]) Get(ctx context.Context, tx pgx.Tx, entryID string, actor Actor) (Entry, error) {
-	if err := c.authorize(ctx, actor, "get"); err != nil {
+	return c.GetForAction(ctx, tx, entryID, actor, "get")
+}
+
+// GetForAction reads an Approval entry while authorizing the caller against a
+// fixed action on this Coordinator's domain and entity. It supports workflows
+// such as approval review where the action itself grants read access.
+func (c *Coordinator[T]) GetForAction(ctx context.Context, tx pgx.Tx, entryID string, actor Actor, permissionAction string) (Entry, error) {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
 	if err := validateCall(tx, entryID, actor); err != nil {
@@ -106,9 +113,13 @@ func (c *Coordinator[T]) Lock(ctx context.Context, tx pgx.Tx, entryID string, ex
 	if !ok {
 		return Entry{}, newError(ErrorValidation, "approval_invalid_action", "invalid approval action", nil)
 	}
-	if err := c.authorize(ctx, actor, permissionAction); err != nil {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
+	return c.lockEntry(ctx, tx, entryID, expectedRevision, actor)
+}
+
+func (c *Coordinator[T]) lockEntry(ctx context.Context, tx pgx.Tx, entryID string, expectedRevision int64, actor Actor) (Entry, error) {
 	if err := validateCall(tx, entryID, actor); err != nil || expectedRevision < 1 {
 		if err != nil {
 			return Entry{}, err
@@ -281,7 +292,20 @@ func (c *Coordinator[T]) LockVersionSubject(ctx context.Context, tx pgx.Tx, subj
 }
 
 func (c *Coordinator[T]) GetLatestApproved(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor) (Entry, error) {
-	if err := c.authorize(ctx, actor, "get"); err != nil {
+	return c.GetLatestApprovedForAction(ctx, tx, subjectID, actor, "get")
+}
+
+// GetLatestApprovedForSave reads the latest approved version as part of a
+// candidate save without imposing a separate get permission.
+func (c *Coordinator[T]) GetLatestApprovedForSave(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor) (Entry, error) {
+	return c.GetLatestApprovedForAction(ctx, tx, subjectID, actor, "save")
+}
+
+// GetLatestApprovedForAction reads the latest approved version using the
+// permission of the enclosing operation instead of imposing a second get
+// permission.
+func (c *Coordinator[T]) GetLatestApprovedForAction(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor, permissionAction string) (Entry, error) {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
 	subjectID = strings.TrimSpace(subjectID)
@@ -307,7 +331,13 @@ func (c *Coordinator[T]) GetLatestApproved(ctx context.Context, tx pgx.Tx, subje
 }
 
 func (c *Coordinator[T]) GetOpenVersion(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor) (Entry, error) {
-	if err := c.authorize(ctx, actor, "get"); err != nil {
+	return c.GetOpenVersionForAction(ctx, tx, subjectID, actor, "get")
+}
+
+// GetOpenVersionForAction reads the open version using the permission of the
+// enclosing operation, including approval review.
+func (c *Coordinator[T]) GetOpenVersionForAction(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor, permissionAction string) (Entry, error) {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
 	subjectID = strings.TrimSpace(subjectID)

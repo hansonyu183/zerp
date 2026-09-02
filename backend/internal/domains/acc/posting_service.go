@@ -131,26 +131,26 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, source 
 // time from the control book. The same transaction holds the balance lock until
 // the VOU approval event and all automatic postings commit.
 func (s *Service) enrichSalesReceiptPostingSnapshot(ctx context.Context, tx pgx.Tx, businessDate time.Time, snapshot postingSnapshot) error {
-	allocations := snapshot.collections["accountAllocations"]
+	allocations := snapshot.collections["subunitAllocations"]
 	if len(allocations) == 0 {
-		return domainError(ErrorConflict, "sales receipt account allocations are missing", nil)
+		return domainError(ErrorConflict, "sales receipt subunit allocations are missing", nil)
 	}
 	currency := strings.ToUpper(strings.TrimSpace(snapshot.header["currency"]))
 	for _, allocation := range allocations {
-		accountID := strings.TrimSpace(allocation["account.objectId"])
+		subunitID := strings.TrimSpace(allocation["subunit.objectId"])
 		amount, err := fixeddecimal.ParsePositive(allocation["amount"], 2, false)
-		if err != nil || accountID == "" {
-			return domainError(ErrorConflict, "sales receipt account allocation is invalid", err)
+		if err != nil || subunitID == "" {
+			return domainError(ErrorConflict, "sales receipt subunit allocation is invalid", err)
 		}
 		receivable, err := s.PartyBalance(ctx, tx, voudomain.PartyBalanceQuery{
-			CounterpartyDimension: DimensionCustomerAccount,
-			CounterpartyObjectID:  accountID,
+			CounterpartyDimension: DimensionCustomerSubunit,
+			CounterpartyObjectID:  subunitID,
 			Currency:              currency,
 			SettlementPurpose:     SettlementPurposeReceivable,
 			AsOfDate:              businessDate,
 		})
 		if err != nil {
-			return domainError(ErrorConflict, "customer account receivable balance is unavailable", err)
+			return domainError(ErrorConflict, "customer subunit receivable balance is unavailable", err)
 		}
 		applied := min(max(receivable, int64(0)), amount)
 		allocation["receivableApplied"] = fixeddecimal.Format(applied, 2, false)
@@ -436,8 +436,8 @@ func (s *Service) automaticDimensionReferences(
 			return nil, domainError(ErrorConflict, "typed accounting dimension snapshot is invalid", err)
 		}
 		customerID := strings.TrimSpace(mappingValue(header, item, prefix+".customerId"))
-		if entity == "customer-account" && (customerID == "" || customerID != historical.CustomerID) {
-			return nil, domainError(ErrorConflict, "customer account dimension does not belong to the stored customer snapshot", nil)
+		if entity == "customer-subunit" && (customerID == "" || customerID != historical.CustomerID) {
+			return nil, domainError(ErrorConflict, "customer subunit dimension does not belong to the stored customer snapshot", nil)
 		}
 		references[dimension] = BusinessArchiveDimensionReference{
 			Entity: entity, ObjectID: objectID, CustomerID: historical.CustomerID,

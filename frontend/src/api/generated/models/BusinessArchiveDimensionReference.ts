@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export type BusinessArchiveDimensionReference = {
-  entity: 'customer-account' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
+  entity: 'customer-subunit' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
   objectId: string;
   customerId?: string;
   approvalEntryId: string;

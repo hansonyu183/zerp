@@ -28,7 +28,7 @@ func (s *Service) loadSalesChainData(
 		if err != nil {
 			return data, err
 		}
-		customer.Entity, warehouse.Entity = bobdomain.EntityCustomerAccount, "warehouse"
+		customer.Entity, warehouse.Entity = bobdomain.EntityCustomerSubunit, "warehouse"
 		data.Customer = &customer
 		if warehouse.ObjectID != "" {
 			data.Warehouse = &warehouse
@@ -81,7 +81,7 @@ func (s *Service) loadSalesChainData(
 		vehicle.ObjectID, vehicle.ApprovalEntryID, vehicle.Code, vehicle.Name, vehicle.PlateNumber =
 			row.VehicleObjectID, row.VehicleApprovalEntryID, row.VehicleCode, row.VehicleName, row.VehiclePlateNumber
 		customer.Entity, operatingEntity.Entity, carrier.Entity, vehicle.Entity =
-			bobdomain.EntityCustomerAccount, bobdomain.EntityOperatingEntity, bobdomain.EntityOtherUnit, bobdomain.EntityVehicle
+			bobdomain.EntityCustomerSubunit, bobdomain.EntityOperatingEntity, bobdomain.EntityOtherUnit, bobdomain.EntityVehicle
 		data.Customer = &customer
 		data.CarrierType = row.CarrierType
 		if operatingEntity.ObjectID != "" {
@@ -128,7 +128,7 @@ func (s *Service) loadSalesChainData(
 		if err != nil {
 			return data, err
 		}
-		customer.Entity, warehouse.Entity = bobdomain.EntityCustomerAccount, "warehouse"
+		customer.Entity, warehouse.Entity = bobdomain.EntityCustomerSubunit, "warehouse"
 		data.Customer, data.Warehouse = &customer, &warehouse
 		rows, err := s.pool.Query(ctx, `SELECT id,source_outbound_line_id,line_no,
 			product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,

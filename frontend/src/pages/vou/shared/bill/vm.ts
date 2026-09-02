@@ -642,7 +642,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         const result = await apiClient.postContract(
           'bob/reference/query',
           {
-            entity: entity === 'customer' ? 'customer-account' : entity,
+            entity: entity === 'customer' ? 'customer-subunit' : entity,
             ...(value.trim() ? { keyword: value.trim() } : {}),
           },
           { signal },
@@ -651,7 +651,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           ...item,
           approvalEntryId: item.approvalEntryId,
           entity:
-            entity === 'customer' ? ('customer-account' as const) : entity,
+            entity === 'customer' ? ('customer-subunit' as const) : entity,
         }))
       } catch {
         return []

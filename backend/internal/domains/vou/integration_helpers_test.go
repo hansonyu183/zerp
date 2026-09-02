@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -23,6 +24,32 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func legalIdentifierForVOUFixture(kind, seed string) string {
+	serial := uint32(0)
+	for _, r := range seed {
+		serial = serial*31 + uint32(r)
+	}
+	serial %= 100000000
+	if kind == "PERSON" {
+		base := fmt.Sprintf("110105%04d%02d%02d%03d", 1950+serial%70, 1+(serial/70)%12, 1+(serial/840)%28, 1+(serial/23520)%999)
+		weights := [...]int{7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2}
+		checks := "10X98765432"
+		sum := 0
+		for i, weight := range weights {
+			sum += int(base[i]-'0') * weight
+		}
+		return base + string(checks[sum%11])
+	}
+	base := fmt.Sprintf("91350211M%08d", serial)
+	chars := "0123456789ABCDEFGHJKLMNPQRTUWXY"
+	weights := [...]int{1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28}
+	sum := 0
+	for i, weight := range weights {
+		sum += strings.IndexByte(chars, base[i]) * weight
+	}
+	return base + string(chars[(31-sum%31)%31])
+}
 
 func trustedIntegrationActor(t *testing.T, requestID string) approval.Actor {
 	t.Helper()
@@ -72,7 +99,7 @@ type integrationReferences struct {
 }
 
 type integrationCustomerReferences struct {
-	Customer, Account, OperatingEntity ReferenceInput
+	Customer, Subunit, OperatingEntity ReferenceInput
 }
 
 func integrationProductLine(t *testing.T, product ReferenceInput, quantity, price string) ProductLineInput {
@@ -90,8 +117,8 @@ func salesReceiptDraft(refs integrationReferences, amount string) DraftInput {
 		BusinessDate: "2026-07-24", Currency: "CNY",
 		Customer: &refs.salesReceiptCustomer, OperatingEntity: &refs.salesReceiptOperatingEntity,
 		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: amount,
-		AccountAllocations: []SalesReceiptAccountAllocationInput{{
-			Account: refs.customer, Amount: amount,
+		SubunitAllocations: []SalesReceiptSubunitAllocationInput{{
+			Subunit: refs.customer, Amount: amount,
 		}},
 	}
 }
@@ -145,7 +172,7 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
 			vou_employee_loan_writeoff_details, vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details,
-			vou_sales_receipt_account_allocations, vou_receipt_details,
+			vou_sales_receipt_subunit_allocations, vou_receipt_details,
 			vou_service_acceptance_details, vou_service_contract_details,
 			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters;
@@ -301,12 +328,15 @@ func createApprovedSupplierDeclaration(t *testing.T, pool *pgxpool.Pool, busines
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
 	suppliers := dcldomain.NewSupplierService(pool, business, authorizer, bus)
+	identifierSeed := data.Code
+	if identifierSeed == "" {
+		identifierSeed = newID()
+	}
 	created, err := suppliers.Create(t.Context(), dcldomain.SupplierCreateInput{
 		Data: dcldomain.SupplierInput{Kind: "ORGANIZATION", LegalName: data.Name,
-			Enabled: true, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
+			Enabled: true, DisplayName: data.ShortName, LegalIdentifier: legalIdentifierForVOUFixture("ORGANIZATION", identifierSeed),
 			ShortName: data.ShortName, ContactName: data.ContactName, ContactPhone: data.ContactPhone,
 			Email: data.Email, Address: data.Address, Remark: data.Remark, SettlementMethodID: data.SettlementMethodID,
-			StrongIdentifiers:          []dcldomain.BusinessIdentifierInput{},
 			OperatingEntityIDs:         []string{data.OperatingEntityID},
 			DefaultOperatingEntityID:   data.OperatingEntityID,
 			DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
@@ -330,11 +360,15 @@ func createApprovedOtherUnitDeclaration(t *testing.T, pool *pgxpool.Pool, busine
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
 	typedArchives := dcldomain.NewTypedArchiveService(pool, typedarchiverules.New(business), authorizer, bus)
+	identifierSeed := data.Code
+	if identifierSeed == "" {
+		identifierSeed = newID()
+	}
 	created, err := typedArchives.CreateOtherUnit(t.Context(), dcldomain.OtherUnitCreateInput{
 		Data: dcldomain.OtherUnitData{
 			Kind: "ORGANIZATION", LegalName: data.Name,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, SettlementMethodID: data.SettlementMethodID,
-			StrongIdentifiers:        []dcldomain.BusinessIdentifierInput{},
+			LegalIdentifier:          legalIdentifierForVOUFixture("ORGANIZATION", identifierSeed),
 			Enabled:                  true,
 			OperatingEntityIDs:       []string{data.OperatingEntityID},
 			DefaultOperatingEntityID: data.OperatingEntityID,
@@ -359,8 +393,12 @@ func createApprovedEmployeeDeclaration(t *testing.T, pool *pgxpool.Pool, busines
 	bus := txevent.NewBus()
 	authorizer := authorization.Func(nil)
 	employees := dcldomain.NewEmployeeService(pool, business, authorizer, bus)
+	identifierSeed := data.Code
+	if identifierSeed == "" {
+		identifierSeed = newID()
+	}
 	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
-		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: data.Name, StrongIdentifiers: []dcldomain.BusinessIdentifierInput{}, Enabled: true, CurrentOperatingEntityID: data.OperatingEntityID, EmployeeCategoryID: data.CategoryID, DepartmentID: data.DepartmentID,
+		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: data.Name, LegalIdentifier: legalIdentifierForVOUFixture("PERSON", identifierSeed), Enabled: true, CurrentOperatingEntityID: data.OperatingEntityID, EmployeeCategoryID: data.CategoryID, DepartmentID: data.DepartmentID,
 			PositionID: data.PositionID, Phone: data.Phone, Email: data.Email, HireDate: data.HireDate, Remark: data.Remark},
 	}, trustedIntegrationActor(t, "vou-employee-create"))
 	if err != nil {
@@ -480,13 +518,13 @@ func createApprovedCustomer(
 		data.SettlementMethodID = "01JSMT00000000000000000017"
 	}
 	created, err := customers.Create(t.Context(), dcldomain.CustomerCreateInput{
-		Data: dcldomain.CustomerDataInput{
-			Kind: "ORGANIZATION", LegalName: data.Name + "主体" + newID()[20:], DisplayName: data.Name,
-			Phone: data.ContactPhone, Address: data.Address, DefaultOperatingEntityID: operating.ObjectID, Enabled: true,
-			StrongIdentifiers:  []dcldomain.BusinessIdentifierInput{},
-			RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{},
-			Accounts: []dcldomain.CustomerAccountDataInput{{
-				Name: data.Name, Enabled: true, IsDefault: true, CustomerTypeID: bobdomain.CustomerTypeEndUserID,
+		Data: dcldomain.CustomerCreateDataInput{
+			Root: dcldomain.CustomerRootDataInput{Kind: "MAINLAND_ENTERPRISE", LegalName: data.Name + "主体" + newID()[20:], DisplayName: data.Name,
+				LegalIdentifier: legalIdentifierForVOUFixture("ORGANIZATION", newID()),
+				Phone:           data.ContactPhone, Address: data.Address, DefaultOperatingEntityID: operating.ObjectID, Enabled: true,
+				RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{}},
+			Subunits: []dcldomain.CustomerSubunitDataInput{{
+				Name: data.Name, Enabled: true, CustomerTypeID: bobdomain.CustomerTypeEndUserID,
 				ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
 				SettlementMethodID:         data.SettlementMethodID,
 				DefaultTransportMethodCode: "SELF_PICKUP", DefaultTransportMethodName: "客户自提",
@@ -515,12 +553,12 @@ func createApprovedCustomer(
 		t.Fatalf("approve customer relationship: %v", err)
 	}
 	view, err := customers.Get(t.Context(), dcldomain.CustomerGetInput{ObjectID: approved.ObjectID}, trustedIntegrationActor(t, "vou-customer-get"))
-	if err != nil || len(view.Data.Accounts) != 1 {
-		t.Fatalf("load default customer account: accounts=%d err=%v", len(view.Data.Accounts), err)
+	if err != nil || len(view.Data.Subunits) != 1 {
+		t.Fatalf("load implicit customer subunit: subunits=%d err=%v", len(view.Data.Subunits), err)
 	}
 	return integrationCustomerReferences{
 		Customer:        ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID},
-		Account:         ReferenceInput{ObjectID: view.Data.Accounts[0].AccountID, ApprovalEntryID: approved.Approval.ApprovalEntryID},
+		Subunit:         ReferenceInput{ObjectID: view.Data.Subunits[0].SubunitID, ApprovalEntryID: approved.Approval.ApprovalEntryID},
 		OperatingEntity: operating,
 	}
 }
@@ -546,7 +584,7 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 		SalespersonEmployeeID: employee.ObjectID,
 	})
 	return integrationReferences{
-		customer:                    customer.Account,
+		customer:                    customer.Subunit,
 		salesReceiptCustomer:        customer.Customer,
 		salesReceiptOperatingEntity: operating,
 		supplier: createApprovedBOB(t, service, bobdomain.EntitySupplier, bobdomain.CreateDetailInput{

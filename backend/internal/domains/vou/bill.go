@@ -106,7 +106,7 @@ func validateBillReceiptDraft(input DraftInput, result validatedDraft) (validate
 		return result, domainError(ErrorValidation, "billLines must contain 1 to 20 items", nil, nil)
 	}
 	result.Counterparty = input.Counterparty
-	result.CounterpartyType = "customer-account"
+	result.CounterpartyType = "customer-subunit"
 	result.Handler = input.Handler
 	result.InternalCostRateBps = input.InternalCostRateBps
 	maturityType := strings.ToUpper(strings.TrimSpace(input.MaturityType))
@@ -584,7 +584,7 @@ func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, entity
 		}
 	}
 	party := r.Counterparty
-	partyEntity := bobdomain.EntityCustomerAccount
+	partyEntity := bobdomain.EntityCustomerSubunit
 	if entity == EntityBillPayment || entity == EntityBillIssue {
 		party, partyEntity = r.Supplier, "supplier"
 	} else if entity == EntityBillDiscount {

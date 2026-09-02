@@ -1,11 +1,10 @@
-import type { CustomerAccountForm, CustomerPricingCostItemForm } from './types'
+import type { CustomerSubunitForm, CustomerPricingCostItemForm } from './types'
 
 const decimalPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/
 
-export function createCustomerAccountForm(): CustomerAccountForm {
+export function createCustomerSubunitForm(): CustomerSubunitForm {
   return {
     enabled: true,
-    isDefault: true,
     name: '',
     shortName: '',
     customerTypeId: '01JAVX00000000000000000005',
@@ -47,9 +46,9 @@ export function sortedCostItems(
     .sort((left, right) => left.name.localeCompare(right.name, 'zh-Hans-CN'))
 }
 
-export function customerAccountFormErrors(form: CustomerAccountForm): string[] {
+export function customerSubunitFormErrors(form: CustomerSubunitForm): string[] {
   const errors: string[] = []
-  if (!form.name.trim()) errors.push('请填写账户名称。')
+  if (!form.name.trim()) errors.push('请填写子单位名称。')
   if (!form.customerTypeId.trim()) errors.push('请选择客户类型。')
   if (!form.primarySalesAttribution.subjectObjectId.trim())
     errors.push('请选择主要业务归属。')

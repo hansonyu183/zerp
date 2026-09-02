@@ -35,8 +35,7 @@ type OtherUnitData struct {
 	Kind                     string                    `json:"kind"`
 	LegalName                string                    `json:"legalName"`
 	DisplayName              string                    `json:"displayName,omitempty"`
-	TaxNumber                string                    `json:"taxNumber,omitempty"`
-	StrongIdentifiers        []BusinessIdentifierInput `json:"strongIdentifiers"`
+	LegalIdentifier          string                    `json:"legalIdentifier"`
 	Enabled                  bool                      `json:"enabled"`
 	OperatingEntityIDs       []string                  `json:"operatingEntityIds"`
 	OperatingEntities        []BusinessArchiveSnapshot `json:"operatingEntities"`
@@ -60,8 +59,7 @@ type SalesPartnerData struct {
 	Kind                     string                    `json:"kind"`
 	LegalName                string                    `json:"legalName"`
 	DisplayName              string                    `json:"displayName,omitempty"`
-	TaxNumber                string                    `json:"taxNumber,omitempty"`
-	StrongIdentifiers        []BusinessIdentifierInput `json:"strongIdentifiers"`
+	LegalIdentifier          string                    `json:"legalIdentifier"`
 	Enabled                  bool                      `json:"enabled"`
 	OperatingEntityIDs       []string                  `json:"operatingEntityIds"`
 	OperatingEntities        []BusinessArchiveSnapshot `json:"operatingEntities"`
@@ -78,32 +76,31 @@ type SalesPartnerData struct {
 // SupplierInput is the mutable Supplier declaration. Supplier owns its legal
 // identity owned by the typed archive.
 type SupplierInput struct {
-	Kind                            string                    `json:"kind"`
-	LegalName                       string                    `json:"legalName"`
-	DisplayName                     string                    `json:"displayName,omitempty"`
-	TaxNumber                       string                    `json:"taxNumber,omitempty"`
-	StrongIdentifiers               []BusinessIdentifierInput `json:"strongIdentifiers"`
-	Enabled                         bool                      `json:"enabled"`
-	OperatingEntityIDs              []string                  `json:"operatingEntityIds"`
-	DefaultOperatingEntityID        string                    `json:"defaultOperatingEntityId"`
-	ShortName                       string                    `json:"shortName,omitempty"`
-	ContactName                     string                    `json:"contactName,omitempty"`
-	ContactPhone                    string                    `json:"contactPhone,omitempty"`
-	Email                           string                    `json:"email,omitempty"`
-	Address                         string                    `json:"address,omitempty"`
-	Remark                          string                    `json:"remark,omitempty"`
-	SettlementMethodID              string                    `json:"settlementMethodId,omitempty"`
-	SettlementMethodCode            string                    `json:"-"`
-	SettlementMethodName            string                    `json:"-"`
-	SettlementTermCode              string                    `json:"-"`
-	SettlementRuleType              string                    `json:"-"`
-	SettlementMonthOffset           int32                     `json:"-"`
-	SettlementDayOfMonth            int32                     `json:"-"`
-	SettlementDayOffset             int32                     `json:"-"`
-	DefaultPurchaserEmployeeID      string                    `json:"defaultPurchaserEmployeeId,omitempty"`
-	DefaultPurchaserApprovalEntryID string                    `json:"-"`
-	DefaultPurchaserCode            string                    `json:"-"`
-	DefaultPurchaserName            string                    `json:"-"`
+	Kind                            string   `json:"kind"`
+	LegalName                       string   `json:"legalName"`
+	DisplayName                     string   `json:"displayName,omitempty"`
+	LegalIdentifier                 string   `json:"legalIdentifier"`
+	Enabled                         bool     `json:"enabled"`
+	OperatingEntityIDs              []string `json:"operatingEntityIds"`
+	DefaultOperatingEntityID        string   `json:"defaultOperatingEntityId"`
+	ShortName                       string   `json:"shortName,omitempty"`
+	ContactName                     string   `json:"contactName,omitempty"`
+	ContactPhone                    string   `json:"contactPhone,omitempty"`
+	Email                           string   `json:"email,omitempty"`
+	Address                         string   `json:"address,omitempty"`
+	Remark                          string   `json:"remark,omitempty"`
+	SettlementMethodID              string   `json:"settlementMethodId,omitempty"`
+	SettlementMethodCode            string   `json:"-"`
+	SettlementMethodName            string   `json:"-"`
+	SettlementTermCode              string   `json:"-"`
+	SettlementRuleType              string   `json:"-"`
+	SettlementMonthOffset           int32    `json:"-"`
+	SettlementDayOfMonth            int32    `json:"-"`
+	SettlementDayOffset             int32    `json:"-"`
+	DefaultPurchaserEmployeeID      string   `json:"defaultPurchaserEmployeeId,omitempty"`
+	DefaultPurchaserApprovalEntryID string   `json:"-"`
+	DefaultPurchaserCode            string   `json:"-"`
+	DefaultPurchaserName            string   `json:"-"`
 }
 type SupplierData struct {
 	SupplierInput
@@ -314,28 +311,26 @@ type SalesPartnerQueryItem struct {
 }
 
 type EmployeeInput struct {
-	Kind                     string                    `json:"kind"`
-	LegalName                string                    `json:"legalName"`
-	DisplayName              string                    `json:"displayName,omitempty"`
-	TaxNumber                string                    `json:"taxNumber,omitempty"`
-	StrongIdentifiers        []BusinessIdentifierInput `json:"strongIdentifiers"`
-	Enabled                  bool                      `json:"enabled"`
-	CurrentOperatingEntityID string                    `json:"currentOperatingEntityId"`
-	EmployeeCategoryID       string                    `json:"employeeCategoryId,omitempty"`
-	DepartmentID             string                    `json:"departmentId,omitempty"`
-	PositionID               string                    `json:"positionId,omitempty"`
-	Phone                    string                    `json:"phone,omitempty"`
-	Email                    string                    `json:"email,omitempty"`
-	HireDate                 string                    `json:"hireDate,omitempty"`
-	Remark                   string                    `json:"remark,omitempty"`
+	Kind                     string `json:"kind"`
+	LegalName                string `json:"legalName"`
+	DisplayName              string `json:"displayName,omitempty"`
+	LegalIdentifier          string `json:"legalIdentifier"`
+	Enabled                  bool   `json:"enabled"`
+	CurrentOperatingEntityID string `json:"currentOperatingEntityId"`
+	EmployeeCategoryID       string `json:"employeeCategoryId,omitempty"`
+	DepartmentID             string `json:"departmentId,omitempty"`
+	PositionID               string `json:"positionId,omitempty"`
+	Phone                    string `json:"phone,omitempty"`
+	Email                    string `json:"email,omitempty"`
+	HireDate                 string `json:"hireDate,omitempty"`
+	Remark                   string `json:"remark,omitempty"`
 }
 
 type EmployeeData struct {
 	Kind                     string                          `json:"kind"`
 	LegalName                string                          `json:"legalName"`
 	DisplayName              string                          `json:"displayName"`
-	TaxNumber                string                          `json:"taxNumber,omitempty"`
-	StrongIdentifiers        []BusinessIdentifierInput       `json:"strongIdentifiers"`
+	LegalIdentifier          string                          `json:"legalIdentifier"`
 	Enabled                  bool                            `json:"enabled"`
 	CurrentOperatingEntityID string                          `json:"currentOperatingEntityId"`
 	CurrentOperatingEntity   EmployeeOperatingEntitySnapshot `json:"currentOperatingEntity"`

@@ -53,7 +53,7 @@ func NewCoordinator[T any](domain, entity string, authorizer Authorizer, bus *tx
 // read and object-level actions that do not otherwise mutate an Approval entry.
 func (c *Coordinator[T]) Authorize(ctx context.Context, actor Actor, action string) error {
 	switch action {
-	case "query", "get", "create", "save", "submit", "unsubmit", "reject", "approve", "unapprove",
+	case "query", "get", "create", "save", "save-subunits", "submit", "unsubmit", "reject", "approve", "unapprove",
 		"enable", "disable", "delete", "versions", "audit-history":
 		return c.authorize(ctx, actor, action)
 	default:
@@ -85,7 +85,14 @@ func (c *Coordinator[T]) LifecycleActions(entry Entry, actor Actor) []LifecycleA
 }
 
 func (c *Coordinator[T]) Get(ctx context.Context, tx pgx.Tx, entryID string, actor Actor) (Entry, error) {
-	if err := c.authorize(ctx, actor, "get"); err != nil {
+	return c.GetForAction(ctx, tx, entryID, actor, "get")
+}
+
+// GetForAction reads an Approval entry while authorizing the caller against a
+// fixed action on this Coordinator's domain and entity. It supports workflows
+// such as approval review where the action itself grants read access.
+func (c *Coordinator[T]) GetForAction(ctx context.Context, tx pgx.Tx, entryID string, actor Actor, permissionAction string) (Entry, error) {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
 	if err := validateCall(tx, entryID, actor); err != nil {
@@ -106,9 +113,13 @@ func (c *Coordinator[T]) Lock(ctx context.Context, tx pgx.Tx, entryID string, ex
 	if !ok {
 		return Entry{}, newError(ErrorValidation, "approval_invalid_action", "invalid approval action", nil)
 	}
-	if err := c.authorize(ctx, actor, permissionAction); err != nil {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
+	return c.lockEntry(ctx, tx, entryID, expectedRevision, actor)
+}
+
+func (c *Coordinator[T]) lockEntry(ctx context.Context, tx pgx.Tx, entryID string, expectedRevision int64, actor Actor) (Entry, error) {
 	if err := validateCall(tx, entryID, actor); err != nil || expectedRevision < 1 {
 		if err != nil {
 			return Entry{}, err
@@ -215,7 +226,15 @@ func (c *Coordinator[T]) CreateFirstVersion(ctx context.Context, tx pgx.Tx, subj
 }
 
 func (c *Coordinator[T]) CreateNextVersion(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor, payload T) (Entry, error) {
-	if err := c.authorize(ctx, actor, "save"); err != nil {
+	return c.CreateNextVersionForAction(ctx, tx, subjectID, actor, payload, "save")
+}
+
+// CreateNextVersionForAction creates the next candidate using a fixed
+// Coordinator action permission. Domains with a single child-collection save
+// command can therefore share Approval versioning without also granting root
+// save permission.
+func (c *Coordinator[T]) CreateNextVersionForAction(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor, payload T, permissionAction string) (Entry, error) {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
 	subjectID = strings.TrimSpace(subjectID)
@@ -281,7 +300,14 @@ func (c *Coordinator[T]) LockVersionSubject(ctx context.Context, tx pgx.Tx, subj
 }
 
 func (c *Coordinator[T]) GetLatestApproved(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor) (Entry, error) {
-	if err := c.authorize(ctx, actor, "get"); err != nil {
+	return c.GetLatestApprovedForAction(ctx, tx, subjectID, actor, "get")
+}
+
+// GetLatestApprovedForAction reads the latest approved version using the
+// permission of the enclosing operation instead of imposing a second get
+// permission.
+func (c *Coordinator[T]) GetLatestApprovedForAction(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor, permissionAction string) (Entry, error) {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
 	subjectID = strings.TrimSpace(subjectID)
@@ -307,7 +333,13 @@ func (c *Coordinator[T]) GetLatestApproved(ctx context.Context, tx pgx.Tx, subje
 }
 
 func (c *Coordinator[T]) GetOpenVersion(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor) (Entry, error) {
-	if err := c.authorize(ctx, actor, "get"); err != nil {
+	return c.GetOpenVersionForAction(ctx, tx, subjectID, actor, "get")
+}
+
+// GetOpenVersionForAction reads the open version using the permission of the
+// enclosing operation, including approval review.
+func (c *Coordinator[T]) GetOpenVersionForAction(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor, permissionAction string) (Entry, error) {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
 		return Entry{}, err
 	}
 	subjectID = strings.TrimSpace(subjectID)
@@ -539,6 +571,22 @@ func (c *Coordinator[T]) requireNoOpenVersion(ctx context.Context, tx pgx.Tx, en
 
 func (c *Coordinator[T]) SaveDraft(ctx context.Context, tx pgx.Tx, entryID string, expectedRevision int64, actor Actor, payload T) (Entry, error) {
 	return c.prepareAndCommit(ctx, tx, ActionSaved, entryID, expectedRevision, actor, "", payload)
+}
+
+// SaveDraftForAction persists a draft revision under a fixed alternative save
+// action, while keeping the Approval event action and transition as SAVED.
+func (c *Coordinator[T]) SaveDraftForAction(ctx context.Context, tx pgx.Tx, entryID string, expectedRevision int64, actor Actor, payload T, permissionAction string) (Entry, error) {
+	if err := c.Authorize(ctx, actor, permissionAction); err != nil {
+		return Entry{}, err
+	}
+	entry, err := c.lockEntry(ctx, tx, entryID, expectedRevision, actor)
+	if err != nil {
+		return Entry{}, err
+	}
+	if !transitionAllowed(entry.Status, ActionSaved) {
+		return Entry{}, newError(ErrorConflict, "approval_invalid_transition", "approval action is not allowed in the current status", nil)
+	}
+	return c.Commit(ctx, tx, Prepared{domain: c.domain, entity: c.entity, entry: entry, action: ActionSaved, actor: actor}, payload)
 }
 
 func (c *Coordinator[T]) Submit(ctx context.Context, tx pgx.Tx, entryID string, expectedRevision int64, actor Actor, payload T) (Entry, error) {

@@ -21,8 +21,8 @@ interface CustomerMutation {
   }
 }
 
-interface CustomerAccount {
-  accountId: string
+interface CustomerSubunit {
+  subunitId: string
   code: string
   name: string
   creditLimits: Array<{ currency: string; amount: string }>
@@ -38,13 +38,28 @@ interface CustomerView extends CustomerMutation {
       bankName?: string
       accountNumber?: string
     }>
-    accounts: CustomerAccount[]
+    subunits: CustomerSubunit[]
+    implicitSubunitId: string | null
   }
 }
 
 interface ReferenceCandidate {
   objectId: string
   code: string
+}
+
+interface Permission {
+  id: string
+  path: string
+  status: string
+}
+
+interface Role {
+  id: string
+}
+
+interface User {
+  id: string
 }
 
 class Api {
@@ -125,6 +140,91 @@ async function signIn(
   await expect(page).not.toHaveURL(/\/signin/)
 }
 
+async function createExactPermissionUser(
+  administrator: Api,
+  permissionCatalog: Map<string, string>,
+  label: string,
+  paths: readonly string[],
+): Promise<{ username: string; password: string }> {
+  const suffix = randomBytes(8).toString('hex')
+  const initialPassword = `Zerp!${randomBytes(12).toString('hex')}Aa9`
+  const password = `Zerp!${randomBytes(12).toString('hex')}Bb9`
+  const permissionIds = paths.map((path) => {
+    const id = permissionCatalog.get(path)
+    if (!id) throw new Error(`Customer E2E 权限目录缺少 ${path}。`)
+    return id
+  })
+  const role = await administrator.post<Role>('app/role/create', {
+    name: `${label}角色-${suffix}`,
+    description: 'Customer 最小权限矩阵 E2E',
+    permissionIds,
+  })
+  const username = `e2e-customer-${suffix}`
+  await administrator.post<User>('app/user/create', {
+    username,
+    displayName: `${label}-${suffix}`,
+    password: initialPassword,
+    roleIds: [role.id],
+  })
+  const initialSession = await apiSession({
+    username,
+    password: initialPassword,
+  })
+  try {
+    await initialSession.api.post<undefined>('app/user/change-password', {
+      currentPassword: initialPassword,
+      newPassword: password,
+    })
+  } finally {
+    await initialSession.dispose()
+  }
+  return { username, password }
+}
+
+async function permissionCatalog(
+  administrator: Api,
+): Promise<Map<string, string>> {
+  const permissions: Permission[] = []
+  let page = 1
+  let total = 1
+  while (permissions.length < total) {
+    const result = await administrator.post<{
+      items: Permission[]
+      total: number
+    }>('app/permission/query', {
+      page: page++,
+      pageSize: 20,
+      sort: [{ field: 'path', order: 'asc' }],
+    })
+    permissions.push(...result.items)
+    total = result.total
+    if (result.items.length === 0) break
+  }
+  return new Map(
+    permissions
+      .filter((permission) => permission.status === 'ENABLED')
+      .map((permission) => [permission.path, permission.id]),
+  )
+}
+
+async function signInFresh(
+  page: Page,
+  credentials: { username: string; password: string },
+): Promise<void> {
+  await page.context().clearCookies()
+  await signIn(page, credentials)
+}
+
+async function openCustomerAction(
+  page: Page,
+  customerName: string,
+  label: string,
+): Promise<void> {
+  await assertCustomerAction(page, customerName, label)
+  const row = page.getByRole('row').filter({ hasText: customerName })
+  await row.getByRole('button', { name: label, exact: true }).click()
+}
+
 async function assertCustomerAction(
   page: Page,
   customerName: string,
@@ -140,7 +240,7 @@ async function assertCustomerAction(
   ).toBeVisible()
 }
 
-test('Customer 多账户通过一个聚合保存审批并呈现四种操作状态', async ({
+test('Customer 根资料与子单位独立保存并呈现四种操作状态', async ({
   page,
   workerState,
 }) => {
@@ -155,10 +255,9 @@ test('Customer 多账户通过一个聚合保存审批并呈现四种操作状�
 
     const suffix = `${Date.now()}-${test.info().parallelIndex}`
     const name = `E2E 聚合客户 ${suffix}`
-    const account = (accountName: string, isDefault: boolean) => ({
+    const subunit = (subunitName: string) => ({
       enabled: true,
-      isDefault,
-      name: accountName,
+      name: subunitName,
       customerTypeId: '01JAVX00000000000000000005',
       transportSurcharge: '0.00',
       pricingPolicy: {
@@ -185,31 +284,42 @@ test('Customer 多账户通过一个聚合保存审批并呈现四种操作状�
       remittanceProfiles: [{ accountName: `${name} 基本户` }],
       defaultOperatingEntityId: workerState.fixtures.operatingEntityId,
       enabled: true,
-      accounts: [
-        account(`${name} 默认账户`, true),
-        account(`${name} 项目账户`, false),
-      ],
+      subunits: [subunit(`${name} 总部`), subunit(`${name} 项目部`)],
     }
 
     const created = await operator.api.post<CustomerMutation>(
       'dcl/customer/create',
-      { data: input },
+      {
+        data: {
+          root: {
+            kind: input.kind,
+            legalName: input.legalName,
+            displayName: input.displayName,
+            legalIdentifier: input.legalIdentifier,
+            remittanceProfiles: input.remittanceProfiles,
+            defaultOperatingEntityId: input.defaultOperatingEntityId,
+            enabled: input.enabled,
+          },
+          subunits: input.subunits,
+        },
+      },
     )
     const createdView = await operator.api.post<CustomerView>(
       'dcl/customer/get',
       { objectId: created.objectId },
     )
-    expect(createdView.data.accounts).toHaveLength(2)
+    expect(createdView.data.subunits).toHaveLength(2)
+    expect(createdView.data.implicitSubunitId).toBeNull()
     expect(
-      new Set(createdView.data.accounts.map((item) => item.accountId)).size,
+      new Set(createdView.data.subunits.map((item) => item.subunitId)).size,
     ).toBe(2)
     expect(createdView.data.kind).toBe('MAINLAND_ENTERPRISE')
     expect(createdView.data.legalIdentifier).toBe(input.legalIdentifier)
     expect(createdView.data.remittanceProfiles).toEqual([
       { accountName: `${name} 基本户` },
     ])
-    expect(createdView.data.accounts[0]?.creditLimits).toEqual(
-      account('', true).creditLimits,
+    expect(createdView.data.subunits[0]?.creditLimits).toEqual(
+      subunit('').creditLimits,
     )
 
     await signIn(page, workerState.operator)
@@ -222,21 +332,35 @@ test('Customer 多账户通过一个聚合保存审批并呈现四种操作状�
         approvalEntryId: created.approval.approvalEntryId,
         approvalRevision: created.approval.revision,
         data: {
-          ...input,
-          accounts: input.accounts.map((item, index) => ({
-            ...item,
-            accountId: createdView.data.accounts[index]!.accountId,
-            name: `${item.name} 已保存`,
-          })),
+          kind: input.kind,
+          legalName: input.legalName,
+          displayName: input.displayName,
+          legalIdentifier: input.legalIdentifier,
+          remittanceProfiles: input.remittanceProfiles,
+          defaultOperatingEntityId: input.defaultOperatingEntityId,
+          enabled: input.enabled,
         },
+      },
+    )
+    const subunitsSaved = await operator.api.post<CustomerMutation>(
+      'dcl/customer/save-subunits',
+      {
+        objectId: saved.objectId,
+        approvalEntryId: saved.approval.approvalEntryId,
+        approvalRevision: saved.approval.revision,
+        subunits: input.subunits.map((item, index) => ({
+          ...item,
+          subunitId: createdView.data.subunits[index]!.subunitId,
+          name: `${item.name} 已保存`,
+        })),
       },
     )
     const pending = await operator.api.post<CustomerMutation>(
       'dcl/customer/submit',
       {
-        objectId: saved.objectId,
-        approvalEntryId: saved.approval.approvalEntryId,
-        approvalRevision: saved.approval.revision,
+        objectId: subunitsSaved.objectId,
+        approvalEntryId: subunitsSaved.approval.approvalEntryId,
+        approvalRevision: subunitsSaved.approval.revision,
       },
     )
     await assertCustomerAction(page, name, '查看')
@@ -256,13 +380,13 @@ test('Customer 多账户通过一个聚合保存审批并呈现四种操作状�
       approvalEntryId: approved.approval.approvalEntryId,
       approvalRevision: approved.approval.revision,
       data: {
-        ...input,
+        kind: input.kind,
+        legalName: input.legalName,
         displayName: `${name} V2`,
-        accounts: input.accounts.map((item, index) => ({
-          ...item,
-          accountId: createdView.data.accounts[index]!.accountId,
-          name: `${item.name} V2`,
-        })),
+        legalIdentifier: input.legalIdentifier,
+        remittanceProfiles: input.remittanceProfiles,
+        defaultOperatingEntityId: input.defaultOperatingEntityId,
+        enabled: input.enabled,
       },
     })
     expect(v2.approval.status).toBe('DRAFT')
@@ -301,11 +425,10 @@ test('Customer 在真实全栈中校验三类法定识别号、OTHER 占用和�
       remittanceProfiles: [],
       defaultOperatingEntityId: workerState.fixtures.operatingEntityId,
       enabled: true,
-      accounts: [
+      subunits: [
         {
           enabled: true,
-          isDefault: true,
-          name: `${name} 账户`,
+          name: `${name} 总部`,
           customerTypeId: '01JAVX00000000000000000005',
           transportSurcharge: '0.00',
           pricingPolicy: {
@@ -323,12 +446,20 @@ test('Customer 在真实全栈中校验三类法定识别号、OTHER 占用和�
         },
       ],
     })
+    const createData = (
+      name: string,
+      kind: 'MAINLAND_ENTERPRISE' | 'MAINLAND_INDIVIDUAL' | 'OTHER',
+      legalIdentifier: string | null,
+    ) => {
+      const { subunits, ...root } = customerInput(name, kind, legalIdentifier)
+      return { root, subunits }
+    }
 
     const enterpriseIdentifier = mainlandEnterpriseIdentifier()
     const enterprise = await operator.api.post<CustomerMutation>(
       'dcl/customer/create',
       {
-        data: customerInput(
+        data: createData(
           `E2E 大陆企业 ${suffix}`,
           'MAINLAND_ENTERPRISE',
           enterpriseIdentifier,
@@ -349,7 +480,7 @@ test('Customer 在真实全栈中校验三类法定识别号、OTHER 占用和�
     await operator.api.expectBusinessError(
       'dcl/customer/create',
       {
-        data: customerInput(
+        data: createData(
           `E2E 无效信用代码 ${suffix}`,
           'MAINLAND_ENTERPRISE',
           '91350211M000100Y47',
@@ -361,7 +492,7 @@ test('Customer 在真实全栈中校验三类法定识别号、OTHER 占用和�
     const individual = await operator.api.post<CustomerMutation>(
       'dcl/customer/create',
       {
-        data: customerInput(
+        data: createData(
           `E2E 大陆个人 ${suffix}`,
           'MAINLAND_INDIVIDUAL',
           '11010519491231002x',
@@ -381,7 +512,7 @@ test('Customer 在真实全栈中校验三类法定识别号、OTHER 占用和�
 
     const otherIdentifier = `OTHER-${suffix}`
     await operator.api.post<CustomerMutation>('dcl/customer/create', {
-      data: customerInput(
+      data: createData(
         `E2E 其他客户 ${suffix}`,
         'OTHER',
         ` ${otherIdentifier} `,
@@ -390,7 +521,7 @@ test('Customer 在真实全栈中校验三类法定识别号、OTHER 占用和�
     await operator.api.expectBusinessError(
       'dcl/customer/create',
       {
-        data: customerInput(
+        data: createData(
           `E2E 重复其他客户 ${suffix}`,
           'OTHER',
           otherIdentifier,
@@ -402,7 +533,7 @@ test('Customer 在真实全栈中校验三类法定识别号、OTHER 占用和�
     const draft = await operator.api.post<CustomerMutation>(
       'dcl/customer/create',
       {
-        data: customerInput(
+        data: createData(
           `E2E 空号码草稿 ${suffix}`,
           'MAINLAND_ENTERPRISE',
           null,
@@ -422,3 +553,281 @@ test('Customer 在真实全栈中校验三类法定识别号、OTHER 占用和�
     await operator.dispose()
   }
 })
+
+test(
+  'Customer 根维护者、子单位维护者、只读用户和审批人按真实最小权限协作 @system-serial',
+  { tag: '@system-serial' },
+  async ({ page, workerState }) => {
+    test.setTimeout(180_000)
+    const administrator = await apiSession({
+      username: process.env.E2E_USERNAME!,
+      password: process.env.E2E_PASSWORD!,
+    })
+    const operator = await apiSession(workerState.operator)
+    const reviewer = await apiSession(workerState.reviewer)
+    const sessions: Array<{ dispose: () => Promise<void> }> = []
+    try {
+      const catalog = await permissionCatalog(administrator.api)
+      const readPaths = ['/dcl/customer/query', '/dcl/customer/get'] as const
+      const referencePaths = [
+        '/bob/operating-entity/query',
+        '/aux/reference/query',
+        '/bob/reference/query',
+      ] as const
+      const rootMaintainer = await createExactPermissionUser(
+        administrator.api,
+        catalog,
+        '客户根维护者',
+        [...readPaths, ...referencePaths, '/dcl/customer/save'],
+      )
+      const subunitMaintainer = await createExactPermissionUser(
+        administrator.api,
+        catalog,
+        '客户子单位维护者',
+        [...readPaths, ...referencePaths, '/dcl/customer/save-subunits'],
+      )
+      const readonlyUser = await createExactPermissionUser(
+        administrator.api,
+        catalog,
+        '客户只读用户',
+        readPaths,
+      )
+      const approver = await createExactPermissionUser(
+        administrator.api,
+        catalog,
+        '客户审批人',
+        ['/dcl/customer/approve'],
+      )
+
+      const [employee] = await operator.api.post<ReferenceCandidate[]>(
+        'bob/reference/query',
+        { entity: 'employee', keyword: workerState.fixtures.employee },
+      )
+      if (!employee) throw new Error('Customer 权限 E2E 缺少员工引用。')
+      const suffix = `${Date.now()}-${test.info().parallelIndex}`
+      const name = `E2E 客户权限矩阵 ${suffix}`
+      const initialSubunitName = `${name} 总部`
+      const root = {
+        kind: 'MAINLAND_ENTERPRISE' as const,
+        legalName: name,
+        displayName: name,
+        legalIdentifier: mainlandEnterpriseIdentifier(),
+        remittanceProfiles: [],
+        defaultOperatingEntityId: workerState.fixtures.operatingEntityId,
+        enabled: true,
+      }
+      const subunit = {
+        enabled: true,
+        name: initialSubunitName,
+        customerTypeId: '01JAVX00000000000000000005',
+        transportSurcharge: '0.00',
+        pricingPolicy: {
+          defaultPremiumUnitPrice: '0.00',
+          defaultDiscountUnitPrice: '0.00',
+          costItems: [],
+          thirdPartyIntermediaryFixedUnitCost: '0.00',
+          thirdPartyIntermediaryVariableUnitCost: '0.00',
+        },
+        creditLimits: [],
+        primarySalesAttribution: {
+          type: 'INTERNAL_EMPLOYEE',
+          subjectObjectId: employee.objectId,
+        },
+      }
+      let mutation = await operator.api.post<CustomerMutation>(
+        'dcl/customer/create',
+        { data: { root, subunits: [subunit] } },
+      )
+      mutation = await operator.api.post<CustomerMutation>(
+        'dcl/customer/submit',
+        {
+          objectId: mutation.objectId,
+          approvalEntryId: mutation.approval.approvalEntryId,
+          approvalRevision: mutation.approval.revision,
+        },
+      )
+      mutation = await reviewer.api.post<CustomerMutation>(
+        'dcl/customer/approve',
+        {
+          objectId: mutation.objectId,
+          approvalEntryId: mutation.approval.approvalEntryId,
+          approvalRevision: mutation.approval.revision,
+        },
+      )
+
+      const rootSession = await apiSession(rootMaintainer)
+      sessions.push(rootSession)
+      await signInFresh(page, rootMaintainer)
+      await openCustomerAction(page, name, '发起变更')
+      let drawer = page.locator('.v-navigation-drawer--right')
+      await expect(
+        drawer.getByLabel('法定名称', { exact: true }),
+      ).toBeEditable()
+      await expect(
+        drawer.getByRole('button', { name: '新增子单位', exact: true }),
+      ).toHaveCount(0)
+      await expect(
+        drawer.getByRole('button', { name: '保存客户资料', exact: true }),
+      ).toBeVisible()
+      await expect(
+        drawer.getByRole('button', { name: '保存客户子单位', exact: true }),
+      ).toHaveCount(0)
+      await drawer.getByLabel('联系电话', { exact: true }).fill('021-3510001')
+      await drawer
+        .getByRole('button', { name: '保存客户资料', exact: true })
+        .click()
+      await expect(page.getByText('客户资料已保存。')).toBeVisible()
+      let view = await rootSession.api.post<CustomerView>('dcl/customer/get', {
+        objectId: mutation.objectId,
+      })
+      expect(view.data.subunits[0]?.name).toBe(initialSubunitName)
+      await rootSession.api.expectBusinessError(
+        'dcl/customer/save-subunits',
+        {
+          objectId: view.objectId,
+          approvalEntryId: view.approval.approvalEntryId,
+          approvalRevision: view.approval.revision,
+          subunits: [
+            {
+              ...subunit,
+              subunitId: view.data.subunits[0]!.subunitId,
+            },
+          ],
+        },
+        'forbidden',
+      )
+
+      const subunitSession = await apiSession(subunitMaintainer)
+      sessions.push(subunitSession)
+      await signInFresh(page, subunitMaintainer)
+      await openCustomerAction(page, name, '继续编辑草稿')
+      drawer = page.locator('.v-navigation-drawer--right')
+      await expect(
+        drawer.getByLabel('法定名称', { exact: true }),
+      ).not.toBeEditable()
+      await expect(
+        drawer.getByRole('button', { name: '新增子单位', exact: true }),
+      ).toBeVisible()
+      await expect(
+        drawer.getByRole('button', { name: '保存客户资料', exact: true }),
+      ).toHaveCount(0)
+      const changedSubunitName = `${initialSubunitName} 已维护`
+      view = await subunitSession.api.post<CustomerView>('dcl/customer/get', {
+        objectId: mutation.objectId,
+      })
+      await subunitSession.api.post<CustomerMutation>(
+        'dcl/customer/save-subunits',
+        {
+          objectId: view.objectId,
+          approvalEntryId: view.approval.approvalEntryId,
+          approvalRevision: view.approval.revision,
+          subunits: [
+            {
+              ...subunit,
+              subunitId: view.data.subunits[0]!.subunitId,
+              name: changedSubunitName,
+            },
+          ],
+        },
+      )
+      view = await subunitSession.api.post<CustomerView>('dcl/customer/get', {
+        objectId: mutation.objectId,
+      })
+      await page.reload()
+      await openCustomerAction(page, name, '继续编辑草稿')
+      drawer = page.locator('.v-navigation-drawer--right')
+      await expect(drawer).toContainText(changedSubunitName)
+      expect(view.data.subunits[0]?.name).toBe(changedSubunitName)
+      await subunitSession.api.expectBusinessError(
+        'dcl/customer/save',
+        {
+          objectId: view.objectId,
+          approvalEntryId: view.approval.approvalEntryId,
+          approvalRevision: view.approval.revision,
+          data: root,
+        },
+        'forbidden',
+      )
+
+      const readonlySession = await apiSession(readonlyUser)
+      sessions.push(readonlySession)
+      await signInFresh(page, readonlyUser)
+      await openCustomerAction(page, name, '查看')
+      drawer = page.locator('.v-navigation-drawer--right')
+      await expect(
+        drawer.getByLabel('法定名称', { exact: true }),
+      ).not.toBeEditable()
+      await expect(
+        drawer.getByRole('button', { name: '保存客户资料', exact: true }),
+      ).toHaveCount(0)
+      await expect(
+        drawer.getByRole('button', {
+          name: '保存客户子单位',
+          exact: true,
+        }),
+      ).toHaveCount(0)
+      await expect(
+        drawer.getByRole('button', { name: '查看', exact: true }),
+      ).toBeVisible()
+      await expect(drawer).toContainText(changedSubunitName)
+      await readonlySession.api.expectBusinessError(
+        'dcl/customer/save',
+        {
+          objectId: view.objectId,
+          approvalEntryId: view.approval.approvalEntryId,
+          approvalRevision: view.approval.revision,
+          data: root,
+        },
+        'forbidden',
+      )
+      await readonlySession.api.expectBusinessError(
+        'dcl/customer/save-subunits',
+        {
+          objectId: view.objectId,
+          approvalEntryId: view.approval.approvalEntryId,
+          approvalRevision: view.approval.revision,
+          subunits: [
+            {
+              ...subunit,
+              subunitId: view.data.subunits[0]!.subunitId,
+              name: changedSubunitName,
+            },
+          ],
+        },
+        'forbidden',
+      )
+
+      mutation = await operator.api.post<CustomerMutation>(
+        'dcl/customer/submit',
+        {
+          objectId: view.objectId,
+          approvalEntryId: view.approval.approvalEntryId,
+          approvalRevision: view.approval.revision,
+        },
+      )
+      const approverSession = await apiSession(approver)
+      sessions.push(approverSession)
+      const approverView = await approverSession.api.post<CustomerView>(
+        'dcl/customer/get',
+        { objectId: mutation.objectId },
+      )
+      expect(approverView.data.subunits[0]?.name).toBe(changedSubunitName)
+      await signInFresh(page, approver)
+      await assertCustomerAction(page, name, '批准')
+      await approverSession.api.post<CustomerMutation>('dcl/customer/approve', {
+        objectId: mutation.objectId,
+        approvalEntryId: mutation.approval.approvalEntryId,
+        approvalRevision: mutation.approval.revision,
+      })
+      await page.reload()
+      await assertCustomerAction(page, name, '查看')
+      const row = page.getByRole('row').filter({ hasText: name })
+      await expect(row).toContainText('已批准')
+    } finally {
+      for (const session of sessions.reverse()) await session.dispose()
+      await reviewer.dispose()
+      await operator.dispose()
+      await administrator.dispose()
+    }
+  },
+)

@@ -41,12 +41,12 @@ WHERE sqlc.arg(selected_id)::text = '' OR object_id = sqlc.arg(selected_id)
 ORDER BY (object_id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, code, object_id, approval_entry_id
 OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 
--- name: RptListCustomerAccountReferences :many
+-- name: RptListCustomerSubunitReferences :many
 WITH current_references AS (
-  SELECT root.account_id AS id, line.data->>'code' AS code, line.data->>'name' AS name,
+  SELECT root.subunit_id AS id, line.data->>'code' AS code, line.data->>'name' AS name,
     customer_root.code AS customer_code,
     coalesce(nullif(customer.data->>'displayName',''), customer.data->>'legalName') AS customer_name
-  FROM dcl_customer_account_roots root
+  FROM dcl_customer_subunit_roots root
   JOIN LATERAL (
     SELECT id
     FROM approval_entries
@@ -55,7 +55,7 @@ WITH current_references AS (
   ) entry ON true
   JOIN dcl_subjects customer_root ON customer_root.id=root.customer_id AND customer_root.entity='customer'
   JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id AND customer.enabled
-  JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+  JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
   WHERE line.enabled
 )
 SELECT reference.id, reference.code::text AS code, reference.name::text AS name,

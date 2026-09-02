@@ -73,7 +73,7 @@ func (s *CustomerService) Query(ctx context.Context, in CustomerQueryInput, acto
 	if len(in.Sort) == 1 && (in.Sort[0].Field != "code" || strings.ToLower(in.Sort[0].Order) != "asc") {
 		return Page[CustomerQueryItem]{}, newError(ErrorValidation, "validation_failed", "invalid customer sort", nil, nil)
 	}
-	if err := s.coordinator.Authorize(ctx, actor, "query"); err != nil {
+	if err := s.authorizeCustomerRead(ctx, actor, "query"); err != nil {
 		return Page[CustomerQueryItem]{}, translateError(err)
 	}
 	statuses := make([]string, 0, len(in.Filters.Status))
@@ -144,20 +144,15 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 	entryID := in.ApprovalEntryID
 	var entry approval.Entry
 	if entryID == "" {
-		entry, err = s.coordinator.GetOpenVersion(ctx, tx, in.ObjectID, actor)
+		entry, err = s.getOpenCustomerVersion(ctx, tx, in.ObjectID, actor)
 		if approval.IsKey(err, "approval_version_not_found") {
-			row, e := q.GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{Domain: "dcl", Entity: EntityCustomer, SubjectID: in.ObjectID})
-			if e != nil {
-				err = e
-			} else {
-				entryID = row.ID
-				entry, err = s.coordinator.Get(ctx, tx, entryID, actor)
-			}
+			entry, err = s.getLatestApprovedCustomer(ctx, tx, in.ObjectID, actor)
+			entryID = entry.ID
 		} else if err == nil {
 			entryID = entry.ID
 		}
 	} else {
-		entry, err = s.coordinator.Get(ctx, tx, entryID, actor)
+		entry, err = s.getCustomerEntry(ctx, tx, entryID, actor)
 	}
 	if err != nil || entry.SubjectID != in.ObjectID {
 		return CustomerView{}, translateError(err)
@@ -178,6 +173,38 @@ func (s *CustomerService) Get(ctx context.Context, in CustomerGetInput, actor ap
 		return CustomerView{}, translateError(err)
 	}
 	return CustomerView{ObjectID: id.ObjectID, Entity: EntityCustomer, Code: id.Code, Approval: approval.VersionMetaFromEntry(entry), AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor), Data: data, Attachments: attachments, UpdatedAt: entry.UpdatedAt}, nil
+}
+
+func (s *CustomerService) authorizeCustomerRead(ctx context.Context, actor approval.Actor, action string) error {
+	err := s.coordinator.Authorize(ctx, actor, action)
+	if approval.IsKind(err, approval.ErrorForbidden) {
+		return s.coordinator.Authorize(ctx, actor, "approve")
+	}
+	return err
+}
+
+func (s *CustomerService) getCustomerEntry(ctx context.Context, tx pgx.Tx, entryID string, actor approval.Actor) (approval.Entry, error) {
+	entry, err := s.coordinator.Get(ctx, tx, entryID, actor)
+	if approval.IsKind(err, approval.ErrorForbidden) {
+		return s.coordinator.GetForAction(ctx, tx, entryID, actor, "approve")
+	}
+	return entry, err
+}
+
+func (s *CustomerService) getOpenCustomerVersion(ctx context.Context, tx pgx.Tx, objectID string, actor approval.Actor) (approval.Entry, error) {
+	entry, err := s.coordinator.GetOpenVersion(ctx, tx, objectID, actor)
+	if approval.IsKind(err, approval.ErrorForbidden) {
+		return s.coordinator.GetOpenVersionForAction(ctx, tx, objectID, actor, "approve")
+	}
+	return entry, err
+}
+
+func (s *CustomerService) getLatestApprovedCustomer(ctx context.Context, tx pgx.Tx, objectID string, actor approval.Actor) (approval.Entry, error) {
+	entry, err := s.coordinator.GetLatestApproved(ctx, tx, objectID, actor)
+	if approval.IsKind(err, approval.ErrorForbidden) {
+		return s.coordinator.GetLatestApprovedForAction(ctx, tx, objectID, actor, "approve")
+	}
+	return entry, err
 }
 
 func (s *CustomerService) Versions(ctx context.Context, in CustomerHistoryInput, actor approval.Actor) (Page[CustomerVersionView], error) {

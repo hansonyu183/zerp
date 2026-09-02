@@ -102,8 +102,8 @@ function documentView(
         ? { finishedWarehouse: form.finishedWarehouse }
         : {}),
       ...(form.fundAccount ? { fundAccount: form.fundAccount } : {}),
-      accountAllocations: form.accountAllocations.map((line) => ({
-        account: line.account!,
+      subunitAllocations: form.subunitAllocations.map((line) => ({
+        subunit: line.subunit!,
         amount: line.amount,
       })),
       sourceName: form.sourceName,
@@ -223,12 +223,12 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
   if (config.usesOperatingEntity) {
     form.operatingEntity = reference('operating-entity')
   }
-  if (config.usesAccountAllocations) {
-    form.accountAllocations = [
+  if (config.usesSubunitAllocations) {
+    form.subunitAllocations = [
       {
         key: 'allocation-1',
-        account: {
-          ...reference('customer-account'),
+        subunit: {
+          ...reference('customer-subunit'),
           customerId: form.customer?.objectId,
         },
         amount: '10.00',
@@ -1022,13 +1022,13 @@ describe('shared VOU entity view model', () => {
 
     expect(mockedPost).toHaveBeenCalledWith(
       'bob/reference/query',
-      { entity: 'customer-account' },
+      { entity: 'customer-subunit' },
       expect.any(Object),
     )
     expect(vm.referenceOptions('customer')).toEqual([
       expect.objectContaining({
         objectId: 'customer-a',
-        entity: 'customer-account',
+        entity: 'customer-subunit',
         code: 'CUS-001',
       }),
     ])
@@ -1131,7 +1131,7 @@ describe('shared VOU entity view model', () => {
 
     expect(mockedPost).toHaveBeenCalledWith(
       'bob/reference/query',
-      { entity: 'customer-account' },
+      { entity: 'customer-subunit' },
       expect.any(Object),
     )
     expect(vm.referenceOptions('customer')).toEqual([])
@@ -1408,10 +1408,10 @@ describe('shared VOU entity view model', () => {
     expect(formFromDocument(documentView(config, currentForm))).toMatchObject({
       customer: { entity: 'customer' },
       operatingEntity: { entity: 'operating-entity' },
-      accountAllocations: [
+      subunitAllocations: [
         {
-          account: {
-            entity: 'customer-account',
+          subunit: {
+            entity: 'customer-subunit',
             customerId: 'customer-object',
           },
           amount: '10.00',
@@ -1436,11 +1436,11 @@ describe('shared VOU entity view model', () => {
         objectId: 'operating-entity-object',
         approvalEntryId: 'operating-entity-version',
       },
-      accountAllocations: [
+      subunitAllocations: [
         {
-          account: {
-            objectId: 'customer-account-object',
-            approvalEntryId: 'customer-account-version',
+          subunit: {
+            objectId: 'customer-subunit-object',
+            approvalEntryId: 'customer-subunit-version',
           },
           amount: '10.00',
         },

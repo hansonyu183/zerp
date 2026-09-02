@@ -33,7 +33,8 @@ type CustomerAttachmentOptions struct {
 }
 type CustomerAttachmentInitiateInput struct {
 	OwnerApprovalEntryID string `json:"ownerApprovalEntryId"`
-	AccountID            string `json:"accountId,omitempty"`
+	Scope                string `json:"scope"`
+	SubunitID            string `json:"subunitId,omitempty"`
 	ApprovalRevision     int64  `json:"approvalRevision"`
 	CategoryObjectID     string `json:"categoryObjectId"`
 	FileName             string `json:"fileName"`
@@ -43,12 +44,14 @@ type CustomerAttachmentInitiateInput struct {
 }
 type CustomerAttachmentDownloadInput struct {
 	OwnerApprovalEntryID string `json:"ownerApprovalEntryId"`
-	AccountID            string `json:"accountId,omitempty"`
+	Scope                string `json:"scope"`
+	SubunitID            string `json:"subunitId,omitempty"`
 	FileID               string `json:"fileId"`
 }
 type CustomerAttachmentRemoveInput struct {
 	OwnerApprovalEntryID string `json:"ownerApprovalEntryId"`
-	AccountID            string `json:"accountId,omitempty"`
+	Scope                string `json:"scope"`
+	SubunitID            string `json:"subunitId,omitempty"`
 	ApprovalRevision     int64  `json:"approvalRevision"`
 	FileID               string `json:"fileId"`
 }
@@ -111,13 +114,17 @@ func customerAttachmentToken() (string, string, error) {
 func validateDCLCustomerAttachment(in CustomerAttachmentInitiateInput) (string, error) {
 	name := strings.TrimSpace(in.FileName)
 	validType := in.ContentType == "application/pdf" || in.ContentType == "image/jpeg" || in.ContentType == "image/png"
-	if !validID(in.OwnerApprovalEntryID) || (in.AccountID != "" && !validID(in.AccountID)) || in.ApprovalRevision < 1 || !validID(in.CategoryObjectID) || name == "" || len(name) > 255 || filepath.Base(name) != name || strings.ContainsAny(name, "/\\") || !validType || in.Size < 1 || in.Size > attachmentstore.MaxFileBytes || len(in.SHA256) != 64 || in.SHA256 != strings.ToLower(in.SHA256) {
+	if !validCustomerAttachmentScope(in.Scope, in.SubunitID) || !validID(in.OwnerApprovalEntryID) || (in.SubunitID != "" && !validID(in.SubunitID)) || in.ApprovalRevision < 1 || !validID(in.CategoryObjectID) || name == "" || len(name) > 255 || filepath.Base(name) != name || strings.ContainsAny(name, "/\\") || !validType || in.Size < 1 || in.Size > attachmentstore.MaxFileBytes || len(in.SHA256) != 64 || in.SHA256 != strings.ToLower(in.SHA256) {
 		return "", newError(ErrorValidation, "validation_failed", "invalid customer attachment", nil, nil)
 	}
 	if _, err := hex.DecodeString(in.SHA256); err != nil {
 		return "", newError(ErrorValidation, "validation_failed", "invalid customer attachment", nil, err)
 	}
 	return name, nil
+}
+
+func validCustomerAttachmentScope(scope, subunitID string) bool {
+	return (scope == "CUSTOMER" && subunitID == "") || (scope == "CUSTOMER_SUBUNIT" && validID(subunitID))
 }
 func (s *CustomerAttachmentService) lockDraft(ctx context.Context, q *dbsqlc.Queries, entryID string, revision int64, enforceLimit bool) (dbsqlc.ApprovalEntry, error) {
 	var e dbsqlc.ApprovalEntry
@@ -177,7 +184,7 @@ func (s *CustomerAttachmentService) Initiate(ctx context.Context, in CustomerAtt
 	if err != nil {
 		return CustomerAttachmentInitiateResult{}, err
 	}
-	if err = ensureCustomerAttachmentAccount(ctx, q, owner.ID, in.AccountID); err != nil {
+	if err = ensureCustomerAttachmentSubunit(ctx, q, owner.ID, in.SubunitID); err != nil {
 		return CustomerAttachmentInitiateResult{}, err
 	}
 	category, err := q.ResolveCustomerDocumentCategory(ctx, in.CategoryObjectID)
@@ -188,7 +195,7 @@ func (s *CustomerAttachmentService) Initiate(ctx context.Context, in CustomerAtt
 	if err = q.InsertCustomerFile(ctx, dbsqlc.InsertCustomerFileParams{ID: fileID, StorageKey: "customer/" + fileID, OriginalName: name, ContentType: in.ContentType, DeclaredSize: in.Size, Sha256Hex: in.SHA256, UploadTokenHash: hash, UploadExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true}, ActorID: actor.ID()}); err != nil {
 		return CustomerAttachmentInitiateResult{}, translateError(err)
 	}
-	err = q.InsertDCLCustomerAttachment(ctx, dbsqlc.InsertDCLCustomerAttachmentParams{ApprovalEntryID: owner.ID, AccountID: nilIfEmpty(in.AccountID), FileID: fileID, CategoryObjectID: category.ObjectID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
+	err = q.InsertDCLCustomerAttachment(ctx, dbsqlc.InsertDCLCustomerAttachmentParams{ApprovalEntryID: owner.ID, SubunitID: nilIfEmpty(in.SubunitID), FileID: fileID, CategoryObjectID: category.ObjectID, CategoryCode: category.Code, CategoryName: category.Name, ActorID: actor.ID()})
 	if err != nil {
 		return CustomerAttachmentInitiateResult{}, translateError(err)
 	}
@@ -242,10 +249,10 @@ func tokenHash(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 func (s *CustomerAttachmentService) CreateDownload(ctx context.Context, in CustomerAttachmentDownloadInput, actorID string) (CustomerAttachmentDownloadResult, error) {
-	if !validID(in.OwnerApprovalEntryID) || (in.AccountID != "" && !validID(in.AccountID)) || !validID(in.FileID) || !validID(actorID) {
+	if !validCustomerAttachmentScope(in.Scope, in.SubunitID) || !validID(in.OwnerApprovalEntryID) || (in.SubunitID != "" && !validID(in.SubunitID)) || !validID(in.FileID) || !validID(actorID) {
 		return CustomerAttachmentDownloadResult{}, newError(ErrorValidation, "validation_failed", "invalid customer attachment", nil, nil)
 	}
-	if err := ensureCustomerAttachmentFileAccount(ctx, s.queries, in.OwnerApprovalEntryID, in.AccountID, in.FileID); err != nil {
+	if err := ensureCustomerAttachmentFileSubunit(ctx, s.queries, in.OwnerApprovalEntryID, in.SubunitID, in.FileID); err != nil {
 		return CustomerAttachmentDownloadResult{}, err
 	}
 	_, err := s.queries.GetReadyDCLCustomerAttachment(ctx, dbsqlc.GetReadyDCLCustomerAttachmentParams{ApprovalEntryID: in.OwnerApprovalEntryID, FileID: in.FileID})
@@ -286,7 +293,7 @@ func (s *CustomerAttachmentService) OpenDownload(ctx context.Context, token stri
 	return CustomerAttachmentDownloadFile{Reader: reader, FileName: row.OriginalName, ContentType: row.ContentType, Size: row.DeclaredSize}, nil
 }
 func (s *CustomerAttachmentService) Remove(ctx context.Context, in CustomerAttachmentRemoveInput, actor approval.Actor) (CustomerAttachmentMutationResult, error) {
-	if !validID(in.OwnerApprovalEntryID) || (in.AccountID != "" && !validID(in.AccountID)) || !validID(in.FileID) || in.ApprovalRevision < 1 || !validActor(actor) {
+	if !validCustomerAttachmentScope(in.Scope, in.SubunitID) || !validID(in.OwnerApprovalEntryID) || (in.SubunitID != "" && !validID(in.SubunitID)) || !validID(in.FileID) || in.ApprovalRevision < 1 || !validActor(actor) {
 		return CustomerAttachmentMutationResult{}, newError(ErrorValidation, "validation_failed", "invalid customer attachment", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -299,7 +306,7 @@ func (s *CustomerAttachmentService) Remove(ctx context.Context, in CustomerAttac
 	if err != nil {
 		return CustomerAttachmentMutationResult{}, err
 	}
-	if err = ensureCustomerAttachmentFileAccount(ctx, q, owner.ID, in.AccountID, in.FileID); err != nil {
+	if err = ensureCustomerAttachmentFileSubunit(ctx, q, owner.ID, in.SubunitID, in.FileID); err != nil {
 		return CustomerAttachmentMutationResult{}, err
 	}
 	var n int64
@@ -320,29 +327,29 @@ func (s *CustomerAttachmentService) Remove(ctx context.Context, in CustomerAttac
 	return CustomerAttachmentMutationResult{ApprovalRevision: e.Revision}, nil
 }
 
-func ensureCustomerAttachmentAccount(ctx context.Context, q *dbsqlc.Queries, entryID, accountID string) error {
-	if accountID == "" {
+func ensureCustomerAttachmentSubunit(ctx context.Context, q *dbsqlc.Queries, entryID, subunitID string) error {
+	if subunitID == "" {
 		return nil
 	}
-	accounts, err := q.ListDCLCustomerVersionAccounts(ctx, entryID)
+	subunits, err := q.ListDCLCustomerVersionSubunits(ctx, entryID)
 	if err != nil {
 		return translateError(err)
 	}
-	for _, account := range accounts {
-		if account.AccountID == accountID {
+	for _, subunit := range subunits {
+		if subunit.SubunitID == subunitID {
 			return nil
 		}
 	}
-	return newError(ErrorValidation, "validation_failed", "customer attachment account not found in revision", nil, nil)
+	return newError(ErrorValidation, "validation_failed", "customer attachment subunit not found in revision", nil, nil)
 }
 
-func ensureCustomerAttachmentFileAccount(ctx context.Context, q *dbsqlc.Queries, entryID, accountID, fileID string) error {
+func ensureCustomerAttachmentFileSubunit(ctx context.Context, q *dbsqlc.Queries, entryID, subunitID, fileID string) error {
 	attachments, err := ListCustomerAttachments(ctx, q, entryID)
 	if err != nil {
 		return err
 	}
 	for _, attachment := range attachments {
-		if attachment.FileID == fileID && attachment.AccountID == accountID {
+		if attachment.FileID == fileID && attachment.SubunitID == subunitID {
 			return nil
 		}
 	}
@@ -368,10 +375,10 @@ func (s *CustomerAttachmentService) CleanupOrphanFiles(ctx context.Context) (int
 }
 
 // CustomerAttachmentView belongs to one Customer approval revision and may
-// optionally be scoped to one account line in that revision.
+// optionally be scoped to one subunit line in that revision.
 type CustomerAttachmentView struct {
 	FileID           string     `json:"fileId"`
-	AccountID        string     `json:"accountId,omitempty"`
+	SubunitID        string     `json:"subunitId,omitempty"`
 	FileName         string     `json:"fileName"`
 	ContentType      string     `json:"contentType"`
 	Size             int64      `json:"size"`
@@ -392,12 +399,12 @@ func ListCustomerAttachments(ctx context.Context, q *dbsqlc.Queries, approvalEnt
 	}
 	items := make([]CustomerAttachmentView, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, customerAttachmentView(stringValue(row.AccountID), row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
+		items = append(items, customerAttachmentView(stringValue(row.SubunitID), row.FileID, row.OriginalName, row.ContentType, row.DeclaredSize, row.Sha256Hex, row.Status, row.StoredAt, row.CategoryObjectID, row.CategoryCode, row.CategoryName, row.CreatedAt.Time, row.CreatedBy))
 	}
 	return items, nil
 }
-func customerAttachmentView(accountID, fileID, fileName, contentType string, size int64, sha, status string, storedAt pgtype.Timestamptz, categoryID, categoryCode, categoryName string, createdAt time.Time, createdBy string) CustomerAttachmentView {
-	v := CustomerAttachmentView{AccountID: accountID, FileID: fileID, FileName: fileName, ContentType: contentType, Size: size, SHA256: sha, Status: status, CategoryObjectID: categoryID, CategoryCode: categoryCode, CategoryName: categoryName, CreatedAt: createdAt, CreatedBy: createdBy}
+func customerAttachmentView(subunitID, fileID, fileName, contentType string, size int64, sha, status string, storedAt pgtype.Timestamptz, categoryID, categoryCode, categoryName string, createdAt time.Time, createdBy string) CustomerAttachmentView {
+	v := CustomerAttachmentView{SubunitID: subunitID, FileID: fileID, FileName: fileName, ContentType: contentType, Size: size, SHA256: sha, Status: status, CategoryObjectID: categoryID, CategoryCode: categoryCode, CategoryName: categoryName, CreatedAt: createdAt, CreatedBy: createdBy}
 	if storedAt.Valid {
 		value := storedAt.Time
 		v.StoredAt = &value

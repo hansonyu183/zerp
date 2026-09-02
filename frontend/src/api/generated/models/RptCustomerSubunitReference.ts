@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type RptCustomerAccountReference = {
+export type RptCustomerSubunitReference = {
   id: string;
   code: string;
   name: string;

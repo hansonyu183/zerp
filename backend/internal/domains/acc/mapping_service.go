@@ -72,7 +72,7 @@ var mappingEntityHeaderFields = map[string][]string{
 }
 
 var mappingCollectionFields = map[string][]string{
-	"accountAllocations":               {"lineId", "account.objectId", "account.approvalEntryId", "amount", "receivableApplied", "advanceReceipt"},
+	"subunitAllocations":               {"lineId", "subunit.objectId", "subunit.approvalEntryId", "amount", "receivableApplied", "advanceReceipt"},
 	"intermediarySalesPartnerPayables": {"lineId", "payee.objectId", "category", "amount"},
 	"assetAcquisitionLines":            {"lineId", "assetName", "originalValue", "category.objectId", "department.objectId", "custodian.objectId"},
 	"assetLiquidationLines":            {"lineId", "assetId", "salvageIncome", "disposalExpense"},
@@ -89,7 +89,7 @@ var mappingCollectionFields = map[string][]string{
 }
 
 var mappingEntityCollections = map[string][]string{
-	"sales-receipt": {"accountAllocations"},
+	"sales-receipt": {"subunitAllocations"},
 	"sale-pricing":  {"priceLines"}, "purchase-inquiry": {"priceLines"},
 	"sale-order": {"productLines"}, "purchase-order": {"productLines"}, "purchase-inbound": {"productLines"},
 	"sale-outbound": {"productLines"}, "sale-delivery": {"productLines"},

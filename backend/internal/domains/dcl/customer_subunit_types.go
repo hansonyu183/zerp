@@ -74,12 +74,11 @@ type CustomerSalesAttributionSnapshot struct {
 	SubjectName            string `json:"subjectName"`
 }
 
-// CustomerAccountDataInput is a value inside CustomerDataInput, never an
+// CustomerSubunitDataInput is a value inside Customer, never an
 // independently approved object.
-type CustomerAccountDataInput struct {
-	AccountID                  string                        `json:"accountId,omitempty"`
+type CustomerSubunitDataInput struct {
+	SubunitID                  string                        `json:"subunitId,omitempty"`
 	Enabled                    bool                          `json:"enabled"`
-	IsDefault                  bool                          `json:"isDefault"`
 	Name                       string                        `json:"name"`
 	ShortName                  string                        `json:"shortName,omitempty"`
 	CustomerTypeID             string                        `json:"customerTypeId"`
@@ -98,8 +97,8 @@ type CustomerAccountDataInput struct {
 	InternalReminder           string                        `json:"internalReminder,omitempty"`
 	DefaultSalesOrderRemark    string                        `json:"defaultSalesOrderRemark,omitempty"`
 }
-type CustomerAccountData struct {
-	CustomerAccountDataInput
+type CustomerSubunitData struct {
+	CustomerSubunitDataInput
 	Code                    string                           `json:"code"`
 	Attachments             []CustomerAttachmentView         `json:"attachments"`
 	CustomerType            CustomerAuxiliarySnapshot        `json:"customerType"`
@@ -108,7 +107,7 @@ type CustomerAccountData struct {
 	PrimarySalesAttribution CustomerSalesAttributionSnapshot `json:"primarySalesAttribution"`
 }
 
-func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDataInput, error) {
+func validateCustomerSubunitData(in CustomerSubunitDataInput) (CustomerSubunitDataInput, error) {
 	in.Name, in.ShortName, in.CustomerTypeID = strings.TrimSpace(in.Name), strings.TrimSpace(in.ShortName), strings.TrimSpace(in.CustomerTypeID)
 	in.ContactName, in.ContactPhone, in.Email, in.Address = strings.TrimSpace(in.ContactName), strings.TrimSpace(in.ContactPhone), strings.TrimSpace(in.Email), strings.TrimSpace(in.Address)
 	in.SettlementMethodID, in.PaymentMethodID = strings.TrimSpace(in.SettlementMethodID), strings.TrimSpace(in.PaymentMethodID)
@@ -116,16 +115,16 @@ func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDa
 	in.InternalReminder, in.DefaultSalesOrderRemark = strings.TrimSpace(in.InternalReminder), strings.TrimSpace(in.DefaultSalesOrderRemark)
 	in.PrimarySalesAttribution.Type, in.PrimarySalesAttribution.SubjectObjectID = strings.TrimSpace(in.PrimarySalesAttribution.Type), strings.TrimSpace(in.PrimarySalesAttribution.SubjectObjectID)
 	if in.Name == "" || utf8.RuneCountInString(in.Name) > 200 || utf8.RuneCountInString(in.DefaultTransportMethodCode) > 32 || utf8.RuneCountInString(in.DefaultTransportMethodName) > 100 || utf8.RuneCountInString(in.InternalReminder) > 1000 || utf8.RuneCountInString(in.DefaultSalesOrderRemark) > 1000 || !validID(in.CustomerTypeID) || !validID(in.PrimarySalesAttribution.SubjectObjectID) || !slices.Contains([]string{CustomerSalesAttributionInternalEmployee, CustomerSalesAttributionExternalPartTime, CustomerSalesAttributionChannelPartner}, in.PrimarySalesAttribution.Type) || (in.SettlementMethodID != "" && !validID(in.SettlementMethodID)) || (in.PaymentMethodID != "" && !validID(in.PaymentMethodID)) {
-		return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer account data", nil, nil)
+		return CustomerSubunitDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer subunit data", nil, nil)
 	}
 	var err error
 	in.TransportSurcharge, err = normalizeCustomerMoney(in.TransportSurcharge, true)
 	if err != nil {
-		return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "invalid transport surcharge", nil, err)
+		return CustomerSubunitDataInput{}, newError(ErrorValidation, "validation_failed", "invalid transport surcharge", nil, err)
 	}
 	in.PricingPolicy, err = normalizeCustomerPricingPolicy(in.PricingPolicy)
 	if err != nil {
-		return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer pricing policy", nil, err)
+		return CustomerSubunitDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer pricing policy", nil, err)
 	}
 	seen := map[string]struct{}{}
 	for i := range in.CreditLimits {
@@ -133,10 +132,10 @@ func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDa
 		l.Currency = strings.ToUpper(strings.TrimSpace(l.Currency))
 		l.Amount, err = normalizeCustomerMoney(l.Amount, true)
 		if err != nil || len(l.Currency) != 3 || !isUpperASCIICurrency(l.Currency) {
-			return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer credit limit", nil, err)
+			return CustomerSubunitDataInput{}, newError(ErrorValidation, "validation_failed", "invalid customer credit limit", nil, err)
 		}
 		if _, ok := seen[l.Currency]; ok {
-			return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "duplicate customer credit currency", nil, nil)
+			return CustomerSubunitDataInput{}, newError(ErrorValidation, "validation_failed", "duplicate customer credit currency", nil, nil)
 		}
 		seen[l.Currency] = struct{}{}
 	}
@@ -144,7 +143,7 @@ func validateCustomerAccountData(in CustomerAccountDataInput) (CustomerAccountDa
 		in.CreditLimits = []CustomerCreditLimit{}
 	}
 	if len(in.CreditLimits) > 50 {
-		return CustomerAccountDataInput{}, newError(ErrorValidation, "validation_failed", "too many customer credit limits", nil, nil)
+		return CustomerSubunitDataInput{}, newError(ErrorValidation, "validation_failed", "too many customer credit limits", nil, nil)
 	}
 	return in, nil
 }

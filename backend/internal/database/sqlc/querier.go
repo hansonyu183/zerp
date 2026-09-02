@@ -41,9 +41,9 @@ type Querier interface {
 	CopyDCLAccMappingVersion(ctx context.Context, arg CopyDCLAccMappingVersionParams) (int64, error)
 	CopyDCLCustomerAttachments(ctx context.Context, arg CopyDCLCustomerAttachmentsParams) error
 	CopyDCLCustomerVersion(ctx context.Context, arg CopyDCLCustomerVersionParams) (int64, error)
-	CopyDCLCustomerVersionAccountCreditLimits(ctx context.Context, arg CopyDCLCustomerVersionAccountCreditLimitsParams) error
-	CopyDCLCustomerVersionAccounts(ctx context.Context, arg CopyDCLCustomerVersionAccountsParams) error
 	CopyDCLCustomerVersionAggregate(ctx context.Context, arg CopyDCLCustomerVersionAggregateParams) error
+	CopyDCLCustomerVersionSubunitCreditLimits(ctx context.Context, arg CopyDCLCustomerVersionSubunitCreditLimitsParams) error
+	CopyDCLCustomerVersionSubunits(ctx context.Context, arg CopyDCLCustomerVersionSubunitsParams) error
 	CopyDCLEmployeeVersion(ctx context.Context, arg CopyDCLEmployeeVersionParams) (int64, error)
 	CopyDCLFundAccountVersion(ctx context.Context, arg CopyDCLFundAccountVersionParams) (int64, error)
 	CopyDCLOperatingEntityVersion(ctx context.Context, arg CopyDCLOperatingEntityVersionParams) (int64, error)
@@ -186,13 +186,13 @@ type Querier interface {
 	DeleteAvailableAccountingBillsBySource(ctx context.Context, documentID string) error
 	DeleteDCLAccMappingSubjectIfEmpty(ctx context.Context, mappingID string) (int64, error)
 	DeleteDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (int64, error)
-	DeleteDCLCustomerAccountRoot(ctx context.Context, arg DeleteDCLCustomerAccountRootParams) (int64, error)
 	DeleteDCLCustomerAttachment(ctx context.Context, arg DeleteDCLCustomerAttachmentParams) (int64, error)
 	DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error
+	DeleteDCLCustomerSubunitRoot(ctx context.Context, arg DeleteDCLCustomerSubunitRootParams) (int64, error)
 	DeleteDCLCustomerVersion(ctx context.Context, approvalEntryID string) (int64, error)
-	DeleteDCLCustomerVersionAccountCreditLimits(ctx context.Context, customerApprovalEntryID string) error
-	DeleteDCLCustomerVersionAccounts(ctx context.Context, arg DeleteDCLCustomerVersionAccountsParams) error
 	DeleteDCLCustomerVersionAggregate(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteDCLCustomerVersionSubunitCreditLimits(ctx context.Context, customerApprovalEntryID string) error
+	DeleteDCLCustomerVersionSubunits(ctx context.Context, arg DeleteDCLCustomerVersionSubunitsParams) error
 	DeleteDCLEmployeeLegalIdentifierClaimsForEntry(ctx context.Context, approvalEntryID *string) error
 	DeleteDCLEmployeeVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLFundAccountIdentifierClaims(ctx context.Context, objectID string) error
@@ -250,7 +250,7 @@ type Querier interface {
 	DeleteVouSaleReturnLines(ctx context.Context, documentID string) error
 	DeleteVouSaleSignoffDetails(ctx context.Context, documentID string) error
 	DeleteVouSaleSignoffLines(ctx context.Context, documentID string) error
-	DeleteVouSalesReceiptAccountAllocations(ctx context.Context, documentID string) error
+	DeleteVouSalesReceiptSubunitAllocations(ctx context.Context, documentID string) error
 	DisposeAccountingAsset(ctx context.Context, arg DisposeAccountingAssetParams) (int64, error)
 	EnsureEnterpriseNameSystemParameter(ctx context.Context) error
 	FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error)
@@ -318,11 +318,11 @@ type Querier interface {
 	// typed DCL subject and its latest APPROVED entry.
 	GetBobCustomerCurrentReference(ctx context.Context, objectID string) (GetBobCustomerCurrentReferenceRow, error)
 	GetBobCustomerHistoricalReference(ctx context.Context, arg GetBobCustomerHistoricalReferenceParams) (GetBobCustomerHistoricalReferenceRow, error)
-	// Customer accounts are child roots of Customer, not DCL subjects.  These
-	// queries deliberately retain the customer-account wire entity only for
+	// Customer subunits are child roots of Customer, not DCL subjects.  These
+	// queries deliberately retain the customer-subunit wire entity only for
 	// internal VOU/ACC reference resolution.
-	GetBobEmbeddedCustomerAccountCurrentReference(ctx context.Context, objectID string) (GetBobEmbeddedCustomerAccountCurrentReferenceRow, error)
-	GetBobEmbeddedCustomerAccountHistoricalReference(ctx context.Context, arg GetBobEmbeddedCustomerAccountHistoricalReferenceParams) (GetBobEmbeddedCustomerAccountHistoricalReferenceRow, error)
+	GetBobEmbeddedCustomerSubunitCurrentReference(ctx context.Context, objectID string) (GetBobEmbeddedCustomerSubunitCurrentReferenceRow, error)
+	GetBobEmbeddedCustomerSubunitHistoricalReference(ctx context.Context, arg GetBobEmbeddedCustomerSubunitHistoricalReferenceParams) (GetBobEmbeddedCustomerSubunitHistoricalReferenceRow, error)
 	GetBobEmployeeCurrentTyped(ctx context.Context, objectID string) (GetBobEmployeeCurrentTypedRow, error)
 	GetBobEmployeeCurrentTypedReference(ctx context.Context, objectID string) (GetBobEmployeeCurrentTypedReferenceRow, error)
 	GetBobFundAccountCurrent(ctx context.Context, objectID string) (GetBobFundAccountCurrentRow, error)
@@ -350,7 +350,7 @@ type Querier interface {
 	GetCurrentWorkflowDefinitionIdentity(ctx context.Context, definitionID string) (GetCurrentWorkflowDefinitionIdentityRow, error)
 	GetDCLAccMappingSubject(ctx context.Context, arg GetDCLAccMappingSubjectParams) (GetDCLAccMappingSubjectRow, error)
 	GetDCLAccMappingVersion(ctx context.Context, approvalEntryID string) (DclAccMappingVersion, error)
-	GetDCLCustomerAccountCodeMax(ctx context.Context, customerID string) (int64, error)
+	GetDCLCustomerSubunitCodeMax(ctx context.Context, customerID string) (int64, error)
 	GetDCLCustomerVersion(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error)
 	GetDCLCustomerVersionAggregate(ctx context.Context, approvalEntryID string) (DclCustomerVersion, error)
 	GetDCLEmployeeVersion(ctx context.Context, approvalEntryID string) (DclEmployeeVersion, error)
@@ -457,15 +457,15 @@ type Querier interface {
 	// lives in acc_mappings; typed full snapshots live here.
 	InsertDCLAccMappingSubject(ctx context.Context, arg InsertDCLAccMappingSubjectParams) error
 	InsertDCLAccMappingVersion(ctx context.Context, arg InsertDCLAccMappingVersionParams) error
-	InsertDCLCustomerAccountRoot(ctx context.Context, arg InsertDCLCustomerAccountRootParams) error
 	InsertDCLCustomerAttachment(ctx context.Context, arg InsertDCLCustomerAttachmentParams) error
+	InsertDCLCustomerSubunitRoot(ctx context.Context, arg InsertDCLCustomerSubunitRootParams) error
 	// Customer owns one full aggregate snapshot per approval entry.
 	InsertDCLCustomerVersion(ctx context.Context, arg InsertDCLCustomerVersionParams) error
-	InsertDCLCustomerVersionAccount(ctx context.Context, arg InsertDCLCustomerVersionAccountParams) error
-	InsertDCLCustomerVersionAccountCreditLimit(ctx context.Context, arg InsertDCLCustomerVersionAccountCreditLimitParams) error
 	// Customer is the sole approval aggregate.  Its JSON snapshot owns identity,
-	// default operating entity, and every account line; roots are only stable IDs.
+	// default operating entity, and every subunit line; roots are only stable IDs.
 	InsertDCLCustomerVersionAggregate(ctx context.Context, arg InsertDCLCustomerVersionAggregateParams) error
+	InsertDCLCustomerVersionSubunit(ctx context.Context, arg InsertDCLCustomerVersionSubunitParams) error
+	InsertDCLCustomerVersionSubunitCreditLimit(ctx context.Context, arg InsertDCLCustomerVersionSubunitCreditLimitParams) error
 	// Employee identity and current operating-entity snapshot are stored directly.
 	InsertDCLEmployeeVersion(ctx context.Context, arg InsertDCLEmployeeVersionParams) error
 	InsertDCLFundAccountVersion(ctx context.Context, arg InsertDCLFundAccountVersionParams) error
@@ -529,8 +529,8 @@ type Querier interface {
 	InsertVouSalePricingDetail(ctx context.Context, documentID string) error
 	InsertVouSaleReturnDetail(ctx context.Context, arg InsertVouSaleReturnDetailParams) error
 	InsertVouSaleReturnLine(ctx context.Context, arg InsertVouSaleReturnLineParams) error
-	InsertVouSalesReceiptAccountAllocation(ctx context.Context, arg InsertVouSalesReceiptAccountAllocationParams) error
 	InsertVouSalesReceiptDetail(ctx context.Context, arg InsertVouSalesReceiptDetailParams) error
+	InsertVouSalesReceiptSubunitAllocation(ctx context.Context, arg InsertVouSalesReceiptSubunitAllocationParams) error
 	InsertVouServiceAcceptanceDetail(ctx context.Context, arg InsertVouServiceAcceptanceDetailParams) error
 	InsertVouServiceContractDetail(ctx context.Context, arg InsertVouServiceContractDetailParams) error
 	IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error)
@@ -577,7 +577,7 @@ type Querier interface {
 	// entry rather than the stable object.
 	ListBobApprovalEntryReferenceCounts(ctx context.Context, approvalEntryID string) ([]ListBobApprovalEntryReferenceCountsRow, error)
 	ListBobCustomerCurrents(ctx context.Context, arg ListBobCustomerCurrentsParams) ([]ListBobCustomerCurrentsRow, error)
-	ListBobEmbeddedCustomerAccountReferenceCandidates(ctx context.Context, keyword string) ([]ListBobEmbeddedCustomerAccountReferenceCandidatesRow, error)
+	ListBobEmbeddedCustomerSubunitReferenceCandidates(ctx context.Context, keyword string) ([]ListBobEmbeddedCustomerSubunitReferenceCandidatesRow, error)
 	ListBobEmployeeCurrentsTyped(ctx context.Context, arg ListBobEmployeeCurrentsTypedParams) ([]ListBobEmployeeCurrentsTypedRow, error)
 	ListBobFundAccounts(ctx context.Context, arg ListBobFundAccountsParams) ([]ListBobFundAccountsRow, error)
 	ListBobOperatingEntities(ctx context.Context, arg ListBobOperatingEntitiesParams) ([]ListBobOperatingEntitiesRow, error)
@@ -597,12 +597,12 @@ type Querier interface {
 	ListCustomerSalesReferencesForSalesPartner(ctx context.Context, sourceObjectID *string) ([]ListCustomerSalesReferencesForSalesPartnerRow, error)
 	ListDCLAccMappingApprovalEvents(ctx context.Context, arg ListDCLAccMappingApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLAccMappings(ctx context.Context, arg ListDCLAccMappingsParams) ([]ListDCLAccMappingsRow, error)
-	ListDCLCustomerAccountRoots(ctx context.Context, customerID string) ([]ListDCLCustomerAccountRootsRow, error)
 	ListDCLCustomerAggregates(ctx context.Context, arg ListDCLCustomerAggregatesParams) ([]ListDCLCustomerAggregatesRow, error)
 	ListDCLCustomerApprovalEvents(ctx context.Context, arg ListDCLCustomerApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLCustomerAttachments(ctx context.Context, approvalEntryID string) ([]ListDCLCustomerAttachmentsRow, error)
-	ListDCLCustomerVersionAccountCreditLimits(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionAccountCreditLimit, error)
-	ListDCLCustomerVersionAccounts(ctx context.Context, customerApprovalEntryID string) ([]ListDCLCustomerVersionAccountsRow, error)
+	ListDCLCustomerSubunitRoots(ctx context.Context, customerID string) ([]ListDCLCustomerSubunitRootsRow, error)
+	ListDCLCustomerVersionSubunitCreditLimits(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionSubunitCreditLimit, error)
+	ListDCLCustomerVersionSubunits(ctx context.Context, customerApprovalEntryID string) ([]ListDCLCustomerVersionSubunitsRow, error)
 	ListDCLEmployeeApprovalEvents(ctx context.Context, arg ListDCLEmployeeApprovalEventsParams) ([]ApprovalEvent, error)
 	ListDCLEmployees(ctx context.Context, arg ListDCLEmployeesParams) ([]ListDCLEmployeesRow, error)
 	ListDCLFundAccountApprovalEvents(ctx context.Context, arg ListDCLFundAccountApprovalEventsParams) ([]ApprovalEvent, error)
@@ -674,7 +674,7 @@ type Querier interface {
 	ListVouRefusalReturnSourceLines(ctx context.Context, documentID string) ([]ListVouRefusalReturnSourceLinesRow, error)
 	ListVouSaleOrderFormulaLines(ctx context.Context, productLineID string) ([]ListVouSaleOrderFormulaLinesRow, error)
 	ListVouSaleOutboundStateLines(ctx context.Context, documentID string) ([]ListVouSaleOutboundStateLinesRow, error)
-	ListVouSalesReceiptAccountAllocations(ctx context.Context, documentID string) ([]VouSalesReceiptAccountAllocation, error)
+	ListVouSalesReceiptSubunitAllocations(ctx context.Context, documentID string) ([]VouSalesReceiptSubunitAllocation, error)
 	ListVouWorkflowChildrenForShare(ctx context.Context, parentDocumentID *string) ([]ListVouWorkflowChildrenForShareRow, error)
 	ListWarehouseDisableExecutableSources(ctx context.Context, warehouseObjectID string) ([]ListWarehouseDisableExecutableSourcesRow, error)
 	ListWarehouseDisableInProgressDocuments(ctx context.Context, warehouseObjectID string) ([]ListWarehouseDisableInProgressDocumentsRow, error)
@@ -693,11 +693,11 @@ type Querier interface {
 	LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error)
 	LockApprovalVersionSubject(ctx context.Context, arg LockApprovalVersionSubjectParams) error
 	LockApprovedAccountingMappingVersion(ctx context.Context, approvalEntryID string) (string, error)
-	LockDCLCustomerAccountRoot(ctx context.Context, accountID string) (LockDCLCustomerAccountRootRow, error)
 	LockDCLCustomerAttachmentOwner(ctx context.Context, approvalEntryID string) (ApprovalEntry, error)
 	LockDCLCustomerLegalIdentifierClaim(ctx context.Context, normalizedLegalIdentifier string) (DclCustomerLegalIdentifierClaim, error)
 	// Serialize absent and existing claims alike before inspection/upsert.
 	LockDCLCustomerLegalIdentifierClaimKey(ctx context.Context, normalizedLegalIdentifier string) error
+	LockDCLCustomerSubunitRoot(ctx context.Context, subunitID string) (LockDCLCustomerSubunitRootRow, error)
 	LockDCLEmployeeLegalIdentifierClaim(ctx context.Context, normalizedLegalIdentifier string) (DclEmployeeLegalIdentifierClaim, error)
 	LockDCLEmployeeLegalIdentifierClaimKey(ctx context.Context, normalizedLegalIdentifier string) error
 	LockDCLFundAccountIdentifierClaims(ctx context.Context) error
@@ -734,7 +734,7 @@ type Querier interface {
 	LockWorkflowNodesForDocument(ctx context.Context, documentID *string) ([]LockWorkflowNodesForDocumentRow, error)
 	LockWorkflowRootInstance(ctx context.Context, arg LockWorkflowRootInstanceParams) (LockWorkflowRootInstanceRow, error)
 	MarkCustomerFileReady(ctx context.Context, fileID string) (int64, error)
-	MarkDCLCustomerAccountRootApproved(ctx context.Context, arg MarkDCLCustomerAccountRootApprovedParams) (int64, error)
+	MarkDCLCustomerSubunitRootApproved(ctx context.Context, arg MarkDCLCustomerSubunitRootApprovedParams) (int64, error)
 	MarkVouFileReady(ctx context.Context, id string) (int64, error)
 	MarkWorkflowNodeEvaluated(ctx context.Context, id string) error
 	MarkWorkflowRootDocumentDeleted(ctx context.Context, arg MarkWorkflowRootDocumentDeletedParams) error
@@ -780,7 +780,7 @@ type Querier interface {
 	RptListBillOriginCounterpartyReferences(ctx context.Context, arg RptListBillOriginCounterpartyReferencesParams) ([]RptListBillOriginCounterpartyReferencesRow, error)
 	RptListBillReferences(ctx context.Context, arg RptListBillReferencesParams) ([]RptListBillReferencesRow, error)
 	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
-	RptListCustomerAccountReferences(ctx context.Context, arg RptListCustomerAccountReferencesParams) ([]RptListCustomerAccountReferencesRow, error)
+	RptListCustomerSubunitReferences(ctx context.Context, arg RptListCustomerSubunitReferencesParams) ([]RptListCustomerSubunitReferencesRow, error)
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
 	RptUpsertDefinitionValidity(ctx context.Context, arg RptUpsertDefinitionValidityParams) error

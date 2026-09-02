@@ -27,7 +27,7 @@ type ReferenceCandidate struct {
 }
 
 func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQueryInput) ([]ReferenceCandidate, error) {
-	if input.Entity != EntityCustomerAccount && input.Entity != EntityOperatingEntity && input.Entity != EntityEmployee && input.Entity != EntityOtherUnit &&
+	if input.Entity != EntityCustomerSubunit && input.Entity != EntityOperatingEntity && input.Entity != EntityEmployee && input.Entity != EntityOtherUnit &&
 		input.Entity != EntitySupplier && input.Entity != EntitySalesPartner && input.Entity != EntityProduct {
 		return nil, domainError(ErrorValidation, "invalid BOB reference entity", nil, nil)
 	}
@@ -55,10 +55,10 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		}
 		return result, nil
 	}
-	if input.Entity == EntityCustomerAccount {
-		rows, err := s.queries.ListBobEmbeddedCustomerAccountReferenceCandidates(ctx, input.Keyword)
+	if input.Entity == EntityCustomerSubunit {
+		rows, err := s.queries.ListBobEmbeddedCustomerSubunitReferenceCandidates(ctx, input.Keyword)
 		if err != nil {
-			return nil, s.internal("query current customer account references", err)
+			return nil, s.internal("query current customer subunit references", err)
 		}
 		result := make([]ReferenceCandidate, 0, len(rows))
 		for _, row := range rows {

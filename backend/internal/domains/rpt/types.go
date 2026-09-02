@@ -20,7 +20,7 @@ type ReferenceType string
 const (
 	ReferenceTypeAccountingBook         ReferenceType = "ACCOUNTING_BOOK"
 	ReferenceTypeAccountSubject         ReferenceType = "ACCOUNT_SUBJECT"
-	ReferenceTypeCustomerAccount        ReferenceType = "CUSTOMER_ACCOUNT"
+	ReferenceTypeCustomerSubunit        ReferenceType = "CUSTOMER_SUBUNIT"
 	ReferenceTypeSupplierRelationship   ReferenceType = "SUPPLIER"
 	ReferenceTypeServiceRelationship    ReferenceType = "OTHER_UNIT"
 	ReferenceTypeEmploymentRelationship ReferenceType = "EMPLOYEE"
@@ -124,7 +124,7 @@ type ReferenceItem struct {
 	Name string `json:"name"`
 }
 
-type CustomerAccountReference struct {
+type CustomerSubunitReference struct {
 	ID           string `json:"id"`
 	Code         string `json:"code"`
 	Name         string `json:"name"`

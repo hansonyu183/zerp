@@ -122,7 +122,7 @@ func (s *Service) resolveDraftParties(
 	result *resolvedDraft,
 ) error {
 	var err error
-	customerEntity := bobdomain.EntityCustomerAccount
+	customerEntity := bobdomain.EntityCustomerSubunit
 	if entity == EntitySalesReceipt {
 		customerEntity = bobdomain.EntityCustomer
 	}
@@ -166,23 +166,23 @@ func (s *Service) resolveSalesReceiptAllocations(
 			result.FundAccount.Data.OperatingEntityApprovalEntryID != result.OperatingEntity.ApprovalEntryID) {
 		return domainError(ErrorConflict, "fund account operating entity does not match sales receipt", nil, nil)
 	}
-	for _, allocation := range draft.AccountAllocations {
+	for _, allocation := range draft.SubunitAllocations {
 		var saved *bobdomain.EffectiveReference
-		for index := range preserved.AccountAllocations {
-			candidate := &preserved.AccountAllocations[index]
-			if candidate.ObjectID == allocation.Account.ObjectID && candidate.ApprovalEntryID == allocation.Account.ApprovalEntryID {
+		for index := range preserved.SubunitAllocations {
+			candidate := &preserved.SubunitAllocations[index]
+			if candidate.ObjectID == allocation.Subunit.ObjectID && candidate.ApprovalEntryID == allocation.Subunit.ApprovalEntryID {
 				saved = candidate
 				break
 			}
 		}
-		account, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityCustomerAccount, &allocation.Account, saved, newDocument)
+		subunit, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityCustomerSubunit, &allocation.Subunit, saved, newDocument)
 		if err != nil {
 			return err
 		}
-		if account.CustomerID != result.Customer.ObjectID || account.ApprovalEntryID != result.Customer.ApprovalEntryID {
-			return domainError(ErrorConflict, "sales receipt account does not belong to customer approval entry", nil, nil)
+		if subunit.CustomerID != result.Customer.ObjectID || subunit.ApprovalEntryID != result.Customer.ApprovalEntryID {
+			return domainErrorWithKey(ErrorConflict, "sales_receipt_subunit_customer_mismatch", "sales receipt subunit does not belong to customer approval entry", nil, nil)
 		}
-		result.AccountAllocations = append(result.AccountAllocations, *account)
+		result.SubunitAllocations = append(result.SubunitAllocations, *subunit)
 	}
 	return nil
 }
@@ -234,7 +234,7 @@ func (s *Service) resolveCustomerSalesperson(
 ) (*bobdomain.EffectiveReference, error) {
 	attribution, err := s.queries.WithTx(tx).GetVouSalesAttributionSnapshot(ctx, dbsqlc.GetVouSalesAttributionSnapshotParams{
 		CustomerApprovalEntryID: customer.ApprovalEntryID,
-		AccountObjectID:         customer.ObjectID,
+		SubunitObjectID:         customer.ObjectID,
 	})
 	if err != nil {
 		return nil, s.internal("read customer sales attribution snapshot", err)

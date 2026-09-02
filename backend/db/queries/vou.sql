@@ -739,22 +739,22 @@ SELECT document_id,
        handler_object_id,handler_approval_entry_id,handler_code,handler_name
 FROM vou_receipt_details WHERE document_id=sqlc.arg(document_id) AND entity='sales-receipt';
 
--- name: DeleteVouSalesReceiptAccountAllocations :exec
-DELETE FROM vou_sales_receipt_account_allocations WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSalesReceiptSubunitAllocations :exec
+DELETE FROM vou_sales_receipt_subunit_allocations WHERE document_id=sqlc.arg(document_id);
 
--- name: InsertVouSalesReceiptAccountAllocation :exec
-INSERT INTO vou_sales_receipt_account_allocations(
+-- name: InsertVouSalesReceiptSubunitAllocation :exec
+INSERT INTO vou_sales_receipt_subunit_allocations(
     document_id,line_no,customer_object_id,customer_approval_entry_id,
-    account_object_id,account_approval_entry_id,account_code,account_name,amount_cents
+    subunit_object_id,subunit_approval_entry_id,subunit_code,subunit_name,amount_cents
 ) VALUES (
     sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(customer_object_id),sqlc.arg(customer_approval_entry_id),
-    sqlc.arg(account_object_id),sqlc.arg(account_approval_entry_id),sqlc.arg(account_code),sqlc.arg(account_name),sqlc.arg(amount_cents)
+    sqlc.arg(subunit_object_id),sqlc.arg(subunit_approval_entry_id),sqlc.arg(subunit_code),sqlc.arg(subunit_name),sqlc.arg(amount_cents)
 );
 
--- name: ListVouSalesReceiptAccountAllocations :many
+-- name: ListVouSalesReceiptSubunitAllocations :many
 SELECT document_id,line_no,customer_object_id,customer_approval_entry_id,
-       account_object_id,account_approval_entry_id,account_code,account_name,amount_cents
-FROM vou_sales_receipt_account_allocations WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+       subunit_object_id,subunit_approval_entry_id,subunit_code,subunit_name,amount_cents
+FROM vou_sales_receipt_subunit_allocations WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
 
 -- name: InsertVouPaymentDetail :exec
 INSERT INTO vou_payment_details (
@@ -1217,7 +1217,7 @@ SELECT document.document_no,approval.status,document.business_date,
 FROM vou_documents AS document
 JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_sale_outbound_details AS outbound ON outbound.document_id=document.id
-JOIN dcl_customer_version_accounts AS account ON account.customer_approval_entry_id=outbound.customer_approval_entry_id AND account.account_id=outbound.customer_object_id
+JOIN dcl_customer_version_subunits AS subunit ON subunit.customer_approval_entry_id=outbound.customer_approval_entry_id AND subunit.subunit_id=outbound.customer_object_id
 JOIN dcl_customer_versions AS customer ON customer.approval_entry_id=outbound.customer_approval_entry_id
 WHERE document.id=sqlc.arg(document_id) AND document.entity='sale-outbound'
 FOR UPDATE OF document,approval,outbound;
@@ -1406,8 +1406,8 @@ SELECT COALESCE(line.data->'primarySalesAttribution'->>'type','')::text AS prima
        COALESCE(line.data->'primarySalesAttribution'->>'subjectApprovalEntryId','')::text AS primary_sales_subject_approval_entry_id,
        COALESCE(line.data->'primarySalesAttribution'->>'subjectCode','')::text AS primary_sales_subject_code,
        COALESCE(line.data->'primarySalesAttribution'->>'subjectName','')::text AS primary_sales_subject_name
-FROM dcl_customer_version_accounts line
+FROM dcl_customer_version_subunits line
 JOIN approval_entries entry ON entry.id=line.customer_approval_entry_id
 WHERE line.customer_approval_entry_id=sqlc.arg(customer_approval_entry_id)
-  AND line.account_id=sqlc.arg(account_object_id)
+  AND line.subunit_id=sqlc.arg(subunit_object_id)
   AND entry.domain='dcl' AND entry.entity='customer' AND entry.status='APPROVED';

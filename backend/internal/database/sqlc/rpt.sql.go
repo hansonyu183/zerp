@@ -462,12 +462,12 @@ func (q *Queries) RptListBookReferences(ctx context.Context, arg RptListBookRefe
 	return items, nil
 }
 
-const rptListCustomerAccountReferences = `-- name: RptListCustomerAccountReferences :many
+const rptListCustomerSubunitReferences = `-- name: RptListCustomerSubunitReferences :many
 WITH current_references AS (
-  SELECT root.account_id AS id, line.data->>'code' AS code, line.data->>'name' AS name,
+  SELECT root.subunit_id AS id, line.data->>'code' AS code, line.data->>'name' AS name,
     customer_root.code AS customer_code,
     coalesce(nullif(customer.data->>'displayName',''), customer.data->>'legalName') AS customer_name
-  FROM dcl_customer_account_roots root
+  FROM dcl_customer_subunit_roots root
   JOIN LATERAL (
     SELECT id
     FROM approval_entries
@@ -476,7 +476,7 @@ WITH current_references AS (
   ) entry ON true
   JOIN dcl_subjects customer_root ON customer_root.id=root.customer_id AND customer_root.entity='customer'
   JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id AND customer.enabled
-  JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+  JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
   WHERE line.enabled
 )
 SELECT reference.id, reference.code::text AS code, reference.name::text AS name,
@@ -491,14 +491,14 @@ ORDER BY (reference.id=$1 AND $1::text<>'') DESC, reference.code, reference.id
 OFFSET $3 LIMIT $4
 `
 
-type RptListCustomerAccountReferencesParams struct {
+type RptListCustomerSubunitReferencesParams struct {
 	SelectedID string  `db:"selected_id" json:"selected_id"`
 	Keyword    *string `db:"keyword" json:"keyword"`
 	RowOffset  int32   `db:"row_offset" json:"row_offset"`
 	RowLimit   int32   `db:"row_limit" json:"row_limit"`
 }
 
-type RptListCustomerAccountReferencesRow struct {
+type RptListCustomerSubunitReferencesRow struct {
 	ID           string  `db:"id" json:"id"`
 	Code         string  `db:"code" json:"code"`
 	Name         string  `db:"name" json:"name"`
@@ -507,8 +507,8 @@ type RptListCustomerAccountReferencesRow struct {
 	Total        int64   `db:"total" json:"total"`
 }
 
-func (q *Queries) RptListCustomerAccountReferences(ctx context.Context, arg RptListCustomerAccountReferencesParams) ([]RptListCustomerAccountReferencesRow, error) {
-	rows, err := q.db.Query(ctx, rptListCustomerAccountReferences,
+func (q *Queries) RptListCustomerSubunitReferences(ctx context.Context, arg RptListCustomerSubunitReferencesParams) ([]RptListCustomerSubunitReferencesRow, error) {
+	rows, err := q.db.Query(ctx, rptListCustomerSubunitReferences,
 		arg.SelectedID,
 		arg.Keyword,
 		arg.RowOffset,
@@ -518,9 +518,9 @@ func (q *Queries) RptListCustomerAccountReferences(ctx context.Context, arg RptL
 		return nil, err
 	}
 	defer rows.Close()
-	items := []RptListCustomerAccountReferencesRow{}
+	items := []RptListCustomerSubunitReferencesRow{}
 	for rows.Next() {
-		var i RptListCustomerAccountReferencesRow
+		var i RptListCustomerSubunitReferencesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Code,

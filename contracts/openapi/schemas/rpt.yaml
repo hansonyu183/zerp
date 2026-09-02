@@ -8,7 +8,7 @@ RptReferenceType:
     [
       ACCOUNTING_BOOK,
       ACCOUNT_SUBJECT,
-      CUSTOMER_ACCOUNT,
+      CUSTOMER_SUBUNIT,
       SUPPLIER,
       OTHER_UNIT,
       EMPLOYEE,
@@ -149,7 +149,7 @@ RptReferenceItem:
     id: { type: string }
     code: { type: string }
     name: { type: string }
-RptCustomerAccountReference:
+RptCustomerSubunitReference:
   type: object
   additionalProperties: false
   required: [id, code, name, customerCode, customerName]
@@ -166,7 +166,7 @@ RptCounterpartyReference:
   properties:
     entity:
       type: string
-      enum: [customer-account, supplier, other-unit, employee, sales-partner]
+      enum: [customer-subunit, supplier, other-unit, employee, sales-partner]
     objectId: { type: string, minLength: 26, maxLength: 26 }
     approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
     code: { type: string, minLength: 1, maxLength: 64 }
@@ -181,7 +181,7 @@ RptReferencePageData:
       items:
         oneOf:
           - { $ref: '#/RptReferenceItem' }
-          - { $ref: '#/RptCustomerAccountReference' }
+          - { $ref: '#/RptCustomerSubunitReference' }
           - { $ref: '#/RptCounterpartyReference' }
     total: { type: integer, format: int64 }
     page: { type: integer }

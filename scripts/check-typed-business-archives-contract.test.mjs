@@ -36,7 +36,7 @@ test('typed business archive DCL contracts own identity and operating-entity fac
   )
 
   const cases = [
-    ['DclCustomerInput', 'DclCustomerData', ['defaultOperatingEntityId']],
+    ['DclCustomerRootInput', 'DclCustomerInput', ['defaultOperatingEntityId']],
     ['DclEmployeeInput', 'DclEmployeeData', ['currentOperatingEntityId']],
     [
       'DclSupplierInput',
@@ -168,7 +168,7 @@ test('typed business archive snapshots persist identity without Party roots', as
     ['dcl_other_unit_versions', 'dcl_sales_partner_versions'],
     ['dcl_sales_partner_versions', 'dcl_supplier_versions'],
     ['dcl_supplier_versions', 'dcl_customer_versions'],
-    ['dcl_customer_versions', 'dcl_customer_account_roots'],
+    ['dcl_customer_versions', 'dcl_customer_subunit_roots'],
   ]) {
     const start = schema.indexOf(`CREATE TABLE public.${table}`)
     const end = schema.indexOf(`CREATE TABLE public.${nextTable}`, start)

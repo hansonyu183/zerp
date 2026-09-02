@@ -542,7 +542,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 
 func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) error {
 	customer := s.voucherReference("customer-effective-customer")
-	customerAccount := s.voucherReference("customer-effective")
+	customerSubunit := s.voucherReference("customer-effective")
 	operatingEntity := s.voucherReference("operating-effective")
 	supplier := s.voucherReference("supplier-effective")
 	employee := s.voucherReference("employee-effective")
@@ -559,8 +559,8 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: "2026-07-11", Currency: "CNY",
 				Customer: &customer, OperatingEntity: &operatingEntity,
 				FundAccount: &fund, Handler: &employee, Amount: "1200.00",
-				AccountAllocations: []voudomain.SalesReceiptAccountAllocationInput{{
-					Account: customerAccount, Amount: "1200.00",
+				SubunitAllocations: []voudomain.SalesReceiptSubunitAllocationInput{{
+					Subunit: customerSubunit, Amount: "1200.00",
 				}},
 				Remark: "测试往来收款：已批准",
 			},
@@ -571,8 +571,8 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: businessDate, Currency: "CNY",
 				Customer: &customer, OperatingEntity: &operatingEntity,
 				FundAccount: &fund, Handler: &employee, Amount: "300.00",
-				AccountAllocations: []voudomain.SalesReceiptAccountAllocationInput{{
-					Account: customerAccount, Amount: "300.00",
+				SubunitAllocations: []voudomain.SalesReceiptSubunitAllocationInput{{
+					Subunit: customerSubunit, Amount: "300.00",
 				}},
 				Remark: "测试可操作草稿：往来收款",
 			},
@@ -622,7 +622,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			"income-approved", voudomain.EntityOtherIncome, voudomain.StatusApproved,
 			voudomain.DraftInput{
 				BusinessDate: "2026-07-12", Currency: "CNY",
-				CounterpartyType: "customer-account", Counterparty: &customerAccount,
+				CounterpartyType: "customer-subunit", Counterparty: &customerSubunit,
 				FundAccount: &fund, Handler: &employee, SourceName: "废料处置",
 				Amount: "600.00", Remark: "测试其他收入：已批准",
 			},
@@ -631,7 +631,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			"income-draft", voudomain.EntityOtherIncome, voudomain.StatusDraft,
 			voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY",
-				CounterpartyType: "customer-account", Counterparty: &customerAccount,
+				CounterpartyType: "customer-subunit", Counterparty: &customerSubunit,
 				FundAccount: &fund, Handler: &employee, SourceName: "服务收入",
 				Amount: "180.00", Remark: "测试可操作草稿：其他收入",
 			},

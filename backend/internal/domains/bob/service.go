@@ -192,8 +192,8 @@ func (s *Service) ValidateHistoricalReference(ctx context.Context, tx pgx.Tx, en
 	if entity == EntitySupplier {
 		return s.validateSupplierSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
-	if entity == EntityCustomerAccount {
-		return s.validateCustomerAccountSnapshotReference(ctx, q, objectID, approvalEntryID)
+	if entity == EntityCustomerSubunit {
+		return s.validateCustomerSubunitSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
 	return EffectiveReference{}, domainError(ErrorValidation, "unsupported BOB snapshot reference entity", nil, nil)
 }
@@ -233,8 +233,8 @@ func (s *Service) ResolveCurrentReference(ctx context.Context, tx pgx.Tx, entity
 	if entity == EntitySupplier {
 		return s.resolveSupplierCurrentReference(ctx, q, objectID)
 	}
-	if entity == EntityCustomerAccount {
-		return s.resolveCustomerAccountCurrentReference(ctx, q, objectID)
+	if entity == EntityCustomerSubunit {
+		return s.resolveCustomerSubunitCurrentReference(ctx, q, objectID)
 	}
 	return EffectiveReference{}, domainError(ErrorValidation, "unsupported BOB current-effective reference entity", nil, nil)
 }

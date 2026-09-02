@@ -20,7 +20,7 @@ func (s *Service) writeSaleDetail(
 	)
 	attribution, err := q.GetVouSalesAttributionSnapshot(ctx, dbsqlc.GetVouSalesAttributionSnapshotParams{
 		CustomerApprovalEntryID: refs.Customer.ApprovalEntryID,
-		AccountObjectID:         refs.Customer.ObjectID,
+		SubunitObjectID:         refs.Customer.ObjectID,
 	})
 	if err != nil {
 		return s.internal("read customer sales attribution snapshot", err)
@@ -247,19 +247,19 @@ func (s *Service) writeSalesReceiptDetail(
 		if err = oneRow(rows, err); err != nil {
 			return err
 		}
-		if err = q.DeleteVouSalesReceiptAccountAllocations(ctx, documentID); err != nil {
+		if err = q.DeleteVouSalesReceiptSubunitAllocations(ctx, documentID); err != nil {
 			return err
 		}
 	} else if err := q.InsertVouSalesReceiptDetail(ctx, params); err != nil {
 		return err
 	}
-	for index, allocation := range draft.AccountAllocations {
-		account := refs.AccountAllocations[index]
-		if err := q.InsertVouSalesReceiptAccountAllocation(ctx, dbsqlc.InsertVouSalesReceiptAccountAllocationParams{
+	for index, allocation := range draft.SubunitAllocations {
+		subunit := refs.SubunitAllocations[index]
+		if err := q.InsertVouSalesReceiptSubunitAllocation(ctx, dbsqlc.InsertVouSalesReceiptSubunitAllocationParams{
 			DocumentID: documentID, LineNo: int32(index + 1),
 			CustomerObjectID: refs.Customer.ObjectID, CustomerApprovalEntryID: refs.Customer.ApprovalEntryID,
-			AccountObjectID: account.ObjectID, AccountApprovalEntryID: account.ApprovalEntryID,
-			AccountCode: account.Code, AccountName: account.Data.Name, AmountCents: allocation.Amount,
+			SubunitObjectID: subunit.ObjectID, SubunitApprovalEntryID: subunit.ApprovalEntryID,
+			SubunitCode: subunit.Code, SubunitName: subunit.Data.Name, AmountCents: allocation.Amount,
 		}); err != nil {
 			return err
 		}

@@ -32,7 +32,7 @@ DELETE FROM dcl_subjects
 WHERE id=sqlc.arg(id) AND entity=sqlc.arg(entity);
 
 -- Customer is the sole approval aggregate.  Its JSON snapshot owns identity,
--- default operating entity, and every account line; roots are only stable IDs.
+-- default operating entity, and every subunit line; roots are only stable IDs.
 -- name: InsertDCLCustomerVersionAggregate :exec
 INSERT INTO dcl_customer_versions(approval_entry_id,kind,legal_identifier,data,enabled)
 VALUES(sqlc.arg(approval_entry_id),sqlc.arg(kind),sqlc.narg(legal_identifier),sqlc.arg(data),sqlc.arg(enabled));
@@ -57,80 +57,80 @@ WHERE source.approval_entry_id=sqlc.arg(source_approval_entry_id);
 DELETE FROM dcl_customer_versions
 WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
--- name: ListDCLCustomerAccountRoots :many
-SELECT account_id,customer_id,code,ever_approved,first_approved_customer_entry_id
-FROM dcl_customer_account_roots
+-- name: ListDCLCustomerSubunitRoots :many
+SELECT subunit_id,customer_id,code,ever_approved,first_approved_customer_entry_id
+FROM dcl_customer_subunit_roots
 WHERE customer_id=sqlc.arg(customer_id)
-ORDER BY code,account_id;
+ORDER BY code,subunit_id;
 
--- name: LockDCLCustomerAccountRoot :one
-SELECT account_id,customer_id,code,ever_approved,first_approved_customer_entry_id
-FROM dcl_customer_account_roots
-WHERE account_id=sqlc.arg(account_id)
+-- name: LockDCLCustomerSubunitRoot :one
+SELECT subunit_id,customer_id,code,ever_approved,first_approved_customer_entry_id
+FROM dcl_customer_subunit_roots
+WHERE subunit_id=sqlc.arg(subunit_id)
 FOR UPDATE;
 
--- name: InsertDCLCustomerAccountRoot :exec
-INSERT INTO dcl_customer_account_roots(account_id,customer_id,code)
-VALUES(sqlc.arg(account_id),sqlc.arg(customer_id),sqlc.arg(code));
+-- name: InsertDCLCustomerSubunitRoot :exec
+INSERT INTO dcl_customer_subunit_roots(subunit_id,customer_id,code)
+VALUES(sqlc.arg(subunit_id),sqlc.arg(customer_id),sqlc.arg(code));
 
--- name: DeleteDCLCustomerAccountRoot :execrows
-DELETE FROM dcl_customer_account_roots
-WHERE account_id=sqlc.arg(account_id) AND customer_id=sqlc.arg(customer_id) AND ever_approved=false;
+-- name: DeleteDCLCustomerSubunitRoot :execrows
+DELETE FROM dcl_customer_subunit_roots
+WHERE subunit_id=sqlc.arg(subunit_id) AND customer_id=sqlc.arg(customer_id) AND ever_approved=false;
 
--- name: MarkDCLCustomerAccountRootApproved :execrows
-UPDATE dcl_customer_account_roots
+-- name: MarkDCLCustomerSubunitRootApproved :execrows
+UPDATE dcl_customer_subunit_roots
 SET ever_approved=true,first_approved_customer_entry_id=COALESCE(first_approved_customer_entry_id,sqlc.arg(customer_approval_entry_id))
-WHERE account_id=sqlc.arg(account_id) AND customer_id=sqlc.arg(customer_id);
+WHERE subunit_id=sqlc.arg(subunit_id) AND customer_id=sqlc.arg(customer_id);
 
--- name: GetDCLCustomerAccountCodeMax :one
+-- name: GetDCLCustomerSubunitCodeMax :one
 SELECT COALESCE(max(CAST(substring(code FROM '[0-9]+$') AS bigint)),0)::bigint AS code_max
-FROM dcl_customer_account_roots
+FROM dcl_customer_subunit_roots
 WHERE customer_id=sqlc.arg(customer_id);
 
--- name: DeleteDCLCustomerVersionAccounts :exec
-DELETE FROM dcl_customer_version_accounts
+-- name: DeleteDCLCustomerVersionSubunits :exec
+DELETE FROM dcl_customer_version_subunits
 WHERE customer_approval_entry_id=sqlc.arg(customer_approval_entry_id)
-  AND NOT (account_id=ANY(sqlc.arg(account_ids)::text[]));
+  AND NOT (subunit_id=ANY(sqlc.arg(subunit_ids)::text[]));
 
--- name: InsertDCLCustomerVersionAccount :exec
-INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default)
-VALUES(sqlc.arg(customer_approval_entry_id),sqlc.arg(account_id),sqlc.arg(data),sqlc.arg(enabled),sqlc.arg(is_default))
-ON CONFLICT(customer_approval_entry_id,account_id) DO UPDATE SET
-  data=EXCLUDED.data,enabled=EXCLUDED.enabled,is_default=EXCLUDED.is_default;
+-- name: InsertDCLCustomerVersionSubunit :exec
+INSERT INTO dcl_customer_version_subunits(customer_approval_entry_id,subunit_id,data,enabled)
+VALUES(sqlc.arg(customer_approval_entry_id),sqlc.arg(subunit_id),sqlc.arg(data),sqlc.arg(enabled))
+ON CONFLICT(customer_approval_entry_id,subunit_id) DO UPDATE SET
+  data=EXCLUDED.data,enabled=EXCLUDED.enabled;
 
--- name: CopyDCLCustomerVersionAccounts :exec
-INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default)
-SELECT sqlc.arg(new_customer_approval_entry_id),source.account_id,source.data,source.enabled,source.is_default
-FROM dcl_customer_version_accounts source
+-- name: CopyDCLCustomerVersionSubunits :exec
+INSERT INTO dcl_customer_version_subunits(customer_approval_entry_id,subunit_id,data,enabled)
+SELECT sqlc.arg(new_customer_approval_entry_id),source.subunit_id,source.data,source.enabled
+FROM dcl_customer_version_subunits source
 WHERE source.customer_approval_entry_id=sqlc.arg(source_customer_approval_entry_id);
 
--- name: ListDCLCustomerVersionAccounts :many
-SELECT line.customer_approval_entry_id,line.account_id,root.customer_id,root.code,line.data,line.enabled,line.is_default,
+-- name: ListDCLCustomerVersionSubunits :many
+SELECT line.customer_approval_entry_id,line.subunit_id,root.customer_id,root.code,line.data,line.enabled,
        root.ever_approved,root.first_approved_customer_entry_id
-FROM dcl_customer_version_accounts line
-JOIN dcl_customer_account_roots root ON root.account_id=line.account_id
+FROM dcl_customer_version_subunits line
+JOIN dcl_customer_subunit_roots root ON root.subunit_id=line.subunit_id
 WHERE line.customer_approval_entry_id=sqlc.arg(customer_approval_entry_id)
-ORDER BY root.code,root.account_id;
+ORDER BY root.code,root.subunit_id;
 
--- name: DeleteDCLCustomerVersionAccountCreditLimits :exec
-DELETE FROM dcl_customer_version_account_credit_limits
+-- name: DeleteDCLCustomerVersionSubunitCreditLimits :exec
+DELETE FROM dcl_customer_version_subunit_credit_limits
 WHERE customer_approval_entry_id=sqlc.arg(customer_approval_entry_id);
 
--- name: InsertDCLCustomerVersionAccountCreditLimit :exec
-INSERT INTO dcl_customer_version_account_credit_limits(customer_approval_entry_id,account_id,currency,amount_cents)
-VALUES(sqlc.arg(customer_approval_entry_id),sqlc.arg(account_id),sqlc.arg(currency),sqlc.arg(amount_cents));
+-- name: InsertDCLCustomerVersionSubunitCreditLimit :exec
+INSERT INTO dcl_customer_version_subunit_credit_limits(customer_approval_entry_id,subunit_id,currency,amount_cents)
+VALUES(sqlc.arg(customer_approval_entry_id),sqlc.arg(subunit_id),sqlc.arg(currency),sqlc.arg(amount_cents));
 
--- name: CopyDCLCustomerVersionAccountCreditLimits :exec
-INSERT INTO dcl_customer_version_account_credit_limits(customer_approval_entry_id,account_id,currency,amount_cents)
-SELECT sqlc.arg(new_customer_approval_entry_id),source.account_id,source.currency,source.amount_cents
-FROM dcl_customer_version_account_credit_limits source
+-- name: CopyDCLCustomerVersionSubunitCreditLimits :exec
+INSERT INTO dcl_customer_version_subunit_credit_limits(customer_approval_entry_id,subunit_id,currency,amount_cents)
+SELECT sqlc.arg(new_customer_approval_entry_id),source.subunit_id,source.currency,source.amount_cents
+FROM dcl_customer_version_subunit_credit_limits source
 WHERE source.customer_approval_entry_id=sqlc.arg(source_customer_approval_entry_id);
 
--- name: ListDCLCustomerVersionAccountCreditLimits :many
-SELECT customer_approval_entry_id,account_id,currency,amount_cents
-FROM dcl_customer_version_account_credit_limits
+-- name: ListDCLCustomerVersionSubunitCreditLimits :many
+SELECT customer_approval_entry_id,subunit_id,currency,amount_cents
+FROM dcl_customer_version_subunit_credit_limits
 WHERE customer_approval_entry_id=sqlc.arg(customer_approval_entry_id)
-ORDER BY account_id,currency;
+ORDER BY subunit_id,currency;
 
 -- name: LockDCLCustomerLegalIdentifierClaim :one
 SELECT normalized_legal_identifier,approved_customer_id,approved_approval_entry_id,open_customer_id,open_approval_entry_id

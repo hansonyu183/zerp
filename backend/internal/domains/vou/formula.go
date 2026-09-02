@@ -67,7 +67,7 @@ func (s *Service) FormulaDefault(
 				ErrorValidation, "customer is required for custom product formula", nil, nil,
 			)
 		}
-		if _, err = s.resolveReference(ctx, tx, bobdomain.EntityCustomerAccount, input.Customer); err != nil {
+		if _, err = s.resolveReference(ctx, tx, bobdomain.EntityCustomerSubunit, input.Customer); err != nil {
 			return FormulaDefaultView{}, err
 		}
 		latest, latestErr := s.queries.WithTx(tx).FindLatestCustomerSaleOrderFormula(

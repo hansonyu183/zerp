@@ -81,8 +81,8 @@ type fixedInventoryCountLine struct {
 	Remark          *string
 }
 
-type fixedSalesReceiptAccountAllocation struct {
-	Account ReferenceInput
+type fixedSalesReceiptSubunitAllocation struct {
+	Subunit ReferenceInput
 	Amount  int64
 }
 
@@ -101,7 +101,7 @@ type validatedDraft struct {
 	PriceLines                                              []fixedPriceLine
 	ExpenseLines                                            []fixedExpenseLine
 	InventoryCountLines                                     []fixedInventoryCountLine
-	AccountAllocations                                      []fixedSalesReceiptAccountAllocation
+	SubunitAllocations                                      []fixedSalesReceiptSubunitAllocation
 	BillLines                                               []fixedBillLine
 	BillCashLines                                           []fixedBillCashLine
 	InternalCostRateBps                                     int32
@@ -144,7 +144,7 @@ func paymentEntity(entity string) bool {
 func fixedCounterpartyType(entity string) string {
 	switch entity {
 	case EntitySalesReceipt, EntitySalesRefund:
-		return bobdomain.EntityCustomerAccount
+		return bobdomain.EntityCustomerSubunit
 	case EntityPurchaseRefund, EntityPurchasePayment:
 		return "supplier"
 	case EntityEmployeeLoan, EntityEmployeeRepayment:
@@ -331,7 +331,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			}
 			result.CounterpartyType = fixed
 		}
-		if result.CounterpartyType != bobdomain.EntityCustomerAccount && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-unit" && result.CounterpartyType != "employee" && result.CounterpartyType != bobdomain.EntitySalesPartner {
+		if result.CounterpartyType != bobdomain.EntityCustomerSubunit && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-unit" && result.CounterpartyType != "employee" && result.CounterpartyType != bobdomain.EntitySalesPartner {
 			return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 		}
 		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
@@ -373,7 +373,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, err
 		}
 		if input.Counterparty != nil {
-			if result.CounterpartyType != bobdomain.EntityCustomerAccount && result.CounterpartyType != "supplier" {
+			if result.CounterpartyType != bobdomain.EntityCustomerSubunit && result.CounterpartyType != "supplier" {
 				return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 			}
 			if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
@@ -428,41 +428,41 @@ func validateSalesReceiptDraft(input DraftInput, result validatedDraft) (validat
 	if err != nil {
 		return validatedDraft{}, domainError(ErrorValidation, "invalid document amount or lines", nil, err)
 	}
-	allocations, err := validateSalesReceiptAccountAllocations(input.AccountAllocations, total)
+	allocations, err := validateSalesReceiptSubunitAllocations(input.SubunitAllocations, total)
 	if err != nil {
 		return validatedDraft{}, err
 	}
 	result.TotalAmount = total
-	result.AccountAllocations = allocations
+	result.SubunitAllocations = allocations
 	return result, nil
 }
 
-func validateSalesReceiptAccountAllocations(
-	input []SalesReceiptAccountAllocationInput, total int64,
-) ([]fixedSalesReceiptAccountAllocation, error) {
+func validateSalesReceiptSubunitAllocations(
+	input []SalesReceiptSubunitAllocationInput, total int64,
+) ([]fixedSalesReceiptSubunitAllocation, error) {
 	if len(input) < 1 || len(input) > 200 {
-		return nil, domainError(ErrorValidation, "accountAllocations must contain 1 to 200 items", nil, nil)
+		return nil, domainError(ErrorValidation, "subunitAllocations must contain 1 to 200 items", nil, nil)
 	}
 	seen := make(map[string]struct{}, len(input))
-	allocations := make([]fixedSalesReceiptAccountAllocation, 0, len(input))
+	allocations := make([]fixedSalesReceiptSubunitAllocation, 0, len(input))
 	var sum int64
 	for _, line := range input {
-		if err := validateReference(&line.Account, "account allocation", true); err != nil {
+		if err := validateReference(&line.Subunit, "subunit allocation", true); err != nil {
 			return nil, err
 		}
-		if _, exists := seen[line.Account.ObjectID]; exists {
-			return nil, domainError(ErrorValidation, "duplicate sales receipt account allocation", nil, nil)
+		if _, exists := seen[line.Subunit.ObjectID]; exists {
+			return nil, domainError(ErrorValidation, "duplicate sales receipt subunit allocation", nil, nil)
 		}
 		amount, err := moneyCents(line.Amount)
 		if err != nil || sum > math.MaxInt64-amount {
-			return nil, domainError(ErrorValidation, "invalid sales receipt account allocation amount", nil, err)
+			return nil, domainError(ErrorValidation, "invalid sales receipt subunit allocation amount", nil, err)
 		}
-		seen[line.Account.ObjectID] = struct{}{}
+		seen[line.Subunit.ObjectID] = struct{}{}
 		sum += amount
-		allocations = append(allocations, fixedSalesReceiptAccountAllocation{Account: line.Account, Amount: amount})
+		allocations = append(allocations, fixedSalesReceiptSubunitAllocation{Subunit: line.Subunit, Amount: amount})
 	}
 	if sum != total {
-		return nil, domainError(ErrorValidation, "sales receipt account allocations must equal amount", nil, nil)
+		return nil, domainError(ErrorValidation, "sales receipt subunit allocations must equal amount", nil, nil)
 	}
 	return allocations, nil
 }

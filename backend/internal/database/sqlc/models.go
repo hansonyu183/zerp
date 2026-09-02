@@ -103,12 +103,16 @@ type AccBookUserScope struct {
 }
 
 type AccContainerEntry struct {
-	ID               string `db:"id" json:"id"`
-	CustomerID       string `db:"customer_id" json:"customer_id"`
-	ContainerType    string `db:"container_type" json:"container_type"`
-	QuantityDelta    int64  `db:"quantity_delta" json:"quantity_delta"`
-	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
-	SourceRevision   int64  `db:"source_revision" json:"source_revision"`
+	ID                      string `db:"id" json:"id"`
+	CustomerSubunitID       string `db:"customer_subunit_id" json:"customer_subunit_id"`
+	CustomerID              string `db:"customer_id" json:"customer_id"`
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerSubunitCode     string `db:"customer_subunit_code" json:"customer_subunit_code"`
+	CustomerSubunitName     string `db:"customer_subunit_name" json:"customer_subunit_name"`
+	ContainerType           string `db:"container_type" json:"container_type"`
+	QuantityDelta           int64  `db:"quantity_delta" json:"quantity_delta"`
+	SourceDocumentID        string `db:"source_document_id" json:"source_document_id"`
+	SourceRevision          int64  `db:"source_revision" json:"source_revision"`
 }
 
 type AccDepreciationEntry struct {
@@ -219,11 +223,15 @@ type AccOpeningBill struct {
 }
 
 type AccOpeningContainer struct {
-	BookID        string `db:"book_id" json:"book_id"`
-	LineOrder     int32  `db:"line_order" json:"line_order"`
-	CustomerID    string `db:"customer_id" json:"customer_id"`
-	ContainerType string `db:"container_type" json:"container_type"`
-	Quantity      int64  `db:"quantity" json:"quantity"`
+	BookID                  string `db:"book_id" json:"book_id"`
+	LineOrder               int32  `db:"line_order" json:"line_order"`
+	CustomerSubunitID       string `db:"customer_subunit_id" json:"customer_subunit_id"`
+	CustomerID              string `db:"customer_id" json:"customer_id"`
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerSubunitCode     string `db:"customer_subunit_code" json:"customer_subunit_code"`
+	CustomerSubunitName     string `db:"customer_subunit_name" json:"customer_subunit_name"`
+	ContainerType           string `db:"container_type" json:"container_type"`
+	Quantity                int64  `db:"quantity" json:"quantity"`
 }
 
 type AccOpeningLine struct {
@@ -521,18 +529,9 @@ type DclAccMappingVersion struct {
 	Definition      []byte `db:"definition" json:"definition"`
 }
 
-type DclCustomerAccountRoot struct {
-	AccountID                    string  `db:"account_id" json:"account_id"`
-	CustomerID                   string  `db:"customer_id" json:"customer_id"`
-	CustomerEntity               string  `db:"customer_entity" json:"customer_entity"`
-	Code                         string  `db:"code" json:"code"`
-	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
-	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
-}
-
 type DclCustomerAttachment struct {
 	ApprovalEntryID  string             `db:"approval_entry_id" json:"approval_entry_id"`
-	AccountID        *string            `db:"account_id" json:"account_id"`
+	SubunitID        *string            `db:"subunit_id" json:"subunit_id"`
 	FileID           string             `db:"file_id" json:"file_id"`
 	CategoryObjectID string             `db:"category_object_id" json:"category_object_id"`
 	CategoryCode     string             `db:"category_code" json:"category_code"`
@@ -573,6 +572,15 @@ type DclCustomerLegalIdentifierClaim struct {
 	OpenApprovalEntryID       *string `db:"open_approval_entry_id" json:"open_approval_entry_id"`
 }
 
+type DclCustomerSubunitRoot struct {
+	SubunitID                    string  `db:"subunit_id" json:"subunit_id"`
+	CustomerID                   string  `db:"customer_id" json:"customer_id"`
+	CustomerEntity               string  `db:"customer_entity" json:"customer_entity"`
+	Code                         string  `db:"code" json:"code"`
+	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
+	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
+}
+
 type DclCustomerVersion struct {
 	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
 	Kind            string  `db:"kind" json:"kind"`
@@ -581,17 +589,16 @@ type DclCustomerVersion struct {
 	Enabled         bool    `db:"enabled" json:"enabled"`
 }
 
-type DclCustomerVersionAccount struct {
+type DclCustomerVersionSubunit struct {
 	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountID               string `db:"account_id" json:"account_id"`
+	SubunitID               string `db:"subunit_id" json:"subunit_id"`
 	Data                    []byte `db:"data" json:"data"`
 	Enabled                 bool   `db:"enabled" json:"enabled"`
-	IsDefault               bool   `db:"is_default" json:"is_default"`
 }
 
-type DclCustomerVersionAccountCreditLimit struct {
+type DclCustomerVersionSubunitCreditLimit struct {
 	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountID               string `db:"account_id" json:"account_id"`
+	SubunitID               string `db:"subunit_id" json:"subunit_id"`
 	Currency                string `db:"currency" json:"currency"`
 	AmountCents             int64  `db:"amount_cents" json:"amount_cents"`
 }
@@ -1779,15 +1786,15 @@ type VouSaleSignoffLine struct {
 	Remark                     *string `db:"remark" json:"remark"`
 }
 
-type VouSalesReceiptAccountAllocation struct {
+type VouSalesReceiptSubunitAllocation struct {
 	DocumentID              string `db:"document_id" json:"document_id"`
 	LineNo                  int32  `db:"line_no" json:"line_no"`
 	CustomerObjectID        string `db:"customer_object_id" json:"customer_object_id"`
 	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountObjectID         string `db:"account_object_id" json:"account_object_id"`
-	AccountApprovalEntryID  string `db:"account_approval_entry_id" json:"account_approval_entry_id"`
-	AccountCode             string `db:"account_code" json:"account_code"`
-	AccountName             string `db:"account_name" json:"account_name"`
+	SubunitObjectID         string `db:"subunit_object_id" json:"subunit_object_id"`
+	SubunitApprovalEntryID  string `db:"subunit_approval_entry_id" json:"subunit_approval_entry_id"`
+	SubunitCode             string `db:"subunit_code" json:"subunit_code"`
+	SubunitName             string `db:"subunit_name" json:"subunit_name"`
 	AmountCents             int64  `db:"amount_cents" json:"amount_cents"`
 }
 

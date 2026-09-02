@@ -36,7 +36,7 @@ func createSettlementCustomer(
 	return createApprovedCustomer(t, pool, bobdomain.CreateDetailInput{
 		Name: name, SettlementMethodID: settlement.ObjectID,
 		SalespersonEmployeeID: employee.ObjectID,
-	}).Account
+	}).Subunit
 }
 
 func createCheckedSettlementSale(
@@ -84,7 +84,7 @@ func activateSettlementLedger(
 	amountCents int64,
 	effectiveDate string,
 ) {
-	activateSettlementLedgerForParty(t, pool, bobdomain.EntityCustomerAccount, customer, amountCents, effectiveDate)
+	activateSettlementLedgerForParty(t, pool, bobdomain.EntityCustomerSubunit, customer, amountCents, effectiveDate)
 }
 
 func activateSettlementLedgerForParty(
@@ -104,9 +104,9 @@ func activateSettlementLedgerForParty(
 		t.Fatalf("insert accounting control book: %v", err)
 	}
 	for index, definition := range []struct{ purpose, dimension, direction string }{
-		{"RECEIVABLE", "CUSTOMER_ACCOUNT", "DEBIT"}, {"ADVANCE_RECEIPT", "CUSTOMER_ACCOUNT", "CREDIT"},
+		{"RECEIVABLE", "CUSTOMER_SUBUNIT", "DEBIT"}, {"ADVANCE_RECEIPT", "CUSTOMER_SUBUNIT", "CREDIT"},
 		{"PAYABLE", "SUPPLIER", "CREDIT"}, {"PREPAID", "SUPPLIER", "DEBIT"},
-		{"OTHER", "CUSTOMER_ACCOUNT", "DEBIT"},
+		{"OTHER", "CUSTOMER_SUBUNIT", "DEBIT"},
 	} {
 		subjectID := newID()
 		if _, err := pool.Exec(t.Context(), `INSERT INTO acc_subjects(
@@ -154,7 +154,7 @@ func insertAccountingPartyEntry(
 	ctx context.Context, executor accountingEntryExecutor, partyEntity, partyObjectID,
 	purpose string, naturalAmount int64, effectiveDate, sourceID string,
 ) error {
-	dimension := "CUSTOMER_ACCOUNT"
+	dimension := "CUSTOMER_SUBUNIT"
 	if partyEntity == "supplier" {
 		dimension = "SUPPLIER"
 	}

@@ -350,7 +350,7 @@ test(
     await workspace
       .getByRole('button', { name: '添加分摊', exact: true })
       .click()
-    await selectReference(page, '客户核算账户', fixture.customer, workspace)
+    await selectReference(page, '客户子单位', fixture.customer, workspace)
     await workspace.getByLabel('分摊金额').fill('100.00')
     const createResponse = page.waitForResponse((response) =>
       response.url().endsWith('/vou/sales-receipt/create'),

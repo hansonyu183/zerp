@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export type WflCounterpartyReference = {
-  entity: 'customer-account' | 'supplier' | 'employee';
+  entity: 'customer-subunit' | 'supplier' | 'employee';
   objectId: string;
   approvalEntryId: string;
   code: string;

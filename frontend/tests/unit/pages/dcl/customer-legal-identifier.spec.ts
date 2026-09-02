@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, nextTick } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import CustomerForm from '@/pages/dcl/customer/CustomerForm.vue'
 import { createCustomerForm } from '@/pages/dcl/customer/vm'
@@ -29,17 +29,19 @@ function customerFormVm() {
       currentView: null,
       editorMode: 'edit',
       editorEditable: true,
+      canEditRoot: true,
+      canEditSubunits: true,
+      errorMessage: null,
       referenceOptions: { operatingEntityId: [] },
       referenceLoading: { operatingEntityId: false },
       searchReference: vi.fn(),
-      referenceErrorForAccount: () => null,
-      referenceLoadingForAccount: () => false,
-      referenceOptionsForAccount: () => [],
+      referenceErrorForSubunit: () => null,
+      referenceLoadingForSubunit: () => false,
+      referenceOptionsForSubunit: () => [],
       addRemittanceProfile: vi.fn(),
       removeRemittanceProfile: vi.fn(),
-      addAccount: vi.fn(),
-      removeAccount: vi.fn(),
-      setDefaultAccount: vi.fn(),
+      addSubunit: vi.fn(),
+      removeSubunit: vi.fn(),
       openById: vi.fn(),
     },
   }
@@ -73,7 +75,7 @@ describe('CustomerForm legal identifier', () => {
           VRadioGroup: inputStub,
           VRadio: inputStub,
           VBtn: inputStub,
-          CustomerAccountFields: containerStub,
+          CustomerSubunitFields: containerStub,
           CustomerAttachments: containerStub,
         },
       },
@@ -123,5 +125,66 @@ describe('CustomerForm legal identifier', () => {
     await nextTick()
 
     expect(field(wrapper, '法定识别号')?.props('errorMessages')).toBeUndefined()
+  })
+
+  it('renders the customer subunit mobile-card labels and shared row actions', () => {
+    const { form, vm } = customerFormVm()
+    form.subunits[0]!.name = '华东子单位'
+    form.subunits[0]!.customerTypeId = '01JCUSTOMERTYPE00000000001'
+    const tableStub = defineComponent({
+      name: 'VTable',
+      setup(_, { slots }) {
+        return () => h('table', slots.default?.())
+      },
+    })
+    const listRowActionsStub = defineComponent({
+      name: 'ListRowActions',
+      props: { actions: { type: Array, required: true } },
+      setup(props) {
+        return () =>
+          h(
+            'div',
+            (props.actions as Array<{ key: string; label: string }>).map(
+              (action) =>
+                h('button', { 'data-action': action.key }, action.label),
+            ),
+          )
+      },
+    })
+    const wrapper = mount(CustomerForm, {
+      props: { vm: vm as never, kind: 'create' },
+      global: {
+        stubs: {
+          VRow: containerStub,
+          VCol: containerStub,
+          VCard: containerStub,
+          VCardTitle: containerStub,
+          VCardText: containerStub,
+          VCardActions: containerStub,
+          VDialog: containerStub,
+          VDivider: containerStub,
+          VSpacer: containerStub,
+          VTextField: inputStub,
+          VSelect: inputStub,
+          VSwitch: inputStub,
+          VAutocomplete: inputStub,
+          VRadioGroup: inputStub,
+          VRadio: inputStub,
+          VBtn: inputStub,
+          VChip: containerStub,
+          VTable: tableStub,
+          ListRowActions: listRowActionsStub,
+          CustomerSubunitFields: containerStub,
+          CustomerAttachments: containerStub,
+        },
+      },
+    })
+
+    expect(wrapper.get('table').classes()).toContain('responsive-table')
+    expect(
+      wrapper.findAll('td').map((cell) => cell.attributes('data-label')),
+    ).toEqual(['编码', '名称', '客户类型', '状态', '操作'])
+    expect(wrapper.get('td[data-label="名称"]').text()).toBe('华东子单位')
+    expect(wrapper.get('button[data-action="open"]').text()).toBe('编辑')
   })
 })

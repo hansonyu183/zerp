@@ -15,9 +15,9 @@ type DclCustomerAttachmentView =
   components['schemas']['DclCustomerAttachmentView']
 
 const props = defineProps<{
-  scope: 'CUSTOMER' | 'CUSTOMER_ACCOUNT'
+  scope: 'CUSTOMER' | 'CUSTOMER_SUBUNIT'
   ownerApprovalEntryId: string
-  accountId?: string
+  subunitId?: string
   approvalRevision: number
   attachments: readonly DclCustomerAttachmentView[]
   editable: boolean
@@ -29,13 +29,25 @@ const busy = ref(false)
 const errorMessage = ref<string | null>(null)
 const attachmentStatusText = { PENDING: '等待上传', READY: '可下载' } as const
 const canInitiate = computed(
-  () => props.editable && session.can('/dcl/customer/attachment-initiate'),
+  () =>
+    props.editable &&
+    session.can(
+      props.scope === 'CUSTOMER_SUBUNIT'
+        ? '/dcl/customer/save-subunits'
+        : '/dcl/customer/attachment-initiate',
+    ),
 )
 const canDownload = computed(() =>
-  session.can('/dcl/customer/attachment-download'),
+  session.can('/dcl/customer/get'),
 )
 const canRemove = computed(
-  () => props.editable && session.can('/dcl/customer/attachment-remove'),
+  () =>
+    props.editable &&
+    session.can(
+      props.scope === 'CUSTOMER_SUBUNIT'
+        ? '/dcl/customer/save-subunits'
+        : '/dcl/customer/attachment-remove',
+    ),
 )
 
 async function sha256(file: File): Promise<string> {
@@ -60,7 +72,7 @@ async function upload(value: File | File[] | null): Promise<void> {
     const { data } = await initiateCustomerAttachment({
       scope: props.scope,
       ownerApprovalEntryId: props.ownerApprovalEntryId,
-      ...(props.scope === 'CUSTOMER_ACCOUNT' ? { accountId: props.accountId } : {}),
+      ...(props.scope === 'CUSTOMER_SUBUNIT' ? { subunitId: props.subunitId } : {}),
       approvalRevision: props.approvalRevision,
       categoryObjectId: categoryObjectId.value.trim(),
       fileName: file.name,
@@ -84,7 +96,7 @@ async function download(attachment: DclCustomerAttachmentView): Promise<void> {
     const { data } = await createCustomerAttachmentDownload({
       scope: props.scope,
       ownerApprovalEntryId: props.ownerApprovalEntryId,
-      ...(props.scope === 'CUSTOMER_ACCOUNT' ? { accountId: props.accountId } : {}),
+      ...(props.scope === 'CUSTOMER_SUBUNIT' ? { subunitId: props.subunitId } : {}),
       fileId: attachment.fileId,
     })
     downloadBlob(
@@ -105,7 +117,7 @@ async function remove(attachment: DclCustomerAttachmentView): Promise<void> {
     await removeCustomerAttachment({
       scope: props.scope,
       ownerApprovalEntryId: props.ownerApprovalEntryId,
-      ...(props.scope === 'CUSTOMER_ACCOUNT' ? { accountId: props.accountId } : {}),
+      ...(props.scope === 'CUSTOMER_SUBUNIT' ? { subunitId: props.subunitId } : {}),
       approvalRevision: props.approvalRevision,
       fileId: attachment.fileId,
     })

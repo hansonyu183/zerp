@@ -26,7 +26,7 @@ export function buildVoucherDraftPayload(
   }
   const counterpartyType =
     value.counterpartyType === 'customer'
-      ? 'customer-account'
+      ? 'customer-subunit'
       : value.counterpartyType || undefined
   if (config.entity === 'sale-order') {
     payload.specialApproval = value.specialApproval
@@ -161,9 +161,9 @@ export function buildVoucherDraftPayload(
   if (config.directAmount && config.entity !== 'service-acceptance') {
     payload.amount = value.amount.trim()
   }
-  if (config.usesAccountAllocations) {
-    payload.accountAllocations = value.accountAllocations.map((line) => ({
-      account: inputReference(line.account)!,
+  if (config.usesSubunitAllocations) {
+    payload.subunitAllocations = value.subunitAllocations.map((line) => ({
+      subunit: inputReference(line.subunit)!,
       amount: line.amount.trim(),
     }))
   }

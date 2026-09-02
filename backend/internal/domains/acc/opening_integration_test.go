@@ -48,14 +48,27 @@ func TestAccountingOpeningCentralApprovalLifecycleAndEventRollbackIntegration(t 
 	service := integrationACCService(pool, bus)
 	operator := openingLifecycleActor(t, operatorID, "acc-opening-operator")
 	reviewer := openingLifecycleActor(t, adminID, "acc-opening-reviewer")
+	subunit := createAccountingCustomerSubunitSnapshot(t, pool, "期初空桶客户子单位")
 	book, err := service.CreateBook(t.Context(), CreateBookInput{Name: "中央审批期初", StartMonth: "2026-08", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty, QueryUserIDs: []string{operatorID}, OperateUserIDs: []string{operatorID}}, adminID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	opening, err := service.SaveOpening(t.Context(), SaveOpeningInput{BookID: book.ID, Revision: 0, Lines: []OpeningLineInput{}, Assets: []OpeningAssetInput{}, Bills: []OpeningBillInput{}, Containers: []OpeningContainerInput{}}, operator)
+	opening, err := service.SaveOpening(t.Context(), SaveOpeningInput{
+		BookID: book.ID, Revision: 0, Lines: []OpeningLineInput{}, Assets: []OpeningAssetInput{}, Bills: []OpeningBillInput{},
+		Containers: []OpeningContainerInput{{
+			Subunit: BusinessArchiveDimensionReference{
+				Entity: "customer-subunit", ObjectID: subunit.ObjectID, CustomerID: subunit.CustomerID,
+				ApprovalEntryID: subunit.ApprovalEntryID, Code: subunit.Code, Name: subunit.Name,
+			},
+			ContainerType: "SOLVENT", Quantity: 8,
+		}},
+	}, operator)
 	if err != nil || opening.Approval.Status != approval.StatusDraft || opening.Approval.Revision != 1 || !slices.Equal(opening.AvailableApprovalActions, []approval.LifecycleAction{approval.LifecycleSubmit}) {
 		t.Fatalf("save = %+v, err=%v", opening, err)
+	}
+	if len(opening.Containers) != 1 || opening.Containers[0].Subunit.ObjectID != subunit.ObjectID || opening.Containers[0].Subunit.CustomerID != subunit.CustomerID || opening.Containers[0].Subunit.ApprovalEntryID != subunit.ApprovalEntryID {
+		t.Fatalf("opening container snapshot = %+v", opening.Containers)
 	}
 	var versionNo *int32
 	if err = pool.QueryRow(t.Context(), `SELECT version_no FROM approval_entries WHERE domain='acc' AND entity='opening' AND subject_id=$1`, book.ID).Scan(&versionNo); err != nil || versionNo != nil {
@@ -109,8 +122,41 @@ func TestAccountingOpeningCentralApprovalLifecycleAndEventRollbackIntegration(t 
 	if err != nil || approved.Approval.Status != approval.StatusApproved || approved.VoucherID == nil || !slices.Equal(approved.AvailableApprovalActions, []approval.LifecycleAction{approval.LifecycleUnapprove}) {
 		t.Fatalf("approve = %+v err=%v", approved, err)
 	}
+	var storedSubunitID, storedCustomerID, storedApprovalEntryID, storedCode, storedName string
+	if err = pool.QueryRow(t.Context(), `SELECT customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name FROM acc_container_entries WHERE source_document_id=$1`, book.ID).Scan(&storedSubunitID, &storedCustomerID, &storedApprovalEntryID, &storedCode, &storedName); err != nil {
+		t.Fatal(err)
+	}
+	if storedSubunitID != subunit.ObjectID || storedCustomerID != subunit.CustomerID || storedApprovalEntryID != subunit.ApprovalEntryID || storedCode != subunit.Code || storedName != subunit.Name {
+		t.Fatalf("approved container snapshot = %q %q %q %q %q", storedSubunitID, storedCustomerID, storedApprovalEntryID, storedCode, storedName)
+	}
 	reopened, err := service.UnapproveOpening(t.Context(), book.ID, approved.Approval.Revision, "期初重开", reviewer)
 	if err != nil || reopened.Approval.Status != approval.StatusPending || reopened.VoucherID != nil {
 		t.Fatalf("unapprove = %+v err=%v", reopened, err)
+	}
+}
+
+func TestAccountingOpeningRejectsCustomerRootAsContainerSubunitIntegration(t *testing.T) {
+	pool := integrationPool(t)
+	seedUsers(t, pool)
+	service := integrationACCService(pool, txevent.NewBus())
+	operator := openingLifecycleActor(t, operatorID, "acc-opening-root-rejected")
+	subunit := createAccountingCustomerSubunitSnapshot(t, pool, "拒绝客户根 ID")
+	book, err := service.CreateBook(t.Context(), CreateBookInput{Name: "空桶子单位校验", StartMonth: "2026-08", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty, QueryUserIDs: []string{operatorID}, OperateUserIDs: []string{operatorID}}, adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = service.SaveOpening(t.Context(), SaveOpeningInput{
+		BookID: book.ID, Revision: 0,
+		Containers: []OpeningContainerInput{{
+			Subunit: BusinessArchiveDimensionReference{
+				Entity: "customer-subunit", ObjectID: subunit.CustomerID, CustomerID: subunit.CustomerID,
+				ApprovalEntryID: subunit.ApprovalEntryID, Code: subunit.Code, Name: subunit.Name,
+			},
+			ContainerType: "SOLVENT", Quantity: 1,
+		}},
+	}, operator)
+	if !IsKind(err, ErrorConflict) {
+		t.Fatalf("save with customer root err = %v, want conflict", err)
 	}
 }

@@ -2,8 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BusinessArchiveDimensionReference } from './BusinessArchiveDimensionReference';
 export type OpeningContainerInput = {
-  customerId: string;
+  subunit: BusinessArchiveDimensionReference;
   containerType: 'SOLVENT' | 'RESIN';
   quantity: number;
 };

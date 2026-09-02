@@ -853,8 +853,8 @@ describe('bill voucher view model behavior', () => {
     })
     mockedPost.mockImplementation(async (path: string, body: unknown) => {
       if (path === 'bob/reference/query') {
-        const request = body as { entity: 'customer-account' | 'employee' }
-        if (request.entity === 'customer-account') {
+        const request = body as { entity: 'customer-subunit' | 'employee' }
+        if (request.entity === 'customer-subunit') {
           return {
             data: [
               {
@@ -896,7 +896,7 @@ describe('bill voucher view model behavior', () => {
 
     expect(mockedPost).toHaveBeenCalledWith(
       'bob/reference/query',
-      { entity: 'customer-account' },
+      { entity: 'customer-subunit' },
       expect.anything(),
     )
     expect(mockedPost).toHaveBeenCalledWith(
@@ -910,7 +910,7 @@ describe('bill voucher view model behavior', () => {
         approvalEntryId: 'customer-ver',
         code: 'CUS-001',
         name: '客户 A',
-        entity: 'customer-account',
+        entity: 'customer-subunit',
       },
     ])
     expect(vm.handlerOptions.value).toEqual([

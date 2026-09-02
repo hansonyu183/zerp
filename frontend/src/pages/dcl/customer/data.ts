@@ -1,13 +1,14 @@
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import type { DclDeclarationWireAction } from '../shared/declaration'
-import { sortedCostItems } from '../customer-account/form'
-import type { CustomerAccountForm } from '../customer-account/types'
+import { sortedCostItems } from '../customer-subunit/form'
+import type { CustomerSubunitForm } from '../customer-subunit/types'
 
 export type DclCustomerListItem = components['schemas']['DclCustomerListItem']
 export type DclCustomerView = components['schemas']['DclCustomerView']
 export type DclCustomerData = components['schemas']['DclCustomerData']
 type DclCustomerInput = components['schemas']['DclCustomerInput']
+type DclCustomerRootInput = components['schemas']['DclCustomerRootInput']
 
 export interface DclCustomerCreateForm {
   kind: 'MAINLAND_ENTERPRISE' | 'MAINLAND_INDIVIDUAL' | 'OTHER'
@@ -29,18 +30,17 @@ export interface DclCustomerCreateForm {
   }>
   defaultOperatingEntityId: string
   enabled: boolean
-  accounts: CustomerAccountForm[]
+  subunits: CustomerSubunitForm[]
 }
 
 const optional = (value: string): string | null => value.trim() || null
 
-export function dclCustomerAccountPayload(
-  form: CustomerAccountForm,
-): components['schemas']['DclCustomerAccountInput'] {
+export function dclCustomerSubunitPayload(
+  form: CustomerSubunitForm,
+): components['schemas']['DclCustomerSubunitInput'] {
   return {
-    ...(form.accountId ? { accountId: form.accountId } : {}),
+    ...(form.subunitId ? { subunitId: form.subunitId } : {}),
     enabled: form.enabled,
-    isDefault: form.isDefault,
     name: form.name.trim(),
     shortName: optional(form.shortName),
     customerTypeId: form.customerTypeId.trim(),
@@ -91,9 +91,9 @@ export function dclCustomerAccountPayload(
   }
 }
 
-export function dclCustomerPayload(
+export function dclCustomerRootPayload(
   form: DclCustomerCreateForm,
-): DclCustomerInput {
+): DclCustomerRootInput {
   return {
     kind: form.kind,
     legalName: form.legalName.trim(),
@@ -116,7 +116,15 @@ export function dclCustomerPayload(
       })),
     defaultOperatingEntityId: form.defaultOperatingEntityId.trim(),
     enabled: form.enabled,
-    accounts: form.accounts.map(dclCustomerAccountPayload),
+  }
+}
+
+export function dclCustomerPayload(
+  form: DclCustomerCreateForm,
+): DclCustomerInput {
+  return {
+    root: dclCustomerRootPayload(form),
+    subunits: form.subunits.map(dclCustomerSubunitPayload),
   }
 }
 
@@ -159,9 +167,18 @@ export function saveDclCustomer(request: {
   objectId: string
   approvalEntryId: string
   approvalRevision: number
-  data: DclCustomerInput
+  data: DclCustomerRootInput
 }) {
   return apiClient.postContract('dcl/customer/save', request)
+}
+
+export function saveDclCustomerSubunits(request: {
+  objectId: string
+  approvalEntryId: string
+  approvalRevision: number
+  subunits: components['schemas']['DclCustomerSubunitInput'][]
+}) {
+  return apiClient.postContract('dcl/customer/save-subunits', request)
 }
 
 export async function runDclCustomerAction(
@@ -202,13 +219,12 @@ export async function loadDclCustomerAudit(objectId: string) {
   return data
 }
 
-export function customerAccountFormFromData(
-  data: DclCustomerData['accounts'][number],
-): CustomerAccountForm {
+export function customerSubunitFormFromData(
+  data: DclCustomerData['subunits'][number],
+): CustomerSubunitForm {
   return {
-    accountId: data.accountId,
+    subunitId: data.subunitId,
     enabled: data.enabled,
-    isDefault: data.isDefault,
     name: data.name,
     shortName: data.shortName ?? '',
     customerTypeId: data.customerTypeId,
@@ -259,6 +275,6 @@ export function customerFormFromView(
     })),
     defaultOperatingEntityId: data.defaultOperatingEntityId,
     enabled: data.enabled,
-    accounts: data.accounts.map(customerAccountFormFromData),
+    subunits: data.subunits.map(customerSubunitFormFromData),
   }
 }

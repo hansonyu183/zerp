@@ -78,7 +78,7 @@ func TestApplySettlementTermsAcceptsCustomerArrivalDueDaysSnapshot(t *testing.T)
 		Products: []bobdomain.EffectiveReference{{Data: settlementTestProduct(bobdomain.ProductBehaviorRawMaterial)}},
 	}
 	if err := applySettlementTerms(EntitySaleOrder, &draft, refs); err != nil {
-		t.Fatalf("apply Customer Account ARRIVAL_7 terms: %v", err)
+		t.Fatalf("apply Customer Subunit ARRIVAL_7 terms: %v", err)
 	}
 	fields := settlementSnapshot(refs.CustomerSettlement, 31)
 	if fields.DayOffset == nil || *fields.DayOffset != 7 || fields.DueDays == nil || *fields.DueDays != 7 {

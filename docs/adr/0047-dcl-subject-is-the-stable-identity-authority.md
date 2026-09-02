@@ -13,7 +13,7 @@ supersedes: ADR-0033, ADR-0034, ADR-0035, ADR-0036, ADR-0037, ADR-0039, ADR-0040
 
 Operating Entity、Warehouse、Vehicle、Fund Account 与 Product 的 stable ID、code、Approval Entry、版本与历史 snapshot 均由 DCL 和中央 Approval 按上述边界持有。编码计数器位于 DCL domain，并保持单调且不复用。Product formula、unit conversion、identifier claim、Vehicle carrier、Fund Account ownership 及全部历史精确引用继续使用强类型约束。
 
-Employee、Customer、Supplier、Other Unit 与 Sales Partner 各自采用独立 subject 边界，并在自己的 typed snapshot 中保存身份、强标识和业务属性；不存在共享 Party、relationship root、合并或跨类型标识同步。Customer 直接拥有身份、税务、开票、回款、默认经营主体及全部核算账户。核算账户只在 Customer 聚合内保存稳定 `accountId` 和客户内编码，不是 `dcl_subjects`、Approval subject、独立工作台或独立 current 实体；账户历史以 `customerId + accountId + customerApprovalEntryId` 精确定位。各实体的 latest-approved payload 只存在于对应 DCL typed snapshot；BOB 不持有第二套 identity 或 current 存储。
+Employee、Customer、Supplier、Other Unit 与 Sales Partner 各自采用独立 subject 边界，并在自己的 typed snapshot 中保存身份、强标识和业务属性；不存在共享 Party、relationship root、合并或跨类型标识同步。Customer 直接拥有身份、税务、开票、回款、默认经营主体及全部客户子单位。客户子单位只在 Customer 聚合内保存稳定 `subunitId` 和客户内编码，不是 `dcl_subjects`、Approval subject、独立工作台或独立 current 实体；子单位历史以 `customerId + subunitId + customerApprovalEntryId` 精确定位。各实体的 latest-approved payload 只存在于对应 DCL typed snapshot；BOB 不持有第二套 identity 或 current 存储。
 
 报表定义使用 `dcl_subjects(entity=rpt-definition)` 持有 stable ID、code 与创建审计，Approval 持有 entry、version、revision 与事件，`dcl_rpt_definition_versions` 保存所有业务 snapshot（包括 `enabled`）。RPT 只以 `rpt_definition_validities(approvalEntryId)` 保存技术有效性，以 runtime audit 保存实际执行 entry；它不保存 definition identity、revision 或 current pointer。BOB 只按 typed subject、highest APPROVED entry 与 snapshot 提供当前有效的只读业务资料；DCL 通用 counter 持有 RPT sequence，AUX 与 ACC 的独立计数命名空间不变。
 

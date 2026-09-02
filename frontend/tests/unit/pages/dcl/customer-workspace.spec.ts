@@ -33,10 +33,11 @@ describe('DCL customer workspace', () => {
     mockedPost.mockResolvedValue({ data: { items: [], total: 0, page: 1 } })
   })
 
-  it('keeps customer accounts in one complete customer payload with exactly one default', async () => {
+  it('creates a customer from one root and its subunits without a persisted default', async () => {
     const session = useSessionStore()
     session.permissions = [
       '/dcl/customer/create',
+      '/dcl/customer/save-subunits',
       '/bob/operating-entity/query',
       '/aux/reference/query',
       '/bob/reference/query',
@@ -45,33 +46,37 @@ describe('DCL customer workspace', () => {
     const form = createCustomerForm()
     form.legalName = '华南客户有限公司'
     form.defaultOperatingEntityId = 'OPE-1'
-    form.accounts[0]!.name = '主结算账户'
-    form.accounts[0]!.primarySalesAttribution.subjectObjectId = 'EMP-1'
+    form.subunits[0]!.name = '总部'
+    form.subunits[0]!.primarySalesAttribution.subjectObjectId = 'EMP-1'
     vm.createForm.value = form
-    vm.addAccount()
-    vm.createForm.value.accounts[1]!.name = '备用结算账户'
-    vm.createForm.value.accounts[1]!.primarySalesAttribution.subjectObjectId =
+    vm.addSubunit()
+    vm.createForm.value.subunits[1]!.name = '项目部'
+    vm.createForm.value.subunits[1]!.primarySalesAttribution.subjectObjectId =
       'EMP-1'
-    vm.setDefaultAccount(1)
-
     await vm.create()
 
     expect(mockedPost).toHaveBeenCalledWith('dcl/customer/create', {
-      data: expect.objectContaining({
-        legalName: '华南客户有限公司',
-        defaultOperatingEntityId: 'OPE-1',
-        accounts: [
-          expect.objectContaining({ isDefault: false, enabled: true }),
-          expect.objectContaining({ isDefault: true, enabled: true }),
+      data: {
+        root: expect.objectContaining({
+          legalName: '华南客户有限公司',
+          defaultOperatingEntityId: 'OPE-1',
+        }),
+        subunits: [
+          expect.objectContaining({ name: '总部', enabled: true }),
+          expect.objectContaining({ name: '项目部', enabled: true }),
         ],
-      }),
+      },
     })
+    expect(mockedPost.mock.calls[0]?.[1]).not.toHaveProperty(
+      'data.subunits.0.isDefault',
+    )
   })
 
   it('allows a blank legal identifier in a draft but blocks an invalid non-empty enterprise identifier', async () => {
     const session = useSessionStore()
     session.permissions = [
       '/dcl/customer/create',
+      '/dcl/customer/save-subunits',
       '/bob/operating-entity/query',
       '/aux/reference/query',
       '/bob/reference/query',
@@ -81,8 +86,8 @@ describe('DCL customer workspace', () => {
     form.legalName = '待校验客户'
     form.legalIdentifier = '91350211M000100Y47'
     form.defaultOperatingEntityId = 'OPE-1'
-    form.accounts[0]!.name = '主结算账户'
-    form.accounts[0]!.primarySalesAttribution.subjectObjectId = 'EMP-1'
+    form.subunits[0]!.name = '总部'
+    form.subunits[0]!.primarySalesAttribution.subjectObjectId = 'EMP-1'
     vm.createForm.value = form
 
     await expect(vm.create()).resolves.toBe(false)
@@ -143,6 +148,32 @@ describe('DCL customer workspace', () => {
     })
   })
 
+  it('keeps root and subunit maintenance permissions independent', () => {
+    const session = useSessionStore()
+    session.permissions = [
+      '/dcl/customer/get',
+      '/dcl/customer/save',
+      '/bob/operating-entity/query',
+      '/aux/reference/query',
+      '/bob/reference/query',
+    ]
+    const rootEditor = useDclCustomerViewModel()
+    expect(rootEditor.canEditRoot.value).toBe(true)
+    expect(rootEditor.canEditSubunits.value).toBe(false)
+    expect(rootEditor.canCreate.value).toBe(false)
+
+    session.permissions = [
+      '/dcl/customer/get',
+      '/dcl/customer/save-subunits',
+      '/bob/operating-entity/query',
+      '/aux/reference/query',
+      '/bob/reference/query',
+    ]
+    const subunitEditor = useDclCustomerViewModel()
+    expect(subunitEditor.canEditRoot.value).toBe(false)
+    expect(subunitEditor.canEditSubunits.value).toBe(true)
+  })
+
   it('round-trips the single legal identifier and multi-currency credit limits', () => {
     const form = customerFormFromView({
       data: {
@@ -153,11 +184,10 @@ describe('DCL customer workspace', () => {
         remittanceProfiles: [],
         defaultOperatingEntityId: 'OPE-1',
         enabled: true,
-        accounts: [
+        subunits: [
           {
-            accountId: 'ACC-1',
+            subunitId: 'SUB-1',
             enabled: true,
-            isDefault: true,
             name: '主账户',
             customerTypeId: 'TYPE-1',
             transportSurcharge: '0.00',
@@ -182,14 +212,14 @@ describe('DCL customer workspace', () => {
     } as never)
 
     const payload = dclCustomerPayload(form)
-    expect(payload.legalIdentifier).toBe('91350211M000100Y46')
-    expect(payload.accounts[0]?.creditLimits).toEqual([
+    expect(payload.root.legalIdentifier).toBe('91350211M000100Y46')
+    expect(payload.subunits[0]?.creditLimits).toEqual([
       { currency: 'CNY', amount: '1000.00' },
       { currency: 'USD', amount: '200.00' },
     ])
   })
 
-  it('isolates async sales-attribution candidates by account', async () => {
+  it('isolates async sales-attribution candidates by subunit', async () => {
     vi.useFakeTimers()
     const session = useSessionStore()
     mockedPost.mockImplementation(async (...args) => {
@@ -203,8 +233,8 @@ describe('DCL customer workspace', () => {
       } as never
     })
     const vm = useDclCustomerViewModel()
-    vm.addAccount(vm.createForm.value)
-    vm.createForm.value.accounts[1]!.primarySalesAttribution.type =
+    vm.addSubunit(vm.createForm.value)
+    vm.createForm.value.subunits[1]!.primarySalesAttribution.type =
       'CHANNEL_PARTNER'
     session.permissions = [
       '/bob/operating-entity/query',
@@ -218,13 +248,13 @@ describe('DCL customer workspace', () => {
     await Promise.resolve()
 
     expect(
-      vm.referenceOptionsForAccount(
+      vm.referenceOptionsForSubunit(
         0,
         'primarySalesAttributionSubjectObjectId',
       ),
     ).toEqual([{ value: 'EMP-1', title: 'EMP-001 · 内部业务员' }])
     expect(
-      vm.referenceOptionsForAccount(
+      vm.referenceOptionsForSubunit(
         1,
         'primarySalesAttributionSubjectObjectId',
       ),

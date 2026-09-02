@@ -7,20 +7,21 @@ import {
   type ApprovalAction,
 } from '@/shared/approval'
 import {
-  createCustomerAccountForm,
-  customerAccountFormErrors,
-} from '../customer-account/form'
+  createCustomerSubunitForm,
+  customerSubunitFormErrors,
+} from '../customer-subunit/form'
 import {
-  queryCustomerAccountReference,
+  queryCustomerSubunitReference,
   queryOperatingEntityReferences,
-  type CustomerAccountReferenceKey,
+  type CustomerSubunitReferenceKey,
   type CustomerReferenceOption,
-} from '../customer-account/references'
-import type { CustomerAccountForm } from '../customer-account/types'
+} from '../customer-subunit/references'
+import type { CustomerSubunitForm } from '../customer-subunit/types'
 import {
   createDclCustomer,
   customerFormFromView,
-  dclCustomerPayload,
+  dclCustomerRootPayload,
+  dclCustomerSubunitPayload,
   deleteDclCustomer,
   getDclCustomer,
   loadDclCustomerAudit,
@@ -28,13 +29,14 @@ import {
   queryDclCustomers,
   runDclCustomerAction,
   saveDclCustomer,
+  saveDclCustomerSubunits,
   type DclCustomerCreateForm,
   type DclCustomerListItem,
   type DclCustomerView,
 } from './data'
 import { customerLegalIdentifierError } from './legal-identifier'
 
-type CustomerReferenceKey = 'operatingEntityId' | CustomerAccountReferenceKey
+type CustomerReferenceKey = 'operatingEntityId' | CustomerSubunitReferenceKey
 type CustomerEditAction = { key: 'edit' | 'view'; label: string; icon: string }
 
 export function customerActiveVersion(row: DclCustomerListItem) {
@@ -78,17 +80,17 @@ export function createCustomerForm(): DclCustomerCreateForm {
     remittanceProfiles: [],
     defaultOperatingEntityId: '',
     enabled: true,
-    accounts: [createCustomerAccountForm()],
+    subunits: [createCustomerSubunitForm()],
   }
 }
 
-function accountReferenceValue(
-  account: CustomerAccountForm,
-  key: CustomerAccountReferenceKey,
+function subunitReferenceValue(
+  subunit: CustomerSubunitForm,
+  key: CustomerSubunitReferenceKey,
 ): string {
   return key === 'primarySalesAttributionSubjectObjectId'
-    ? account.primarySalesAttribution.subjectObjectId
-    : account[key]
+    ? subunit.primarySalesAttribution.subjectObjectId
+    : subunit[key]
 }
 
 export function useDclCustomerViewModel() {
@@ -136,13 +138,13 @@ export function useDclCustomerViewModel() {
     paymentMethodId: null,
     primarySalesAttributionSubjectObjectId: null,
   })
-  const accountReferenceOptionsByScope = ref<
+  const subunitReferenceOptionsByScope = ref<
     Record<string, CustomerReferenceOption[]>
   >({})
-  const accountReferenceLoadingByScope = ref<Record<string, boolean>>({})
-  const accountReferenceErrorByScope = ref<Record<string, string | null>>({})
-  const accountReferenceIDs = new WeakMap<CustomerAccountForm, number>()
-  let nextAccountReferenceID = 1
+  const subunitReferenceLoadingByScope = ref<Record<string, boolean>>({})
+  const subunitReferenceErrorByScope = ref<Record<string, string | null>>({})
+  const subunitReferenceIDs = new WeakMap<CustomerSubunitForm, number>()
+  let nextSubunitReferenceID = 1
   const referenceSequences = new Map<string, number>()
   const referenceTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const canQueryReferences = computed(
@@ -151,16 +153,29 @@ export function useDclCustomerViewModel() {
       session.can('/aux/reference/query') &&
       session.can('/bob/reference/query'),
   )
+  const canMaintainSubunits = computed(() =>
+    session.can('/dcl/customer/save-subunits'),
+  )
   const canCreate = computed(
-    () => session.can('/dcl/customer/create') && canQueryReferences.value,
+    () =>
+      session.can('/dcl/customer/create') &&
+      canMaintainSubunits.value &&
+      canQueryReferences.value,
   )
   const canGet = computed(() => session.can('/dcl/customer/get'))
-  const canEdit = computed(
+  const canRead = computed(
+    () => canGet.value || session.can('/dcl/customer/approve'),
+  )
+  const canEditRoot = computed(
     () =>
       canGet.value &&
       session.can('/dcl/customer/save') &&
       canQueryReferences.value,
   )
+  const canEditSubunits = computed(
+    () => canGet.value && canMaintainSubunits.value && canQueryReferences.value,
+  )
+  const canEdit = computed(() => canEditRoot.value || canEditSubunits.value)
   const editorEditable = computed(
     () =>
       currentView.value !== null &&
@@ -178,7 +193,7 @@ export function useDclCustomerViewModel() {
   function actionAvailability(row: DclCustomerListItem) {
     const active = customerActiveVersion(row)
     return {
-      view: canGet.value,
+      view: canRead.value,
       edit: customerPrimaryAction(row, canEdit.value).key === 'edit',
       delete:
         session.can('/dcl/customer/delete') &&
@@ -217,65 +232,65 @@ export function useDclCustomerViewModel() {
   function activeForm(): DclCustomerCreateForm {
     return drawerOpen.value ? editorForm.value : createForm.value
   }
-  function accountReferenceScope(
-    account: CustomerAccountForm,
-    key: CustomerAccountReferenceKey,
+  function subunitReferenceScope(
+    subunit: CustomerSubunitForm,
+    key: CustomerSubunitReferenceKey,
   ): string {
-    let id = accountReferenceIDs.get(account)
+    let id = subunitReferenceIDs.get(subunit)
     if (!id) {
-      id = nextAccountReferenceID++
-      accountReferenceIDs.set(account, id)
+      id = nextSubunitReferenceID++
+      subunitReferenceIDs.set(subunit, id)
     }
     return `${id}:${key}`
   }
-  function referenceOptionsForAccount(
+  function referenceOptionsForSubunit(
     index: number,
-    key: CustomerAccountReferenceKey,
+    key: CustomerSubunitReferenceKey,
   ): CustomerReferenceOption[] {
-    const account = activeForm().accounts[index]
-    return account
-      ? (accountReferenceOptionsByScope.value[
-          accountReferenceScope(account, key)
+    const subunit = activeForm().subunits[index]
+    return subunit
+      ? (subunitReferenceOptionsByScope.value[
+          subunitReferenceScope(subunit, key)
         ] ?? [])
       : []
   }
-  function referenceLoadingForAccount(
+  function referenceLoadingForSubunit(
     index: number,
-    key: CustomerAccountReferenceKey,
+    key: CustomerSubunitReferenceKey,
   ): boolean {
-    const account = activeForm().accounts[index]
-    return account
-      ? (accountReferenceLoadingByScope.value[
-          accountReferenceScope(account, key)
+    const subunit = activeForm().subunits[index]
+    return subunit
+      ? (subunitReferenceLoadingByScope.value[
+          subunitReferenceScope(subunit, key)
         ] ?? false)
       : false
   }
-  function referenceErrorForAccount(
+  function referenceErrorForSubunit(
     index: number,
-    key: CustomerAccountReferenceKey,
+    key: CustomerSubunitReferenceKey,
   ): string | null {
-    const account = activeForm().accounts[index]
-    return account
-      ? (accountReferenceErrorByScope.value[
-          accountReferenceScope(account, key)
+    const subunit = activeForm().subunits[index]
+    return subunit
+      ? (subunitReferenceErrorByScope.value[
+          subunitReferenceScope(subunit, key)
         ] ?? null)
       : null
   }
-  function selectedAccountReferenceTitle(
-    account: CustomerAccountForm,
-    key: CustomerAccountReferenceKey,
+  function selectedSubunitReferenceTitle(
+    subunit: CustomerSubunitForm,
+    key: CustomerSubunitReferenceKey,
   ): string {
-    const accountID = account.accountId
-    const snapshot = accountID
-      ? currentView.value?.data.accounts.find(
-          (item) => item.accountId === accountID,
+    const subunitID = subunit.subunitId
+    const snapshot = subunitID
+      ? currentView.value?.data.subunits.find(
+          (item) => item.subunitId === subunitID,
         )
       : undefined
     if (key === 'primarySalesAttributionSubjectObjectId') {
       const reference = snapshot?.primarySalesAttribution
       return reference?.subjectCode && reference.subjectName
         ? `${reference.subjectCode} · ${reference.subjectName}`
-        : accountReferenceValue(account, key)
+        : subunitReferenceValue(subunit, key)
     }
     const reference =
       key === 'customerTypeId'
@@ -283,11 +298,11 @@ export function useDclCustomerViewModel() {
         : key === 'settlementMethodId'
           ? snapshot?.settlementMethod
           : snapshot?.paymentMethod
-    if (!reference) return accountReferenceValue(account, key)
+    if (!reference) return subunitReferenceValue(subunit, key)
     const { code, name } = reference
     return code && name
       ? `${code} · ${name}`
-      : accountReferenceValue(account, key)
+      : subunitReferenceValue(subunit, key)
   }
   function mergeSelectedOperatingEntity(options: CustomerReferenceOption[]) {
     const selected = activeForm().defaultOperatingEntityId
@@ -310,27 +325,27 @@ export function useDclCustomerViewModel() {
         title: selected,
       })
   }
-  function mergeSelectedAccountReference(
-    account: CustomerAccountForm,
-    key: CustomerAccountReferenceKey,
+  function mergeSelectedSubunitReference(
+    subunit: CustomerSubunitForm,
+    key: CustomerSubunitReferenceKey,
     options: CustomerReferenceOption[],
   ) {
-    const scope = accountReferenceScope(account, key)
+    const scope = subunitReferenceScope(subunit, key)
     const merged = [
       ...options,
-      ...(accountReferenceOptionsByScope.value[scope] ?? []),
+      ...(subunitReferenceOptionsByScope.value[scope] ?? []),
     ].filter(
       (option, index, all) =>
         all.findIndex((candidate) => candidate.value === option.value) ===
         index,
     )
-    const selected = accountReferenceValue(account, key)
+    const selected = subunitReferenceValue(subunit, key)
     if (selected && !merged.some((option) => option.value === selected))
       merged.push({
         value: selected,
-        title: selectedAccountReferenceTitle(account, key),
+        title: selectedSubunitReferenceTitle(subunit, key),
       })
-    accountReferenceOptionsByScope.value[scope] = merged
+    subunitReferenceOptionsByScope.value[scope] = merged
   }
   async function loadOperatingEntityReference(
     keywordValue = '',
@@ -353,57 +368,57 @@ export function useDclCustomerViewModel() {
         referenceLoading.value[key] = false
     }
   }
-  async function loadAccountReference(
-    account: CustomerAccountForm,
-    key: CustomerAccountReferenceKey,
+  async function loadSubunitReference(
+    subunit: CustomerSubunitForm,
+    key: CustomerSubunitReferenceKey,
     keywordValue = '',
   ): Promise<void> {
-    if (!canQueryReferences.value || !activeForm().accounts.includes(account))
+    if (!canQueryReferences.value || !activeForm().subunits.includes(subunit))
       return
-    const scope = accountReferenceScope(account, key)
+    const scope = subunitReferenceScope(subunit, key)
     const sequence = (referenceSequences.get(scope) ?? 0) + 1
     referenceSequences.set(scope, sequence)
-    accountReferenceLoadingByScope.value[scope] = true
-    accountReferenceErrorByScope.value[scope] = null
+    subunitReferenceLoadingByScope.value[scope] = true
+    subunitReferenceErrorByScope.value[scope] = null
     try {
-      const options = await queryCustomerAccountReference(
+      const options = await queryCustomerSubunitReference(
         key,
         keywordValue.trim(),
-        account.primarySalesAttribution.type,
+        subunit.primarySalesAttribution.type,
       )
       if (referenceSequences.get(scope) === sequence)
-        mergeSelectedAccountReference(account, key, options)
+        mergeSelectedSubunitReference(subunit, key, options)
     } catch (error) {
       if (referenceSequences.get(scope) === sequence)
-        accountReferenceErrorByScope.value[scope] = getErrorMessage(error)
+        subunitReferenceErrorByScope.value[scope] = getErrorMessage(error)
     } finally {
       if (referenceSequences.get(scope) === sequence)
-        accountReferenceLoadingByScope.value[scope] = false
+        subunitReferenceLoadingByScope.value[scope] = false
     }
   }
   function preloadReferences() {
     void loadOperatingEntityReference()
-    for (const account of activeForm().accounts)
+    for (const subunit of activeForm().subunits)
       for (const key of [
         'customerTypeId',
         'settlementMethodId',
         'paymentMethodId',
         'primarySalesAttributionSubjectObjectId',
-      ] as CustomerAccountReferenceKey[])
-        void loadAccountReference(account, key)
+      ] as CustomerSubunitReferenceKey[])
+        void loadSubunitReference(subunit, key)
   }
   function searchReference(
     key: CustomerReferenceKey,
     keywordValue: string,
     accountIndex = 0,
   ) {
-    const account =
+    const subunit =
       key === 'operatingEntityId'
         ? undefined
-        : activeForm().accounts[accountIndex]
-    if (key !== 'operatingEntityId' && !account) return
-    const scope = account
-      ? accountReferenceScope(account, key as CustomerAccountReferenceKey)
+        : activeForm().subunits[accountIndex]
+    if (key !== 'operatingEntityId' && !subunit) return
+    const scope = subunit
+      ? subunitReferenceScope(subunit, key as CustomerSubunitReferenceKey)
       : key
     const previous = referenceTimers.get(scope)
     if (previous) clearTimeout(previous)
@@ -413,7 +428,7 @@ export function useDclCustomerViewModel() {
         referenceTimers.delete(scope)
         if (key === 'operatingEntityId')
           void loadOperatingEntityReference(keywordValue)
-        else if (account) void loadAccountReference(account, key, keywordValue)
+        else if (subunit) void loadSubunitReference(subunit, key, keywordValue)
       }, 250),
     )
   }
@@ -455,29 +470,21 @@ export function useDclCustomerViewModel() {
     createOpen.value = true
     preloadReferences()
   }
-  function addAccount(target = activeForm()) {
-    const account = createCustomerAccountForm()
-    account.isDefault = target.accounts.length === 0
-    target.accounts.push(account)
+  function addSubunit(target = activeForm()) {
+    const subunit = createCustomerSubunitForm()
+    target.subunits.push(subunit)
     if (target === activeForm() && canQueryReferences.value)
       for (const key of [
         'customerTypeId',
         'settlementMethodId',
         'paymentMethodId',
         'primarySalesAttributionSubjectObjectId',
-      ] as CustomerAccountReferenceKey[])
-        void loadAccountReference(account, key)
+      ] as CustomerSubunitReferenceKey[])
+        void loadSubunitReference(subunit, key)
   }
-  function removeAccount(index: number, target = activeForm()) {
-    if (target.accounts.length <= 1) return
-    const removedDefault = target.accounts[index]?.isDefault
-    target.accounts.splice(index, 1)
-    if (removedDefault) target.accounts[0]!.isDefault = true
-  }
-  function setDefaultAccount(index: number, target = activeForm()) {
-    target.accounts.forEach((account, accountIndex) => {
-      account.isDefault = accountIndex === index
-    })
+  function removeSubunit(index: number, target = activeForm()) {
+    if (target.subunits.length <= 1) return
+    target.subunits.splice(index, 1)
   }
   function addRemittanceProfile(target = activeForm()) {
     target.remittanceProfiles.push({
@@ -489,7 +496,7 @@ export function useDclCustomerViewModel() {
   function removeRemittanceProfile(index: number, target = activeForm()) {
     target.remittanceProfiles.splice(index, 1)
   }
-  function formErrors(form: DclCustomerCreateForm): string[] {
+  function rootFormErrors(form: DclCustomerCreateForm): string[] {
     if (!form.legalName.trim()) return ['请填写法定名称。']
     const legalIdentifierError = customerLegalIdentifierError(
       form.kind,
@@ -497,17 +504,23 @@ export function useDclCustomerViewModel() {
     )
     if (legalIdentifierError) return [legalIdentifierError]
     if (!form.defaultOperatingEntityId.trim()) return ['请选择默认经营主体。']
-    if (!form.accounts.length) return ['请至少保留一个结算账户。']
-    if (form.accounts.filter((account) => account.isDefault).length !== 1)
-      return ['请设置且只设置一个默认结算账户。']
-    return form.accounts.flatMap(customerAccountFormErrors)
+    return []
+  }
+  function subunitFormErrors(form: DclCustomerCreateForm): string[] {
+    if (!form.subunits.length) return ['请至少保留一个客户子单位。']
+    if (form.enabled && !form.subunits.some((subunit) => subunit.enabled))
+      return ['启用客户至少需要一个启用客户子单位。']
+    return form.subunits.flatMap(customerSubunitFormErrors)
   }
   async function create() {
     if (!canCreate.value) {
       errorMessage.value = '缺少创建客户所需的引用查询权限。'
       return false
     }
-    const errors = formErrors(createForm.value)
+    const errors = [
+      ...rootFormErrors(createForm.value),
+      ...subunitFormErrors(createForm.value),
+    ]
     if (errors.length) {
       errorMessage.value = errors[0]!
       return false
@@ -529,8 +542,8 @@ export function useDclCustomerViewModel() {
   }
   async function save() {
     const view = currentView.value
-    if (!view || !editorEditable.value || saving.value) return false
-    const errors = formErrors(editorForm.value)
+    if (!view || !canEditRoot.value || saving.value) return false
+    const errors = rootFormErrors(editorForm.value)
     if (errors.length) {
       errorMessage.value = errors[0]!
       return false
@@ -541,7 +554,7 @@ export function useDclCustomerViewModel() {
         objectId: view.objectId,
         approvalEntryId: view.approval.approvalEntryId,
         approvalRevision: view.approval.revision,
-        data: dclCustomerPayload(editorForm.value),
+        data: dclCustomerRootPayload(editorForm.value),
       })
       await openById(view.objectId, 'edit')
       await query()
@@ -549,6 +562,36 @@ export function useDclCustomerViewModel() {
       return true
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
+      await openById(view.objectId, 'edit')
+      await query()
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+  async function saveSubunits() {
+    const view = currentView.value
+    if (!view || !canEditSubunits.value || saving.value) return false
+    const errors = subunitFormErrors(editorForm.value)
+    if (errors.length) {
+      errorMessage.value = errors[0]!
+      return false
+    }
+    saving.value = true
+    try {
+      await saveDclCustomerSubunits({
+        objectId: view.objectId,
+        approvalEntryId: view.approval.approvalEntryId,
+        approvalRevision: view.approval.revision,
+        subunits: editorForm.value.subunits.map(dclCustomerSubunitPayload),
+      })
+      await openById(view.objectId, 'edit')
+      await query()
+      successMessage.value = '客户子单位已保存。'
+      return true
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+      await openById(view.objectId, 'edit')
       await query()
       return false
     } finally {
@@ -646,6 +689,8 @@ export function useDclCustomerViewModel() {
     referenceError,
     canCreate,
     canEdit,
+    canEditRoot,
+    canEditSubunits,
     editorEditable,
     actionAvailability,
     query,
@@ -655,17 +700,17 @@ export function useDclCustomerViewModel() {
     openCreate,
     create,
     save,
+    saveSubunits,
     runAction,
     remove,
     openVersions,
     openAudit,
     searchReference,
-    referenceOptionsForAccount,
-    referenceLoadingForAccount,
-    referenceErrorForAccount,
-    addAccount,
-    removeAccount,
-    setDefaultAccount,
+    referenceOptionsForSubunit,
+    referenceLoadingForSubunit,
+    referenceErrorForSubunit,
+    addSubunit,
+    removeSubunit,
     addRemittanceProfile,
     removeRemittanceProfile,
   }

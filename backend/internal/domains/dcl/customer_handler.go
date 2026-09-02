@@ -11,12 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/authmiddleware"
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
+	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type customerApplicationService interface {
 	Create(context.Context, CustomerCreateInput, approval.Actor) (CustomerMutation, error)
 	Save(context.Context, CustomerSaveInput, approval.Actor) (CustomerMutation, error)
+	SaveSubunits(context.Context, CustomerSaveSubunitsInput, approval.Actor) (CustomerMutation, error)
 	Submit(context.Context, CustomerVersionInput, approval.Actor) (CustomerMutation, error)
 	Unsubmit(context.Context, CustomerReviewInput, approval.Actor) (CustomerMutation, error)
 	Reject(context.Context, CustomerReviewInput, approval.Actor) (CustomerMutation, error)
@@ -37,7 +39,7 @@ type customerAttachmentApplicationService interface {
 	OpenDownload(context.Context, string) (CustomerAttachmentDownloadFile, error)
 }
 
-// CustomerHandler exposes the complete Customer aggregate. Accounts are child
+// CustomerHandler exposes the complete Customer aggregate. Subunits are child
 // lines and never own routes or approval actions.
 type CustomerHandler struct {
 	service     customerApplicationService
@@ -54,20 +56,17 @@ func (h *CustomerHandler) Register(router *gin.Engine) {
 	routes := map[string]gin.HandlerFunc{
 		"create": h.create, "save": h.save, "submit": h.submit, "unsubmit": h.unsubmit,
 		"reject": h.reject, "approve": h.approve, "unapprove": h.unapprove, "delete": h.delete,
-		"get": h.get, "query": h.query, "versions": h.versions, "audit-history": h.auditHistory,
+		"versions": h.versions, "audit-history": h.auditHistory, "save-subunits": h.saveSubunits,
 	}
 	for action, handle := range routes {
 		path := "/dcl/" + EntityCustomer + "/" + action
 		group.POST("/"+action, authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError), handle)
 	}
-	for action, handle := range map[string]gin.HandlerFunc{
-		"attachment-initiate": h.attachmentInitiate,
-		"attachment-download": h.attachmentDownload,
-		"attachment-remove":   h.attachmentRemove,
-	} {
-		path := "/dcl/" + EntityCustomer + "/" + action
-		group.POST("/"+action, authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError), handle)
-	}
+	group.POST("/get", authmiddleware.RequireSession(h.authorizer, "/dcl/customer/get", h.writeAuthorizationError), h.get)
+	group.POST("/query", authmiddleware.RequireSession(h.authorizer, "/dcl/customer/query", h.writeAuthorizationError), h.query)
+	group.POST("/attachment-initiate", authmiddleware.RequireSession(h.authorizer, "/dcl/customer/attachment-initiate", h.writeAuthorizationError), h.attachmentInitiate)
+	group.POST("/attachment-download", authmiddleware.RequireSession(h.authorizer, "/dcl/customer/attachment-download", h.writeAuthorizationError), h.attachmentDownload)
+	group.POST("/attachment-remove", authmiddleware.RequireSession(h.authorizer, "/dcl/customer/attachment-remove", h.writeAuthorizationError), h.attachmentRemove)
 	router.PUT("/files/customer-attachments/upload/:token", h.attachmentUpload)
 	router.GET("/files/customer-attachments/download/:token", h.attachmentFileDownload)
 }
@@ -75,6 +74,9 @@ func (h *CustomerHandler) Register(router *gin.Engine) {
 func (h *CustomerHandler) create(c *gin.Context) {
 	var input CustomerCreateInput
 	if h.bind(c, &input) {
+		if !authmiddleware.CheckPermission(c, h.authorizer, "/dcl/customer/save-subunits", h.writeAuthorizationError) {
+			return
+		}
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.service.Create(c, input, actor) })
 	}
 }
@@ -82,6 +84,12 @@ func (h *CustomerHandler) save(c *gin.Context) {
 	var input CustomerSaveInput
 	if h.bind(c, &input) {
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.service.Save(c, input, actor) })
+	}
+}
+func (h *CustomerHandler) saveSubunits(c *gin.Context) {
+	var input CustomerSaveSubunitsInput
+	if h.bind(c, &input) {
+		h.withActor(c, func(actor approval.Actor) (any, error) { return h.service.SaveSubunits(c, input, actor) })
 	}
 }
 func (h *CustomerHandler) submit(c *gin.Context) {
@@ -122,13 +130,13 @@ func (h *CustomerHandler) delete(c *gin.Context) {
 }
 func (h *CustomerHandler) get(c *gin.Context) {
 	var input CustomerGetInput
-	if h.bind(c, &input) {
+	if h.requireCustomerRead(c, "/dcl/customer/get") && h.bind(c, &input) {
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.service.Get(c, input, actor) })
 	}
 }
 func (h *CustomerHandler) query(c *gin.Context) {
 	var input CustomerQueryInput
-	if h.bind(c, &input) {
+	if h.requireCustomerRead(c, "/dcl/customer/query") && h.bind(c, &input) {
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.service.Query(c, input, actor) })
 	}
 }
@@ -148,6 +156,9 @@ func (h *CustomerHandler) auditHistory(c *gin.Context) {
 func (h *CustomerHandler) attachmentInitiate(c *gin.Context) {
 	var input CustomerAttachmentInitiateInput
 	if h.bind(c, &input) {
+		if !h.requireAttachmentWrite(c, input.Scope, "/dcl/customer/attachment-initiate") {
+			return
+		}
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.attachments.Initiate(c, input, actor) })
 	}
 }
@@ -155,15 +166,48 @@ func (h *CustomerHandler) attachmentInitiate(c *gin.Context) {
 func (h *CustomerHandler) attachmentDownload(c *gin.Context) {
 	var input CustomerAttachmentDownloadInput
 	if h.bind(c, &input) {
+		if !h.requireCustomerRead(c, "/dcl/customer/get") {
+			return
+		}
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.attachments.CreateDownload(c, input, actor.ID()) })
 	}
+}
+
+func (h *CustomerHandler) requireCustomerRead(c *gin.Context, readPath string) bool {
+	principal := authmiddleware.Principal(c)
+	var permissionErr error
+	for _, path := range []string{readPath, "/dcl/customer/approve"} {
+		permissionErr = h.authorizer.RequirePermission(c.Request.Context(), principal, path, response.RequestID(c))
+		if permissionErr == nil {
+			return true
+		}
+		if !authorization.IsKind(permissionErr, authorization.ErrorForbidden) {
+			h.writeAuthorizationError(c, permissionErr)
+			c.Abort()
+			return false
+		}
+	}
+	h.writeAuthorizationError(c, permissionErr)
+	c.Abort()
+	return false
 }
 
 func (h *CustomerHandler) attachmentRemove(c *gin.Context) {
 	var input CustomerAttachmentRemoveInput
 	if h.bind(c, &input) {
+		if !h.requireAttachmentWrite(c, input.Scope, "/dcl/customer/attachment-remove") {
+			return
+		}
 		h.withActor(c, func(actor approval.Actor) (any, error) { return h.attachments.Remove(c, input, actor) })
 	}
+}
+
+func (h *CustomerHandler) requireAttachmentWrite(c *gin.Context, scope, rootPath string) bool {
+	path := rootPath
+	if scope == "CUSTOMER_SUBUNIT" {
+		path = "/dcl/customer/save-subunits"
+	}
+	return authmiddleware.CheckPermission(c, h.authorizer, path, h.writeAuthorizationError)
 }
 
 func (h *CustomerHandler) attachmentUpload(c *gin.Context) {

@@ -19,7 +19,7 @@ export const dimensionOptions: readonly {
   title: string
   value: SubjectDimension
 }[] = [
-  { title: '客户结算账户', value: 'CUSTOMER_ACCOUNT' },
+  { title: '客户子单位', value: 'CUSTOMER_SUBUNIT' },
   { title: '供应商', value: 'SUPPLIER' },
   { title: '其他单位', value: 'OTHER_UNIT' },
   { title: '员工', value: 'EMPLOYEE' },
@@ -120,7 +120,7 @@ export function createAccountingSubjectViewModel() {
     }
     if (
       ['RECEIVABLE', 'ADVANCE_RECEIPT'].includes(form.settlementPurpose) &&
-      !dimensions.has('CUSTOMER_ACCOUNT')
+      !dimensions.has('CUSTOMER_SUBUNIT')
     ) {
       return '该往来用途必须选择客户辅助核算。'
     }

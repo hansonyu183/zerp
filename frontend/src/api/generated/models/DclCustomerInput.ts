@@ -2,24 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { CustomerIdentityKind } from './CustomerIdentityKind';
-import type { DclCustomerAccountInput } from './DclCustomerAccountInput';
-import type { DclCustomerRemittanceProfile } from './DclCustomerRemittanceProfile';
+import type { DclCustomerRootInput } from './DclCustomerRootInput';
+import type { DclCustomerSubunitInput } from './DclCustomerSubunitInput';
 export type DclCustomerInput = {
-  kind: CustomerIdentityKind;
-  legalName: string;
-  displayName?: string | null;
-  legalIdentifier: string | null;
-  phone?: string | null;
-  email?: string | null;
-  address?: string | null;
-  invoiceTitle?: string | null;
-  invoiceAddress?: string | null;
-  invoicePhone?: string | null;
-  invoiceBankName?: string | null;
-  invoiceBankAccount?: string | null;
-  remittanceProfiles: Array<DclCustomerRemittanceProfile>;
-  defaultOperatingEntityId: string;
-  enabled: boolean;
-  accounts: Array<DclCustomerAccountInput>;
+  root: DclCustomerRootInput;
+  subunits: Array<DclCustomerSubunitInput>;
 };

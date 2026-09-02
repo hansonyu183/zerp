@@ -152,7 +152,7 @@ export function useProcessInstanceViewModel() {
     if (disposed) return
     const entities = (
       [
-        ['customer-account', '/bob/customer/query'],
+        ['customer-subunit', '/bob/customer/query'],
         ['supplier', '/bob/supplier/query'],
         ['employee', '/bob/employee/query'],
       ] as const
@@ -175,7 +175,7 @@ export function useProcessInstanceViewModel() {
     try {
       const pages = await Promise.all(
         entities.map(async (entity) => {
-          if (entity === 'customer-account') {
+          if (entity === 'customer-subunit') {
             const { data } = await apiClient.postContract(
               'bob/reference/query',
               {

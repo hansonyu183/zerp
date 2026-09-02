@@ -5,7 +5,7 @@ import type { BusinessObjectColumn } from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
-import CustomerAttachments from '../customer-account/CustomerAttachments.vue'
+import CustomerAttachments from '../customer-subunit/CustomerAttachments.vue'
 import CustomerForm from './CustomerForm.vue'
 import { approvalActionPresentation, approvalEventActionLabels, approvalStatusPresentation } from '@/shared/approval'
 import type { DclCustomerListItem } from './data'
@@ -64,9 +64,9 @@ void vm.query()
   <v-navigation-drawer v-model="vm.drawerOpen" location="end" temporary width="920">
     <v-card v-if="vm.currentView" flat :title="vm.editorMode === 'edit' ? '编辑客户' : '查看客户'">
       <v-card-text><CustomerForm :vm="vm" kind="editor" :readonly="!vm.editorEditable" />
-        <CustomerAttachments scope="CUSTOMER" :owner-approval-entry-id="vm.currentView.approval.approvalEntryId" :approval-revision="vm.currentView.approval.revision" :attachments="vm.currentView.attachments" :editable="vm.editorEditable" @changed="vm.openById(vm.currentView!.objectId, vm.editorMode, vm.currentView!.approval.approvalEntryId)" />
+        <CustomerAttachments scope="CUSTOMER" :owner-approval-entry-id="vm.currentView.approval.approvalEntryId" :approval-revision="vm.currentView.approval.revision" :attachments="vm.currentView.attachments" :editable="vm.canEditRoot" @changed="vm.openById(vm.currentView!.objectId, vm.editorMode, vm.currentView!.approval.approvalEntryId)" />
       </v-card-text>
-      <v-card-actions><v-spacer /><v-btn v-if="vm.editorEditable" color="primary" :loading="vm.saving" @click="vm.save">保存</v-btn><v-btn @click="vm.drawerOpen = false">关闭</v-btn></v-card-actions>
+      <v-card-actions><v-spacer /><v-btn v-if="vm.canEditRoot" color="primary" :loading="vm.saving" @click="vm.save">保存客户资料</v-btn><v-btn v-if="vm.canEditSubunits" color="primary" variant="tonal" :loading="vm.saving" @click="vm.saveSubunits">保存客户子单位</v-btn><v-btn @click="vm.drawerOpen = false">关闭</v-btn></v-card-actions>
     </v-card>
   </v-navigation-drawer>
   <v-dialog v-model="vm.versionsOpen" max-width="720"><v-card title="客户版本历史"><v-list density="compact"><v-list-item v-for="version in vm.versions" :key="version.approval.approvalEntryId" :title="`V${version.approval.versionNo} · ${approvalStatusPresentation[version.approval.status].label}`" :subtitle="version.approval.updatedAt" /></v-list><v-card-actions><v-spacer /><v-btn @click="vm.versionsOpen = false">关闭</v-btn></v-card-actions></v-card></v-dialog>

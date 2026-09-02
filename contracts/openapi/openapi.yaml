@@ -4059,6 +4059,47 @@
                 },
             },
         },
+      '/dcl/customer/save-subunits':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存客户子单位',
+              'operationId': 'dclCustomerSaveSubunits',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclCustomerSaveSubunitsRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户子单位保存响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclCustomerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/dcl/customer/submit':
         {
           'post':

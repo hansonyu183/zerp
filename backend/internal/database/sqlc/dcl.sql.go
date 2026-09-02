@@ -30,40 +30,6 @@ func (q *Queries) CopyDCLAccMappingVersion(ctx context.Context, arg CopyDCLAccMa
 	return result.RowsAffected(), nil
 }
 
-const copyDCLCustomerVersionAccountCreditLimits = `-- name: CopyDCLCustomerVersionAccountCreditLimits :exec
-INSERT INTO dcl_customer_version_account_credit_limits(customer_approval_entry_id,account_id,currency,amount_cents)
-SELECT $1,source.account_id,source.currency,source.amount_cents
-FROM dcl_customer_version_account_credit_limits source
-WHERE source.customer_approval_entry_id=$2
-`
-
-type CopyDCLCustomerVersionAccountCreditLimitsParams struct {
-	NewCustomerApprovalEntryID    string `db:"new_customer_approval_entry_id" json:"new_customer_approval_entry_id"`
-	SourceCustomerApprovalEntryID string `db:"source_customer_approval_entry_id" json:"source_customer_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLCustomerVersionAccountCreditLimits(ctx context.Context, arg CopyDCLCustomerVersionAccountCreditLimitsParams) error {
-	_, err := q.db.Exec(ctx, copyDCLCustomerVersionAccountCreditLimits, arg.NewCustomerApprovalEntryID, arg.SourceCustomerApprovalEntryID)
-	return err
-}
-
-const copyDCLCustomerVersionAccounts = `-- name: CopyDCLCustomerVersionAccounts :exec
-INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default)
-SELECT $1,source.account_id,source.data,source.enabled,source.is_default
-FROM dcl_customer_version_accounts source
-WHERE source.customer_approval_entry_id=$2
-`
-
-type CopyDCLCustomerVersionAccountsParams struct {
-	NewCustomerApprovalEntryID    string `db:"new_customer_approval_entry_id" json:"new_customer_approval_entry_id"`
-	SourceCustomerApprovalEntryID string `db:"source_customer_approval_entry_id" json:"source_customer_approval_entry_id"`
-}
-
-func (q *Queries) CopyDCLCustomerVersionAccounts(ctx context.Context, arg CopyDCLCustomerVersionAccountsParams) error {
-	_, err := q.db.Exec(ctx, copyDCLCustomerVersionAccounts, arg.NewCustomerApprovalEntryID, arg.SourceCustomerApprovalEntryID)
-	return err
-}
-
 const copyDCLCustomerVersionAggregate = `-- name: CopyDCLCustomerVersionAggregate :exec
 INSERT INTO dcl_customer_versions(approval_entry_id,kind,legal_identifier,data,enabled)
 SELECT $1,source.kind,source.legal_identifier,source.data,source.enabled
@@ -78,6 +44,40 @@ type CopyDCLCustomerVersionAggregateParams struct {
 
 func (q *Queries) CopyDCLCustomerVersionAggregate(ctx context.Context, arg CopyDCLCustomerVersionAggregateParams) error {
 	_, err := q.db.Exec(ctx, copyDCLCustomerVersionAggregate, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	return err
+}
+
+const copyDCLCustomerVersionSubunitCreditLimits = `-- name: CopyDCLCustomerVersionSubunitCreditLimits :exec
+INSERT INTO dcl_customer_version_subunit_credit_limits(customer_approval_entry_id,subunit_id,currency,amount_cents)
+SELECT $1,source.subunit_id,source.currency,source.amount_cents
+FROM dcl_customer_version_subunit_credit_limits source
+WHERE source.customer_approval_entry_id=$2
+`
+
+type CopyDCLCustomerVersionSubunitCreditLimitsParams struct {
+	NewCustomerApprovalEntryID    string `db:"new_customer_approval_entry_id" json:"new_customer_approval_entry_id"`
+	SourceCustomerApprovalEntryID string `db:"source_customer_approval_entry_id" json:"source_customer_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLCustomerVersionSubunitCreditLimits(ctx context.Context, arg CopyDCLCustomerVersionSubunitCreditLimitsParams) error {
+	_, err := q.db.Exec(ctx, copyDCLCustomerVersionSubunitCreditLimits, arg.NewCustomerApprovalEntryID, arg.SourceCustomerApprovalEntryID)
+	return err
+}
+
+const copyDCLCustomerVersionSubunits = `-- name: CopyDCLCustomerVersionSubunits :exec
+INSERT INTO dcl_customer_version_subunits(customer_approval_entry_id,subunit_id,data,enabled)
+SELECT $1,source.subunit_id,source.data,source.enabled
+FROM dcl_customer_version_subunits source
+WHERE source.customer_approval_entry_id=$2
+`
+
+type CopyDCLCustomerVersionSubunitsParams struct {
+	NewCustomerApprovalEntryID    string `db:"new_customer_approval_entry_id" json:"new_customer_approval_entry_id"`
+	SourceCustomerApprovalEntryID string `db:"source_customer_approval_entry_id" json:"source_customer_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLCustomerVersionSubunits(ctx context.Context, arg CopyDCLCustomerVersionSubunitsParams) error {
+	_, err := q.db.Exec(ctx, copyDCLCustomerVersionSubunits, arg.NewCustomerApprovalEntryID, arg.SourceCustomerApprovalEntryID)
 	return err
 }
 
@@ -1329,24 +1329,6 @@ func (q *Queries) DeleteDCLAccMappingVersion(ctx context.Context, approvalEntryI
 	return result.RowsAffected(), nil
 }
 
-const deleteDCLCustomerAccountRoot = `-- name: DeleteDCLCustomerAccountRoot :execrows
-DELETE FROM dcl_customer_account_roots
-WHERE account_id=$1 AND customer_id=$2 AND ever_approved=false
-`
-
-type DeleteDCLCustomerAccountRootParams struct {
-	AccountID  string `db:"account_id" json:"account_id"`
-	CustomerID string `db:"customer_id" json:"customer_id"`
-}
-
-func (q *Queries) DeleteDCLCustomerAccountRoot(ctx context.Context, arg DeleteDCLCustomerAccountRootParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDCLCustomerAccountRoot, arg.AccountID, arg.CustomerID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteDCLCustomerLegalIdentifierClaimsForEntry = `-- name: DeleteDCLCustomerLegalIdentifierClaimsForEntry :exec
 UPDATE dcl_customer_legal_identifier_claims AS target SET
   approved_customer_id=CASE WHEN target.approved_approval_entry_id=$1 THEN NULL ELSE target.approved_customer_id END,
@@ -1361,30 +1343,22 @@ func (q *Queries) DeleteDCLCustomerLegalIdentifierClaimsForEntry(ctx context.Con
 	return err
 }
 
-const deleteDCLCustomerVersionAccountCreditLimits = `-- name: DeleteDCLCustomerVersionAccountCreditLimits :exec
-DELETE FROM dcl_customer_version_account_credit_limits
-WHERE customer_approval_entry_id=$1
+const deleteDCLCustomerSubunitRoot = `-- name: DeleteDCLCustomerSubunitRoot :execrows
+DELETE FROM dcl_customer_subunit_roots
+WHERE subunit_id=$1 AND customer_id=$2 AND ever_approved=false
 `
 
-func (q *Queries) DeleteDCLCustomerVersionAccountCreditLimits(ctx context.Context, customerApprovalEntryID string) error {
-	_, err := q.db.Exec(ctx, deleteDCLCustomerVersionAccountCreditLimits, customerApprovalEntryID)
-	return err
+type DeleteDCLCustomerSubunitRootParams struct {
+	SubunitID  string `db:"subunit_id" json:"subunit_id"`
+	CustomerID string `db:"customer_id" json:"customer_id"`
 }
 
-const deleteDCLCustomerVersionAccounts = `-- name: DeleteDCLCustomerVersionAccounts :exec
-DELETE FROM dcl_customer_version_accounts
-WHERE customer_approval_entry_id=$1
-  AND NOT (account_id=ANY($2::text[]))
-`
-
-type DeleteDCLCustomerVersionAccountsParams struct {
-	CustomerApprovalEntryID string   `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountIds              []string `db:"account_ids" json:"account_ids"`
-}
-
-func (q *Queries) DeleteDCLCustomerVersionAccounts(ctx context.Context, arg DeleteDCLCustomerVersionAccountsParams) error {
-	_, err := q.db.Exec(ctx, deleteDCLCustomerVersionAccounts, arg.CustomerApprovalEntryID, arg.AccountIds)
-	return err
+func (q *Queries) DeleteDCLCustomerSubunitRoot(ctx context.Context, arg DeleteDCLCustomerSubunitRootParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLCustomerSubunitRoot, arg.SubunitID, arg.CustomerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteDCLCustomerVersionAggregate = `-- name: DeleteDCLCustomerVersionAggregate :execrows
@@ -1398,6 +1372,32 @@ func (q *Queries) DeleteDCLCustomerVersionAggregate(ctx context.Context, approva
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteDCLCustomerVersionSubunitCreditLimits = `-- name: DeleteDCLCustomerVersionSubunitCreditLimits :exec
+DELETE FROM dcl_customer_version_subunit_credit_limits
+WHERE customer_approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLCustomerVersionSubunitCreditLimits(ctx context.Context, customerApprovalEntryID string) error {
+	_, err := q.db.Exec(ctx, deleteDCLCustomerVersionSubunitCreditLimits, customerApprovalEntryID)
+	return err
+}
+
+const deleteDCLCustomerVersionSubunits = `-- name: DeleteDCLCustomerVersionSubunits :exec
+DELETE FROM dcl_customer_version_subunits
+WHERE customer_approval_entry_id=$1
+  AND NOT (subunit_id=ANY($2::text[]))
+`
+
+type DeleteDCLCustomerVersionSubunitsParams struct {
+	CustomerApprovalEntryID string   `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	SubunitIds              []string `db:"subunit_ids" json:"subunit_ids"`
+}
+
+func (q *Queries) DeleteDCLCustomerVersionSubunits(ctx context.Context, arg DeleteDCLCustomerVersionSubunitsParams) error {
+	_, err := q.db.Exec(ctx, deleteDCLCustomerVersionSubunits, arg.CustomerApprovalEntryID, arg.SubunitIds)
+	return err
 }
 
 const deleteDCLEmployeeLegalIdentifierClaimsForEntry = `-- name: DeleteDCLEmployeeLegalIdentifierClaimsForEntry :exec
@@ -1718,14 +1718,14 @@ func (q *Queries) GetDCLAccMappingVersion(ctx context.Context, approvalEntryID s
 	return i, err
 }
 
-const getDCLCustomerAccountCodeMax = `-- name: GetDCLCustomerAccountCodeMax :one
+const getDCLCustomerSubunitCodeMax = `-- name: GetDCLCustomerSubunitCodeMax :one
 SELECT COALESCE(max(CAST(substring(code FROM '[0-9]+$') AS bigint)),0)::bigint AS code_max
-FROM dcl_customer_account_roots
+FROM dcl_customer_subunit_roots
 WHERE customer_id=$1
 `
 
-func (q *Queries) GetDCLCustomerAccountCodeMax(ctx context.Context, customerID string) (int64, error) {
-	row := q.db.QueryRow(ctx, getDCLCustomerAccountCodeMax, customerID)
+func (q *Queries) GetDCLCustomerSubunitCodeMax(ctx context.Context, customerID string) (int64, error) {
+	row := q.db.QueryRow(ctx, getDCLCustomerSubunitCodeMax, customerID)
 	var code_max int64
 	err := row.Scan(&code_max)
 	return code_max, err
@@ -2212,67 +2212,19 @@ func (q *Queries) InsertDCLAccMappingVersion(ctx context.Context, arg InsertDCLA
 	return err
 }
 
-const insertDCLCustomerAccountRoot = `-- name: InsertDCLCustomerAccountRoot :exec
-INSERT INTO dcl_customer_account_roots(account_id,customer_id,code)
+const insertDCLCustomerSubunitRoot = `-- name: InsertDCLCustomerSubunitRoot :exec
+INSERT INTO dcl_customer_subunit_roots(subunit_id,customer_id,code)
 VALUES($1,$2,$3)
 `
 
-type InsertDCLCustomerAccountRootParams struct {
-	AccountID  string `db:"account_id" json:"account_id"`
+type InsertDCLCustomerSubunitRootParams struct {
+	SubunitID  string `db:"subunit_id" json:"subunit_id"`
 	CustomerID string `db:"customer_id" json:"customer_id"`
 	Code       string `db:"code" json:"code"`
 }
 
-func (q *Queries) InsertDCLCustomerAccountRoot(ctx context.Context, arg InsertDCLCustomerAccountRootParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerAccountRoot, arg.AccountID, arg.CustomerID, arg.Code)
-	return err
-}
-
-const insertDCLCustomerVersionAccount = `-- name: InsertDCLCustomerVersionAccount :exec
-INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default)
-VALUES($1,$2,$3,$4,$5)
-ON CONFLICT(customer_approval_entry_id,account_id) DO UPDATE SET
-  data=EXCLUDED.data,enabled=EXCLUDED.enabled,is_default=EXCLUDED.is_default
-`
-
-type InsertDCLCustomerVersionAccountParams struct {
-	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountID               string `db:"account_id" json:"account_id"`
-	Data                    []byte `db:"data" json:"data"`
-	Enabled                 bool   `db:"enabled" json:"enabled"`
-	IsDefault               bool   `db:"is_default" json:"is_default"`
-}
-
-func (q *Queries) InsertDCLCustomerVersionAccount(ctx context.Context, arg InsertDCLCustomerVersionAccountParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerVersionAccount,
-		arg.CustomerApprovalEntryID,
-		arg.AccountID,
-		arg.Data,
-		arg.Enabled,
-		arg.IsDefault,
-	)
-	return err
-}
-
-const insertDCLCustomerVersionAccountCreditLimit = `-- name: InsertDCLCustomerVersionAccountCreditLimit :exec
-INSERT INTO dcl_customer_version_account_credit_limits(customer_approval_entry_id,account_id,currency,amount_cents)
-VALUES($1,$2,$3,$4)
-`
-
-type InsertDCLCustomerVersionAccountCreditLimitParams struct {
-	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountID               string `db:"account_id" json:"account_id"`
-	Currency                string `db:"currency" json:"currency"`
-	AmountCents             int64  `db:"amount_cents" json:"amount_cents"`
-}
-
-func (q *Queries) InsertDCLCustomerVersionAccountCreditLimit(ctx context.Context, arg InsertDCLCustomerVersionAccountCreditLimitParams) error {
-	_, err := q.db.Exec(ctx, insertDCLCustomerVersionAccountCreditLimit,
-		arg.CustomerApprovalEntryID,
-		arg.AccountID,
-		arg.Currency,
-		arg.AmountCents,
-	)
+func (q *Queries) InsertDCLCustomerSubunitRoot(ctx context.Context, arg InsertDCLCustomerSubunitRootParams) error {
+	_, err := q.db.Exec(ctx, insertDCLCustomerSubunitRoot, arg.SubunitID, arg.CustomerID, arg.Code)
 	return err
 }
 
@@ -2290,7 +2242,7 @@ type InsertDCLCustomerVersionAggregateParams struct {
 }
 
 // Customer is the sole approval aggregate.  Its JSON snapshot owns identity,
-// default operating entity, and every account line; roots are only stable IDs.
+// default operating entity, and every subunit line; roots are only stable IDs.
 func (q *Queries) InsertDCLCustomerVersionAggregate(ctx context.Context, arg InsertDCLCustomerVersionAggregateParams) error {
 	_, err := q.db.Exec(ctx, insertDCLCustomerVersionAggregate,
 		arg.ApprovalEntryID,
@@ -2298,6 +2250,52 @@ func (q *Queries) InsertDCLCustomerVersionAggregate(ctx context.Context, arg Ins
 		arg.LegalIdentifier,
 		arg.Data,
 		arg.Enabled,
+	)
+	return err
+}
+
+const insertDCLCustomerVersionSubunit = `-- name: InsertDCLCustomerVersionSubunit :exec
+INSERT INTO dcl_customer_version_subunits(customer_approval_entry_id,subunit_id,data,enabled)
+VALUES($1,$2,$3,$4)
+ON CONFLICT(customer_approval_entry_id,subunit_id) DO UPDATE SET
+  data=EXCLUDED.data,enabled=EXCLUDED.enabled
+`
+
+type InsertDCLCustomerVersionSubunitParams struct {
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	SubunitID               string `db:"subunit_id" json:"subunit_id"`
+	Data                    []byte `db:"data" json:"data"`
+	Enabled                 bool   `db:"enabled" json:"enabled"`
+}
+
+func (q *Queries) InsertDCLCustomerVersionSubunit(ctx context.Context, arg InsertDCLCustomerVersionSubunitParams) error {
+	_, err := q.db.Exec(ctx, insertDCLCustomerVersionSubunit,
+		arg.CustomerApprovalEntryID,
+		arg.SubunitID,
+		arg.Data,
+		arg.Enabled,
+	)
+	return err
+}
+
+const insertDCLCustomerVersionSubunitCreditLimit = `-- name: InsertDCLCustomerVersionSubunitCreditLimit :exec
+INSERT INTO dcl_customer_version_subunit_credit_limits(customer_approval_entry_id,subunit_id,currency,amount_cents)
+VALUES($1,$2,$3,$4)
+`
+
+type InsertDCLCustomerVersionSubunitCreditLimitParams struct {
+	CustomerApprovalEntryID string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	SubunitID               string `db:"subunit_id" json:"subunit_id"`
+	Currency                string `db:"currency" json:"currency"`
+	AmountCents             int64  `db:"amount_cents" json:"amount_cents"`
+}
+
+func (q *Queries) InsertDCLCustomerVersionSubunitCreditLimit(ctx context.Context, arg InsertDCLCustomerVersionSubunitCreditLimitParams) error {
+	_, err := q.db.Exec(ctx, insertDCLCustomerVersionSubunitCreditLimit,
+		arg.CustomerApprovalEntryID,
+		arg.SubunitID,
+		arg.Currency,
+		arg.AmountCents,
 	)
 	return err
 }
@@ -2959,47 +2957,6 @@ func (q *Queries) ListDCLAccMappings(ctx context.Context, arg ListDCLAccMappings
 	return items, nil
 }
 
-const listDCLCustomerAccountRoots = `-- name: ListDCLCustomerAccountRoots :many
-SELECT account_id,customer_id,code,ever_approved,first_approved_customer_entry_id
-FROM dcl_customer_account_roots
-WHERE customer_id=$1
-ORDER BY code,account_id
-`
-
-type ListDCLCustomerAccountRootsRow struct {
-	AccountID                    string  `db:"account_id" json:"account_id"`
-	CustomerID                   string  `db:"customer_id" json:"customer_id"`
-	Code                         string  `db:"code" json:"code"`
-	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
-	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
-}
-
-func (q *Queries) ListDCLCustomerAccountRoots(ctx context.Context, customerID string) ([]ListDCLCustomerAccountRootsRow, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomerAccountRoots, customerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListDCLCustomerAccountRootsRow{}
-	for rows.Next() {
-		var i ListDCLCustomerAccountRootsRow
-		if err := rows.Scan(
-			&i.AccountID,
-			&i.CustomerID,
-			&i.Code,
-			&i.EverApproved,
-			&i.FirstApprovedCustomerEntryID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDCLCustomerAggregates = `-- name: ListDCLCustomerAggregates :many
 SELECT subject.id AS object_id,subject.entity,subject.code,
        COALESCE(approved_entry.id,'')::text AS latest_approved_entry_id,
@@ -3142,25 +3099,66 @@ func (q *Queries) ListDCLCustomerApprovalEvents(ctx context.Context, arg ListDCL
 	return items, nil
 }
 
-const listDCLCustomerVersionAccountCreditLimits = `-- name: ListDCLCustomerVersionAccountCreditLimits :many
-SELECT customer_approval_entry_id,account_id,currency,amount_cents
-FROM dcl_customer_version_account_credit_limits
-WHERE customer_approval_entry_id=$1
-ORDER BY account_id,currency
+const listDCLCustomerSubunitRoots = `-- name: ListDCLCustomerSubunitRoots :many
+SELECT subunit_id,customer_id,code,ever_approved,first_approved_customer_entry_id
+FROM dcl_customer_subunit_roots
+WHERE customer_id=$1
+ORDER BY code,subunit_id
 `
 
-func (q *Queries) ListDCLCustomerVersionAccountCreditLimits(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionAccountCreditLimit, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomerVersionAccountCreditLimits, customerApprovalEntryID)
+type ListDCLCustomerSubunitRootsRow struct {
+	SubunitID                    string  `db:"subunit_id" json:"subunit_id"`
+	CustomerID                   string  `db:"customer_id" json:"customer_id"`
+	Code                         string  `db:"code" json:"code"`
+	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
+	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
+}
+
+func (q *Queries) ListDCLCustomerSubunitRoots(ctx context.Context, customerID string) ([]ListDCLCustomerSubunitRootsRow, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerSubunitRoots, customerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []DclCustomerVersionAccountCreditLimit{}
+	items := []ListDCLCustomerSubunitRootsRow{}
 	for rows.Next() {
-		var i DclCustomerVersionAccountCreditLimit
+		var i ListDCLCustomerSubunitRootsRow
+		if err := rows.Scan(
+			&i.SubunitID,
+			&i.CustomerID,
+			&i.Code,
+			&i.EverApproved,
+			&i.FirstApprovedCustomerEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLCustomerVersionSubunitCreditLimits = `-- name: ListDCLCustomerVersionSubunitCreditLimits :many
+SELECT customer_approval_entry_id,subunit_id,currency,amount_cents
+FROM dcl_customer_version_subunit_credit_limits
+WHERE customer_approval_entry_id=$1
+ORDER BY subunit_id,currency
+`
+
+func (q *Queries) ListDCLCustomerVersionSubunitCreditLimits(ctx context.Context, customerApprovalEntryID string) ([]DclCustomerVersionSubunitCreditLimit, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerVersionSubunitCreditLimits, customerApprovalEntryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DclCustomerVersionSubunitCreditLimit{}
+	for rows.Next() {
+		var i DclCustomerVersionSubunitCreditLimit
 		if err := rows.Scan(
 			&i.CustomerApprovalEntryID,
-			&i.AccountID,
+			&i.SubunitID,
 			&i.Currency,
 			&i.AmountCents,
 		); err != nil {
@@ -3174,44 +3172,42 @@ func (q *Queries) ListDCLCustomerVersionAccountCreditLimits(ctx context.Context,
 	return items, nil
 }
 
-const listDCLCustomerVersionAccounts = `-- name: ListDCLCustomerVersionAccounts :many
-SELECT line.customer_approval_entry_id,line.account_id,root.customer_id,root.code,line.data,line.enabled,line.is_default,
+const listDCLCustomerVersionSubunits = `-- name: ListDCLCustomerVersionSubunits :many
+SELECT line.customer_approval_entry_id,line.subunit_id,root.customer_id,root.code,line.data,line.enabled,
        root.ever_approved,root.first_approved_customer_entry_id
-FROM dcl_customer_version_accounts line
-JOIN dcl_customer_account_roots root ON root.account_id=line.account_id
+FROM dcl_customer_version_subunits line
+JOIN dcl_customer_subunit_roots root ON root.subunit_id=line.subunit_id
 WHERE line.customer_approval_entry_id=$1
-ORDER BY root.code,root.account_id
+ORDER BY root.code,root.subunit_id
 `
 
-type ListDCLCustomerVersionAccountsRow struct {
+type ListDCLCustomerVersionSubunitsRow struct {
 	CustomerApprovalEntryID      string  `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountID                    string  `db:"account_id" json:"account_id"`
+	SubunitID                    string  `db:"subunit_id" json:"subunit_id"`
 	CustomerID                   string  `db:"customer_id" json:"customer_id"`
 	Code                         string  `db:"code" json:"code"`
 	Data                         []byte  `db:"data" json:"data"`
 	Enabled                      bool    `db:"enabled" json:"enabled"`
-	IsDefault                    bool    `db:"is_default" json:"is_default"`
 	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
 	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
 }
 
-func (q *Queries) ListDCLCustomerVersionAccounts(ctx context.Context, customerApprovalEntryID string) ([]ListDCLCustomerVersionAccountsRow, error) {
-	rows, err := q.db.Query(ctx, listDCLCustomerVersionAccounts, customerApprovalEntryID)
+func (q *Queries) ListDCLCustomerVersionSubunits(ctx context.Context, customerApprovalEntryID string) ([]ListDCLCustomerVersionSubunitsRow, error) {
+	rows, err := q.db.Query(ctx, listDCLCustomerVersionSubunits, customerApprovalEntryID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListDCLCustomerVersionAccountsRow{}
+	items := []ListDCLCustomerVersionSubunitsRow{}
 	for rows.Next() {
-		var i ListDCLCustomerVersionAccountsRow
+		var i ListDCLCustomerVersionSubunitsRow
 		if err := rows.Scan(
 			&i.CustomerApprovalEntryID,
-			&i.AccountID,
+			&i.SubunitID,
 			&i.CustomerID,
 			&i.Code,
 			&i.Data,
 			&i.Enabled,
-			&i.IsDefault,
 			&i.EverApproved,
 			&i.FirstApprovedCustomerEntryID,
 		); err != nil {
@@ -4617,34 +4613,6 @@ func (q *Queries) ListDclWflProcessDefinitions(ctx context.Context, arg ListDclW
 	return items, nil
 }
 
-const lockDCLCustomerAccountRoot = `-- name: LockDCLCustomerAccountRoot :one
-SELECT account_id,customer_id,code,ever_approved,first_approved_customer_entry_id
-FROM dcl_customer_account_roots
-WHERE account_id=$1
-FOR UPDATE
-`
-
-type LockDCLCustomerAccountRootRow struct {
-	AccountID                    string  `db:"account_id" json:"account_id"`
-	CustomerID                   string  `db:"customer_id" json:"customer_id"`
-	Code                         string  `db:"code" json:"code"`
-	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
-	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
-}
-
-func (q *Queries) LockDCLCustomerAccountRoot(ctx context.Context, accountID string) (LockDCLCustomerAccountRootRow, error) {
-	row := q.db.QueryRow(ctx, lockDCLCustomerAccountRoot, accountID)
-	var i LockDCLCustomerAccountRootRow
-	err := row.Scan(
-		&i.AccountID,
-		&i.CustomerID,
-		&i.Code,
-		&i.EverApproved,
-		&i.FirstApprovedCustomerEntryID,
-	)
-	return i, err
-}
-
 const lockDCLCustomerLegalIdentifierClaim = `-- name: LockDCLCustomerLegalIdentifierClaim :one
 SELECT normalized_legal_identifier,approved_customer_id,approved_approval_entry_id,open_customer_id,open_approval_entry_id
 FROM dcl_customer_legal_identifier_claims
@@ -4673,6 +4641,34 @@ SELECT pg_advisory_xact_lock(hashtext('customer:' || $1::text))
 func (q *Queries) LockDCLCustomerLegalIdentifierClaimKey(ctx context.Context, normalizedLegalIdentifier string) error {
 	_, err := q.db.Exec(ctx, lockDCLCustomerLegalIdentifierClaimKey, normalizedLegalIdentifier)
 	return err
+}
+
+const lockDCLCustomerSubunitRoot = `-- name: LockDCLCustomerSubunitRoot :one
+SELECT subunit_id,customer_id,code,ever_approved,first_approved_customer_entry_id
+FROM dcl_customer_subunit_roots
+WHERE subunit_id=$1
+FOR UPDATE
+`
+
+type LockDCLCustomerSubunitRootRow struct {
+	SubunitID                    string  `db:"subunit_id" json:"subunit_id"`
+	CustomerID                   string  `db:"customer_id" json:"customer_id"`
+	Code                         string  `db:"code" json:"code"`
+	EverApproved                 bool    `db:"ever_approved" json:"ever_approved"`
+	FirstApprovedCustomerEntryID *string `db:"first_approved_customer_entry_id" json:"first_approved_customer_entry_id"`
+}
+
+func (q *Queries) LockDCLCustomerSubunitRoot(ctx context.Context, subunitID string) (LockDCLCustomerSubunitRootRow, error) {
+	row := q.db.QueryRow(ctx, lockDCLCustomerSubunitRoot, subunitID)
+	var i LockDCLCustomerSubunitRootRow
+	err := row.Scan(
+		&i.SubunitID,
+		&i.CustomerID,
+		&i.Code,
+		&i.EverApproved,
+		&i.FirstApprovedCustomerEntryID,
+	)
+	return i, err
 }
 
 const lockDCLEmployeeLegalIdentifierClaim = `-- name: LockDCLEmployeeLegalIdentifierClaim :one
@@ -4831,20 +4827,20 @@ func (q *Queries) LockDCLVehicleIdentifierClaims(ctx context.Context) error {
 	return err
 }
 
-const markDCLCustomerAccountRootApproved = `-- name: MarkDCLCustomerAccountRootApproved :execrows
-UPDATE dcl_customer_account_roots
+const markDCLCustomerSubunitRootApproved = `-- name: MarkDCLCustomerSubunitRootApproved :execrows
+UPDATE dcl_customer_subunit_roots
 SET ever_approved=true,first_approved_customer_entry_id=COALESCE(first_approved_customer_entry_id,$1)
-WHERE account_id=$2 AND customer_id=$3
+WHERE subunit_id=$2 AND customer_id=$3
 `
 
-type MarkDCLCustomerAccountRootApprovedParams struct {
+type MarkDCLCustomerSubunitRootApprovedParams struct {
 	CustomerApprovalEntryID *string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
-	AccountID               string  `db:"account_id" json:"account_id"`
+	SubunitID               string  `db:"subunit_id" json:"subunit_id"`
 	CustomerID              string  `db:"customer_id" json:"customer_id"`
 }
 
-func (q *Queries) MarkDCLCustomerAccountRootApproved(ctx context.Context, arg MarkDCLCustomerAccountRootApprovedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markDCLCustomerAccountRootApproved, arg.CustomerApprovalEntryID, arg.AccountID, arg.CustomerID)
+func (q *Queries) MarkDCLCustomerSubunitRootApproved(ctx context.Context, arg MarkDCLCustomerSubunitRootApprovedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markDCLCustomerSubunitRootApproved, arg.CustomerApprovalEntryID, arg.SubunitID, arg.CustomerID)
 	if err != nil {
 		return 0, err
 	}

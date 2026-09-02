@@ -5,7 +5,7 @@
       'enum':
         [
           'customer',
-          'customer-account',
+          'customer-subunit',
           'supplier',
           'employee',
           'other-unit',
@@ -996,7 +996,7 @@
               'type': 'string',
               'enum':
                 [
-                  'customer-account',
+                  'customer-subunit',
                   'operating-entity',
                   'employee',
                   'other-unit',

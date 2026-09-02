@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import type { CustomerAccountForm } from './types'
+import type { CustomerSubunitForm } from './types'
 import { salesAttributionLabels } from './types'
 import type {
-  CustomerAccountReferenceKey,
+  CustomerSubunitReferenceKey,
   CustomerReferenceOption,
 } from './references'
 
-const model = defineModel<CustomerAccountForm>({ required: true })
+const model = defineModel<CustomerSubunitForm>({ required: true })
 const props = defineProps<{
   referenceOptions: Record<
-    CustomerAccountReferenceKey,
+    CustomerSubunitReferenceKey,
     CustomerReferenceOption[]
   >
-  referenceLoading: Record<CustomerAccountReferenceKey, boolean>
-  referenceError: Record<CustomerAccountReferenceKey, string | null>
+  referenceLoading: Record<CustomerSubunitReferenceKey, boolean>
+  referenceError: Record<CustomerSubunitReferenceKey, string | null>
   readonly?: boolean
 }>()
 const emit = defineEmits<{
-  searchReference: [key: CustomerAccountReferenceKey, keyword: string]
+  searchReference: [key: CustomerSubunitReferenceKey, keyword: string]
 }>()
 
 function addCost(): void {
@@ -41,10 +41,10 @@ function addCreditLimit(): void {
 <template>
   <v-row dense>
     <v-col cols="12" md="6"
-      ><v-text-field v-model="model.name" label="账户名称" :readonly="props.readonly" required
+      ><v-text-field v-model="model.name" label="子单位名称" :readonly="props.readonly" required
     /></v-col>
     <v-col cols="12" md="6"
-      ><v-text-field v-model="model.shortName" label="账户简称" :readonly="props.readonly"
+      ><v-text-field v-model="model.shortName" label="子单位简称" :readonly="props.readonly"
     /></v-col>
     <v-col cols="12" md="6"
       ><v-autocomplete

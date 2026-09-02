@@ -194,7 +194,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 		}},
 		{EntityOtherIncome, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", SourceName: "废料收入",
-			CounterpartyType: bobdomain.EntityCustomerAccount, Counterparty: &refs.customer,
+			CounterpartyType: bobdomain.EntityCustomerSubunit, Counterparty: &refs.customer,
 			FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "60.00",
 		}},
 		{EntityPurchaseInquiry, DraftInput{

@@ -12,7 +12,7 @@ async function assertMissing(path) {
   await assert.rejects(access(new URL(path, root)))
 }
 
-test('retired Party and standalone customer-account public surfaces are absent', async () => {
+test('retired Party and standalone customer-subunit lifecycle surfaces are absent', async () => {
   const [openapi, dcl, bob, schema, dclQueries, bobQueries] = await Promise.all(
     [
       source('contracts/openapi/openapi.yaml'),
@@ -25,7 +25,12 @@ test('retired Party and standalone customer-account public surfaces are absent',
   )
 
   assert.doesNotMatch(openapi, /\/(?:dcl|bob)\/party\//)
-  assert.doesNotMatch(openapi, /\/dcl\/customer-account\//)
+  assert.doesNotMatch(openapi, /\/dcl\/customer-subunit\//)
+  assert.match(bob, /'customer-subunit'/)
+  assert.doesNotMatch(
+    `${dcl}\n${bob}`,
+    /customer-account|CustomerAccount|CUSTOMER_ACCOUNT/,
+  )
   assert.doesNotMatch(dcl, /'DclParty|'DclRelationship|'PartyIdentity/)
   assert.doesNotMatch(bob, /'Party(?:Query|Get|List|View|Identity)/)
   assert.doesNotMatch(
@@ -198,7 +203,7 @@ test('APP workbench and RPT bill references use counterparty wire terms', async 
   assert.doesNotMatch(billsReport, /partyId|OTHER_PARTY|\bparty_id\b/)
 })
 
-test('VOU customer-account snapshots retain the root customer id', async () => {
+test('VOU customer-subunit snapshots retain the root customer id', async () => {
   const schema = await source('backend/db/schema.sql')
   for (const tableName of [
     'vou_sale_order_details',
@@ -247,7 +252,7 @@ test('ACC uses closed typed archive dimension wire values', async () => {
   const dimensions = acc.slice(start, end)
 
   for (const value of [
-    'CUSTOMER_ACCOUNT',
+    'CUSTOMER_SUBUNIT',
     'SUPPLIER',
     'OTHER_UNIT',
     'EMPLOYEE',

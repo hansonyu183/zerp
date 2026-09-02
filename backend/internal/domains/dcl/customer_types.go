@@ -2,20 +2,22 @@ package dcl
 
 import "github.com/hansonyu183/zerp/backend/internal/platform/approval"
 
-// Customer is the sole DCL approval subject. Accounts are stable child roots
+// Customer is the sole DCL approval subject. Subunits are stable child roots
 // whose values are frozen in each Customer approval version.
 type CustomerCreateInput struct {
-	Data CustomerDataInput `json:"data"`
+	Data CustomerCreateDataInput `json:"data"`
 }
 
 type CustomerSaveInput struct {
-	ObjectID         string            `json:"objectId"`
-	ApprovalEntryID  string            `json:"approvalEntryId"`
-	ApprovalRevision int64             `json:"approvalRevision"`
-	Data             CustomerDataInput `json:"data"`
+	ObjectID         string                `json:"objectId"`
+	ApprovalEntryID  string                `json:"approvalEntryId"`
+	ApprovalRevision int64                 `json:"approvalRevision"`
+	Data             CustomerRootDataInput `json:"data"`
 }
 
-type CustomerDataInput struct {
+// CustomerRootDataInput contains only Customer-owned facts.  Subunits are
+// deliberately excluded so a root save cannot mutate the child collection.
+type CustomerRootDataInput struct {
 	Kind                     string                      `json:"kind"`
 	LegalName                string                      `json:"legalName"`
 	DisplayName              string                      `json:"displayName,omitempty"`
@@ -31,7 +33,18 @@ type CustomerDataInput struct {
 	RemittanceProfiles       []CustomerRemittanceProfile `json:"remittanceProfiles"`
 	DefaultOperatingEntityID string                      `json:"defaultOperatingEntityId"`
 	Enabled                  bool                        `json:"enabled"`
-	Accounts                 []CustomerAccountDataInput  `json:"accounts"`
+}
+
+type CustomerCreateDataInput struct {
+	Root     CustomerRootDataInput      `json:"root"`
+	Subunits []CustomerSubunitDataInput `json:"subunits"`
+}
+
+type CustomerSaveSubunitsInput struct {
+	ObjectID         string                     `json:"objectId"`
+	ApprovalEntryID  string                     `json:"approvalEntryId"`
+	ApprovalRevision int64                      `json:"approvalRevision"`
+	Subunits         []CustomerSubunitDataInput `json:"subunits"`
 }
 
 type CustomerRemittanceProfile struct {
@@ -41,7 +54,8 @@ type CustomerRemittanceProfile struct {
 }
 
 // CustomerData is the read model. It contains resolved references, stable
-// account IDs/codes and attachments scoped to the enclosing revision.
+// subunit IDs/codes and attachments scoped to the enclosing revision.
+// ImplicitSubunitID is derived after loading and is never persisted.
 type CustomerData struct {
 	Kind                     string                      `json:"kind"`
 	LegalName                string                      `json:"legalName"`
@@ -59,7 +73,8 @@ type CustomerData struct {
 	DefaultOperatingEntityID string                      `json:"defaultOperatingEntityId"`
 	DefaultOperatingEntity   CustomerSnapshot            `json:"defaultOperatingEntity"`
 	Enabled                  bool                        `json:"enabled"`
-	Accounts                 []CustomerAccountData       `json:"accounts"`
+	Subunits                 []CustomerSubunitData       `json:"subunits"`
+	ImplicitSubunitID        *string                     `json:"implicitSubunitId"`
 }
 
 type CustomerVersionInput struct {

@@ -487,7 +487,11 @@ CREATE TABLE public.acc_books (
 
 CREATE TABLE public.acc_container_entries (
     id character varying(26) NOT NULL,
+    customer_subunit_id character varying(26) NOT NULL,
     customer_id character varying(26) NOT NULL,
+    customer_approval_entry_id character varying(26) NOT NULL,
+    customer_subunit_code character varying(32) NOT NULL,
+    customer_subunit_name character varying(200) NOT NULL,
     container_type character varying(8) NOT NULL,
     quantity_delta bigint NOT NULL,
     source_document_id character varying(26) NOT NULL,
@@ -662,7 +666,11 @@ CREATE TABLE public.acc_opening_bills (
 CREATE TABLE public.acc_opening_containers (
     book_id character varying(26) NOT NULL,
     line_order integer NOT NULL,
+    customer_subunit_id character varying(26) NOT NULL,
     customer_id character varying(26) NOT NULL,
+    customer_approval_entry_id character varying(26) NOT NULL,
+    customer_subunit_code character varying(32) NOT NULL,
+    customer_subunit_name character varying(200) NOT NULL,
     container_type character varying(8) NOT NULL,
     quantity bigint NOT NULL,
     CONSTRAINT acc_opening_containers_container_type_check CHECK (((container_type)::text = ANY ((ARRAY['SOLVENT'::character varying, 'RESIN'::character varying])::text[]))),
@@ -772,7 +780,7 @@ CREATE TABLE public.acc_register_events (
 CREATE TABLE public.acc_subject_dimensions (
     subject_id character varying(26) NOT NULL,
     dimension character varying(32) NOT NULL,
-    CONSTRAINT acc_subject_dimensions_dimension_check CHECK (((dimension)::text = ANY (ARRAY[('CUSTOMER_ACCOUNT'::character varying)::text, ('SUPPLIER'::character varying)::text, ('OTHER_UNIT'::character varying)::text, ('EMPLOYEE'::character varying)::text, ('SALES_PARTNER'::character varying)::text, ('DEPARTMENT'::character varying)::text, ('PRODUCT'::character varying)::text, ('WAREHOUSE'::character varying)::text, ('FUND_ACCOUNT'::character varying)::text, ('ASSET'::character varying)::text, ('BILL'::character varying)::text])))
+    CONSTRAINT acc_subject_dimensions_dimension_check CHECK (((dimension)::text = ANY (ARRAY[('CUSTOMER_SUBUNIT'::character varying)::text, ('SUPPLIER'::character varying)::text, ('OTHER_UNIT'::character varying)::text, ('EMPLOYEE'::character varying)::text, ('SALES_PARTNER'::character varying)::text, ('DEPARTMENT'::character varying)::text, ('PRODUCT'::character varying)::text, ('WAREHOUSE'::character varying)::text, ('FUND_ACCOUNT'::character varying)::text, ('ASSET'::character varying)::text, ('BILL'::character varying)::text])))
 );
 
 
@@ -1490,7 +1498,7 @@ CREATE INDEX approval_events_entry_created_idx
     ON public.approval_events USING btree (entry_id, created_at, id);
 
 
--- Customer owns its identity and all account lines in one approval snapshot.
+-- Customer owns its identity and all subunit lines in one approval snapshot.
 CREATE TABLE public.dcl_customer_versions (
     approval_entry_id character varying(26) NOT NULL,
     kind character varying(24) NOT NULL,
@@ -1503,9 +1511,9 @@ CREATE TABLE public.dcl_customer_versions (
       AND data - ARRAY[
         'kind','legalName','displayName','legalIdentifier','phone','email','address',
         'invoiceTitle','invoiceAddress','invoicePhone','invoiceBankName','invoiceBankAccount',
-        'remittanceProfiles','defaultOperatingEntityId','defaultOperatingEntity','enabled','accounts'
+        'remittanceProfiles','defaultOperatingEntityId','defaultOperatingEntity','enabled','subunits'
       ] = '{}'::jsonb
-      AND data ?& ARRAY['kind','legalName','displayName','legalIdentifier','remittanceProfiles','defaultOperatingEntityId','defaultOperatingEntity','enabled','accounts']
+      AND data ?& ARRAY['kind','legalName','displayName','legalIdentifier','remittanceProfiles','defaultOperatingEntityId','defaultOperatingEntity','enabled','subunits']
       AND data->>'kind' IN ('MAINLAND_ENTERPRISE','MAINLAND_INDIVIDUAL','OTHER')
       AND kind=data->>'kind'
       AND (legal_identifier IS NULL OR legal_identifier=data->>'legalIdentifier')
@@ -1513,46 +1521,44 @@ CREATE TABLE public.dcl_customer_versions (
       AND jsonb_typeof(data->'remittanceProfiles')='array'
       AND jsonb_typeof(data->'defaultOperatingEntity')='object'
       AND jsonb_typeof(data->'enabled')='boolean'
-      AND jsonb_typeof(data->'accounts')='array'
+      AND jsonb_typeof(data->'subunits')='array'
     )
 );
 
--- Customer is a single approval aggregate.  Account roots are stable local
+-- Customer is a single approval aggregate. Subunit roots are stable local
 -- identifiers, never DCL subjects and never approval owners.
-CREATE TABLE public.dcl_customer_account_roots (
-    account_id character varying(26) NOT NULL,
+CREATE TABLE public.dcl_customer_subunit_roots (
+    subunit_id character varying(26) NOT NULL,
     customer_id character varying(26) NOT NULL,
     customer_entity character varying(16) DEFAULT 'customer'::character varying NOT NULL,
     code character varying(32) NOT NULL,
     ever_approved boolean DEFAULT false NOT NULL,
     first_approved_customer_entry_id character varying(26),
-    CONSTRAINT dcl_customer_account_roots_pkey PRIMARY KEY (account_id),
-    CONSTRAINT dcl_customer_account_roots_customer_entity_ck CHECK (customer_entity='customer'),
-    CONSTRAINT dcl_customer_account_roots_code_ck CHECK (code ~ '^ACC-[0-9]{4}$'),
-    CONSTRAINT dcl_customer_account_roots_approval_marker_ck CHECK (
+    CONSTRAINT dcl_customer_subunit_roots_pkey PRIMARY KEY (subunit_id),
+    CONSTRAINT dcl_customer_subunit_roots_customer_entity_ck CHECK (customer_entity='customer'),
+    CONSTRAINT dcl_customer_subunit_roots_code_ck CHECK (code ~ '^SUB-[0-9]{4}$'),
+    CONSTRAINT dcl_customer_subunit_roots_approval_marker_ck CHECK (
       (ever_approved AND first_approved_customer_entry_id IS NOT NULL)
       OR (NOT ever_approved AND first_approved_customer_entry_id IS NULL)
     )
 );
 
-CREATE TABLE public.dcl_customer_version_accounts (
+CREATE TABLE public.dcl_customer_version_subunits (
     customer_approval_entry_id character varying(26) NOT NULL,
-    account_id character varying(26) NOT NULL,
+    subunit_id character varying(26) NOT NULL,
     data jsonb NOT NULL,
     enabled boolean NOT NULL,
-    is_default boolean NOT NULL,
-    CONSTRAINT dcl_customer_version_accounts_pkey PRIMARY KEY (customer_approval_entry_id, account_id),
-    CONSTRAINT dcl_customer_version_accounts_data_shape_ck CHECK (
+    CONSTRAINT dcl_customer_version_subunits_pkey PRIMARY KEY (customer_approval_entry_id, subunit_id),
+    CONSTRAINT dcl_customer_version_subunits_data_shape_ck CHECK (
       jsonb_typeof(data)='object'
       AND data - ARRAY[
-        'accountId','enabled','isDefault','name','shortName','customerTypeId','contactName','contactPhone','email','address',
+        'subunitId','enabled','name','shortName','customerTypeId','contactName','contactPhone','email','address',
         'settlementMethodId','paymentMethodId','defaultTransportMethodCode','defaultTransportMethodName','transportSurcharge',
         'pricingPolicy','creditLimits','primarySalesAttribution','internalReminder','defaultSalesOrderRemark','code','attachments',
         'customerType','settlementMethod','paymentMethod'
       ] = '{}'::jsonb
-      AND data ?& ARRAY['accountId','enabled','isDefault','name','customerTypeId','transportSurcharge','pricingPolicy','creditLimits','primarySalesAttribution','code','attachments','customerType']
+      AND data ?& ARRAY['subunitId','enabled','name','customerTypeId','transportSurcharge','pricingPolicy','creditLimits','primarySalesAttribution','code','attachments','customerType']
       AND jsonb_typeof(data->'enabled')='boolean'
-      AND jsonb_typeof(data->'isDefault')='boolean'
       AND jsonb_typeof(data->'pricingPolicy')='object'
       AND jsonb_typeof(data->'creditLimits')='array'
       AND jsonb_typeof(data->'primarySalesAttribution')='object'
@@ -1563,13 +1569,13 @@ CREATE TABLE public.dcl_customer_version_accounts (
     )
 );
 
-CREATE TABLE public.dcl_customer_version_account_credit_limits (
+CREATE TABLE public.dcl_customer_version_subunit_credit_limits (
     customer_approval_entry_id character varying(26) NOT NULL,
-    account_id character varying(26) NOT NULL,
+    subunit_id character varying(26) NOT NULL,
     currency character varying(3) NOT NULL,
     amount_cents bigint NOT NULL,
-    CONSTRAINT dcl_customer_version_account_credit_limits_pkey PRIMARY KEY (customer_approval_entry_id, account_id, currency),
-    CONSTRAINT dcl_customer_version_account_credit_limits_amount_ck CHECK (amount_cents >= 0)
+    CONSTRAINT dcl_customer_version_subunit_credit_limits_pkey PRIMARY KEY (customer_approval_entry_id, subunit_id, currency),
+    CONSTRAINT dcl_customer_version_subunit_credit_limits_amount_ck CHECK (amount_cents >= 0)
 );
 
 CREATE TABLE public.dcl_customer_legal_identifier_claims (
@@ -1585,7 +1591,7 @@ CREATE TABLE public.dcl_customer_legal_identifier_claims (
 
 CREATE TABLE public.dcl_customer_attachments (
     approval_entry_id character varying(26) NOT NULL,
-    account_id character varying(26),
+    subunit_id character varying(26),
     file_id character varying(26) NOT NULL,
     category_object_id character varying(26) NOT NULL,
     category_code character varying(16) NOT NULL,
@@ -2003,8 +2009,8 @@ CREATE TABLE public.vou_asset_sale_details (
     counterparty_code character varying(64) NOT NULL,
     counterparty_name character varying(200) NOT NULL,
     party_account_type character varying(16) DEFAULT 'OTHER'::character varying NOT NULL,
-    CONSTRAINT vou_asset_sale_details_counterparty_customer_ck CHECK (((counterparty_entity)::text = 'customer-account'::text AND counterparty_customer_id IS NOT NULL) OR ((counterparty_entity)::text <> 'customer-account'::text AND counterparty_customer_id IS NULL)),
-    CONSTRAINT vou_asset_sale_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'other-unit'::character varying])::text[]))),
+    CONSTRAINT vou_asset_sale_details_counterparty_customer_ck CHECK (((counterparty_entity)::text = 'customer-subunit'::text AND counterparty_customer_id IS NOT NULL) OR ((counterparty_entity)::text <> 'customer-subunit'::text AND counterparty_customer_id IS NULL)),
+    CONSTRAINT vou_asset_sale_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'other-unit'::character varying])::text[]))),
     CONSTRAINT vou_asset_sale_details_entity_check CHECK (((entity)::text = 'asset-sale'::text)),
     CONSTRAINT vou_asset_sale_details_party_account_type_check CHECK (((party_account_type)::text = ANY ((ARRAY['TRADE'::character varying, 'OTHER'::character varying])::text[])))
 );
@@ -2078,11 +2084,11 @@ CREATE TABLE public.vou_bill_details (
     interest_party_code character varying(64),
     interest_party_name character varying(200),
     with_recourse boolean DEFAULT false NOT NULL,
-    CONSTRAINT vou_bill_details_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-account'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-account'::text AND (counterparty_customer_id IS NULL))),
+    CONSTRAINT vou_bill_details_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-subunit'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-subunit'::text AND (counterparty_customer_id IS NULL))),
     CONSTRAINT vou_bill_details_check CHECK ((((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_approval_entry_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL)))),
     CONSTRAINT vou_bill_details_check1 CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL)))),
-    CONSTRAINT vou_bill_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying])::text[]))),
-    CONSTRAINT vou_bill_details_customer_receipt_ck CHECK ((((entity)::text <> 'bill-receipt'::text) OR (((counterparty_entity)::text = 'customer-account'::text) AND (handler_object_id IS NOT NULL) AND ((maturity_type)::text = 'NONE'::text) AND ((interest_mode)::text = 'NONE'::text) AND (interest_party_entity IS NULL) AND (with_recourse = false)))),
+    CONSTRAINT vou_bill_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'supplier'::character varying, 'other-unit'::character varying])::text[]))),
+    CONSTRAINT vou_bill_details_customer_receipt_ck CHECK ((((entity)::text <> 'bill-receipt'::text) OR (((counterparty_entity)::text = 'customer-subunit'::text) AND (handler_object_id IS NOT NULL) AND ((maturity_type)::text = 'NONE'::text) AND ((interest_mode)::text = 'NONE'::text) AND (interest_party_entity IS NULL) AND (with_recourse = false)))),
     CONSTRAINT vou_bill_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['bill-receipt'::character varying, 'bill-payment'::character varying, 'bill-issue'::character varying, 'bill-discount'::character varying, 'bill-maturity'::character varying])::text[]))),
     CONSTRAINT vou_bill_details_interest_mode_check CHECK (((interest_mode)::text = ANY ((ARRAY['NONE'::character varying, 'BANK_DEDUCTED'::character varying, 'THIRD_PARTY_PAYABLE'::character varying])::text[]))),
     CONSTRAINT vou_bill_details_interest_mode_party_ck CHECK (((((interest_mode)::text = 'THIRD_PARTY_PAYABLE'::text) AND ((interest_party_entity)::text = 'other-unit'::text)) OR (((interest_mode)::text <> 'THIRD_PARTY_PAYABLE'::text) AND (interest_party_entity IS NULL)))),
@@ -2369,7 +2375,7 @@ CREATE TABLE public.vou_intermediary_calculation_summaries (
     CONSTRAINT vou_intermediary_calculation_summaries_amount_cents_check CHECK ((amount_cents <> 0)),
     CONSTRAINT vou_intermediary_calculation_summaries_category_check CHECK (((category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying, 'INTERMEDIARY'::character varying])::text[]))),
     CONSTRAINT vou_intermediary_calculation_summaries_line_no_check CHECK ((line_no > 0)),
-    CONSTRAINT vou_intermediary_calculation_summaries_payee_entity_check CHECK (((payee_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'employee'::character varying, 'sales-partner'::character varying, 'other-unit'::character varying])::text[])))
+    CONSTRAINT vou_intermediary_calculation_summaries_payee_entity_check CHECK (((payee_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'employee'::character varying, 'sales-partner'::character varying, 'other-unit'::character varying])::text[])))
 );
 
 
@@ -2470,9 +2476,9 @@ CREATE TABLE public.vou_other_income_details (
     handler_approval_entry_id character varying(26),
     handler_code character varying(64),
     handler_name character varying(200),
-    CONSTRAINT vou_other_income_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-account'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-account'::text AND (counterparty_customer_id IS NULL))),
+    CONSTRAINT vou_other_income_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-subunit'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-subunit'::text AND (counterparty_customer_id IS NULL))),
     CONSTRAINT vou_other_income_counterparty_ck CHECK ((((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_approval_entry_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL)))),
-    CONSTRAINT vou_other_income_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying])::text[]))),
+    CONSTRAINT vou_other_income_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'supplier'::character varying])::text[]))),
     CONSTRAINT vou_other_income_details_entity_check CHECK (((entity)::text = 'other-income'::text)),
     CONSTRAINT vou_other_income_details_source_name_check CHECK (((length(btrim((source_name)::text)) >= 1) AND (length(btrim((source_name)::text)) <= 200))),
     CONSTRAINT vou_other_income_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
@@ -2501,10 +2507,10 @@ CREATE TABLE public.vou_payment_details (
     handler_code character varying(64),
     handler_name character varying(200),
     other_category character varying(32),
-    CONSTRAINT vou_payment_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-account'::text) AND (counterparty_customer_id IS NOT NULL)) OR (((counterparty_entity)::text <> 'customer-account'::text) AND (counterparty_customer_id IS NULL))),
-    CONSTRAINT vou_payment_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
+    CONSTRAINT vou_payment_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-subunit'::text) AND (counterparty_customer_id IS NOT NULL)) OR (((counterparty_entity)::text <> 'customer-subunit'::text) AND (counterparty_customer_id IS NULL))),
+    CONSTRAINT vou_payment_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT vou_payment_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['sales-refund'::character varying, 'purchase-payment'::character varying, 'other-payment'::character varying, 'employee-loan'::character varying])::text[]))),
-    CONSTRAINT vou_payment_details_entity_party_check CHECK (((((entity)::text = 'sales-refund'::text) AND ((counterparty_entity)::text = 'customer-account'::text)) OR (((entity)::text = 'purchase-payment'::text) AND ((counterparty_entity)::text = 'supplier'::text)) OR (((entity)::text = 'other-payment'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))) OR (((entity)::text = 'employee-loan'::text) AND ((counterparty_entity)::text = 'employee'::text)))),
+    CONSTRAINT vou_payment_details_entity_party_check CHECK (((((entity)::text = 'sales-refund'::text) AND ((counterparty_entity)::text = 'customer-subunit'::text)) OR (((entity)::text = 'purchase-payment'::text) AND ((counterparty_entity)::text = 'supplier'::text)) OR (((entity)::text = 'other-payment'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))) OR (((entity)::text = 'employee-loan'::text) AND ((counterparty_entity)::text = 'employee'::text)))),
     CONSTRAINT vou_payment_details_other_category_check CHECK (((other_category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'INTERMEDIARY'::character varying])::text[]))),
     CONSTRAINT vou_payment_details_other_category_ck CHECK (((other_category IS NULL) OR ((entity)::text = 'other-payment'::text))),
     CONSTRAINT vou_payment_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
@@ -2879,33 +2885,33 @@ CREATE TABLE public.vou_receipt_details (
     handler_code character varying(64),
     handler_name character varying(200),
     other_category character varying(32),
-    CONSTRAINT vou_receipt_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-account'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-account'::text AND (counterparty_customer_id IS NULL))),
-    CONSTRAINT vou_receipt_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
+    CONSTRAINT vou_receipt_counterparty_customer_ck CHECK ((((counterparty_entity)::text = 'customer-subunit'::text) AND (counterparty_customer_id IS NOT NULL)) OR ((COALESCE(counterparty_entity, ''::character varying))::text <> 'customer-subunit'::text AND (counterparty_customer_id IS NULL))),
+    CONSTRAINT vou_receipt_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT vou_receipt_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['sales-receipt'::character varying, 'purchase-refund'::character varying, 'other-receipt'::character varying, 'employee-repayment'::character varying])::text[]))),
-    CONSTRAINT vou_receipt_details_entity_party_check CHECK (((((entity)::text = 'sales-receipt'::text) AND (counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (customer_object_id IS NOT NULL) AND (customer_approval_entry_id IS NOT NULL) AND (operating_entity_object_id IS NOT NULL) AND (operating_entity_approval_entry_id IS NOT NULL)) OR (((entity)::text = 'purchase-refund'::text) AND ((counterparty_entity)::text = 'supplier'::text) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)) OR (((entity)::text = 'other-receipt'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[])) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)) OR (((entity)::text = 'employee-repayment'::text) AND ((counterparty_entity)::text = 'employee'::text) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)))),
+    CONSTRAINT vou_receipt_details_entity_party_check CHECK (((((entity)::text = 'sales-receipt'::text) AND (counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (customer_object_id IS NOT NULL) AND (customer_approval_entry_id IS NOT NULL) AND (operating_entity_object_id IS NOT NULL) AND (operating_entity_approval_entry_id IS NOT NULL)) OR (((entity)::text = 'purchase-refund'::text) AND ((counterparty_entity)::text = 'supplier'::text) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)) OR (((entity)::text = 'other-receipt'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[])) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)) OR (((entity)::text = 'employee-repayment'::text) AND ((counterparty_entity)::text = 'employee'::text) AND (customer_object_id IS NULL) AND (operating_entity_object_id IS NULL)))),
     CONSTRAINT vou_receipt_details_other_category_check CHECK (((other_category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'INTERMEDIARY'::character varying])::text[]))),
     CONSTRAINT vou_receipt_details_other_category_ck CHECK (((other_category IS NULL) OR ((entity)::text = 'other-receipt'::text))),
     CONSTRAINT vou_receipt_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
 );
 
 --
--- Name: vou_sales_receipt_account_allocations; Type: TABLE; Schema: public; Owner: -
+-- Name: vou_sales_receipt_subunit_allocations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.vou_sales_receipt_account_allocations (
+CREATE TABLE public.vou_sales_receipt_subunit_allocations (
     document_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     customer_object_id character varying(26) NOT NULL,
     customer_approval_entry_id character varying(26) NOT NULL,
-    account_object_id character varying(26) NOT NULL,
-    account_approval_entry_id character varying(26) NOT NULL,
-    account_code character varying(64) NOT NULL,
-    account_name character varying(200) NOT NULL,
+    subunit_object_id character varying(26) NOT NULL,
+    subunit_approval_entry_id character varying(26) NOT NULL,
+    subunit_code character varying(64) NOT NULL,
+    subunit_name character varying(200) NOT NULL,
     amount_cents bigint NOT NULL,
-    CONSTRAINT vou_sales_receipt_account_allocations_amount_check CHECK ((amount_cents > 0)),
-    CONSTRAINT vou_sales_receipt_account_allocations_line_no_check CHECK ((line_no >= 1)),
-    CONSTRAINT vou_sales_receipt_account_allocations_pkey PRIMARY KEY (document_id, line_no),
-    CONSTRAINT vou_sales_receipt_account_allocations_unique_account UNIQUE (document_id, account_object_id)
+    CONSTRAINT vou_sales_receipt_subunit_allocations_amount_check CHECK ((amount_cents > 0)),
+    CONSTRAINT vou_sales_receipt_subunit_allocations_line_no_check CHECK ((line_no >= 1)),
+    CONSTRAINT vou_sales_receipt_subunit_allocations_pkey PRIMARY KEY (document_id, line_no),
+    CONSTRAINT vou_sales_receipt_subunit_allocations_unique_subunit UNIQUE (document_id, subunit_object_id)
 );
 
 
@@ -3337,7 +3343,7 @@ CREATE TABLE public.wfl_definition_instances (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
     CONSTRAINT wfl_definition_instances_counterparty_check CHECK (((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_approval_entry_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL))),
-    CONSTRAINT wfl_definition_instances_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'employee'::character varying])::text[]))),
+    CONSTRAINT wfl_definition_instances_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-subunit'::character varying, 'supplier'::character varying, 'employee'::character varying])::text[]))),
     CONSTRAINT wfl_definition_instances_revision_check CHECK ((revision > 0))
 );
 
@@ -3650,6 +3656,7 @@ INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000285', '/dcl/s
 INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000286', '/dcl/supplier/get', 'dcl', 'supplier', 'get', '查看供应商声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000287', '/dcl/customer/create', 'dcl', 'customer', 'create', '创建客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000288', '/dcl/customer/save', 'dcl', 'customer', 'save', '保存客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000314', '/dcl/customer/save-subunits', 'dcl', 'customer', 'save-subunits', '维护客户子单位', 'ENABLED', '2026-09-02 00:00:00+00', NULL, '2026-09-02 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000289', '/dcl/customer/submit', 'dcl', 'customer', 'submit', '提交客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000290', '/dcl/customer/unsubmit', 'dcl', 'customer', 'unsubmit', '撤回客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JDCL00000000000000000291', '/dcl/customer/reject', 'dcl', 'customer', 'reject', '驳回客户声明', 'ENABLED', '2026-08-28 00:00:00+00', NULL, '2026-08-28 00:00:00+00', NULL, 1, NULL);
@@ -4704,24 +4711,26 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "billId", "name": "票据", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "BILL"}, {"key": "counterpartyObjectId", "name": "相对方", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "COUNTERPARTY"}, {"key": "status", "name": "状态", "type": "ENUM", "required": false, "enumValues": ["", "AVAILABLE", "SETTLED"], "defaultValue": ""}, {"key": "maturityRange", "name": "到期日范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "票据ID", "type": "ID", "alias": "bill_id", "order": 2, "width": 180, "visible": false}, {"name": "票据号", "type": "TEXT", "alias": "bill_no", "order": 3, "width": 160, "visible": true}, {"name": "业务状态", "type": "TEXT", "alias": "business_status", "order": 4, "width": 110, "visible": true}, {"name": "账簿方向", "type": "TEXT", "alias": "position_type", "order": 5, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "原值", "type": "DECIMAL", "alias": "original_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "账面金额", "type": "DECIMAL", "alias": "carrying_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "到期日", "type": "DATE", "alias": "maturity_date", "order": 9, "width": 110, "format": "date", "visible": true}, {"name": "相对方ID", "type": "ID", "alias": "counterparty_object_id", "order": 10, "width": 180, "visible": false}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
 INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV43189400de7a6fe5d7978ed', true, '客户应收预收账龄', '系统预置报表', '
     WITH facts AS (
-      SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''CUSTOMER_ACCOUNT'' AS customer_account_id,v.business_date,
+      SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''CUSTOMER_SUBUNIT'' AS customer_subunit_id,
+        e.dimension_references->''CUSTOMER_SUBUNIT''->>''code'' AS customer_subunit_code,
+        e.dimension_references->''CUSTOMER_SUBUNIT''->>''name'' AS customer_subunit_name,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
         (e.debit_minor-e.credit_minor) AS signed_minor
       FROM acc_voucher_lines e JOIN acc_vouchers v ON v.id=e.voucher_id
       JOIN acc_subjects s ON s.id=e.subject_id AND s.book_id=e.book_id
       LEFT JOIN vou_documents d ON v.source_type=''VOU'' AND d.id=v.source_id
-      WHERE s.settlement_purpose IN (''RECEIVABLE'',''ADVANCE_RECEIPT'') AND e.dimensions ? ''CUSTOMER_ACCOUNT''
-        AND ($1::text='''' OR e.book_id=$1) AND ($2::text='''' OR e.dimensions->>''CUSTOMER_ACCOUNT''=$2)
+      WHERE s.settlement_purpose IN (''RECEIVABLE'',''ADVANCE_RECEIPT'') AND e.dimensions ? ''CUSTOMER_SUBUNIT''
+        AND ($1::text='''' OR e.book_id=$1) AND ($2::text='''' OR e.dimensions->>''CUSTOMER_SUBUNIT''=$2)
         AND ($3::text='''' OR e.currency=$3) AND v.business_date<=$4::date
     ), ranked AS (
       SELECT f.*,
-        sum(greatest(f.signed_minor,0)) OVER customer_account AS total_positive,
-        sum(greatest(-f.signed_minor,0)) OVER customer_account AS total_negative,
+        sum(greatest(f.signed_minor,0)) OVER customer_subunit AS total_positive,
+        sum(greatest(-f.signed_minor,0)) OVER customer_subunit AS total_negative,
         coalesce(sum(greatest(f.signed_minor,0)) OVER fifo_before,0) AS prior_positive,
         coalesce(sum(greatest(-f.signed_minor,0)) OVER fifo_before,0) AS prior_negative
       FROM facts f
-      WINDOW customer_account AS (PARTITION BY f.book_id,f.customer_account_id,f.currency),
-        fifo_before AS (PARTITION BY f.book_id,f.customer_account_id,f.currency
+      WINDOW customer_subunit AS (PARTITION BY f.book_id,f.customer_subunit_id,f.currency),
+        fifo_before AS (PARTITION BY f.book_id,f.customer_subunit_id,f.currency
           ORDER BY f.due_date,f.business_date,f.voucher_id,f.line_order,f.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
     ), residuals AS (
       SELECT r.*,
@@ -4732,29 +4741,23 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
           ELSE 0 END AS residual_minor
       FROM ranked r
     ), balances AS (
-      SELECT r.book_id,r.customer_account_id,r.currency,
+      SELECT r.book_id,r.customer_subunit_id,r.currency,
+        (array_agg(r.customer_subunit_code ORDER BY r.business_date DESC,r.voucher_id DESC,r.line_order DESC,r.id DESC))[1] AS customer_subunit_code,
+        (array_agg(r.customer_subunit_name ORDER BY r.business_date DESC,r.voucher_id DESC,r.line_order DESC,r.id DESC))[1] AS customer_subunit_name,
         sum(CASE WHEN r.settlement_purpose=''RECEIVABLE'' AND r.signed_minor>0 THEN r.signed_minor ELSE 0 END) AS receivable_minor,
         sum(CASE WHEN r.settlement_purpose=''ADVANCE_RECEIPT'' AND r.signed_minor<0 THEN -r.signed_minor ELSE 0 END) AS advance_minor,
         sum(r.signed_minor) AS net_minor,min(r.due_date) FILTER (WHERE r.residual_minor>0) AS oldest_due_date
-      FROM residuals r GROUP BY r.book_id,r.customer_account_id,r.currency HAVING sum(r.signed_minor)<>0
+      FROM residuals r GROUP BY r.book_id,r.customer_subunit_id,r.currency HAVING sum(r.signed_minor)<>0
     )
-    SELECT b.code::text AS book_code,x.customer_account_id::text AS customer_account_id,coalesce(account.code,x.customer_account_id)::text AS customer_account_code,
-      coalesce(account_snapshot.name,x.customer_account_id)::text AS customer_account_name,x.currency::text AS currency,
+    SELECT b.code::text AS book_code,x.customer_subunit_id::text AS customer_subunit_id,x.customer_subunit_code::text AS customer_subunit_code,
+      x.customer_subunit_name::text AS customer_subunit_name,x.currency::text AS currency,
       (x.receivable_minor::numeric/100) AS receivable_amount,(x.advance_minor::numeric/100) AS advance_amount,
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN dcl_customer_account_roots account ON account.account_id=x.customer_account_id
-    LEFT JOIN LATERAL (
-      SELECT line.data->>''name'' AS name
-      FROM dcl_customer_version_accounts line
-      JOIN approval_entries entry ON entry.id=line.customer_approval_entry_id AND entry.status=''APPROVED''
-      WHERE line.account_id=account.account_id
-      ORDER BY entry.version_no DESC LIMIT 1
-    ) account_snapshot ON true
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
-    ORDER BY b.code,customer_account_code,x.currency
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerAccountId", "name": "客户核算账户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户核算账户ID", "type": "ID", "alias": "customer_account_id", "order": 2, "width": 180, "visible": false}, {"name": "客户核算账户编码", "type": "TEXT", "alias": "customer_account_code", "order": 3, "width": 120, "visible": true}, {"name": "客户核算账户名称", "type": "TEXT", "alias": "customer_account_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
+    ORDER BY b.code,customer_subunit_code,x.currency
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerSubunitId", "name": "客户子单位", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_SUBUNIT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户子单位ID", "type": "ID", "alias": "customer_subunit_id", "order": 2, "width": 180, "visible": false}, {"name": "客户子单位编码", "type": "TEXT", "alias": "customer_subunit_code", "order": 3, "width": 120, "visible": true}, {"name": "客户子单位名称", "type": "TEXT", "alias": "customer_subunit_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
 INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV24d57c02d870b62329517d0', true, '供应商应付预付账龄', '系统预置报表', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''SUPPLIER'' AS supplier_id,v.business_date,
@@ -4803,7 +4806,8 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
 INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV57bcbf1d2df6010d41816c0', true, '空桶', '系统预置报表', '
     WITH facts AS (
-      SELECT book.id AS book_id,book.code,e.customer_id,e.container_type,e.quantity_delta,
+      SELECT book.id AS book_id,book.code,e.customer_subunit_id,e.customer_id,e.customer_approval_entry_id,
+        e.customer_subunit_code,e.customer_subunit_name,e.container_type,e.quantity_delta,
         coalesce(source.business_date,book.start_month) AS business_date,e.source_revision
       FROM acc_container_entries e
       JOIN acc_books book ON
@@ -4817,34 +4821,29 @@ INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name
         WHERE voucher.book_id=book.id AND voucher.source_id=e.source_document_id
         ORDER BY voucher.id LIMIT 1
       ) source ON true
-      WHERE ($1::text='''' OR book.id=$1) AND ($2::text='''' OR e.customer_id=$2)
+      WHERE ($1::text='''' OR book.id=$1) AND ($2::text='''' OR e.customer_subunit_id=$2)
         AND ($3::text='''' OR e.container_type=$3)
         AND coalesce(source.business_date,book.start_month)<=$4::date
     ), movements AS (
-      SELECT book_id,code,customer_id,container_type,
+      SELECT book_id,code,customer_subunit_id,customer_id,customer_approval_entry_id,
+        customer_subunit_code,customer_subunit_name,container_type,
         sum(CASE WHEN business_date<date_trunc(''month'',$4::date)::date THEN quantity_delta ELSE 0 END) AS opening_quantity,
         sum(CASE WHEN business_date>=date_trunc(''month'',$4::date)::date AND quantity_delta>0 THEN quantity_delta ELSE 0 END) AS issued_quantity,
         sum(CASE WHEN business_date>=date_trunc(''month'',$4::date)::date AND quantity_delta<0 THEN -quantity_delta ELSE 0 END) AS returned_quantity,
         0::bigint AS adjusted_quantity,sum(quantity_delta) AS balance_quantity
-      FROM facts GROUP BY book_id,code,customer_id,container_type
+      FROM facts GROUP BY book_id,code,customer_subunit_id,customer_id,customer_approval_entry_id,
+        customer_subunit_code,customer_subunit_name,container_type
     )
-    SELECT m.code::text AS book_code,m.customer_id::text AS customer_id,
-      coalesce(account.code,m.customer_id)::text AS customer_code,
-      coalesce(account_snapshot.name,m.customer_id)::text AS customer_name,m.container_type::text AS container_type,
+    SELECT m.code::text AS book_code,m.customer_subunit_id::text AS customer_subunit_id,
+      m.customer_id::text AS customer_id,m.customer_approval_entry_id::text AS customer_approval_entry_id,
+      m.customer_subunit_code::text AS customer_subunit_code,
+      m.customer_subunit_name::text AS customer_subunit_name,m.container_type::text AS container_type,
       m.opening_quantity::numeric AS opening_quantity,m.issued_quantity::numeric AS issued_quantity,
       m.returned_quantity::numeric AS returned_quantity,m.adjusted_quantity::numeric AS adjusted_quantity,
       m.balance_quantity::numeric AS balance_quantity,NULL::numeric AS amount
     FROM movements m
-    LEFT JOIN dcl_customer_account_roots account ON account.account_id=m.customer_id
-    LEFT JOIN LATERAL (
-      SELECT line.data->>''name'' AS name
-      FROM dcl_customer_version_accounts line
-      JOIN approval_entries entry ON entry.id=line.customer_approval_entry_id AND entry.status=''APPROVED''
-      WHERE line.account_id=account.account_id
-      ORDER BY entry.version_no DESC LIMIT 1
-    ) account_snapshot ON true
-    ORDER BY m.code,customer_code,m.container_type
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 5, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 6, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 7, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 10, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 11, "width": 130, "format": "money", "visible": true}]', 'SYSTEM', 'SYSTEM');
+    ORDER BY m.code,m.customer_subunit_code,m.container_type
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerSubunitId", "name": "客户子单位", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_SUBUNIT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户子单位ID", "type": "ID", "alias": "customer_subunit_id", "order": 2, "width": 180, "visible": false}, {"name": "所属客户ID", "type": "ID", "alias": "customer_id", "order": 3, "width": 180, "visible": false}, {"name": "客户审批条目ID", "type": "ID", "alias": "customer_approval_entry_id", "order": 4, "width": 180, "visible": false}, {"name": "客户子单位编码", "type": "TEXT", "alias": "customer_subunit_code", "order": 5, "width": 140, "visible": true}, {"name": "客户子单位名称", "type": "TEXT", "alias": "customer_subunit_name", "order": 6, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 7, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 10, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 11, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 12, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 13, "width": 130, "format": "money", "visible": true}]', 'SYSTEM', 'SYSTEM');
 INSERT INTO public.dcl_rpt_definition_versions (approval_entry_id, enabled, name, description, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV517f80b4080608d1ef8ce23', true, '员工借款', '系统预置报表', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''EMPLOYEE'' AS employee_id,v.business_date,v.source_entity,
@@ -5532,11 +5531,11 @@ ALTER TABLE ONLY public.acc_container_entries
 
 
 --
--- Name: acc_container_entries acc_container_entries_source_document_id_customer_id_contai_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: acc_container_entries acc_container_entries_source_document_id_customer_subunit_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.acc_container_entries
-    ADD CONSTRAINT acc_container_entries_source_document_id_customer_id_contai_key UNIQUE (source_document_id, customer_id, container_type);
+    ADD CONSTRAINT acc_container_entries_source_document_id_customer_subunit_key UNIQUE (source_document_id, customer_subunit_id, container_type);
 
 
 --
@@ -5648,7 +5647,7 @@ ALTER TABLE ONLY public.acc_opening_containers
 --
 
 ALTER TABLE ONLY public.acc_opening_containers
-    ADD CONSTRAINT acc_opening_containers_pkey PRIMARY KEY (book_id, customer_id, container_type);
+    ADD CONSTRAINT acc_opening_containers_pkey PRIMARY KEY (book_id, customer_subunit_id, container_type);
 
 
 --
@@ -6631,11 +6630,11 @@ ALTER TABLE ONLY public.vou_receipt_details
 
 
 --
--- Name: vou_sales_receipt_account_allocations vou_sales_receipt_account_allocations_document_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: vou_sales_receipt_subunit_allocations vou_sales_receipt_subunit_allocations_document_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.vou_sales_receipt_account_allocations
-    ADD CONSTRAINT vou_sales_receipt_account_allocations_document_fk FOREIGN KEY (document_id) REFERENCES public.vou_receipt_details(document_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.vou_sales_receipt_subunit_allocations
+    ADD CONSTRAINT vou_sales_receipt_subunit_allocations_document_fk FOREIGN KEY (document_id) REFERENCES public.vou_receipt_details(document_id) ON DELETE CASCADE;
 
 
 --
@@ -6920,7 +6919,7 @@ CREATE UNIQUE INDEX acc_books_single_control_uq ON public.acc_books USING btree 
 -- Name: acc_container_entries_balance_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX acc_container_entries_balance_idx ON public.acc_container_entries USING btree (customer_id, container_type);
+CREATE INDEX acc_container_entries_balance_idx ON public.acc_container_entries USING btree (customer_subunit_id, container_type);
 
 
 --
@@ -9070,21 +9069,21 @@ ALTER TABLE ONLY public.dcl_supplier_versions
 ALTER TABLE ONLY public.dcl_customer_versions
     ADD CONSTRAINT dcl_customer_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_customer_account_roots
-    ADD CONSTRAINT dcl_customer_account_roots_customer_id_fkey
+ALTER TABLE ONLY public.dcl_customer_subunit_roots
+    ADD CONSTRAINT dcl_customer_subunit_roots_customer_id_fkey
     FOREIGN KEY (customer_id, customer_entity) REFERENCES public.dcl_subjects(id, entity) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_customer_account_roots
-    ADD CONSTRAINT dcl_customer_account_roots_first_approved_entry_id_fkey
+ALTER TABLE ONLY public.dcl_customer_subunit_roots
+    ADD CONSTRAINT dcl_customer_subunit_roots_first_approved_entry_id_fkey
     FOREIGN KEY (first_approved_customer_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_customer_version_accounts
-    ADD CONSTRAINT dcl_customer_version_accounts_entry_id_fkey
+ALTER TABLE ONLY public.dcl_customer_version_subunits
+    ADD CONSTRAINT dcl_customer_version_subunits_entry_id_fkey
     FOREIGN KEY (customer_approval_entry_id) REFERENCES public.dcl_customer_versions(approval_entry_id) ON DELETE CASCADE;
-ALTER TABLE ONLY public.dcl_customer_version_accounts
-    ADD CONSTRAINT dcl_customer_version_accounts_account_id_fkey
-    FOREIGN KEY (account_id) REFERENCES public.dcl_customer_account_roots(account_id) ON DELETE RESTRICT;
-ALTER TABLE ONLY public.dcl_customer_version_account_credit_limits
-    ADD CONSTRAINT dcl_customer_version_account_credit_limits_account_fkey
-    FOREIGN KEY (customer_approval_entry_id, account_id) REFERENCES public.dcl_customer_version_accounts(customer_approval_entry_id, account_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_customer_version_subunits
+    ADD CONSTRAINT dcl_customer_version_subunits_subunit_id_fkey
+    FOREIGN KEY (subunit_id) REFERENCES public.dcl_customer_subunit_roots(subunit_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_customer_version_subunit_credit_limits
+    ADD CONSTRAINT dcl_customer_version_subunit_credit_limits_subunit_fkey
+    FOREIGN KEY (customer_approval_entry_id, subunit_id) REFERENCES public.dcl_customer_version_subunits(customer_approval_entry_id, subunit_id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.dcl_customer_legal_identifier_claims
     ADD CONSTRAINT dcl_customer_legal_identifier_claims_approved_customer_id_fkey
     FOREIGN KEY (approved_customer_id) REFERENCES public.dcl_subjects(id) ON DELETE RESTRICT;
@@ -9104,8 +9103,8 @@ ALTER TABLE ONLY public.dcl_customer_attachments
     ADD CONSTRAINT dcl_customer_attachments_file_id_fkey
     FOREIGN KEY (file_id) REFERENCES public.dcl_customer_files(id) ON DELETE RESTRICT;
 ALTER TABLE ONLY public.dcl_customer_attachments
-    ADD CONSTRAINT dcl_customer_attachments_account_scope_fkey
-    FOREIGN KEY (approval_entry_id, account_id) REFERENCES public.dcl_customer_version_accounts(customer_approval_entry_id, account_id) ON DELETE CASCADE;
+    ADD CONSTRAINT dcl_customer_attachments_subunit_scope_fkey
+    FOREIGN KEY (approval_entry_id, subunit_id) REFERENCES public.dcl_customer_version_subunits(customer_approval_entry_id, subunit_id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.dcl_sales_partner_versions
     ADD CONSTRAINT dcl_sales_partner_versions_approval_entry_id_fkey
     FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
@@ -9179,14 +9178,14 @@ CREATE INDEX dcl_supplier_versions_settlement_method_idx
     ON public.dcl_supplier_versions USING btree (settlement_method_id);
 CREATE INDEX dcl_supplier_versions_default_purchaser_idx
     ON public.dcl_supplier_versions USING btree (default_purchaser_employee_id);
-CREATE INDEX dcl_customer_account_roots_customer_idx
-    ON public.dcl_customer_account_roots USING btree (customer_id, account_id);
-CREATE UNIQUE INDEX dcl_customer_account_roots_customer_code_uq
-    ON public.dcl_customer_account_roots USING btree (customer_id, lower((code)::text));
-CREATE INDEX dcl_customer_version_accounts_account_idx
-    ON public.dcl_customer_version_accounts USING btree (account_id, customer_approval_entry_id);
-CREATE INDEX dcl_customer_attachments_entry_account_idx
-    ON public.dcl_customer_attachments USING btree (approval_entry_id, account_id, created_at, file_id);
+CREATE INDEX dcl_customer_subunit_roots_customer_idx
+    ON public.dcl_customer_subunit_roots USING btree (customer_id, subunit_id);
+CREATE UNIQUE INDEX dcl_customer_subunit_roots_customer_code_uq
+    ON public.dcl_customer_subunit_roots USING btree (customer_id, lower((code)::text));
+CREATE INDEX dcl_customer_version_subunits_subunit_idx
+    ON public.dcl_customer_version_subunits USING btree (subunit_id, customer_approval_entry_id);
+CREATE INDEX dcl_customer_attachments_entry_subunit_idx
+    ON public.dcl_customer_attachments USING btree (approval_entry_id, subunit_id, created_at, file_id);
 
 
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;

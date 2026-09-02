@@ -51,9 +51,9 @@ func (s *Service) EnsureSalesPartnerUnapproveAllowed(ctx context.Context, tx pgx
 	return s.EnsureUnapproveAllowed(ctx, tx, entryID)
 }
 
-func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerKind, customerLegalIdentifier, settlementID, paymentID, attributionType, attributionID string) (EffectiveReference, EffectiveReference, EffectiveReference, error) {
+func (s *Service) ResolveCustomerSubunitReferences(ctx context.Context, tx pgx.Tx, customerKind, customerLegalIdentifier, settlementID, paymentID, attributionType, attributionID string) (EffectiveReference, EffectiveReference, EffectiveReference, error) {
 	if tx == nil || !validID(attributionID) {
-		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
+		return EffectiveReference{}, EffectiveReference{}, EffectiveReference{}, domainError(ErrorValidation, "invalid Customer Subunit references", nil, nil)
 	}
 	var settlement, payment EffectiveReference
 	var err error
@@ -99,9 +99,9 @@ func (s *Service) ResolveCustomerAccountReferences(ctx context.Context, tx pgx.T
 	}
 	return settlement, payment, sales, nil
 }
-func (s *Service) ValidateCustomerAccountReferences(ctx context.Context, tx pgx.Tx, customerKind, customerLegalIdentifier, attributionType, attributionID, attributionEntryID string) error {
+func (s *Service) ValidateCustomerSubunitReferences(ctx context.Context, tx pgx.Tx, customerKind, customerLegalIdentifier, attributionType, attributionID, attributionEntryID string) error {
 	if tx == nil || !validID(attributionID) || !validID(attributionEntryID) {
-		return domainError(ErrorValidation, "invalid Customer Account references", nil, nil)
+		return domainError(ErrorValidation, "invalid Customer Subunit references", nil, nil)
 	}
 	entity := EntitySalesPartner
 	if attributionType == "INTERNAL_EMPLOYEE" {

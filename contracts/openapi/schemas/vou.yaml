@@ -138,7 +138,7 @@
               'type': 'string',
               'enum':
                 [
-                  'customer-account',
+                  'customer-subunit',
                   'employee',
                   'sales-partner',
                   'other-unit',
@@ -1400,18 +1400,18 @@
                           'approvalEntryId': { 'type': 'string' },
                         },
                     },
-                  'accountAllocations':
+                  'subunitAllocations':
                     {
                       'type': 'array',
                       'minItems': 1,
                       'items':
                         {
                           'type': 'object',
-                          'required': ['account', 'amount'],
+                          'required': ['subunit', 'amount'],
                           'additionalProperties': false,
                           'properties':
                             {
-                              'account':
+                              'subunit':
                                 {
                                   'type': 'object',
                                   'required': ['objectId', 'approvalEntryId'],
@@ -1442,7 +1442,7 @@
                       'type': 'string',
                       'enum':
                         [
-                          'customer-account',
+                          'customer-subunit',
                           'supplier',
                           'other-unit',
                           'employee',
@@ -1840,18 +1840,18 @@
                           'approvalEntryId': { 'type': 'string' },
                         },
                     },
-                  'accountAllocations':
+                  'subunitAllocations':
                     {
                       'type': 'array',
                       'minItems': 1,
                       'items':
                         {
                           'type': 'object',
-                          'required': ['account', 'amount'],
+                          'required': ['subunit', 'amount'],
                           'additionalProperties': false,
                           'properties':
                             {
-                              'account':
+                              'subunit':
                                 {
                                   'type': 'object',
                                   'required': ['objectId', 'approvalEntryId'],
@@ -1882,7 +1882,7 @@
                       'type': 'string',
                       'enum':
                         [
-                          'customer-account',
+                          'customer-subunit',
                           'supplier',
                           'other-unit',
                           'employee',
@@ -2667,7 +2667,7 @@
           'customerId':
             {
               'type': 'string',
-              'description': '客户核算账户所属 Customer 根对象 ID；仅 customer-account 引用返回。',
+              'description': '客户子单位所属 Customer 根对象 ID；仅 customer-subunit 引用返回。',
             },
           'unit': { 'type': 'string' },
           'currency': { 'type': 'string' },
@@ -3117,10 +3117,10 @@
           'specialApproval': { 'type': 'boolean' },
           'customer': { '$ref': '#/VouReferenceView' },
           'operatingEntity': { '$ref': '#/VouReferenceView' },
-          'accountAllocations':
+          'subunitAllocations':
             {
               'type': 'array',
-              'items': { '$ref': '#/VouSalesReceiptAccountAllocationView' },
+              'items': { '$ref': '#/VouSalesReceiptSubunitAllocationView' },
             },
           'supplier': { '$ref': '#/VouReferenceView' },
           'counterparty': { '$ref': '#/VouReferenceView' },
@@ -3204,14 +3204,14 @@
           'containerDifferenceReason': { 'type': 'string' },
         },
     },
-  'VouSalesReceiptAccountAllocationView':
+  'VouSalesReceiptSubunitAllocationView':
     {
       'type': 'object',
-      'required': ['account', 'amount'],
+      'required': ['subunit', 'amount'],
       'additionalProperties': false,
       'properties':
         {
-          'account': { '$ref': '#/VouReferenceView' },
+          'subunit': { '$ref': '#/VouReferenceView' },
           'amount': { 'type': 'string' },
         },
     },

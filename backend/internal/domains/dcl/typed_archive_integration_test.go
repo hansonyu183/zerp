@@ -151,10 +151,10 @@ func TestTypedOtherUnitAndSalesPartnerLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin Customer/Sales Partner identity comparison: %v", err)
 	}
-	if _, _, _, err = business.ResolveCustomerAccountReferences(t.Context(), tx, "MAINLAND_INDIVIDUAL", salesInput.LegalIdentifier, "", "", "CHANNEL_PARTNER", sales.ObjectID); err != nil {
+	if _, _, _, err = business.ResolveCustomerSubunitReferences(t.Context(), tx, "MAINLAND_INDIVIDUAL", salesInput.LegalIdentifier, "", "", "CHANNEL_PARTNER", sales.ObjectID); err != nil {
 		t.Fatalf("cross-kind equal Customer/Sales Partner identifier was blocked: %v", err)
 	}
-	if _, _, _, err = business.ResolveCustomerAccountReferences(t.Context(), tx, "MAINLAND_ENTERPRISE", salesInput.LegalIdentifier, "", "", "CHANNEL_PARTNER", sales.ObjectID); err == nil {
+	if _, _, _, err = business.ResolveCustomerSubunitReferences(t.Context(), tx, "MAINLAND_ENTERPRISE", salesInput.LegalIdentifier, "", "", "CHANNEL_PARTNER", sales.ObjectID); err == nil {
 		t.Fatal("same-kind equal Customer/Sales Partner identifier was not blocked")
 	}
 	if err = tx.Rollback(t.Context()); err != nil {

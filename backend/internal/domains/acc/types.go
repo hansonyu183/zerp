@@ -50,7 +50,7 @@ const (
 	BalanceDirectionDebit  = "DEBIT"
 	BalanceDirectionCredit = "CREDIT"
 
-	DimensionCustomerAccount = "CUSTOMER_ACCOUNT"
+	DimensionCustomerSubunit = "CUSTOMER_SUBUNIT"
 	DimensionSupplier        = "SUPPLIER"
 	DimensionOtherUnit       = "OTHER_UNIT"
 	DimensionEmployee        = "EMPLOYEE"
@@ -173,9 +173,9 @@ type OpeningBillInput struct {
 }
 
 type OpeningContainerInput struct {
-	CustomerID    string `json:"customerId"`
-	ContainerType string `json:"containerType"`
-	Quantity      int64  `json:"quantity"`
+	Subunit       BusinessArchiveDimensionReference `json:"subunit"`
+	ContainerType string                            `json:"containerType"`
+	Quantity      int64                             `json:"quantity"`
 }
 
 type SaveOpeningInput struct {

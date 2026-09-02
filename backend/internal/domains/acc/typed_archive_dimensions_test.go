@@ -4,7 +4,7 @@ import "testing"
 
 func TestTypedArchiveDimensionsReplaceLegacyCounterpartyDimensions(t *testing.T) {
 	for _, dimension := range []string{
-		DimensionCustomerAccount,
+		DimensionCustomerSubunit,
 		DimensionSupplier,
 		DimensionOtherUnit,
 		DimensionEmployee,
@@ -33,8 +33,8 @@ func TestTradeSettlementPurposesRequireTypedTransactionIdentity(t *testing.T) {
 	cases := []struct {
 		purpose, dimension string
 	}{
-		{SettlementPurposeReceivable, DimensionCustomerAccount},
-		{SettlementPurposeAdvanceReceipt, DimensionCustomerAccount},
+		{SettlementPurposeReceivable, DimensionCustomerSubunit},
+		{SettlementPurposeAdvanceReceipt, DimensionCustomerSubunit},
 		{SettlementPurposePayable, DimensionSupplier},
 		{SettlementPurposePrepaid, DimensionSupplier},
 	}

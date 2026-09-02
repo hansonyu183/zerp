@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export type BobReferenceQueryRequest = {
-  entity: 'customer-account' | 'operating-entity' | 'employee' | 'other-unit' | 'supplier' | 'sales-partner' | 'product';
+  entity: 'customer-subunit' | 'operating-entity' | 'employee' | 'other-unit' | 'supplier' | 'sales-partner' | 'product';
   keyword?: string;
   operatingEntityId?: string;
   sourceObjectId?: string;

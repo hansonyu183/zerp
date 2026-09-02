@@ -2,4 +2,4 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type SubjectDimension = 'CUSTOMER_ACCOUNT' | 'SUPPLIER' | 'OTHER_UNIT' | 'EMPLOYEE' | 'SALES_PARTNER' | 'DEPARTMENT' | 'PRODUCT' | 'WAREHOUSE' | 'FUND_ACCOUNT' | 'ASSET' | 'BILL';
+export type SubjectDimension = 'CUSTOMER_SUBUNIT' | 'SUPPLIER' | 'OTHER_UNIT' | 'EMPLOYEE' | 'SALES_PARTNER' | 'DEPARTMENT' | 'PRODUCT' | 'WAREHOUSE' | 'FUND_ACCOUNT' | 'ASSET' | 'BILL';

@@ -172,7 +172,7 @@ describe('process instance view model', () => {
     const selectedCounterparty = {
       objectId: '01J00000000000000000000010',
       approvalEntryId: '01J00000000000000000000011',
-      entity: 'customer-account' as const,
+      entity: 'customer-subunit' as const,
       code: 'C-001',
       name: '已选客户',
     }
@@ -236,7 +236,7 @@ describe('process instance view model', () => {
       {
         objectId: '01J00000000000000000000012',
         approvalEntryId: '01J00000000000000000000013',
-        entity: 'customer-account',
+        entity: 'customer-subunit',
         code: 'C-002',
         name: '搜索结果客户',
       },

@@ -135,7 +135,7 @@ export const voucherEntityConfigs: Readonly<
     usesFundAccount: true,
     usesHandler: true,
     usesOperatingEntity: true,
-    usesAccountAllocations: true,
+    usesSubunitAllocations: true,
     directAmount: true,
   },
   'purchase-refund': {

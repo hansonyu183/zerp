@@ -10,7 +10,7 @@ import (
 
 const (
 	EntityCustomer        = "customer"
-	EntityCustomerAccount = "customer-account"
+	EntityCustomerSubunit = "customer-subunit"
 	EntitySupplier        = "supplier"
 	EntityOtherUnit       = "other-unit"
 	EntityEmployee        = "employee"
@@ -53,7 +53,7 @@ const (
 
 var entities = [...]string{
 	EntityCustomer,
-	EntityCustomerAccount,
+	EntityCustomerSubunit,
 	EntitySupplier,
 	EntityOtherUnit,
 	EntityEmployee,

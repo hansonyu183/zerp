@@ -352,12 +352,12 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		}
 		s.bobRefs[sample.key] = view
 		if sample.entity == bobdomain.EntityCustomer && sample.status == approvedStatus {
-			account, accountErr := s.defaultCustomerAccountReference(ctx, view, sample.key)
-			if accountErr != nil {
-				return fmt.Errorf("%s default account: %w", sample.key, accountErr)
+			subunit, subunitErr := s.defaultCustomerSubunitReference(ctx, view, sample.key)
+			if subunitErr != nil {
+				return fmt.Errorf("%s implicit subunit: %w", sample.key, subunitErr)
 			}
 			s.bobRefs[sample.key+"-customer"] = view
-			s.bobRefs[sample.key] = account
+			s.bobRefs[sample.key] = subunit
 		}
 		counts.add(result)
 	}
@@ -521,12 +521,12 @@ func (s *Seeder) ensureBusiness(
 			}, createActor)
 			result, createErr = dclSupplierBusinessMutation(createdSupplier), declarationErr
 		case bobdomain.EntityCustomer:
-			createdCustomer, archiveErr := s.customerDeclarations().Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerDataInput{
-				Kind: "MAINLAND_ENTERPRISE", LegalName: data.Name, DisplayName: data.ShortName, LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", sample.key),
-				Phone: data.ContactPhone, Email: data.Email, Address: data.Address,
-				DefaultOperatingEntityID: s.bobRefs["operating-effective"].ObjectID, Enabled: true,
-				RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{},
-				Accounts: []dcldomain.CustomerAccountDataInput{{Enabled: true, IsDefault: true, Name: data.Name, ShortName: data.ShortName,
+			createdCustomer, archiveErr := s.customerDeclarations().Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerCreateDataInput{
+				Root: dcldomain.CustomerRootDataInput{Kind: "MAINLAND_ENTERPRISE", LegalName: data.Name, DisplayName: data.ShortName, LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", sample.key),
+					Phone: data.ContactPhone, Email: data.Email, Address: data.Address,
+					DefaultOperatingEntityID: s.bobRefs["operating-effective"].ObjectID, Enabled: true,
+					RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{}},
+				Subunits: []dcldomain.CustomerSubunitDataInput{{Enabled: true, Name: data.Name, ShortName: data.ShortName,
 					CustomerTypeID: bobdomain.CustomerTypeEndUserID, ContactName: data.ContactName,
 					ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address,
 					SettlementMethodID:         data.SettlementMethodID,
@@ -680,10 +680,10 @@ func dclCustomerBusinessView(view dcldomain.CustomerView) seedBusinessView {
 			OperatingEntityID: view.Data.DefaultOperatingEntityID}, UpdatedAt: view.UpdatedAt}
 }
 
-// defaultCustomerAccountReference exposes the Customer aggregate's approved
-// default account to voucher seeds. The account is an embedded reference; its
+// defaultCustomerSubunitReference exposes the Customer aggregate's approved
+// implicit subunit to voucher seeds. The subunit is an embedded reference; its
 // approval entry remains the enclosing Customer entry.
-func (s *Seeder) defaultCustomerAccountReference(ctx context.Context, customer seedBusinessView, key string) (seedBusinessView, error) {
+func (s *Seeder) defaultCustomerSubunitReference(ctx context.Context, customer seedBusinessView, key string) (seedBusinessView, error) {
 	actor, err := seedActor(actorID, requestID(key, "default-account"))
 	if err != nil {
 		return seedBusinessView{}, err
@@ -692,18 +692,18 @@ func (s *Seeder) defaultCustomerAccountReference(ctx context.Context, customer s
 	if err != nil {
 		return seedBusinessView{}, err
 	}
-	for _, account := range view.Data.Accounts {
-		if account.IsDefault {
-			return seedBusinessView{ObjectID: account.AccountID, Entity: bobdomain.EntityCustomerAccount,
-				Code: account.Code, ApprovalRevision: view.Approval.Revision, Enabled: account.Enabled,
-				Approval: view.Approval, Data: bobdomain.DetailView{Name: account.Name, ShortName: account.ShortName,
-					ContactName: account.ContactName, ContactPhone: account.ContactPhone, Email: account.Email,
-					Address: account.Address, SettlementMethodID: account.SettlementMethodID,
-					SalespersonEmployeeID: account.PrimarySalesAttribution.SubjectObjectID,
-					Remark:                account.InternalReminder}}, nil
+	for _, subunit := range view.Data.Subunits {
+		if view.Data.ImplicitSubunitID != nil && *view.Data.ImplicitSubunitID == subunit.SubunitID {
+			return seedBusinessView{ObjectID: subunit.SubunitID, Entity: bobdomain.EntityCustomerSubunit,
+				Code: subunit.Code, ApprovalRevision: view.Approval.Revision, Enabled: subunit.Enabled,
+				Approval: view.Approval, Data: bobdomain.DetailView{Name: subunit.Name, ShortName: subunit.ShortName,
+					ContactName: subunit.ContactName, ContactPhone: subunit.ContactPhone, Email: subunit.Email,
+					Address: subunit.Address, SettlementMethodID: subunit.SettlementMethodID,
+					SalespersonEmployeeID: subunit.PrimarySalesAttribution.SubjectObjectID,
+					Remark:                subunit.InternalReminder}}, nil
 		}
 	}
-	return seedBusinessView{}, errors.New("customer has no default account")
+	return seedBusinessView{}, errors.New("customer has no implicit subunit")
 }
 
 func dclProductBusinessView(view dcldomain.ProductView) seedBusinessView {

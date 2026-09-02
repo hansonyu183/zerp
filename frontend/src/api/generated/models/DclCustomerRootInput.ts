@@ -4,12 +4,10 @@
 /* eslint-disable */
 import type { CustomerIdentityKind } from './CustomerIdentityKind';
 import type { DclCustomerRemittanceProfile } from './DclCustomerRemittanceProfile';
-import type { DclCustomerSnapshot } from './DclCustomerSnapshot';
-import type { DclCustomerSubunitData } from './DclCustomerSubunitData';
-export type DclCustomerData = {
+export type DclCustomerRootInput = {
   kind: CustomerIdentityKind;
   legalName: string;
-  displayName: string;
+  displayName?: string | null;
   legalIdentifier: string | null;
   phone?: string | null;
   email?: string | null;
@@ -21,8 +19,5 @@ export type DclCustomerData = {
   invoiceBankAccount?: string | null;
   remittanceProfiles: Array<DclCustomerRemittanceProfile>;
   defaultOperatingEntityId: string;
-  defaultOperatingEntity: DclCustomerSnapshot;
   enabled: boolean;
-  implicitSubunitId: string | null;
-  subunits: Array<DclCustomerSubunitData>;
 };

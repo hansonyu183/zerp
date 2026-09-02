@@ -137,28 +137,36 @@ func hydrateCustomerDataAttachments(raw []byte, rows []dbsqlc.ListDCLCustomerAtt
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return nil, nil, err
 	}
-	byAccount := make(map[string][]CustomerAttachmentView)
+	bySubunit := make(map[string][]CustomerAttachmentView)
 	customerAttachments := make([]CustomerAttachmentView, 0)
 	for _, row := range rows {
 		view := attachmentView(row)
-		if row.AccountID == nil {
+		if row.SubunitID == nil {
 			customerAttachments = append(customerAttachments, view)
 		} else {
-			byAccount[*row.AccountID] = append(byAccount[*row.AccountID], view)
+			bySubunit[*row.SubunitID] = append(bySubunit[*row.SubunitID], view)
 		}
 	}
-	if accounts, ok := data["accounts"].([]any); ok {
-		for _, item := range accounts {
-			account, ok := item.(map[string]any)
+	data["implicitSubunitId"] = nil
+	if subunits, ok := data["subunits"].([]any); ok {
+		enabledSubunitIDs := make([]string, 0, 1)
+		for _, item := range subunits {
+			subunit, ok := item.(map[string]any)
 			if !ok {
 				continue
 			}
-			accountID, _ := account["accountId"].(string)
-			attachments := byAccount[accountID]
+			subunitID, _ := subunit["subunitId"].(string)
+			attachments := bySubunit[subunitID]
 			if attachments == nil {
 				attachments = []CustomerAttachmentView{}
 			}
-			account["attachments"] = attachments
+			subunit["attachments"] = attachments
+			if enabled, _ := subunit["enabled"].(bool); enabled && subunitID != "" {
+				enabledSubunitIDs = append(enabledSubunitIDs, subunitID)
+			}
+		}
+		if customerEnabled, _ := data["enabled"].(bool); customerEnabled && len(enabledSubunitIDs) == 1 {
+			data["implicitSubunitId"] = enabledSubunitIDs[0]
 		}
 	}
 	encoded, err := json.Marshal(data)
@@ -236,50 +244,50 @@ func nestedMap(value map[string]any, key string) map[string]any {
 	return result
 }
 
-func embeddedCustomerAccountDetail(accountData, customerData []byte) (DetailView, error) {
-	var account, customer map[string]any
-	if err := json.Unmarshal(accountData, &account); err != nil {
+func embeddedCustomerSubunitDetail(subunitData, customerData []byte) (DetailView, error) {
+	var subunit, customer map[string]any
+	if err := json.Unmarshal(subunitData, &subunit); err != nil {
 		return DetailView{}, err
 	}
 	if err := json.Unmarshal(customerData, &customer); err != nil {
 		return DetailView{}, err
 	}
-	settlement := nestedMap(account, "settlementMethod")
+	settlement := nestedMap(subunit, "settlementMethod")
 	operating := nestedMap(customer, "defaultOperatingEntity")
 	return DetailView{
-		Enabled: account["enabled"] == true, Name: mapString(account, "name"), ShortName: mapString(account, "shortName"),
-		CustomerType: mapString(account, "customerTypeId"), ContactName: mapString(account, "contactName"), ContactPhone: mapString(account, "contactPhone"), Email: mapString(account, "email"), Address: mapString(account, "address"),
+		Enabled: subunit["enabled"] == true, Name: mapString(subunit, "name"), ShortName: mapString(subunit, "shortName"),
+		CustomerType: mapString(subunit, "customerTypeId"), ContactName: mapString(subunit, "contactName"), ContactPhone: mapString(subunit, "contactPhone"), Email: mapString(subunit, "email"), Address: mapString(subunit, "address"),
 		OperatingEntityID: mapString(operating, "sourceObjectId"), OperatingEntityApprovalEntryID: mapString(operating, "approvalEntryId"), OperatingEntityCode: mapString(operating, "code"), OperatingEntityName: mapString(operating, "name"),
-		SettlementMethodID: mapString(account, "settlementMethodId"), SettlementMethodCode: mapString(settlement, "code"), SettlementMethodName: mapString(settlement, "name"), TermCode: mapString(settlement, "termCode"), RuleType: mapString(settlement, "ruleType"), DueDays: int32(mapInt(settlement, "dueDays")), MonthOffset: int32(mapInt(settlement, "monthOffset")), CutoffDay: int32(mapInt(settlement, "cutoffDay")), DefaultSalesSurcharge: mapString(settlement, "defaultSalesSurcharge"),
+		SettlementMethodID: mapString(subunit, "settlementMethodId"), SettlementMethodCode: mapString(settlement, "code"), SettlementMethodName: mapString(settlement, "name"), TermCode: mapString(settlement, "termCode"), RuleType: mapString(settlement, "ruleType"), DueDays: int32(mapInt(settlement, "dueDays")), MonthOffset: int32(mapInt(settlement, "monthOffset")), CutoffDay: int32(mapInt(settlement, "cutoffDay")), DefaultSalesSurcharge: mapString(settlement, "defaultSalesSurcharge"),
 	}, nil
 }
 
-func (s *Service) resolveCustomerAccountCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
-	row, err := q.GetBobEmbeddedCustomerAccountCurrentReference(ctx, objectID)
+func (s *Service) resolveCustomerSubunitCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
+	row, err := q.GetBobEmbeddedCustomerSubunitCurrentReference(ctx, objectID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EffectiveReference{}, domainError(ErrorConflict, "customer account current effective data is unavailable", nil, nil)
+		return EffectiveReference{}, domainError(ErrorConflict, "customer subunit current effective data is unavailable", nil, nil)
 	}
 	if err != nil {
-		return EffectiveReference{}, s.internal("get current customer account reference", err)
+		return EffectiveReference{}, s.internal("get current customer subunit reference", err)
 	}
-	detail, err := embeddedCustomerAccountDetail(row.Data, row.CustomerData)
+	detail, err := embeddedCustomerSubunitDetail(row.Data, row.CustomerData)
 	if err != nil {
-		return EffectiveReference{}, s.internal("decode current customer account reference", err)
+		return EffectiveReference{}, s.internal("decode current customer subunit reference", err)
 	}
-	return EffectiveReference{ObjectID: row.ObjectID, CustomerID: row.CustomerID, Entity: EntityCustomerAccount, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
+	return EffectiveReference{ObjectID: row.ObjectID, CustomerID: row.CustomerID, Entity: EntityCustomerSubunit, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
 }
 
-func (s *Service) validateCustomerAccountSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, approvalEntryID string) (EffectiveReference, error) {
-	row, err := q.GetBobEmbeddedCustomerAccountHistoricalReference(ctx, dbsqlc.GetBobEmbeddedCustomerAccountHistoricalReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID})
+func (s *Service) validateCustomerSubunitSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, approvalEntryID string) (EffectiveReference, error) {
+	row, err := q.GetBobEmbeddedCustomerSubunitHistoricalReference(ctx, dbsqlc.GetBobEmbeddedCustomerSubunitHistoricalReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EffectiveReference{}, domainError(ErrorConflict, "customer account approval snapshot is unavailable", nil, nil)
+		return EffectiveReference{}, domainError(ErrorConflict, "customer subunit approval snapshot is unavailable", nil, nil)
 	}
 	if err != nil {
-		return EffectiveReference{}, s.internal("get historical customer account reference", err)
+		return EffectiveReference{}, s.internal("get historical customer subunit reference", err)
 	}
-	detail, err := embeddedCustomerAccountDetail(row.Data, row.CustomerData)
+	detail, err := embeddedCustomerSubunitDetail(row.Data, row.CustomerData)
 	if err != nil {
-		return EffectiveReference{}, s.internal("decode historical customer account reference", err)
+		return EffectiveReference{}, s.internal("decode historical customer subunit reference", err)
 	}
-	return EffectiveReference{ObjectID: row.ObjectID, CustomerID: row.CustomerID, Entity: EntityCustomerAccount, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
+	return EffectiveReference{ObjectID: row.ObjectID, CustomerID: row.CustomerID, Entity: EntityCustomerSubunit, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
 }

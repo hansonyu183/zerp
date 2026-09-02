@@ -99,7 +99,7 @@ type integrationReferences struct {
 }
 
 type integrationCustomerReferences struct {
-	Customer, Account, OperatingEntity ReferenceInput
+	Customer, Subunit, OperatingEntity ReferenceInput
 }
 
 func integrationProductLine(t *testing.T, product ReferenceInput, quantity, price string) ProductLineInput {
@@ -117,8 +117,8 @@ func salesReceiptDraft(refs integrationReferences, amount string) DraftInput {
 		BusinessDate: "2026-07-24", Currency: "CNY",
 		Customer: &refs.salesReceiptCustomer, OperatingEntity: &refs.salesReceiptOperatingEntity,
 		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: amount,
-		AccountAllocations: []SalesReceiptAccountAllocationInput{{
-			Account: refs.customer, Amount: amount,
+		SubunitAllocations: []SalesReceiptSubunitAllocationInput{{
+			Subunit: refs.customer, Amount: amount,
 		}},
 	}
 }
@@ -172,7 +172,7 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
 			vou_employee_loan_writeoff_details, vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details,
-			vou_sales_receipt_account_allocations, vou_receipt_details,
+			vou_sales_receipt_subunit_allocations, vou_receipt_details,
 			vou_service_acceptance_details, vou_service_contract_details,
 			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters;
@@ -518,13 +518,13 @@ func createApprovedCustomer(
 		data.SettlementMethodID = "01JSMT00000000000000000017"
 	}
 	created, err := customers.Create(t.Context(), dcldomain.CustomerCreateInput{
-		Data: dcldomain.CustomerDataInput{
-			Kind: "MAINLAND_ENTERPRISE", LegalName: data.Name + "主体" + newID()[20:], DisplayName: data.Name,
-			LegalIdentifier: legalIdentifierForVOUFixture("ORGANIZATION", newID()),
-			Phone:           data.ContactPhone, Address: data.Address, DefaultOperatingEntityID: operating.ObjectID, Enabled: true,
-			RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{},
-			Accounts: []dcldomain.CustomerAccountDataInput{{
-				Name: data.Name, Enabled: true, IsDefault: true, CustomerTypeID: bobdomain.CustomerTypeEndUserID,
+		Data: dcldomain.CustomerCreateDataInput{
+			Root: dcldomain.CustomerRootDataInput{Kind: "MAINLAND_ENTERPRISE", LegalName: data.Name + "主体" + newID()[20:], DisplayName: data.Name,
+				LegalIdentifier: legalIdentifierForVOUFixture("ORGANIZATION", newID()),
+				Phone:           data.ContactPhone, Address: data.Address, DefaultOperatingEntityID: operating.ObjectID, Enabled: true,
+				RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{}},
+			Subunits: []dcldomain.CustomerSubunitDataInput{{
+				Name: data.Name, Enabled: true, CustomerTypeID: bobdomain.CustomerTypeEndUserID,
 				ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
 				SettlementMethodID:         data.SettlementMethodID,
 				DefaultTransportMethodCode: "SELF_PICKUP", DefaultTransportMethodName: "客户自提",
@@ -553,12 +553,12 @@ func createApprovedCustomer(
 		t.Fatalf("approve customer relationship: %v", err)
 	}
 	view, err := customers.Get(t.Context(), dcldomain.CustomerGetInput{ObjectID: approved.ObjectID}, trustedIntegrationActor(t, "vou-customer-get"))
-	if err != nil || len(view.Data.Accounts) != 1 {
-		t.Fatalf("load default customer account: accounts=%d err=%v", len(view.Data.Accounts), err)
+	if err != nil || len(view.Data.Subunits) != 1 {
+		t.Fatalf("load implicit customer subunit: subunits=%d err=%v", len(view.Data.Subunits), err)
 	}
 	return integrationCustomerReferences{
 		Customer:        ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID},
-		Account:         ReferenceInput{ObjectID: view.Data.Accounts[0].AccountID, ApprovalEntryID: approved.Approval.ApprovalEntryID},
+		Subunit:         ReferenceInput{ObjectID: view.Data.Subunits[0].SubunitID, ApprovalEntryID: approved.Approval.ApprovalEntryID},
 		OperatingEntity: operating,
 	}
 }
@@ -584,7 +584,7 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 		SalespersonEmployeeID: employee.ObjectID,
 	})
 	return integrationReferences{
-		customer:                    customer.Account,
+		customer:                    customer.Subunit,
 		salesReceiptCustomer:        customer.Customer,
 		salesReceiptOperatingEntity: operating,
 		supplier: createApprovedBOB(t, service, bobdomain.EntitySupplier, bobdomain.CreateDetailInput{

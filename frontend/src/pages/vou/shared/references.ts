@@ -82,12 +82,12 @@ export function useVoucherReferences(
     if (key === 'customer') {
       return {
         entities: [
-          config.entity === 'sales-receipt' ? 'customer' : 'customer-account',
+          config.entity === 'sales-receipt' ? 'customer' : 'customer-subunit',
         ],
       }
     }
     if (key === 'operatingEntity') return { entities: ['operating-entity'] }
-    if (key === 'accountAllocation') return { entities: ['customer-account'] }
+    if (key === 'accountAllocation') return { entities: ['customer-subunit'] }
     if (key === 'supplier') {
       return { entities: ['supplier'] }
     }
@@ -95,11 +95,11 @@ export function useVoucherReferences(
       if (key === 'counterparty') {
         const entity =
           form.value.counterpartyType === 'customer'
-            ? 'customer-account'
+            ? 'customer-subunit'
             : form.value.counterpartyType
         return {
           entities: [
-            'customer-account',
+            'customer-subunit',
             'supplier',
             'other-unit',
             'employee',
@@ -110,10 +110,10 @@ export function useVoucherReferences(
         }
       }
       if (config.partyMode === 'customer')
-        return { entities: ['customer-account'] }
+        return { entities: ['customer-subunit'] }
       if (config.partyMode === 'supplier') return { entities: ['supplier'] }
       if (config.partyMode === 'none') return { entities: [] }
-      return { entities: ['customer-account', 'supplier'] }
+      return { entities: ['customer-subunit', 'supplier'] }
     }
     if (['employee', 'salesperson', 'purchaser', 'handler'].includes(key)) {
       return { entities: ['employee'] }
@@ -221,7 +221,7 @@ export function useVoucherReferences(
     const missingPermission = definition.entities.find(
       (entity) =>
         !session.can(
-          entity === 'customer-account'
+          entity === 'customer-subunit'
             ? '/bob/reference/query'
             : `/bob/${entity}/query`,
         ),
@@ -260,7 +260,7 @@ export function useVoucherReferences(
             }))
           }
           if (
-            entity === 'customer-account' ||
+            entity === 'customer-subunit' ||
             entity === 'employee' ||
             entity === 'supplier' ||
             entity === 'other-unit' ||

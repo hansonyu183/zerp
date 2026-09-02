@@ -6,7 +6,7 @@ export interface CustomerReferenceOption {
   title: string
 }
 
-export type CustomerAccountReferenceKey =
+export type CustomerSubunitReferenceKey =
   | 'customerTypeId'
   | 'settlementMethodId'
   | 'paymentMethodId'
@@ -30,8 +30,8 @@ export async function queryOperatingEntityReferences(
   }))
 }
 
-export async function queryCustomerAccountReference(
-  key: CustomerAccountReferenceKey,
+export async function queryCustomerSubunitReference(
+  key: CustomerSubunitReferenceKey,
   keyword: string,
   salesAttributionType: CustomerSalesAttributionType,
 ): Promise<CustomerReferenceOption[]> {

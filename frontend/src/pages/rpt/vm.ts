@@ -3,7 +3,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '@/api/client'
 import type {
   RptCounterpartyReference,
-  RptCustomerAccountReference,
+  RptCustomerSubunitReference,
 } from '@/api/generated'
 import { getDiagnosticErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
@@ -25,7 +25,7 @@ type ResultRow = Record<string, unknown>
 type ReferenceItem = { title: string; value: string }
 
 export const counterpartyArchiveTypeLabels = {
-  'customer-account': '客户结算账户',
+  'customer-subunit': '客户子单位',
   supplier: '供应商',
   'other-unit': '其他单位',
   employee: '员工',
@@ -106,21 +106,21 @@ export function parseReferenceItems(value: unknown): ReferenceItem[] {
     const code = string(source.code)
     const name = string(source.name)
     const counterparty = parseCounterpartyReference(source)
-    const customerAccount = parseCustomerAccountReference(source)
+    const customerSubunit = parseCustomerSubunitReference(source)
     return {
       value: counterparty?.objectId ?? string(source.id),
       title: counterparty
         ? `${counterpartyArchiveTypeLabels[counterparty.entity]} · ${counterparty.code} · ${counterparty.name} · ${counterparty.approvalEntryId}`
-        : customerAccount
-          ? `${customerAccount.customerCode} · ${customerAccount.customerName} · ${customerAccount.code} · ${customerAccount.name}`
+        : customerSubunit
+          ? `${customerSubunit.customerCode} · ${customerSubunit.customerName} · ${customerSubunit.code} · ${customerSubunit.name}`
           : `${code} · ${name}`,
     }
   })
 }
 
-function parseCustomerAccountReference(
+function parseCustomerSubunitReference(
   value: Record<string, unknown>,
-): RptCustomerAccountReference | null {
+): RptCustomerSubunitReference | null {
   if (
     typeof value.customerCode !== 'string' ||
     typeof value.customerName !== 'string'

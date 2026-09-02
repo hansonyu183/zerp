@@ -31,7 +31,7 @@ type BusinessArchiveDimensionReference =
 export const openingBusinessArchiveEntities: Readonly<
   Record<string, BusinessArchiveDimensionReference['entity']>
 > = {
-  CUSTOMER_ACCOUNT: 'customer-account',
+  CUSTOMER_SUBUNIT: 'customer-subunit',
   SUPPLIER: 'supplier',
   OTHER_UNIT: 'other-unit',
   EMPLOYEE: 'employee',
@@ -83,13 +83,13 @@ interface OpeningBillForm {
 
 interface OpeningContainerForm {
   key: number
-  customerId: string
+  subunit: BusinessArchiveDimensionReference | null
   containerType: 'SOLVENT' | 'RESIN'
   quantity: number
 }
 
 export const openingDimensionLabels: Readonly<Record<string, string>> = {
-  CUSTOMER_ACCOUNT: '客户结算账户',
+  CUSTOMER_SUBUNIT: '客户子单位',
   SUPPLIER: '供应商',
   OTHER_UNIT: '其他单位',
   EMPLOYEE: '员工',
@@ -112,6 +112,9 @@ export function createAccountingOpeningViewModel() {
   const dimensionReferenceOptions = reactive<
     Record<string, BusinessArchiveDimensionReference[]>
   >({})
+  const containerSubunitOptions = reactive<
+    Record<number, BusinessArchiveDimensionReference[]>
+  >({})
   const assets = reactive<OpeningAssetForm[]>([])
   const bills = reactive<OpeningBillForm[]>([])
   const containers = reactive<OpeningContainerForm[]>([])
@@ -126,6 +129,8 @@ export function createAccountingOpeningViewModel() {
   let active = true
   const dimensionReferenceSequences = new Map<string, number>()
   const dimensionReferenceControllers = new Map<string, AbortController>()
+  const containerSubunitSequences = new Map<number, number>()
+  const containerSubunitControllers = new Map<number, AbortController>()
   if (getCurrentScope()) {
     onScopeDispose(() => {
       active = false
@@ -134,6 +139,10 @@ export function createAccountingOpeningViewModel() {
         controller.abort()
       }
       dimensionReferenceControllers.clear()
+      for (const controller of containerSubunitControllers.values()) {
+        controller.abort()
+      }
+      containerSubunitControllers.clear()
     })
   }
 
@@ -152,6 +161,13 @@ export function createAccountingOpeningViewModel() {
       (!requiresBusinessArchiveReferenceQuery.value ||
         session.can('/bob/reference/query')) &&
       validationError.value === '',
+  )
+  const canManageContainers = computed(
+    () =>
+      canQuery.value &&
+      canEdit.value &&
+      session.can('/acc/opening/save') &&
+      session.can('/bob/reference/query'),
   )
   const availableApprovalActions = computed(
     () => opening.value?.availableApprovalActions ?? [],
@@ -182,14 +198,16 @@ export function createAccountingOpeningViewModel() {
     () =>
       new Map(subjects.value.map((subject) => [subject.subjectId, subject])),
   )
-  const requiresBusinessArchiveReferenceQuery = computed(() =>
-    lines.some((line) =>
-      subjectById.value
-        .get(line.subjectId)
-        ?.requiredDimensions.some(
-          (dimension) => openingBusinessArchiveEntities[dimension],
-        ),
-    ),
+  const requiresBusinessArchiveReferenceQuery = computed(
+    () =>
+      containers.length > 0 ||
+      lines.some((line) =>
+        subjectById.value
+          .get(line.subjectId)
+          ?.requiredDimensions.some(
+            (dimension) => openingBusinessArchiveEntities[dimension],
+          ),
+      ),
   )
   const trialTotals = computed(() => {
     const totals = new Map<string, { debit: number; credit: number }>()
@@ -271,9 +289,17 @@ export function createAccountingOpeningViewModel() {
       }
     }
     if (
-      containers.some((item) => !item.customerId.trim() || item.quantity === 0)
+      containers.some(
+        (item) =>
+          !item.subunit?.objectId.trim() ||
+          !item.subunit.customerId?.trim() ||
+          !item.subunit.approvalEntryId.trim() ||
+          !item.subunit.code.trim() ||
+          !item.subunit.name.trim() ||
+          item.quantity === 0,
+      )
     ) {
-      return '空桶期初必须填写客户和非零数量。'
+      return '空桶期初必须选择客户子单位并填写非零数量。'
     }
     return ''
   })
@@ -405,11 +431,19 @@ export function createAccountingOpeningViewModel() {
         counterpartyName: bill.originatingCounterparty?.name ?? '',
       })),
     )
-    containers.splice(
-      0,
-      containers.length,
-      ...(value.containers ?? []).map((item) => ({ key: nextKey++, ...item })),
-    )
+    const loadedContainers = (value.containers ?? []) as Array<{
+      subunit: BusinessArchiveDimensionReference
+      containerType: 'SOLVENT' | 'RESIN'
+      quantity: number
+    }>
+    const containerForms = loadedContainers.map((item) => ({
+      key: nextKey++,
+      ...item,
+    }))
+    for (const item of containerForms) {
+      containerSubunitOptions[item.key] = [item.subunit]
+    }
+    containers.splice(0, containers.length, ...containerForms)
     dirty.value = false
   }
 
@@ -489,12 +523,25 @@ export function createAccountingOpeningViewModel() {
   }
 
   function addContainer(): void {
+    if (!canManageContainers.value) {
+      errorMessage.value = '没有权限完成空桶期初维护。'
+      return
+    }
     containers.push({
       key: nextKey++,
-      customerId: '',
+      subunit: null,
       containerType: 'SOLVENT',
       quantity: 0,
     })
+    dirty.value = true
+  }
+
+  function removeContainer(index: number): void {
+    if (!canManageContainers.value) {
+      errorMessage.value = '没有权限完成空桶期初维护。'
+      return
+    }
+    containers.splice(index, 1)
     dirty.value = true
   }
 
@@ -598,6 +645,80 @@ export function createAccountingOpeningViewModel() {
     dirty.value = true
   }
 
+  function referenceLabel(
+    reference: BusinessArchiveDimensionReference,
+  ): string {
+    return `${reference.code} · ${reference.name}`
+  }
+
+  async function searchContainerSubunits(
+    item: OpeningContainerForm,
+    keyword: string,
+  ): Promise<void> {
+    if (!canManageContainers.value) return
+    const requestSequence = (containerSubunitSequences.get(item.key) ?? 0) + 1
+    containerSubunitSequences.set(item.key, requestSequence)
+    containerSubunitControllers.get(item.key)?.abort()
+    const controller = new AbortController()
+    containerSubunitControllers.set(item.key, controller)
+    try {
+      const { data } = await queryOpeningBusinessArchiveReferences(
+        {
+          entity: 'customer-subunit',
+          ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+        },
+        controller.signal,
+      )
+      if (
+        !active ||
+        containerSubunitSequences.get(item.key) !== requestSequence
+      )
+        return
+      const refreshed = data.map((candidate) => ({
+        entity: 'customer-subunit' as const,
+        objectId: candidate.objectId,
+        ...(candidate.customerId ? { customerId: candidate.customerId } : {}),
+        approvalEntryId: candidate.approvalEntryId,
+        code: candidate.code,
+        name: candidate.name,
+      }))
+      containerSubunitOptions[item.key] =
+        item.subunit &&
+        !refreshed.some(
+          (candidate) => candidate.objectId === item.subunit?.objectId,
+        )
+          ? [item.subunit, ...refreshed]
+          : refreshed
+    } catch (error) {
+      if (
+        !controller.signal.aborted &&
+        active &&
+        containerSubunitSequences.get(item.key) === requestSequence
+      ) {
+        errorMessage.value = getErrorMessage(error)
+      }
+    } finally {
+      if (containerSubunitControllers.get(item.key) === controller) {
+        containerSubunitControllers.delete(item.key)
+      }
+    }
+  }
+
+  function selectContainerSubunit(
+    item: OpeningContainerForm,
+    objectId: string | null,
+  ): void {
+    if (!canManageContainers.value) {
+      errorMessage.value = '没有权限完成空桶期初维护。'
+      return
+    }
+    item.subunit =
+      containerSubunitOptions[item.key]?.find(
+        (candidate) => candidate.objectId === objectId,
+      ) ?? null
+    dirty.value = true
+  }
+
   async function save(): Promise<void> {
     if (!canSave.value || !opening.value) {
       errorMessage.value = validationError.value || '没有权限保存账簿期初。'
@@ -658,9 +779,16 @@ export function createAccountingOpeningViewModel() {
               : {}),
           }),
         ),
-        containers: containers.map(({ key: _key, ...item }) => ({
+        containers: containers.map(({ key: _key, subunit, ...item }) => ({
           ...item,
-          customerId: item.customerId.trim(),
+          subunit: {
+            entity: 'customer-subunit' as const,
+            objectId: subunit?.objectId.trim() ?? '',
+            customerId: subunit?.customerId?.trim() ?? '',
+            approvalEntryId: subunit?.approvalEntryId.trim() ?? '',
+            code: subunit?.code.trim() ?? '',
+            name: subunit?.name.trim() ?? '',
+          },
         })),
       })
       if (!active) return
@@ -752,11 +880,13 @@ export function createAccountingOpeningViewModel() {
     canQuery,
     canEdit,
     canSave,
+    canManageContainers,
     availableApprovalActions,
     bookOptions,
     subjectOptions,
     subjectById,
     dimensionReferenceOptions,
+    containerSubunitOptions,
     trialTotals,
     trialBalanced,
     validationError,
@@ -768,11 +898,15 @@ export function createAccountingOpeningViewModel() {
     addAsset,
     addBill,
     addContainer,
+    removeContainer,
     removeRegister,
     changeSubject,
     dimensionReferenceKey,
     searchDimensionReferences,
     selectDimensionReference,
+    referenceLabel,
+    searchContainerSubunits,
+    selectContainerSubunit,
     markDirty,
     save,
     approvalAction,

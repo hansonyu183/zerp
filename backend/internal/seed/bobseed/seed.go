@@ -231,12 +231,12 @@ func (service typedArchiveLifecycleService) Create(
 		if err != nil {
 			return seedMutation{}, err
 		}
-		customer, err := service.customers.Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerDataInput{
-			Kind: "MAINLAND_ENTERPRISE", LegalName: input.Data.Name, DisplayName: input.Data.ShortName,
-			LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", input.Data.Code), Phone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
-			DefaultOperatingEntityID: input.Data.OperatingEntityID, Enabled: true,
-			RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{},
-			Accounts: []dcldomain.CustomerAccountDataInput{{Enabled: true, IsDefault: true, Name: input.Data.Name, ShortName: input.Data.ShortName,
+		customer, err := service.customers.Create(ctx, dcldomain.CustomerCreateInput{Data: dcldomain.CustomerCreateDataInput{
+			Root: dcldomain.CustomerRootDataInput{Kind: "MAINLAND_ENTERPRISE", LegalName: input.Data.Name, DisplayName: input.Data.ShortName,
+				LegalIdentifier: legalIdentifierForSeed("ORGANIZATION", input.Data.Code), Phone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
+				DefaultOperatingEntityID: input.Data.OperatingEntityID, Enabled: true,
+				RemittanceProfiles: []dcldomain.CustomerRemittanceProfile{}},
+			Subunits: []dcldomain.CustomerSubunitDataInput{{Enabled: true, Name: input.Data.Name, ShortName: input.Data.ShortName,
 				CustomerTypeID: bob.CustomerTypeEndUserID, ContactName: input.Data.ContactName,
 				ContactPhone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
 				SettlementMethodID: input.Data.SettlementMethodID,

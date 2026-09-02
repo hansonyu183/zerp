@@ -21,23 +21,23 @@ type accountingProductSnapshot struct {
 	ObjectID, ApprovalEntryID, Code, Name string
 }
 
-type accountingCustomerAccountSnapshot struct {
+type accountingCustomerSubunitSnapshot struct {
 	CustomerID, ObjectID, ApprovalEntryID, Code, Name string
 }
 
-func createAccountingCustomerAccountSnapshot(t *testing.T, pool *pgxpool.Pool, name string) accountingCustomerAccountSnapshot {
+func createAccountingCustomerSubunitSnapshot(t *testing.T, pool *pgxpool.Pool, name string) accountingCustomerSubunitSnapshot {
 	t.Helper()
-	customerID, accountID, entryID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
-	code := fmt.Sprintf("ACC-%04d", atomic.AddUint32(&accountingProductCodeSequence, 1))
+	customerID, subunitID, entryID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
+	code := fmt.Sprintf("SUB-%04d", atomic.AddUint32(&accountingProductCodeSequence, 1))
 	customerData := map[string]any{
 		"kind": "MAINLAND_ENTERPRISE", "legalName": name, "displayName": name,
 		"legalIdentifier": "91350211M00010001X", "remittanceProfiles": []any{},
 		"defaultOperatingEntityId": ulid.Make().String(),
 		"defaultOperatingEntity":   map[string]any{"sourceObjectId": ulid.Make().String(), "approvalEntryId": ulid.Make().String(), "code": "OPE-0001", "name": "经营主体"},
-		"enabled":                  true, "accounts": []any{},
+		"enabled":                  true, "subunits": []any{},
 	}
-	accountData := map[string]any{
-		"accountId": accountID, "enabled": true, "isDefault": true, "name": name,
+	subunitData := map[string]any{
+		"subunitId": subunitID, "enabled": true, "name": name,
 		"customerTypeId": ulid.Make().String(), "transportSurcharge": "0.00",
 		"pricingPolicy": map[string]any{"costItems": []any{}}, "creditLimits": []any{},
 		"primarySalesAttribution": map[string]any{}, "code": code, "attachments": []any{},
@@ -47,7 +47,7 @@ func createAccountingCustomerAccountSnapshot(t *testing.T, pool *pgxpool.Pool, n
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedAccount, err := json.Marshal(accountData)
+	encodedSubunit, err := json.Marshal(subunitData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,18 +63,18 @@ func createAccountingCustomerAccountSnapshot(t *testing.T, pool *pgxpool.Pool, n
 		{`INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'customer',$2,$3)`, []any{customerID, "CUS-" + code[4:], adminID}},
 		{`INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at) VALUES($1,'dcl','customer',$2,1,'APPROVED',1,$3,now(),$3,now(),$3,now(),$4,now())`, []any{entryID, customerID, adminID, operatorID}},
 		{`INSERT INTO dcl_customer_versions(approval_entry_id,kind,legal_identifier,data,enabled) VALUES($1,'MAINLAND_ENTERPRISE','91350211M00010001X',$2,TRUE)`, []any{entryID, encodedCustomer}},
-		{`INSERT INTO dcl_customer_account_roots(account_id,customer_id,code,ever_approved,first_approved_customer_entry_id) VALUES($1,$2,$3,TRUE,$4)`, []any{accountID, customerID, code, entryID}},
-		{`INSERT INTO dcl_customer_version_accounts(customer_approval_entry_id,account_id,data,enabled,is_default) VALUES($1,$2,$3,TRUE,TRUE)`, []any{entryID, accountID, encodedAccount}},
+		{`INSERT INTO dcl_customer_subunit_roots(subunit_id,customer_id,code,ever_approved,first_approved_customer_entry_id) VALUES($1,$2,$3,TRUE,$4)`, []any{subunitID, customerID, code, entryID}},
+		{`INSERT INTO dcl_customer_version_subunits(customer_approval_entry_id,subunit_id,data,enabled) VALUES($1,$2,$3,TRUE)`, []any{entryID, subunitID, encodedSubunit}},
 	}
 	for _, statement := range statements {
 		if _, err = tx.Exec(t.Context(), statement.sql, statement.args...); err != nil {
-			t.Fatalf("create accounting customer account snapshot: %v", err)
+			t.Fatalf("create accounting customer subunit snapshot: %v", err)
 		}
 	}
 	if err = tx.Commit(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	return accountingCustomerAccountSnapshot{CustomerID: customerID, ObjectID: accountID, ApprovalEntryID: entryID, Code: code, Name: name}
+	return accountingCustomerSubunitSnapshot{CustomerID: customerID, ObjectID: subunitID, ApprovalEntryID: entryID, Code: code, Name: name}
 }
 
 type dclMappingFixtureInput struct {

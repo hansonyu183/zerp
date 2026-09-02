@@ -221,20 +221,20 @@ func (q *Queries) GetBobCustomerHistoricalReference(ctx context.Context, arg Get
 	return i, err
 }
 
-const getBobEmbeddedCustomerAccountCurrentReference = `-- name: GetBobEmbeddedCustomerAccountCurrentReference :one
-SELECT root.account_id AS object_id,root.customer_id,root.code,entry.id AS approval_entry_id,entry.version_no,line.data,customer.data AS customer_data
-FROM dcl_customer_account_roots root
+const getBobEmbeddedCustomerSubunitCurrentReference = `-- name: GetBobEmbeddedCustomerSubunitCurrentReference :one
+SELECT root.subunit_id AS object_id,root.customer_id,root.code,entry.id AS approval_entry_id,entry.version_no,line.data,customer.data AS customer_data
+FROM dcl_customer_subunit_roots root
 JOIN LATERAL (
   SELECT id,version_no FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
 JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id
-WHERE root.account_id=$1 AND line.enabled
+WHERE root.subunit_id=$1 AND customer.enabled AND line.enabled
 `
 
-type GetBobEmbeddedCustomerAccountCurrentReferenceRow struct {
+type GetBobEmbeddedCustomerSubunitCurrentReferenceRow struct {
 	ObjectID        string `db:"object_id" json:"object_id"`
 	CustomerID      string `db:"customer_id" json:"customer_id"`
 	Code            string `db:"code" json:"code"`
@@ -244,12 +244,12 @@ type GetBobEmbeddedCustomerAccountCurrentReferenceRow struct {
 	CustomerData    []byte `db:"customer_data" json:"customer_data"`
 }
 
-// Customer accounts are child roots of Customer, not DCL subjects.  These
-// queries deliberately retain the customer-account wire entity only for
+// Customer subunits are child roots of Customer, not DCL subjects.  These
+// queries deliberately retain the customer-subunit wire entity only for
 // internal VOU/ACC reference resolution.
-func (q *Queries) GetBobEmbeddedCustomerAccountCurrentReference(ctx context.Context, objectID string) (GetBobEmbeddedCustomerAccountCurrentReferenceRow, error) {
-	row := q.db.QueryRow(ctx, getBobEmbeddedCustomerAccountCurrentReference, objectID)
-	var i GetBobEmbeddedCustomerAccountCurrentReferenceRow
+func (q *Queries) GetBobEmbeddedCustomerSubunitCurrentReference(ctx context.Context, objectID string) (GetBobEmbeddedCustomerSubunitCurrentReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getBobEmbeddedCustomerSubunitCurrentReference, objectID)
+	var i GetBobEmbeddedCustomerSubunitCurrentReferenceRow
 	err := row.Scan(
 		&i.ObjectID,
 		&i.CustomerID,
@@ -262,22 +262,22 @@ func (q *Queries) GetBobEmbeddedCustomerAccountCurrentReference(ctx context.Cont
 	return i, err
 }
 
-const getBobEmbeddedCustomerAccountHistoricalReference = `-- name: GetBobEmbeddedCustomerAccountHistoricalReference :one
-SELECT root.account_id AS object_id,root.customer_id,root.code,entry.id AS approval_entry_id,entry.version_no,line.data,customer.data AS customer_data
-FROM dcl_customer_account_roots root
+const getBobEmbeddedCustomerSubunitHistoricalReference = `-- name: GetBobEmbeddedCustomerSubunitHistoricalReference :one
+SELECT root.subunit_id AS object_id,root.customer_id,root.code,entry.id AS approval_entry_id,entry.version_no,line.data,customer.data AS customer_data
+FROM dcl_customer_subunit_roots root
 JOIN approval_entries entry ON entry.id=$1 AND entry.domain='dcl' AND entry.entity='customer'
   AND entry.subject_id=root.customer_id AND entry.status='APPROVED'
-JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
+JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
 JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id
-WHERE root.account_id=$2
+WHERE root.subunit_id=$2
 `
 
-type GetBobEmbeddedCustomerAccountHistoricalReferenceParams struct {
+type GetBobEmbeddedCustomerSubunitHistoricalReferenceParams struct {
 	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
 	ObjectID        string `db:"object_id" json:"object_id"`
 }
 
-type GetBobEmbeddedCustomerAccountHistoricalReferenceRow struct {
+type GetBobEmbeddedCustomerSubunitHistoricalReferenceRow struct {
 	ObjectID        string `db:"object_id" json:"object_id"`
 	CustomerID      string `db:"customer_id" json:"customer_id"`
 	Code            string `db:"code" json:"code"`
@@ -287,9 +287,9 @@ type GetBobEmbeddedCustomerAccountHistoricalReferenceRow struct {
 	CustomerData    []byte `db:"customer_data" json:"customer_data"`
 }
 
-func (q *Queries) GetBobEmbeddedCustomerAccountHistoricalReference(ctx context.Context, arg GetBobEmbeddedCustomerAccountHistoricalReferenceParams) (GetBobEmbeddedCustomerAccountHistoricalReferenceRow, error) {
-	row := q.db.QueryRow(ctx, getBobEmbeddedCustomerAccountHistoricalReference, arg.ApprovalEntryID, arg.ObjectID)
-	var i GetBobEmbeddedCustomerAccountHistoricalReferenceRow
+func (q *Queries) GetBobEmbeddedCustomerSubunitHistoricalReference(ctx context.Context, arg GetBobEmbeddedCustomerSubunitHistoricalReferenceParams) (GetBobEmbeddedCustomerSubunitHistoricalReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getBobEmbeddedCustomerSubunitHistoricalReference, arg.ApprovalEntryID, arg.ObjectID)
+	var i GetBobEmbeddedCustomerSubunitHistoricalReferenceRow
 	err := row.Scan(
 		&i.ObjectID,
 		&i.CustomerID,
@@ -796,21 +796,23 @@ func (q *Queries) ListBobCustomerCurrents(ctx context.Context, arg ListBobCustom
 	return items, nil
 }
 
-const listBobEmbeddedCustomerAccountReferenceCandidates = `-- name: ListBobEmbeddedCustomerAccountReferenceCandidates :many
-SELECT root.account_id AS object_id,root.customer_id,entry.id AS approval_entry_id,root.code,COALESCE(line.data->>'name',root.code) AS name
-FROM dcl_customer_account_roots root
+const listBobEmbeddedCustomerSubunitReferenceCandidates = `-- name: ListBobEmbeddedCustomerSubunitReferenceCandidates :many
+SELECT root.subunit_id AS object_id,root.customer_id,entry.id AS approval_entry_id,root.code,COALESCE(line.data->>'name',root.code) AS name
+FROM dcl_customer_subunit_roots root
 JOIN LATERAL (
   SELECT id FROM approval_entries
   WHERE domain='dcl' AND entity='customer' AND subject_id=root.customer_id AND status='APPROVED'
   ORDER BY version_no DESC LIMIT 1
 ) entry ON true
-JOIN dcl_customer_version_accounts line ON line.customer_approval_entry_id=entry.id AND line.account_id=root.account_id
-WHERE line.enabled
+JOIN dcl_customer_version_subunits line ON line.customer_approval_entry_id=entry.id AND line.subunit_id=root.subunit_id
+JOIN dcl_customer_versions customer ON customer.approval_entry_id=entry.id
+WHERE customer.enabled
+  AND line.enabled
   AND ($1::text='' OR root.code ILIKE '%'||$1::text||'%' OR COALESCE(line.data->>'name','') ILIKE '%'||$1::text||'%')
 ORDER BY root.code
 `
 
-type ListBobEmbeddedCustomerAccountReferenceCandidatesRow struct {
+type ListBobEmbeddedCustomerSubunitReferenceCandidatesRow struct {
 	ObjectID        string `db:"object_id" json:"object_id"`
 	CustomerID      string `db:"customer_id" json:"customer_id"`
 	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
@@ -818,15 +820,15 @@ type ListBobEmbeddedCustomerAccountReferenceCandidatesRow struct {
 	Name            string `db:"name" json:"name"`
 }
 
-func (q *Queries) ListBobEmbeddedCustomerAccountReferenceCandidates(ctx context.Context, keyword string) ([]ListBobEmbeddedCustomerAccountReferenceCandidatesRow, error) {
-	rows, err := q.db.Query(ctx, listBobEmbeddedCustomerAccountReferenceCandidates, keyword)
+func (q *Queries) ListBobEmbeddedCustomerSubunitReferenceCandidates(ctx context.Context, keyword string) ([]ListBobEmbeddedCustomerSubunitReferenceCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listBobEmbeddedCustomerSubunitReferenceCandidates, keyword)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListBobEmbeddedCustomerAccountReferenceCandidatesRow{}
+	items := []ListBobEmbeddedCustomerSubunitReferenceCandidatesRow{}
 	for rows.Next() {
-		var i ListBobEmbeddedCustomerAccountReferenceCandidatesRow
+		var i ListBobEmbeddedCustomerSubunitReferenceCandidatesRow
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.CustomerID,

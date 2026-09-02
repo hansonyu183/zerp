@@ -2189,13 +2189,12 @@
           'subjectName': { 'type': 'string' },
         },
     },
-  'DclCustomerAccountInput':
+  'DclCustomerSubunitInput':
     {
       'type': 'object',
       'required':
         [
           'enabled',
-          'isDefault',
           'name',
           'customerTypeId',
           'pricingPolicy',
@@ -2205,9 +2204,8 @@
       'additionalProperties': false,
       'properties':
         {
-          'accountId': { 'type': 'string', 'nullable': true },
+          'subunitId': { 'type': 'string', 'nullable': true },
           'enabled': { 'type': 'boolean' },
-          'isDefault': { 'type': 'boolean' },
           'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
           'shortName': { 'type': 'string', 'nullable': true },
           'customerTypeId':
@@ -2238,15 +2236,14 @@
             { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
         },
     },
-  'DclCustomerAccountData':
+  'DclCustomerSubunitData':
     {
       'type': 'object',
       'required':
         [
-          'accountId',
+          'subunitId',
           'code',
           'enabled',
-          'isDefault',
           'name',
           'customerTypeId',
           'customerType',
@@ -2260,10 +2257,9 @@
       'additionalProperties': false,
       'properties':
         {
-          'accountId': { 'type': 'string' },
+          'subunitId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
-          'isDefault': { 'type': 'boolean' },
           'name': { 'type': 'string' },
           'shortName': { 'type': 'string', 'nullable': true },
           'customerTypeId': { 'type': 'string' },
@@ -2319,7 +2315,7 @@
             { 'type': 'string', 'nullable': true, 'maxLength': 100 },
         },
     },
-  'DclCustomerInput':
+  'DclCustomerRootInput':
     {
       'type': 'object',
       'required':
@@ -2330,7 +2326,6 @@
           'remittanceProfiles',
           'defaultOperatingEntityId',
           'enabled',
-          'accounts',
         ],
       'additionalProperties': false,
       'properties':
@@ -2362,12 +2357,22 @@
             },
           'defaultOperatingEntityId': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
-          'accounts':
+        },
+    },
+  'DclCustomerInput':
+    {
+      'type': 'object',
+      'required': ['root', 'subunits'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'root': { '$ref': '#/DclCustomerRootInput' },
+          'subunits':
             {
               'type': 'array',
               'minItems': 1,
               'maxItems': 200,
-              'items': { '$ref': '#/DclCustomerAccountInput' },
+              'items': { '$ref': '#/DclCustomerSubunitInput' },
             },
         },
     },
@@ -2384,7 +2389,8 @@
           'defaultOperatingEntityId',
           'defaultOperatingEntity',
           'enabled',
-          'accounts',
+          'subunits',
+          'implicitSubunitId',
         ],
       'additionalProperties': false,
       'properties':
@@ -2409,15 +2415,16 @@
           'defaultOperatingEntityId': { 'type': 'string' },
           'defaultOperatingEntity': { '$ref': '#/DclCustomerSnapshot' },
           'enabled': { 'type': 'boolean' },
-          'accounts':
+          'implicitSubunitId': { 'type': 'string', 'nullable': true },
+          'subunits':
             {
               'type': 'array',
-              'items': { '$ref': '#/DclCustomerAccountData' },
+              'items': { '$ref': '#/DclCustomerSubunitData' },
             },
         },
     },
   'DclCustomerAttachmentScope':
-    { 'type': 'string', 'enum': ['CUSTOMER', 'CUSTOMER_ACCOUNT'] },
+    { 'type': 'string', 'enum': ['CUSTOMER', 'CUSTOMER_SUBUNIT'] },
   'DclCustomerAttachmentView':
     {
       'type': 'object',
@@ -2475,7 +2482,28 @@
           'approvalEntryId': { 'type': 'string' },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'data': { '$ref': '#/DclCustomerInput' },
+          'data': { '$ref': '#/DclCustomerRootInput' },
+        },
+    },
+  'DclCustomerSaveSubunitsRequest':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'approvalEntryId', 'approvalRevision', 'subunits'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'subunits':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 200,
+              'items': { '$ref': '#/DclCustomerSubunitInput' },
+            },
         },
     },
   'DclCustomerVersionRequest': { '$ref': '#/DclOperatingEntityVersionRequest' },
@@ -2746,7 +2774,7 @@
         {
           'scope': { '$ref': '#/DclCustomerAttachmentScope' },
           'ownerApprovalEntryId': { 'type': 'string' },
-          'accountId': { 'type': 'string', 'nullable': true },
+          'subunitId': { 'type': 'string', 'nullable': true },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
           'categoryObjectId': { 'type': 'string' },
@@ -2788,7 +2816,7 @@
         {
           'scope': { '$ref': '#/DclCustomerAttachmentScope' },
           'ownerApprovalEntryId': { 'type': 'string' },
-          'accountId': { 'type': 'string', 'nullable': true },
+          'subunitId': { 'type': 'string', 'nullable': true },
           'fileId': { 'type': 'string' },
         },
     },
@@ -2813,7 +2841,7 @@
         {
           'scope': { '$ref': '#/DclCustomerAttachmentScope' },
           'ownerApprovalEntryId': { 'type': 'string' },
-          'accountId': { 'type': 'string', 'nullable': true },
+          'subunitId': { 'type': 'string', 'nullable': true },
           'approvalRevision':
             { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
           'fileId': { 'type': 'string' },

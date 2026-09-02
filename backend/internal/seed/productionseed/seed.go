@@ -161,20 +161,15 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 				return voudomain.ReferenceInput{}, fmt.Errorf("get BOB demo object %s: %w", code, currentErr)
 			}
 			var data struct {
-				Accounts []struct {
-					AccountID string `json:"accountId"`
-					IsDefault bool   `json:"isDefault"`
-				} `json:"accounts"`
+				ImplicitSubunitID *string `json:"implicitSubunitId"`
 			}
 			if err := json.Unmarshal(view.Data, &data); err != nil {
 				return voudomain.ReferenceInput{}, fmt.Errorf("decode BOB customer %s: %w", code, err)
 			}
-			for _, account := range data.Accounts {
-				if account.IsDefault && account.AccountID != "" {
-					return voudomain.ReferenceInput{ObjectID: account.AccountID, ApprovalEntryID: view.SourceApprovalEntryID}, nil
-				}
+			if data.ImplicitSubunitID != nil && *data.ImplicitSubunitID != "" {
+				return voudomain.ReferenceInput{ObjectID: *data.ImplicitSubunitID, ApprovalEntryID: view.SourceApprovalEntryID}, nil
 			}
-			return voudomain.ReferenceInput{}, fmt.Errorf("BOB customer %s has no default account", code)
+			return voudomain.ReferenceInput{}, fmt.Errorf("BOB customer %s has no implicit subunit", code)
 		}
 		view, err := s.bob.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
 		if err != nil {

@@ -324,9 +324,11 @@ WHERE id=sqlc.arg(bill_id) AND state='AVAILABLE';
 
 -- name: CreateAccountingContainerEntry :exec
 INSERT INTO acc_container_entries (
-  id,customer_id,container_type,quantity_delta,source_document_id,source_revision
+  id,customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,
+  container_type,quantity_delta,source_document_id,source_revision
 ) VALUES (
-  sqlc.arg(id),sqlc.arg(customer_id),sqlc.arg(container_type),sqlc.arg(quantity_delta),
+  sqlc.arg(id),sqlc.arg(customer_subunit_id),sqlc.arg(customer_id),sqlc.arg(customer_approval_entry_id),
+  sqlc.arg(customer_subunit_code),sqlc.arg(customer_subunit_name),sqlc.arg(container_type),sqlc.arg(quantity_delta),
   sqlc.arg(source_document_id),sqlc.arg(source_revision)
 );
 
@@ -385,8 +387,14 @@ INSERT INTO acc_opening_bills(
 );
 
 -- name: InsertAccountingOpeningContainer :exec
-INSERT INTO acc_opening_containers(book_id,line_order,customer_id,container_type,quantity)
-VALUES(sqlc.arg(book_id),sqlc.arg(line_order),sqlc.arg(customer_id),sqlc.arg(container_type),sqlc.arg(quantity));
+INSERT INTO acc_opening_containers(
+  book_id,line_order,customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,
+  container_type,quantity
+)
+VALUES(
+  sqlc.arg(book_id),sqlc.arg(line_order),sqlc.arg(customer_subunit_id),sqlc.arg(customer_id),sqlc.arg(customer_approval_entry_id),
+  sqlc.arg(customer_subunit_code),sqlc.arg(customer_subunit_name),sqlc.arg(container_type),sqlc.arg(quantity)
+);
 
 -- name: ListAccountingOpeningAssets :many
 SELECT asset_id,create_object,COALESCE(asset_no,'') AS asset_no,COALESCE(name,'') AS name,
@@ -414,7 +422,7 @@ SELECT bill_id,create_object,COALESCE(bill_no,'') AS bill_no,COALESCE(bill_type,
 FROM acc_opening_bills WHERE book_id=sqlc.arg(book_id) ORDER BY line_order;
 
 -- name: ListAccountingOpeningContainers :many
-SELECT customer_id,container_type,quantity
+SELECT customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,container_type,quantity
 FROM acc_opening_containers WHERE book_id=sqlc.arg(book_id) ORDER BY line_order;
 
 -- name: ListAccountingOpeningAssetsForApproval :many
@@ -430,8 +438,12 @@ SELECT bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
 FROM acc_opening_bills WHERE book_id=sqlc.arg(book_id);
 
 -- name: CreateAccountingOpeningContainerBalances :exec
-INSERT INTO acc_container_entries(id,customer_id,container_type,quantity_delta,source_document_id,source_revision)
-SELECT substr(md5(book_id||customer_id||container_type),1,26),customer_id,container_type,quantity,book_id,0
+INSERT INTO acc_container_entries(
+  id,customer_subunit_id,customer_id,customer_approval_entry_id,customer_subunit_code,customer_subunit_name,
+  container_type,quantity_delta,source_document_id,source_revision
+)
+SELECT substr(md5(book_id||customer_subunit_id||container_type),1,26),customer_subunit_id,customer_id,
+  customer_approval_entry_id,customer_subunit_code,customer_subunit_name,container_type,quantity,book_id,0
 FROM acc_opening_containers WHERE book_id=sqlc.arg(book_id);
 
 -- name: AccountingOpeningObjectsReferencedByOtherBooks :one

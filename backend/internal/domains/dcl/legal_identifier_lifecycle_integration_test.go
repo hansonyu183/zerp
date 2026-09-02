@@ -282,7 +282,7 @@ func TestCustomerUnapproveRestoresPreviousApprovedLegalIdentifierClaimIntegratio
 	reviewer := dclActor(t, ulid.Make().String(), "customer-unapprove-claim-reviewer")
 
 	v1Input := legalIdentifierCustomerInput("91350211M000100Y46")
-	v1Input.Kind = "MAINLAND_ENTERPRISE"
+	v1Input.Root.Kind = "MAINLAND_ENTERPRISE"
 	v1, err := service.Create(t.Context(), CustomerCreateInput{Data: v1Input}, creator)
 	if err != nil {
 		t.Fatalf("create Customer V1: %v", err)
@@ -290,8 +290,8 @@ func TestCustomerUnapproveRestoresPreviousApprovedLegalIdentifierClaimIntegratio
 	v1 = approveCustomerAggregate(t, service, v1, creator, reviewer)
 
 	v2Input := legalIdentifierCustomerInput("91350211M000100X45")
-	v2Input.Kind = "MAINLAND_ENTERPRISE"
-	v2, err := service.Save(t.Context(), CustomerSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Data: v2Input}, creator)
+	v2Input.Root.Kind = "MAINLAND_ENTERPRISE"
+	v2, err := service.Save(t.Context(), CustomerSaveInput{ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID, ApprovalRevision: v1.Approval.Revision, Data: v2Input.Root}, creator)
 	if err != nil {
 		t.Fatalf("save Customer V2: %v", err)
 	}
@@ -463,14 +463,14 @@ func (legalIdentifierCustomerRules) ResolveCustomerTypeReference(_ context.Conte
 	return bobdomain.EffectiveReference{ObjectID: objectID, Entity: "dictionary-item", Code: "DIT-0001", ApprovalEntryID: objectID, VersionNo: 1, Data: bobdomain.DetailView{Name: "测试客户类型"}}, nil
 }
 
-func (legalIdentifierCustomerRules) ResolveCustomerAccountReferences(_ context.Context, _ pgx.Tx, _ string, _ string, settlementID, paymentID, attributionType, attributionID string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error) {
+func (legalIdentifierCustomerRules) ResolveCustomerSubunitReferences(_ context.Context, _ pgx.Tx, _ string, _ string, settlementID, paymentID, attributionType, attributionID string) (bobdomain.EffectiveReference, bobdomain.EffectiveReference, bobdomain.EffectiveReference, error) {
 	settlement := bobdomain.EffectiveReference{ObjectID: settlementID}
 	payment := bobdomain.EffectiveReference{ObjectID: paymentID}
 	attribution := bobdomain.EffectiveReference{ObjectID: attributionID, Entity: attributionType, Code: "REF-0002", ApprovalEntryID: attributionID, VersionNo: 1, Data: bobdomain.DetailView{Name: "测试销售归属"}}
 	return settlement, payment, attribution, nil
 }
 
-func (legalIdentifierCustomerRules) ValidateCustomerAccountReferences(context.Context, pgx.Tx, string, string, string, string, string) error {
+func (legalIdentifierCustomerRules) ValidateCustomerSubunitReferences(context.Context, pgx.Tx, string, string, string, string, string) error {
 	return nil
 }
 
@@ -482,8 +482,8 @@ func (legalIdentifierCustomerRules) EnsureCustomerUnapproveAllowed(context.Conte
 	return nil
 }
 
-func legalIdentifierCustomerInput(identifier string) CustomerDataInput {
-	return CustomerDataInput{
+func legalIdentifierCustomerInput(identifier string) CustomerCreateDataInput {
+	return CustomerCreateDataInput{Root: CustomerRootDataInput{
 		Kind:                     "OTHER",
 		LegalName:                "生命周期客户",
 		DisplayName:              "生命周期客户",
@@ -491,18 +491,17 @@ func legalIdentifierCustomerInput(identifier string) CustomerDataInput {
 		DefaultOperatingEntityID: ulid.Make().String(),
 		Enabled:                  true,
 		RemittanceProfiles:       []CustomerRemittanceProfile{},
-		Accounts: []CustomerAccountDataInput{{
-			Enabled:        true,
-			IsDefault:      true,
-			Name:           "默认账户",
-			CustomerTypeID: ulid.Make().String(),
-			PricingPolicy:  CustomerPricingPolicy{CostItems: []CustomerPricingCostItem{}},
-			CreditLimits:   []CustomerCreditLimit{},
-			PrimarySalesAttribution: CustomerSalesAttributionInput{
-				Type:            CustomerSalesAttributionInternalEmployee,
-				SubjectObjectID: ulid.Make().String(),
-			},
-		}},
+	}, Subunits: []CustomerSubunitDataInput{{
+		Enabled:        true,
+		Name:           "默认账户",
+		CustomerTypeID: ulid.Make().String(),
+		PricingPolicy:  CustomerPricingPolicy{CostItems: []CustomerPricingCostItem{}},
+		CreditLimits:   []CustomerCreditLimit{},
+		PrimarySalesAttribution: CustomerSalesAttributionInput{
+			Type:            CustomerSalesAttributionInternalEmployee,
+			SubjectObjectID: ulid.Make().String(),
+		},
+	}},
 	}
 }
 

@@ -6,7 +6,7 @@ import type { DclCustomerAttachmentScope } from './DclCustomerAttachmentScope';
 export type DclCustomerAttachmentInitiateRequest = {
   scope: DclCustomerAttachmentScope;
   ownerApprovalEntryId: string;
-  accountId?: string | null;
+  subunitId?: string | null;
   approvalRevision: number;
   categoryObjectId: string;
   fileName: string;

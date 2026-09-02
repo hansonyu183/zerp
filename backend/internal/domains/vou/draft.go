@@ -22,7 +22,7 @@ type resolvedDraft struct {
 	Products                                                               []bobdomain.EffectiveReference
 	FormulaMaterials                                                       [][]bobdomain.EffectiveReference
 	BillFunds                                                              []bobdomain.EffectiveReference
-	AccountAllocations                                                     []bobdomain.EffectiveReference
+	SubunitAllocations                                                     []bobdomain.EffectiveReference
 }
 
 func (s *Service) loadPreservedReferences(
@@ -60,8 +60,8 @@ func (s *Service) loadPreservedReferences(
 	for _, line := range data.BillCashLines {
 		result.BillFunds = append(result.BillFunds, *fromView(&line.FundAccount))
 	}
-	for _, line := range data.AccountAllocations {
-		result.AccountAllocations = append(result.AccountAllocations, *fromView(&line.Account))
+	for _, line := range data.SubunitAllocations {
+		result.SubunitAllocations = append(result.SubunitAllocations, *fromView(&line.Subunit))
 	}
 	return result, nil
 }
@@ -123,7 +123,7 @@ func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDra
 	); err != nil {
 		return err
 	}
-	// Customer Account declarations persist relative terms as dueDays, while
+	// Customer Subunit declarations persist relative terms as dueDays, while
 	// Supplier and auxiliary settlement snapshots persist the same exact fact
 	// as dayOffset. Normalize the two typed fields before writing the order.
 	settlement.Data.DayOffset = dayOffset
@@ -710,7 +710,7 @@ func (s *Service) validateStoredAttributes(
 		if err != nil {
 			return s.internal("read sales receipt attributes", err)
 		}
-		allocations, err := q.ListVouSalesReceiptAccountAllocations(ctx, documentID)
+		allocations, err := q.ListVouSalesReceiptSubunitAllocations(ctx, documentID)
 		if err != nil {
 			return s.internal("read sales receipt allocations", err)
 		}

@@ -46,6 +46,7 @@ func integrationServiceWithEvents(t *testing.T, pool *pgxpool.Pool, events *txev
 		events,
 		AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		WithPeriodWriteControl(alwaysOpenPeriodWriteControl{}),
 		WithApprovalAuthorizer(authorization.Func(nil)),
 	)
 	if err != nil {
@@ -309,6 +310,186 @@ func TestVOUApprovedSubscriberFailureAndPanicRollBackIntegration(t *testing.T) {
 		t.Fatalf("panicking subscriber failure = %#v", err)
 	}
 	assertPendingApprovalRollback(t, pool, created.DocumentID, submitted.Approval.Revision)
+}
+
+func subscribeRejectCreatedDocument(t *testing.T, bus *txevent.Bus, entity string) *string {
+	t.Helper()
+	createdDocumentID := new(string)
+	if err := bus.Subscribe(DocumentCreatedTopic(entity), "reject-created-"+entity,
+		func(_ context.Context, _ pgx.Tx, event txevent.Event) error {
+			created, ok := event.(DocumentCreatedEvent)
+			if !ok || created.Entity != entity {
+				return errors.New("unexpected created event")
+			}
+			*createdDocumentID = created.DocumentID
+			return errors.New("downstream creation failed")
+		}); err != nil {
+		t.Fatalf("subscribe created %s: %v", entity, err)
+	}
+	return createdDocumentID
+}
+
+func assertCreatedDocumentRolledBack(t *testing.T, pool *pgxpool.Pool, entity, documentID string) {
+	t.Helper()
+	if documentID == "" {
+		t.Fatalf("created subscriber did not receive %s", entity)
+	}
+	var documents, details, approvals int64
+	if err := pool.QueryRow(t.Context(), `SELECT
+		(SELECT count(*) FROM vou_documents WHERE id=$1),
+		(SELECT count(*) FROM vou_sale_outbound_details WHERE document_id=$1) +
+		(SELECT count(*) FROM vou_purchase_inbound_details WHERE document_id=$1) +
+		(SELECT count(*) FROM vou_expense_payment_details WHERE document_id=$1),
+		(SELECT count(*) FROM approval_entries WHERE domain='vou' AND entity=$2 AND subject_id=$1)`,
+		documentID, entity).Scan(&documents, &details, &approvals); err != nil {
+		t.Fatalf("read rolled back %s: %v", entity, err)
+	}
+	if documents != 0 || details != 0 || approvals != 0 {
+		t.Fatalf("rolled back %s facts = documents:%d details:%d approvals:%d", entity, documents, details, approvals)
+	}
+}
+
+func approveEventTestDocument(t *testing.T, service *Service, entity string, draft DraftInput) (MutationResult, DocumentView) {
+	t.Helper()
+	created, err := service.Create(t.Context(), entity, CreateInput{Data: draft},
+		integrationApprovalActor(t, integrationActorOne, "event-source-create"))
+	if err != nil {
+		t.Fatalf("create %s source: %v", entity, err)
+	}
+	submitted, err := service.Submit(t.Context(), entity, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "event-source-submit"))
+	if err != nil {
+		t.Fatalf("submit %s source: %v", entity, err)
+	}
+	approved, err := service.Approve(t.Context(), entity, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: submitted.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "event-source-approve"))
+	if err != nil {
+		t.Fatalf("approve %s source: %v", entity, err)
+	}
+	view, err := service.Get(t.Context(), entity, GetInput{DocumentID: created.DocumentID})
+	if err != nil {
+		t.Fatalf("get %s source: %v", entity, err)
+	}
+	return approved, view
+}
+
+func TestVOUSalesChainCreatedSubscriberFailureRollsBackDocumentIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	bus := txevent.NewBus()
+	createdDocumentID := subscribeRejectCreatedDocument(t, bus, EntitySaleOutbound)
+	service := integrationServiceWithEvents(t, pool, bus)
+	order, orderView := approvedSalesOrder(t, service, refs, "2")
+
+	_, err := service.Create(t.Context(), EntitySaleOutbound, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: order.DocumentID, Warehouse: &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{
+			SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "1",
+		}},
+	}}, integrationApprovalActor(t, integrationActorOne, "created-outbound-rollback"))
+	if err == nil {
+		t.Fatal("created subscriber failure did not reject sale outbound")
+	}
+	assertCreatedDocumentRolledBack(t, pool, EntitySaleOutbound, *createdDocumentID)
+}
+
+func TestVOUWorkflowSalesChainCreatedSubscriberFailureRollsBackDocumentIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	bus := txevent.NewBus()
+	createdDocumentID := subscribeRejectCreatedDocument(t, bus, EntitySaleOutbound)
+	service := integrationServiceWithEvents(t, pool, bus)
+	order, orderView := approvedSalesOrder(t, service, refs, "2")
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin workflow transaction: %v", err)
+	}
+	defer tx.Rollback(t.Context()) //nolint:errcheck
+
+	_, err = service.CreateWorkflowSaleOutbound(t.Context(), tx, order.DocumentID, WorkflowSaleOutboundInitial{
+		BusinessDate: "2026-07-25", WarehouseObjectID: refs.warehouse.ObjectID,
+		Lines: []SourceQuantityLineInput{{
+			SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "1",
+		}},
+	}, "workflow-created-outbound-rollback")
+	if err == nil {
+		t.Fatal("workflow created subscriber failure did not reject sale outbound")
+	}
+	if rollbackErr := tx.Rollback(t.Context()); rollbackErr != nil {
+		t.Fatalf("roll back failed workflow transaction: %v", rollbackErr)
+	}
+	assertCreatedDocumentRolledBack(t, pool, EntitySaleOutbound, *createdDocumentID)
+}
+
+func TestVOUWorkflowIndependentWriterSubscriberFailureRollsBackDocumentIntegration(t *testing.T) {
+	t.Run(EntityPurchaseInbound, func(t *testing.T) {
+		pool := vouIntegrationPool(t)
+		truncateVOU(t, pool)
+		t.Cleanup(func() { truncateVOU(t, pool) })
+		refs := prepareReferences(t, pool)
+		activateSettlementLedgerForParty(t, pool, "supplier", refs.supplier, 0, "2026-07-01")
+		bus := txevent.NewBus()
+		createdDocumentID := subscribeRejectCreatedDocument(t, bus, EntityPurchaseInbound)
+		service := integrationServiceWithEvents(t, pool, bus)
+		order, orderView := approveEventTestDocument(t, service, EntityPurchaseOrder, DraftInput{
+			BusinessDate: "2026-07-28", Currency: "CNY",
+			Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
+			ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
+		})
+		tx, err := pool.Begin(t.Context())
+		if err != nil {
+			t.Fatalf("begin purchase-inbound workflow: %v", err)
+		}
+		defer tx.Rollback(t.Context()) //nolint:errcheck
+		_, err = service.CreateWorkflowPurchaseInbound(t.Context(), tx, order.DocumentID, WorkflowPurchaseInboundInitial{
+			BusinessDate: "2026-07-29", WarehouseObjectID: refs.warehouse.ObjectID,
+			Lines: []SourceQuantityLineInput{{
+				SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "1",
+			}},
+		}, "workflow-purchase-inbound-rollback")
+		if err == nil {
+			t.Fatal("created subscriber failure did not reject workflow purchase inbound")
+		}
+		if rollbackErr := tx.Rollback(t.Context()); rollbackErr != nil {
+			t.Fatalf("roll back purchase-inbound workflow: %v", rollbackErr)
+		}
+		assertCreatedDocumentRolledBack(t, pool, EntityPurchaseInbound, *createdDocumentID)
+	})
+
+	t.Run(EntityExpensePayment, func(t *testing.T) {
+		pool := vouIntegrationPool(t)
+		truncateVOU(t, pool)
+		t.Cleanup(func() { truncateVOU(t, pool) })
+		refs := prepareReferences(t, pool)
+		bus := txevent.NewBus()
+		createdDocumentID := subscribeRejectCreatedDocument(t, bus, EntityExpensePayment)
+		service := integrationServiceWithEvents(t, pool, bus)
+		reimbursement, _ := approveEventTestDocument(t, service, EntityExpenseReimbursement, DraftInput{
+			BusinessDate: "2026-07-24", Currency: "CNY", Employee: &refs.employee, FundAccount: &refs.fundAccount,
+			ExpenseLines: []ExpenseLineInput{{Category: "交通", Description: "出租车", Amount: "20.00"}},
+		})
+		tx, err := pool.Begin(t.Context())
+		if err != nil {
+			t.Fatalf("begin expense-payment workflow: %v", err)
+		}
+		defer tx.Rollback(t.Context()) //nolint:errcheck
+		_, err = service.CreateWorkflowExpensePayment(t.Context(), tx, reimbursement.DocumentID,
+			WorkflowExpensePaymentInitial{FundAccountObjectID: refs.fundAccount.ObjectID},
+			"workflow-expense-payment-rollback")
+		if err == nil {
+			t.Fatal("created subscriber failure did not reject workflow expense payment")
+		}
+		if rollbackErr := tx.Rollback(t.Context()); rollbackErr != nil {
+			t.Fatalf("roll back expense-payment workflow: %v", rollbackErr)
+		}
+		assertCreatedDocumentRolledBack(t, pool, EntityExpensePayment, *createdDocumentID)
+	})
 }
 
 func assertPendingApprovalRollback(t *testing.T, pool *pgxpool.Pool, documentID string, revision int64) {

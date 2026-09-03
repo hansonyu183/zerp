@@ -56,7 +56,11 @@ func (s *TypedArchiveService) QueryOtherUnits(ctx context.Context, input TypedAr
 	}
 	items := make([]OtherUnitQueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := OtherUnitQueryItem{ObjectID: row.ObjectID, Entity: EntityOtherUnit, Code: row.Code, DisplayName: row.DisplayName, DefaultOperatingEntity: archiveDefault(row), UpdatedAt: row.UpdatedAt.Time}
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[OtherUnitQueryItem]{}, codeErr
+		}
+		item := OtherUnitQueryItem{ObjectID: row.ObjectID, Entity: EntityOtherUnit, Code: code, DisplayName: row.DisplayName, DefaultOperatingEntity: archiveDefault(row), UpdatedAt: row.UpdatedAt.Time}
 		if row.ApprovedEntryID != "" {
 			version, e := s.otherVersion(ctx, row.ApprovedEntryID, row.ObjectID)
 			if e != nil {
@@ -102,7 +106,11 @@ func (s *TypedArchiveService) QuerySalesPartners(ctx context.Context, input Type
 	}
 	items := make([]SalesPartnerQueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := SalesPartnerQueryItem{ObjectID: row.ObjectID, Entity: EntitySalesPartner, Code: row.Code, DisplayName: row.DisplayName, DefaultOperatingEntity: archiveDefault(row), UpdatedAt: row.UpdatedAt.Time}
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[SalesPartnerQueryItem]{}, codeErr
+		}
+		item := SalesPartnerQueryItem{ObjectID: row.ObjectID, Entity: EntitySalesPartner, Code: code, DisplayName: row.DisplayName, DefaultOperatingEntity: archiveDefault(row), UpdatedAt: row.UpdatedAt.Time}
 		if row.ApprovedEntryID != "" {
 			version, e := s.salesVersion(ctx, row.ApprovedEntryID, row.ObjectID)
 			if e != nil {

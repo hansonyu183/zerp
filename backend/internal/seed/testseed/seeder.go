@@ -158,6 +158,7 @@ func New(
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,
 		voudomain.WithAccountingControl(accounting),
+		voudomain.WithPeriodWriteControl(accounting),
 		voudomain.WithApprovalAuthorizer(seedAuthorizer{}),
 	)
 	if err != nil {

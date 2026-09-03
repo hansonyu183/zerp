@@ -102,6 +102,11 @@ initialize_schema() {
 		<db/schema.sql
 }
 
+validate_published_reports() {
+	local database="$1"
+	APP_ENV=test DATABASE_URL="$(database_url "$database")" go run ./cmd/rpt-validate-published
+}
+
 wait_for_packages() {
 	local failed=0
 	local index exit_code status
@@ -172,9 +177,11 @@ trap 'exit 143' TERM
 initialize_current_schema_databases() {
 	recreate_database "$base_database"
 	initialize_schema "$base_database"
+	validate_published_reports "$base_database"
 
 	recreate_database "$template_database"
 	initialize_schema "$template_database"
+	validate_published_reports "$template_database"
 }
 
 run_current_integration_packages() {

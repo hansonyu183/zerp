@@ -68,7 +68,11 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 		if !payloadOK || !entryOK {
 			return Page[QueryItem]{}, s.internal("load product current", pgx.ErrNoRows)
 		}
-		page.Items = append(page.Items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: productDetailFromRow(payload), UpdatedAt: r.UpdatedAt.Time})
+		code, codeErr := requiredSubjectCode(r.Code)
+		if codeErr != nil {
+			return Page[QueryItem]{}, codeErr
+		}
+		page.Items = append(page.Items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: code, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: productDetailFromRow(payload), UpdatedAt: r.UpdatedAt.Time})
 	}
 	unitConversions, formulas, err := s.loadProductListEnrichments(ctx, versionIDs)
 	if err != nil {

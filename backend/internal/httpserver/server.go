@@ -72,7 +72,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	dclRptDefinitionService := dcldomain.NewRptDefinitionService(db, rptService, authorizer, eventBus)
 	vouService, err := voudomain.NewService(db, bobService, auxiliaryResolver, eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	}, logger, voudomain.WithAccountingControl(accService), voudomain.WithApprovalAuthorizer(authorizer))
+	}, logger, voudomain.WithAccountingControl(accService), voudomain.WithPeriodWriteControl(accService), voudomain.WithApprovalAuthorizer(authorizer))
 	if err != nil {
 		return nil, err
 	}

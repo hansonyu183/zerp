@@ -33,6 +33,12 @@ type AccountingControl interface {
 	PartyBalance(context.Context, pgx.Tx, PartyBalanceQuery) (int64, error)
 }
 
+// PeriodWriteControl is the narrow ACC service seam used by VOU mutations.
+// It acquires every relevant month lock in the supplied transaction.
+type PeriodWriteControl interface {
+	GuardVOUWrite(context.Context, pgx.Tx, ...time.Time) (bool, error)
+}
+
 type PartyBalanceQuery struct {
 	CounterpartyDimension string
 	CounterpartyObjectID  string
@@ -92,6 +98,47 @@ func (s *Service) getDocument(ctx context.Context, id, entity string) (documentR
 
 func lockDocument(ctx context.Context, tx pgx.Tx, id, entity string) (documentRecord, error) {
 	return scanDocument(tx.QueryRow(ctx, documentSelect+` FOR UPDATE OF document,approval`, id, entity))
+}
+
+func (s *Service) guardVOUWrite(ctx context.Context, tx pgx.Tx, businessDates ...time.Time) error {
+	if s.periodWriteControl == nil {
+		return s.internal("guard accounting period write", errors.New("accounting period control is not configured"))
+	}
+	allowed, err := s.periodWriteControl.GuardVOUWrite(ctx, tx, businessDates...)
+	if err != nil {
+		return s.internal("guard accounting period write", err)
+	}
+	if !allowed {
+		return domainError(ErrorConflict, "accounting period is locked", map[string]any{"locked": true}, nil)
+	}
+	return nil
+}
+
+func (s *Service) lockDocumentForWrite(ctx context.Context, tx pgx.Tx, id, entity string) (documentRecord, error) {
+	return s.lockDocumentForWriteDates(ctx, tx, id, entity)
+}
+
+func (s *Service) lockDocumentForWriteDates(ctx context.Context, tx pgx.Tx, id, entity string, additionalDates ...time.Time) (documentRecord, error) {
+	preview, err := s.queries.WithTx(tx).GetVouDocumentWriteState(ctx, dbsqlc.GetVouDocumentWriteStateParams{
+		ID: id, Entity: entity,
+	})
+	if err != nil {
+		return documentRecord{}, err
+	}
+	dates := append([]time.Time{preview.BusinessDate.Time}, additionalDates...)
+	if err = s.guardVOUWrite(ctx, tx, dates...); err != nil {
+		return documentRecord{}, err
+	}
+	document, err := lockDocument(ctx, tx, id, entity)
+	if err != nil {
+		return document, err
+	}
+	if !document.BusinessDate.Time.Equal(preview.BusinessDate.Time) || document.Revision != preview.Revision {
+		return document, domainError(ErrorConflict, "document changed", map[string]any{
+			"revision": document.Revision, "status": document.Status,
+		}, nil)
+	}
+	return document, nil
 }
 
 func (d documentRecord) approvalEntry() approval.Entry {
@@ -173,24 +220,29 @@ func timestampPointer(value pgtype.Timestamptz) *time.Time {
 }
 
 type Service struct {
-	pool        *pgxpool.Pool
-	queries     *dbsqlc.Queries
-	resolver    effectiveReferenceResolver
-	auxResolver auxiliaryReferenceResolver
-	events      *txevent.Bus
-	approvals   map[string]*approval.Coordinator[ApprovalPayload]
-	authorizer  approval.Authorizer
-	accounting  AccountingControl
-	storage     *localStorage
-	uploadTTL   time.Duration
-	downloadTTL time.Duration
-	logger      *slog.Logger
+	pool               *pgxpool.Pool
+	queries            *dbsqlc.Queries
+	resolver           effectiveReferenceResolver
+	auxResolver        auxiliaryReferenceResolver
+	events             *txevent.Bus
+	approvals          map[string]*approval.Coordinator[ApprovalPayload]
+	authorizer         approval.Authorizer
+	accounting         AccountingControl
+	periodWriteControl PeriodWriteControl
+	storage            *localStorage
+	uploadTTL          time.Duration
+	downloadTTL        time.Duration
+	logger             *slog.Logger
 }
 
 type ServiceOption func(*Service)
 
 func WithAccountingControl(control AccountingControl) ServiceOption {
 	return func(service *Service) { service.accounting = control }
+}
+
+func WithPeriodWriteControl(control PeriodWriteControl) ServiceOption {
+	return func(service *Service) { service.periodWriteControl = control }
 }
 
 func WithApprovalAuthorizer(authorizer approval.Authorizer) ServiceOption {
@@ -239,6 +291,9 @@ func NewService(
 	}
 	if service.authorizer == nil {
 		return nil, errors.New("VOU Approval authorizer is required")
+	}
+	if service.periodWriteControl == nil {
+		return nil, errors.New("VOU accounting period write control is required")
 	}
 	service.approvals = make(map[string]*approval.Coordinator[ApprovalPayload], len(entities))
 	for _, entity := range entities {

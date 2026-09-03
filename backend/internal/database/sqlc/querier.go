@@ -398,6 +398,7 @@ type Querier interface {
 	GetVouAssetSaleDetail(ctx context.Context, documentID string) (VouAssetSaleDetail, error)
 	GetVouBillDetail(ctx context.Context, documentID string) (VouBillDetail, error)
 	GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (GetVouDocumentRow, error)
+	GetVouDocumentWriteState(ctx context.Context, arg GetVouDocumentWriteStateParams) (GetVouDocumentWriteStateRow, error)
 	GetVouEmployeeLoanWriteoffDetail(ctx context.Context, documentID string) (VouEmployeeLoanWriteoffDetail, error)
 	GetVouExpensePaymentDetail(ctx context.Context, documentID string) (VouExpensePaymentDetail, error)
 	GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error)
@@ -534,8 +535,8 @@ type Querier interface {
 	InsertVouServiceAcceptanceDetail(ctx context.Context, arg InsertVouServiceAcceptanceDetailParams) error
 	InsertVouServiceContractDetail(ctx context.Context, arg InsertVouServiceContractDetailParams) error
 	IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error)
+	IsAccountingPeriodLocked(ctx context.Context, periodMonth pgtype.Date) (bool, error)
 	IsAuxProductTypeReferenced(ctx context.Context, objectID string) (bool, error)
-	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
 	IsVouSaleDeliveryReady(ctx context.Context, documentID string) (*bool, error)
 	IsVouSaleOutboundReady(ctx context.Context, documentID string) (*bool, error)
 	IsVouSaleSignoffReady(ctx context.Context, documentID string) (bool, error)
@@ -668,6 +669,7 @@ type Querier interface {
 	ListVouIntermediaryCalculationSummaries(ctx context.Context, documentID string) ([]VouIntermediaryCalculationSummary, error)
 	ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error)
 	ListVouInventoryCountLines(ctx context.Context, documentID string) ([]VouInventoryCountLine, error)
+	ListVouLinkedRefusalReturnsForSignoff(ctx context.Context, signoffID string) ([]ListVouLinkedRefusalReturnsForSignoffRow, error)
 	ListVouPriceLines(ctx context.Context, documentID string) ([]VouPriceLine, error)
 	ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error)
 	ListVouPurchaseInboundLines(ctx context.Context, documentID string) ([]VouPurchaseInboundLine, error)
@@ -689,6 +691,7 @@ type Querier interface {
 	LockAccountingBooksForCreate(ctx context.Context) error
 	LockAccountingControlBookForVou(ctx context.Context) (LockAccountingControlBookForVouRow, error)
 	LockAccountingInventory(ctx context.Context, lockKey string) error
+	LockAccountingPeriodMonth(ctx context.Context, periodMonth pgtype.Date) error
 	LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error)
 	LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error)
 	LockApprovalVersionSubject(ctx context.Context, arg LockApprovalVersionSubjectParams) error
@@ -781,6 +784,7 @@ type Querier interface {
 	RptListBillReferences(ctx context.Context, arg RptListBillReferencesParams) ([]RptListBillReferencesRow, error)
 	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
 	RptListCustomerSubunitReferences(ctx context.Context, arg RptListCustomerSubunitReferencesParams) ([]RptListCustomerSubunitReferencesRow, error)
+	RptListPublishedDefinitions(ctx context.Context) ([]RptListPublishedDefinitionsRow, error)
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
 	RptUpsertDefinitionValidity(ctx context.Context, arg RptUpsertDefinitionValidityParams) error

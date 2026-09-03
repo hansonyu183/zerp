@@ -52,7 +52,11 @@ func (s *WarehouseService) Query(ctx context.Context, input WarehouseQueryInput,
 	}
 	items := make([]WarehouseQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := WarehouseQueryItem{ObjectID: r.ObjectID, Entity: EntityWarehouse, Code: stringValue(r.Code), Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		code, codeErr := requiredSubjectCode(r.Code)
+		if codeErr != nil {
+			return Page[WarehouseQueryItem]{}, codeErr
+		}
+		item := WarehouseQueryItem{ObjectID: r.ObjectID, Entity: EntityWarehouse, Code: code, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.ApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.ApprovedEntryID, r.ObjectID)
 			if e != nil {
@@ -119,7 +123,11 @@ func (s *WarehouseService) Get(ctx context.Context, input WarehouseGetInput, act
 	if err != nil {
 		return WarehouseView{}, translateError(err)
 	}
-	return WarehouseView{ObjectID: identity.ID, Entity: EntityWarehouse, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: warehouseVersionData(stored), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
+	code, err := requiredSubjectCode(identity.Code)
+	if err != nil {
+		return WarehouseView{}, err
+	}
+	return WarehouseView{ObjectID: identity.ID, Entity: EntityWarehouse, Code: code, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: warehouseVersionData(stored), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
 }
 
 func (s *WarehouseService) Versions(ctx context.Context, input WarehouseHistoryInput, actor approval.Actor) (Page[WarehouseVersionView], error) {

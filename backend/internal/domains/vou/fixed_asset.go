@@ -358,6 +358,9 @@ func (s *Service) CreateAssetDocument(ctx context.Context, entity string, input 
 	if err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.guardVOUWrite(ctx, tx, draft.businessDate); err != nil {
+		return MutationResult{}, err
+	}
 	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{Entity: entity, BusinessDate: dateValue(draft.businessDate)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MutationResult{}, domainError(ErrorConflict, "document number exhausted", nil, nil)
@@ -390,13 +393,17 @@ func (s *Service) SaveAssetDocument(ctx context.Context, entity string, input Sa
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
+	businessDate, err := parseBusinessDate(input.Data.BusinessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("begin asset save", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, entity, businessDate)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}

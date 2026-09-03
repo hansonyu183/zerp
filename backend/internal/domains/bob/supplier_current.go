@@ -52,7 +52,11 @@ func (s *Service) getSupplierCurrent(ctx context.Context, input GetInput) (Objec
 		d.OperatingEntityIDs = append(d.OperatingEntityIDs, value.OperatingEntityID)
 		d.OperatingEntities = append(d.OperatingEntities, BusinessArchiveSnapshot{SourceObjectID: value.OperatingEntityID, ApprovalEntryID: value.OperatingEntityApprovalEntryID, Code: value.OperatingEntityCode, Name: value.OperatingEntityName})
 	}
-	return ObjectView{ObjectID: row.ObjectID, Entity: EntitySupplier, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: d, UpdatedAt: row.UpdatedAt.Time}, nil
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return ObjectView{}, err
+	}
+	return ObjectView{ObjectID: row.ObjectID, Entity: EntitySupplier, Code: code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: d, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 func supplierListDetail(row dbsqlc.ListBobSupplierCurrentsTypedRow) DetailView {
 	return supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.LegalIdentifier), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))
@@ -84,7 +88,11 @@ func (s *Service) querySuppliersCurrent(ctx context.Context, q *dbsqlc.Queries, 
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntitySupplier, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: supplierListDetail(row), UpdatedAt: row.UpdatedAt.Time})
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[QueryItem]{}, codeErr
+		}
+		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntitySupplier, Code: code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: supplierListDetail(row), UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -99,7 +107,11 @@ func (s *Service) resolveSupplierCurrentReference(ctx context.Context, q *dbsqlc
 	if !row.Enabled {
 		return EffectiveReference{}, domainError(ErrorConflict, "Supplier reference has no enabled current version", nil, nil)
 	}
-	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: supplierTypedDetail(row)}, nil
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return EffectiveReference{}, err
+	}
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: supplierTypedDetail(row)}, nil
 }
 func (s *Service) validateSupplierSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntitySupplier, objectID, "Supplier approval snapshot is unavailable")
@@ -114,5 +126,9 @@ func (s *Service) validateSupplierSnapshotReference(ctx context.Context, q *dbsq
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Supplier identity", err)
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.LegalIdentifier), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))}, nil
+	code, codeErr := requiredSubjectCode(object.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: code, ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: supplierDetail(row.Kind, row.LegalName, row.DisplayName, deref(row.LegalIdentifier), deref(row.ShortName), deref(row.ContactName), deref(row.ContactPhone), deref(row.Email), deref(row.Address), deref(row.Remark), deref(row.SettlementMethodID), deref(row.SettlementMethodCode), deref(row.SettlementMethodName), deref(row.SettlementTermCode), deref(row.SettlementRuleType), row.SettlementMonthOffset, row.SettlementDayOfMonth, row.SettlementDayOffset, row.DefaultOperatingEntityID, row.DefaultOperatingEntityApprovalEntryID, row.DefaultOperatingEntityCode, row.DefaultOperatingEntityName, deref(row.DefaultPurchaserEmployeeID), deref(row.DefaultPurchaserEmployeeApprovalEntryID), deref(row.DefaultPurchaserEmployeeCode), deref(row.DefaultPurchaserEmployeeName))}, nil
 }

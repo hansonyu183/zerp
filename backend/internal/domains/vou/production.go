@@ -97,6 +97,9 @@ func (s *Service) CreateProduction(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.guardVOUWrite(ctx, tx, draft.BusinessDate); err != nil {
+		return MutationResult{}, err
+	}
 	q := s.queries.WithTx(tx)
 	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{
 		Entity: entity, BusinessDate: dateValue(draft.BusinessDate),
@@ -154,13 +157,17 @@ func (s *Service) SaveProduction(
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
+	businessDate, err := parseBusinessDate(input.Data.BusinessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("begin production save", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, entity, businessDate)
 	if err = documentWriteConflict(
 		err, document.Revision, input.Revision, document.Status, StatusDraft,
 	); err != nil {

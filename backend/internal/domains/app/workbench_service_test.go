@@ -181,3 +181,13 @@ func TestWorkbenchMappingItemSerializesTypedDeepLinkCoordinates(t *testing.T) {
 		t.Fatal("workbench item leaked the non-contract approvalEntryId field")
 	}
 }
+
+func TestWorkbenchBusinessCodePreservesMappingExceptionAndRejectsMissingSubjectCode(t *testing.T) {
+	mappingCode := "sale-order"
+	if got, err := workbenchBusinessCode("acc-mapping", nil, &mappingCode); err != nil || got != mappingCode {
+		t.Fatalf("mapping code = %q, %v", got, err)
+	}
+	if _, err := workbenchBusinessCode("product", nil, nil); err == nil {
+		t.Fatal("missing coded subject was accepted")
+	}
+}

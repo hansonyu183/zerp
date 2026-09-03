@@ -26,7 +26,7 @@ func (q *Queries) RptDisableUsePermissions(ctx context.Context, arg RptDisableUs
 }
 
 const rptGetActiveDefinition = `-- name: RptGetActiveDefinition :one
-SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, v.name, v.description, v.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, rv.validity, v.sql_text, v.parameters, v.columns
+SELECT d.id AS definition_id, d.code, v.name, v.description, v.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, rv.validity, v.sql_text, v.parameters, v.columns
 FROM dcl_subjects d
 JOIN LATERAL (SELECT id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
@@ -36,7 +36,7 @@ WHERE d.code=$1::text AND d.entity='rpt-definition' AND v.enabled
 
 type RptGetActiveDefinitionRow struct {
 	DefinitionID        string             `db:"definition_id" json:"definition_id"`
-	Code                string             `db:"code" json:"code"`
+	Code                *string            `db:"code" json:"code"`
 	Name                string             `db:"name" json:"name"`
 	Description         string             `db:"description" json:"description"`
 	Enabled             bool               `db:"enabled" json:"enabled"`
@@ -139,7 +139,7 @@ func (q *Queries) RptInvalidateVersion(ctx context.Context, arg RptInvalidateVer
 }
 
 const rptLatestApprovedUseState = `-- name: RptLatestApprovedUseState :one
-SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, coalesce(v.name,'') AS name, coalesce(v.enabled,false) AS enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, rv.validity
+SELECT d.id AS definition_id, d.code, coalesce(v.name,'') AS name, coalesce(v.enabled,false) AS enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, rv.validity
 FROM dcl_subjects d
 LEFT JOIN LATERAL (SELECT id, status FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 LEFT JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
@@ -149,7 +149,7 @@ WHERE d.id=$1 AND d.entity='rpt-definition'
 
 type RptLatestApprovedUseStateRow struct {
 	DefinitionID    string  `db:"definition_id" json:"definition_id"`
-	Code            string  `db:"code" json:"code"`
+	Code            *string `db:"code" json:"code"`
 	Name            string  `db:"name" json:"name"`
 	Enabled         bool    `db:"enabled" json:"enabled"`
 	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
@@ -539,6 +539,56 @@ func (q *Queries) RptListCustomerSubunitReferences(ctx context.Context, arg RptL
 	return items, nil
 }
 
+const rptListPublishedDefinitions = `-- name: RptListPublishedDefinitions :many
+SELECT d.id AS definition_id, d.code, e.id AS approval_entry_id, v.sql_text, v.parameters, v.columns
+FROM dcl_subjects d
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) e ON true
+JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+JOIN rpt_definition_validities rv ON rv.approval_entry_id=e.id AND rv.validity='VALID'
+WHERE d.entity='rpt-definition' AND v.enabled
+ORDER BY d.code, d.id
+`
+
+type RptListPublishedDefinitionsRow struct {
+	DefinitionID    string  `db:"definition_id" json:"definition_id"`
+	Code            *string `db:"code" json:"code"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	SqlText         string  `db:"sql_text" json:"sql_text"`
+	Parameters      []byte  `db:"parameters" json:"parameters"`
+	Columns         []byte  `db:"columns" json:"columns"`
+}
+
+func (q *Queries) RptListPublishedDefinitions(ctx context.Context) ([]RptListPublishedDefinitionsRow, error) {
+	rows, err := q.db.Query(ctx, rptListPublishedDefinitions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RptListPublishedDefinitionsRow{}
+	for rows.Next() {
+		var i RptListPublishedDefinitionsRow
+		if err := rows.Scan(
+			&i.DefinitionID,
+			&i.Code,
+			&i.ApprovalEntryID,
+			&i.SqlText,
+			&i.Parameters,
+			&i.Columns,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const rptListSubjectReferences = `-- name: RptListSubjectReferences :many
 SELECT id, code, name, count(*) OVER() AS total FROM acc_subjects
 WHERE enabled AND ($1::text = '' OR id = $1 OR code ILIKE '%' || $2 || '%' OR name ILIKE '%' || $2 || '%')
@@ -590,7 +640,7 @@ func (q *Queries) RptListSubjectReferences(ctx context.Context, arg RptListSubje
 }
 
 const rptQueryDirectory = `-- name: RptQueryDirectory :many
-SELECT dcl_require_subject_code(d.code) AS code, v.name, v.description, v.parameters, v.columns, count(*) OVER() AS total
+SELECT d.code, v.name, v.description, v.parameters, v.columns, count(*) OVER() AS total
 FROM dcl_subjects d
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
@@ -605,12 +655,12 @@ type RptQueryDirectoryParams struct {
 }
 
 type RptQueryDirectoryRow struct {
-	Code        string `db:"code" json:"code"`
-	Name        string `db:"name" json:"name"`
-	Description string `db:"description" json:"description"`
-	Parameters  []byte `db:"parameters" json:"parameters"`
-	Columns     []byte `db:"columns" json:"columns"`
-	Total       int64  `db:"total" json:"total"`
+	Code        *string `db:"code" json:"code"`
+	Name        string  `db:"name" json:"name"`
+	Description string  `db:"description" json:"description"`
+	Parameters  []byte  `db:"parameters" json:"parameters"`
+	Columns     []byte  `db:"columns" json:"columns"`
+	Total       int64   `db:"total" json:"total"`
 }
 
 func (q *Queries) RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error) {

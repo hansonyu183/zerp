@@ -302,8 +302,12 @@ func (s *OperatingEntityService) Get(ctx context.Context, input OperatingEntityG
 	if err != nil {
 		return OperatingEntityView{}, translateError(err)
 	}
+	code, err := requiredSubjectCode(identity.Code)
+	if err != nil {
+		return OperatingEntityView{}, err
+	}
 	return OperatingEntityView{
-		ObjectID: identity.ID, Entity: EntityOperatingEntity, Code: stringValue(identity.Code),
+		ObjectID: identity.ID, Entity: EntityOperatingEntity, Code: code,
 		Enabled:  stored.Enabled,
 		Approval: approval.VersionMetaFromEntry(entry), Data: operatingEntityData(stored), UpdatedAt: entry.UpdatedAt,
 		AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor),
@@ -376,6 +380,13 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func requiredSubjectCode(value *string) (string, error) {
+	if value == nil || strings.TrimSpace(*value) == "" {
+		return "", newError(ErrorInternal, "internal_error", "subject code persistence invariant is violated", nil, errors.New("subject code is missing"))
+	}
+	return *value, nil
 }
 
 func timestampPointer(value pgtype.Timestamptz) *time.Time {

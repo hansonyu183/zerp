@@ -15,7 +15,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image bootstrap-admin seed-bob seed-test cleanup-attachments e2e-env-init e2e-env-rotate e2e-guard
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image bootstrap-admin seed-bob seed-test cleanup-attachments rpt-validate-published e2e-env-init e2e-env-rotate e2e-guard
 
 run:
 	go run ./cmd/server
@@ -47,6 +47,7 @@ test-db-prepare:
 		'dropdb -U "$$POSTGRES_USER" --if-exists --force "$$TEST_POSTGRES_DB" && createdb -U "$$POSTGRES_USER" "$$TEST_POSTGRES_DB"'
 	@$(TEST_COMPOSE) exec -T -e TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" db sh -eu -c \
 		'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$TEST_POSTGRES_DB"' < db/schema.sql
+	@APP_ENV=test DATABASE_URL="$(TEST_DATABASE_URL_EFFECTIVE)" go run ./cmd/rpt-validate-published
 
 test-db-clean:
 	@test "$(TEST_PROJECT)" = "zerp-api-test" || { echo "refusing to clean unexpected test project: $(TEST_PROJECT)" >&2; exit 1; }
@@ -158,6 +159,9 @@ seed-test:
 cleanup-attachments:
 	@docker compose --env-file $(ENV_FILE) -f ../compose.yaml run --rm --no-deps \
 		--entrypoint /usr/local/bin/zerp-cleanup-attachments api
+
+rpt-validate-published:
+	@go run ./cmd/rpt-validate-published
 
 e2e-env-init:
 	@./scripts/init-e2e-env.sh

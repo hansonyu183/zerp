@@ -51,7 +51,7 @@ func (s *Service) InitiateAttachment(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return AttachmentInitiateResult{}, err
 	}
@@ -214,7 +214,7 @@ func (s *Service) RemoveAttachment(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}

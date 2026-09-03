@@ -33,7 +33,7 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/SRC/SRF/PPY/PRF/ORC/OPY/ELN/
 
 客户子单位和 Supplier 草稿可以暂不配置结算方式。销售订单、采购订单保存时从正式来源冻结非空合法的结算快照；来源没有明确账期时返回 `vou_settlement_term_required`。联系人、电话和地址同样从对应正式版本读取并保存快照。
 
-销售订单、采购订单在离开 `DRAFT` 后，其 typed detail 中客户/供应商、人员、仓库、结算、金额及其他申明列不可更新或删除；唯一允许继续变化的列是履约运行态 `fulfillmentStatus`。数据库必须逐列验证该边界。下游单据冻结自己实际采用的仓库等事实，但不得回写来源订单；历史来源订单未指定仓库时保持原样。
+销售订单、采购订单的普通保存和删除只允许在 `DRAFT` 执行；离开 `DRAFT` 后，其 typed detail 中客户/供应商、人员、仓库、结算、金额及其他申明事实不可修改。履约运行态 `fulfillmentStatus` 只能由 VOU 专用履约命令在原事务中更新，该命令不接受或改写其他订单申明事实。下游单据冻结自己实际采用的仓库等事实，但不得回写来源订单；历史来源订单未指定仓库时保持原样。
 
 新销售订单选择 Customer 及其当前启用客户子单位，并明确选择任一当前有效经营主体；客户默认经营主体只用于预填，不限制或替代选择。恰有一个启用子单位时服务端可以采用该隐式选择，存在多个启用子单位时缺少 `subunitId` 必须返回稳定错误且不得按顺序、编码或最近使用推断。单据保存 Customer stable ID、客户子单位 stable ID、Customer Approval Entry、子单位业务快照及实际经营主体完整快照。经营主体是合同销售方、开票方和收款方；对应资金账户必须属于同一经营主体。
 
@@ -101,6 +101,10 @@ APPROVED --unapprove--> PENDING
 ### 2.3 通用写入语义
 
 请求、响应和 BOB 引用结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。后端仍须在写入事务中解析有效 BOB 对象与版本；客户端提交的引用不构成有效性证明。
+
+VOU Domain Service 是单据业务写入的唯一受支持入口。每个 typed writer 在所属的 PostgreSQL 事务中写入一条公共 `vou_documents` 记录和该 entity 唯一的一条 typed detail，并在同一事务完成 Approval 和同步领域事件；公共记录、typed detail、Approval、事件或下游订阅任一步失败时全部回滚。每个 detail 表继续以自身的 PK/UNIQUE、FK、NOT NULL 和简单数据形状 CHECK 保证持久化结构，但数据库不再通过跨全部 detail 表计数、父单或订单状态触发器重复执行业务判断。
+
+WFL 正式动作、seed 和运维命令必须调用 VOU Domain Service，不得直接写 VOU 业务表。手工 SQL 或其他绕过 Service 的业务写入不受支持，也不为这种路径保留旁路校验、第二套 writer 或后备路径。
 
 ### 2.4 居间计算单
 
@@ -409,7 +413,7 @@ Approval 审计事件追加保存动作、前后状态与 revision、操作者�
 - 缺少结算方式不能创建或保存贸易单据；
 - 商品和费用明细备注可保存、读取并拒绝超过 1000 字的输入；
 - BOB 无效引用、平台车辆不匹配、资金账户币种不匹配被拒绝；
-- 数量、金额、日期和差异原因约束同时由服务测试和数据库约束覆盖；
+- 数量、金额、日期和差异原因等业务规则由 VOU Service 测试覆盖；各 typed detail 表的 PK/UNIQUE、FK、NOT NULL 和简单数据形状 CHECK 继续覆盖持久化结构；
 - 并发编号唯一，过期 revision 不产生部分写入；
 - 批准与反批准事件按单据类型精确投递，任一订阅失败不产生 VOU 或下游部分写入；
 - 采购入库只读继承采购单价，累计占用和并发写入均不能超过采购订单；

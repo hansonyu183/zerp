@@ -306,22 +306,19 @@ JOIN approval_entries approval ON approval.id=document.approval_entry_id
 WHERE document.id = sqlc.arg(id) AND document.entity = sqlc.arg(entity)
   AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id;
 
+-- name: GetVouDocumentWriteState :one
+SELECT document.business_date,approval.revision
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.id=sqlc.arg(id) AND document.entity=sqlc.arg(entity)
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id;
+
 -- name: UpdateVouDraft :one
 UPDATE vou_documents
 SET business_date = sqlc.arg(business_date), due_date = sqlc.narg(due_date), currency = sqlc.arg(currency),
     total_amount_cents = sqlc.arg(total_amount_cents), remark = sqlc.narg(remark)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
 RETURNING id;
-
--- name: IsVouDocumentInClosedPeriod :one
-SELECT EXISTS(
-    SELECT 1
-    FROM vou_documents document
-    JOIN acc_periods period
-      ON period.period_month=date_trunc('month',document.business_date)::date
-     AND period.state='LOCKED'
-    WHERE document.id = $1
-);
 
 -- name: VouEntityExistsOnBusinessDate :one
 SELECT EXISTS(
@@ -1320,6 +1317,19 @@ SELECT id,product_object_id,product_approval_entry_id,product_code,product_name,
 FROM vou_sale_signoff_lines
 WHERE document_id=sqlc.arg(document_id) AND rejected_base_quantity_micros>0
 ORDER BY line_no;
+
+-- name: ListVouLinkedRefusalReturnsForSignoff :many
+SELECT document.id,document.document_no,approval.revision,document.approval_entry_id,
+       detail.return_kind,detail.source_order_id,document.business_date
+FROM vou_sale_return_details detail
+JOIN vou_documents document ON document.id=detail.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+WHERE EXISTS (
+  SELECT 1
+  FROM vou_sale_return_lines line
+  WHERE line.document_id=detail.document_id AND line.source_signoff_id=sqlc.arg(signoff_id)
+);
 
 -- name: InsertVouSaleReturnDetail :exec
 INSERT INTO vou_sale_return_details(

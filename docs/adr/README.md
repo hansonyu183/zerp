@@ -24,6 +24,7 @@
 | [ADR-0047](0047-dcl-subject-is-the-stable-identity-authority.md)                      | 2026-08-29 | DCL Subject 是版本化业务对象的唯一稳定身份                      |
 | [ADR-0048](0048-server-authoritative-approval-action-availability.md)                 | 2026-08-31 | Approval 动作资格由服务端中央决策                               |
 | [ADR-0049](0049-typed-business-archives-replace-party.md)                             | 2026-09-01 | 强类型业务档案取代 Party 与关系层                               |
+| [ADR-0050](0050-database-only-persists-facts.md)                                      | 2026-09-03 | 数据库只负责持久化，业务规则由 Domain Service 承担              |
 
 ## Superseded
 

@@ -8,6 +8,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	"github.com/hansonyu183/zerp/backend/internal/database"
+	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
@@ -33,9 +34,10 @@ func main() {
 	authorizer := authorization.FailClosed{}
 	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool))
 	bobService := bobdomain.NewService(pool, auxiliaryResolver)
+	accounting := accdomain.NewService(pool, bobService, authorizer, events)
 	service, err := voudomain.NewService(pool, bobService, auxiliaryResolver, events, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	}, logger)
+	}, logger, voudomain.WithAccountingControl(accounting), voudomain.WithPeriodWriteControl(accounting), voudomain.WithApprovalAuthorizer(authorizer))
 	if err != nil {
 		logger.Error("initialize attachment storage", "error", err)
 		os.Exit(1)

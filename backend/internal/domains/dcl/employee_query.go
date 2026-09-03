@@ -60,7 +60,11 @@ func (s *EmployeeService) Query(ctx context.Context, input EmployeeQueryInput, a
 func (s *EmployeeService) employeeQueryPage(ctx context.Context, rows []dbsqlc.ListDCLEmployeesRow, total int64, input EmployeeQueryInput, actor approval.Actor) (Page[EmployeeQueryItem], error) {
 	items := make([]EmployeeQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := EmployeeQueryItem{ObjectID: r.ObjectID, Entity: EntityEmployee, Code: r.Code, DisplayName: r.DisplayName, CurrentOperatingEntity: EmployeeOperatingEntitySnapshot{SourceObjectID: r.CurrentOperatingEntityID, ApprovalEntryID: r.CurrentOperatingEntityApprovalEntryID, Code: r.CurrentOperatingEntityCode, Name: r.CurrentOperatingEntityName}, UpdatedAt: r.UpdatedAt.Time}
+		code, codeErr := requiredSubjectCode(r.Code)
+		if codeErr != nil {
+			return Page[EmployeeQueryItem]{}, codeErr
+		}
+		item := EmployeeQueryItem{ObjectID: r.ObjectID, Entity: EntityEmployee, Code: code, DisplayName: r.DisplayName, CurrentOperatingEntity: EmployeeOperatingEntitySnapshot{SourceObjectID: r.CurrentOperatingEntityID, ApprovalEntryID: r.CurrentOperatingEntityApprovalEntryID, Code: r.CurrentOperatingEntityCode, Name: r.CurrentOperatingEntityName}, UpdatedAt: r.UpdatedAt.Time}
 		if r.LatestApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.LatestApprovedEntryID, r.ObjectID)
 			if e != nil {

@@ -95,7 +95,34 @@ func (s *Service) ValidateDefinition(ctx context.Context, sqlText string, parame
 	if err != nil {
 		return err
 	}
-	if err = validateVersionData(data); err != nil {
+	return s.validateDefinitionData(ctx, data, values)
+}
+
+// ValidatePublishedDefinitions checks every enabled latest APPROVED definition
+// which remains technically VALID against the current database baseline.
+func (s *Service) ValidatePublishedDefinitions(ctx context.Context) error {
+	definitions, err := s.queries.RptListPublishedDefinitions(ctx)
+	if err != nil {
+		return internal("list published report definitions", err)
+	}
+	for _, definition := range definitions {
+		code, err := requiredSubjectCode(definition.Code)
+		if err != nil {
+			return fmt.Errorf("published report definition %s (approval %s): %w", definition.DefinitionID, definition.ApprovalEntryID, err)
+		}
+		data, err := decodeData(definition.SqlText, definition.Parameters, definition.Columns)
+		if err == nil {
+			err = s.validateDefinitionData(ctx, data, publishedProbeValues(data.Parameters))
+		}
+		if err != nil {
+			return fmt.Errorf("published report definition %s (%s, approval %s): %w", code, definition.DefinitionID, definition.ApprovalEntryID, err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) validateDefinitionData(ctx context.Context, data VersionData, values map[string]any) error {
+	if err := validateVersionData(data); err != nil {
 		return err
 	}
 	args, err := bindParameters(data.Parameters, values)
@@ -125,11 +152,48 @@ func (s *Service) ValidateDefinition(ctx context.Context, sqlText string, parame
 		return validation("report SQL database validation failed", nil)
 	}
 	fields := rows.FieldDescriptions()
+	rows.Next()
 	rows.Close()
+	if rows.Err() != nil {
+		return validation("report SQL database validation failed", nil)
+	}
 	if !fieldsMatchContract(fields, data.Columns) {
 		return validation("report result columns do not match contract", nil)
 	}
 	return nil
+}
+
+func publishedProbeValues(parameters []Parameter) map[string]any {
+	values := make(map[string]any, len(parameters))
+	fixedDate := "2000-01-01"
+	for _, parameter := range parameters {
+		switch parameter.Type {
+		case ParameterTypeText, ParameterTypeReference:
+			values[parameter.Key] = ""
+		case ParameterTypeInteger:
+			values[parameter.Key] = float64(0)
+		case ParameterTypeDecimal:
+			values[parameter.Key] = "0"
+		case ParameterTypeBoolean:
+			values[parameter.Key] = false
+		case ParameterTypeDate:
+			values[parameter.Key] = fixedDate
+		case ParameterTypeDateRange:
+			values[parameter.Key] = []any{fixedDate, fixedDate}
+		case ParameterTypeEnum:
+			if parameter.EnumValues != nil && len(*parameter.EnumValues) > 0 {
+				values[parameter.Key] = (*parameter.EnumValues)[0]
+			}
+		}
+	}
+	return values
+}
+
+func requiredSubjectCode(value *string) (string, error) {
+	if value == nil || strings.TrimSpace(*value) == "" {
+		return "", internal("subject code persistence invariant is violated", errors.New("subject code is missing"))
+	}
+	return *value, nil
 }
 
 func submittedAtPtr(t pgtype.Timestamptz) *time.Time {
@@ -180,7 +244,11 @@ func (s *Service) QueryDirectory(ctx context.Context, in DirectoryQueryInput, pe
 		if e = json.Unmarshal(r.Columns, &c); e != nil {
 			return Page{}, internal("decode report columns", e)
 		}
-		items = append(items, ReportMetadata{Code: r.Code, Name: r.Name, Description: r.Description, Parameters: p, Columns: c, CanQuery: access[r.Code]["query"], CanExport: access[r.Code]["export"]})
+		code, codeErr := requiredSubjectCode(r.Code)
+		if codeErr != nil {
+			return Page{}, codeErr
+		}
+		items = append(items, ReportMetadata{Code: code, Name: r.Name, Description: r.Description, Parameters: p, Columns: c, CanQuery: access[code]["query"], CanExport: access[code]["export"]})
 		total = r.Total
 	}
 	return Page{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
@@ -286,7 +354,11 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in Reference
 		}
 		values := make([]CustomerSubunitReference, len(rows))
 		for i, r := range rows {
-			values[i] = CustomerSubunitReference{ID: r.ID, Code: r.Code, Name: r.Name, CustomerCode: value(r.CustomerCode), CustomerName: r.CustomerName}
+			customerCode, codeErr := requiredSubjectCode(r.CustomerCode)
+			if codeErr != nil {
+				return Page{}, codeErr
+			}
+			values[i] = CustomerSubunitReference{ID: r.ID, Code: r.Code, Name: r.Name, CustomerCode: customerCode, CustomerName: r.CustomerName}
 		}
 		var customerSubunitTotal int64
 		if len(rows) > 0 {
@@ -313,7 +385,11 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in Reference
 		}
 		values := make([]ReferenceItem, len(rows))
 		for i, r := range rows {
-			values[i] = ReferenceItem{ID: r.ID, Code: value(r.Code), Name: value(r.Name)}
+			businessCode, codeErr := requiredSubjectCode(r.Code)
+			if codeErr != nil {
+				return Page{}, codeErr
+			}
+			values[i] = ReferenceItem{ID: r.ID, Code: businessCode, Name: value(r.Name)}
 		}
 		if len(rows) > 0 {
 			appendRows(values, rows[0].Total)
@@ -466,9 +542,13 @@ func loadActiveWithQueries(ctx context.Context, queries *db.Queries, code string
 	if e != nil {
 		return DefinitionView{}, e
 	}
+	definitionCode, e := requiredSubjectCode(r.Code)
+	if e != nil {
+		return DefinitionView{}, e
+	}
 	return DefinitionView{
 		DefinitionID: r.DefinitionID,
-		Code:         r.Code,
+		Code:         definitionCode,
 		Name:         r.Name,
 		Description:  r.Description,
 		Enabled:      r.Enabled,
@@ -496,12 +576,16 @@ func (s *Service) syncUsePermissions(ctx context.Context, q *db.Queries, definit
 	if e != nil {
 		return internal("load report permission state", e)
 	}
+	code, err := requiredSubjectCode(state.Code)
+	if err != nil {
+		return err
+	}
 	if !state.Enabled || state.ApprovalEntryID == "" || state.Validity == nil || *state.Validity != "VALID" {
-		return q.RptDisableUsePermissions(ctx, db.RptDisableUsePermissionsParams{ActorID: stringPointer(actorID), Code: state.Code})
+		return q.RptDisableUsePermissions(ctx, db.RptDisableUsePermissionsParams{ActorID: stringPointer(actorID), Code: code})
 	}
 	for _, a := range []string{"query", "export"} {
 		d := map[string]string{"query": "查询", "export": "导出"}[a] + state.Name + "报表"
-		if e = q.RptUpsertUsePermission(ctx, db.RptUpsertUsePermissionParams{ID: newID(), Path: permissionPath(state.Code, a), Code: state.Code, Action: a, Description: &d, ActorID: stringPointer(actorID)}); e != nil {
+		if e = q.RptUpsertUsePermission(ctx, db.RptUpsertUsePermissionParams{ID: newID(), Path: permissionPath(code, a), Code: code, Action: a, Description: &d, ActorID: stringPointer(actorID)}); e != nil {
 			return internal("sync report permission", e)
 		}
 	}

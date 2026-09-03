@@ -350,9 +350,21 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	}, integrationApprovalActor(t, integrationActorOne, "mismatched-parent")); err == nil {
 		t.Fatal("mismatched parent entity was accepted")
 	}
-	if _, err = pool.Exec(t.Context(), `UPDATE vou_documents
-		SET parent_entity=NULL,parent_document_id=NULL WHERE id=$1`, child.DocumentID); err == nil {
-		t.Fatal("parent relation was mutable")
+	saved, err := service.Save(t.Context(), EntityPurchasePayment, SaveInput{
+		DocumentID: child.DocumentID, Revision: child.Approval.Revision,
+		Data: DraftInput{
+			BusinessDate: "2026-07-25", Currency: "CNY", CounterpartyType: "supplier",
+			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
+			Handler: &refs.employee, Amount: "85.00", Remark: "更新但不改变父单",
+		},
+	}, integrationApprovalActor(t, integrationActorOne, "child-save"))
+	if err != nil {
+		t.Fatalf("save child document: %v", err)
+	}
+	view, err = service.Get(t.Context(), EntityPurchasePayment, GetInput{DocumentID: saved.DocumentID})
+	if err != nil || view.ParentEntity != EntitySalesReceipt ||
+		view.ParentDocumentID != parent.DocumentID || view.ParentDocumentNo != parent.DocumentNo {
+		t.Fatalf("saved child parent view=%+v err=%v", view, err)
 	}
 }
 

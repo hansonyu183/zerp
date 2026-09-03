@@ -106,7 +106,11 @@ func (s *CustomerService) Query(ctx context.Context, in CustomerQueryInput, acto
 		if err = json.Unmarshal(row.Data, &data); err != nil {
 			return Page[CustomerQueryItem]{}, translateError(err)
 		}
-		item := CustomerQueryItem{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: stringValue(row.Code), DisplayName: data.DisplayName, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, UpdatedAt: row.UpdatedAt.Time}
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[CustomerQueryItem]{}, codeErr
+		}
+		item := CustomerQueryItem{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: code, DisplayName: data.DisplayName, DefaultOperatingEntityCode: data.DefaultOperatingEntity.Code, UpdatedAt: row.UpdatedAt.Time}
 		if row.LatestApprovedEntryID != "" {
 			v := CustomerVersionSummary{Approval: approval.VersionMeta{ApprovalEntryID: row.LatestApprovedEntryID, Status: approval.Status(row.LatestApprovedStatus), VersionNo: row.LatestApprovedVersionNo}, DisplayName: data.DisplayName, Enabled: data.Enabled}
 			item.LatestApproved = &v

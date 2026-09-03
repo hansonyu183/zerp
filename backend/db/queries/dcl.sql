@@ -348,7 +348,7 @@ JOIN dcl_supplier_versions display ON display.approval_entry_id=COALESCE(candida
 WHERE subject.entity='supplier' AND (sqlc.arg(keyword)::text='' OR subject.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%') AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1)) AND (sqlc.arg(operating_entity_id)::text='' OR EXISTS (SELECT 1 FROM dcl_supplier_version_operating_entities operating WHERE operating.approval_entry_id=display.approval_entry_id AND operating.operating_entity_id=sqlc.arg(operating_entity_id))) AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 
 -- name: ListDCLSuppliers :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,display.kind,display.legal_name,display.display_name,display.legal_identifier,display.default_operating_entity_id,display.default_operating_entity_approval_entry_id,display.default_operating_entity_code,display.default_operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+SELECT subject.id AS object_id,subject.code,display.kind,display.legal_name,display.display_name,display.legal_identifier,display.default_operating_entity_id,display.default_operating_entity_approval_entry_id,display.default_operating_entity_code,display.default_operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
@@ -459,7 +459,7 @@ WITH selected AS (
 ) SELECT count(*) FROM selected;
 
 -- name: ListDCLTypedArchives :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.legal_identifier,sales_snapshot.legal_identifier) AS legal_identifier,
+SELECT subject.id AS object_id,subject.code,COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.legal_identifier,sales_snapshot.legal_identifier) AS legal_identifier,
  COALESCE(other_snapshot.default_operating_entity_id,sales_snapshot.default_operating_entity_id) AS default_operating_entity_id,COALESCE(other_snapshot.default_operating_entity_approval_entry_id,sales_snapshot.default_operating_entity_approval_entry_id) AS default_operating_entity_approval_entry_id,COALESCE(other_snapshot.default_operating_entity_code,sales_snapshot.default_operating_entity_code) AS default_operating_entity_code,COALESCE(other_snapshot.default_operating_entity_name,sales_snapshot.default_operating_entity_name) AS default_operating_entity_name,
  COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
  COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
@@ -514,7 +514,7 @@ WHERE subject.entity='employee'
   AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
 
 -- name: ListDCLEmployees :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
+SELECT subject.id AS object_id,subject.code,
        display.kind,display.legal_name,display.display_name,display.legal_identifier,
        display.current_operating_entity_id,display.current_operating_entity_approval_entry_id,display.current_operating_entity_code,display.current_operating_entity_name,display.enabled,
        COALESCE(approved.id,'')::text AS latest_approved_entry_id,
@@ -960,7 +960,7 @@ WHERE approval_entry_id=sqlc.arg(approval_entry_id)
   );
 
 -- name: GetDclRptDefinitionByCode :one
-SELECT id, dcl_require_subject_code(code) AS code
+SELECT id, code
 FROM dcl_subjects
 WHERE entity='rpt-definition' AND code=sqlc.arg(code)::text;
 
@@ -990,7 +990,7 @@ WITH selected AS (
 SELECT count(*) FROM selected;
 
 -- name: ListDclRptDefinitions :many
-SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
+SELECT d.id AS definition_id, d.code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at

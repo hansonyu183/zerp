@@ -164,6 +164,74 @@ func TestRPTExecutionPaginationIntegration(t *testing.T) {
 	_ = approved
 }
 
+func TestValidatePublishedDefinitionsIntegration(t *testing.T) {
+	pool := rptIntegrationPool(t)
+	service, err := newRPTExecutionService(t, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	valid, err := service.CreateDefinition(t.Context(), rptDefinitionCreateInput{
+		Name: "可发布报表", Data: rptData(`SELECT 'ok'::text AS value`, "value"),
+	}, rptIntegrationActor, "rpt-release-valid-create")
+	if err != nil {
+		t.Fatalf("create valid report: %v", err)
+	}
+	if _, err = service.submitAndApprove(t.Context(), rptApprovalInput{Code: valid.Code, VersionID: valid.ID, Revision: valid.Revision}, "rpt-release-valid-approve"); err != nil {
+		t.Fatalf("approve valid report: %v", err)
+	}
+
+	badDefinitionID, badEntryID := newID(), newID()
+	badCode := "z-release-bad-" + strings.ToLower(newID()[:8])
+	if _, err = pool.Exec(t.Context(), `
+		WITH subject AS (
+			INSERT INTO dcl_subjects(id,entity,code,created_by) VALUES($1,'rpt-definition',$2,$3)
+		), entry AS (
+			INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
+			VALUES($4,'dcl','rpt-definition',$1,1,'APPROVED',$3,now(),$3,now(),$3,now(),$5,now())
+		), version AS (
+			INSERT INTO dcl_rpt_definition_versions(approval_entry_id,enabled,name,description,sql_text,parameters,columns,created_by,updated_by)
+			VALUES($4,true,'失效报表','', 'SELECT missing_release_column::text AS value','[]'::jsonb,'[{"alias":"value","name":"value","order":1,"type":"TEXT","width":160,"visible":true}]'::jsonb,$3,$3)
+		)
+		INSERT INTO rpt_definition_validities(approval_entry_id,validity,created_by,updated_by)
+		VALUES($4,'VALID',$3,$3)`,
+		badDefinitionID, badCode, rptSubmitterID, badEntryID, rptReviewerID); err != nil {
+		t.Fatalf("insert incompatible published report: %v", err)
+	}
+	insertSkipped := func(code string, enabled bool, validity string, versions []string) {
+		t.Helper()
+		definitionID := newID()
+		for index, entryID := range versions {
+			sqlText := `SELECT 'latest'::text AS value`
+			if index == 0 && len(versions) > 1 || len(versions) == 1 {
+				sqlText = `SELECT missing_skipped_release_column::text AS value`
+			}
+			if _, insertErr := pool.Exec(t.Context(), `
+				WITH subject AS (
+					INSERT INTO dcl_subjects(id,entity,code,created_by)
+					SELECT $2,'rpt-definition',$3,$5 WHERE $4=1
+				), entry AS (
+					INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
+					VALUES($1,'dcl','rpt-definition',$2,$4,'APPROVED',$5,now(),$5,now(),$5,now(),$6,now())
+				), version AS (
+					INSERT INTO dcl_rpt_definition_versions(approval_entry_id,enabled,name,description,sql_text,parameters,columns,created_by,updated_by)
+					VALUES($1,$7,'skipped','',$8,'[]'::jsonb,'[{"alias":"value","name":"value","order":1,"type":"TEXT","width":160,"visible":true}]'::jsonb,$5,$5)
+				)
+				INSERT INTO rpt_definition_validities(approval_entry_id,validity,created_by,updated_by) VALUES($1,$9,$5,$5)`, entryID, definitionID, code, index+1, rptSubmitterID, rptReviewerID, enabled, sqlText, validity); insertErr != nil {
+				t.Fatal(insertErr)
+			}
+		}
+	}
+	insertSkipped("a-release-disabled-"+strings.ToLower(newID()[:8]), false, "VALID", []string{newID()})
+	insertSkipped("a-release-invalid-"+strings.ToLower(newID()[:8]), true, "INVALID", []string{newID()})
+	insertSkipped("a-release-nonlatest-"+strings.ToLower(newID()[:8]), true, "VALID", []string{newID(), newID()})
+
+	err = service.ValidatePublishedDefinitions(t.Context())
+	if err == nil || !strings.Contains(err.Error(), badCode) || !strings.Contains(err.Error(), badDefinitionID) || !strings.Contains(err.Error(), badEntryID) {
+		t.Fatalf("release validation error = %v, want actionable definition %s/%s approval %s", err, badCode, badDefinitionID, badEntryID)
+	}
+}
+
 func TestRPTBuiltInBillsCounterpartyReferenceIntegration(t *testing.T) {
 	pool := rptIntegrationPool(t)
 	service, err := NewService(pool)
@@ -526,6 +594,20 @@ func TestRPTReadOnlySQLAndApprovalTimeoutIntegration(t *testing.T) {
 	defer cancel()
 	if _, err = service.submitAndApprove(ctx, rptApprovalInput{Code: code, VersionID: created.ID, Revision: created.Revision}, "rpt-timeout-approve"); !rptErrorKind(err, ErrorValidation) {
 		t.Fatalf("timeout approval error = %v", err)
+	}
+
+	runtimeError := rptData(`SELECT 1 / floor(random())::bigint AS value`, "value")
+	runtimeError.Columns[0].Type = ResultTypeInteger
+	parameters, marshalErr := json.Marshal(runtimeError.Parameters)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	columns, marshalErr := json.Marshal(runtimeError.Columns)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	if err = service.ValidateDefinition(t.Context(), runtimeError.SQL, parameters, columns, map[string]any{}); !rptErrorKind(err, ErrorValidation) {
+		t.Fatalf("runtime SQL error = %v, want validation error", err)
 	}
 }
 

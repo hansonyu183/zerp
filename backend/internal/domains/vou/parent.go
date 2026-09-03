@@ -28,9 +28,12 @@ func validateParentInput(entity, documentID string) (string, string, error) {
 	return entity, documentID, nil
 }
 
-func validateParentExists(ctx context.Context, tx pgx.Tx, entity, documentID string) error {
+func validateParentExists(ctx context.Context, tx pgx.Tx, entity, documentID, childDocumentID string) error {
 	if entity == "" {
 		return nil
+	}
+	if documentID == childDocumentID {
+		return domainError(ErrorValidation, "document cannot reference itself as parent", nil, nil)
 	}
 	var foundEntity string
 	err := tx.QueryRow(ctx, `SELECT entity FROM vou_documents WHERE id=$1 FOR SHARE`, documentID).

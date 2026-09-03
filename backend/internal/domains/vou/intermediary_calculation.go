@@ -1006,6 +1006,9 @@ func (s *Service) CreateIntermediaryCalculation(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	if err = s.guardVOUWrite(ctx, tx, prepared.date); err != nil {
+		return MutationResult{}, err
+	}
 	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{
 		Entity: EntityIntermediaryCalculation, BusinessDate: dateValue(prepared.date),
 	})
@@ -1047,13 +1050,17 @@ func (s *Service) SaveIntermediaryCalculation(
 	if !validID(actor.ID()) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid actor", nil, nil)
 	}
+	businessDate, _, err := validateIntermediaryBusinessDate(input.Data.BusinessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("begin intermediary calculation save", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, EntityIntermediaryCalculation)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, EntityIntermediaryCalculation, businessDate)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -199,6 +200,10 @@ func (s *Service) queryWorkbenchBob(
 	}
 	items := make([]WorkbenchItem, 0, len(rows))
 	for _, row := range rows {
+		code, codeErr := workbenchBusinessCode(row.Entity, row.SubjectCode, row.MappingCode)
+		if codeErr != nil {
+			return Page[WorkbenchItem]{}, s.internal("read workbench business code", codeErr)
+		}
 		const domain = "dcl"
 		actions := make([]string, 0, 5)
 		if scope.can(domain, row.Entity, "get") {
@@ -218,11 +223,24 @@ func (s *Service) queryWorkbenchBob(
 			Category: WorkbenchCategoryBob, Entity: row.Entity, Status: row.Status,
 			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.ObjectUpdatedAt.Time,
 			ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID,
-			Revision: row.ApprovalRevision, Code: row.Code, Name: row.Name,
+			Revision: row.ApprovalRevision, Code: code, Name: row.Name,
 			BookID: row.BookID, VouEntity: row.VouEntity,
 		})
 	}
 	return Page[WorkbenchItem]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
+}
+
+func workbenchBusinessCode(entity string, subjectCode, mappingCode *string) (string, error) {
+	if entity == "acc-mapping" {
+		if mappingCode == nil || *mappingCode == "" {
+			return "", errors.New("accounting mapping code is missing")
+		}
+		return *mappingCode, nil
+	}
+	if subjectCode == nil || *subjectCode == "" {
+		return "", errors.New("subject code is missing")
+	}
+	return *subjectCode, nil
 }
 
 func (s *Service) queryWorkbenchVou(

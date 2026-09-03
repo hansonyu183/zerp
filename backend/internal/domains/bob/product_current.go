@@ -73,7 +73,11 @@ func (s *Service) getProductCurrent(ctx context.Context, in GetInput) (ObjectVie
 	if err != nil {
 		return ObjectView{}, s.internal("get product identity", err)
 	}
-	return ObjectView{ObjectID: r.ObjectID, Entity: EntityProduct, Code: deref(r.Code), Enabled: d.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: versionNumber(e.VersionNo), Data: d, UpdatedAt: o.CreatedAt.Time}, nil
+	code, codeErr := requiredSubjectCode(r.Code)
+	if codeErr != nil {
+		return ObjectView{}, codeErr
+	}
+	return ObjectView{ObjectID: r.ObjectID, Entity: EntityProduct, Code: code, Enabled: d.Enabled, SourceApprovalEntryID: e.ID, SourceVersionNo: versionNumber(e.VersionNo), Data: d, UpdatedAt: o.CreatedAt.Time}, nil
 }
 func (s *Service) validateProductSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	e, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntityProduct, objectID, "DCL product approval snapshot is unavailable")
@@ -88,7 +92,11 @@ func (s *Service) validateProductSnapshotReference(ctx context.Context, q *dbsql
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL product snapshot", err)
 	}
-	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: deref(o.Code), ApprovalEntryID: e.ID, VersionNo: versionNumber(e.VersionNo), Data: d}, nil
+	code, codeErr := requiredSubjectCode(o.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
+	return EffectiveReference{ObjectID: o.ID, Entity: o.Entity, Code: code, ApprovalEntryID: e.ID, VersionNo: versionNumber(e.VersionNo), Data: d}, nil
 }
 func (s *Service) resolveProductCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
 	r, err := q.GetBobProductCurrentReference(ctx, objectID)
@@ -102,7 +110,11 @@ func (s *Service) resolveProductCurrentReference(ctx context.Context, q *dbsqlc.
 	if err != nil {
 		return EffectiveReference{}, s.internal("load product current snapshot", err)
 	}
-	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: d}, nil
+	code, codeErr := requiredSubjectCode(r.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
+	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: code, ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: d}, nil
 }
 func LoadDCLProductSnapshot(ctx context.Context, q *dbsqlc.Queries, id string) (DetailView, error) {
 	return loadDCLProductSnapshot(ctx, q, id)

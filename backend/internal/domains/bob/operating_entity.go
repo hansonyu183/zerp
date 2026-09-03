@@ -60,8 +60,12 @@ func (s *Service) getOperatingEntityCurrent(ctx context.Context, input GetInput)
 		SubmittedBy: row.SubmittedBy, SubmittedAt: row.SubmittedAt,
 		ApprovedBy: row.ApprovedBy, ApprovedAt: row.ApprovedAt,
 	}
+	code, codeErr := requiredSubjectCode(row.Code)
+	if codeErr != nil {
+		return ObjectView{}, codeErr
+	}
 	return ObjectView{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code),
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: code,
 		Enabled: row.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo),
 		Data: DetailView{Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
 			Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark)},
@@ -113,8 +117,12 @@ func (s *Service) queryOperatingEntities(ctx context.Context, q *dbsqlc.Queries,
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[QueryItem]{}, codeErr
+		}
 		items = append(items, QueryItem{
-			ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code),
+			ObjectID: row.ObjectID, Entity: row.Entity, Code: code,
 			Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID,
 			SourceVersionNo: versionNumber(row.VersionNo),
 			Data: DetailView{Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
@@ -149,8 +157,12 @@ func (s *Service) validateOperatingEntitySnapshotReference(
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL operating entity snapshot", err)
 	}
+	code, codeErr := requiredSubjectCode(identity.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
 	return EffectiveReference{
-		ObjectID: identity.ID, Entity: identity.Entity, Code: deref(identity.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo),
+		ObjectID: identity.ID, Entity: identity.Entity, Code: code, ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo),
 		Data: DetailView{
 			Name: stored.LegalName, ShortName: deref(stored.ShortName), TaxNumber: deref(stored.TaxNumber),
 			Address: deref(stored.Address), Phone: deref(stored.Phone), Remark: deref(stored.Remark),
@@ -166,8 +178,12 @@ func (s *Service) resolveOperatingEntityCurrentReference(ctx context.Context, q 
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve operating entity current reference", err)
 	}
+	code, codeErr := requiredSubjectCode(row.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
 	return EffectiveReference{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: deref(row.Code), ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo),
+		ObjectID: row.ObjectID, Entity: row.Entity, Code: code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo),
 		Data: DetailView{
 			Name: row.LegalName, ShortName: deref(row.ShortName), TaxNumber: deref(row.TaxNumber),
 			Address: deref(row.Address), Phone: deref(row.Phone), Remark: deref(row.Remark),

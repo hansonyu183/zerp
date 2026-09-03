@@ -22,6 +22,21 @@ services:
       retries: 20
       start_period: 5s
 
+  rpt-validate-published:
+    image: ${ZERP_API_IMAGE:-zerp-api:workspace}
+    build:
+      context: backend
+    restart: 'no'
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      DATABASE_CONNECT_TIMEOUT: ${DATABASE_CONNECT_TIMEOUT:-5s}
+      ATTACHMENT_STORAGE_ROOT: /var/lib/zerp/attachments
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ['/usr/local/bin/zerp-rpt-validate-published']
+
   api:
     image: ${ZERP_API_IMAGE:-zerp-api:workspace}
     build:
@@ -55,8 +70,8 @@ services:
     volumes:
       - attachment-data:/var/lib/zerp/attachments
     depends_on:
-      db:
-        condition: service_healthy
+      rpt-validate-published:
+        condition: service_completed_successfully
     healthcheck:
       test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:8080/readyz']
       interval: 10s

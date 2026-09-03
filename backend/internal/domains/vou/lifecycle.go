@@ -61,7 +61,11 @@ func (s *Service) createDocument(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	if err = validateParentExists(ctx, tx, parentEntity, parentDocumentID); err != nil {
+	if err = s.guardVOUWrite(ctx, tx, draft.BusinessDate); err != nil {
+		return MutationResult{}, err
+	}
+	documentID := newID()
+	if err = validateParentExists(ctx, tx, parentEntity, parentDocumentID, documentID); err != nil {
 		return MutationResult{}, err
 	}
 
@@ -74,7 +78,6 @@ func (s *Service) createDocument(
 		}
 		return MutationResult{}, s.writeError("allocate document number", err)
 	}
-	documentID := newID()
 	documentNo := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter)
 	coordinator, err := s.coordinator(entity)
 	if err != nil {
@@ -172,7 +175,7 @@ func (s *Service) Save(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, entity, draft.BusinessDate)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
@@ -252,7 +255,7 @@ func (s *Service) Submit(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
@@ -327,9 +330,13 @@ func (s *Service) Reject(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, entity)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MutationResult{}, domainError(ErrorValidation, "document not found", nil, err)
+	}
+	var domainErr *DomainError
+	if errors.As(err, &domainErr) {
+		return MutationResult{}, err
 	}
 	if err != nil {
 		return MutationResult{}, s.internal("lock rejected document", err)
@@ -393,7 +400,7 @@ func (s *Service) forwardTransition(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, from); err != nil {
 		return MutationResult{}, err
 	}
@@ -469,7 +476,7 @@ func (s *Service) unsubmit(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusPending); err != nil {
 		return MutationResult{}, err
 	}
@@ -509,7 +516,7 @@ func (s *Service) reverseTransition(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusApproved); err != nil {
 		return MutationResult{}, err
 	}

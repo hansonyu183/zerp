@@ -131,6 +131,9 @@ func (s *Service) CreatePurchaseReturn(
 		return MutationResult{}, s.internal("begin purchase return", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if err = s.guardVOUWrite(ctx, tx, date); err != nil {
+		return MutationResult{}, err
+	}
 	source, err := s.resolvePurchaseReturnSource(ctx, tx, "", date, input.Data.ReturnLines)
 	if err != nil {
 		return MutationResult{}, err
@@ -193,7 +196,7 @@ func (s *Service) SavePurchaseReturn(
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	document, err := lockDocument(ctx, tx, input.DocumentID, EntityPurchaseReturn)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, EntityPurchaseReturn, date)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}

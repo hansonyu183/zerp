@@ -15,6 +15,7 @@
     "docs:coverage": "node scripts/check-docs.mjs --write-use-case-coverage",
     "docs:adr-index": "node scripts/check-docs.mjs --write-adr-index",
     "docs:check": "node scripts/check-docs.mjs && node --test scripts/check-docs.test.mjs",
+    "check:database-boundary": "node scripts/check-database-boundary.mjs && node --test scripts/check-database-boundary.test.mjs",
     "check:ci-workflow": "node --test scripts/check-ci-workflow.test.mjs",
     "contracts:lint": "redocly lint contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml",
     "contracts:bundle": "redocly bundle contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml --output contracts/openapi/dist/openapi.json --ext json",

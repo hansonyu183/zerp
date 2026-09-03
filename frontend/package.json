@@ -9,8 +9,10 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:target": "vite --config vite.target.config.ts",
     "typecheck": "vue-tsc -b --force",
     "build": "pnpm typecheck && vite build",
+    "build:target": "vite build --config vite.target.config.ts",
     "preview": "vite preview",
     "lint": "oxlint --quiet .",
     "format": "prettier --write .oxlintrc.json package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
@@ -27,10 +29,13 @@
     "test:unit:watch": "vitest",
     "test:vue-template-typecheck": "node --test scripts/vue-template-typecheck.test.mjs",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:target": "playwright test --config playwright.target.config.ts"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
+    "@zerp/api-client": "workspace:*",
+    "@zerp/model": "workspace:*",
     "openapi-fetch": "^0.15.0",
     "pinia": "^3.0.4",
     "quickjs-emscripten": "^0.32.0",

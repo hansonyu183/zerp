@@ -29,11 +29,11 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/SRC/SRF/PPY/PRF/ORC/OPY/ELN/
 
 已批准单据的基准数量错误时，只能先按依赖顺序反批准全部后续单据，再对原单依次反批准、撤回，修改草稿中的基准数量并重新提交和批准。不得后台改写已批准事实，不得用新换算比例重算历史，也不得用库存调整或盘点差异代替原错误单据的纠正；期间锁定或后续依赖无法解除时，本次纠错必须停止并明确提示阻断原因。
 
-所有 BOB 引用都传 `objectId` 和 `approvalEntryId`。新建单据、新选择或主动重选主数据时，VOU 在写事务内调用 `ResolveLatestApprovedReference`，只接受当前 latest `APPROVED` entry，并保存编码、名称、单位、币种、车牌等业务快照。已有草稿未修改该引用而再次保存时，VOU 调用 `ValidateApprovedSnapshotReference`：只确认 entry 属于该 object、曾正式批准且快照身份与已保存引用一致，不要求它仍是 latest。客户端不得以替换 `approvalEntryId` 伪装“未修改”；主动重选同一 object 仍必须解析并保存 latest。对象后续批准新版本不改写已有 VOU 快照。仓库是全局共享的最小库存地点，选择时不按单据经营主体筛选或校验；不同经营主体的单据可以引用同一仓库，单据不再选择库区、库位、储罐或其他仓库内位置。仓库停用接口必须把引用该仓库的 `DRAFT`、`PENDING` 单据以及仍可生成后续库存动作的已批准来源单据作为阻断，不把已完成的批准历史单据计为当前阻断。新建 VOU 必须使用产品当前有效版本提供的产品类型、行为模板、单位配置、默认包装规格和适用配方，不回退旧产品版本，也不建立产品版本升级流程；单据保存后只读取自己的产品与数量快照。之后 BOB 版本失效不改变历史单据。
+所有 BOB 引用都传 `objectId` 和 `approvalEntryId`。本地 Draft 新选择或主动重选主数据时，shared model 以当前事实校验；submit 时服务器在事务内重新执行 `ResolveLatestApprovedReference`，只接受当前 latest `APPROVED` entry，并保存编码、名称、单位、币种、车牌等业务快照。Draft 中未修改的已保存引用在 submit 时用 `ValidateApprovedSnapshotReference` 确认 entry 属于该 object、曾正式批准且快照身份一致，不要求它仍是 latest。客户端不得以替换 `approvalEntryId` 伪装“未修改”；主动重选同一 object 仍必须解析并保存 latest。对象后续批准新版本不改写已有 VOU Submission 快照。仓库是全局共享的最小库存地点，选择时不按单据经营主体筛选或校验；不同经营主体的单据可以引用同一仓库，单据不再选择库区、库位、储罐或其他仓库内位置。仓库停用接口必须把引用该仓库的 `PENDING`、`REJECTED` Submission 以及仍可生成后续库存动作的已批准来源单据作为阻断，不把已完成的批准历史单据计为当前阻断。新建 VOU 必须使用产品当前有效版本提供的产品类型、行为模板、单位配置、默认包装规格和适用配方，不回退旧产品版本，也不建立产品版本升级流程；Submission 后只读取自己的产品与数量快照。之后 BOB 版本失效不改变历史单据。
 
 客户子单位和 Supplier 草稿可以暂不配置结算方式。销售订单、采购订单保存时从正式来源冻结非空合法的结算快照；来源没有明确账期时返回 `vou_settlement_term_required`。联系人、电话和地址同样从对应正式版本读取并保存快照。
 
-销售订单、采购订单的普通保存和删除只允许在 `DRAFT` 执行；离开 `DRAFT` 后，其 typed detail 中客户/供应商、人员、仓库、结算、金额及其他申明事实不可修改。履约运行态 `fulfillmentStatus` 只能由 VOU 专用履约命令在原事务中更新，该命令不接受或改写其他订单申明事实。下游单据冻结自己实际采用的仓库等事实，但不得回写来源订单；历史来源订单未指定仓库时保持原样。
+销售订单、采购订单只在本地 Draft 中编辑或删除；submit 后其 typed Submission 中客户/供应商、人员、仓库、结算、金额及其他申明事实不可修改。开放 Submission 删除必须走领域资源动作并检查 blocker。履约运行态 `fulfillmentStatus` 只能由 VOU 专用履约命令在所属事务中更新，该命令不接受或改写其他订单申明事实。下游单据冻结自己实际采用的仓库等事实，但不得回写来源订单；历史来源订单未指定仓库时保持原样。
 
 新销售订单选择 Customer 及其当前启用客户子单位，并明确选择任一当前有效经营主体；客户默认经营主体只用于预填，不限制或替代选择。恰有一个启用子单位时服务端可以采用该隐式选择，存在多个启用子单位时缺少 `subunitId` 必须返回稳定错误且不得按顺序、编码或最近使用推断。单据保存 Customer stable ID、客户子单位 stable ID、Customer Approval Entry、子单位业务快照及实际经营主体完整快照。经营主体是合同销售方、开票方和收款方；对应资金账户必须属于同一经营主体。
 
@@ -81,18 +81,19 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/SRC/SRF/PPY/PRF/ORC/OPY/ELN/
 ### 2.2 生命周期
 
 ```text
-DRAFT --submit--> PENDING --approve--> APPROVED
-PENDING --unsubmit/reject--> DRAFT
+PENDING --approve--> APPROVED
+PENDING --reject--> REJECTED
+REJECTED --unreject--> PENDING
 APPROVED --unapprove--> PENDING
 ```
 
-- `create` 在同一事务创建 VOU stable document 与唯一 Approval entry；VOU 不启用 Versioning。`save` 只允许修改 `DRAFT`，并通过中央 Approval 递增 revision。
+- 本地 Draft 不创建服务器单据；`submit` 在同一事务创建 VOU stable document、唯一 Approval entry 与 `PENDING` Submission。VOU 不启用 Versioning，persisted Submission 不可编辑。
 - `submit`、`approve` 由用户逐级前进；`APPROVED` 即为已审批并已入账。
 - 单据在批准时一次性完成业务生效和入账；预览、演示和测试数据均按当前模型建立。
 - `APPROVED` 是唯一终态，不另设完成状态，也不提供完成、重开或短结动作。
-- `reject` 只允许非当前提交人在 `PENDING` 状态执行，要求原因并回到 `DRAFT`；驳回后允许修改并重新提交。
-- `unapprove`、`unsubmit` 由用户逆向处理；`unapprove` 要求原因，`unsubmit` 不要求原因。有后续单据时必须先逆向处理后续单据。
-- 不提供提交、作废或更正单。草稿可携带原因删除，但有附件或下级单据时拒绝删除。
+- `reject` 只允许非当前提交人在 `PENDING` 状态执行，要求原因并进入 `REJECTED`；`unreject` 恢复 `PENDING`，改正必须克隆到本地 Draft 后重新提交。
+- `unapprove` 由用户逆向处理并要求原因；开放 Submission 删除是唯一撤回语义，不存在 `unsubmit`。有后续单据时必须先逆向处理后续单据。
+- 不提供作废或更正单。用户可删除本地 Draft；开放 Submission 删除受附件、下级单据和领域 blocker 约束。
 - `PENDING` 的批准人或驳回人与当前提交人必须不同；列表和详情只展示中央 Approval 按当前会话返回的 `availableApprovalActions`，每个执行动作仍在事务内重新校验精确 APP 路径权限、状态、revision 和 VOU 业务规则。
 - 所有写动作携带 Approval `revision`，使用乐观并发控制；状态、revision、提交/批准元数据和生命周期审计只保存于 `approval_entries` / `approval_events`。
 
@@ -202,7 +203,7 @@ WFL 流程或 ACC 流水。
 
 销售履约的普通 Starlark 定义可编排
 `sale-order -> sale-outbound -> sale-delivery -> sale-signoff -> sale-return`。定义默认只以可删改的
-`DRAFT` 示例初始化，只有经过试算、提交、批准并启用的不可变版本才参与新订单。销售订单保存客户、
+本地 Draft 示例初始化，只有经过试算、提交、批准并启用的不可变版本才参与新订单。销售订单保存客户、
 业务员、订购日期、计划仓库、币种、备注和产品明细。新订单的计划仓库必填；销售出库继承该仓库且不可修改。
 批准单据时，WFL 在同一事务内执行实例固定的已批准定义版本；没有已启用匹配定义时不创建实例或下级草稿。
 来源 ID 和来源单号为只读关系。销售出库从已批准订单复制可出库行和仓库，并补充出库数量；
@@ -221,7 +222,7 @@ WFL 流程或 ACC 流水。
 ### 3.3 采购订单、采购入库与采购退货
 
 采购履约的普通 Starlark 定义可由采购订单创建一张或多张采购入库单；采购退货仍是独立的业务反向单据。
-定义默认只以可删改的 `DRAFT` 示例初始化，不自动提交、批准或启用，也不参与单据批准。
+定义默认只以可删改的本地 Draft 示例初始化，不自动提交、批准或启用，也不参与单据批准。
 采购订单只保存供应商、采购员、供应商结算快照、
 计划仓库、订购日期、币种、备注、商品、订购数量和采购单价，不保存实际入库日期或入库数量。
 采购订单批准后才能显式创建一张或多张采购入库草稿。
@@ -400,7 +401,7 @@ WFL 只编排服务合同与履约验收。RPT 可以按相对方类型、stable
 
 Approval 审计事件追加保存动作、前后状态与 revision、操作者、发生时间、适用时的反向原因和请求 ID。反向动作清理中央 Approval 当前态字段，但不得删除 `approval_events` 历史；VOU 不再保存第二套生命周期审计。
 
-单据 `approve` 和 `unapprove` 通过按 VOU 实体区分的类型化 `ApprovalEvent[T]` 主题发布中央 Approval 事件。VOU 在调用 `Commit` 前构造只含业务日期、金额、明细、附件和业务引用的强类型不可变 payload；Approval entry、动作、前后状态和 revision、操作者及 request ID 只由 `ApprovalEvent[T]` 提供，不在 `T` 内重复。反批准事件使用反批准前的已批准业务副本。订阅者使用事件副本并通过同一个 `pgx.Tx` 写入下游数据，不回查 VOU 表拼装业务事实。
+单据 `approve` 和 `unapprove` 由 shared TypeScript model 返回按 VOU 实体区分的强类型 Plan。VOU 在提交持久化前构造只含业务日期、金额、明细、附件和业务引用的不可变事实；Approval entry、动作、前后状态、revision、操作者及 request ID 由服务器权威事实映射，不在领域 Plan 中重复。反批准 Plan 使用反批准前的已批准业务副本。Hono transaction adapter 在同一 Kysely transaction 中持久化 Plan 的 Approval、VOU 与下游效果；它不回查 VOU 表拼装业务事实。
 
 所有订阅者按启动时的注册顺序同步执行并采用 fail-fast。任一订阅者主动拒绝、返回故障或发生 panic 时，VOU 批准或反批准、Approval 审计记录以及此前订阅者的数据库写入全部回滚；没有订阅者时保持现有批准行为。业务拒绝返回冲突响应，其他订阅故障返回内部错误。订阅者不得产生不能由数据库事务回滚的外部副作用。
 

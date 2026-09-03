@@ -57,11 +57,11 @@ ACC 的动作、路径和数据结构以 [OpenAPI ACC Schema](../../contracts/op
 
 ## 6. 账簿期初
 
-账簿开始接收 VOU 会计事实前必须明确批准期初；没有任何期初余额时也必须批准零期初。每个 `bookId` 的 Opening 是一个 Approval-only stable subject，中央条目的 `versionNo` 永远为 `NULL`，生命周期唯一为 `DRAFT -> PENDING -> APPROVED`。接口响应通过 `ApprovalMeta` 暴露正式状态和元数据，并在根级通过必填 `availableApprovalActions` 返回当前操作者的 Approval Action Availability；期初不维护第二个业务 `state`。前端只消费该动作快照，并使用 `frontend/src/shared/approval/` 的统一中文状态、徽标、动作、版本和审计 presentation，不根据状态、提交人或本地权限推断生命周期动作。
+账簿开始接收 VOU 会计事实前必须明确批准期初；没有任何期初余额时也必须批准零期初。每个 `bookId` 的 Opening 是一个 Approval-only stable subject，中央条目的 `versionNo` 永远为 `NULL`，持久化生命周期唯一为 `PENDING | APPROVED | REJECTED`。期初编辑只存在本地 Draft，submit 直接创建 `PENDING` Submission。接口响应通过 `ApprovalMeta` 暴露正式状态和元数据，并在根级通过必填 `availableApprovalActions` 返回当前操作者的 Approval Action Availability；期初不维护第二个业务 `state`。前端只渲染 shared TypeScript model 的 View State，不根据状态、提交人或本地权限推断生命周期动作。
 
-新账簿创建时只建立由系统身份持有的零期初草稿，不自动提交或批准；批准仍必须由具备权限、且不同于提交人的人工用户明确执行。系统身份只负责初始化事实与消费已批准业务事件，不能绕过 Approval 的职责分离和审计。
+新账簿创建时只保留初始化所需事实，不创建服务器草稿或 Submission；零期初由用户从本地 Draft 显式 submit，批准仍必须由具备权限、且不同于提交人的人工用户明确执行。系统身份只负责初始化事实与消费已批准业务事件，不能绕过 Approval 的职责分离和审计。
 
-草稿期初可以保存尚未平衡的明细，但批准时必须按原币逐币种试算借贷相等，并再次校验科目、辅助核算和库存数量金额。保存只允许 `DRAFT`；`submit`、`unsubmit`、`reject`、`approve` 和 `unapprove` 完全遵循 Approval 生命周期，`reject` 与 `unapprove` 的非空 reason 只进入 Approval 审计。批准人与提交人必须不同。
+本地 Draft 期初可以保存尚未平衡的明细，但 submit 与批准时必须按原币逐币种试算借贷相等，并再次校验科目、辅助核算和库存数量金额。persisted Submission 不可编辑；开放 Submission 删除替代 `unsubmit`，`reject`、`approve`、`unreject` 和 `unapprove` 完全遵循 Approval 生命周期，`reject` 与 `unapprove` 的非空 reason 只进入 Approval 审计。批准人与提交人必须不同。
 
 期初明细使用启用的末级科目，金额精确到分。科目要求的辅助核算维度必须逐项且仅填写一次；库存数量科目同时要求产品、仓库、正数量和借方金额。期初可以创建全局固定资产、票据和空桶事实，或关联已经存在的全局资产、票据并只登记本账簿价值；资产和票据价值必须与对应辅助核算科目明细一致。期初空桶必须选择当前有效客户子单位，并保存 stable ID、所属 Customer、精确 Customer Approval Entry、编码和名称快照。批准在同一事务内生成 `OPENING` 系统凭证、登记全局对象及科目引用，随后账簿才可接收自动记账事实。
 

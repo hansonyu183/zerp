@@ -13,7 +13,7 @@
 2. 新建直接录入 Supplier 自有身份、唯一法定识别号和采购资料，不选择 Party；维护适用经营主体集合及集合内的默认经营主体。
 3. 候选维护短名、法定识别号、联系人、地址、结算方式、默认采购员与 `enabled`；不维护供应商类别。默认采购员可选择任意当前有效 Employee，不受其任职经营主体限制。
 4. 结算方式和默认采购员候选列表保持精简；保存、详情与版本读取遵循上述 DCL/BOB 领域规则。结算方式展示 stable ID、编码、名称与结算参数快照，不展示 AUX Approval Entry；默认采购员展示 stable ID、精确 Approval Entry、编码和名称快照，并清楚标为我方经办人。
-5. 根据状态与权限提供 create、save、submit、unsubmit、reject、approve、unapprove、delete、versions 与 audit。启停只通过保存 `enabled` 候选完成。
+5. 根据状态与权限提供本地 Draft、submit、开放 Submission delete、reject、approve、unreject、unapprove、versions 与 audit。启停只在本地 Draft 编辑并随 submit 冻结。
 6. 采购订单、采购入库、采购退货或采购付款精确引用目标 entry 时，反批准显示 blocker；历史采购与 ACC 快照不被页面操作改写。
 
 ## 验收场景

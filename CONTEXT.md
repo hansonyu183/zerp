@@ -12,12 +12,22 @@ _Authority_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)�
 ## Approval
 
 **Approval Entry（审批条目）**:
-中央 Approval 对稳定业务主体的审批记录。
+中央 Approval 对一份持久化 Submission 的审批记录；它不为浏览器本地 Draft 建立条目。
 _Avoid_: Domain 审批行、审批 Store Adapter、审批主体注册表
 _Authority_: [Approval 领域](docs/domains/approval.md#2-审批条目与主体边界)
 
+**Draft（本地草稿）**:
+仅属于已认证用户当前浏览器与设备的 IndexedDB 编辑状态；它可以保存未完成输入、展示快照和待提交附件，但不是服务器业务事实、Approval 条目或跨设备协作对象。
+_Avoid_: 服务端草稿、Approval `DRAFT`、共享候选、自动上传的业务附件
+_Authority_: [Approval 草稿与 Submission](docs/domains/approval.md#2-审批条目与主体边界)
+
+**Submission（提交件）**:
+用户提交时在服务器事务中创建的不可变业务快照及其 Approval Entry；服务端为它分配版本、业务编号或时间等权威事实。删除一份开放 Submission 是资源删除，不产生 Approval 伪状态。
+_Avoid_: 持久化草稿、可编辑提交件、`WITHDRAWN`、`REVOKED`、`unsubmit`
+_Authority_: [Approval 草稿与 Submission](docs/domains/approval.md#2-审批条目与主体边界)
+
 **Approval Lifecycle（审批生命周期）**:
-中央 Approval 对审批条目的生命周期管理。
+中央 Approval 对 Submission 的 `PENDING | APPROVED | REJECTED` 生命周期管理。
 _Avoid_: 领域自定义审批状态机
 _Authority_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 
@@ -288,7 +298,7 @@ _Authority_: [APP 系统参数](docs/domains/app.md#38-系统参数)
 ## Accounting
 
 **Accounting Opening（会计期初）**:
-一个会计账簿的 Approval-only 期初主体；它没有版本号，所有草稿、提交、批准和反批准都使用中央 `DRAFT`、`PENDING`、`APPROVED` 生命周期。
+一个会计账簿的 Approval-only 期初主体；它没有版本号，本地 Draft submit 后使用中央 `PENDING`、`APPROVED`、`REJECTED` 生命周期。
 _Avoid_: `state`、局部批准人/时间字段、期初版本
 _Authority_: [ACC 账簿期初](docs/domains/acc.md#6-账簿期初)
 

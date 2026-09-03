@@ -5,8 +5,14 @@ E2E_ENV ?= .env.e2e.local
 COREPACK_VERSION ?= 0.35.0
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
+TARGET_POSTGRES_PASSWORD ?= zerp-target-local
+TARGET_POSTGRES_PORT ?= 55439
+TARGET_API_PORT ?= 18082
+TARGET_WEB_PORT ?= 18083
+TARGET_DATABASE_URL = postgres://zerp_target:$(TARGET_POSTGRES_PASSWORD)@127.0.0.1:$(TARGET_POSTGRES_PORT)/zerp_target_test?sslmode=disable
+TARGET_COMPOSE = TARGET_POSTGRES_PASSWORD=$(TARGET_POSTGRES_PASSWORD) TARGET_POSTGRES_PORT=$(TARGET_POSTGRES_PORT) TARGET_API_PORT=$(TARGET_API_PORT) TARGET_WEB_PORT=$(TARGET_WEB_PORT) docker compose -p zerp-target -f compose.target.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-ci-workflow check-contracts check-openapi-generated check-sqlc-generated check-frontend check-frontend-fast check-e2e-constraints check-backend check-backend-fast check-containers check-runtime check-shell test e2e build compose-up compose-down
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-ci-workflow check-contracts check-openapi-generated check-sqlc-generated check-frontend check-frontend-fast check-e2e-constraints check-backend check-backend-fast check-containers check-runtime check-shell test e2e build compose-up compose-down target-db target-generate target-generate-check target-wfl-parity target-check target-test target-e2e target-down
 
 bootstrap:
 	@if ! command -v pnpm >/dev/null 2>&1; then \
@@ -96,6 +102,42 @@ check-containers:
 
 check-runtime:
 	$(MAKE) check-containers
+
+target-db:
+	$(TARGET_COMPOSE) down --volumes --remove-orphans
+	$(TARGET_COMPOSE) up -d --wait target-db
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api sync:catalog
+
+target-generate:
+	pnpm --filter @zerp/api generate:artifacts
+	$(MAKE) target-db
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api generate:db
+
+target-generate-check: target-generate
+	git diff --exit-code -- apps/api/src/generated apps/api/src/db/generated.ts
+
+target-wfl-parity:
+	go -C backend test ./internal/domains/wfl -run '^TestTargetWflSharedCorpus$$'
+	pnpm --filter @zerp/wfl-starlark wasm:build
+	pnpm --filter @zerp/wfl-starlark test:node
+	pnpm --filter @zerp/wfl-starlark typecheck
+	pnpm --filter @zerp/wfl-starlark test:browser
+
+target-check: target-generate-check target-wfl-parity
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api check:catalog
+	pnpm --filter @zerp/api typecheck
+	pnpm --filter @zerp/api-client typecheck
+	pnpm --filter @zerp/frontend build:target
+
+target-test: target-check
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_TEST_DATABASE_URL='$(TARGET_DATABASE_URL)' pnpm --filter @zerp/api test
+
+target-e2e: target-test
+	$(TARGET_COMPOSE) up -d --build --wait target-api target-web
+	TARGET_DATABASE_URL='$(TARGET_DATABASE_URL)' TARGET_API_BASE_URL='http://127.0.0.1:$(TARGET_API_PORT)' TARGET_WEB_BASE_URL='http://127.0.0.1:$(TARGET_WEB_PORT)' pnpm --filter @zerp/api e2e
+
+target-down:
+	$(TARGET_COMPOSE) down --volumes --remove-orphans
 
 check-shell:
 	@for script in scripts/*.sh backend/scripts/*.sh; do \

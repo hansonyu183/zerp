@@ -17,8 +17,8 @@
 
 ## 生命周期与删除
 
-1. 页面编排 Customer 的 `query|get|create|save|submit|unsubmit|reject|approve|unapprove|delete|versions|audit-history`，并只展示服务端 `availableApprovalActions`。
-2. `DRAFT` 显示“编辑草稿”；已批准且无候选显示“发起变更”；存在可编辑候选显示“继续编辑草稿”；不可编辑状态只显示“查看”。
+1. 页面编排 Customer 的本地 Draft、`query|get|submit|delete|versions|audit-history` 与 `reject|approve|unreject|unapprove`，并只展示服务端 `availableApprovalActions` 的审批动作。
+2. 本地 Draft 显示“编辑草稿”；已批准且无开放 Submission 显示“发起变更”；存在开放 Submission 时可查看、删除或克隆为本地 Draft；不可编辑状态只显示“查看”。
 3. Customer candidate 未批准时 BOB 和交易继续使用上一正式完整版本；批准后 Customer 与全部子单位一次切换。
 4. 草稿删除、正式子单位移除和历史读取直接采用 [DCL 客户申报规则](../../domains/dcl.md#361-客户与客户子单位申报)；页面只展示服务端结果和 blocker。
 

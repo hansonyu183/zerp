@@ -1,0 +1,41 @@
+{
+  "name": "@zerp/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts",
+    "./client": "./src/app/contract.ts"
+  },
+  "scripts": {
+    "dev": "node src/server.ts",
+    "test": "pnpm test:unit && pnpm test:artifacts && pnpm test:integration",
+    "test:unit": "node --test tests/unit/*.test.ts",
+    "test:integration": "node --test tests/integration/*.test.ts",
+    "test:artifacts": "node --test scripts/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "generate": "pnpm generate:artifacts && pnpm generate:db",
+    "generate:artifacts": "node scripts/generate-target-artifacts.ts",
+    "generate:db": "node scripts/generate-db-types.ts",
+    "generate:check": "pnpm generate && git diff --exit-code -- src/generated",
+    "check:catalog": "node scripts/check-target-catalog.ts",
+    "sync:catalog": "node scripts/sync-target-catalog.ts",
+    "e2e": "node scripts/run-target-e2e.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@hono/zod-openapi": "1.6.2",
+    "@noble/hashes": "2.4.0",
+    "@zerp/model": "workspace:*",
+    "hono": "4.13.5",
+    "kysely": "0.29.5",
+    "pg": "8.23.0",
+    "ulid": "3.0.2",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.15.6",
+    "kysely-codegen": "0.20.0"
+  }
+}

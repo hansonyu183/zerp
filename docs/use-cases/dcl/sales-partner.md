@@ -11,7 +11,7 @@
 1. 列表初始不请求；用户显式查询 Sales Partner candidate 与 current 摘要。
 2. 新建直接录入自有身份、唯一法定识别号、适用经营主体集合和默认经营主体，不选择 Party。
 3. 候选维护完整能力集、联系人、地址、备注与 enabled；草稿能力可为空，submit 与 approve 至少选择一种。
-4. 根据状态与权限提供 create、save、submit、unsubmit、reject、approve、unapprove、delete、versions 与 audit。启停只通过保存 `enabled` 候选完成。
+4. 根据状态与权限提供本地 Draft、submit、开放 Submission delete、reject、approve、unreject、unapprove、versions 与 audit。启停只在本地 Draft 编辑并随 submit 冻结。
 5. 移除仍被 current 客户归属采用的能力时，submit/approve 显示 blocker；历史订单、收益与会计快照不被页面操作改写。
 
 ## 验收场景

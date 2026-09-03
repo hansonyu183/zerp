@@ -1,0 +1,536 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ZERP target API",
+    "version": "0.0.0-target"
+  },
+  "components": {
+    "schemas": {},
+    "parameters": {}
+  },
+  "paths": {
+    "/app/user/signin": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  }
+                },
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "user": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "displayName": {
+                                  "type": "string"
+                                },
+                                "avatarUrl": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "username",
+                                "displayName",
+                                "avatarUrl"
+                              ]
+                            },
+                            "csrfToken": {
+                              "type": "string"
+                            },
+                            "permissions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "passwordChangeRequired": {
+                              "type": "boolean"
+                            },
+                            "passwordMinLength": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            }
+                          },
+                          "required": [
+                            "user",
+                            "csrfToken",
+                            "permissions",
+                            "passwordChangeRequired",
+                            "passwordMinLength"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/user/session": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "user": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "displayName": {
+                                  "type": "string"
+                                },
+                                "avatarUrl": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "username",
+                                "displayName",
+                                "avatarUrl"
+                              ]
+                            },
+                            "csrfToken": {
+                              "type": "string"
+                            },
+                            "permissions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "passwordChangeRequired": {
+                              "type": "boolean"
+                            },
+                            "passwordMinLength": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            }
+                          },
+                          "required": [
+                            "user",
+                            "csrfToken",
+                            "permissions",
+                            "passwordChangeRequired",
+                            "passwordMinLength"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/user/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "number",
+                    "enum": [
+                      20
+                    ]
+                  },
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "search": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "ENABLED",
+                          "DISABLED"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "sort": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "enum": [
+                            "username"
+                          ]
+                        },
+                        "order": {
+                          "type": "string",
+                          "enum": [
+                            "asc"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "order"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 1
+                  }
+                },
+                "required": [
+                  "page",
+                  "pageSize",
+                  "sort"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User page envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        "errorKey": {
+                          "type": "string",
+                          "enum": [
+                            ""
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "username": {
+                                    "type": "string"
+                                  },
+                                  "displayName": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ENABLED",
+                                      "DISABLED"
+                                    ]
+                                  },
+                                  "system": {
+                                    "type": "boolean"
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "updatedAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "revision": {
+                                    "type": "string"
+                                  },
+                                  "manageable": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "username",
+                                  "displayName",
+                                  "status",
+                                  "system",
+                                  "createdAt",
+                                  "updatedAt",
+                                  "revision",
+                                  "manageable"
+                                ]
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            },
+                            "pageSize": {
+                              "type": "number",
+                              "enum": [
+                                20
+                              ]
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "errorKey": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "nullable": true
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "errorKey",
+                        "message",
+                        "data",
+                        "requestId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

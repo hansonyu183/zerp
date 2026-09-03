@@ -1,0 +1,12 @@
+[
+  {
+    "id": "01J4C89A32EE3460059789A73F",
+    "path": "/app/user/query",
+    "domain": "app",
+    "entity": "user",
+    "action": "query",
+    "title": "用户管理",
+    "group": "系统管理",
+    "order": 10
+  }
+]

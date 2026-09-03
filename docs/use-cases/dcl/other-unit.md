@@ -11,7 +11,7 @@
 1. 列表初始不请求；用户显式查询 Other Unit candidate 与 current 摘要。
 2. 新建直接录入自有身份、唯一法定识别号、服务资料、适用经营主体集合和默认经营主体，不选择 Party。
 3. 详情显示完整身份、适用经营主体、联系人、地址、可选结算方式、备注和 enabled snapshot。
-4. 根据状态与权限提供 create、save、submit、unsubmit、reject、approve、unapprove、delete、versions 与 audit。启停只通过保存 `enabled` 候选完成。
+4. 根据状态与权限提供本地 Draft、submit、开放 Submission delete、reject、approve、unreject、unapprove、versions 与 audit。启停只在本地 Draft 编辑并随 submit 冻结。
 5. 提交或批准被经营主体、结算方式来源漂移或正式引用阻断时，保留输入并显示稳定业务错误与 requestId。
 
 ## 验收场景

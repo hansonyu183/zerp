@@ -2,7 +2,7 @@
 
 ## 1. 领域职责
 
-DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject、business code 与强类型申报快照。当前实体是 `operating-entity`、`warehouse`、`vehicle`、`fund-account`、`product`、`employee`、`customer`、`supplier`、`other-unit`、`sales-partner`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition`：DCL 拥有申报创建、候选编辑、提交、撤回、驳回、批准、反批准、草稿删除、版本历史和审计读取；中央 Approval 唯一拥有版本号、状态、revision、审批元数据和审批事件；BOB 只通过 highest APPROVED typed snapshot 提供当前有效业务资料的只读查询与交易引用解析。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
+DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject、business code 与强类型 Submission snapshot。当前实体是 `operating-entity`、`warehouse`、`vehicle`、`fund-account`、`product`、`employee`、`customer`、`supplier`、`other-unit`、`sales-partner`、`acc-mapping`、`rpt-definition` 与 `wfl-process-definition`：用户在本地 Draft 编辑，DCL 在 submit 时创建或删除开放 Submission，并读取版本历史和审计；中央 Approval 唯一拥有版本号、`PENDING | APPROVED | REJECTED`、revision、审批元数据和审批事件。BOB 只通过 highest APPROVED typed snapshot 提供当前有效业务资料的只读查询与交易引用解析。Party 与独立 `customer-subunit` subject 不存在；客户子单位是 Customer Version 内的强类型子项。会计映射、报表定义和流程定义的既有领域边界不变。
 
 `dcl_subjects` 是版本化业务对象唯一通用稳定身份，最小保存不可变 ID、entity、nullable code、createdAt 与 createdBy；非空 `(entity, upper(code))` 唯一。只有 ACC Mapping 是合法的无编码 subject。Operating Entity、Warehouse、Vehicle、Fund Account、Product、Employee、Customer、Supplier、Other Unit 与 Sales Partner 必须分别匹配 `OPE/WHS/VEH/FAC/PRD/EMP/CUS/SUP/OTU/SLP-[0-9]{4}`；客户子单位不占用 DCL subject 或全局编码空间，其稳定 ID 由 Customer 聚合持有，编码只在所属客户内大小写不敏感唯一。RPT 与 WFL 编码规则不变。DCL 不复制 Approval 版本头，不保存 current pointer 或第二套 revision，也不提供 BOB 写入别名、双写、过渡视图或失败回退。
 
@@ -10,15 +10,15 @@ DCL（Declaration Control）拥有全部版本化业务对象的稳定 subject�
 
 `dcl_subjects` 保存经营主体唯一稳定 ID 与 `OPE-*` 业务编码；二者跨全部版本不可变。`dcl_operating_entity_versions` 以 `approvalEntryId` 为主键，保存该版本完整的法定名称、简称、税号、地址、电话、备注和 `enabled`。所有可变字段均随候选版本冻结；启用或停用同样通过保存新候选并审批，不存在 BOB current 写入。
 
-唯一 wire 字段集合以 [OpenAPI DCL Schema](../../contracts/openapi/schemas/dcl.yaml) 为准。`/dcl/operating-entity` 是经营主体档案的唯一页面，候选查询、当前正式资料、详情和全部写动作固定使用 `/dcl/operating-entity/*`。`/bob/operating-entity/query|get` 只作为内部当前正式资料读取边界，不注册页面、菜单或深链。APP 工作台和审批深链固定进入 DCL 页面。
+目标线协议由可执行 Hono/Zod 路由生成；#366 前 live OpenAPI 仍只描述 live Go 路径，二者不得组合。`/dcl/operating-entity` 是经营主体档案的唯一页面，Submission 查询、当前正式资料、详情和全部写动作固定使用 `/dcl/operating-entity/*`。`/bob/operating-entity/query|get` 只作为内部当前正式资料读取边界，不注册页面、菜单或深链。APP 工作台和审批深链固定进入 DCL 页面。
 
 ## 3. 版本与当前读取
 
 版本语义完全复用 [Approval Version](approval.md#6-approval-version)：
 
-1. V1 草稿没有 BOB 当前有效资料，不能被交易引用；
+1. V1 的本地 Draft 或 `PENDING`/`REJECTED` Submission 没有 BOB 当前有效资料，不能被交易引用；
 2. V1 批准后，BOB 直接连接 DCL subject、highest APPROVED Approval Entry 与对应 typed snapshot 读取；
-3. V2 为 `DRAFT` 或 `PENDING` 时，BOB 仍读取 V1；
+3. V2 为 `PENDING` 或 `REJECTED` 时，BOB 仍读取 V1；
 4. V2 批准后，BOB 下一次读取自然选择 V2，不执行额外 current 写入；
 5. 反批准 V2 后，BOB 自然回到仍为 `APPROVED` 的 V1；
 6. 反批准 V1 后，没有正式版本，BOB 查询自然不可见，但稳定 DCL subject、编码和审批历史保留。
@@ -109,13 +109,13 @@ Supplier、Other Unit 与 Sales Partner 各自是全局强类型业务档案和�
 
 `/dcl/rpt-definition` 是报表定义唯一维护入口，候选查询、详情、全部写动作和版本历史固定使用 `/dcl/rpt-definition/*`。`/rpt/directory` 和 `/rpt/{code}/query|export` 只提供当前有效定义的查询和执行，不在 RPT 内创建、保存或审批候选。APP 工作台和审批深链固定进入 DCL 页面。
 
-新建和保存必须发送 `enabled`；只有 `DRAFT` candidate 可改启停，已经 `APPROVED` 的定义必须先创建下一候选。批准或反批准在同一事务内原子注册或停用 RPT 的 `query`/`export` 使用权限：首次批准时 RPT 与 APP 在同一事务注册该 code 的精确权限；新版本批准后切换使用权限到新 entry；反批准后回落到上一正式版本或停用。已执行报表的 runtime audit 继续保存原 `approvalEntryId`，定义后续改版不重解释历史运行。execution 只使用当前最新 `APPROVED + enabled + VALID` 定义，不回退旧版本或候选。
+提交 Draft 时必须发送 `enabled`；已持久化 Submission 不可编辑，已经 `APPROVED` 的定义必须从本地 Draft 创建下一 Submission。批准或反批准在同一事务内原子注册或停用 RPT 的 `query`/`export` 使用权限：首次批准时 RPT 与 APP 在同一事务注册该 code 的精确权限；新版本批准后切换使用权限到新 entry；反批准后回落到上一正式版本或停用。已执行报表的 runtime audit 继续保存原 `approvalEntryId`，定义后续改版不重解释历史运行。execution 只使用当前最新 `APPROVED + enabled + VALID` 定义，不回退旧版本或候选。
 
 ## 3.10 流程定义申报
 
 流程定义的 stable subject 是 `dcl_subjects(entity=wfl-process-definition)`，唯一持有 stable ID、code、createdAt 与 createdBy。`wfl_definition_runtime_states` 以 `subjectId` 持有 `enabled`、`updatedAt` 与 `updatedBy`；`dcl_wfl_process_definition_versions`、`wfl_definition_instances` 与 `wfl_create_child_requests` 都以该 subjectId 归属同一身份。`dcl_wfl_process_definition_versions` 以 `approvalEntryId` 为主键，保存完整的 Starlark 脚本、诊断、编译图和试算证据；这些版本化字段随候选版本冻结，不直接修改 WFL 当前执行面。`enabled` 是 runtime state 上的独立开关，不属于 Approval Version snapshot；启停必须携带 latest APPROVED 的 `approvalEntryId` 与 `approvalRevision`，DCL 不保存第二套 subject revision。
 
-新建固定在同一事务依次创建带 code 的 DCL subject、runtime state、中央 Approval V1 `DRAFT` 与 typed version。
+本地 Draft submit 固定在同一事务依次创建带 code 的 DCL subject、runtime state、中央 Approval V1 `PENDING` Submission 与 typed version。
 
 `/dcl/wfl-process-definition` 是流程定义唯一维护入口，候选查询、详情、全部写动作和版本历史固定使用 `/dcl/wfl-process-definition/*`。WFL 业务页面只提供当前定义的 `query|get` 和流程实例/执行，不在 WFL 内创建、保存或审批候选。APP 工作台和审批深链固定进入 DCL 页面；工作项和定义深链同样进入 DCL。
 
@@ -147,4 +147,4 @@ DCL Customer 根资料继续按 `query`、`get`、`create`、`save` 和 lifecycl
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖 V1/V2 highest-approved 切换与回落、同一 subject 唯一开放候选、分命令并发旧 revision、法定识别号按业务档案类型唯一，以及 subscriber 失败整笔回滚。Customer 还必须覆盖原子创建至少一个子单位、根/子单位字段隔离、附件保留、候选隔离、专属顺序 code、两级启停、草稿子单位物理删除与正式移除保留、唯一启用子单位隐式选择、多个启用子单位强制显式选择、`subunitId + customerApprovalEntryId` 历史读取，以及无独立子单位 lifecycle。跨域公共验收统一使用 `customer-subunit`、`subunits`、`subunitId` 和 `CUSTOMER_SUBUNIT`，并证明旧 wire、表、权限和路径不可达。
+真实 PostgreSQL 验收必须覆盖 V1/V2 highest-approved 切换与回落、同一 subject 唯一 `PENDING`/`REJECTED` 开放 Submission、submit 幂等、分命令并发旧 revision、法定识别号按业务档案类型唯一，以及 subscriber 失败整笔回滚。Customer 还必须覆盖本地 Draft 创建至少一个子单位、根/子单位字段隔离、附件保留、Submission 隔离、专属顺序 code、两级启停、本地子单位删除与正式移除保留、唯一启用子单位隐式选择、多个启用子单位强制显式选择、`subunitId + customerApprovalEntryId` 历史读取，以及无独立子单位 lifecycle。跨域公共验收统一使用 `customer-subunit`、`subunits`、`subunitId` 和 `CUSTOMER_SUBUNIT`，并证明已取代的 wire、表、权限和路径不可达。

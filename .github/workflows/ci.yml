@@ -149,6 +149,32 @@ jobs:
       - run: pnpm contracts:bundle
       - run: make check-frontend
 
+  target-foundation:
+    name: target-foundation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CI_COMMIT_SHA }}
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: packages/wfl-starlark/go/go.mod
+          cache-dependency-path: packages/wfl-starlark/go/go.sum
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zerp/frontend exec playwright install --with-deps chromium
+      - run: TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e
+      - name: Clean isolated target resources
+        if: always()
+        run: TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-down
+
   shell:
     name: shell
     runs-on: ubuntu-latest

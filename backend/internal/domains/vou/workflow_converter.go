@@ -68,19 +68,16 @@ func (s *Service) CreateWorkflowSaleOutbound(ctx context.Context, tx pgx.Tx, sou
 	if err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}
-	date, err := parseBusinessDate(initial.BusinessDate)
-	if err != nil {
-		return MutationResult{}, err
-	}
 	warehouse, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityWarehouse, initial.WarehouseObjectID, "warehouse")
 	if err != nil {
 		return MutationResult{}, err
 	}
-	return s.writeSaleOutbound(ctx, tx, "", DraftInput{
+	return s.writeSalesChainDraft(ctx, tx, EntitySaleOutbound, "", DraftInput{
+		BusinessDate:     initial.BusinessDate,
 		SourceDocumentID: sourceDocumentID,
 		Warehouse:        &ReferenceInput{ObjectID: warehouse.ObjectID, ApprovalEntryID: warehouse.ApprovalEntryID},
 		SourceLines:      initial.Lines,
-	}, date, nil, actor)
+	}, actor)
 }
 
 func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleDeliveryInitial, requestID string) (MutationResult, error) {
@@ -91,15 +88,12 @@ func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sou
 	if err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}
-	date, err := parseBusinessDate(initial.BusinessDate)
-	if err != nil {
-		return MutationResult{}, err
-	}
 	vehicle, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityVehicle, initial.VehicleObjectID, "vehicle")
 	if err != nil {
 		return MutationResult{}, err
 	}
 	data := DraftInput{
+		BusinessDate:     initial.BusinessDate,
 		SourceDocumentID: sourceDocumentID,
 		Vehicle:          &ReferenceInput{ObjectID: vehicle.ObjectID, ApprovalEntryID: vehicle.ApprovalEntryID},
 	}
@@ -110,7 +104,7 @@ func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sou
 		}
 		data.Carrier = &ReferenceInput{ObjectID: carrier.ObjectID, ApprovalEntryID: carrier.ApprovalEntryID}
 	}
-	return s.writeSaleDelivery(ctx, tx, "", data, date, nil, actor)
+	return s.writeSalesChainDraft(ctx, tx, EntitySaleDelivery, "", data, actor)
 }
 
 func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleSignoffInitial, requestID string) (MutationResult, error) {
@@ -121,10 +115,6 @@ func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sour
 	if err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}
-	date, err := parseBusinessDate(initial.BusinessDate)
-	if err != nil {
-		return MutationResult{}, err
-	}
 	lines := make([]SaleSignoffLineInput, 0, len(initial.Lines))
 	for _, line := range initial.Lines {
 		lines = append(lines, SaleSignoffLineInput{
@@ -132,9 +122,9 @@ func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sour
 			RejectedBaseQuantity: line.RejectedBaseQuantity,
 		})
 	}
-	return s.writeSaleSignoff(ctx, tx, "", DraftInput{
-		SourceDocumentID: sourceDocumentID, SignoffLines: lines,
-	}, date, nil, actor)
+	return s.writeSalesChainDraft(ctx, tx, EntitySaleSignoff, "", DraftInput{
+		BusinessDate: initial.BusinessDate, SourceDocumentID: sourceDocumentID, SignoffLines: lines,
+	}, actor)
 }
 
 func (s *Service) CreateWorkflowSaleReturn(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleReturnInitial, requestID string) (MutationResult, error) {

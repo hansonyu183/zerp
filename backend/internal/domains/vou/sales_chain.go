@@ -213,16 +213,28 @@ func (s *Service) writeSalesChainDraft(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	var result MutationResult
 	switch entity {
 	case EntitySaleOutbound:
-		return s.writeSaleOutbound(ctx, tx, replacingID, data, date, remark, actor)
+		result, err = s.writeSaleOutbound(ctx, tx, replacingID, data, date, remark, actor)
 	case EntitySaleDelivery:
-		return s.writeSaleDelivery(ctx, tx, replacingID, data, date, remark, actor)
+		result, err = s.writeSaleDelivery(ctx, tx, replacingID, data, date, remark, actor)
 	case EntitySaleSignoff:
-		return s.writeSaleSignoff(ctx, tx, replacingID, data, date, remark, actor)
+		result, err = s.writeSaleSignoff(ctx, tx, replacingID, data, date, remark, actor)
 	default:
 		return MutationResult{}, domainError(ErrorValidation, "invalid sales-chain entity", nil, nil)
 	}
+	if err != nil || replacingID != "" {
+		return result, err
+	}
+	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{
+		Entity: entity, DocumentID: result.DocumentID, DocumentNo: result.DocumentNo, Revision: 1,
+		ParentEntity: salesParentEntity(entity), ParentDocumentID: data.SourceDocumentID,
+		ActorID: actor.ID(), RequestID: actor.RequestID(),
+	}); err != nil {
+		return MutationResult{}, s.eventError("publish sales-chain created", err)
+	}
+	return result, nil
 }
 
 func (s *Service) lockSalesSource(

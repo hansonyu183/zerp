@@ -61,7 +61,8 @@ func (s *Service) createDocument(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	if err = validateParentExists(ctx, tx, parentEntity, parentDocumentID); err != nil {
+	documentID := newID()
+	if err = validateParentExists(ctx, tx, parentEntity, parentDocumentID, documentID); err != nil {
 		return MutationResult{}, err
 	}
 
@@ -74,7 +75,6 @@ func (s *Service) createDocument(
 		}
 		return MutationResult{}, s.writeError("allocate document number", err)
 	}
-	documentID := newID()
 	documentNo := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter)
 	coordinator, err := s.coordinator(entity)
 	if err != nil {

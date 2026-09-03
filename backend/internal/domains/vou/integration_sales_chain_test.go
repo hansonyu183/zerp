@@ -3,7 +3,6 @@
 package vou
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -361,22 +360,6 @@ func TestApprovedSaleOrderSourceFactsStayImmutableWhenCreatingOutboundIntegratio
 	if err != nil {
 		t.Fatalf("approve sale order: %v", err)
 	}
-	if _, err = pool.Exec(t.Context(), `ALTER TABLE vou_sale_order_details DISABLE TRIGGER vou_sale_order_non_draft_immutable`); err != nil {
-		t.Fatalf("disable immutable trigger for controlled legacy fixture: %v", err)
-	}
-	t.Cleanup(func() {
-		if _, cleanupErr := pool.Exec(context.Background(), `ALTER TABLE vou_sale_order_details ENABLE TRIGGER vou_sale_order_non_draft_immutable`); cleanupErr != nil {
-			t.Errorf("restore immutable trigger: %v", cleanupErr)
-		}
-	})
-	if _, err = pool.Exec(t.Context(), `UPDATE vou_sale_order_details SET
-		warehouse_object_id=NULL,warehouse_approval_entry_id=NULL,warehouse_code=NULL,warehouse_name=NULL
-		WHERE document_id=$1`, approved.DocumentID); err != nil {
-		t.Fatalf("make approved sale order legacy-shaped: %v", err)
-	}
-	if _, err = pool.Exec(t.Context(), `ALTER TABLE vou_sale_order_details ENABLE TRIGGER vou_sale_order_non_draft_immutable`); err != nil {
-		t.Fatalf("restore immutable trigger before outbound: %v", err)
-	}
 	var before string
 	if err = pool.QueryRow(t.Context(), `SELECT row_to_json(detail)::text FROM vou_sale_order_details detail WHERE document_id=$1`, approved.DocumentID).Scan(&before); err != nil {
 		t.Fatalf("read approved sale-order source facts: %v", err)
@@ -388,7 +371,7 @@ func TestApprovedSaleOrderSourceFactsStayImmutableWhenCreatingOutboundIntegratio
 	if _, err = service.Create(t.Context(), EntitySaleOutbound, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-25", SourceDocumentID: approved.DocumentID, Warehouse: &refs.warehouse,
 		SourceLines: []SourceQuantityLineInput{{SourceLineID: view.Data.ProductLines[0].LineID, BaseQuantity: "1"}},
-	}}, integrationApprovalActor(t, integrationActorOne, "legacy-order-outbound-create")); err != nil {
+	}}, integrationApprovalActor(t, integrationActorOne, "order-outbound-create")); err != nil {
 		t.Fatalf("create sale outbound: %v", err)
 	}
 	var after string
@@ -400,22 +383,32 @@ func TestApprovedSaleOrderSourceFactsStayImmutableWhenCreatingOutboundIntegratio
 	}
 }
 
-func TestNonDraftSaleOrderDetailRejectsBusinessMutationButAllowsFulfillmentIntegration(t *testing.T) {
+func TestApprovedSaleOrderRejectsOrdinarySaveAndDeleteIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 	order, _ := approvedSalesOrder(t, service, refs, "2")
-
-	if _, err := pool.Exec(t.Context(), `UPDATE vou_sale_order_details SET customer_name='tampered' WHERE document_id=$1`, order.DocumentID); err == nil {
-		t.Fatal("direct business mutation of approved sale order was accepted")
+	draft := DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Warehouse: &refs.warehouse,
+		ProductLines: []ProductLineInput{
+			integrationProductLine(t, refs.product, "2", "12.00"),
+		},
 	}
-	if _, err := pool.Exec(t.Context(), `UPDATE vou_sale_order_details SET fulfillment_status='FULFILLED' WHERE document_id=$1`, order.DocumentID); err != nil {
-		t.Fatalf("direct fulfillment status update rejected: %v", err)
-	}
-	if _, err := pool.Exec(t.Context(), `DELETE FROM vou_sale_order_details WHERE document_id=$1`, order.DocumentID); err == nil {
-		t.Fatal("direct delete of approved sale order detail was accepted")
+	_, err := service.Save(t.Context(), EntitySaleOrder, SaveInput{
+		DocumentID: order.DocumentID, Revision: order.Approval.Revision, Data: draft,
+	}, integrationApprovalActor(t, integrationActorOne, "approved-order-save"))
+	assertVOUConflict(t, "save approved sale order", err)
+	_, err = service.Delete(t.Context(), EntitySaleOrder, DeleteInput{
+		DocumentID: order.DocumentID, Revision: order.Approval.Revision, Reason: "删除已批准订单",
+	}, integrationApprovalActor(t, integrationActorOne, "approved-order-delete"))
+	assertVOUConflict(t, "delete approved sale order", err)
+	view, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: order.DocumentID})
+	if err != nil || view.Approval.Status != StatusApproved || view.Data.Customer == nil ||
+		view.Data.Customer.ObjectID != refs.customer.ObjectID {
+		t.Fatalf("approved sale order changed after rejected commands: view=%+v err=%v", view, err)
 	}
 }
 

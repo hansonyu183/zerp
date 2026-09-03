@@ -104,7 +104,7 @@ func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testi
 	}
 }
 
-func TestNonDraftPurchaseOrderDetailRejectsBusinessMutationButAllowsFulfillmentIntegration(t *testing.T) {
+func TestPendingPurchaseOrderRejectsOrdinarySaveAndDeleteIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
@@ -124,14 +124,23 @@ func TestNonDraftPurchaseOrderDetailRejectsBusinessMutationButAllowsFulfillmentI
 	if err != nil {
 		t.Fatalf("submit purchase order: %v", err)
 	}
-	if _, err = pool.Exec(t.Context(), `UPDATE vou_purchase_order_details SET supplier_name='tampered' WHERE document_id=$1`, checked.DocumentID); err == nil {
-		t.Fatal("direct business mutation of pending purchase order was accepted")
-	}
-	if _, err = pool.Exec(t.Context(), `UPDATE vou_purchase_order_details SET fulfillment_status='FULFILLED' WHERE document_id=$1`, checked.DocumentID); err != nil {
-		t.Fatalf("direct fulfillment status update rejected: %v", err)
-	}
-	if _, err = pool.Exec(t.Context(), `DELETE FROM vou_purchase_order_details WHERE document_id=$1`, checked.DocumentID); err == nil {
-		t.Fatal("direct delete of pending purchase order detail was accepted")
+	_, err = service.Save(t.Context(), EntityPurchaseOrder, SaveInput{
+		DocumentID: checked.DocumentID, Revision: checked.Approval.Revision,
+		Data: DraftInput{
+			BusinessDate: "2026-07-28", Currency: "CNY",
+			Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
+			ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
+		},
+	}, integrationApprovalActor(t, integrationActorOne, "pending-purchase-save"))
+	assertVOUConflict(t, "save pending purchase order", err)
+	_, err = service.Delete(t.Context(), EntityPurchaseOrder, DeleteInput{
+		DocumentID: checked.DocumentID, Revision: checked.Approval.Revision, Reason: "删除待批准订单",
+	}, integrationApprovalActor(t, integrationActorOne, "pending-purchase-delete"))
+	assertVOUConflict(t, "delete pending purchase order", err)
+	view, err := service.Get(t.Context(), EntityPurchaseOrder, GetInput{DocumentID: checked.DocumentID})
+	if err != nil || view.Approval.Status != StatusPending || view.Data.Supplier == nil ||
+		view.Data.Supplier.ObjectID != refs.supplier.ObjectID {
+		t.Fatalf("pending purchase order changed after rejected commands: view=%+v err=%v", view, err)
 	}
 }
 

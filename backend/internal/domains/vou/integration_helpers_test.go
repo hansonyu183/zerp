@@ -72,6 +72,14 @@ func integrationErrorChain(err error) string {
 	return strings.Join(parts, " -> ")
 }
 
+func assertVOUConflict(t *testing.T, operation string, err error) {
+	t.Helper()
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorConflict {
+		t.Fatalf("%s error = %v, want conflict", operation, err)
+	}
+}
+
 func integrationApprovalActor(t *testing.T, actorID, requestID string) approval.Actor {
 	t.Helper()
 	if strings.HasSuffix(requestID, "-approve") || strings.HasSuffix(requestID, "-reject") {

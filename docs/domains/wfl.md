@@ -20,7 +20,7 @@ enabled 只影响未来根单据匹配：启用要求存在 latest APPROVED entr
 
 ## 3. 静态动作边界
 
-WFL 拥有最小、类型化的 `WorkflowActions` 接口，正式运行 adapter 和零写入试算 adapter 都实现 `expense_payment`、`purchase_inbound`、`sale_outbound`、`sale_delivery`、`sale_signoff` 和 `sale_return`。动作只接收来源引用和脚本计算的完整初始值；正式 adapter 在当前写事务锁定并重读来源，由 VOU 重算业务快照并执行全部领域校验。客户相对方 metadata 只接受 `customer-subunit`、稳定 `subunitId` 和精确 Customer Approval Entry，也不从多个启用子单位中推断。动作之间不互相调用，顺序仅由实例固定 entry 的脚本决定；不存在数据库动作目录、动态发现、反射或任意字符串分派。
+WFL 拥有最小、类型化的 `WorkflowActions` 接口，正式运行 adapter 和零写入试算 adapter 都实现 `expense_payment`、`purchase_inbound`、`sale_outbound`、`sale_delivery`、`sale_signoff` 和 `sale_return`。动作只接收来源引用和脚本计算的完整初始值；正式 adapter 复用 VOU Domain Service 的公共写入口，在当前写事务锁定并重读来源，由 VOU 重算业务快照、写入公共单据与 typed detail 并执行全部领域校验，不直接写 VOU 业务表。客户相对方 metadata 只接受 `customer-subunit`、稳定 `subunitId` 和精确 Customer Approval Entry，也不从多个启用子单位中推断。动作之间不互相调用，顺序仅由实例固定 entry 的脚本决定；不存在数据库动作目录、动态发现、反射或任意字符串分派。
 
 订单批准只读取当日 ACC 可用净余额而不预留。采购入库或销售签收批准时，在同一 PostgreSQL 事务锁定往来方与币种、重算实际金额、读取最新 ACC 事实并写入 VOU/ACC 流水；结算规则属于 VOU/ACC，不由脚本替代。
 

@@ -56,6 +56,9 @@ func (s *Service) LockPeriod(ctx context.Context, input PeriodActionInput, actor
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
+	if err = lockAccountingPeriodMonth(ctx, q, month); err != nil {
+		return PeriodView{}, databaseError("lock accounting period month", err)
+	}
 	if err = s.requireAccess(ctx, q, input.BookID, actorID, true); err != nil {
 		return PeriodView{}, err
 	}
@@ -165,6 +168,9 @@ func (s *Service) UnlockPeriod(ctx context.Context, input PeriodActionInput, act
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
+	if err = lockAccountingPeriodMonth(ctx, q, month); err != nil {
+		return PeriodView{}, databaseError("lock accounting period month", err)
+	}
 	if err = s.requireAccess(ctx, q, input.BookID, actorID, true); err != nil {
 		return PeriodView{}, err
 	}

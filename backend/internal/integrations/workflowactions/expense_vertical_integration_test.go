@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
+	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
@@ -184,6 +185,7 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	bus := txevent.NewBus()
 	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool))
 	bobService := bobdomain.NewService(pool, auxiliaryResolver)
+	accounting := accdomain.NewService(pool, bobService, authorization.Func(nil), bus)
 	operating := approveWorkflowReference(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "流程经营主体", TaxNumber: "TAX" + suffix,
 	}, submitterID, actorID)
@@ -192,7 +194,7 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 	}, submitterID, actorID)
 	vouService, err := voudomain.NewService(pool, bobService, auxiliaryResolver, bus,
-		voudomain.AttachmentOptions{Root: t.TempDir()}, logger, voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
+		voudomain.AttachmentOptions{Root: t.TempDir()}, logger, voudomain.WithPeriodWriteControl(accounting), voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {
 		t.Fatalf("create VOU service: %v", err)
 	}

@@ -903,6 +903,17 @@ ORDER BY period_month DESC
 LIMIT 1
 FOR UPDATE;
 
+-- name: LockAccountingPeriodMonth :exec
+SELECT pg_advisory_xact_lock(hashtextextended('acc:period:' || sqlc.arg(period_month)::date::text, 0));
+
+-- name: IsAccountingPeriodLocked :one
+SELECT EXISTS(
+  SELECT 1
+  FROM acc_periods
+  WHERE period_month = sqlc.arg(period_month)
+    AND state = 'LOCKED'
+);
+
 -- name: LockAccountingPeriodRow :one
 INSERT INTO acc_periods (
   book_id, period_month, state, locked_at, locked_by, updated_by

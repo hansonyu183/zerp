@@ -38,7 +38,7 @@ func (s *Service) removeUntouchedGeneratedChildren(ctx context.Context, tx pgx.T
 
 func (s *Service) deleteGeneratedWorkflowDocument(ctx context.Context, tx pgx.Tx, documentID, entity string) error {
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, documentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, documentID, entity)
 	if err != nil {
 		return err
 	}

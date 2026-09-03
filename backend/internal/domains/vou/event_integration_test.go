@@ -46,6 +46,7 @@ func integrationServiceWithEvents(t *testing.T, pool *pgxpool.Pool, events *txev
 		events,
 		AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		WithPeriodWriteControl(alwaysOpenPeriodWriteControl{}),
 		WithApprovalAuthorizer(authorization.Func(nil)),
 	)
 	if err != nil {

@@ -2072,6 +2072,22 @@ func (q *Queries) IsAccountingBookReadyForPosting(ctx context.Context, bookID st
 	return exists, err
 }
 
+const isAccountingPeriodLocked = `-- name: IsAccountingPeriodLocked :one
+SELECT EXISTS(
+  SELECT 1
+  FROM acc_periods
+  WHERE period_month = $1
+    AND state = 'LOCKED'
+)
+`
+
+func (q *Queries) IsAccountingPeriodLocked(ctx context.Context, periodMonth pgtype.Date) (bool, error) {
+	row := q.db.QueryRow(ctx, isAccountingPeriodLocked, periodMonth)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listAccountingAssetIDsBySourceDocument = `-- name: ListAccountingAssetIDsBySourceDocument :many
 SELECT id
 FROM acc_assets
@@ -3158,6 +3174,15 @@ SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
 
 func (q *Queries) LockAccountingInventory(ctx context.Context, lockKey string) error {
 	_, err := q.db.Exec(ctx, lockAccountingInventory, lockKey)
+	return err
+}
+
+const lockAccountingPeriodMonth = `-- name: LockAccountingPeriodMonth :exec
+SELECT pg_advisory_xact_lock(hashtextextended('acc:period:' || $1::date::text, 0))
+`
+
+func (q *Queries) LockAccountingPeriodMonth(ctx context.Context, periodMonth pgtype.Date) error {
+	_, err := q.db.Exec(ctx, lockAccountingPeriodMonth, periodMonth)
 	return err
 }
 

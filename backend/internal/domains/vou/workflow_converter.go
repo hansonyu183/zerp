@@ -161,11 +161,14 @@ func (s *Service) findWorkflowChild(ctx context.Context, tx pgx.Tx, sourceID, en
 }
 
 func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, orderID string, initial WorkflowPurchaseInboundInitial, requestID string) (MutationResult, error) {
-	order, detail, err := s.lockPurchaseOrderForInbound(ctx, tx, orderID)
+	date, err := parseBusinessDate(initial.BusinessDate)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	date, err := parseBusinessDate(initial.BusinessDate)
+	if err = s.guardVOUWrite(ctx, tx, date); err != nil {
+		return MutationResult{}, err
+	}
+	order, detail, err := s.lockPurchaseOrderForInbound(ctx, tx, orderID)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -262,6 +265,9 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 	}
 	id := newID()
 	date := source.BusinessDate.Time
+	if err = s.guardVOUWrite(ctx, tx, date); err != nil {
+		return MutationResult{}, err
+	}
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityExpensePayment), date.Format("20060102"), counter)
 	actor, err := approval.TrustedSystemActor(requestID)
 	if err != nil {
@@ -307,7 +313,7 @@ func (s *Service) SaveExpensePayment(ctx context.Context, input SaveInput, actor
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, EntityExpensePayment)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, EntityExpensePayment, date)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}

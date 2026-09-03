@@ -396,7 +396,7 @@ func (s *Service) Delete(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}

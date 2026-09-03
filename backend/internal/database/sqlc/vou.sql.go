@@ -1092,6 +1092,31 @@ func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) 
 	return i, err
 }
 
+const getVouDocumentWriteState = `-- name: GetVouDocumentWriteState :one
+SELECT document.business_date,approval.revision
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.id=$1 AND document.entity=$2
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+`
+
+type GetVouDocumentWriteStateParams struct {
+	ID     string `db:"id" json:"id"`
+	Entity string `db:"entity" json:"entity"`
+}
+
+type GetVouDocumentWriteStateRow struct {
+	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
+	Revision     int64       `db:"revision" json:"revision"`
+}
+
+func (q *Queries) GetVouDocumentWriteState(ctx context.Context, arg GetVouDocumentWriteStateParams) (GetVouDocumentWriteStateRow, error) {
+	row := q.db.QueryRow(ctx, getVouDocumentWriteState, arg.ID, arg.Entity)
+	var i GetVouDocumentWriteStateRow
+	err := row.Scan(&i.BusinessDate, &i.Revision)
+	return i, err
+}
+
 const getVouEmployeeLoanWriteoffDetail = `-- name: GetVouEmployeeLoanWriteoffDetail :one
 SELECT document_id, entity, employee_object_id, employee_approval_entry_id, employee_code, employee_name FROM vou_employee_loan_writeoff_details WHERE document_id=$1
 `
@@ -3400,24 +3425,6 @@ func (q *Queries) InsertVouSalesReceiptSubunitAllocation(ctx context.Context, ar
 	return err
 }
 
-const isVouDocumentInClosedPeriod = `-- name: IsVouDocumentInClosedPeriod :one
-SELECT EXISTS(
-    SELECT 1
-    FROM vou_documents document
-    JOIN acc_periods period
-      ON period.period_month=date_trunc('month',document.business_date)::date
-     AND period.state='LOCKED'
-    WHERE document.id = $1
-)
-`
-
-func (q *Queries) IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error) {
-	row := q.db.QueryRow(ctx, isVouDocumentInClosedPeriod, id)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const isVouSaleDeliveryReady = `-- name: IsVouSaleDeliveryReady :one
 SELECT x.carrier_type IN ('INTERNAL','EXTERNAL')
        AND x.vehicle_object_id IS NOT NULL AND x.vehicle_approval_entry_id IS NOT NULL
@@ -4115,6 +4122,58 @@ func (q *Queries) ListVouInventoryCountLines(ctx context.Context, documentID str
 			&i.EnteredUnitObjectID,
 			&i.EnteredUnitCode,
 			&i.EnteredUnitName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouLinkedRefusalReturnsForSignoff = `-- name: ListVouLinkedRefusalReturnsForSignoff :many
+SELECT document.id,document.document_no,approval.revision,document.approval_entry_id,
+       detail.return_kind,detail.source_order_id,document.business_date
+FROM vou_sale_return_details detail
+JOIN vou_documents document ON document.id=detail.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+WHERE EXISTS (
+  SELECT 1
+  FROM vou_sale_return_lines line
+  WHERE line.document_id=detail.document_id AND line.source_signoff_id=$1
+)
+`
+
+type ListVouLinkedRefusalReturnsForSignoffRow struct {
+	ID              string      `db:"id" json:"id"`
+	DocumentNo      string      `db:"document_no" json:"document_no"`
+	Revision        int64       `db:"revision" json:"revision"`
+	ApprovalEntryID string      `db:"approval_entry_id" json:"approval_entry_id"`
+	ReturnKind      string      `db:"return_kind" json:"return_kind"`
+	SourceOrderID   string      `db:"source_order_id" json:"source_order_id"`
+	BusinessDate    pgtype.Date `db:"business_date" json:"business_date"`
+}
+
+func (q *Queries) ListVouLinkedRefusalReturnsForSignoff(ctx context.Context, signoffID string) ([]ListVouLinkedRefusalReturnsForSignoffRow, error) {
+	rows, err := q.db.Query(ctx, listVouLinkedRefusalReturnsForSignoff, signoffID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVouLinkedRefusalReturnsForSignoffRow{}
+	for rows.Next() {
+		var i ListVouLinkedRefusalReturnsForSignoffRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentNo,
+			&i.Revision,
+			&i.ApprovalEntryID,
+			&i.ReturnKind,
+			&i.SourceOrderID,
+			&i.BusinessDate,
 		); err != nil {
 			return nil, err
 		}

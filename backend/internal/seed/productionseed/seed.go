@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
+	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
@@ -94,6 +95,7 @@ func New(
 	auxiliary := auxdomain.NewService(pool)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	bobService := bobdomain.NewService(pool, auxiliaryResolver)
+	accounting := accdomain.NewService(pool, bobService, authorization.Func(nil), events)
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,
@@ -101,6 +103,7 @@ func New(
 		events,
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,
+		voudomain.WithAccountingControl(accounting), voudomain.WithPeriodWriteControl(accounting),
 		voudomain.WithApprovalAuthorizer(authorization.Func(nil)),
 	)
 	if err != nil {

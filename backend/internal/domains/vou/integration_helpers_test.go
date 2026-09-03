@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
@@ -671,8 +672,9 @@ func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 
 func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus) *Service {
 	t.Helper()
-	service, err := NewService(pool, newBOBIntegrationService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
-		slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccountingControl(integrationAccountingControl{}),
+	business := newBOBIntegrationService(pool)
+	service, err := NewService(pool, business, auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
+		slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccountingControl(integrationAccountingControl{}), WithPeriodWriteControl(alwaysOpenPeriodWriteControl{}),
 		WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
@@ -681,6 +683,15 @@ func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent
 }
 
 type integrationAccountingControl struct{}
+
+// alwaysOpenPeriodWriteControl is intentionally unrelated to ACC period
+// behavior. VOU-focused fixtures use it only where the test has no period
+// semantics; cross-domain ACC integration tests exercise the real control.
+type alwaysOpenPeriodWriteControl struct{}
+
+func (alwaysOpenPeriodWriteControl) GuardVOUWrite(context.Context, pgx.Tx, ...time.Time) (bool, error) {
+	return true, nil
+}
 
 func (integrationAccountingControl) PartyBalance(ctx context.Context, tx pgx.Tx, input PartyBalanceQuery) (int64, error) {
 	var ready bool

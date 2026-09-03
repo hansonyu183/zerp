@@ -78,6 +78,9 @@ func (s *Service) CreatePurchaseInbound(
 		return MutationResult{}, s.internal("begin purchase inbound", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if err = s.guardVOUWrite(ctx, tx, businessDate); err != nil {
+		return MutationResult{}, err
+	}
 
 	order, detail, err := s.lockPurchaseOrderForInbound(ctx, tx, input.Data.SourceDocumentID)
 	if err != nil {
@@ -162,7 +165,7 @@ func (s *Service) SavePurchaseInbound(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := lockDocument(ctx, tx, input.DocumentID, EntityPurchaseInbound)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, EntityPurchaseInbound, businessDate)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
@@ -243,7 +246,7 @@ func (s *Service) DeletePurchaseInbound(
 		return MutationResult{}, s.internal("begin delete purchase inbound", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	document, err := lockDocument(ctx, tx, input.DocumentID, EntityPurchaseInbound)
+	document, err := s.lockDocumentForWrite(ctx, tx, input.DocumentID, EntityPurchaseInbound)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}

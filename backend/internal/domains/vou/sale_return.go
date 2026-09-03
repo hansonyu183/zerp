@@ -145,6 +145,9 @@ func (s *Service) CreateSaleReturn(
 		return MutationResult{}, s.internal("begin sale return", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if err = s.guardVOUWrite(ctx, tx, date); err != nil {
+		return MutationResult{}, err
+	}
 	source, err := s.resolveReturnSource(ctx, tx, "", date, input.Data.ReturnLines)
 	if err != nil {
 		return MutationResult{}, err
@@ -207,7 +210,7 @@ func (s *Service) SaveSaleReturn(
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	document, err := lockDocument(ctx, tx, input.DocumentID, EntitySaleReturn)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, EntitySaleReturn, date)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
@@ -477,6 +480,9 @@ func (s *Service) ensureRefusalReturnDraft(
 		return err
 	}
 	id, number := newID(), fmt.Sprintf("%s-%s-%04d", entityPrefix(EntitySaleReturn), date.Format("20060102"), counter)
+	if err = s.guardVOUWrite(ctx, tx, date); err != nil {
+		return err
+	}
 	entry, err := s.createDocumentApproval(ctx, tx, EntitySaleReturn, id, actor)
 	if err != nil {
 		return err
@@ -504,37 +510,23 @@ func (s *Service) removeSignoffReturnDrafts(
 	ctx context.Context, tx pgx.Tx, signoff documentRecord, _ string, requestID string,
 ) error {
 	actorID := systemidentity.UserID
-	rows, err := tx.Query(ctx, `SELECT d.id,d.document_no,a.status,a.revision,d.approval_entry_id,rd.return_kind,rd.source_order_id
-		FROM vou_sale_return_details rd
-		JOIN vou_documents d ON d.id=rd.document_id
-		JOIN approval_entries a ON a.id=d.approval_entry_id AND a.domain='vou'
-			AND a.entity=d.entity AND a.subject_id=d.id
-		WHERE EXISTS (SELECT 1 FROM vou_sale_return_lines l
-			WHERE l.document_id=rd.document_id AND l.source_signoff_id=$1)
-		FOR UPDATE OF d`, signoff.ID)
+	items, err := s.queries.WithTx(tx).ListVouLinkedRefusalReturnsForSignoff(ctx, signoff.ID)
 	if err != nil {
 		return err
 	}
-	type linked struct {
-		id, number, status, approvalEntryID, kind, orderID string
-		revision                                           int64
+	dates := make([]time.Time, 0, len(items))
+	for _, item := range items {
+		dates = append(dates, item.BusinessDate.Time)
 	}
-	var items []linked
-	for rows.Next() {
-		var item linked
-		if err = rows.Scan(&item.id, &item.number, &item.status, &item.revision, &item.approvalEntryID, &item.kind, &item.orderID); err != nil {
-			rows.Close()
-			return err
-		}
-		items = append(items, item)
-	}
-	if err = rows.Err(); err != nil {
-		rows.Close()
+	if err = s.guardVOUWrite(ctx, tx, dates...); err != nil {
 		return err
 	}
-	rows.Close()
 	for _, item := range items {
-		if item.kind != returnKindRefusal || item.status != StatusDraft {
+		document, lockErr := s.lockDocumentForWrite(ctx, tx, item.ID, EntitySaleReturn)
+		if lockErr != nil {
+			return lockErr
+		}
+		if item.ReturnKind != returnKindRefusal || document.Status != StatusDraft {
 			return domainError(ErrorConflict, "signoff has return documents", nil, nil)
 		}
 		for _, statement := range []string{
@@ -542,7 +534,7 @@ func (s *Service) removeSignoffReturnDrafts(
 			`DELETE FROM vou_sale_return_details WHERE document_id=$1`,
 			`DELETE FROM vou_documents WHERE id=$1`,
 		} {
-			if _, err = tx.Exec(ctx, statement, item.id); err != nil {
+			if _, err = tx.Exec(ctx, statement, item.ID); err != nil {
 				return err
 			}
 		}
@@ -554,11 +546,11 @@ func (s *Service) removeSignoffReturnDrafts(
 		if coordinatorErr != nil {
 			return coordinatorErr
 		}
-		if err = coordinator.DeleteSubject(ctx, tx, item.approvalEntryID, item.revision, actor, ApprovalPayload{}); err != nil {
+		if err = coordinator.DeleteSubject(ctx, tx, document.ApprovalEntryID, document.Revision, actor, ApprovalPayload{}); err != nil {
 			return mapApprovalError(err)
 		}
 		if err = s.events.Publish(ctx, tx, DocumentDeletedEvent{Entity: EntitySaleReturn,
-			DocumentID: item.id, DocumentNo: item.number, ParentDocumentID: item.orderID,
+			DocumentID: document.ID, DocumentNo: document.DocumentNo, ParentDocumentID: item.SourceOrderID,
 			ActorID: actorID, RequestID: requestID, Reason: "source signoff unapproved"}); err != nil {
 			return err
 		}

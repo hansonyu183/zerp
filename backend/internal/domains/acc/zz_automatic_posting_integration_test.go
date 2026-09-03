@@ -104,6 +104,12 @@ func createApprovedAccountingEmployee(t *testing.T, pool *pgxpool.Pool, business
 	if requestPrefix == "service-acceptance-employee" {
 		legalIdentifier = "110105199001020016"
 	}
+	if requestPrefix == "acc-period-vou-employee" {
+		legalIdentifier = "110105199001030011"
+	}
+	if requestPrefix == "acc-period-concurrent-employee" {
+		legalIdentifier = "110105199001040017"
+	}
 	created, err := employees.Create(t.Context(), dcldomain.EmployeeCreateInput{
 		Data: dcldomain.EmployeeInput{Kind: "PERSON", LegalName: name, LegalIdentifier: legalIdentifier, Enabled: true, CurrentOperatingEntityID: operatingEntityID},
 	}, trustedAccountingActor(t, requestPrefix+"-create"))
@@ -164,7 +170,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "自动记账经营主体"})
 	handler := createApprovedAccountingEmployee(t, pool, business, bus, operating.ObjectID, "自动记账经办人", "acc-posting-employee")
 	fund := createApprovedAccountingReference(t, business, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{Name: "自动记账账户", Currency: "CNY", OperatingEntityID: operating.ObjectID})
-	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)), voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
+	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)), voudomain.WithPeriodWriteControl(accounting), voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}
@@ -459,7 +465,7 @@ func TestZZServiceAcceptanceApprovalPostsOtherUnitPayableAndReceivableIntegratio
 	if err != nil {
 		t.Fatalf("approve service relationship: %v", err)
 	}
-	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)), voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
+	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)), voudomain.WithPeriodWriteControl(accounting), voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}

@@ -171,12 +171,16 @@ func (s *Service) saveSalesChain(
 	if err := validateChainShape(entity, input.Data); err != nil {
 		return MutationResult{}, err
 	}
+	businessDate, _, err := validateChainHeader(input.Data)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("begin sales-chain save", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	document, err := s.lockDocumentForWriteDates(ctx, tx, input.DocumentID, entity, businessDate)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
@@ -212,6 +216,11 @@ func (s *Service) writeSalesChainDraft(
 	date, remark, err := validateChainHeader(data)
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if replacingID == "" {
+		if err = s.guardVOUWrite(ctx, tx, date); err != nil {
+			return MutationResult{}, err
+		}
 	}
 	var result MutationResult
 	switch entity {

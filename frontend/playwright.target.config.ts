@@ -5,6 +5,8 @@ const required = [
   'TARGET_API_BASE_URL',
   'TARGET_E2E_USERNAME',
   'TARGET_E2E_PASSWORD',
+  'TARGET_E2E_REVIEWER_USERNAME',
+  'TARGET_E2E_REVIEWER_PASSWORD',
 ] as const
 const missing = required.filter((name) => !process.env[name])
 if (missing.length > 0)

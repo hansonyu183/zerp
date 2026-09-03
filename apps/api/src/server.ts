@@ -6,6 +6,7 @@ import { createDatabase } from './db/database.ts'
 import { loadConfig } from './platform/config.ts'
 import { jsonLogger } from './platform/logging.ts'
 import { closeRuntime } from './platform/shutdown.ts'
+import { WarehouseService } from './dcl/warehouse.ts'
 
 const config = loadConfig()
 const database = createDatabase(config.databaseUrl.toString())
@@ -20,6 +21,7 @@ const app = createApp({
         .then(() => undefined),
   },
   session: new SessionService(database, config),
+  warehouse: new WarehouseService(database),
   config,
   corsAllowedOrigins: config.corsAllowedOrigins,
   bodyLimitBytes: config.bodyLimitBytes,

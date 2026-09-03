@@ -50,3 +50,31 @@ test('target artifact gate emits one exact permission and menu catalog entry', (
     ],
   )
 })
+
+test('target artifact gate emits action permissions without creating duplicate menus', () => {
+  assert.deepEqual(
+    validateTargetRouteMetadata(
+      ['POST /dcl/warehouse/approve'],
+      [
+        {
+          method: 'post',
+          path: '/dcl/warehouse/approve',
+          permission: '/dcl/warehouse/approve',
+          title: '批准仓库申报',
+        },
+      ],
+    ),
+    [
+      {
+        id: '01J9F8A0A4F06EBCAB84681A2E',
+        path: '/dcl/warehouse/approve',
+        domain: 'dcl',
+        entity: 'warehouse',
+        action: 'approve',
+        title: '批准仓库申报',
+        group: null,
+        order: null,
+      },
+    ],
+  )
+})

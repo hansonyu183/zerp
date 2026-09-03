@@ -4,6 +4,10 @@ import { getCookie, setCookie } from 'hono/cookie'
 import type { TargetConfig } from '../platform/config.ts'
 import { currentRequestId } from '../platform/request-id.ts'
 import {
+  WarehouseApplicationError,
+  type WarehouseService,
+} from '../dcl/warehouse.ts'
+import {
   registerTargetRoutes,
   targetRouteMetadata,
   type TargetRouteEnvironment,
@@ -13,7 +17,7 @@ import { SessionError, type Principal, type SessionService } from './session.ts'
 export { targetRouteMetadata }
 
 function failure(requestId: string, errorKey: string, message: string) {
-  const code =
+  const code: 1001 | 1002 | 3001 =
     errorKey === 'unauthenticated'
       ? 1001
       : errorKey === 'forbidden'
@@ -51,11 +55,55 @@ function sessionFailure(error: unknown, requestId: string) {
   )
 }
 
+function warehouseFailure(requestId: string, error: WarehouseApplicationError) {
+  const code: 1002 | 3001 = error.errorKey === 'forbidden' ? 1002 : 3001
+  return {
+    code,
+    errorKey: error.errorKey,
+    message: error.errorKey,
+    data: error.data,
+    requestId,
+  }
+}
+
 export function registerAppRoutes(
   app: OpenAPIHono<TargetRouteEnvironment>,
   service: SessionService,
   config: TargetConfig,
+  warehouse?: WarehouseService,
 ) {
+  async function executeWarehouse<T>(
+    context: {
+      req: { header(name: string): string | undefined }
+    },
+    token: string | undefined,
+    requestId: string,
+    operation: (actor: { id: string; permissions: string[] }) => Promise<T>,
+  ) {
+    try {
+      if (!warehouse) throw new Error('Warehouse service is unavailable')
+      const current = await service.authenticate(
+        token,
+        context.req.header('X-CSRF-Token'),
+        true,
+      )
+      return {
+        code: 0 as const,
+        errorKey: '' as const,
+        message: 'ok' as const,
+        data: await operation({
+          id: current.user.id,
+          permissions: current.permissions,
+        }),
+        requestId,
+      }
+    } catch (error) {
+      if (error instanceof SessionError) return sessionFailure(error, requestId)
+      if (error instanceof WarehouseApplicationError)
+        return warehouseFailure(requestId, error)
+      throw error
+    }
+  }
   return registerTargetRoutes(app, {
     signin: async (context) => {
       const input = context.req.valid('json')
@@ -143,5 +191,192 @@ export function registerAppRoutes(
         )
       }
     },
+    warehouseQuery: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          async (actor) => {
+            const items = await warehouse!.query(actor)
+            return { items, total: items.length }
+          },
+        ),
+        200,
+      ),
+    warehouseGet: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) => warehouse!.get(context.req.valid('json').subjectId, actor),
+        ),
+        200,
+      ),
+    warehouseVersions: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          async (actor) => {
+            const items = await warehouse!.versions(
+              context.req.valid('json').subjectId,
+              actor,
+            )
+            return { items, total: items.length }
+          },
+        ),
+        200,
+      ),
+    warehouseAudit: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.auditHistory(context.req.valid('json').subjectId, actor),
+        ),
+        200,
+      ),
+    warehouseManagerReference: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.managerReference(
+              context.req.valid('json').employeeId,
+              context.req.valid('json').action,
+              actor,
+            ),
+        ),
+        200,
+      ),
+    warehouseSubmitNew: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.submit(
+              'submit-new',
+              context.req.valid('json'),
+              actor,
+              currentRequestId(context),
+            ),
+        ),
+        200,
+      ),
+    warehouseSubmitChange: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.submit(
+              'submit-change',
+              context.req.valid('json'),
+              actor,
+              currentRequestId(context),
+            ),
+        ),
+        200,
+      ),
+    warehouseApprove: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.review(
+              'approve',
+              context.req.valid('json'),
+              actor,
+              currentRequestId(context),
+            ),
+        ),
+        200,
+      ),
+    warehouseReject: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.review(
+              'reject',
+              context.req.valid('json'),
+              actor,
+              currentRequestId(context),
+            ),
+        ),
+        200,
+      ),
+    warehouseUnreject: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.review(
+              'unreject',
+              context.req.valid('json'),
+              actor,
+              currentRequestId(context),
+            ),
+        ),
+        200,
+      ),
+    warehouseUnapprove: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.review(
+              'unapprove',
+              context.req.valid('json'),
+              actor,
+              currentRequestId(context),
+            ),
+        ),
+        200,
+      ),
+    warehouseDelete: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.delete(
+              context.req.valid('json'),
+              actor,
+              currentRequestId(context),
+            ),
+        ),
+        200,
+      ),
+    warehouseReference: async (context) =>
+      context.json(
+        await executeWarehouse(
+          context,
+          getCookie(context, config.sessionCookieName),
+          currentRequestId(context),
+          (actor) =>
+            warehouse!.reference(context.req.valid('json').search, actor),
+        ),
+        200,
+      ),
   })
 }

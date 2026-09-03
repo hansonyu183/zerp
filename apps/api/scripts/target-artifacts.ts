@@ -19,14 +19,15 @@ export interface TargetPermissionCatalogEntry {
   entity: string
   action: string
   title: string
-  group: string
-  order: number
+  group: string | null
+  order: number | null
 }
 
 interface RouteMetadata {
   method: string
   path: string
   permission?: string
+  title?: string
   menu?: {
     title: string
     group: string
@@ -85,7 +86,12 @@ function executableTargetPaths() {
         )
         .map((method) => routeKey(method, path)),
   )
-  return { document, paths: paths.filter((entry) => entry.includes(' /app/')) }
+  return {
+    document,
+    paths: paths.filter((entry) =>
+      [' /app/', ' /dcl/', ' /bob/'].some((prefix) => entry.includes(prefix)),
+    ),
+  }
 }
 
 export function permissionCatalog(
@@ -97,9 +103,13 @@ export function permissionCatalog(
       throw new Error(
         `public route ${routeKey(entry.method, entry.path)} cannot declare a menu`,
       )
-    if (entry.permission !== undefined && entry.menu === undefined)
+    if (
+      entry.permission !== undefined &&
+      entry.menu === undefined &&
+      entry.title === undefined
+    )
       throw new Error(
-        `protected route ${routeKey(entry.method, entry.path)} must declare a menu`,
+        `protected route ${routeKey(entry.method, entry.path)} must declare a title`,
       )
   }
   assertNoDuplicates(
@@ -111,7 +121,7 @@ export function permissionCatalog(
       const match = entry.permission!.match(
         /^\/([a-z0-9-]+)\/([a-z0-9-]+)\/([a-z0-9-]+)$/,
       )
-      if (!match || !entry.menu)
+      if (!match)
         throw new Error(
           `invalid target permission metadata: ${entry.permission}`,
         )
@@ -121,9 +131,9 @@ export function permissionCatalog(
         domain: match[1]!,
         entity: match[2]!,
         action: match[3]!,
-        title: entry.menu.title,
-        group: entry.menu.group,
-        order: entry.menu.order,
+        title: entry.title ?? entry.menu!.title,
+        group: entry.menu?.group ?? null,
+        order: entry.menu?.order ?? null,
       }
     })
     .sort((left, right) => left.path.localeCompare(right.path))

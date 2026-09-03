@@ -10,6 +10,14 @@ export interface TargetE2EPrincipal {
   passwordHash: string
 }
 
+export interface TargetE2EManagerReference {
+  employeeId: string
+  latestApprovedEntryId: string
+  code: string
+  name: string
+  enabled: boolean
+}
+
 /**
  * Application service for the disposable target database. Operational scripts
  * call this boundary instead of writing APP business tables themselves.
@@ -48,15 +56,12 @@ export class TargetBootstrapService {
 
   async createE2EPrincipal(principal: TargetE2EPrincipal): Promise<void> {
     await this.db.transaction().execute(async (transaction) => {
-      const permission = await transaction
+      const permissions = await transaction
         .selectFrom('app_permissions')
         .select('id')
-        .where('path', '=', '/app/user/query')
-        .executeTakeFirst()
-      if (!permission)
-        throw new Error(
-          'target catalog must contain /app/user/query before E2E',
-        )
+        .execute()
+      if (permissions.length === 0)
+        throw new Error('target catalog must contain permissions before E2E')
       await transaction
         .insertInto('app_users')
         .values({
@@ -79,13 +84,40 @@ export class TargetBootstrapService {
         .execute()
       await transaction
         .insertInto('app_role_permissions')
-        .values({ role_id: principal.roleId, permission_id: permission.id })
+        .values(
+          permissions.map((permission) => ({
+            role_id: principal.roleId,
+            permission_id: permission.id,
+          })),
+        )
         .execute()
       await transaction
         .insertInto('app_user_roles')
         .values({ user_id: principal.userId, role_id: principal.roleId })
         .execute()
     })
+  }
+
+  async createE2EManagerReference(
+    reference: TargetE2EManagerReference,
+  ): Promise<void> {
+    await this.db
+      .insertInto('dcl_warehouse_manager_reference_facts')
+      .values({
+        employee_id: reference.employeeId,
+        latest_approved_entry_id: reference.latestApprovedEntryId,
+        code: reference.code,
+        name: reference.name,
+        enabled: reference.enabled,
+      })
+      .execute()
+  }
+
+  async deleteE2EManagerReference(employeeId: string): Promise<void> {
+    await this.db
+      .deleteFrom('dcl_warehouse_manager_reference_facts')
+      .where('employee_id', '=', employeeId)
+      .execute()
   }
 
   async deleteE2EPrincipal(
@@ -100,6 +132,38 @@ export class TargetBootstrapService {
       await transaction
         .deleteFrom('app_users')
         .where('id', '=', principal.userId)
+        .execute()
+    })
+  }
+
+  async deleteE2EWarehouseFixtures(createdByUserId: string): Promise<void> {
+    await this.db.transaction().execute(async (transaction) => {
+      const subjects = await transaction
+        .selectFrom('dcl_subjects')
+        .select('id')
+        .where('created_by', '=', createdByUserId)
+        .execute()
+      const subjectIds = subjects.map((subject) => subject.id)
+      if (subjectIds.length === 0) return
+      await transaction
+        .deleteFrom('dcl_warehouse_reference_facts')
+        .where('warehouse_id', 'in', subjectIds)
+        .execute()
+      await transaction
+        .deleteFrom('dcl_warehouse_usage_facts')
+        .where('warehouse_id', 'in', subjectIds)
+        .execute()
+      await transaction
+        .deleteFrom('dcl_warehouse_idempotency')
+        .where('subject_id', 'in', subjectIds)
+        .execute()
+      await transaction
+        .deleteFrom('approval_events')
+        .where('subject_id', 'in', subjectIds)
+        .execute()
+      await transaction
+        .deleteFrom('dcl_subjects')
+        .where('id', 'in', subjectIds)
         .execute()
     })
   }

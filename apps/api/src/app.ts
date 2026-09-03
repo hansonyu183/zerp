@@ -8,6 +8,7 @@ import type { TargetConfig } from './platform/config.ts'
 import { registerAppRoutes } from './app/routes.ts'
 import type { SessionService } from './app/session.ts'
 import { noopLogger, type AppLogger } from './platform/logging.ts'
+import type { WarehouseService } from './dcl/warehouse.ts'
 
 export interface DatabaseReadiness {
   ping(): Promise<void>
@@ -20,6 +21,7 @@ export interface CreateAppOptions {
   session?: SessionService
   config?: TargetConfig
   logger?: AppLogger
+  warehouse?: WarehouseService
   registerRoutes?: (
     router: OpenAPIHono<{ Variables: { requestId: string } }>,
   ) => void
@@ -123,7 +125,7 @@ export function createApp(options: CreateAppOptions = {}) {
     }
   })
   if (options.session && options.config)
-    registerAppRoutes(app, options.session, options.config)
+    registerAppRoutes(app, options.session, options.config, options.warehouse)
   options.registerRoutes?.(app)
   app.onError((error, context) => {
     if (error instanceof HTTPException) {

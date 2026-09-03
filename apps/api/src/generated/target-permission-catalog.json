@@ -8,5 +8,125 @@
     "title": "用户管理",
     "group": "系统管理",
     "order": 10
+  },
+  {
+    "id": "01J38C8D37781AE22E1F88B245",
+    "path": "/bob/warehouse/reference",
+    "domain": "bob",
+    "entity": "warehouse",
+    "action": "reference",
+    "title": "引用仓库",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J9F8A0A4F06EBCAB84681A2E",
+    "path": "/dcl/warehouse/approve",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "approve",
+    "title": "批准仓库申报",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J5E1B24F032DFA700EE7F8B5",
+    "path": "/dcl/warehouse/audit-history",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "audit-history",
+    "title": "查看仓库申报审核记录",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J60DE6453B8725346CFA16FF",
+    "path": "/dcl/warehouse/delete",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "delete",
+    "title": "撤回仓库提交件",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J969D804C4960001BBB05A3E",
+    "path": "/dcl/warehouse/get",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "get",
+    "title": "查看仓库申报",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2B7697CEF792AAD13AE4227",
+    "path": "/dcl/warehouse/query",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "query",
+    "title": "查询仓库申报",
+    "group": "申报控制",
+    "order": 20
+  },
+  {
+    "id": "01JD9F8F6C8C8CFDCEEA04DC4D",
+    "path": "/dcl/warehouse/reject",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "reject",
+    "title": "驳回仓库申报",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J49DCA1D8921FAF0E708CE65",
+    "path": "/dcl/warehouse/submit-change",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "submit-change",
+    "title": "提交仓库变更",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J7273602C171B718497223C6",
+    "path": "/dcl/warehouse/submit-new",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "submit-new",
+    "title": "提交新仓库申报",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J287EB0577A80AFC34118385",
+    "path": "/dcl/warehouse/unapprove",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "unapprove",
+    "title": "反批准仓库申报",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J769A878FF4678140C31103F",
+    "path": "/dcl/warehouse/unreject",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "unreject",
+    "title": "恢复仓库申报审核",
+    "group": null,
+    "order": null
+  },
+  {
+    "id": "01J2C2B4D0B1FD049B2968A0CD",
+    "path": "/dcl/warehouse/versions",
+    "domain": "dcl",
+    "entity": "warehouse",
+    "action": "versions",
+    "title": "查看仓库申报版本",
+    "group": null,
+    "order": null
   }
 ]

@@ -10,7 +10,7 @@ services:
     ports:
       - '127.0.0.1:${TARGET_POSTGRES_PORT:-55439}:5432'
     volumes:
-      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ./apps/api/db/target-schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
       test:
         [

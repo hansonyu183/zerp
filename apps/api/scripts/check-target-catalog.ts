@@ -23,7 +23,7 @@ try {
     entity: string
     action: string
     description: string
-    menu_order: number
+    menu_order: number | null
   }>(
     'SELECT id, path, domain, entity, action, description, menu_order FROM public.app_permissions ORDER BY path',
   )

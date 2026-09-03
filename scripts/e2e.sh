@@ -100,6 +100,8 @@ wait_for_url() {
 compose down --volumes --remove-orphans >/dev/null 2>&1 || true
 compose up -d --wait db
 
+go -C backend run ./cmd/rpt-validate-published
+
 go -C backend run ./cmd/bootstrap-admin \
   -username "${APP_BOOTSTRAP_USERNAME}" \
   -display-name "${APP_BOOTSTRAP_DISPLAY_NAME}"

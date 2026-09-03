@@ -770,7 +770,11 @@ func (s *RptDefinitionService) Query(ctx context.Context, input RptDefinitionQue
 
 	items := make([]RptDefinitionListItem, 0, len(rows))
 	for _, row := range rows {
-		item := RptDefinitionListItem{Code: row.Code, DefinitionID: row.DefinitionID, Enabled: row.Enabled}
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[RptDefinitionListItem]{}, codeErr
+		}
+		item := RptDefinitionListItem{Code: code, DefinitionID: row.DefinitionID, Enabled: row.Enabled}
 
 		if row.ApprovedEntryID != "" {
 			version, vErr := s.queries.DclRptGetVersionPayload(ctx, dbsqlc.DclRptGetVersionPayloadParams{ApprovalEntryID: row.ApprovedEntryID, DefinitionID: row.DefinitionID})

@@ -123,7 +123,11 @@ func (s *Service) CustomerCurrentQuery(ctx context.Context, in CustomerCurrentQu
 	}
 	items := make([]CustomerCurrentListItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, CustomerCurrentListItem{ObjectID: row.ObjectID, Code: row.Code, DisplayName: row.DisplayName, DefaultOperatingEntityCode: row.OperatingEntityCode, DefaultOperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time})
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[CustomerCurrentListItem]{}, codeErr
+		}
+		items = append(items, CustomerCurrentListItem{ObjectID: row.ObjectID, Code: code, DisplayName: row.DisplayName, DefaultOperatingEntityCode: row.OperatingEntityCode, DefaultOperatingEntityName: row.OperatingEntityName, Enabled: row.Enabled, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[CustomerCurrentListItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
@@ -192,7 +196,11 @@ func (s *Service) CustomerCurrentGet(ctx context.Context, objectID string) (Cust
 	if err != nil {
 		return CustomerCurrentView{}, s.internal("hydrate current customer", err)
 	}
-	return CustomerCurrentView{ObjectID: row.ObjectID, Code: row.Code, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, Data: data, Attachments: attachments, UpdatedAt: row.UpdatedAt.Time}, nil
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return CustomerCurrentView{}, err
+	}
+	return CustomerCurrentView{ObjectID: row.ObjectID, Code: code, SourceApprovalEntryID: row.SourceApprovalEntryID, SourceVersionNo: row.SourceVersionNo, Data: data, Attachments: attachments, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 
 func customerReferenceDetail(raw []byte) (DetailView, error) {
@@ -221,7 +229,11 @@ func (s *Service) resolveCustomerCurrentReference(ctx context.Context, q *dbsqlc
 	if err != nil {
 		return EffectiveReference{}, s.internal("decode current customer reference", err)
 	}
-	return EffectiveReference{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return EffectiveReference{}, err
+	}
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
 }
 
 func (s *Service) validateCustomerSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, approvalEntryID string) (EffectiveReference, error) {
@@ -236,7 +248,11 @@ func (s *Service) validateCustomerSnapshotReference(ctx context.Context, q *dbsq
 	if err != nil {
 		return EffectiveReference{}, s.internal("decode historical customer reference", err)
 	}
-	return EffectiveReference{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return EffectiveReference{}, err
+	}
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: EntityCustomer, Code: code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: detail}, nil
 }
 
 func nestedMap(value map[string]any, key string) map[string]any {

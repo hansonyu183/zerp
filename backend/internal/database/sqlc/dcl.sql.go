@@ -2020,14 +2020,14 @@ func (q *Queries) GetDCLWarehouseVersion(ctx context.Context, approvalEntryID st
 }
 
 const getDclRptDefinitionByCode = `-- name: GetDclRptDefinitionByCode :one
-SELECT id, dcl_require_subject_code(code) AS code
+SELECT id, code
 FROM dcl_subjects
 WHERE entity='rpt-definition' AND code=$1::text
 `
 
 type GetDclRptDefinitionByCodeRow struct {
-	ID   string `db:"id" json:"id"`
-	Code string `db:"code" json:"code"`
+	ID   string  `db:"id" json:"id"`
+	Code *string `db:"code" json:"code"`
 }
 
 func (q *Queries) GetDclRptDefinitionByCode(ctx context.Context, code string) (GetDclRptDefinitionByCodeRow, error) {
@@ -3273,7 +3273,7 @@ func (q *Queries) ListDCLEmployeeApprovalEvents(ctx context.Context, arg ListDCL
 }
 
 const listDCLEmployees = `-- name: ListDCLEmployees :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,
+SELECT subject.id AS object_id,subject.code,
        display.kind,display.legal_name,display.display_name,display.legal_identifier,
        display.current_operating_entity_id,display.current_operating_entity_approval_entry_id,display.current_operating_entity_code,display.current_operating_entity_name,display.enabled,
        COALESCE(approved.id,'')::text AS latest_approved_entry_id,
@@ -3327,7 +3327,7 @@ type ListDCLEmployeesParams struct {
 
 type ListDCLEmployeesRow struct {
 	ObjectID                              string             `db:"object_id" json:"object_id"`
-	Code                                  string             `db:"code" json:"code"`
+	Code                                  *string            `db:"code" json:"code"`
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
@@ -3890,7 +3890,7 @@ func (q *Queries) ListDCLSupplierVersionOperatingEntities(ctx context.Context, v
 }
 
 const listDCLSuppliers = `-- name: ListDCLSuppliers :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,display.kind,display.legal_name,display.display_name,display.legal_identifier,display.default_operating_entity_id,display.default_operating_entity_approval_entry_id,display.default_operating_entity_code,display.default_operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+SELECT subject.id AS object_id,subject.code,display.kind,display.legal_name,display.display_name,display.legal_identifier,display.default_operating_entity_id,display.default_operating_entity_approval_entry_id,display.default_operating_entity_code,display.default_operating_entity_name,display.enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,COALESCE(approved.id,'')::text AS latest_approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
 FROM dcl_subjects subject
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) candidate ON true
 LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries WHERE domain='dcl' AND entity='supplier' AND subject_id=subject.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
@@ -3912,7 +3912,7 @@ type ListDCLSuppliersParams struct {
 
 type ListDCLSuppliersRow struct {
 	ObjectID                              string             `db:"object_id" json:"object_id"`
-	Code                                  string             `db:"code" json:"code"`
+	Code                                  *string            `db:"code" json:"code"`
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
@@ -4026,7 +4026,7 @@ func (q *Queries) ListDCLTypedArchiveApprovalEvents(ctx context.Context, arg Lis
 }
 
 const listDCLTypedArchives = `-- name: ListDCLTypedArchives :many
-SELECT subject.id AS object_id,dcl_require_subject_code(subject.code) AS code,COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.legal_identifier,sales_snapshot.legal_identifier) AS legal_identifier,
+SELECT subject.id AS object_id,subject.code,COALESCE(other_snapshot.kind,sales_snapshot.kind) AS kind,COALESCE(other_snapshot.legal_name,sales_snapshot.legal_name) AS legal_name,COALESCE(other_snapshot.display_name,sales_snapshot.display_name) AS display_name,COALESCE(other_snapshot.legal_identifier,sales_snapshot.legal_identifier) AS legal_identifier,
  COALESCE(other_snapshot.default_operating_entity_id,sales_snapshot.default_operating_entity_id) AS default_operating_entity_id,COALESCE(other_snapshot.default_operating_entity_approval_entry_id,sales_snapshot.default_operating_entity_approval_entry_id) AS default_operating_entity_approval_entry_id,COALESCE(other_snapshot.default_operating_entity_code,sales_snapshot.default_operating_entity_code) AS default_operating_entity_code,COALESCE(other_snapshot.default_operating_entity_name,sales_snapshot.default_operating_entity_name) AS default_operating_entity_name,
  COALESCE(other_snapshot.enabled,sales_snapshot.enabled) AS enabled,COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
  COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
@@ -4054,7 +4054,7 @@ type ListDCLTypedArchivesParams struct {
 
 type ListDCLTypedArchivesRow struct {
 	ObjectID                              string             `db:"object_id" json:"object_id"`
-	Code                                  string             `db:"code" json:"code"`
+	Code                                  *string            `db:"code" json:"code"`
 	Kind                                  string             `db:"kind" json:"kind"`
 	LegalName                             string             `db:"legal_name" json:"legal_name"`
 	DisplayName                           string             `db:"display_name" json:"display_name"`
@@ -4408,7 +4408,7 @@ func (q *Queries) ListDclRptDefinitionApprovalEvents(ctx context.Context, arg Li
 }
 
 const listDclRptDefinitions = `-- name: ListDclRptDefinitions :many
-SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
+SELECT d.id AS definition_id, d.code, coalesce(open_v.enabled, approved_v.enabled, false) AS enabled,
        COALESCE(approved_entry.id,'')::text AS approved_entry_id,
        COALESCE(open_entry.id,'')::text AS open_entry_id,
        COALESCE(open_entry.updated_at,approved_entry.updated_at) AS updated_at
@@ -4445,7 +4445,7 @@ type ListDclRptDefinitionsParams struct {
 
 type ListDclRptDefinitionsRow struct {
 	DefinitionID    string             `db:"definition_id" json:"definition_id"`
-	Code            string             `db:"code" json:"code"`
+	Code            *string            `db:"code" json:"code"`
 	Enabled         bool               `db:"enabled" json:"enabled"`
 	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
 	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`

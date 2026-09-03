@@ -32,98 +32,6 @@ SET row_security = off;
 
 
 
---
--- Name: rpt_validate_current_reports(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.rpt_validate_current_reports() RETURNS void
-    LANGUAGE plpgsql
-    AS $_$
-DECLARE
-    report record;
-    parameter record;
-    column_contract record;
-    rewritten_sql text;
-    validation_view text := 'rpt_migration_validation_view';
-    actual_name text;
-    actual_oid oid;
-    expected_oid_kind text;
-    actual_count integer;
-BEGIN
-    FOR report IN
-        SELECT d.code,v.sql_text,v.parameters,v.columns
-        FROM dcl_subjects d
-        JOIN LATERAL (
-            SELECT payload.enabled,payload.sql_text,payload.parameters,payload.columns
-            FROM approval_entries entry
-            JOIN dcl_rpt_definition_versions payload ON payload.approval_entry_id=entry.id
-            JOIN rpt_definition_validities validity ON validity.approval_entry_id=entry.id AND validity.validity='VALID'
-            WHERE entry.domain='dcl' AND entry.entity='rpt-definition'
-              AND entry.subject_id=d.id AND entry.status='APPROVED'
-            ORDER BY entry.version_no DESC
-            LIMIT 1
-        ) v ON true
-        WHERE d.entity='rpt-definition' AND v.enabled
-        ORDER BY d.code
-    LOOP
-        rewritten_sql := report.sql_text;
-        FOR parameter IN
-            SELECT value, ordinality
-            FROM jsonb_array_elements(report.parameters) WITH ORDINALITY
-            ORDER BY ordinality DESC
-        LOOP
-            rewritten_sql := replace(
-                rewritten_sql,
-                '$'||parameter.ordinality,
-                CASE parameter.value->>'type'
-                    WHEN 'INTEGER' THEN 'NULL::bigint'
-                    WHEN 'DECIMAL' THEN 'NULL::numeric'
-                    WHEN 'BOOLEAN' THEN 'NULL::boolean'
-                    WHEN 'DATE' THEN 'NULL::date'
-                    WHEN 'DATE_RANGE' THEN 'NULL::daterange'
-                    ELSE 'NULL::text'
-                END
-            );
-        END LOOP;
-        EXECUTE 'EXPLAIN '||rewritten_sql;
-        EXECUTE format('DROP VIEW IF EXISTS pg_temp.%I',validation_view);
-        EXECUTE format('CREATE TEMP VIEW %I AS SELECT * FROM (%s) rpt_validation LIMIT 0',validation_view,rewritten_sql);
-
-        SELECT count(*) INTO actual_count
-        FROM pg_attribute
-        WHERE attrelid=('pg_temp.'||validation_view)::regclass AND attnum>0 AND NOT attisdropped;
-        IF actual_count <> jsonb_array_length(report.columns) THEN
-            RAISE EXCEPTION 'RPT report % result column count changed',report.code USING ERRCODE='P0001';
-        END IF;
-        FOR column_contract IN
-            SELECT value,ordinality FROM jsonb_array_elements(report.columns) WITH ORDINALITY ORDER BY ordinality
-        LOOP
-            SELECT attname,atttypid INTO actual_name,actual_oid
-            FROM pg_attribute
-            WHERE attrelid=('pg_temp.'||validation_view)::regclass AND attnum=column_contract.ordinality AND NOT attisdropped;
-            IF actual_name <> column_contract.value->>'alias' THEN
-                RAISE EXCEPTION 'RPT report % result column alias changed',report.code USING ERRCODE='P0001';
-            END IF;
-            expected_oid_kind := column_contract.value->>'type';
-            IF NOT (CASE expected_oid_kind
-                WHEN 'BOOLEAN' THEN actual_oid='boolean'::regtype
-                WHEN 'INTEGER' THEN actual_oid IN ('smallint'::regtype,'integer'::regtype,'bigint'::regtype)
-                WHEN 'DECIMAL' THEN actual_oid IN ('numeric'::regtype,'real'::regtype,'double precision'::regtype)
-                WHEN 'DATE' THEN actual_oid='date'::regtype
-                WHEN 'DATETIME' THEN actual_oid IN ('timestamp'::regtype,'timestamptz'::regtype)
-                WHEN 'TEXT' THEN actual_oid IN ('text'::regtype,'varchar'::regtype,'char'::regtype,'uuid'::regtype)
-                WHEN 'ID' THEN actual_oid IN ('text'::regtype,'varchar'::regtype,'char'::regtype,'uuid'::regtype)
-                ELSE false
-            END) THEN
-                RAISE EXCEPTION 'RPT report % result column type changed',report.code USING ERRCODE='P0001';
-            END IF;
-        END LOOP;
-        EXECUTE format('DROP VIEW pg_temp.%I',validation_view);
-    END LOOP;
-END;
-$_$;
-
-
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -1006,19 +914,6 @@ CREATE TABLE public.dcl_subjects (
     ),
     CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'product'::character varying, 'employee'::character varying, 'other-unit'::character varying, 'sales-partner'::character varying, 'supplier'::character varying, 'customer'::character varying, 'acc-mapping'::character varying, 'rpt-definition'::character varying, 'wfl-process-definition'::character varying])::text[])))
 );
-
-CREATE FUNCTION public.dcl_require_subject_code(subject_code character varying) RETURNS character varying
-    LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
-    AS $$
-BEGIN
-  IF subject_code IS NULL THEN
-    RAISE EXCEPTION USING
-      ERRCODE = 'check_violation',
-      MESSAGE = 'coded DCL subject has a null code';
-  END IF;
-  RETURN subject_code;
-END;
-$$;
 
 CREATE TABLE public.dcl_operating_entity_versions (
     approval_entry_id character varying(26) NOT NULL,
@@ -8787,4 +8682,3 @@ CREATE INDEX dcl_customer_attachments_entry_subunit_idx
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO zerp_report_reader;
 SET search_path = public, pg_catalog;
-SELECT rpt_validate_current_reports();

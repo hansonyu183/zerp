@@ -51,7 +51,11 @@ func (s *SupplierService) Query(ctx context.Context, in SupplierQueryInput, a ap
 	}
 	items := make([]SupplierQueryItem, 0, len(rows))
 	for _, r := range rows {
-		i := SupplierQueryItem{ObjectID: r.ObjectID, Entity: EntitySupplier, Code: r.Code, DisplayName: r.DisplayName, DefaultOperatingEntity: SupplierOperatingEntitySnapshot{SourceObjectID: r.DefaultOperatingEntityID, ApprovalEntryID: r.DefaultOperatingEntityApprovalEntryID, Code: r.DefaultOperatingEntityCode, Name: r.DefaultOperatingEntityName}, UpdatedAt: r.UpdatedAt.Time}
+		code, codeErr := requiredSubjectCode(r.Code)
+		if codeErr != nil {
+			return Page[SupplierQueryItem]{}, codeErr
+		}
+		i := SupplierQueryItem{ObjectID: r.ObjectID, Entity: EntitySupplier, Code: code, DisplayName: r.DisplayName, DefaultOperatingEntity: SupplierOperatingEntitySnapshot{SourceObjectID: r.DefaultOperatingEntityID, ApprovalEntryID: r.DefaultOperatingEntityApprovalEntryID, Code: r.DefaultOperatingEntityCode, Name: r.DefaultOperatingEntityName}, UpdatedAt: r.UpdatedAt.Time}
 		if r.LatestApprovedEntryID != "" {
 			v, x := s.version(ctx, s.queries, r.LatestApprovedEntryID, r.ObjectID)
 			if x != nil {

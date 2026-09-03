@@ -42,6 +42,7 @@ check:
 check-common:
 	pnpm format:check
 	pnpm docs:check
+	pnpm check:database-boundary
 	git diff --check
 
 check-ci-workflow:

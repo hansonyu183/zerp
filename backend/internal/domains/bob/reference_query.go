@@ -49,8 +49,12 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		}
 		result := make([]ReferenceCandidate, 0, len(rows))
 		for _, row := range rows {
+			code, codeErr := requiredSubjectCode(row.Code)
+			if codeErr != nil {
+				return nil, codeErr
+			}
 			result = append(result, ReferenceCandidate{
-				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: deref(row.Code), Name: row.Name,
+				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: code, Name: row.Name,
 			})
 		}
 		return result, nil
@@ -76,7 +80,11 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		}
 		result := make([]ReferenceCandidate, 0, len(productRows))
 		for _, row := range productRows {
-			candidate := ReferenceCandidate{ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: deref(row.Code), Name: row.Name, BehaviorProfile: row.BehaviorProfile, DefaultInputUnitID: row.DefaultInputUnitID, PricingUnitID: row.PricingUnitID}
+			code, codeErr := requiredSubjectCode(row.Code)
+			if codeErr != nil {
+				return nil, codeErr
+			}
+			candidate := ReferenceCandidate{ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: code, Name: row.Name, BehaviorProfile: row.BehaviorProfile, DefaultInputUnitID: row.DefaultInputUnitID, PricingUnitID: row.PricingUnitID}
 			candidate.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, candidate.ApprovalEntryID)
 			if err != nil {
 				return nil, s.internal("read product reference unit conversions", err)
@@ -94,9 +102,13 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 		}
 		result := make([]ReferenceCandidate, 0, len(typedRows))
 		for _, row := range typedRows {
+			code, codeErr := requiredSubjectCode(row.Code)
+			if codeErr != nil {
+				return nil, codeErr
+			}
 			result = append(result, ReferenceCandidate{
 				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID,
-				Code: row.Code, Name: row.Name,
+				Code: code, Name: row.Name,
 			})
 		}
 		return result, nil

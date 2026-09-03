@@ -148,12 +148,8 @@ func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbench
 
 const listWorkbenchBobItems = `-- name: ListWorkbenchBobItems :many
 SELECT entry.subject_id AS object_id, entry.entity,
-       CASE
-         WHEN entry.entity IN ('operating-entity','warehouse','vehicle','fund-account','product','employee','supplier','other-unit','sales-partner','customer','rpt-definition','wfl-process-definition')
-           THEN dcl_require_subject_code(subject.code)
-         WHEN entry.entity='acc-mapping' THEN mapping.vou_entity
-         ELSE ''
-       END AS code,
+       subject.code AS subject_code,
+       mapping.vou_entity AS mapping_code,
        COALESCE(named.name, subject.code, mapping.vou_entity, '') AS name,
        COALESCE(mapping.book_id, '') AS book_id, COALESCE(mapping.vou_entity, '') AS vou_entity,
        entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision,
@@ -220,7 +216,8 @@ type ListWorkbenchBobItemsParams struct {
 type ListWorkbenchBobItemsRow struct {
 	ObjectID         string             `db:"object_id" json:"object_id"`
 	Entity           string             `db:"entity" json:"entity"`
-	Code             string             `db:"code" json:"code"`
+	SubjectCode      *string            `db:"subject_code" json:"subject_code"`
+	MappingCode      *string            `db:"mapping_code" json:"mapping_code"`
 	Name             string             `db:"name" json:"name"`
 	BookID           string             `db:"book_id" json:"book_id"`
 	VouEntity        string             `db:"vou_entity" json:"vou_entity"`
@@ -251,7 +248,8 @@ func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBo
 		if err := rows.Scan(
 			&i.ObjectID,
 			&i.Entity,
-			&i.Code,
+			&i.SubjectCode,
+			&i.MappingCode,
 			&i.Name,
 			&i.BookID,
 			&i.VouEntity,

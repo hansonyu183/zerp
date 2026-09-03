@@ -1,6 +1,7 @@
 package rpt
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -50,6 +51,28 @@ func TestBindParametersUsesDefaultsAndRejectsUnknownKeys(t *testing.T) {
 	}
 	if _, err = bindParameters(parameters, map[string]any{"book": "book-1", "unknown": true}); err == nil {
 		t.Fatal("unknown parameter was accepted")
+	}
+}
+
+func TestPublishedProbeValuesUseTypedDeterministicValues(t *testing.T) {
+	enums := []string{"OPEN", "CLOSED"}
+	parameters := []Parameter{
+		{Key: "text", Type: ParameterTypeText}, {Key: "reference", Type: ParameterTypeReference},
+		{Key: "integer", Type: ParameterTypeInteger}, {Key: "decimal", Type: ParameterTypeDecimal},
+		{Key: "boolean", Type: ParameterTypeBoolean}, {Key: "date", Type: ParameterTypeDate},
+		{Key: "range", Type: ParameterTypeDateRange}, {Key: "enum", Type: ParameterTypeEnum, EnumValues: &enums},
+	}
+	values := publishedProbeValues(parameters)
+	if _, err := bindParameters(parameters, values); err != nil {
+		t.Fatalf("published probes are not typed bindable: %v", err)
+	}
+}
+
+func TestRequiredSubjectCodeRejectsMissingPersistenceFact(t *testing.T) {
+	_, err := requiredSubjectCode(nil)
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorInternal {
+		t.Fatalf("missing report definition code error = %#v", err)
 	}
 }
 

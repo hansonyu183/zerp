@@ -784,6 +784,7 @@ type Querier interface {
 	RptListBillReferences(ctx context.Context, arg RptListBillReferencesParams) ([]RptListBillReferencesRow, error)
 	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
 	RptListCustomerSubunitReferences(ctx context.Context, arg RptListCustomerSubunitReferencesParams) ([]RptListCustomerSubunitReferencesRow, error)
+	RptListPublishedDefinitions(ctx context.Context) ([]RptListPublishedDefinitionsRow, error)
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
 	RptUpsertDefinitionValidity(ctx context.Context, arg RptUpsertDefinitionValidityParams) error

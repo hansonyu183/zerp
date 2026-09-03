@@ -83,9 +83,6 @@ func TestDclSubjectCodeInvariantsIntegration(t *testing.T) {
 	if !strings.Contains(strings.ToLower(uniqueIndexDefinition), "upper((code)::text)") {
 		t.Fatalf("subject code unique index is not case-insensitive: %s", uniqueIndexDefinition)
 	}
-	if _, err := pool.Exec(t.Context(), `SELECT dcl_require_subject_code(NULL)`); err == nil {
-		t.Fatal("coded subject read guard accepted a NULL code")
-	}
 }
 
 func TestWflRuntimeStateRejectsNonWorkflowSubjectIntegration(t *testing.T) {

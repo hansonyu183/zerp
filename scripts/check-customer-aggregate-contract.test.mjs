@@ -207,7 +207,11 @@ test('Customer snapshots and seeded reports use the embedded subunit model', asy
     rptService,
     /case ReferenceTypeCustomerSubunit:[\s\S]*RptListCustomerSubunitReferences/,
   )
-  assert.match(rptService, /CustomerCode: value\(r\.CustomerCode\)/)
+  assert.match(
+    rptService,
+    /customerCode, codeErr := requiredSubjectCode\(r\.CustomerCode\)[\s\S]*CustomerCode: customerCode/,
+  )
+  assert.doesNotMatch(rptService, /CustomerCode: value\(r\.CustomerCode\)/)
   assert.match(rptOpenAPI, /RptCustomerSubunitReference:/)
   assert.match(
     rptOpenAPI,

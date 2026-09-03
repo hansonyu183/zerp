@@ -26,15 +26,24 @@ chmod +x "${tmp}/bin/docker"
 cat >"${tmp}/bin/go" <<'EOF'
 #!/bin/sh
 set -eu
-[ "${1:-}" = test ] || exit 2
-shift
-package=
-for argument in "$@"; do
-  case "${argument}" in ./*) package=${argument#./} ;; esac
-done
-[ -n "${package}" ] || exit 2
-printf '%s\n' "${package}" >>"${MOCK_INTEGRATION_RUNS}"
-[ "${package}" != "${MOCK_INTEGRATION_FAIL_PACKAGE:-}" ] || exit 7
+case "${1:-}" in
+  run)
+    [ "${2:-}" = ./cmd/rpt-validate-published ] || exit 2
+    [ -n "${DATABASE_URL:-}" ] || exit 2
+    printf '%s\n' "${DATABASE_URL}" >>"${MOCK_RELEASE_VALIDATIONS}"
+    ;;
+  test)
+    shift
+    package=
+    for argument in "$@"; do
+      case "${argument}" in ./*) package=${argument#./} ;; esac
+    done
+    [ -n "${package}" ] || exit 2
+    printf '%s\n' "${package}" >>"${MOCK_INTEGRATION_RUNS}"
+    [ "${package}" != "${MOCK_INTEGRATION_FAIL_PACKAGE:-}" ] || exit 7
+    ;;
+  *) exit 2 ;;
+esac
 EOF
 chmod +x "${tmp}/bin/go"
 
@@ -45,6 +54,7 @@ run_runner() {
       POSTGRES_USER=tester POSTGRES_PASSWORD=secret POSTGRES_PORT=5432 \
       TEST_POSTGRES_DB=runner_test TEST_POSTGRES_PORT=55434 \
       TEST_INTEGRATION_JOBS=2 MOCK_INTEGRATION_RUNS="${tmp}/runs" \
+      MOCK_RELEASE_VALIDATIONS="${tmp}/release-validations" \
       MOCK_DOCKER_STATE="${tmp}/docker-state" \
       MOCK_INTEGRATION_FAIL_PACKAGE="${MOCK_INTEGRATION_FAIL_PACKAGE:-}" \
       TEST_INTEGRATION_PACKAGES_FILE="${TEST_INTEGRATION_PACKAGES_FILE:-}" \
@@ -54,12 +64,14 @@ run_runner() {
 }
 
 : >"${tmp}/runs"
+: >"${tmp}/release-validations"
 export MOCK_INTEGRATION_FAIL_PACKAGE=internal/a
 if run_runner; then
   echo 'integration runner accepted a failed package' >&2
   exit 1
 fi
 test "$(LC_ALL=C sort -u "${tmp}/runs" | wc -l | tr -d ' ')" = 4
+test "$(wc -l <"${tmp}/release-validations" | tr -d ' ')" = 2
 jq -e '
   .version == 1 and .status == "failed" and (.packages | length == 4) and
   ([.packages[] | select(.package == "internal/a" and .status == "failed" and .exitCode == 7)] | length == 1) and
@@ -68,11 +80,13 @@ jq -e '
 
 printf 'internal/c\ninternal/d\n' >"${tmp}/selection"
 : >"${tmp}/runs"
+: >"${tmp}/release-validations"
 unset MOCK_INTEGRATION_FAIL_PACKAGE
 TEST_INTEGRATION_PACKAGES_FILE="${tmp}/selection" run_runner
 printf 'internal/c\ninternal/d\n' >"${tmp}/expected-runs"
 LC_ALL=C sort "${tmp}/runs" >"${tmp}/actual-runs"
 cmp -s "${tmp}/expected-runs" "${tmp}/actual-runs"
+test "$(wc -l <"${tmp}/release-validations" | tr -d ' ')" = 2
 jq -e '.status == "passed" and (.packages | length == 2)' "${tmp}/result.json" >/dev/null
 
 printf 'internal/unknown\n' >"${tmp}/selection"

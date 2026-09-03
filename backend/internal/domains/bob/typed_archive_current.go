@@ -202,7 +202,11 @@ func (s *Service) getOtherUnitCurrent(ctx context.Context, input GetInput) (Obje
 	if err != nil {
 		return ObjectView{}, s.internal("get Other Unit typed details", err)
 	}
-	return ObjectView{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: data, UpdatedAt: row.UpdatedAt.Time}, nil
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return ObjectView{}, err
+	}
+	return ObjectView{ObjectID: row.ObjectID, Entity: row.Entity, Code: code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: data, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 func (s *Service) getSalesPartnerCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
 	if !validID(input.ObjectID) {
@@ -219,7 +223,11 @@ func (s *Service) getSalesPartnerCurrent(ctx context.Context, input GetInput) (O
 	if err != nil {
 		return ObjectView{}, s.internal("get Sales Partner typed details", err)
 	}
-	return ObjectView{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: data, UpdatedAt: row.UpdatedAt.Time}, nil
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return ObjectView{}, err
+	}
+	return ObjectView{ObjectID: row.ObjectID, Entity: row.Entity, Code: code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: data, UpdatedAt: row.UpdatedAt.Time}, nil
 }
 
 func typedOtherListData(row dbsqlc.ListBobOtherUnitCurrentsTypedRow) DetailView {
@@ -260,7 +268,11 @@ func (s *Service) queryTypedArchiveCurrent(ctx context.Context, q *dbsqlc.Querie
 		}
 		items := make([]QueryItem, 0, len(rows))
 		for _, row := range rows {
-			items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntityOtherUnit, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: typedOtherListData(row), UpdatedAt: row.UpdatedAt.Time})
+			code, codeErr := requiredSubjectCode(row.Code)
+			if codeErr != nil {
+				return Page[QueryItem]{}, codeErr
+			}
+			items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntityOtherUnit, Code: code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: typedOtherListData(row), UpdatedAt: row.UpdatedAt.Time})
 		}
 		return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 	}
@@ -275,7 +287,11 @@ func (s *Service) queryTypedArchiveCurrent(ctx context.Context, q *dbsqlc.Querie
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntitySalesPartner, Code: row.Code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: typedSalesListData(row), UpdatedAt: row.UpdatedAt.Time})
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[QueryItem]{}, codeErr
+		}
+		items = append(items, QueryItem{ObjectID: row.ObjectID, Entity: EntitySalesPartner, Code: code, Enabled: row.Enabled, SourceApprovalEntryID: row.ApprovalEntryID, SourceVersionNo: versionNumber(row.VersionNo), Data: typedSalesListData(row), UpdatedAt: row.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -293,7 +309,11 @@ func (s *Service) validateOtherUnitSnapshotReference(ctx context.Context, q *dbs
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Other Unit identity", err)
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName}}, nil
+	code, codeErr := requiredSubjectCode(object.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: code, ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName}}, nil
 }
 func (s *Service) validateSalesPartnerSnapshotReference(ctx context.Context, q *dbsqlc.Queries, objectID, entryID string) (EffectiveReference, error) {
 	entry, err := s.requireHistoricalApprovalEntry(ctx, q, entryID, EntitySalesPartner, objectID, "Sales Partner approval snapshot is unavailable")
@@ -308,7 +328,11 @@ func (s *Service) validateSalesPartnerSnapshotReference(ctx context.Context, q *
 	if err != nil {
 		return EffectiveReference{}, s.internal("load Sales Partner identity", err)
 	}
-	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: deref(object.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, SalesCapabilities: row.Capabilities}}, nil
+	code, codeErr := requiredSubjectCode(object.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
+	return EffectiveReference{ObjectID: object.ID, Entity: object.Entity, Code: code, ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: row.DisplayName, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName, SalesCapabilities: row.Capabilities}}, nil
 }
 func (s *Service) resolveOtherUnitCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
 	row, err := q.GetBobOtherUnitCurrentTyped(ctx, objectID)
@@ -325,7 +349,11 @@ func (s *Service) resolveOtherUnitCurrentReference(ctx context.Context, q *dbsql
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve Other Unit current details", err)
 	}
-	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: data}, nil
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return EffectiveReference{}, err
+	}
+	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: code, ApprovalEntryID: row.ApprovalEntryID, VersionNo: versionNumber(row.VersionNo), Data: data}, nil
 }
 func (s *Service) resolveSalesPartnerCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
 	row, err := q.GetBobSalesPartnerCurrentTypedReference(ctx, dbsqlc.GetBobSalesPartnerCurrentTypedReferenceParams{ObjectID: objectID})
@@ -339,6 +367,10 @@ func (s *Service) resolveSalesPartnerCurrentReference(ctx context.Context, q *db
 	if err != nil {
 		return EffectiveReference{}, err
 	}
-	reference.Code, reference.Data.Name, reference.Data.DisplayName = row.Code, row.DisplayName, row.DisplayName
+	code, err := requiredSubjectCode(row.Code)
+	if err != nil {
+		return EffectiveReference{}, err
+	}
+	reference.Code, reference.Data.Name, reference.Data.DisplayName = code, row.DisplayName, row.DisplayName
 	return reference, nil
 }

@@ -85,8 +85,12 @@ func (s *Service) getFundAccountCurrent(ctx context.Context, in GetInput) (Objec
 	if e != nil {
 		return ObjectView{}, s.internal("get fund account current", e)
 	}
+	code, codeErr := requiredSubjectCode(r.Code)
+	if codeErr != nil {
+		return ObjectView{}, codeErr
+	}
 	entry := dbsqlc.ApprovalEntry{ID: r.SourceApprovalEntryID, Domain: r.Domain, Entity: EntityFundAccount, SubjectID: r.ObjectID, VersionNo: r.VersionNo, Status: r.Status, Revision: r.ApprovalRevision, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedBy: r.ApprovalUpdatedBy, UpdatedAt: r.ApprovalUpdatedAt, SubmittedBy: r.SubmittedBy, SubmittedAt: r.SubmittedAt, ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt}
-	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: fundAccountDetail(r), UpdatedAt: r.UpdatedAt.Time}, nil
+	return ObjectView{ObjectID: r.ObjectID, Entity: r.Entity, Code: code, Enabled: r.Enabled, SourceApprovalEntryID: entry.ID, SourceVersionNo: versionNumber(entry.VersionNo), Data: fundAccountDetail(r), UpdatedAt: r.UpdatedAt.Time}, nil
 }
 
 func (s *Service) queryFundAccounts(ctx context.Context, q *dbsqlc.Queries, in QueryInput) (Page[QueryItem], error) {
@@ -123,7 +127,11 @@ func (s *Service) queryFundAccounts(ctx context.Context, q *dbsqlc.Queries, in Q
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), Enabled: r.Enabled, SourceApprovalEntryID: r.SourceApprovalEntryID, SourceVersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Currency: r.Currency, AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), Remark: deref(r.Remark), OperatingEntityID: r.OperatingEntityID, OperatingEntityApprovalEntryID: r.OperatingEntityApprovalEntryID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, UpdatedAt: r.UpdatedAt.Time})
+		code, codeErr := requiredSubjectCode(r.Code)
+		if codeErr != nil {
+			return Page[QueryItem]{}, codeErr
+		}
+		items = append(items, QueryItem{ObjectID: r.ObjectID, Entity: r.Entity, Code: code, Enabled: r.Enabled, SourceApprovalEntryID: r.SourceApprovalEntryID, SourceVersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Currency: r.Currency, AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), Remark: deref(r.Remark), OperatingEntityID: r.OperatingEntityID, OperatingEntityApprovalEntryID: r.OperatingEntityApprovalEntryID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}, UpdatedAt: r.UpdatedAt.Time})
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: in.Page, PageSize: in.PageSize}, nil
 }
@@ -141,7 +149,11 @@ func (s *Service) validateFundAccountSnapshotReference(ctx context.Context, q *d
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL fund account snapshot", err)
 	}
-	return EffectiveReference{ObjectID: identity.ID, Entity: identity.Entity, Code: deref(identity.Code), ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: stored.Name, Currency: stored.Currency, AccountName: deref(stored.AccountName), BankName: deref(stored.BankName), BankBranch: deref(stored.BankBranch), AccountNumber: deref(stored.AccountNumber), Remark: deref(stored.Remark), OperatingEntityID: stored.OperatingEntityID, OperatingEntityApprovalEntryID: stored.OperatingEntityApprovalEntryID, OperatingEntityCode: stored.OperatingEntityCode, OperatingEntityName: stored.OperatingEntityName}}, nil
+	code, codeErr := requiredSubjectCode(identity.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
+	return EffectiveReference{ObjectID: identity.ID, Entity: identity.Entity, Code: code, ApprovalEntryID: entry.ID, VersionNo: versionNumber(entry.VersionNo), Data: DetailView{Name: stored.Name, Currency: stored.Currency, AccountName: deref(stored.AccountName), BankName: deref(stored.BankName), BankBranch: deref(stored.BankBranch), AccountNumber: deref(stored.AccountNumber), Remark: deref(stored.Remark), OperatingEntityID: stored.OperatingEntityID, OperatingEntityApprovalEntryID: stored.OperatingEntityApprovalEntryID, OperatingEntityCode: stored.OperatingEntityCode, OperatingEntityName: stored.OperatingEntityName}}, nil
 }
 
 func (s *Service) resolveFundAccountCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
@@ -152,5 +164,9 @@ func (s *Service) resolveFundAccountCurrentReference(ctx context.Context, q *dbs
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve fund account current", err)
 	}
-	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: deref(r.Code), ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Currency: r.Currency, AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), AccountNumber: deref(r.AccountNumber), Remark: deref(r.Remark), OperatingEntityID: r.OperatingEntityID, OperatingEntityApprovalEntryID: r.OperatingEntityApprovalEntryID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}}, nil
+	code, codeErr := requiredSubjectCode(r.Code)
+	if codeErr != nil {
+		return EffectiveReference{}, codeErr
+	}
+	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: code, ApprovalEntryID: r.ApprovalEntryID, VersionNo: versionNumber(r.VersionNo), Data: DetailView{Name: r.Name, Currency: r.Currency, AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), AccountNumber: deref(r.AccountNumber), Remark: deref(r.Remark), OperatingEntityID: r.OperatingEntityID, OperatingEntityApprovalEntryID: r.OperatingEntityApprovalEntryID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName}}, nil
 }

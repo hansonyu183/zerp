@@ -91,7 +91,7 @@ OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
 -- RPT owns runtime validity, permission registration, and audit only. DCL owns
 -- the stable subject and approved typed payload.
 -- name: RptLatestApprovedUseState :one
-SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, coalesce(v.name,'') AS name, coalesce(v.enabled,false) AS enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, rv.validity
+SELECT d.id AS definition_id, d.code, coalesce(v.name,'') AS name, coalesce(v.enabled,false) AS enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, rv.validity
 FROM dcl_subjects d
 LEFT JOIN LATERAL (SELECT id, status FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 LEFT JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
@@ -109,19 +109,32 @@ INSERT INTO app_permissions(id, path, domain, entity, action, description, statu
 UPDATE app_permissions SET status='DISABLED', revision=revision+1, updated_at=now(), updated_by=sqlc.arg(actor_id) WHERE domain='rpt' AND entity=sqlc.arg(code) AND action IN ('query','export') AND status='ENABLED';
 
 -- name: RptGetActiveDefinition :one
-SELECT d.id AS definition_id, dcl_require_subject_code(d.code) AS code, v.name, v.description, v.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, rv.validity, v.sql_text, v.parameters, v.columns
+SELECT d.id AS definition_id, d.code, v.name, v.description, v.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, rv.validity, v.sql_text, v.parameters, v.columns
 FROM dcl_subjects d
 JOIN LATERAL (SELECT id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
 JOIN rpt_definition_validities rv ON rv.approval_entry_id=e.id AND rv.validity='VALID'
 WHERE d.code=sqlc.arg(code)::text AND d.entity='rpt-definition' AND v.enabled;
 -- name: RptQueryDirectory :many
-SELECT dcl_require_subject_code(d.code) AS code, v.name, v.description, v.parameters, v.columns, count(*) OVER() AS total
+SELECT d.code, v.name, v.description, v.parameters, v.columns, count(*) OVER() AS total
 FROM dcl_subjects d
 JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
 JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
 JOIN rpt_definition_validities rv ON rv.approval_entry_id=e.id AND rv.validity='VALID'
 WHERE d.entity='rpt-definition' AND v.enabled AND d.code=ANY(sqlc.arg(allowed_codes)::text[]) ORDER BY d.code OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
+
+-- name: RptListPublishedDefinitions :many
+SELECT d.id AS definition_id, d.code, e.id AS approval_entry_id, v.sql_text, v.parameters, v.columns
+FROM dcl_subjects d
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='dcl' AND entity='rpt-definition' AND subject_id=d.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) e ON true
+JOIN dcl_rpt_definition_versions v ON v.approval_entry_id=e.id
+JOIN rpt_definition_validities rv ON rv.approval_entry_id=e.id AND rv.validity='VALID'
+WHERE d.entity='rpt-definition' AND v.enabled
+ORDER BY d.code, d.id;
 -- name: RptInvalidateVersion :exec
 UPDATE rpt_definition_validities validity
 SET validity='INVALID', invalidated_at=now(), invalid_reason='STRUCTURE_CHANGED', updated_at=now(), updated_by=sqlc.arg(actor_id)

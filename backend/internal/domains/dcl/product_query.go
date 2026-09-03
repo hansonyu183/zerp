@@ -53,7 +53,11 @@ func (s *ProductService) Query(ctx context.Context, input ProductQueryInput, act
 	}
 	items := make([]ProductQueryItem, 0, len(rows))
 	for _, r := range rows {
-		item := ProductQueryItem{ObjectID: r.ObjectID, Entity: EntityProduct, Code: stringValue(r.Code), Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
+		code, codeErr := requiredSubjectCode(r.Code)
+		if codeErr != nil {
+			return Page[ProductQueryItem]{}, codeErr
+		}
+		item := ProductQueryItem{ObjectID: r.ObjectID, Entity: EntityProduct, Code: code, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.ApprovedEntryID != "" {
 			v, e := s.loadVersionView(ctx, s.queries, r.ApprovedEntryID, r.ObjectID)
 			if e != nil {
@@ -120,7 +124,11 @@ func (s *ProductService) Get(ctx context.Context, input ProductGetInput, actor a
 	if err != nil {
 		return ProductView{}, translateError(err)
 	}
-	return ProductView{ObjectID: identity.ID, Entity: EntityProduct, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: productVersionData(stored), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
+	code, err := requiredSubjectCode(identity.Code)
+	if err != nil {
+		return ProductView{}, err
+	}
+	return ProductView{ObjectID: identity.ID, Entity: EntityProduct, Code: code, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: productVersionData(stored), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
 }
 
 func (s *ProductService) Versions(ctx context.Context, input ProductHistoryInput, actor approval.Actor) (Page[ProductVersionView], error) {

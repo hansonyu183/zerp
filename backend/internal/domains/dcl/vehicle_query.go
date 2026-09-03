@@ -52,7 +52,11 @@ func (s *VehicleService) Query(ctx context.Context, input VehicleQueryInput, act
 	}
 	items := make([]VehicleQueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := VehicleQueryItem{ObjectID: row.ObjectID, Entity: EntityVehicle, Code: stringValue(row.Code), Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
+		code, codeErr := requiredSubjectCode(row.Code)
+		if codeErr != nil {
+			return Page[VehicleQueryItem]{}, codeErr
+		}
+		item := VehicleQueryItem{ObjectID: row.ObjectID, Entity: EntityVehicle, Code: code, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
 		if row.ApprovedEntryID != "" {
 			view, viewErr := s.loadVehicleVersionView(ctx, s.queries, row.ApprovedEntryID, row.ObjectID)
 			if viewErr != nil {
@@ -119,7 +123,11 @@ func (s *VehicleService) Get(ctx context.Context, input VehicleGetInput, actor a
 	if err != nil {
 		return VehicleView{}, translateError(err)
 	}
-	return VehicleView{ObjectID: identity.ID, Entity: EntityVehicle, Code: stringValue(identity.Code), Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: vehicleDCLData(vehicleStoredData(stored)), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
+	code, err := requiredSubjectCode(identity.Code)
+	if err != nil {
+		return VehicleView{}, err
+	}
+	return VehicleView{ObjectID: identity.ID, Entity: EntityVehicle, Code: code, Enabled: stored.Enabled, Approval: approval.VersionMetaFromEntry(entry), Data: vehicleDCLData(vehicleStoredData(stored)), UpdatedAt: entry.UpdatedAt, AvailableApprovalActions: s.coordinator.LifecycleActions(entry, actor)}, nil
 }
 
 func (s *VehicleService) Versions(ctx context.Context, input VehicleHistoryInput, actor approval.Actor) (Page[VehicleVersionView], error) {

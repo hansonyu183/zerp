@@ -42,18 +42,19 @@ make dev-down
 
 ## 常用命令
 
-| 命令                  | 作用                                             |
-| --------------------- | ------------------------------------------------ |
-| `make bootstrap`      | 安装 pnpm 与 Go 依赖                             |
-| `make dev`            | 启动数据库、API 与前端热更新                     |
-| `make generate`       | 生成 OpenAPI bundle、Go/TS API 与 sqlc           |
-| `make generate-check` | 验证生成物已提交且无漂移                         |
-| `make check`          | 运行全仓文档、契约、生成物、前后端及运行配置门禁 |
-| `make test`           | 运行前后端测试                                   |
-| `make e2e`            | 启动隔离全栈并运行真实 API Playwright            |
-| `make build`          | 构建前端、后端及 API 容器镜像                    |
-| `make compose-up`     | 启动生产形态 Compose                             |
-| `make compose-down`   | 停止生产形态 Compose                             |
+| 命令                                     | 作用                                                    |
+| ---------------------------------------- | ------------------------------------------------------- |
+| `make bootstrap`                         | 安装 pnpm 与 Go 依赖                                    |
+| `make dev`                               | 启动数据库、API 与前端热更新                            |
+| `make generate`                          | 生成 OpenAPI bundle、Go/TS API 与 sqlc                  |
+| `make generate-check`                    | 验证生成物已提交且无漂移                                |
+| `make check`                             | 运行全仓文档、契约、生成物、前后端及运行配置门禁        |
+| `make test`                              | 运行前后端测试                                          |
+| `make e2e`                               | 启动隔离全栈并运行真实 API Playwright                   |
+| `make build`                             | 构建前端、后端及 API 容器镜像                           |
+| `make -C backend rpt-validate-published` | 校验全部启用的 latest `APPROVED + VALID` RPT definition |
+| `make compose-up`                        | 校验已发布 RPT definition 后启动生产形态 Compose        |
+| `make compose-down`                      | 停止生产形态 Compose                                    |
 
 `pnpm --filter @zerp/frontend typecheck` 是唯一生产前端类型门禁，只运行一次 `vue-tsc -b --force`。`pnpm --filter @zerp/frontend test:vue-template-typecheck` 是独立工具链回归测试：它要求同一 checker 拒绝故意错误的隔离 Vue template fixture，并由 `make check` 自动运行；该 canary 不属于生产 `typecheck` 命令。
 
@@ -79,6 +80,8 @@ make generate
 
 ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、联调和验收步骤统一见[前端 API 配置](docs/operations/frontend-api-configuration.md)。
 
+生产形态 Compose 在数据库健康后先运行一次 `zerp-rpt-validate-published`，只有全部启用 definition 的 latest `APPROVED + VALID` 版本均通过当前数据库基线校验后才启动 API。需要独立预检时，使用 `make -C backend rpt-validate-published`；任一无法通过校验的 definition 会返回非零状态并输出其 stable code、definition ID 与 Approval Entry ID。
+
 ## 文档
 
 版本化申报统一从 DCL 写入：DCL subject 保存 stable ID、code 与创建审计，中央 Approval 只提供版本头、状态与审计；BOB 只读 typed latest-approved snapshot，RPT 只拥有有效性、执行与运行审计，WFL 保留既有 current 开关，AUX 使用无审批的 Stable-ID Direct CRUD；权威边界见 [ADR-0047](docs/adr/0047-dcl-subject-is-the-stable-identity-authority.md)。
@@ -94,6 +97,7 @@ ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、�
 - [ACC：内部会计](docs/domains/acc.md)
 - [RPT：报表](docs/domains/rpt.md)
 - [架构决策记录](docs/adr/README.md)
+- [ADR-0050：数据库只负责持久化](docs/adr/0050-database-only-persists-facts.md)
 - [页面用例索引](docs/use-cases/README.md)
 - [前端 API 配置](docs/operations/frontend-api-configuration.md)
 

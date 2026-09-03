@@ -15,6 +15,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-bo
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-bob ./cmd/seed-bob
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-production-demo ./cmd/seed-production-demo
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-test ./cmd/seed-test
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-rpt-validate-published ./cmd/rpt-validate-published
 
 FROM alpine:3.23
 
@@ -30,6 +31,7 @@ COPY --from=build /out/zerp-bootstrap-admin /usr/local/bin/zerp-bootstrap-admin
 COPY --from=build /out/zerp-seed-bob /usr/local/bin/zerp-seed-bob
 COPY --from=build /out/zerp-seed-production-demo /usr/local/bin/zerp-seed-production-demo
 COPY --from=build /out/zerp-seed-test /usr/local/bin/zerp-seed-test
+COPY --from=build /out/zerp-rpt-validate-published /usr/local/bin/zerp-rpt-validate-published
 USER zerp
 EXPOSE 8080
 
